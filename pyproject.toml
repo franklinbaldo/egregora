@@ -1,0 +1,20 @@
+[project]
+name = "egregora"
+version = "0.1.0"
+description = "Pipeline para gerar newsletters diárias a partir de exports do WhatsApp."
+readme = "README.md"
+authors = [{ name = "Egregora" }]
+requires-python = ">=3.10"
+dependencies = [
+    "google-genai>=0.3.0",
+]
+
+[project.scripts]
+egregora = "egregora.__main__:run"
+
+[build-system]
+requires = ["hatchling>=1.21.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+devenv = true
