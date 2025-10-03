@@ -2,5 +2,6 @@
 
 __all__ = [
     "config",
+    "enrichment",
     "pipeline",
 ]

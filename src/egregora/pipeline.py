@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import zipfile
+import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
@@ -18,6 +19,7 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     types = None  # type: ignore[assignment]
 
 from .config import PipelineConfig
+from .enrichment import ContentEnricher, EnrichmentResult
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
@@ -40,6 +42,7 @@ class PipelineResult:
     processed_dates: List[date]
     previous_newsletter_path: Path
     previous_newsletter_found: bool
+    enrichment: EnrichmentResult | None
 
 
 def find_date_in_name(path: Path) -> date | None:
@@ -112,6 +115,7 @@ def build_llm_input(
     timezone: tzinfo,
     transcripts: Sequence[tuple[date, str]],
     previous_newsletter: str | None,
+    enrichment_section: str | None = None,
     transcript_count: int | None = None,
 ) -> str:
     """Compose the user prompt sent to Gemini.
@@ -140,6 +144,14 @@ def build_llm_input(
         )
     else:
         sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
+
+    if enrichment_section:
+        sections.extend(
+            [
+                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
+                enrichment_section,
+            ]
+        )
 
     header = _format_transcript_section_header(transcript_count or len(transcripts))
     sections.append(header)
@@ -286,16 +298,59 @@ def generate_newsletter(
         transcripts.append((archive_date, read_zip_texts(archive_path)))
 
     today = max(archive_date for archive_date, _ in transcripts)
-    previous_path, previous_content = load_previous_newsletter(config.newsletters_dir, today)
+    previous_path, previous_content = load_previous_newsletter(
+        config.newsletters_dir, today
+    )
+
+    llm_client = client or create_client()
+
+    enrichment_result: EnrichmentResult | None = None
+    enrichment_section: str | None = None
+    if config.enrichment.enabled:
+        enricher = ContentEnricher(config.enrichment)
+        try:
+            enrichment_result = asyncio.run(
+                enricher.enrich(transcripts, client=llm_client)
+            )
+        except RuntimeError as exc:
+            if "event loop" in str(exc).lower():
+                loop = asyncio.new_event_loop()
+                try:
+                    enrichment_result = loop.run_until_complete(
+                        enricher.enrich(transcripts, client=llm_client)
+                    )
+                finally:
+                    loop.close()
+            else:
+                print(f"[Aviso] Enriquecimento não executado: {exc}")
+        except Exception as exc:  # pragma: no cover - depende de rede/modelo
+            print(f"[Aviso] Enriquecimento falhou: {exc}")
+
+        if enrichment_result:
+            enrichment_section = enrichment_result.format_for_prompt(
+                config.enrichment.relevance_threshold
+            )
+            relevant_count = len(
+                enrichment_result.relevant_items(
+                    config.enrichment.relevance_threshold
+                )
+            )
+            total_count = len(enrichment_result.items)
+            print(
+                f"[Enriquecimento] {relevant_count}/{total_count} itens relevantes "
+                f"processados em {enrichment_result.duration_seconds:.1f}s."
+            )
+            for error in enrichment_result.errors:
+                print(f"[Enriquecimento:falha] {error}")
 
     insert_input = build_llm_input(
         group_name=config.group_name,
         timezone=config.timezone,
         transcripts=transcripts,
         previous_newsletter=previous_content,
+        enrichment_section=enrichment_section,
     )
 
-    llm_client = client or create_client()
     contents = [
         types.Content(
             role="user",
@@ -332,6 +387,7 @@ def generate_newsletter(
         processed_dates=[archive_date for archive_date, _ in transcripts],
         previous_newsletter_path=previous_path,
         previous_newsletter_found=previous_content is not None,
+        enrichment=enrichment_result,
     )
 
 

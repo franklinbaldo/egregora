@@ -51,6 +51,52 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Quantidade de dias mais recentes a incluir no prompt (padrão: 2).",
     )
+    parser.add_argument(
+        "--enable-enrichment",
+        action="store_true",
+        help="Ativa explicitamente o enriquecimento de conteúdos compartilhados.",
+    )
+    parser.add_argument(
+        "--disable-enrichment",
+        action="store_true",
+        help="Desativa o enriquecimento de conteúdos compartilhados.",
+    )
+    parser.add_argument(
+        "--relevance-threshold",
+        type=int,
+        default=None,
+        help="Relevância mínima (1-5) para incluir itens enriquecidos no prompt.",
+    )
+    parser.add_argument(
+        "--max-enrichment-items",
+        type=int,
+        default=None,
+        help="Número máximo de links analisados por execução (padrão: 50).",
+    )
+    parser.add_argument(
+        "--max-enrichment-time",
+        type=float,
+        default=None,
+        help="Tempo máximo (segundos) destinado ao enriquecimento (padrão: 120).",
+    )
+    parser.add_argument(
+        "--enrichment-model",
+        type=str,
+        default=None,
+        help="Modelo Gemini utilizado nas análises de links (padrão: gemini-2.0-flash-exp).",
+    )
+    parser.add_argument(
+        "--enrichment-context-window",
+        type=int,
+        default=None,
+        help="Quantidade de mensagens antes/depois usadas como contexto (padrão: 3).",
+    )
+    parser.add_argument(
+        "--analysis-concurrency",
+        type=int,
+        default=None,
+        help="Quantidade máxima de análises LLM simultâneas (padrão: 5).",
+    )
     return parser
 
 
@@ -67,11 +113,41 @@ def main(argv: Sequence[str] | None = None) -> int:
         timezone=timezone,
     )
 
+    enrichment = config.enrichment
+    if args.enable_enrichment:
+        enrichment.enabled = True
+    if args.disable_enrichment:
+        enrichment.enabled = False
+    if args.relevance_threshold is not None:
+        enrichment.relevance_threshold = max(1, min(5, args.relevance_threshold))
+    if args.max_enrichment_items is not None and args.max_enrichment_items > 0:
+        enrichment.max_links = args.max_enrichment_items
+    if args.max_enrichment_time is not None and args.max_enrichment_time > 0:
+        enrichment.max_total_enrichment_time = args.max_enrichment_time
+    if args.enrichment_model:
+        enrichment.enrichment_model = args.enrichment_model
+    if args.enrichment_context_window is not None and args.enrichment_context_window >= 0:
+        enrichment.context_window = args.enrichment_context_window
+    if args.analysis_concurrency is not None and args.analysis_concurrency > 0:
+        enrichment.max_concurrent_analyses = args.analysis_concurrency
+
     result = generate_newsletter(config, days=args.days)
 
     if not result.previous_newsletter_found:
         print(
             f"[Aviso] Newsletter de ontem ({result.previous_newsletter_path.name}) não encontrada; prossegui sem esse contexto."
+        )
+
+    if result.enrichment is None:
+        if enrichment.enabled:
+            print("[Aviso] Enriquecimento de conteúdos não retornou resultados.")
+    else:
+        relevant = len(
+            result.enrichment.relevant_items(enrichment.relevance_threshold)
+        )
+        print(
+            f"[Resumo] Enriquecimento considerou {len(result.enrichment.items)} itens; "
+            f"{relevant} atenderam à relevância mínima de {enrichment.relevance_threshold}."
         )
 
     processed = ", ".join(day.isoformat() for day in result.processed_dates)
