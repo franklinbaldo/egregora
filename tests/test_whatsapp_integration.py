@@ -17,13 +17,19 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
     
     # Test zip reading
-    result = read_zip_texts(zip_path)
-    
+    media_dir = tmp_path / "media"
+    result = read_zip_texts(
+        zip_path,
+        archive_date=date(2025, 10, 3),
+        media_dir=media_dir,
+    )
+
     # Verify content is extracted correctly
     assert "Franklin: Teste de grupo" in result
     assert "Franklin: 🐱" in result
     assert "Franklin: Legal esse vídeo" in result
-    assert "IMG-20251002-WA0004.jpg (arquivo anexado)" in result
+    assert "![IMG-20251002-WA0004.jpg](media/2025-10-03/IMG-20251002-WA0004.jpg)" in result
+    assert (media_dir / "2025-10-03" / "IMG-20251002-WA0004.jpg").exists()
     assert "https://youtu.be/Nkhp-mb6FRc" in result
 
 
@@ -32,6 +38,7 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
     config = PipelineConfig.with_defaults(
         zips_dir=tmp_path,
         newsletters_dir=tmp_path,
+        media_dir=tmp_path / "media",
     )
     
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message
@@ -66,12 +73,17 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
     
     # Read the zip
-    content = read_zip_texts(zip_path)
+    content = read_zip_texts(
+        zip_path,
+        archive_date=date(2025, 10, 3),
+        media_dir=tmp_path / "media",
+    )
     
     # Create config
     config = PipelineConfig.with_defaults(
         zips_dir=tmp_path,
         newsletters_dir=tmp_path,
+        media_dir=tmp_path / "media",
     )
     
     # Process with anonymization

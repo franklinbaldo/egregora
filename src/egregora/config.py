@@ -70,6 +70,7 @@ class PipelineConfig:
 
     zips_dir: Path
     newsletters_dir: Path
+    media_dir: Path
     group_name: str
     model: str
     timezone: tzinfo
@@ -93,12 +94,14 @@ class PipelineConfig:
         anonymization: AnonymizationConfig | None = None,
         rag: RAGConfig | None = None,
         privacy: PrivacyConfig | None = None,
+        media_dir: Path | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
 
         return cls(
             zips_dir=(zips_dir or Path("data/whatsapp_zips")).expanduser(),
             newsletters_dir=(newsletters_dir or Path("newsletters")).expanduser(),
+            media_dir=(media_dir or Path("media")).expanduser(),
             group_name=group_name or DEFAULT_GROUP_NAME,
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),

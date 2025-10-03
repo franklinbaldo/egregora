@@ -14,6 +14,7 @@ def test_prepare_transcripts_anonymizes_authors(tmp_path) -> None:
     config = PipelineConfig.with_defaults(
         zips_dir=tmp_path,
         newsletters_dir=tmp_path,
+        media_dir=tmp_path / "media",
     )
 
     transcripts = [
@@ -41,6 +42,7 @@ def test_prepare_transcripts_noop_when_disabled(tmp_path) -> None:
     config = PipelineConfig.with_defaults(
         zips_dir=tmp_path,
         newsletters_dir=tmp_path,
+        media_dir=tmp_path / "media",
     )
     config.anonymization.enabled = False
 

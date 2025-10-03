@@ -5,3 +5,6 @@ __pycache__/
 
 # uv build artifacts
 /dist/
+
+# Extracted WhatsApp media
+/media/
