@@ -3,10 +3,10 @@
 Use this file to give short, practical guidance for AI coding agents working on the Egregora repository.
 Keep advice concrete and tied to the codebase (commands, important files, patterns).
 
-- Big picture: Egregora converts WhatsApp export .zip files into Markdown newsletters and optionally enriches shared links using Google Gemini. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) calls `src/egregora/pipeline.py` which orchestrates anonymization, optional enrichment (`src/egregora/enrichment.py`), RAG lookups (`src/egregora/rag/*`) and writes `newsletters/YYYY-MM-DD.md`.
+- Big picture: Egregora converts WhatsApp export .zip files into Markdown newsletters, enriquece links com Gemini e mantém um RAG acessível via MCP. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) chama `src/egregora/pipeline.py`, que orquestra anonimização, enriquecimento opcional (`src/egregora/enrichment.py`), buscas RAG (`src/egregora/rag/*`) e escreve `newsletters/YYYY-MM-DD.md`.
 
 - Where to look first:
-  - `README.md` / `README_IMPROVED.md` — project overview and runtime examples.
+  - `README.md` / `PHILOSOPHY.md` — visão geral do projeto, exemplos de execução e contexto filosófico.
   - `pyproject.toml` — entry point (`egregora.__main__:run`) and dependency hint (requires `google-genai`).
   - `src/egregora/pipeline.py` — core orchestration and CLI-config translation (how flags map to `PipelineConfig`).
   - `src/egregora/enrichment.py` — enrichment flow, caching, and Gemini-specific usage (uses `types.Part.from_uri`).
@@ -49,3 +49,24 @@ Keep advice concrete and tied to the codebase (commands, important files, patter
   - Cache usage example: `CacheManager.set(url, payload)` and `CacheManager.get(url)` in `enrichment.py`.
 
 If anything below is unclear or you need access to private config (CI, external keys, or a preferred local test dataset), ask the maintainers before making changes.
+
+## Features implementadas (2025-10-03)
+
+- ✅ Enriquecimento multimodal usando Gemini (links, PDFs, YouTube, imagens).
+- ✅ Cache persistente de análises (`cache_manager.py`).
+- ✅ Sistema RAG completo (`src/egregora/rag/`) com ferramentas MCP.
+- ✅ Servidor MCP (`src/egregora/mcp_server/`) pronto para Claude Desktop.
+- ✅ Anonimização determinística e ferramentas de autodescoberta.
+- 🔄 Migração para embeddings do Gemini (opcional, em validação).
+
+## Roadmap atualizado
+
+### Em andamento
+- Migrar índice TF-IDF para `gemini-embedding-001` com cache dedicado.
+- Adicionar suíte de testes automatizados para o servidor MCP.
+- Benchmark de performance comparando TF-IDF x embeddings.
+
+### Não planejado
+- ❌ Dependências externas de parsing (`pdfplumber`, `yt-dlp`).
+- ❌ Batching agressivo de chamadas LLM (complexidade alta, ganho marginal).
+- ❌ Pipelines paralelos específicos para cada tipo de mídia (Gemini já cobre os casos principais).

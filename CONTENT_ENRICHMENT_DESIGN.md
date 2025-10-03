@@ -1,6 +1,6 @@
 # Content Enrichment Design Document
 
-> Última atualização: 2024-06-10 — versão V2 (Gemini com URLs nativas)
+> Última atualização: 2025-10-03 — versão V3 (Gemini multimodal + RAG)
 
 ## 1. Objetivo
 
@@ -105,14 +105,25 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 | Ausência de `GEMINI_API_KEY` | CLI alerta e recomenda desativar enriquecimento. |
 | Limite de taxa do Gemini | reduzir `max_concurrent_analyses` ou distribuir execuções. |
 
-## 8. Roadmap futuro
+## 8. Status de implementação (2025-10-03 — versão V3)
 
-1. **Caching** de resultados (hash por URL) para evitar downloads repetidos.
-2. **Extração completa de PDFs** usando `pdfplumber` (dependência opcional).
-3. **Transcrições de YouTube** com `yt-dlp` para resumos mais ricos.
-4. **Batching LLM**: agrupar múltiplos links numa só chamada quando suportado.
-5. **Visão computacional**: descrição de imagens via modelos multimodais.
-6. **Integração com banco de conhecimento**: armazenar resumos em base consultável.
+### ✅ Implementado
+
+1. **Caching de URLs** — armazenamento persistente em `cache_manager.py` evita downloads repetidos.
+2. **Suporte nativo a PDFs** — via `types.Part.from_uri` do Gemini, sem dependências extras.
+3. **Suporte nativo a YouTube** — processa vídeos diretamente com o Gemini.
+4. **Visão computacional** — análise multimodal habilitada pelos modelos Gemini.
+5. **Banco de conhecimento (RAG)** — integração completa em `src/egregora/rag/` e MCP server dedicado.
+6. **MCP Server** — servidor disponível em `src/egregora/mcp_server/` para Claude e outras ferramentas.
+
+### 🔄 Em desenvolvimento
+
+1. **Embeddings do Gemini para RAG** — migração do índice TF-IDF para o modelo `gemini-embedding-001` com cache de embeddings.
+
+### ❌ Não planejado
+
+1. **Batching LLM** — a complexidade não compensa o ganho marginal no cenário atual.
+2. **Bibliotecas externas de parsing** — `pdfplumber`, `yt-dlp` e afins substituídos pelo suporte nativo do Gemini.
 
 ## 9. Testes recomendados
 

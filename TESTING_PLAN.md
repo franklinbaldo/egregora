@@ -178,6 +178,22 @@ Current status: **ALL TESTS PASSING** ✨
 3. **Content Preservation**: Emojis, URLs, attachments maintained
 4. **End-to-End Processing**: Zip → Anonymized Content → Newsletter structure
 
+### MCP Server Tests (`test_mcp_server.py`)
+
+**Status**: ⚠️ Pending — MCP server disponível, cobertura automatizada em andamento.
+
+**Objetivo**: Verificar se o servidor MCP expõe o RAG de forma consistente para Claude e outras ferramentas compatíveis.
+
+**Escopo planejado:**
+
+- Inicialização e carregamento preguiçoso do índice (`NewsletterRAG.load_index`).
+- Registro das tools MCP (`search_newsletters`, `list_newsletters`, `get_newsletter`).
+- Processamento de queries com embeddings do Gemini (`--use-gemini-embeddings`) e fallback para TF-IDF.
+- Formatação de respostas segundo o protocolo MCP (JSON-RPC + content parts).
+- Tratamento de erros: timeouts, newsletters ausentes, índice sem cache.
+
+**Prioridade**: Alta — requisito para liberar o MCP em produção com suporte oficial.
+
 ### Performance Benchmarks
 
 - **URL Extraction**: < 1 second for 100 URLs

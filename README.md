@@ -7,8 +7,9 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
 - **Pipeline completo** para transformar arquivos `.zip` do WhatsApp em newsletters Markdown.
 - **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
 - **Enriquecimento de links**: identifica URLs e mídias e usa o suporte nativo do Gemini a `Part.from_uri` para analisá-los em paralelo com um modelo dedicado.
+- **Sistema RAG integrado**: indexa newsletters anteriores para busca rápida via CLI ou MCP.
 - **Configuração flexível**: diretórios, fuso horário, modelos e limites podem ser ajustados via CLI ou API.
-- **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md`, `INTEGRATION_GUIDE.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
+- **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
 
 ## 📦 Requisitos
 
@@ -126,9 +127,33 @@ Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final
 ## 📚 Documentação complementar
 
 - `ENRICHMENT_QUICKSTART.md` – visão geral + primeiros passos.
-- `INTEGRATION_GUIDE.md` – alterações necessárias para integrar ao pipeline.
-- `CONTENT_ENRICHMENT_DESIGN.md` – arquitetura completa, decisões e roadmap.
-- `README_IMPROVED.md` – versão expandida do README com contexto filosófico do projeto.
+- `CONTENT_ENRICHMENT_DESIGN.md` – arquitetura completa e decisões de design.
+- `PHILOSOPHY.md` – visão filosófica e motivações do projeto.
+- `MIGRATION_GUIDE.md` – passos recomendados para atualizar entre versões.
+
+## 🔍 Sistema RAG (Retrieval-Augmented Generation)
+
+O Egregora mantém um índice consultável de newsletters anteriores para recuperar
+contexto relevante durante a geração de novas edições e em integrações com MCP.
+
+**Características principais:**
+
+- Busca semântica e por palavras-chave sobre o histórico de newsletters.
+- Ferramentas MCP (`search_newsletters`, `list_newsletters`) para Claude e outros clientes.
+- Suporte opcional a embeddings do Gemini para resultados mais ricos.
+
+Consulte `docs/mcp-rag.md` e `docs/embeddings.md` para detalhes de uso e configuração.
+
+## 🧠 Embeddings Modernos (Opcional)
+
+Para elevar a qualidade das buscas do RAG, ative embeddings semânticos do Gemini.
+
+```bash
+uv run egregora --use-gemini-embeddings --embedding-dimension 768
+```
+
+Isso substitui o índice TF-IDF padrão por embeddings `gemini-embedding-001` com cache
+persistente. A flag é opcional: se a API não estiver disponível o sistema volta ao TF-IDF.
 
 ## 🤝 Contribuição
 
