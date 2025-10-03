@@ -116,6 +116,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Remove análises cujo último uso é mais antigo que N dias.",
     )
+    parser.add_argument(
+        "--cache-max-disk-mb",
+        type=int,
+        default=None,
+        help="Define um limite (em MB) para o uso de disco do cache.",
+    )
 
     parser.add_argument(
         "--disable-anonymization",
@@ -228,6 +234,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_config.enabled = False
     if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
         cache_config.auto_cleanup_days = args.cache_cleanup_days
+    if args.cache_max_disk_mb is not None and args.cache_max_disk_mb > 0:
+        cache_config.max_disk_mb = args.cache_max_disk_mb
 
     result = generate_newsletter(config, days=args.days)
 

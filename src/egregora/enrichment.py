@@ -152,6 +152,9 @@ class ContentEnricher:
     ) -> EnrichmentResult:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
 
+        if not self._config.enabled:
+            return EnrichmentResult()
+
         start = perf_counter()
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
