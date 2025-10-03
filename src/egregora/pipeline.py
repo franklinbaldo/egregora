@@ -28,7 +28,7 @@ from .anonymizer import Anonymizer, FormatType
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .mcp_server.tools import format_search_hits
-from .rag.core import NewsletterRAG
+from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
 from .enrichment import ContentEnricher, EnrichmentResult
 

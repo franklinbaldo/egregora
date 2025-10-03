@@ -123,7 +123,7 @@ from mcp.types import (
     ResourceTemplate,
 )
 
-from ..rag.core import NewsletterRAG
+from ..rag.index import NewsletterRAG
 from ..rag.query_gen import QueryGenerator
 from ..config import RAGConfig
 
@@ -258,17 +258,10 @@ class RAGServer:
     
     async def reindex(self, force: bool = False) -> Dict[str, int]:
         """Reindexar newsletters."""
-        result = await asyncio.to_thread(
+        return await asyncio.to_thread(
             self.rag.update_index,
-            force_reindex=force,
+            force_rebuild=force,
         )
-        
-        return {
-            "new": result.new_count,
-            "modified": result.modified_count,
-            "deleted": result.deleted_count,
-            "total_chunks": result.total_chunks,
-        }
 
 
 # Instância global
@@ -390,8 +383,8 @@ async def handle_list_tools() -> List[Tool]:
         Tool(
             name="reindex_newsletters",
             description=(
-                "Atualiza o índice do RAG processando newsletters novas ou "
-                "modificadas. Use force=true para reindexar tudo."
+                "Reconstrói o índice do RAG e informa quantas newsletters e "
+                "chunks foram processados. Use force=true para reindexar tudo."
             ),
             inputSchema={
                 "type": "object",
@@ -471,29 +464,26 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
         
         elif name == "get_rag_stats":
             stats = await rag_server.get_stats()
-            
+
             output = [
                 "# Estatísticas do RAG\n",
                 f"**Total de Newsletters:** {stats['total_newsletters']}",
                 f"**Total de Chunks:** {stats['total_chunks']}",
-                f"**Cache em Disco:** {stats['cache_size_mb']:.1f} MB",
-                f"\n**Última Atualização:** {stats['last_updated']}",
-                f"**Modelo:** {stats['embedding_model']}",
+                f"**Vector Store:** {stats['vector_store']}",
+                f"**Persistência:** {stats['persist_dir']}",
             ]
-            
+
             return [TextContent(type="text", text="\n".join(output))]
         
         elif name == "reindex_newsletters":
             result = await rag_server.reindex(**arguments)
-            
+
             output = [
                 "# Reindexação Concluída\n",
-                f"- Novas: {result['new']}",
-                f"- Modificadas: {result['modified']}",
-                f"- Deletadas: {result['deleted']}",
-                f"\n**Total de chunks:** {result['total_chunks']}",
+                f"- Newsletters processadas: {result['newsletters_count']}",
+                f"- Chunks indexados: {result['chunks_count']}",
             ]
-            
+
             return [TextContent(type="text", text="\n".join(output))]
         
         else:

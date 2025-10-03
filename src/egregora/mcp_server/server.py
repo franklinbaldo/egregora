@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..rag.core import NewsletterRAG, SearchHit
+from llama_index.core.schema import NodeWithScore
+
+from ..rag.index import NewsletterRAG
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
 from .tools import format_newsletter_listing, format_search_hits
@@ -102,7 +104,7 @@ class RAGServer:
         top_k: int | None = None,
         min_similarity: float | None = None,
         exclude_recent_days: int | None = None,
-    ) -> list[SearchHit]:
+    ) -> list[NodeWithScore]:
         await self.ensure_indexed()
         return await asyncio.to_thread(
             self.rag.search,
@@ -150,18 +152,13 @@ class RAGServer:
         return {
             "total_newsletters": stats.total_newsletters,
             "total_chunks": stats.total_chunks,
-            "last_updated": stats.last_updated.isoformat() if stats.last_updated else None,
-            "index_path": str(stats.index_path),
+            "persist_dir": str(stats.persist_dir),
+            "vector_store": stats.vector_store,
         }
 
     async def reindex(self, *, force: bool = False) -> dict[str, int]:
-        result = await asyncio.to_thread(self.rag.update_index, force_reindex=force)
-        return {
-            "new": result.new_count,
-            "modified": result.modified_count,
-            "deleted": result.deleted_count,
-            "total_chunks": result.total_chunks,
-        }
+        result = await asyncio.to_thread(self.rag.update_index, force_rebuild=force)
+        return result
 
 
 rag_server: RAGServer | None = None

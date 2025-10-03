@@ -1,13 +1,14 @@
-"""Lightweight RAG helpers used by the MCP server and pipeline."""
+"""Public interface for the LlamaIndex-based RAG utilities."""
 
-from .core import NewsletterRAG, NewsletterChunk, IndexStats, IndexUpdateResult, SearchHit
+from .config import RAGConfig
+from .embeddings import CachedGeminiEmbedding
+from .index import IndexStats, NewsletterRAG
 from .query_gen import QueryGenerator
 
 __all__ = [
+    "CachedGeminiEmbedding",
     "IndexStats",
-    "IndexUpdateResult",
-    "NewsletterChunk",
     "NewsletterRAG",
     "QueryGenerator",
-    "SearchHit",
+    "RAGConfig",
 ]
