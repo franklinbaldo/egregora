@@ -1,116 +1,129 @@
-"""Gemini embeddings integration for the RAG subsystem."""
+"""Embedding helpers built on top of LlamaIndex."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from types import SimpleNamespace
-from typing import Any, Iterable, Sequence
+import hashlib
+import os
+from pathlib import Path
+from typing import Iterable, List
 
-try:  # pragma: no cover - optional dependency during testing
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - handled gracefully
-    genai = None  # type: ignore[assignment]
-    types = None  # type: ignore[assignment]
+from llama_index.core.embeddings import BaseEmbedding
 
+try:  # pragma: no cover - optional dependency
+    from llama_index.embeddings.gemini import GeminiEmbedding
+except ModuleNotFoundError:  # pragma: no cover - handled in fallback
+    GeminiEmbedding = None  # type: ignore[misc]
 
-@dataclass(slots=True)
-class EmbeddingConfig:
-    """Configuration options for :class:`GeminiEmbedder`."""
-
-    model: str = "gemini-embedding-001"
-    output_dimensionality: int = 768
-    batch_size: int = 100
+from .embedding_cache import EmbeddingCache
 
 
-class GeminiEmbedder:
-    """Helper that proxies embedding requests to the Gemini API."""
+class _FallbackEmbedding(BaseEmbedding):
+    """Deterministic, offline-friendly embedding used when Gemini is unavailable."""
 
-    def __init__(self, config: EmbeddingConfig, client: Any) -> None:
-        self.config = config
-        self.client = client
+    def __init__(self, dimension: int = 256) -> None:
+        super().__init__()
+        object.__setattr__(self, "_dimension", max(32, dimension))
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
-        """Return embeddings for *texts* using the document task type."""
-
-        return [self._embed_text(text, task_type="RETRIEVAL_DOCUMENT") for text in texts]
-
-    def embed_query(self, query: str) -> list[float]:
-        """Return an embedding for the supplied *query*."""
-
-        return self._embed_text(query, task_type="RETRIEVAL_QUERY")
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-    def _embed_text(self, text: str, *, task_type: str) -> list[float]:
-        """Call the Gemini API for a single text block."""
-
+    def _vectorise(self, text: str) -> list[float]:
         if not text:
-            return []
+            return [0.0] * self._dimension
 
-        response = self._call_embed_content(text, task_type=task_type)
-        return self._extract_values(response)
+        vector = [0.0] * self._dimension
+        tokens = text.lower().split()
+        for token in tokens:
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            for index in range(0, len(digest), 2):
+                position = digest[index] % self._dimension
+                increment = digest[index + 1] / 255.0
+                vector[position] += increment
 
-    def _call_embed_content(self, text: str, *, task_type: str) -> Any:
-        """Invoke ``models.embed_content`` with the appropriate arguments."""
+        norm = sum(value * value for value in vector) ** 0.5
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
 
-        model = getattr(self.client, "models", self.client)
-        embed_method = getattr(model, "embed_content")
+    def _get_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - delegated to sync path
+        return self._vectorise(text)
 
-        if types is not None:
-            config = types.EmbedContentConfig(
-                task_type=task_type,
-                output_dimensionality=self.config.output_dimensionality,
-            )
-            return embed_method(
-                model=self.config.model,
-                contents=text,
-                config=config,
-            )
+    def _get_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - delegated to sync path
+        return self._vectorise(query)
 
-        # Fall back to a simple namespace so tests can run without the SDK.
-        config = SimpleNamespace(
-            task_type=task_type,
-            output_dimensionality=self.config.output_dimensionality,
+    async def _aget_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - delegated
+        return self._vectorise(text)
+
+    async def _aget_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - delegated
+        return self._vectorise(query)
+
+
+class CachedGeminiEmbedding(BaseEmbedding):
+    """Gemini embeddings with optional disk caching and offline fallback."""
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        dimension: int,
+        cache_dir: Path | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        super().__init__()
+        object.__setattr__(self, "_model_name", model_name)
+        object.__setattr__(self, "_dimension", dimension)
+        object.__setattr__(self, "_api_key", api_key or os.getenv("GOOGLE_API_KEY"))
+        cache = (
+            EmbeddingCache(cache_dir, model=model_name, dimension=dimension)
+            if cache_dir
+            else None
         )
-        return embed_method(
-            model=self.config.model,
-            contents=text,
-            config=config,
-        )
+        object.__setattr__(self, "_cache", cache)
 
-    @staticmethod
-    def _extract_values(response: Any) -> list[float]:
-        """Extract the embedding vector from the Gemini response."""
+        if self._api_key and GeminiEmbedding is not None:
+            embed_model: BaseEmbedding = GeminiEmbedding(
+                model_name=model_name,
+                api_key=self._api_key,
+            )
+        else:
+            embed_model = _FallbackEmbedding(dimension)
+        object.__setattr__(self, "_embed_model", embed_model)
 
-        if response is None:
-            return []
+    def _cache_key(self, text: str, *, kind: str) -> str:
+        return f"{kind}::{text}"
 
-        embedding_obj = getattr(response, "embedding", None)
-        if embedding_obj is not None:
-            values = getattr(embedding_obj, "values", None)
-            if isinstance(values, Iterable):
-                return [float(value) for value in values]
+    def _lookup_cache(self, text: str, *, kind: str) -> list[float] | None:
+        if not self._cache:
+            return None
+        return self._cache.get(self._cache_key(text, kind=kind))
 
-        embeddings = getattr(response, "embeddings", None)
-        if embeddings:
-            first = embeddings[0]
-            values = getattr(first, "values", first)
-            if isinstance(values, Iterable):
-                return [float(value) for value in values]
+    def _store_cache(self, text: str, values: Iterable[float], *, kind: str) -> None:
+        if not self._cache:
+            return
+        self._cache.set(self._cache_key(text, kind=kind), values)
 
-        # Some client implementations may return mappings or dicts.
-        if isinstance(response, dict):  # pragma: no cover - defensive
-            values = response.get("embedding") or response.get("values")
-            if isinstance(values, Iterable):
-                return [float(value) for value in values]
+    def _embed(self, text: str, *, kind: str) -> list[float]:
+        cached = self._lookup_cache(text, kind=kind)
+        if cached is not None:
+            return cached
 
-        return []
+        if kind == "query":
+            vector = self._embed_model.get_query_embedding(text)  # type: ignore[attr-defined]
+        else:
+            vector = self._embed_model.get_text_embedding(text)  # type: ignore[attr-defined]
+
+        self._store_cache(text, vector, kind=kind)
+        return vector
+
+    def _get_text_embedding(self, text: str) -> List[float]:
+        return self._embed(text, kind="text")
+
+    def _get_query_embedding(self, query: str) -> List[float]:
+        return self._embed(query, kind="query")
+
+    async def _aget_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - simple passthrough
+        return self._get_text_embedding(text)
+
+    async def _aget_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - simple passthrough
+        return self._get_query_embedding(query)
 
 
-__all__ = ["EmbeddingConfig", "GeminiEmbedder"]
+__all__ = ["CachedGeminiEmbedding"]
 

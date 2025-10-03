@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from ..rag.core import SearchHit
+from llama_index.core.schema import NodeWithScore
 
 
-def format_search_hits(hits: Iterable[SearchHit]) -> str:
+def _node_metadata(hit: NodeWithScore) -> dict:
+    metadata = getattr(hit.node, "metadata", {})
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def format_search_hits(hits: Iterable[NodeWithScore]) -> str:
     """Return a Markdown snippet summarising ``hits``."""
 
     hits = list(hits)
@@ -16,33 +21,38 @@ def format_search_hits(hits: Iterable[SearchHit]) -> str:
 
     lines: list[str] = ["# Trechos Relevantes de Newsletters Anteriores\n"]
     for index, hit in enumerate(hits, start=1):
-        chunk = hit.chunk
-        heading = f"## Trecho {index} — {chunk.newsletter_date.isoformat()}"
-        heading += f" (relevância: {hit.score:.0%})"
+        metadata = _node_metadata(hit)
+        date_label = metadata.get("date") or metadata.get("file_name") or "????-??-??"
+        heading = f"## Trecho {index} — {date_label}"
+        if hit.score is not None:
+            heading += f" (relevância: {hit.score:.0%})"
         lines.append(heading)
-        if chunk.section_title:
-            lines.append(f"*{chunk.section_title}*\n")
-        lines.append(chunk.text.strip())
+        section = metadata.get("section")
+        if section:
+            lines.append(f"*{section}*\n")
+        content = hit.node.get_content()
+        lines.append(content.strip())
         lines.append("\n---\n")
 
     return "\n".join(lines).rstrip()
 
 
-def serialize_hits(hits: Iterable[SearchHit]) -> List[dict]:
+def serialize_hits(hits: Iterable[NodeWithScore]) -> List[dict]:
     """Return ``hits`` converted to dictionaries for transport."""
 
     items: list[dict] = []
     for hit in hits:
-        chunk = hit.chunk
+        metadata = _node_metadata(hit)
+        node_id = getattr(hit.node, "node_id", None) or getattr(hit.node, "id_", None)
         items.append(
             {
                 "score": hit.score,
                 "chunk": {
-                    "id": chunk.chunk_id,
-                    "path": str(chunk.newsletter_path),
-                    "date": chunk.newsletter_date.isoformat(),
-                    "section": chunk.section_title,
-                    "text": chunk.text,
+                    "id": node_id,
+                    "path": metadata.get("file_path"),
+                    "date": metadata.get("date"),
+                    "section": metadata.get("section"),
+                    "text": hit.node.get_content(),
                 },
             }
         )

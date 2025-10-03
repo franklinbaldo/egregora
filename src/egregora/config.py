@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import copy
+import copy
 from dataclasses import dataclass
 from datetime import tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .anonymizer import FormatType
+from .rag.config import RAGConfig
 
 
 DEFAULT_GROUP_NAME = "RC LatAm"
@@ -36,31 +38,6 @@ class EnrichmentConfig:
     relevance_threshold: int = 2
     max_concurrent_analyses: int = 5
     max_total_enrichment_time: float = 120.0
-
-
-@dataclass(slots=True)
-class RAGConfig:
-    """Configuration for the newsletter RAG subsystem."""
-
-    enabled: bool = False
-    top_k: int = 5
-    min_similarity: float = 0.65
-    exclude_recent_days: int = 7
-    max_context_chars: int = 1200
-    max_keywords: int = 8
-    use_mcp: bool = True
-    mcp_command: str = "uv"
-    mcp_args: tuple[str, ...] = (
-        "run",
-        "python",
-        "-m",
-        "egregora.mcp_server.server",
-    )
-    use_gemini_embeddings: bool = False
-    embedding_model: str = "gemini-embedding-001"
-    embedding_dimension: int = 768
-    embedding_cache_enabled: bool = True
-    use_batch_api: bool = False
 
 
 @dataclass(slots=True)
