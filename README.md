@@ -65,6 +65,16 @@ Parâmetros úteis:
 - `--enrichment-context-window`
 - `--analysis-concurrency`
 
+## 🖼️ Extração de Mídia
+
+Além do enriquecimento de links, o Egregora agora extrai automaticamente mídias (imagens, vídeos, áudio) dos arquivos `.zip` do WhatsApp.
+
+1.  **Extração**: Arquivos de mídia são salvos no diretório `media/YYYY-MM-DD/`.
+2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` são substituídos por links Markdown para a mídia extraída (ex: `![IMG-20251003-WA0001.jpg](media/2025-10-03/IMG-20251003-WA0001.jpg)`).
+3.  **Preservação**: O nome do arquivo original é mantido para fácil referência.
+
+Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis diretamente na newsletter gerada, enriquecendo ainda mais o contexto.
+
 ## 🔐 Privacidade por padrão
 
 - **Anonimização determinística**: telefones e apelidos são convertidos em
