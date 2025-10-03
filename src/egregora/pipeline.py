@@ -10,12 +10,26 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import List, Sequence
 
-from google import genai
-from google.genai import types
+try:  # pragma: no cover - executed only when dependency is missing
+    from google import genai  # type: ignore
+    from google.genai import types  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
 
 from .config import PipelineConfig
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def _require_google_dependency() -> None:
+    """Ensure the optional google-genai dependency is available."""
+
+    if genai is None or types is None:
+        raise RuntimeError(
+            "A dependência opcional 'google-genai' não está instalada. "
+            "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
+        )
 
 
 @dataclass(slots=True)
@@ -81,14 +95,33 @@ def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path
     return path, None
 
 
+def _format_transcript_section_header(transcript_count: int) -> str:
+    """Return a localized header describing how many transcripts are included."""
+
+    if transcript_count <= 1:
+        return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
+    return (
+        f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS "
+        "(NA ORDEM CRONOLÓGICA POR DIA):"
+    )
+
+
 def build_llm_input(
     *,
     group_name: str,
     timezone: tzinfo,
     transcripts: Sequence[tuple[date, str]],
     previous_newsletter: str | None,
+    transcript_count: int | None = None,
 ) -> str:
-    """Compose the user prompt sent to Gemini."""
+    """Compose the user prompt sent to Gemini.
+
+    Parameters
+    ----------
+    transcript_count:
+        Optional override for how many days of transcripts are mentioned in the
+        header. Defaults to the number of transcript entries provided.
+    """
 
     today_str = datetime.now(timezone).date().isoformat()
     sections: list[str] = [
@@ -108,7 +141,8 @@ def build_llm_input(
     else:
         sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
 
-    sections.append("TRANSCRITO BRUTO DOS ÚLTIMOS 2 DIAS (NA ORDEM CRONOLÓGICA POR DIA):")
+    header = _format_transcript_section_header(transcript_count or len(transcripts))
+    sections.append(header)
     for transcript_date, transcript_text in transcripts:
         sections.extend(
             [
@@ -123,6 +157,8 @@ def build_llm_input(
 
 def build_system_instruction() -> list[types.Part]:
     """Return the validated system prompt."""
+
+    _require_google_dependency()
 
     system_text = r"""
 Tarefa: produzir uma newsletter diária a partir de um TRANSCRITO BRUTO de conversas de grupo.
@@ -220,6 +256,8 @@ def select_recent_archives(
 def create_client(api_key: str | None = None) -> genai.Client:
     """Instantiate the Gemini client."""
 
+    _require_google_dependency()
+
     key = api_key or os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
@@ -233,6 +271,8 @@ def generate_newsletter(
     client: genai.Client | None = None,
 ) -> PipelineResult:
     """Execute the pipeline and return the resulting metadata."""
+
+    _require_google_dependency()
 
     ensure_directories(config)
 
