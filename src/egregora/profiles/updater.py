@@ -73,11 +73,28 @@ class ProfileUpdater:
         except json.JSONDecodeError as exc:  # pragma: no cover - defensive
             raise ValueError(f"Resposta inválida do modelo ao decidir atualização: {exc}")
 
+        def _ensure_list(value: object) -> List[str]:
+            if value is None:
+                return []
+            if isinstance(value, list):
+                return value
+            if isinstance(value, (tuple, set)):
+                return [str(item) for item in value]
+            if isinstance(value, str):
+                return [value]
+            try:
+                return list(value)
+            except TypeError:
+                return [str(value)]
+
+        highlights = _ensure_list(decision.get("participation_highlights"))
+        insights = _ensure_list(decision.get("interaction_insights"))
+
         return (
             bool(decision.get("should_update", False)),
             str(decision.get("reasoning", "")),
-            list(decision.get("participation_highlights", [])),
-            list(decision.get("interaction_insights", [])),
+            highlights,
+            insights,
         )
 
     async def rewrite_profile(
@@ -130,24 +147,34 @@ class ProfileUpdater:
         except json.JSONDecodeError as exc:  # pragma: no cover - defensive
             raise ValueError(f"Resposta inválida do modelo ao reescrever o perfil: {exc}")
 
+        def _ensure_dict(value: object) -> dict:
+            if value is None:
+                return {}
+            if isinstance(value, dict):
+                return dict(value)
+            try:
+                return dict(value)
+            except (TypeError, ValueError):
+                return {}
+
         analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
 
         profile = ParticipantProfile(
             member_id=member_id,
             worldview_summary=str(payload.get("worldview_summary", "")),
-            core_interests=dict(payload.get("core_interests", {})),
+            core_interests=_ensure_dict(payload.get("core_interests")),
             thinking_style=str(payload.get("thinking_style", "")),
-            values_and_priorities=list(payload.get("values_and_priorities", [])),
-            expertise_areas=dict(payload.get("expertise_areas", {})),
+            values_and_priorities=_ensure_list(payload.get("values_and_priorities")),
+            expertise_areas=_ensure_dict(payload.get("expertise_areas")),
             contribution_style=str(payload.get("contribution_style", "")),
-            argument_patterns=list(payload.get("argument_patterns", [])),
+            argument_patterns=_ensure_list(payload.get("argument_patterns")),
             questioning_approach=str(payload.get("questioning_approach", "")),
-            intellectual_influences=list(payload.get("intellectual_influences", [])),
-            aligns_with=list(payload.get("aligns_with", [])),
-            debates_with=list(payload.get("debates_with", [])),
-            recent_shifts=list(payload.get("recent_shifts", [])),
-            growing_interests=list(payload.get("growing_interests", [])),
-            interaction_patterns=dict(payload.get("interaction_patterns", {})),
+            intellectual_influences=_ensure_list(payload.get("intellectual_influences")),
+            aligns_with=_ensure_list(payload.get("aligns_with")),
+            debates_with=_ensure_list(payload.get("debates_with")),
+            recent_shifts=_ensure_list(payload.get("recent_shifts")),
+            growing_interests=_ensure_list(payload.get("growing_interests")),
+            interaction_patterns=_ensure_dict(payload.get("interaction_patterns")),
             analysis_version=analysis_version,
         )
         profile.update_timestamp()
