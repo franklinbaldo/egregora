@@ -6,5 +6,7 @@ __all__ = [
     "config",
     "discover",
     "enrichment",
+    "mcp_server",
     "pipeline",
+    "rag",
 ]

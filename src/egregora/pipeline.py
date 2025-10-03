@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
-from typing import List, Sequence
+from typing import Awaitable, List, Sequence, TypeVar
 
 try:  # pragma: no cover - executed only when dependency is missing
     from google import genai  # type: ignore
@@ -18,9 +18,18 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - optional dependency
+    from mcp.client import Client, StdioServerParameters
+except ModuleNotFoundError:  # pragma: no cover - allows running without MCP
+    Client = None  # type: ignore[assignment]
+    StdioServerParameters = None  # type: ignore[assignment]
+
 from .anonymizer import Anonymizer, FormatType
 from .cache_manager import CacheManager
 from .config import PipelineConfig
+from .mcp_server.tools import format_search_hits
+from .rag.core import NewsletterRAG
+from .rag.query_gen import QueryGenerator
 from .enrichment import ContentEnricher, EnrichmentResult
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -130,6 +139,151 @@ def _prepare_transcripts(
         )
 
     return sanitized
+
+
+def _prepare_transcripts_sample(
+    transcripts: Sequence[tuple[date, str]],
+    *,
+    max_chars: int,
+) -> str:
+    """Concatenate recent transcripts limited to ``max_chars`` characters."""
+
+    if max_chars <= 0:
+        return ""
+
+    ordered = sorted(transcripts, key=lambda item: item[0], reverse=True)
+    collected: list[str] = []
+    remaining = max_chars
+
+    for _, text in ordered:
+        snippet = text.strip()
+        if not snippet:
+            continue
+
+        if len(snippet) > remaining:
+            snippet = snippet[:remaining]
+        collected.append(snippet)
+        remaining -= len(snippet)
+        if remaining <= 0:
+            break
+
+    return "\n\n".join(collected).strip()
+
+
+def _rag_cache_directory(config: PipelineConfig) -> Path:
+    base = config.cache.cache_dir if config.cache.enabled else Path("cache")
+    return (base / "rag").expanduser()
+
+
+def _collect_rag_context_local(
+    config: PipelineConfig, transcripts_sample: str
+) -> str | None:
+    rag = NewsletterRAG(
+        newsletters_dir=config.newsletters_dir,
+        cache_dir=_rag_cache_directory(config),
+        config=config.rag,
+    )
+    rag.load_index()
+
+    query_generator = QueryGenerator(config.rag)
+    query_data = query_generator.generate(transcripts_sample)
+    hits = rag.search(
+        query=query_data.search_query,
+        top_k=config.rag.top_k,
+        min_similarity=config.rag.min_similarity,
+        exclude_recent_days=config.rag.exclude_recent_days,
+    )
+
+    if not hits:
+        return None
+
+    return format_search_hits(hits)
+
+
+def _extract_query_from_markdown(markdown: str) -> str:
+    capture = False
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if capture:
+            if stripped:
+                return stripped
+            continue
+        if stripped.lower().startswith("**query de busca"):
+            capture = True
+    return ""
+
+
+T_co = TypeVar("T_co")
+
+
+def _run_async(coro: Awaitable[T_co]) -> T_co:
+    try:
+        return asyncio.run(coro)
+    except RuntimeError as exc:
+        if "event loop" in str(exc).lower():
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+        raise
+
+
+async def _collect_rag_context_via_mcp(
+    config: PipelineConfig, transcripts_sample: str
+) -> str | None:
+    if Client is None or StdioServerParameters is None:
+        raise RuntimeError("A dependência opcional 'mcp' não está instalada.")
+
+    server_params = StdioServerParameters(
+        command=config.rag.mcp_command,
+        args=list(config.rag.mcp_args),
+    )
+
+    async with Client() as client:
+        await client.connect(server_params)
+
+        query_parts = await client.call_tool(
+            "generate_search_query",
+            arguments={"transcripts": transcripts_sample},
+        )
+        query_markdown = "".join(
+            part.text for part in query_parts if hasattr(part, "text") and part.text
+        )
+        search_query = _extract_query_from_markdown(query_markdown)
+        if not search_query:
+            search_query = transcripts_sample[:200]
+
+        search_parts = await client.call_tool(
+            "search_newsletters",
+            arguments={
+                "query": search_query,
+                "top_k": config.rag.top_k,
+                "min_similarity": config.rag.min_similarity,
+                "exclude_recent_days": config.rag.exclude_recent_days,
+            },
+        )
+
+        return "".join(
+            part.text for part in search_parts if hasattr(part, "text") and part.text
+        ).strip()
+
+
+def _collect_rag_context(config: PipelineConfig, transcripts_sample: str) -> str | None:
+    if not transcripts_sample.strip():
+        return None
+
+    if config.rag.use_mcp:
+        try:
+            context = _run_async(_collect_rag_context_via_mcp(config, transcripts_sample))
+            if context:
+                return context
+        except Exception as exc:
+            print(
+                f"[Aviso] RAG via MCP indisponível: {exc}. Tentando fallback local."
+            )
+
+    return _collect_rag_context_local(config, transcripts_sample)
 
 
 def _run_privacy_review(
@@ -266,6 +420,7 @@ def build_llm_input(
     transcripts: Sequence[tuple[date, str]],
     previous_newsletter: str | None,
     enrichment_section: str | None = None,
+    rag_context: str | None = None,
     transcript_count: int | None = None,
 ) -> str:
     """Compose the user prompt sent to Gemini.
@@ -300,6 +455,14 @@ def build_llm_input(
             [
                 "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
                 enrichment_section,
+            ]
+        )
+
+    if rag_context:
+        sections.extend(
+            [
+                "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
+                rag_context,
             ]
         )
 
@@ -462,6 +625,20 @@ def generate_newsletter(
 
     llm_client = client or create_client()
 
+    rag_context: str | None = None
+    if config.rag.enabled:
+        transcripts_sample = _prepare_transcripts_sample(
+            sanitized_transcripts,
+            max_chars=config.rag.max_context_chars * 3,
+        )
+        if transcripts_sample:
+            try:
+                rag_context = _collect_rag_context(config, transcripts_sample)
+                if rag_context:
+                    print("[RAG] Contexto histórico recuperado.")
+            except Exception as exc:
+                print(f"[Aviso] RAG indisponível: {exc}")
+
     cache_manager: CacheManager | None = None
     if config.cache.enabled:
         cache_manager = CacheManager(config.cache.cache_dir)
@@ -522,6 +699,7 @@ def generate_newsletter(
         transcripts=sanitized_transcripts,
         previous_newsletter=previous_content,
         enrichment_section=enrichment_section,
+        rag_context=rag_context,
     )
 
     contents = [

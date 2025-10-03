@@ -60,6 +60,39 @@ class EnrichmentConfig:
 
 
 @dataclass(slots=True)
+class RAGConfig:
+    """Configuration for the newsletter RAG subsystem."""
+
+    enabled: bool = False
+    top_k: int = 5
+    min_similarity: float = 0.65
+    exclude_recent_days: int = 7
+    max_context_chars: int = 1200
+    max_keywords: int = 8
+    use_mcp: bool = True
+    mcp_command: str = "uv"
+    mcp_args: tuple[str, ...] = (
+        "run",
+        "python",
+        "-m",
+        "egregora.mcp_server.server",
+    )
+
+    def clone(self) -> "RAGConfig":
+        return RAGConfig(
+            enabled=self.enabled,
+            top_k=self.top_k,
+            min_similarity=self.min_similarity,
+            exclude_recent_days=self.exclude_recent_days,
+            max_context_chars=self.max_context_chars,
+            max_keywords=self.max_keywords,
+            use_mcp=self.use_mcp,
+            mcp_command=self.mcp_command,
+            mcp_args=self.mcp_args,
+        )
+
+
+@dataclass(slots=True)
 class AnonymizationConfig:
     """Configuration for author anonymization.
 
@@ -107,6 +140,7 @@ class PipelineConfig:
     enrichment: EnrichmentConfig
     cache: CacheConfig
     anonymization: AnonymizationConfig
+    rag: RAGConfig
     privacy: PrivacyConfig
 
     @classmethod
@@ -121,6 +155,7 @@ class PipelineConfig:
         enrichment: EnrichmentConfig | None = None,
         cache: CacheConfig | None = None,
         anonymization: AnonymizationConfig | None = None,
+        rag: RAGConfig | None = None,
         privacy: PrivacyConfig | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
@@ -136,6 +171,7 @@ class PipelineConfig:
             anonymization=(
                 anonymization.clone() if anonymization else AnonymizationConfig()
             ),
+            rag=(rag.clone() if rag else RAGConfig()),
             privacy=(privacy.clone() if privacy else PrivacyConfig()),
         )
 
@@ -148,5 +184,6 @@ __all__ = [
     "CacheConfig",
     "EnrichmentConfig",
     "PrivacyConfig",
+    "RAGConfig",
     "PipelineConfig",
 ]
