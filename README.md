@@ -1,16 +1,30 @@
 # Egregora
 
-Automação para gerar newsletters diárias a partir de exports do WhatsApp usando Google Gemini.
+Automação para gerar newsletters diárias a partir de exports do WhatsApp usando o Google Gemini. Agora inclui um sistema opcional de **enriquecimento de conteúdos compartilhados**, capaz de resumir e contextualizar links citados nas conversas antes de gerar a newsletter.
 
-## Requisitos
+## 🌟 Principais recursos
+
+- **Pipeline completo** para transformar arquivos `.zip` do WhatsApp em newsletters Markdown.
+- **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
+- **Enriquecimento de links**: identifica URLs e mídias, busca conteúdo externo em paralelo (via `httpx`) e resume com apoio de LLM dedicado.
+- **Configuração flexível**: diretórios, fuso horário, modelos e limites podem ser ajustados via CLI ou API.
+- **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md`, `INTEGRATION_GUIDE.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
+
+## 📦 Requisitos
 
 - [Python](https://www.python.org/) 3.10 ou superior
-- [uv](https://docs.astral.sh/uv/) (gerenciador de dependências da Astral)
-- Variável de ambiente `GEMINI_API_KEY` com uma chave válida da API do Gemini
+- [uv](https://docs.astral.sh/uv/) para gerenciar dependências
+- Variável `GEMINI_API_KEY` configurada com uma chave válida da API do Gemini
 
-## Instalação
+Dependências principais:
 
-1. Instale o uv caso ainda não tenha:
+- `google-genai`
+- `httpx`
+- `beautifulsoup4` + `lxml`
+
+## 🚀 Instalação
+
+1. Instale o `uv` (caso ainda não tenha):
 
    ```bash
    pip install uv
@@ -22,18 +36,49 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
    uv sync
    ```
 
-## Estrutura de pastas
+3. Verifique se a variável `GEMINI_API_KEY` está presente no ambiente:
 
-Por padrão, o pipeline espera:
+   ```bash
+   export GEMINI_API_KEY="sua-chave"
+   ```
 
-- `data/whatsapp_zips/`: arquivos `.zip` diários exportados do WhatsApp, cada um contendo um ou mais `.txt` e com a data no nome (`YYYY-MM-DD`).
-- `newsletters/`: pasta onde as newsletters geradas serão salvas como `YYYY-MM-DD.md`.
+## 🧠 Enriquecimento de conteúdos
 
-As pastas são criadas automaticamente na primeira execução caso ainda não existam.
+O novo módulo de enriquecimento executa três etapas:
 
-## Uso
+1. **Extração** – percorre os transcritos procurando URLs e marcadores de mídia (`<Mídia oculta>`), capturando até 3 mensagens de contexto antes/depois.
+2. **Busca paralela** – usa `httpx` para buscar páginas, metadados de YouTube e cabeçalhos de PDFs com até 5 downloads simultâneos.
+3. **Análise com LLM** – envia os conteúdos para um modelo Gemini (configurável) que devolve resumo, pontos-chave, tom e relevância (1–5).
 
-Execute o pipeline via uv:
+Apenas itens com relevância acima do limiar configurado entram no prompt final enviado ao modelo responsável pela newsletter.
+
+### Configuração rápida
+
+```bash
+uv run egregora --days 1 --relevance-threshold 3 --max-enrichment-items 20
+```
+
+Parâmetros úteis:
+
+- `--enable-enrichment` / `--disable-enrichment`
+- `--relevance-threshold` (1–5)
+- `--max-enrichment-items`
+- `--max-enrichment-time`
+- `--enrichment-model`
+- `--enrichment-context-window`
+- `--fetch-concurrency`
+- `--analysis-concurrency`
+
+Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores práticas.
+
+## 🧭 Estrutura padrão
+
+- `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp com a data no nome (`YYYY-MM-DD`).
+- `newsletters/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
+
+As pastas são criadas automaticamente na primeira execução.
+
+## 🛠️ Uso via CLI
 
 ```bash
 uv run egregora \
@@ -44,16 +89,27 @@ uv run egregora \
   --days 2
 ```
 
-Todos os parâmetros são opcionais; se omitidos, os valores padrão acima são usados. O fuso horário padrão é `America/Porto_Velho`. Use `--timezone` para fornecer outro identificador IANA.
+Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final quantos links foram processados e quantos atingiram o limiar de relevância.
 
-Durante a execução, os dois arquivos `.zip` mais recentes são lidos (ou a quantidade especificada em `--days`). Caso exista uma newsletter do dia anterior, ela é carregada como contexto adicional para a LLM. O conteúdo gerado é salvo em `newsletters/{DATA}.md`, onde `{DATA}` é a data mais recente encontrada entre os arquivos processados.
+## 🧪 Testes manuais
 
-## Desenvolvimento
+- Rode `python example_enrichment.py` para validar rapidamente o módulo de enriquecimento (define `GEMINI_API_KEY` antes para executar a análise com o LLM).
+- Execute o comando principal com `--days 1` usando um exporto pequeno para validar o fluxo completo.
 
-- O código principal está em `src/egregora`.
-- O entrypoint de linha de comando está em `egregora.__main__`.
-- Adicione novas dependências com `uv add <pacote>`.
+## 📚 Documentação complementar
 
-## Licença
+- `ENRICHMENT_QUICKSTART.md` – visão geral + primeiros passos.
+- `INTEGRATION_GUIDE.md` – alterações necessárias para integrar ao pipeline.
+- `CONTENT_ENRICHMENT_DESIGN.md` – arquitetura completa, decisões e roadmap.
+- `README_IMPROVED.md` – versão expandida do README com contexto filosófico do projeto.
 
-Veja o arquivo [LICENSE](LICENSE).
+## 🤝 Contribuição
+
+1. Faça fork do repositório e crie um branch.
+2. Instale as dependências com `uv sync`.
+3. Adicione testes ou atualize os exemplos conforme necessário.
+4. Abra um PR descrevendo claramente as alterações.
+
+## 📄 Licença
+
+Distribuído sob a licença [MIT](LICENSE).
