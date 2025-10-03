@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Sequence
 from zoneinfo import ZoneInfo
@@ -167,7 +168,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "discover":
-        result = discover_identifier(args.value)
+        value = args.value.strip()
+        if not value:
+            print("Erro: informe um telefone ou apelido válido.", file=sys.stderr)
+            return 1
+
+        try:
+            result = discover_identifier(value)
+        except ValueError as exc:
+            print(f"Erro: {exc}", file=sys.stderr)
+            return 1
+
         if args.quiet:
             print(result.get(args.format))
         else:

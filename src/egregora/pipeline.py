@@ -85,6 +85,9 @@ def _prepare_transcripts(
     """Return transcripts with authors anonymized when enabled."""
 
     sanitized: list[tuple[date, str]] = []
+    anonymized_authors: set[str] = set()
+    processed_lines = 0
+
     for transcript_date, raw_text in transcripts:
         if not config.anonymization.enabled or not raw_text:
             sanitized.append((transcript_date, raw_text))
@@ -106,7 +109,25 @@ def _prepare_transcripts(
             )
             processed_parts.append(anonymized + newline)
 
+            processed_lines += 1
+            for pattern in TRANSCRIPT_PATTERNS:
+                match = pattern.match(line)
+                if not match:
+                    continue
+
+                author = match.group("author").strip()
+                if author:
+                    anonymized_authors.add(author)
+                break
+
         sanitized.append((transcript_date, "".join(processed_parts)))
+
+    if config.anonymization.enabled:
+        print(
+            "[Anonimização] "
+            f"{len(anonymized_authors)} remetentes anonimizados em {processed_lines} linhas. "
+            f"Formato: {config.anonymization.output_format}."
+        )
 
     return sanitized
 
@@ -315,6 +336,12 @@ Objetivo:
 - Inserir CADA LINK COMPARTILHADO no ponto exato em que ele é mencionado (link completo, clicável). Não agrupar links no final.
 - EXPLICITAR subentendidos, tensões, mudanças de posição e contextos. Não deixar implícito o que está acontecendo em cada momento.
 - Não inventar nicks. Não resumir links. Não ocultar mensagens relevantes.
+
+🔒 PRIVACIDADE — INSTRUÇÕES CRÍTICAS:
+- Utilize APENAS os identificadores anônimos fornecidos (User-XXXX, Member-XXXX, etc.).
+- Nunca repita nomes próprios, telefones completos ou e-mails mencionados NO CONTEÚDO das mensagens.
+- Ao referenciar alguém citado no conteúdo mas sem identificador anônimo, generalize ("um membro", "uma pessoa do grupo").
+- Preserve o sentido original enquanto remove detalhes de contato ou identificação direta.
 
 Regras de formatação do relatório:
 1) Cabeçalho:
