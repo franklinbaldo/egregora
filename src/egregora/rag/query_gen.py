@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable
@@ -24,7 +25,7 @@ class QueryGenerator:
     """Create search queries derived from raw transcript text."""
 
     def __init__(self, config: RAGConfig | None = None) -> None:
-        self.config = config.clone() if config else RAGConfig()
+        self.config = copy.deepcopy(config) if config else RAGConfig()
 
     def _select_keywords(self, tokens: Iterable[str]) -> list[str]:
         counter = Counter(

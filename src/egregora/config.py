@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from datetime import tzinfo
 from pathlib import Path
@@ -24,15 +25,6 @@ class CacheConfig:
     auto_cleanup_days: int | None = 90
     max_disk_mb: int | None = 100
 
-    def clone(self) -> "CacheConfig":
-        return CacheConfig(
-            enabled=self.enabled,
-            cache_dir=self.cache_dir,
-            auto_cleanup_days=self.auto_cleanup_days,
-            max_disk_mb=self.max_disk_mb,
-        )
-
-
 @dataclass(slots=True)
 class EnrichmentConfig:
     """Configuration specific to the enrichment subsystem."""
@@ -44,19 +36,6 @@ class EnrichmentConfig:
     relevance_threshold: int = 2
     max_concurrent_analyses: int = 5
     max_total_enrichment_time: float = 120.0
-
-    def clone(self) -> "EnrichmentConfig":
-        """Return a shallow copy that can be mutated safely."""
-
-        return EnrichmentConfig(
-            enabled=self.enabled,
-            enrichment_model=self.enrichment_model,
-            max_links=self.max_links,
-            context_window=self.context_window,
-            relevance_threshold=self.relevance_threshold,
-            max_concurrent_analyses=self.max_concurrent_analyses,
-            max_total_enrichment_time=self.max_total_enrichment_time,
-        )
 
 
 @dataclass(slots=True)
@@ -78,19 +57,6 @@ class RAGConfig:
         "egregora.mcp_server.server",
     )
 
-    def clone(self) -> "RAGConfig":
-        return RAGConfig(
-            enabled=self.enabled,
-            top_k=self.top_k,
-            min_similarity=self.min_similarity,
-            exclude_recent_days=self.exclude_recent_days,
-            max_context_chars=self.max_context_chars,
-            max_keywords=self.max_keywords,
-            use_mcp=self.use_mcp,
-            mcp_command=self.mcp_command,
-            mcp_args=self.mcp_args,
-        )
-
 
 @dataclass(slots=True)
 class AnonymizationConfig:
@@ -107,12 +73,6 @@ class AnonymizationConfig:
     enabled: bool = True
     output_format: FormatType = "human"
 
-    def clone(self) -> "AnonymizationConfig":
-        return AnonymizationConfig(
-            enabled=self.enabled,
-            output_format=self.output_format,
-        )
-
 
 @dataclass(slots=True)
 class PrivacyConfig:
@@ -120,12 +80,6 @@ class PrivacyConfig:
 
     double_check_newsletter: bool = False
     review_model: str | None = None
-
-    def clone(self) -> "PrivacyConfig":
-        return PrivacyConfig(
-            double_check_newsletter=self.double_check_newsletter,
-            review_model=self.review_model,
-        )
 
 
 @dataclass(slots=True)
@@ -166,13 +120,13 @@ class PipelineConfig:
             group_name=group_name or DEFAULT_GROUP_NAME,
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
-            enrichment=(enrichment.clone() if enrichment else EnrichmentConfig()),
-            cache=(cache.clone() if cache else CacheConfig()),
+            enrichment=(copy.deepcopy(enrichment) if enrichment else EnrichmentConfig()),
+            cache=(copy.deepcopy(cache) if cache else CacheConfig()),
             anonymization=(
-                anonymization.clone() if anonymization else AnonymizationConfig()
+                copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
             ),
-            rag=(rag.clone() if rag else RAGConfig()),
-            privacy=(privacy.clone() if privacy else PrivacyConfig()),
+            rag=(copy.deepcopy(rag) if rag else RAGConfig()),
+            privacy=(copy.deepcopy(privacy) if privacy else PrivacyConfig()),
         )
 
 
