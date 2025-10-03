@@ -65,19 +65,7 @@ class CacheManager:
     def generate_uuid(self, url: str) -> str:
         """Generate a deterministic UUID (v5) from a normalized URL."""
 
-        parsed = urlparse(url.strip())
-        normalized_query = self._sort_query_params(parsed.query)
-        normalized_path = parsed.path.rstrip("/") or "/"
-        normalized = urlunparse(
-            (
-                parsed.scheme.lower(),
-                parsed.netloc.lower(),
-                normalized_path,
-                parsed.params,
-                normalized_query,
-                "",
-            )
-        )
+        normalized = self._normalize_url(url)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, normalized))
 
     def exists(self, url: str) -> bool:
@@ -150,6 +138,14 @@ class CacheManager:
         }
 
         analysis_path = self._get_analysis_path(uuid_value, now)
+        if existing:
+            existing_path = self._resolve_analysis_path(existing.get("analysis_path"))
+            if (
+                existing_path
+                and existing_path != analysis_path
+                and existing_path.exists()
+            ):
+                existing_path.unlink(missing_ok=True)
         analysis_path.parent.mkdir(parents=True, exist_ok=True)
         self._save_analysis(analysis_path, analysis_payload)
 
@@ -413,8 +409,24 @@ class CacheManager:
         return round(total_bytes / (1024 * 1024), 3)
 
     def _hash_url(self, url: str) -> str:
-        digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+        normalized = self._normalize_url(url)
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         return f"sha256:{digest}"
+
+    def _normalize_url(self, url: str) -> str:
+        parsed = urlparse(url.strip())
+        normalized_query = self._sort_query_params(parsed.query)
+        normalized_path = parsed.path.rstrip("/") or "/"
+        return urlunparse(
+            (
+                parsed.scheme.lower(),
+                parsed.netloc.lower(),
+                normalized_path,
+                parsed.params,
+                normalized_query,
+                "",
+            )
+        )
 
     @staticmethod
     def _sort_query_params(query: str) -> str:
