@@ -4,20 +4,23 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, Mapping
+from typing import Dict, Mapping, Sequence
 
 from ..config import RAGConfig
 from . import indexer
+from .embedding_cache import EmbeddingCache
+from .embeddings import EmbeddingConfig, GeminiEmbedder
 from .search import (
     build_query_vector,
     build_vector,
+    cosine_similarity,
     inverse_document_frequency,
     term_frequency,
     tokenize,
-    cosine_similarity,
 )
 
 INDEX_VERSION = 1
@@ -90,6 +93,7 @@ class NewsletterRAG:
         newsletters_dir: Path,
         cache_dir: Path,
         config: RAGConfig | None = None,
+        gemini_client: object | None = None,
     ) -> None:
         self.newsletters_dir = newsletters_dir.expanduser()
         self.cache_dir = cache_dir.expanduser()
@@ -100,7 +104,23 @@ class NewsletterRAG:
         self._chunks: list[NewsletterChunk] = []
         self._vectors: list[Dict[str, float]] = []
         self._idf: Dict[str, float] = {}
+        self._embeddings: list[list[float]] = []
+        self._embedding_norms: list[float] = []
         self._loaded = False
+
+        self._gemini_client = gemini_client
+        self._use_gemini = bool(self.config.use_gemini_embeddings and gemini_client)
+        self._embedder: GeminiEmbedder | None = None
+        self._embedding_cache: EmbeddingCache | None = None
+
+        if self._use_gemini:
+            embed_config = EmbeddingConfig(
+                model=self.config.embedding_model,
+                output_dimensionality=self.config.embedding_dimension,
+            )
+            self._embedder = GeminiEmbedder(embed_config, gemini_client)
+            if self.config.embedding_cache_enabled:
+                self._embedding_cache = EmbeddingCache(self.cache_dir)
 
     # ------------------------------------------------------------------
     # Index management
@@ -125,9 +145,46 @@ class NewsletterRAG:
         self._loaded = True
 
     def _rebuild_vectors(self) -> None:
+        if self._use_gemini and self._embedder:
+            self._vectors = []
+            self._idf = {}
+            self._build_embeddings()
+            return
+
         tokens_per_chunk = [term_frequency(tokenize(chunk.text)) for chunk in self._chunks]
         self._idf = inverse_document_frequency(tokens_per_chunk)
         self._vectors = [build_vector(tf, self._idf) for tf in tokens_per_chunk]
+        self._embeddings = []
+        self._embedding_norms = []
+
+    def _build_embeddings(self) -> None:
+        texts = [chunk.text for chunk in self._chunks]
+        embeddings: list[list[float] | None] = [None] * len(texts)
+        missing_indices: list[int] = []
+        missing_texts: list[str] = []
+
+        if self._embedding_cache:
+            for idx, text in enumerate(texts):
+                cached = self._embedding_cache.get(text)
+                if cached is not None:
+                    embeddings[idx] = cached
+                else:
+                    missing_indices.append(idx)
+                    missing_texts.append(text)
+        else:
+            missing_indices = list(range(len(texts)))
+            missing_texts = texts[:]
+
+        if missing_texts:
+            generated = self._embedder.embed_documents(missing_texts)
+            for offset, vector in enumerate(generated):
+                idx = missing_indices[offset]
+                embeddings[idx] = vector
+                if self._embedding_cache:
+                    self._embedding_cache.set(texts[idx], vector)
+
+        self._embeddings = [vector or [] for vector in embeddings]
+        self._embedding_norms = [self._l2_norm(vector) for vector in self._embeddings]
 
     def update_index(self, *, force_reindex: bool = False) -> IndexUpdateResult:
         """Rebuild the index from the newsletters directory."""
@@ -234,10 +291,6 @@ class NewsletterRAG:
         if not self._chunks:
             return []
 
-        vector = build_query_vector(query, self._idf)
-        if not vector:
-            return []
-
         limit = top_k or self.config.top_k
         threshold = min_similarity if min_similarity is not None else self.config.min_similarity
         exclude_days = (
@@ -248,14 +301,38 @@ class NewsletterRAG:
         if exclude_days and exclude_days > 0:
             cutoff_date = date.today() - timedelta(days=exclude_days)
 
-        hits: list[SearchHit] = []
-        for chunk, chunk_vector in zip(self._chunks, self._vectors):
-            if cutoff_date and chunk.newsletter_date >= cutoff_date:
-                continue
-            score = cosine_similarity(vector, chunk_vector)
-            if score < threshold:
-                continue
-            hits.append(SearchHit(chunk=chunk, score=score))
+        if self._use_gemini and self._embedder and self._embeddings:
+            query_embedding = self._embedder.embed_query(query)
+            if not query_embedding:
+                return []
+
+            query_norm = self._l2_norm(query_embedding)
+            if query_norm == 0.0:
+                return []
+
+            hits: list[SearchHit] = []
+            for chunk, vector, norm in zip(self._chunks, self._embeddings, self._embedding_norms):
+                if cutoff_date and chunk.newsletter_date >= cutoff_date:
+                    continue
+                if not vector or norm == 0.0:
+                    continue
+                score = self._dot_product(vector, query_embedding) / (norm * query_norm)
+                if score < threshold:
+                    continue
+                hits.append(SearchHit(chunk=chunk, score=score))
+        else:
+            vector = build_query_vector(query, self._idf)
+            if not vector:
+                return []
+
+            hits = []
+            for chunk, chunk_vector in zip(self._chunks, self._vectors):
+                if cutoff_date and chunk.newsletter_date >= cutoff_date:
+                    continue
+                score = cosine_similarity(vector, chunk_vector)
+                if score < threshold:
+                    continue
+                hits.append(SearchHit(chunk=chunk, score=score))
 
         hits.sort(key=lambda item: item.score, reverse=True)
         if limit:
@@ -289,3 +366,14 @@ class NewsletterRAG:
             last_updated=last_updated,
             index_path=self.index_path,
         )
+
+    # ------------------------------------------------------------------
+    # Vector helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _dot_product(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
+        return sum(a * b for a, b in zip(vec_a, vec_b))
+
+    @staticmethod
+    def _l2_norm(vector: Sequence[float]) -> float:
+        return math.sqrt(sum(value * value for value in vector)) if vector else 0.0

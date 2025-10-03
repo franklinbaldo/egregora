@@ -56,6 +56,11 @@ class RAGConfig:
         "-m",
         "egregora.mcp_server.server",
     )
+    use_gemini_embeddings: bool = False
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimension: int = 768
+    embedding_cache_enabled: bool = True
+    use_batch_api: bool = False
 
 
 @dataclass(slots=True)
