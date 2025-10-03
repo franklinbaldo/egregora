@@ -14,6 +14,24 @@ DEFAULT_TIMEZONE = "America/Porto_Velho"
 
 
 @dataclass(slots=True)
+class CacheConfig:
+    """Configuration for the persistent enrichment cache."""
+
+    enabled: bool = True
+    cache_dir: Path = Path("cache")
+    auto_cleanup_days: int | None = 90
+    max_disk_mb: int | None = 100
+
+    def clone(self) -> "CacheConfig":
+        return CacheConfig(
+            enabled=self.enabled,
+            cache_dir=self.cache_dir,
+            auto_cleanup_days=self.auto_cleanup_days,
+            max_disk_mb=self.max_disk_mb,
+        )
+
+
+@dataclass(slots=True)
 class EnrichmentConfig:
     """Configuration specific to the enrichment subsystem."""
 
@@ -49,6 +67,7 @@ class PipelineConfig:
     model: str
     timezone: tzinfo
     enrichment: EnrichmentConfig
+    cache: CacheConfig
 
     @classmethod
     def with_defaults(
@@ -60,6 +79,7 @@ class PipelineConfig:
         model: str | None = None,
         timezone: tzinfo | None = None,
         enrichment: EnrichmentConfig | None = None,
+        cache: CacheConfig | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
 
@@ -70,6 +90,7 @@ class PipelineConfig:
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
             enrichment=(enrichment.clone() if enrichment else EnrichmentConfig()),
+            cache=(cache.clone() if cache else CacheConfig()),
         )
 
 
@@ -77,6 +98,7 @@ __all__ = [
     "DEFAULT_GROUP_NAME",
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
+    "CacheConfig",
     "EnrichmentConfig",
     "PipelineConfig",
 ]

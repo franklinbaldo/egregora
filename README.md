@@ -64,6 +64,24 @@ Parâmetros úteis:
 - `--enrichment-context-window`
 - `--analysis-concurrency`
 
+## 💾 Sistema de Cache
+
+O Egregora mantém um cache persistente das análises de URLs para reduzir custos com API e acelerar execuções futuras. Por padrão o cache está habilitado e utiliza o diretório `cache/` versionado no repositório.
+
+- Para escolher outro diretório, use `--cache-dir /caminho/para/cache`.
+- Para desativar temporariamente, acrescente `--disable-cache` ao comando.
+- Para remover entradas antigas, utilize `--cache-cleanup-days 90` (ou outro valor em dias).
+
+Também é possível acessar as estatísticas programaticamente:
+
+```python
+from pathlib import Path
+from egregora.cache_manager import CacheManager
+
+manager = CacheManager(Path("cache"))
+print(manager.export_report())
+```
+
 Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores práticas.
 
 ## 🧭 Estrutura padrão

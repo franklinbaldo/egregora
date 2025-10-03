@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass, field, asdict
+from datetime import date, datetime, timezone
 from time import perf_counter
 from typing import Sequence
 
@@ -17,6 +17,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+from urllib.parse import urlparse
+
+from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 
 MESSAGE_RE = re.compile(
@@ -24,6 +27,8 @@ MESSAGE_RE = re.compile(
 )
 URL_RE = re.compile(r"(https?://[^\s>\)]+)", re.IGNORECASE)
 MEDIA_TOKEN_RE = re.compile(r"<m[íi]dia oculta>", re.IGNORECASE)
+
+CACHE_RECORD_VERSION = "1.0"
 
 MEDIA_PLACEHOLDER_SUMMARY = (
     "Mídia sem descrição compartilhada; peça detalhes se necessário."
@@ -133,8 +138,11 @@ class EnrichmentResult:
 class ContentEnricher:
     """High-level orchestrator that extracts and analyzes shared links."""
 
-    def __init__(self, config: EnrichmentConfig) -> None:
+    def __init__(
+        self, config: EnrichmentConfig, *, cache_manager: CacheManager | None = None
+    ) -> None:
         self._config = config
+        self._cache = cache_manager
 
     async def enrich(
         self,
@@ -165,6 +173,14 @@ class ContentEnricher:
                 )
                 return EnrichedItem(reference=reference, analysis=analysis)
 
+            cached_item: AnalysisResult | None = None
+            if self._cache:
+                cached_payload = self._cache.get(reference.url)
+                if cached_payload:
+                    cached_item = self._analysis_from_cache(cached_payload)
+            if cached_item:
+                return EnrichedItem(reference=reference, analysis=cached_item)
+
             async with semaphore_analysis:
                 analysis = await self._analyze_reference(reference, client)
             if analysis.error:
@@ -174,6 +190,8 @@ class ContentEnricher:
                     error=analysis.error,
                 )
 
+            if self._cache:
+                self._store_in_cache(reference, analysis)
             return EnrichedItem(reference=reference, analysis=analysis)
 
         try:
@@ -249,6 +267,70 @@ class ContentEnricher:
             )
 
         return self._parse_response(response)
+
+    def _store_in_cache(
+        self, reference: ContentReference, analysis: AnalysisResult
+    ) -> None:
+        if not self._cache or not reference.url:
+            return
+
+        enrichment_payload = asdict(analysis)
+        enrichment_payload.pop("error", None)
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        domain = urlparse(reference.url).netloc if reference.url else None
+        context = {
+            "message": reference.message,
+            "messages_before": list(reference.context_before),
+            "messages_after": list(reference.context_after),
+            "sender": reference.sender,
+            "timestamp": reference.timestamp,
+            "date": reference.date.isoformat(),
+        }
+        metadata = {
+            "domain": domain,
+            "extracted_at": timestamp,
+        }
+        payload = {
+            "model": self._config.enrichment_model,
+            "analyzed_at": timestamp,
+            "enrichment": enrichment_payload,
+            "context": context,
+            "metadata": {k: v for k, v in metadata.items() if v is not None},
+            "version": CACHE_RECORD_VERSION,
+        }
+        try:
+            self._cache.set(reference.url, payload)
+        except Exception:
+            # Cache failures must not break the enrichment flow.
+            return
+
+    def _analysis_from_cache(self, payload: dict[str, object]) -> AnalysisResult | None:
+        enrichment = payload.get("enrichment")
+        if not isinstance(enrichment, dict):
+            return None
+
+        summary = self._coerce_string(enrichment.get("summary"))
+        key_points = [
+            point.strip()
+            for point in enrichment.get("key_points", [])
+            if isinstance(point, str)
+        ]
+        tone = self._coerce_string(enrichment.get("tone"))
+        relevance = enrichment.get("relevance")
+        if not isinstance(relevance, int):
+            relevance = 1
+
+        raw_response = enrichment.get("raw_response")
+        if raw_response is not None and not isinstance(raw_response, str):
+            raw_response = str(raw_response)
+
+        return AnalysisResult(
+            summary=summary,
+            key_points=key_points,
+            tone=tone,
+            relevance=relevance,
+            raw_response=raw_response,
+        )
 
     @staticmethod
     def _parse_response(response: object) -> AnalysisResult:
