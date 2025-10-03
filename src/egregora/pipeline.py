@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 import re
-import zipfile
 import asyncio
+import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
@@ -31,6 +31,7 @@ from .mcp_server.tools import format_search_hits
 from .rag.core import NewsletterRAG
 from .rag.query_gen import QueryGenerator
 from .enrichment import ContentEnricher, EnrichmentResult
+from .media_extractor import MediaExtractor, MediaFile
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
@@ -377,8 +378,20 @@ def list_zip_days(zips_dir: Path) -> list[tuple[date, Path]]:
     return zips
 
 
-def read_zip_texts(zippath: Path) -> str:
-    """Read all text files stored inside *zippath* in alphabetical order."""
+def read_zip_texts_and_media(
+    zippath: Path,
+    *,
+    archive_date: date | None = None,
+    media_dir: Path | None = None,
+) -> tuple[str, dict[str, MediaFile]]:
+    """Read texts from *zippath* and optionally extract media files."""
+
+    extractor: MediaExtractor | None = None
+    media_files: dict[str, MediaFile] = {}
+
+    if archive_date is not None and media_dir is not None:
+        extractor = MediaExtractor(media_dir)
+        media_files = extractor.extract_media_from_zip(zippath, archive_date)
 
     chunks: list[str] = []
     with zipfile.ZipFile(zippath, "r") as zipped:
@@ -392,7 +405,28 @@ def read_zip_texts(zippath: Path) -> str:
                 text = raw.decode("latin-1")
             text = text.replace("\r\n", "\n")
             chunks.append(f"\n# Arquivo: {name}\n{text.strip()}\n")
-    return "\n".join(chunks).strip()
+
+    transcript = "\n".join(chunks).strip()
+    if extractor is not None and transcript:
+        transcript = MediaExtractor.replace_media_references(transcript, media_files)
+
+    return transcript, media_files
+
+
+def read_zip_texts(
+    zippath: Path,
+    *,
+    archive_date: date | None = None,
+    media_dir: Path | None = None,
+) -> str:
+    """Compatibility wrapper returning only the transcript text."""
+
+    transcript, _ = read_zip_texts_and_media(
+        zippath,
+        archive_date=archive_date,
+        media_dir=media_dir,
+    )
+    return transcript
 
 
 def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
@@ -575,6 +609,7 @@ def ensure_directories(config: PipelineConfig) -> None:
 
     config.newsletters_dir.mkdir(parents=True, exist_ok=True)
     config.zips_dir.mkdir(parents=True, exist_ok=True)
+    config.media_dir.mkdir(parents=True, exist_ok=True)
 
 
 def select_recent_archives(
@@ -617,7 +652,16 @@ def generate_newsletter(
     selected_archives = select_recent_archives(archives, days=days)
     raw_transcripts: list[tuple[date, str]] = []
     for archive_date, archive_path in selected_archives:
-        raw_transcripts.append((archive_date, read_zip_texts(archive_path)))
+        transcript, media_files = read_zip_texts_and_media(
+            archive_path,
+            archive_date=archive_date,
+            media_dir=config.media_dir,
+        )
+        if media_files:
+            print(
+                f"[Mídia] {len(media_files)} anexos extraídos de {archive_path.name}."
+            )
+        raw_transcripts.append((archive_date, transcript))
 
     sanitized_transcripts = _prepare_transcripts(raw_transcripts, config)
 

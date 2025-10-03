@@ -69,6 +69,7 @@ def test_whatsapp_anonymization_comprehensive(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     # Test various WhatsApp message formats
@@ -106,6 +107,7 @@ def test_message_type_preservation(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     complex_conversation = TestDataGenerator.create_complex_conversation()
@@ -132,6 +134,7 @@ def test_multi_day_processing(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     multi_day_content = TestDataGenerator.create_multi_day_content()
@@ -154,6 +157,7 @@ def test_anonymization_consistency(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     # Multiple messages from the same author
@@ -183,6 +187,7 @@ def test_edge_cases_handling(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     edge_cases = TestDataGenerator.create_edge_cases()

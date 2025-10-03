@@ -80,6 +80,7 @@ def test_newsletter_generation_with_whatsapp_data(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir,
+        media_dir=temp_dir / "media",
         group_name="Teste Group"
     )
     
@@ -109,6 +110,7 @@ def test_transcript_preparation_with_anonymization(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     # Test with anonymization enabled
@@ -206,6 +208,7 @@ def test_newsletter_customization_options(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
         group_name="Custom Group Name"
     )
     
@@ -231,6 +234,7 @@ def test_newsletter_error_handling(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir / "nonexistent",  # Nonexistent directory
         newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     
     # Test with missing zip directory
