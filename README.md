@@ -64,6 +64,20 @@ Parâmetros úteis:
 - `--enrichment-context-window`
 - `--analysis-concurrency`
 
+## 🔐 Privacidade por padrão
+
+- **Anonimização determinística**: telefones e apelidos são convertidos em
+  identificadores como `User-ABCD` antes de qualquer processamento. Use
+  `--disable-anonymization` apenas para depuração local.
+- **Instruções rígidas ao LLM**: o prompt enviado ao Gemini reforça que nomes
+  próprios, telefones e contatos diretos não devem aparecer na newsletter.
+- **Revisão opcional**: habilite `--double-check-newsletter` para acionar uma
+  segunda chamada ao LLM, que revisa e limpa a newsletter. É possível escolher um
+  modelo dedicado com `--review-model` ou confiar na revisão humana.
+- **Autodescoberta**: cada pessoa pode calcular o próprio identificador com
+  `uv run egregora discover "<telefone ou apelido>"` ou consultar
+  `docs/discover.md` para exemplos completos.
+
 ## 💾 Sistema de Cache
 
 O Egregora mantém um cache persistente das análises de URLs para reduzir custos com API e acelerar execuções futuras. Por padrão o cache está habilitado e utiliza o diretório `cache/` versionado no repositório.

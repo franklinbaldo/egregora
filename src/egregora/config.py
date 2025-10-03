@@ -7,6 +7,8 @@ from datetime import tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .anonymizer import FormatType
+
 
 DEFAULT_GROUP_NAME = "RC LatAm"
 DEFAULT_MODEL = "gemini-flash-lite-latest"
@@ -58,6 +60,34 @@ class EnrichmentConfig:
 
 
 @dataclass(slots=True)
+class AnonymizationConfig:
+    """Configuration for author anonymization."""
+
+    enabled: bool = True
+    output_format: FormatType = "human"
+
+    def clone(self) -> "AnonymizationConfig":
+        return AnonymizationConfig(
+            enabled=self.enabled,
+            output_format=self.output_format,
+        )
+
+
+@dataclass(slots=True)
+class PrivacyConfig:
+    """Configuration for optional newsletter privacy reviews."""
+
+    double_check_newsletter: bool = False
+    review_model: str | None = None
+
+    def clone(self) -> "PrivacyConfig":
+        return PrivacyConfig(
+            double_check_newsletter=self.double_check_newsletter,
+            review_model=self.review_model,
+        )
+
+
+@dataclass(slots=True)
 class PipelineConfig:
     """Runtime configuration for the newsletter pipeline."""
 
@@ -68,6 +98,8 @@ class PipelineConfig:
     timezone: tzinfo
     enrichment: EnrichmentConfig
     cache: CacheConfig
+    anonymization: AnonymizationConfig
+    privacy: PrivacyConfig
 
     @classmethod
     def with_defaults(
@@ -80,6 +112,8 @@ class PipelineConfig:
         timezone: tzinfo | None = None,
         enrichment: EnrichmentConfig | None = None,
         cache: CacheConfig | None = None,
+        anonymization: AnonymizationConfig | None = None,
+        privacy: PrivacyConfig | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
 
@@ -91,6 +125,10 @@ class PipelineConfig:
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
             enrichment=(enrichment.clone() if enrichment else EnrichmentConfig()),
             cache=(cache.clone() if cache else CacheConfig()),
+            anonymization=(
+                anonymization.clone() if anonymization else AnonymizationConfig()
+            ),
+            privacy=(privacy.clone() if privacy else PrivacyConfig()),
         )
 
 
@@ -98,7 +136,9 @@ __all__ = [
     "DEFAULT_GROUP_NAME",
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
+    "AnonymizationConfig",
     "CacheConfig",
     "EnrichmentConfig",
+    "PrivacyConfig",
     "PipelineConfig",
 ]

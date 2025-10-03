@@ -8,6 +8,7 @@ from typing import Sequence
 from zoneinfo import ZoneInfo
 
 from .config import PipelineConfig
+from .discover import discover_identifier, format_cli_message
 from .pipeline import generate_newsletter
 
 
@@ -114,12 +115,64 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Remove análises cujo último uso é mais antigo que N dias.",
     )
+
+    parser.add_argument(
+        "--disable-anonymization",
+        action="store_true",
+        help="Desativa a anonimização de autores antes do processamento.",
+    )
+    parser.add_argument(
+        "--anonymization-format",
+        choices=["human", "short", "full"],
+        default=None,
+        help="Formato dos identificadores anônimos (padrão: human).",
+    )
+    parser.add_argument(
+        "--double-check-newsletter",
+        action="store_true",
+        help="Executa uma segunda chamada ao LLM para revisar a newsletter em busca de PII.",
+    )
+    parser.add_argument(
+        "--review-model",
+        type=str,
+        default=None,
+        help="Modelo opcional utilizado na revisão de privacidade (padrão: mesmo da geração).",
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+    discover_parser = subparsers.add_parser(
+        "discover",
+        help="Calcula o identificador anônimo para um telefone ou apelido.",
+    )
+    discover_parser.add_argument(
+        "value",
+        help="Telefone ou apelido a ser anonimizado.",
+    )
+    discover_parser.add_argument(
+        "--format",
+        choices=["human", "short", "full"],
+        default="human",
+        help="Formato preferido ao exibir o resultado.",
+    )
+    discover_parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Imprime apenas o identificador no formato escolhido.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "discover":
+        result = discover_identifier(args.value)
+        if args.quiet:
+            print(result.get(args.format))
+        else:
+            print(format_cli_message(result, preferred_format=args.format))
+        return 0
 
     timezone = ZoneInfo(args.timezone) if args.timezone else None
     config = PipelineConfig.with_defaults(
@@ -129,6 +182,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         model=args.model,
         timezone=timezone,
     )
+
+    if args.disable_anonymization:
+        config.anonymization.enabled = False
+    if args.anonymization_format:
+        config.anonymization.output_format = args.anonymization_format
+    if args.double_check_newsletter:
+        config.privacy.double_check_newsletter = True
+    if args.review_model:
+        config.privacy.review_model = args.review_model
 
     enrichment = config.enrichment
     if args.enable_enrichment:
