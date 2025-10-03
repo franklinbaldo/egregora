@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.pipeline import build_llm_input
+from egregora.pipeline import build_llm_input, _anonymize_transcript_line
 
 
 def _build_transcript(day: int) -> tuple[date, str]:
@@ -39,3 +39,13 @@ def test_build_llm_input_uses_plural_label_for_multiple_days() -> None:
     )
 
     assert "TRANSCRITO BRUTO DOS ÚLTIMOS 3 DIAS" in prompt
+
+
+def test_anonymize_transcript_line_preserves_leading_bracket() -> None:
+    result = _anonymize_transcript_line(
+        "[12:34:56] Nome: mensagem",
+        anonymize=True,
+        output_format="human",
+    )
+
+    assert result.startswith("[12:34:56] ")
