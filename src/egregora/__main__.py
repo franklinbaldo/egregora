@@ -97,6 +97,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Quantidade máxima de análises LLM simultâneas (padrão: 5).",
     )
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help="Diretório para armazenar o cache de análises.",
+    )
+    parser.add_argument(
+        "--disable-cache",
+        action="store_true",
+        help="Desativa completamente o cache persistente.",
+    )
+    parser.add_argument(
+        "--cache-cleanup-days",
+        type=int,
+        default=None,
+        help="Remove análises cujo último uso é mais antigo que N dias.",
+    )
     return parser
 
 
@@ -130,6 +147,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         enrichment.context_window = args.enrichment_context_window
     if args.analysis_concurrency is not None and args.analysis_concurrency > 0:
         enrichment.max_concurrent_analyses = args.analysis_concurrency
+
+    cache_config = config.cache
+    if args.cache_dir:
+        cache_config.cache_dir = args.cache_dir
+    if args.disable_cache:
+        cache_config.enabled = False
+    if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
+        cache_config.auto_cleanup_days = args.cache_cleanup_days
 
     result = generate_newsletter(config, days=args.days)
 

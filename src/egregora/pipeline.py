@@ -18,6 +18,7 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher, EnrichmentResult
 
@@ -304,10 +305,25 @@ def generate_newsletter(
 
     llm_client = client or create_client()
 
+    cache_manager: CacheManager | None = None
+    if config.cache.enabled:
+        cache_manager = CacheManager(config.cache.cache_dir)
+        if config.cache.auto_cleanup_days is not None:
+            cache_manager.cleanup_old_entries(config.cache.auto_cleanup_days)
+        if config.cache.max_disk_mb is not None:
+            stats = cache_manager.get_stats()
+            if stats.get("disk_usage_mb", 0.0) > config.cache.max_disk_mb:
+                print(
+                    "[Aviso] Cache excedeu o limite configurado; considere executar"
+                    " uma limpeza."
+                )
+
     enrichment_result: EnrichmentResult | None = None
     enrichment_section: str | None = None
     if config.enrichment.enabled:
-        enricher = ContentEnricher(config.enrichment)
+        enricher = ContentEnricher(
+            config.enrichment, cache_manager=cache_manager
+        )
         try:
             enrichment_result = asyncio.run(
                 enricher.enrich(transcripts, client=llm_client)

@@ -51,6 +51,9 @@ Saída esperada (resumo):
 | `--enrichment-model` | Modelo Gemini usado para análise dos links. |
 | `--enrichment-context-window` | Quantidade de mensagens antes/depois usadas como contexto. |
 | `--analysis-concurrency` | Número de análises simultâneas do LLM. |
+| `--cache-dir` | Define um diretório alternativo para o cache persistente. |
+| `--disable-cache` | Executa o pipeline sem reutilizar análises anteriores. |
+| `--cache-cleanup-days` | Remove entradas mais antigas que N dias ao iniciar. |
 
 ## 5. Boas práticas
 
@@ -58,6 +61,7 @@ Saída esperada (resumo):
 - **Observe os logs**: eles listam erros de análise do Gemini para cada link.
 - **Monitore custos**: cada análise usa o modelo `enrichment_model`. Ajuste para versões mais baratas se necessário.
 - **Tempo limite**: se muitos links falharem por timeout, aumente `max_enrichment_time` ou reduza `max_enrichment_items`.
+- **Aproveite o cache**: mantenha o diretório `cache/` versionado para compartilhar resultados entre execuções e evitar custos repetidos.
 
 ## 6. Próximos passos
 
