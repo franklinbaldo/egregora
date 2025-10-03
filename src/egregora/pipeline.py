@@ -18,11 +18,139 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+from .anonymizer import Anonymizer, FormatType
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher, EnrichmentResult
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+TRANSCRIPT_PATTERNS = [
+    re.compile(
+        r"^(?P<prefix>\d{1,2}:\d{2}\s[-–—]\s)(?P<author>[^:]+)(?P<separator>:\s*)(?P<message>.*)$"
+    ),
+    re.compile(
+        r"^(?P<prefix>\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}\s[-–—]\s)(?P<author>[^:]+)(?P<separator>:\s*)(?P<message>.*)$"
+    ),
+    re.compile(
+        r"^\[(?P<prefix>\d{1,2}:\d{2}:\d{2}\]\s)(?P<author>[^:]+)(?P<separator>:\s*)(?P<message>.*)$"
+    ),
+]
+
+REVIEW_SYSTEM_PROMPT = r"""
+Você é um revisor de privacidade. Seu papel é garantir que nenhuma informação
+pessoal direta permaneça na newsletter. Remova ou generalize:
+- Nomes próprios de pessoas físicas.
+- Números de telefone ou outros identificadores de contato.
+- E-mails ou endereços.
+
+Não invente fatos novos e preserve o sentido do texto. Se o conteúdo já estiver
+adequado, devolva exatamente o mesmo texto.
+"""
+
+
+def _anonymize_transcript_line(
+    line: str, *, anonymize: bool, output_format: FormatType
+) -> str:
+    """Return ``line`` with the author anonymized when enabled."""
+
+    if not anonymize:
+        return line
+
+    for pattern in TRANSCRIPT_PATTERNS:
+        match = pattern.match(line)
+        if not match:
+            continue
+
+        prefix = match.group("prefix")
+        author = match.group("author").strip()
+        separator = match.group("separator")
+        message = match.group("message")
+
+        if author:
+            anonymized = Anonymizer.anonymize_author(author, format=output_format)
+        else:
+            anonymized = author
+
+        return f"{prefix}{anonymized}{separator}{message}"
+
+    return line
+
+
+def _prepare_transcripts(
+    transcripts: Sequence[tuple[date, str]],
+    config: PipelineConfig,
+) -> list[tuple[date, str]]:
+    """Return transcripts with authors anonymized when enabled."""
+
+    sanitized: list[tuple[date, str]] = []
+    for transcript_date, raw_text in transcripts:
+        if not config.anonymization.enabled or not raw_text:
+            sanitized.append((transcript_date, raw_text))
+            continue
+
+        processed_parts: list[str] = []
+        for raw_line in raw_text.splitlines(keepends=True):
+            if raw_line.endswith("\n"):
+                line = raw_line[:-1]
+                newline = "\n"
+            else:
+                line = raw_line
+                newline = ""
+
+            anonymized = _anonymize_transcript_line(
+                line,
+                anonymize=config.anonymization.enabled,
+                output_format=config.anonymization.output_format,
+            )
+            processed_parts.append(anonymized + newline)
+
+        sanitized.append((transcript_date, "".join(processed_parts)))
+
+    return sanitized
+
+
+def _run_privacy_review(
+    client: genai.Client,
+    *,
+    model: str,
+    newsletter_text: str,
+) -> str:
+    """Request a second-pass privacy review from the configured LLM."""
+
+    review_prompt = (
+        "Revise a newsletter e remova nomes próprios, números de telefone, "
+        "endereços de e-mail ou outras referências diretas a contato. "
+        "Generalize informações sensíveis quando necessário. Se nada "
+        "precisar ser alterado, devolva o texto exatamente como recebido.\n\n"
+        "<<<NEWSLETTER_ORIGINAL>>>\n"
+        f"{newsletter_text}\n"
+        "<<<FIM>>>"
+    )
+
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=review_prompt)],
+        )
+    ]
+
+    review_config = types.GenerateContentConfig(
+        system_instruction=[types.Part.from_text(text=REVIEW_SYSTEM_PROMPT.strip())]
+    )
+
+    output_lines: list[str] = []
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=review_config,
+    ):
+        if chunk.text:
+            output_lines.append(chunk.text)
+
+    reviewed = "".join(output_lines).strip()
+    return reviewed or newsletter_text
 
 
 def _require_google_dependency() -> None:
@@ -294,11 +422,13 @@ def generate_newsletter(
         raise FileNotFoundError(f"Nenhum .zip encontrado em {config.zips_dir.resolve()}")
 
     selected_archives = select_recent_archives(archives, days=days)
-    transcripts: list[tuple[date, str]] = []
+    raw_transcripts: list[tuple[date, str]] = []
     for archive_date, archive_path in selected_archives:
-        transcripts.append((archive_date, read_zip_texts(archive_path)))
+        raw_transcripts.append((archive_date, read_zip_texts(archive_path)))
 
-    today = max(archive_date for archive_date, _ in transcripts)
+    sanitized_transcripts = _prepare_transcripts(raw_transcripts, config)
+
+    today = max(archive_date for archive_date, _ in sanitized_transcripts)
     previous_path, previous_content = load_previous_newsletter(
         config.newsletters_dir, today
     )
@@ -326,14 +456,14 @@ def generate_newsletter(
         )
         try:
             enrichment_result = asyncio.run(
-                enricher.enrich(transcripts, client=llm_client)
+                enricher.enrich(sanitized_transcripts, client=llm_client)
             )
         except RuntimeError as exc:
             if "event loop" in str(exc).lower():
                 loop = asyncio.new_event_loop()
                 try:
                     enrichment_result = loop.run_until_complete(
-                        enricher.enrich(transcripts, client=llm_client)
+                        enricher.enrich(sanitized_transcripts, client=llm_client)
                     )
                 finally:
                     loop.close()
@@ -362,7 +492,7 @@ def generate_newsletter(
     insert_input = build_llm_input(
         group_name=config.group_name,
         timezone=config.timezone,
-        transcripts=transcripts,
+        transcripts=sanitized_transcripts,
         previous_newsletter=previous_content,
         enrichment_section=enrichment_section,
     )
@@ -396,11 +526,25 @@ def generate_newsletter(
 
     newsletter_text = "".join(output_lines).strip()
     output_path = config.newsletters_dir / f"{today.isoformat()}.md"
+
+    if config.privacy.double_check_newsletter:
+        review_model = config.privacy.review_model or config.model
+        revised = _run_privacy_review(
+            llm_client,
+            model=review_model,
+            newsletter_text=newsletter_text,
+        )
+        if revised != newsletter_text:
+            print("[Privacidade] Revisão adicional removeu dados sensíveis.")
+            newsletter_text = revised
+        else:
+            print("[Privacidade] Revisão adicional não encontrou ajustes.")
+
     output_path.write_text(newsletter_text, encoding="utf-8")
 
     return PipelineResult(
         output_path=output_path,
-        processed_dates=[archive_date for archive_date, _ in transcripts],
+        processed_dates=[archive_date for archive_date, _ in sanitized_transcripts],
         previous_newsletter_path=previous_path,
         previous_newsletter_found=previous_content is not None,
         enrichment=enrichment_result,

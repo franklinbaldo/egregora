@@ -10,6 +10,9 @@ theme:
 
 nav:
   - Início: index.md
+  - Privacidade:
+      - Sistema de privacidade: privacy.md
+      - Autodescoberta: discover.md
   - Relatórios:
       - Diários: reports/daily/index.md
       - Semanais: reports/weekly/index.md
