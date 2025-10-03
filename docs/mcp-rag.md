@@ -1,15 +1,23 @@
-# Plano: MCP Server para RAG de Newsletters
+# MCP Server para RAG de Newsletters
 
 ## 📋 Visão Geral
 
-Criar um **MCP (Model Context Protocol) server local** que expõe o sistema RAG como serviço, permitindo:
+O repositório inclui um **MCP (Model Context Protocol) server local** que expõe o sistema RAG como serviço, permitindo:
 
 1. **Claude Desktop** buscar contexto histórico durante conversas
 2. **Pipeline Egregora** consumir RAG via protocolo padronizado
 3. **Desenvolvedores** testar e debugar queries facilmente
 4. **Outras ferramentas** integrar com o RAG
 
-**Vantagem principal:** Separação de responsabilidades + interface padronizada
+**Vantagem principal:** Separação de responsabilidades + interface padronizada.
+
+### Status atual (2025-10-03)
+
+- ✅ Servidor MCP funcional em `src/egregora/mcp_server/server.py`.
+- ✅ Ferramentas expostas: `search_newsletters`, `list_newsletters`, `get_newsletter`.
+- ✅ Integração direta com o `NewsletterRAG` e cache persistente.
+- 🔄 Suporte opcional a embeddings do Gemini (`--use-gemini-embeddings`).
+- 🧪 Testes automatizados planejados (`test_mcp_server.py`).
 
 ---
 
@@ -42,18 +50,18 @@ egregora/
 │   └── egregora/
 │       ├── rag/
 │       │   ├── __init__.py
-│       │   ├── core.py              # ⭐ NOVO - Core RAG (sem MCP)
-│       │   ├── indexer.py           # ⭐ NOVO - Indexação incremental
-│       │   ├── search.py            # ⭐ NOVO - Busca semântica
-│       │   └── query_gen.py         # ⭐ NOVO - Query inteligente
+│       │   ├── core.py              # Núcleo do RAG (sem dependência MCP)
+│       │   ├── indexer.py           # Indexação incremental
+│       │   ├── search.py            # Busca e ranqueamento
+│       │   └── query_gen.py         # Geração automática de queries
 │       ├── mcp_server/
 │       │   ├── __init__.py
-│       │   ├── server.py            # ⭐ NOVO - MCP server
-│       │   ├── tools.py             # ⭐ NOVO - MCP tools
-│       │   └── config.py            # ⭐ NOVO - Config do server
-│       └── pipeline.py              # Modificar: usar MCP client
+│       │   ├── server.py            # Servidor MCP
+│       │   ├── tools.py             # Definição das tools
+│       │   └── config.py            # Configuração do server
+│       └── pipeline.py              # Integração com o RAG/MCP
 └── scripts/
-    └── start_mcp_server.py          # ⭐ NOVO - Launcher
+    └── start_mcp_server.py          # Script auxiliar para desenvolvimento
 ```
 
 ### Separação de Responsabilidades
@@ -70,6 +78,11 @@ egregora/
 - Tools para Claude chamar
 - Resources para ler newsletters
 - Validação de requests
+
+**Embeddings do Gemini**
+- Ative via `RAGConfig(use_gemini_embeddings=True)` ou flag CLI `--use-gemini-embeddings`.
+- O servidor MCP utiliza automaticamente o índice configurado (TF-IDF ou embeddings).
+- Cache persistente em `cache/embeddings/` garante custos previsíveis.
 
 **3. Pipeline (MCP client):**
 - Conectar ao MCP server

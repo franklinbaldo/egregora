@@ -23,6 +23,17 @@ python example_enrichment.py
 
 O script usa um mini transcript com dois links e imprime a seção enriquecida que seria enviada ao prompt principal. Certifique-se de usar um modelo com suporte a URLs (`gemini-2.0-flash-exp`). Se a chave Gemini não estiver configurada o script continua e sinaliza que está operando offline.
 
+## 2.1 Capacidades do sistema
+
+O enriquecimento depende apenas do suporte nativo do Gemini:
+
+- ✅ **Páginas web** — artigos, blogs, documentação.
+- ✅ **PDFs** — processados diretamente via `Part.from_uri` (sem `pdfplumber`).
+- ✅ **YouTube** — transcrição e análise automática, sem `yt-dlp`.
+- ✅ **Imagens** — descrições e extração de detalhes com o Gemini multimodal.
+
+> **Importante:** Nenhuma dependência externa é necessária; todo parsing é realizado pelo Gemini.
+
 ## 3. Pipeline com enriquecimento
 
 Execute o comando abaixo para gerar uma newsletter de um dia com enriquecimento ativado e limiar de relevância 3:
@@ -65,5 +76,5 @@ Saída esperada (resumo):
 
 ## 6. Próximos passos
 
-- Leia `INTEGRATION_GUIDE.md` para compreender os pontos de integração no pipeline.
-- Consulte `CONTENT_ENRICHMENT_DESIGN.md` para detalhes de arquitetura, trade-offs e roadmap.
+- Consulte `README.md` para visão geral do pipeline completo.
+- Leia `CONTENT_ENRICHMENT_DESIGN.md` para detalhes de arquitetura, trade-offs e roadmap.
