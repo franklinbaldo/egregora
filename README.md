@@ -6,7 +6,7 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
 
 - **Pipeline completo** para transformar arquivos `.zip` do WhatsApp em newsletters Markdown.
 - **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
-- **Enriquecimento de links**: identifica URLs e mídias, busca conteúdo externo em paralelo (via `httpx`) e resume com apoio de LLM dedicado.
+- **Enriquecimento de links**: identifica URLs e mídias e usa o suporte nativo do Gemini a `Part.from_uri` para analisá-los em paralelo com um modelo dedicado.
 - **Configuração flexível**: diretórios, fuso horário, modelos e limites podem ser ajustados via CLI ou API.
 - **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md`, `INTEGRATION_GUIDE.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
 
@@ -19,8 +19,6 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
 Dependências principais:
 
 - `google-genai`
-- `httpx`
-- `beautifulsoup4` + `lxml`
 
 ## 🚀 Instalação
 
@@ -47,10 +45,8 @@ Dependências principais:
 O novo módulo de enriquecimento executa três etapas:
 
 1. **Extração** – percorre os transcritos procurando URLs e marcadores de mídia (`<Mídia oculta>`), capturando até 3 mensagens de contexto antes/depois.
-2. **Busca paralela** – usa `httpx` para buscar páginas, metadados de YouTube e cabeçalhos de PDFs com até 5 downloads simultâneos.
-3. **Análise com LLM** – envia os conteúdos para um modelo Gemini (configurável) que devolve resumo, pontos-chave, tom e relevância (1–5).
-
-Apenas itens com relevância acima do limiar configurado entram no prompt final enviado ao modelo responsável pela newsletter.
+2. **Análise com Gemini** – envia cada referência para um modelo configurável que lê a URL diretamente e devolve resumo, pontos-chave, tom e relevância (1–5).
+3. **Filtragem** – somente itens com relevância acima do limiar configurado entram no prompt final.
 
 ### Configuração rápida
 
@@ -66,7 +62,6 @@ Parâmetros úteis:
 - `--max-enrichment-time`
 - `--enrichment-model`
 - `--enrichment-context-window`
-- `--fetch-concurrency`
 - `--analysis-concurrency`
 
 Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores práticas.
