@@ -69,18 +69,29 @@ class CachedGeminiEmbedding(BaseEmbedding):
         super().__init__()
         object.__setattr__(self, "_model_name", model_name)
         object.__setattr__(self, "_dimension", dimension)
-        object.__setattr__(self, "_api_key", api_key or os.getenv("GOOGLE_API_KEY"))
+        resolved_api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        object.__setattr__(self, "_api_key", resolved_api_key)
+
+        using_fallback = not resolved_api_key or GeminiEmbedding is None
+        object.__setattr__(self, "_using_fallback", using_fallback)
+
+        cache_extra = {"mode": "fallback" if using_fallback else "online"}
         cache = (
-            EmbeddingCache(cache_dir, model=model_name, dimension=dimension)
+            EmbeddingCache(
+                cache_dir,
+                model=model_name,
+                dimension=dimension,
+                extra=cache_extra,
+            )
             if cache_dir
             else None
         )
         object.__setattr__(self, "_cache", cache)
 
-        if self._api_key and GeminiEmbedding is not None:
+        if not using_fallback and GeminiEmbedding is not None:
             embed_model: BaseEmbedding = GeminiEmbedding(
                 model_name=model_name,
-                api_key=self._api_key,
+                api_key=resolved_api_key,
             )
         else:
             embed_model = _FallbackEmbedding(dimension)
