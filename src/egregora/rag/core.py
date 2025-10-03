@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -94,7 +95,7 @@ class NewsletterRAG:
         self.cache_dir = cache_dir.expanduser()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.index_path = self.cache_dir / "rag_index.json"
-        self.config = config.clone() if config else RAGConfig()
+        self.config = copy.deepcopy(config) if config else RAGConfig()
 
         self._chunks: list[NewsletterChunk] = []
         self._vectors: list[Dict[str, float]] = []
