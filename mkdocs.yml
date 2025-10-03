@@ -1,0 +1,22 @@
+site_name: Egrégora Reports
+site_url: https://SEU_USUARIO.github.io/SEU_REPO
+repo_url: https://github.com/SEU_USUARIO/SEU_REPO
+theme:
+  name: material
+  features:
+    - navigation.tracking
+    - navigation.indexes
+    - content.code.copy
+
+nav:
+  - Início: index.md
+  - Relatórios:
+      - Diários: reports/daily/index.md
+      - Semanais: reports/weekly/index.md
+      - Mensais: reports/monthly/index.md
+
+markdown_extensions:
+  - toc:
+      permalink: true
+
+docs_dir: docs
