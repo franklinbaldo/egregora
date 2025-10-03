@@ -120,7 +120,11 @@ class NewsletterRAG:
             )
             self._embedder = GeminiEmbedder(embed_config, gemini_client)
             if self.config.embedding_cache_enabled:
-                self._embedding_cache = EmbeddingCache(self.cache_dir)
+                self._embedding_cache = EmbeddingCache(
+                    self.cache_dir,
+                    model=self.config.embedding_model,
+                    dimension=self.config.embedding_dimension,
+                )
 
     # ------------------------------------------------------------------
     # Index management

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from egregora.config import RAGConfig
 from egregora.rag.core import NewsletterRAG
+from egregora.rag.embedding_cache import EmbeddingCache
 
 
 class DummyEmbeddingResponse:
@@ -100,3 +101,34 @@ def test_gemini_embeddings_fall_back_without_client(tmp_path: Path) -> None:
     hits = rag.search(query="aprendizado", top_k=1)
 
     assert hits, "Fallback TF-IDF search should still return results"
+
+
+def test_embedding_cache_is_namespaced_by_model_and_dimension(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    cache = EmbeddingCache(cache_dir, model="gemini-embedding-001", dimension=3)
+    cache.set("texto compartilhado", [1.0, 2.0, 3.0])
+
+    different_model_cache = EmbeddingCache(
+        cache_dir,
+        model="gemini-embedding-002",
+        dimension=3,
+    )
+    assert (
+        different_model_cache.get("texto compartilhado") is None
+    ), "Cache entries must not leak across models"
+
+    different_dimension_cache = EmbeddingCache(
+        cache_dir,
+        model="gemini-embedding-001",
+        dimension=4,
+    )
+    assert (
+        different_dimension_cache.get("texto compartilhado") is None
+    ), "Cache entries must not leak across dimensions"
+
+    same_config_cache = EmbeddingCache(
+        cache_dir,
+        model="gemini-embedding-001",
+        dimension=3,
+    )
+    assert same_config_cache.get("texto compartilhado") == [1.0, 2.0, 3.0]
