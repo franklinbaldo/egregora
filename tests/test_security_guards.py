@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from egregora.config import PipelineConfig, _ensure_safe_directory, _load_toml_data
-from egregora.group_discovery import _iter_preview_lines
+from egregora.group_discovery import _iter_preview_lines, discover_groups
 from egregora.models import WhatsAppExport
 from egregora.zip_utils import ZipValidationError, validate_zip_contents
 
@@ -37,6 +37,30 @@ def test_validate_zip_contents_rejects_path_traversal(tmp_path):
     with zipfile.ZipFile(zip_path) as zf:
         with pytest.raises(ZipValidationError):
             validate_zip_contents(zf)
+
+
+def test_discover_groups_rejects_symlink(tmp_path, caplog):
+    real_zip = tmp_path / "real.zip"
+    with zipfile.ZipFile(real_zip, "w") as zf:
+        zf.writestr(
+            "WhatsApp Chat with Test.txt",
+            "[01/01/2024, 00:00] Test: message\n".encode("utf-8"),
+        )
+
+    zips_dir = tmp_path / "zips"
+    zips_dir.mkdir()
+
+    symlink_path = zips_dir / "link.zip"
+    try:
+        symlink_path.symlink_to(real_zip)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform")
+
+    with caplog.at_level("WARNING"):
+        groups = discover_groups(zips_dir)
+
+    assert groups == {}
+    assert any("refusing to follow symlink" in message for message in caplog.messages)
 
 
 def test_iter_preview_lines_rejects_long_lines():

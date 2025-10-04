@@ -211,12 +211,6 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
     if not toml_path.is_file():
         raise ValueError(f"Configuration path '{toml_path}' must be a file")
 
-    size = toml_path.stat().st_size
-    if size > _MAX_TOML_BYTES:
-        raise ValueError(
-            f"Configuration file '{toml_path}' exceeds maximum size of {_MAX_TOML_BYTES} bytes"
-        )
-
     with toml_path.open('rb') as fh:
         content = fh.read(_MAX_TOML_BYTES + 1)
 
