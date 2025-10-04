@@ -10,7 +10,7 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
 - **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
 - **Enriquecimento de links**: identifica URLs e mídias e usa o suporte nativo do Gemini a `Part.from_uri` para analisá-los em paralelo com um modelo dedicado.
 - **Sistema RAG integrado**: indexa newsletters anteriores para busca rápida via CLI ou MCP.
-- **Configuração flexível**: diretórios, fuso horário, modelos e limites podem ser ajustados via CLI ou API.
+- **Configuração flexível**: diretórios, fusos, modelos e limites ficam centralizados em `egregora.toml`, com overrides mínimos pela CLI.
 - **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
 
 ## 📦 Requisitos
@@ -53,19 +53,31 @@ O novo módulo de enriquecimento executa três etapas:
 
 ### Configuração rápida
 
+1. Copie o arquivo de exemplo e ajuste conforme necessário:
+
+   ```bash
+   cp egregora.toml.example egregora.toml
+   ```
+
+2. Abra o arquivo e personalize as seções `[directories]`, `[pipeline]` e `[enrichment]` com os valores desejados.
+
+3. Execute o pipeline apontando para o TOML:
+
+   ```bash
+   uv run egregora --config egregora.toml
+   ```
+
+Quer testar sem chamar o modelo? Use o modo de simulação:
+
 ```bash
-uv run egregora --days 1 --relevance-threshold 3 --max-enrichment-items 20
+uv run egregora --config egregora.toml --dry-run
 ```
 
-Parâmetros úteis:
+## ✏️ Personalize o prompt do sistema
 
-- `--enable-enrichment` / `--disable-enrichment`
-- `--relevance-threshold` (1–5)
-- `--max-enrichment-items`
-- `--max-enrichment-time`
-- `--enrichment-model`
-- `--enrichment-context-window`
-- `--analysis-concurrency`
+- Edite `src/egregora/prompts/system_instruction_base.md` para ajustar o tom padrão das newsletters (ou `egregora/prompts/system_instruction_base.md` em instalações via `pip`).
+- Utilize `src/egregora/prompts/system_instruction_multigroup.md` para complementar instruções de grupos virtuais (ou `egregora/prompts/system_instruction_multigroup.md` no pacote instalado).
+- Caso mantenha cópias personalizadas para produção, lembre-se de sincronizar qualquer alteração com o diretório de prompts instalado.
 
 ## 🖼️ Extração de Mídia
 
@@ -80,8 +92,8 @@ Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis dire
 ## 🔐 Privacidade por padrão
 
 - **Anonimização determinística**: telefones e apelidos são convertidos em
-  identificadores como `Member-ABCD` antes de qualquer processamento. Use
-  `--disable-anonymization` apenas para depuração local.
+  identificadores como `Member-ABCD` antes de qualquer processamento. Ajuste
+  a seção `[anonymization]` no TOML caso precise desativar temporariamente.
 - **Instruções rígidas ao LLM**: o prompt enviado ao Gemini reforça que nomes
   próprios, telefones e contatos diretos não devem aparecer na newsletter.
 - **Revisão humana quando necessário**: para newsletters sensíveis, mantenha uma
@@ -94,9 +106,9 @@ Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis dire
 
 O Egregora mantém um cache persistente das análises de URLs para reduzir custos com API e acelerar execuções futuras. Por padrão o cache está habilitado e utiliza o diretório `cache/` versionado no repositório.
 
-- Para escolher outro diretório, use `--cache-dir /caminho/para/cache`.
-- Para desativar temporariamente, acrescente `--disable-cache` ao comando.
-- Para remover entradas antigas, utilize `--cache-cleanup-days 90` (ou outro valor em dias).
+- Configure diretório, limpeza automática e limites através da seção `[cache]` no TOML.
+- Defina `enabled = false` para desativar temporariamente.
+- Ajuste `auto_cleanup_days` para controlar a retenção de análises antigas.
 
 Também é possível acessar as estatísticas programaticamente:
 
@@ -120,15 +132,16 @@ As pastas são criadas automaticamente na primeira execução.
 ## 🛠️ Uso via CLI
 
 ```bash
-uv run egregora \
-  --zips-dir data/whatsapp_zips \
-  --newsletters-dir data/daily \
-  --group-name "RC LatAm" \
-  --model gemini-flash-lite-latest \
-  --days 2
+uv run egregora --config egregora.toml --days 2
 ```
 
-Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final quantos links foram processados e quantos atingiram o limiar de relevância.
+O arquivo TOML concentra as opções avançadas. Use `--zips-dir` ou `--newsletters-dir` apenas para sobrescrever temporariamente os caminhos definidos na configuração.
+
+Para inspecionar o plano antes de acionar o Gemini:
+
+```bash
+uv run egregora --config egregora.toml --dry-run
+```
 
 ## 📬 Processamento de Backlog
 

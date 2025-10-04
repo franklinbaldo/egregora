@@ -18,16 +18,22 @@ def build_parser() -> argparse.ArgumentParser:
         description="Gera newsletters diárias a partir dos exports do WhatsApp."
     )
     parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Arquivo TOML de configuração (recomendado).",
+    )
+    parser.add_argument(
         "--zips-dir",
         type=Path,
         default=None,
-        help="Pasta onde os arquivos .zip diários estão armazenados.",
+        help="Diretório onde os arquivos .zip diários estão armazenados.",
     )
     parser.add_argument(
         "--newsletters-dir",
         type=Path,
         default=None,
-        help="Pasta onde as newsletters serão escritas.",
+        help="Diretório onde as newsletters serão escritas.",
     )
     parser.add_argument(
         "--model",
@@ -48,90 +54,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Quantidade de dias mais recentes a incluir no prompt (padrão: 2).",
     )
     parser.add_argument(
-        "--enable-enrichment",
-        action="store_true",
-        help="Ativa explicitamente o enriquecimento de conteúdos compartilhados.",
-    )
-    parser.add_argument(
         "--disable-enrichment",
         action="store_true",
         help="Desativa o enriquecimento de conteúdos compartilhados.",
-    )
-    parser.add_argument(
-        "--relevance-threshold",
-        type=int,
-        default=None,
-        help="Relevância mínima (1-5) para incluir itens enriquecidos no prompt.",
-    )
-    parser.add_argument(
-        "--max-enrichment-items",
-        type=int,
-        default=None,
-        help="Número máximo de links analisados por execução (padrão: 50).",
-    )
-    parser.add_argument(
-        "--max-enrichment-time",
-        type=float,
-        default=None,
-        help="Tempo máximo (segundos) destinado ao enriquecimento (padrão: 120).",
-    )
-    parser.add_argument(
-        "--enrichment-model",
-        type=str,
-        default=None,
-        help="Modelo Gemini utilizado nas análises de links (padrão: gemini-2.0-flash-exp).",
-    )
-    parser.add_argument(
-        "--enrichment-context-window",
-        type=int,
-        default=None,
-        help="Quantidade de mensagens antes/depois usadas como contexto (padrão: 3).",
-    )
-    parser.add_argument(
-        "--analysis-concurrency",
-        type=int,
-        default=None,
-        help="Quantidade máxima de análises LLM simultâneas (padrão: 5).",
-    )
-    parser.add_argument(
-        "--cache-dir",
-        type=Path,
-        default=None,
-        help="Diretório para armazenar o cache de análises.",
-    )
-    parser.add_argument(
-        "--disable-cache",
-        action="store_true",
-        help="Desativa completamente o cache persistente.",
-    )
-    parser.add_argument(
-        "--cache-cleanup-days",
-        type=int,
-        default=None,
-        help="Remove análises cujo último uso é mais antigo que N dias.",
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=None,
-        help="Arquivo TOML de configuração para grupos virtuais.",
     )
     parser.add_argument(
         "--list",
         action="store_true",
         help="Lista grupos descobertos e sai.",
     )
-
     parser.add_argument(
-        "--disable-anonymization",
+        "--dry-run",
         action="store_true",
-        help="Desativa a anonimização de autores antes do processamento.",
-    )
-    parser.add_argument(
-        "--anonymization-format",
-        choices=["human", "short", "full"],
-        default=None,
-        help="Formato dos identificadores anônimos (padrão: human).",
+        help="Simula a execução e mostra quais newsletters seriam geradas.",
     )
 
     subparsers = parser.add_subparsers(dest="command")
@@ -161,6 +96,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.days <= 0:
+        parser.error("--days deve ser maior que zero")
+
+    timezone_override = None
+    if args.timezone:
+        try:
+            timezone_override = ZoneInfo(args.timezone)
+        except Exception as exc:  # pragma: no cover - defensive
+            parser.error(f"Timezone '{args.timezone}' não é válido: {exc}")
+
     if args.command == "discover":
         value = args.value.strip()
         if not value:
@@ -180,56 +125,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     # Load config (with TOML support)
-    if args.config and args.config.exists():
+    if args.config:
+        if not args.config.exists():
+            parser.error(f"Arquivo de configuração '{args.config}' não encontrado")
         config = PipelineConfig.from_toml(args.config)
-        # Override with CLI args if provided
-        if args.zips_dir:
-            config.zips_dir = args.zips_dir
-        if args.newsletters_dir:
-            config.newsletters_dir = args.newsletters_dir
-        if args.model:
-            config.model = args.model
-        if args.timezone:
-            config.timezone = ZoneInfo(args.timezone)
     else:
-        timezone = ZoneInfo(args.timezone) if args.timezone else None
         config = PipelineConfig.with_defaults(
             zips_dir=args.zips_dir,
             newsletters_dir=args.newsletters_dir,
             model=args.model,
-            timezone=timezone,
+            timezone=timezone_override,
         )
 
-    if args.disable_anonymization:
-        config.anonymization.enabled = False
-    if args.anonymization_format:
-        config.anonymization.output_format = args.anonymization_format
-
-    enrichment = config.enrichment
-    if args.enable_enrichment:
-        enrichment.enabled = True
+    # Essential CLI overrides still têm precedência sobre o TOML
+    if args.zips_dir:
+        config.zips_dir = args.zips_dir
+    if args.newsletters_dir:
+        config.newsletters_dir = args.newsletters_dir
+    if args.model:
+        config.model = args.model
+    if timezone_override:
+        config.timezone = timezone_override
     if args.disable_enrichment:
-        enrichment.enabled = False
-    if args.relevance_threshold is not None:
-        enrichment.relevance_threshold = max(1, min(5, args.relevance_threshold))
-    if args.max_enrichment_items is not None and args.max_enrichment_items > 0:
-        enrichment.max_links = args.max_enrichment_items
-    if args.max_enrichment_time is not None and args.max_enrichment_time > 0:
-        enrichment.max_total_enrichment_time = args.max_enrichment_time
-    if args.enrichment_model:
-        enrichment.enrichment_model = args.enrichment_model
-    if args.enrichment_context_window is not None and args.enrichment_context_window >= 0:
-        enrichment.context_window = args.enrichment_context_window
-    if args.analysis_concurrency is not None and args.analysis_concurrency > 0:
-        enrichment.max_concurrent_analyses = args.analysis_concurrency
-
-    cache_config = config.cache
-    if args.cache_dir:
-        cache_config.cache_dir = args.cache_dir
-    if args.disable_cache:
-        cache_config.enabled = False
-    if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
-        cache_config.auto_cleanup_days = args.cache_cleanup_days
+        config.enrichment.enabled = False
 
     processor = UnifiedProcessor(config)
 
@@ -256,6 +174,49 @@ def main(argv: Sequence[str] | None = None) -> int:
             print()
 
         print("=" * 60 + "\n")
+        return 0
+
+    if args.dry_run:
+        plans = processor.plan_runs(days=args.days)
+
+        print("\n" + "=" * 60)
+        print("🧪 DRY RUN — NENHUM MODELO SERÁ CHAMADO")
+        print("=" * 60 + "\n")
+
+        if not plans:
+            print("Nenhum grupo foi encontrado com os filtros atuais.")
+            print("Use --zips-dir ou ajuste seu arquivo TOML para apontar para os exports corretos.\n")
+            return 0
+
+        total_newsletters = 0
+        for plan in plans:
+            icon = "📺" if plan.is_virtual else "📝"
+            print(f"{icon} {plan.name} ({plan.slug})")
+            print(f"   Exports disponíveis: {plan.export_count}")
+            if plan.is_virtual and plan.merges:
+                print(f"   Grupos combinados: {', '.join(plan.merges)}")
+
+            if plan.available_dates:
+                print(
+                    f"   Intervalo disponível: {plan.available_dates[0]} → {plan.available_dates[-1]}"
+                )
+            else:
+                print("   Nenhuma data disponível nos exports")
+
+            if plan.target_dates:
+                formatted_dates = ", ".join(str(d) for d in plan.target_dates)
+                print(f"   Será gerado para {len(plan.target_dates)} dia(s): {formatted_dates}")
+                total_newsletters += len(plan.target_dates)
+            else:
+                print("   Nenhuma newsletter seria gerada (sem dados recentes)")
+
+            print()
+
+        print("=" * 60)
+        print(
+            f"Resumo: {len(plans)} grupo(s) seriam processados gerando até {total_newsletters} newsletter(s)."
+        )
+        print("Use --config para ajustes avançados.\n")
         return 0
 
     # Process mode

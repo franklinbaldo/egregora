@@ -36,13 +36,19 @@ O enriquecimento depende apenas do suporte nativo do Gemini:
 
 ## 3. Pipeline com enriquecimento
 
-Execute o comando abaixo para gerar uma newsletter de um dia com enriquecimento ativado e limiar de relevância 3:
+Com a configuração pronta (`enrichment.enabled = true` e `relevance_threshold = 3`), gere uma newsletter recente apontando para o TOML:
 
 ```bash
-uv run egregora --days 1 --relevance-threshold 3
+uv run egregora --config egregora.toml --days 1
 ```
 
-Saída esperada (resumo):
+Quer apenas validar quais dias seriam processados antes de gastar tokens?
+
+```bash
+uv run egregora --config egregora.toml --dry-run
+```
+
+Saída esperada do processamento real (resumo):
 
 ```
 [Enriquecimento] 4/6 itens relevantes processados em 42.1s.
@@ -50,28 +56,28 @@ Saída esperada (resumo):
 [OK] Newsletter criada em newsletters/2024-05-12.md usando dias 2024-05-12.
 ```
 
-> **Dica:** Caso deseje desativar temporariamente, use `--disable-enrichment`.
+> **Dica:** Para pausar o módulo, defina `enabled = false` na seção `[enrichment]` do TOML.
 
-## 4. Principais flags
+## 4. Principais parâmetros (`[enrichment]`)
 
-| Flag | Descrição |
+| Chave | Descrição |
 | --- | --- |
-| `--relevance-threshold` | Nota mínima (1–5) para incluir um link no prompt. |
-| `--max-enrichment-items` | Limite de links analisados por execução. |
-| `--max-enrichment-time` | Tempo máximo (s) antes de cancelar o estágio. |
-| `--enrichment-model` | Modelo Gemini usado para análise dos links. |
-| `--enrichment-context-window` | Quantidade de mensagens antes/depois usadas como contexto. |
-| `--analysis-concurrency` | Número de análises simultâneas do LLM. |
-| `--cache-dir` | Define um diretório alternativo para o cache persistente. |
-| `--disable-cache` | Executa o pipeline sem reutilizar análises anteriores. |
-| `--cache-cleanup-days` | Remove entradas mais antigas que N dias ao iniciar. |
+| `enabled` | Ativa ou desativa o estágio de enriquecimento. |
+| `relevance_threshold` | Nota mínima (1–5) para incluir um link no prompt. |
+| `max_links` | Limite de links analisados por execução. |
+| `max_total_enrichment_time` | Tempo máximo (s) antes de abortar o estágio. |
+| `enrichment_model` | Modelo Gemini usado para análise dos links. |
+| `context_window` | Quantidade de mensagens antes/depois usadas como contexto. |
+| `max_concurrent_analyses` | Número de análises simultâneas do LLM. |
+| `[cache] cache_dir` | Diretório persistente usado para reaproveitar análises. |
+| `[cache] auto_cleanup_days` | Limpeza automática de entradas mais antigas que N dias. |
 
 ## 5. Boas práticas
 
 - **Comece conservador**: limiar 3 e máximo de 20 itens para medir custo/benefício.
 - **Observe os logs**: eles listam erros de análise do Gemini para cada link.
 - **Monitore custos**: cada análise usa o modelo `enrichment_model`. Ajuste para versões mais baratas se necessário.
-- **Tempo limite**: se muitos links falharem por timeout, aumente `max_enrichment_time` ou reduza `max_enrichment_items`.
+- **Tempo limite**: se muitos links falharem por timeout, aumente `max_total_enrichment_time` ou reduza `max_links`.
 - **Aproveite o cache**: mantenha o diretório `cache/` versionado para compartilhar resultados entre execuções e evitar custos repetidos.
 
 ## 6. Próximos passos

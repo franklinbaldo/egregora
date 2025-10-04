@@ -277,7 +277,7 @@ Objetivo:
 **Implementação sugerida:**
 
 ```markdown
-# prompts/system_instruction_base.md
+# src/egregora/prompts/system_instruction_base.md
 
 Tarefa: produzir uma newsletter diária a partir de conversas de grupo.
 
@@ -299,7 +299,7 @@ Formatação:
 ```
 
 ```markdown
-# prompts/system_instruction_multigroup.md
+# src/egregora/prompts/system_instruction_multigroup.md
 
 ⚠️ MENSAGENS TAGUEADAS:
 - Este grupo agrega múltiplas fontes
@@ -313,7 +313,7 @@ Formatação:
 
 from pathlib import Path
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 def _build_system_instruction(has_group_tags: bool = False) -> str:
     """System prompt carregado de arquivos externos."""
@@ -334,7 +334,7 @@ def _build_system_instruction(has_group_tags: bool = False) -> str:
 - Versionamento independente dos prompts
 
 **Plano:**
-1. Criar `prompts/` directory na raiz
+1. Criar `src/egregora/prompts/` directory
 2. Mover conteúdo atual para `.md` files
 3. Refatorar `_build_system_instruction()` para ler arquivos
 4. Adicionar validação (se arquivo não existe, erro claro)

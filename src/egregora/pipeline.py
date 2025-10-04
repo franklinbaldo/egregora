@@ -6,6 +6,7 @@ import os
 import re
 import zipfile
 from datetime import date, datetime, timedelta, tzinfo
+from importlib import resources
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -348,103 +349,51 @@ def build_llm_input(
     return "\n\n".join(sections)
 
 
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+_BASE_PROMPT_NAME = "system_instruction_base.md"
+_MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
+
+
+def _load_prompt(filename: str) -> str:
+    """Load a prompt either from the editable folder or package data."""
+
+    candidates = [_PROMPTS_DIR / filename]
+
+    for candidate in candidates:
+        if candidate.exists():
+            text = candidate.read_text(encoding="utf-8")
+            stripped = text.strip()
+            if not stripped:
+                raise ValueError(f"Prompt file '{candidate}' is empty")
+            return stripped
+
+    try:
+        package_text = resources.files("egregora").joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
+    except FileNotFoundError as exc:  # pragma: no cover - defensive
+        raise FileNotFoundError(
+            f"Prompt file '{filename}' is missing. Verifique se os dados do pacote foram instalados corretamente."
+        ) from exc
+
+    stripped = package_text.strip()
+    if not stripped:
+        raise ValueError(f"Prompt resource '{filename}' is empty")
+
+    return stripped
+
+
 def build_system_instruction(has_group_tags: bool = False) -> list[types.Part]:
     """Return the validated system prompt."""
 
     _require_google_dependency()
 
-    system_text = r"""
-Tarefa: produzir uma newsletter diária a partir de um TRANSCRITO BRUTO de conversas de grupo.
-
-Instruções de entrada:
-- Você receberá um bloco de texto com mensagens no formato "HH:MM — Remetente: Mensagem" (podem existir variantes).
-- O remetente pode vir como nick, número de telefone ou ambos. Links podem aparecer soltos na mensagem.
-
-Objetivo:
-- Redigir um relatório diário em português, em estilo de "newsletter", organizado em FIOS (threads), narrado como se o GRUPO fosse UMA ÚNICA MENTE COLETIVA ("nós").
-- A newsletter deve SER a voz do grupo, não uma análise SOBRE o grupo.
-- Em CADA FRASE do corpo narrativo, colocar o autor entre parênteses imediatamente após a frase. Se houver nick, usar (Nick). Se não houver nick, usar os quatro dígitos finais do telefone, no formato (1234).
-- Inserir CADA LINK COMPARTILHADO no ponto exato em que ele é mencionado (link completo, clicável). Não agrupar links no final.
-- EXPLICITAR subentendidos, tensões, mudanças de posição e contextos. Não deixar implícito o que está acontecendo em cada momento.
-- Não inventar nicks. Não resumir links. Não ocultar mensagens relevantes.
-
-🔒 PRIVACIDADE — INSTRUÇÕES CRÍTICAS:
-- Utilize APENAS os identificadores anônimos fornecidos (Member-XXXX, etc.).
-- Nunca repita nomes próprios, telefones completos ou e-mails mencionados NO CONTEÚDO das mensagens.
-- Ao referenciar alguém citado no conteúdo mas sem identificador anônimo, generalize ("um membro", "uma pessoa do grupo").
-- Preserve o sentido original enquanto remove detalhes de contato ou identificação direta.
-
-Regras de formatação do relatório:
-1) Cabeçalho:
-   - Título: "📩 {NOME DO GRUPO} — Diário de {DATA}"
-   - Uma linha introdutória, no plural ("nós"), explicando que o dia foi organizado em fios.
-
-2) Estrutura por FIOS (não "arcos", não "seções"):
-   - Separar o dia em 4–10 FIOS, cada um com título descritivo e explícito no formato:
-     "## Fio X — {título que contextualize claramente o momento/debate/tema}"
-   - Cada FIO deve começar com 1-2 frases de CONTEXTO explicando o que está acontecendo naquele momento da nossa mente coletiva, POR QUE aquele tema surgiu, COMO ele se conecta (ou não) ao anterior.
-   - Critérios para separar FIOS:
-     • Mudança clara de tema OU
-     • Intervalos de tempo significativos OU
-     • Troca dominante de participantes OU
-     • Mudança de tom/intensidade.
-   - Dentro de cada FIO, escrever em 1ª pessoa do plural ("nós"), como a mente do grupo, e:
-     • CONTEXTUALIZAR: explicar o que está acontecendo, não apenas reportar.
-     • EXPLICITAR: tese, antítese, consensos, divergências, tensões não resolvidas.
-     • SUBENTENDIDOS: transformar implícitos em explícitos ("Declaramos que…", "Contestamos porque…", "Uma parte de nós temia que…").
-     • Citar os links no exato ponto onde foram trazidos, mantendo o link completo.
-     • Em CADA FRASE do corpo narrativo, ao final, inserir (Nick) ou (quatro dígitos).
-
-3) Regras de autoria (entre parênteses):
-   - Se a linha do remetente tiver nick → usar exatamente esse nick entre parênteses.
-   - Se NÃO houver nick, extrair os quatro dígitos finais do número: ex.: +55 11 94529-4774 → (4774).
-   - Se houver mídia sem descrição ("<Mídia oculta>"), registrar explicitamente "enviamos mídia sem descrição" (autor entre parênteses).
-   - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
-   - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
-
-4) Tratamento de links:
-   - Sempre inserir o link COMPLETO no ponto exato da narrativa em que ele foi mencionado originalmente.
-   - Não encurtar, não mover para rodapé, não omitir.
-   - Pode haver uma frase curta de contexto sobre o link SE o contexto não for óbvio.
-
-5) Estilo e clareza:
-   - Voz: 1ª pessoa do plural ("nós"), IMEDIATA, como se o grupo estivesse narrando a si mesmo.
-   - Não usar metalinguagem de planejamento ("vamos estruturar", "o arco se divide", "conectivos"). A newsletter É a narrativa, não uma análise sobre a narrativa.
-   - Explicativo e contextual: diga o que cada parte de nós defende e POR QUÊ; diga POR QUÊ as alternativas foram refutadas; diga QUANDO mudamos de assunto e POR QUÊ.
-   - Zero mistério: torne explícitos pressupostos, implicações, trade-offs, tensões não resolvidas.
-   - Evitar jargão não explicado; quando usar, explique brevemente inline.
-   - Tom natural, não excessivamente formal, mas também não casual demais.
-
-6) Epílogo:
-   - Fechar com um parágrafo "Epílogo" resumindo:
-     • Principais consensos e dissensos do dia.
-     • O que ficou em aberto ou não resolvido.
-     • Próximos passos implícitos (se existirem) — explicitados.
-     • Tensões que permaneceram sem resolução.
-
-7) Qualidade (checklist antes de finalizar):
-   - [ ] Cada FIO começa com contexto claro do que está acontecendo.
-   - [ ] Fios bem separados por tema/tempo/participantes/tom.
-   - [ ] Cada frase substantiva termina com (Nick) ou (quatro dígitos).
-   - [ ] Todos os links aparecem no ponto exato em que foram citados.
-   - [ ] Subentendidos e tensões foram tornados explícitos.
-   - [ ] Sem inventar nicks; sem inventar fatos; sem mover links.
-   - [ ] Voz é "nós" narrando nosso próprio dia, não análise externa.
-   - [ ] Lacunas no transcrito (se houver) são explicitadas com honestidade.
-"""
-    
+    base_prompt = _load_prompt(_BASE_PROMPT_NAME)
     if has_group_tags:
-        system_text += """
+        multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
+        prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
+    else:
+        prompt_text = base_prompt
 
-⚠️ MENSAGENS TAGUEADAS:
-- Este grupo agrega múltiplas fontes/grupos
-- Tags indicam origem: [Grupo], 🌎, etc
-- Mencione origem quando RELEVANTE para o contexto
-- Trate como conversa UNIFICADA de uma mente coletiva
-- Não force menção das tags em todo parágrafo
-"""
-
-    return [types.Part.from_text(text=system_text.strip())]
+    return [types.Part.from_text(text=prompt_text)]
 
 
 def ensure_directories(config: PipelineConfig) -> None:
