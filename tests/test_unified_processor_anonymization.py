@@ -6,11 +6,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-try:  # pragma: no cover - optional dependency guard
-    import polars  # noqa: F401
-except ModuleNotFoundError:  # pragma: no cover - skip module when polars missing
-    pytest.skip("polars is required for UnifiedProcessor anonymization tests", allow_module_level=True)
-
 from egregora.config import AnonymizationConfig, PipelineConfig, RAGConfig, EnrichmentConfig, CacheConfig
 from egregora.processor import UnifiedProcessor
 

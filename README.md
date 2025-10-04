@@ -73,6 +73,16 @@ Quer testar sem chamar o modelo? Use o modo de simulação:
 uv run egregora --config egregora.toml --dry-run
 ```
 
+### 🧪 Rodando os testes
+
+1. Crie o ambiente virtual com `uv venv` (se ainda não existir).
+2. Execute `uv sync` para instalar todas as dependências travadas — isso garante que bibliotecas opcionais como `polars` sejam baixadas automaticamente.
+3. Rode a suíte desejada com `uv run --with pytest pytest`. Também é possível limitar o escopo, por exemplo:
+
+   ```bash
+   uv run --with pytest pytest tests/test_unified_processor_anonymization.py
+   ```
+
 ## ✏️ Personalize o prompt do sistema
 
 - Edite `src/egregora/prompts/system_instruction_base.md` para ajustar o tom padrão das newsletters (ou `egregora/prompts/system_instruction_base.md` em instalações via `pip`).
