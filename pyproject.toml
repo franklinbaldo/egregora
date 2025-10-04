@@ -25,7 +25,7 @@ requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-devenv = true
+managed = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
