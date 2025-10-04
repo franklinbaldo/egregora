@@ -19,7 +19,7 @@ class MCPServerConfig:
     """Runtime configuration values for the MCP server."""
 
     config_path: Path | None = None
-    newsletters_dir: Path = Path("newsletters")
+    newsletters_dir: Path = Path("data/daily")
     cache_dir: Path = Path("cache") / "rag"
     rag: RAGConfig = RAGConfig()
 

@@ -3,7 +3,7 @@
 Use this file to give short, practical guidance for AI coding agents working on the Egregora repository.
 Keep advice concrete and tied to the codebase (commands, important files, patterns).
 
-- Big picture: Egregora converts WhatsApp export .zip files into Markdown newsletters, enriquece links com Gemini e mantém um RAG acessível via MCP. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) chama `src/egregora/pipeline.py`, que orquestra anonimização, enriquecimento opcional (`src/egregora/enrichment.py`), buscas RAG (`src/egregora/rag/*`) e escreve `newsletters/YYYY-MM-DD.md`.
+- Big picture: Egregora converts WhatsApp export .zip files into Markdown newsletters, enriquece links com Gemini e mantém um RAG acessível via MCP. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) chama `src/egregora/pipeline.py`, que orquestra anonimização, enriquecimento opcional (`src/egregora/enrichment.py`), buscas RAG (`src/egregora/rag/*`) e escreve `data/daily/YYYY-MM-DD.md`.
 
 - Where to look first:
   - `README.md` / `PHILOSOPHY.md` — visão geral do projeto, exemplos de execução e contexto filosófico.
@@ -35,7 +35,7 @@ Keep advice concrete and tied to the codebase (commands, important files, patter
 - Integration & I/O surfaces that matter for PRs:
   - External dependencies: `google-genai` (Gemini) — network calls and API key (`GEMINI_API_KEY`). Cache reduces calls.
   - MCP integration: optional `mcp` package exposes the RAG via Model Context Protocol; the RAG code uses local index files under `cache/rag`.
-  - Filesystem layout: input zips under `data/whatsapp_zips/`; generated newsletters under `newsletters/`; enrichment cache in `cache/analyses` and index at `cache/index.json`.
+- Filesystem layout: input zips under `data/whatsapp_zips/`; generated newsletters under `data/daily/`; enrichment cache in `cache/analyses` and index at `cache/index.json`.
 
 - Debugging tips specific to this repo:
   - If LLM client missing, code raises helpful RuntimeError messages (search for "a depend\u00eancia opcional" or check `try/except ModuleNotFoundError` blocks).
@@ -49,6 +49,23 @@ Keep advice concrete and tied to the codebase (commands, important files, patter
 - Small examples to reference in edits:
   - Prompt JSON for enrichment in `src/egregora/enrichment.py` (method `_build_prompt`). Keep keys `summary`, `key_points`, `tone`, `relevance`.
   - Cache usage example: `CacheManager.set(url, payload)` and `CacheManager.get(url)` in `enrichment.py`.
+
+## 🚀 Caminho Principal (Quick Start)
+
+**Para usuários:**
+1. Coloque os exports `.zip` do WhatsApp em `data/whatsapp_zips/`.
+2. Rode `python scripts/process_backlog.py data/whatsapp_zips data/daily` para processar o backlog completo.
+3. As newsletters do dia ficam em `data/daily/YYYY-MM-DD.md`.
+
+**Para CI/CD:**
+1. `tools/build_reports.py` agrega `data/daily/` em relatórios no diretório `docs/reports/`.
+2. `mkdocs build --strict` gera o site estático.
+3. O workflow `gh-pages.yml` publica tudo no GitHub Pages.
+
+**Entrypoints úteis:**
+- CLI interativo: `uv run egregora` (usa `PipelineConfig.with_defaults`).
+- Processamento em lote: `python scripts/process_backlog.py` (diretórios explícitos).
+- Servidor MCP/RAG: `python scripts/start_mcp_server.py` (dependência opcional `mcp`).
 
 If anything below is unclear or you need access to private config (CI, external keys, or a preferred local test dataset), ask the maintainers before making changes.
 

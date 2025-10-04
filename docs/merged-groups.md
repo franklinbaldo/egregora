@@ -652,7 +652,7 @@ class PipelineConfig:
         
         return cls(
             zips_dir=Path(dirs.get('zips_dir', 'data/whatsapp_zips')),
-            newsletters_dir=Path(dirs.get('newsletters_dir', 'newsletters')),
+            newsletters_dir=Path(dirs.get('newsletters_dir', 'data/daily')),
             media_dir=Path(dirs.get('media_dir', 'media')),
             model=pipeline.get('model', DEFAULT_MODEL),
             timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
@@ -670,7 +670,7 @@ class PipelineConfig:
         
         return cls(
             zips_dir=overrides.get('zips_dir', Path('data/whatsapp_zips')),
-            newsletters_dir=overrides.get('newsletters_dir', Path('newsletters')),
+            newsletters_dir=overrides.get('newsletters_dir', Path('data/daily')),
             media_dir=overrides.get('media_dir', Path('media')),
             model=overrides.get('model', DEFAULT_MODEL),
             timezone=overrides.get('timezone', ZoneInfo(DEFAULT_TIMEZONE)),
@@ -693,7 +693,7 @@ skip_real_if_in_virtual = true
 
 [directories]
 zips_dir = "data/whatsapp_zips"
-newsletters_dir = "newsletters"
+newsletters_dir = "data/daily"
 
 # Grupos virtuais
 [merges.rc-americas]
@@ -992,7 +992,7 @@ Examples:
     
     parser.add_argument('--config', type=Path, help='Config TOML file')
     parser.add_argument('--zips-dir', type=Path, default=Path('data/whatsapp_zips'))
-    parser.add_argument('--newsletters-dir', type=Path, default=Path('newsletters'))
+    parser.add_argument('--newsletters-dir', type=Path, default=Path('data/daily'))
     parser.add_argument('--days', type=int, help='Process N most recent days')
     parser.add_argument('--list', action='store_true', help='List groups and exit')
     parser.add_argument('--model', type=str, help='Override LLM model')
@@ -1146,7 +1146,7 @@ uv run egregora --days 7
 # 📝 Processing: RC LatAm
 #   Processing 2025-10-01...
 #     45 messages from 12 participants
-#     ✅ newsletters/rc-latam/2025-10-01.md
+#     ✅ data/daily/rc-latam/2025-10-01.md
 # ...
 # ✅ COMPLETE
 # Groups processed: 3
@@ -1188,7 +1188,7 @@ uv run egregora --config egregora.toml --days 7
 #     • RC Brasil: 38 messages
 #   Processing 2025-10-01...
 #     83 messages from 23 participants
-#     ✅ newsletters/rc-americas/2025-10-01.md
+#     ✅ data/daily/rc-americas/2025-10-01.md
 ```
 
 ### **Caso 3: Listar**

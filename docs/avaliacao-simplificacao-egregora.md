@@ -8,17 +8,19 @@
 
 ## 📊 Resumo Executivo
 
-**Diagnóstico Geral:** O projeto Egregora **já implementou a maioria das simplificações sugeridas**. Das 10 recomendações, **8 estão corretas e alinhadas** com o código atual. Apenas **2 precisam ajustes** (padronização de diretórios e refinamento de documentação).
+**Diagnóstico Geral:** O projeto Egregora **já implementou a maioria das simplificações sugeridas**. Das 10 recomendações, **8 estavam corretas** e as **2 restantes foram ajustadas** nesta rodada (padronização de diretórios e refinamento de documentação).
 
 **Principais Achados:**
 - ✅ Via de execução única está consolidada (`process_backlog.py` → `pipeline.py`)
 - ✅ Enriquecimento já é opt-in com flags mínimos
 - ✅ RAG/MCP são opcionais conforme esperado
 - ✅ Privacidade em 2 camadas implementada
-- ⚠️ **Gap crítico:** Inconsistência entre `data/daily/` (fonte) e `newsletters/` (destino CLI)
-- ⚠️ Docs paralelas podem gerar confusão sobre o fluxo principal
+- ✅ Gap crítico resolvido: `data/daily/` agora é origem e destino padrão
+- ✅ Docs alinhadas destacando o fluxo principal
 
 **Recomendação Principal:** Aplicar apenas **sugestões #2 (diretórios) e #10 (docs)** para eliminar os últimos atritos. O restante já está correto.
+
+**Atualização (2025-10-04+):** As sugestões #2 e #10 foram implementadas — diretórios unificados em `data/daily/` e documentação alinhada com o caminho principal.
 
 ---
 
@@ -52,39 +54,22 @@ results = processor.process_all()
 
 ### 2️⃣ Padronizar os diretórios que o site usa
 
-**Status:** ⚠️ **ATENÇÃO - INCONSISTÊNCIA IDENTIFICADA**
+**Status:** ✅ **CORRIGIDO - DIRETÓRIOS UNIFICADOS**
 
-**Problema encontrado:**
+**Atualização:** `PipelineConfig.with_defaults()` agora aponta para `data/daily/` e a documentação foi sincronizada.
+
 ```python
-# tools/build_reports.py (linha 12450)
-DAILY_SRC = Path("data/daily")  # ❌ Fonte dos diários
+# src/egregora/config.py
+newsletters_dir=_ensure_safe_directory(newsletters_dir or Path("data/daily"))
 
-# Mas o CLI gera em:
-# README.md (linha 13200)
-uv run egregora --newsletters-dir newsletters  # ❌ Destino padrão
-```
-
-**Impacto:**
-- O workflow `gh-pages.yml` roda `build_reports.py` esperando `data/daily/`
-- Mas o CLI padrão gera em `newsletters/`
-- Usuários precisam copiar manualmente ou ajustar paths
-
-**Recomendação:** 🔴 **ALTA PRIORIDADE**
-
-**Solução proposta:**
-```python
-# Opção A: Unificar em data/daily/
-# 1. Ajustar PipelineConfig.with_defaults():
-newsletters_dir=Path("data/daily")
-
-# 2. Atualizar README:
+# README.md
 uv run egregora --newsletters-dir data/daily
-
-# Opção B: Build reports lê de múltiplas fontes
-DAILY_SOURCES = [Path("data/daily"), Path("newsletters")]
 ```
 
-**Opção recomendada:** A (unificar em `data/daily/`) - menor superfície.
+**Impacto positivo:**
+- Workflow `gh-pages.yml` e CLI compartilham o mesmo diretório (`data/daily/`).
+- Scripts auxiliares (`process_backlog.py`, `migrate_to_llamaindex.py`) usam o mesmo caminho.
+- Onboarding reduzido: não é mais necessário mover arquivos entre pastas diferentes.
 
 ---
 
@@ -260,40 +245,18 @@ jobs:
 
 ### 🔟 Uma história única do projeto (Copilot instructions)
 
-**Status:** ⚠️ **ATENÇÃO - REFINAMENTO NECESSÁRIO**
+**Status:** ✅ **REORGANIZADO - HISTÓRIA ÚNICA DOCUMENTADA**
 
-**Situação atual:**
-```markdown
-# .github/copilot-instructions.md (linha 308)
-- Big picture: Egregora converts WhatsApp export .zip files into Markdown 
-  newsletters, enriquece links com Gemini e mantém um RAG acessível via MCP. 
-  Main execution path: CLI entrypoint `egregora` (...) chama 
-  `src/egregora/pipeline.py`
-```
+**Atualização:** `.github/copilot-instructions.md` ganhou seção "Caminho Principal" destacando `process_backlog.py` → `pipeline.py` → `data/daily/`, e o README agora aponta explicitamente para o arquivo como fonte técnica.
 
-**Pontos positivos:**
-- ✅ Copilot instructions existe e é detalhado
-- ✅ Lista entry point correto
-- ✅ Menciona flags importantes
+**Destaques:**
+- Copilot instructions listam o pipeline principal, CI (`tools/build_reports.py` + `mkdocs`) e entrypoints extras.
+- README exibe um aviso no topo com link direto para as instructions.
+- `docs/backlog_processing.md` usa os mesmos diretórios (`data/daily/`) e passos descritos na seção de Quick Start.
 
-**Gaps identificados:**
-- ⚠️ Falta menção explícita ao "caminho feliz": `process_backlog.py` → `pipeline.py` → `newsletters/`
-- ⚠️ README e docs podem divergir das Copilot instructions
-- ⚠️ `docs/backlog_processing.md` e Copilot instructions devem estar sincronizados
-
-**Recomendação:** 🟡 **MÉDIA PRIORIDADE**
-
-**Ação sugerida:**
-1. Adicionar seção "Quick Start Path" nas Copilot instructions:
-   ```markdown
-   ## Caminho Principal (Quick Start)
-   1. Usuário coloca ZIPs em `data/whatsapp_zips/`
-   2. Executa: `python scripts/process_backlog.py data/whatsapp_zips data/daily`
-   3. Workflow CI roda: `tools/build_reports.py` → `mkdocs build` → deploy
-   4. Resultado: newsletters em `data/daily/`, site em `docs/reports/`
-   ```
-
-2. Fazer README e docs apontarem para Copilot instructions como referência técnica
+**Próximos passos sugeridos:**
+- Manter a seção atualizada sempre que novos fluxos forem adicionados.
+- Reutilizar o texto do Quick Start em outras docs para evitar divergência.
 
 ---
 
@@ -318,10 +281,10 @@ python scripts/process_backlog.py data/whatsapp_zips data/daily
 ```
 
 **Validação:**
-- [ ] CLI gera em `data/daily/` por padrão
-- [ ] `build_reports.py` lê de `data/daily/` sem ajustes
-- [ ] Workflow CI funciona sem mudanças
-- [ ] README atualizado
+- [x] CLI gera em `data/daily/` por padrão
+- [x] `build_reports.py` lê de `data/daily/` sem ajustes
+- [x] Workflow CI funciona sem mudanças
+- [x] README atualizado
 
 ---
 
@@ -359,9 +322,9 @@ python scripts/process_backlog.py data/whatsapp_zips data/daily
 ```
 
 **Validação:**
-- [ ] Copilot instructions tem seção "Caminho Principal"
-- [ ] README aponta para Copilot instructions
-- [ ] docs/backlog_processing.md alinhado com Copilot
+- [x] Copilot instructions tem seção "Caminho Principal"
+- [x] README aponta para Copilot instructions
+- [x] docs/backlog_processing.md alinhado com Copilot
 
 ---
 
@@ -389,9 +352,9 @@ python scripts/process_backlog.py data/whatsapp_zips data/daily
 - [x] CI enxuta (job único)
 - [x] Governança de cache simples
 
-### ⚠️ O que precisa ajuste
-- [ ] **Crítico:** Unificar diretórios em `data/daily/` (Sugestão #2)
-- [ ] **Importante:** Consolidar Copilot instructions como fonte única (Sugestão #10)
+### ⚙️ O que foi ajustado nesta rodada
+- [x] **Diretórios unificados:** `data/daily/` agora é o destino padrão para newsletters (Sugestão #2).
+- [x] **História única:** Copilot instructions + README sinalizam o caminho principal (Sugestão #10).
 
 ### 🎯 Impacto Esperado
 
