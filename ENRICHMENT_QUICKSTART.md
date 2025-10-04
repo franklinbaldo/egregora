@@ -13,6 +13,13 @@ Este guia mostra como ativar e validar rapidamente o sistema de enriquecimento d
 
 3. Garanta que existam arquivos `.zip` recentes em `data/whatsapp_zips/` (ou aponte outro diretório com `--zips-dir`).
 
+   **Dica**: Use os nomes naturais do WhatsApp - não é necessário renomear!
+   ```
+   ✅ Conversa do WhatsApp com Meu Grupo.zip
+   ✅ 2025-10-03-Grupo Específico.zip  
+   ✅ WhatsApp Chat with Team.zip
+   ```
+
 ## 2. Executando o exemplo
 
 Para confirmar que o módulo funciona isoladamente:

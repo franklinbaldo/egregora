@@ -50,7 +50,7 @@ ConfigFileOption = Annotated[
 ]
 ZipsDirOption = Annotated[
     Optional[Path],
-    typer.Option(help="Diretório onde os arquivos .zip diários estão armazenados."),
+    typer.Option(help="Diretório com exports .zip do WhatsApp (nomes naturais ou com prefixo YYYY-MM-DD)."),
 ]
 NewslettersDirOption = Annotated[
     Optional[Path],
