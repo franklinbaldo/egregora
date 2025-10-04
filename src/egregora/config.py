@@ -59,14 +59,6 @@ class AnonymizationConfig:
 
 
 @dataclass(slots=True)
-class PrivacyConfig:
-    """Configuration for optional newsletter privacy reviews."""
-
-    double_check_newsletter: bool = False
-    review_model: str | None = None
-
-
-@dataclass(slots=True)
 class PipelineConfig:
     """Runtime configuration for the newsletter pipeline."""
 
@@ -80,7 +72,6 @@ class PipelineConfig:
     cache: CacheConfig
     anonymization: AnonymizationConfig
     rag: RAGConfig
-    privacy: PrivacyConfig
 
     @classmethod
     def with_defaults(
@@ -95,7 +86,6 @@ class PipelineConfig:
         cache: CacheConfig | None = None,
         anonymization: AnonymizationConfig | None = None,
         rag: RAGConfig | None = None,
-        privacy: PrivacyConfig | None = None,
         media_dir: Path | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
@@ -113,7 +103,6 @@ class PipelineConfig:
                 copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
             ),
             rag=(copy.deepcopy(rag) if rag else RAGConfig()),
-            privacy=(copy.deepcopy(privacy) if privacy else PrivacyConfig()),
         )
 
 
@@ -248,7 +237,6 @@ __all__ = [
     "CacheConfig",
     "EnrichmentConfig",
     "PipelineConfig",
-    "PrivacyConfig",
     "RAGConfig",
     "load_backlog_config",
 ]

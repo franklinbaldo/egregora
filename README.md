@@ -82,9 +82,8 @@ Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis dire
   `--disable-anonymization` apenas para depuração local.
 - **Instruções rígidas ao LLM**: o prompt enviado ao Gemini reforça que nomes
   próprios, telefones e contatos diretos não devem aparecer na newsletter.
-- **Revisão opcional**: habilite `--double-check-newsletter` para acionar uma
-  segunda chamada ao LLM, que revisa e limpa a newsletter. É possível escolher um
-  modelo dedicado com `--review-model` ou confiar na revisão humana.
+- **Revisão humana quando necessário**: para newsletters sensíveis, mantenha uma
+  leitura final manual antes do envio.
 - **Autodescoberta**: cada pessoa pode calcular o próprio identificador com
   `uv run egregora discover "<telefone ou apelido>"` ou consultar
   `docs/discover.md` para exemplos completos.

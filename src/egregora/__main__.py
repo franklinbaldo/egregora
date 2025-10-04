@@ -128,18 +128,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Formato dos identificadores anônimos (padrão: human).",
     )
-    parser.add_argument(
-        "--double-check-newsletter",
-        action="store_true",
-        help="Executa uma segunda chamada ao LLM para revisar a newsletter em busca de PII.",
-    )
-    parser.add_argument(
-        "--review-model",
-        type=str,
-        default=None,
-        help="Modelo opcional utilizado na revisão de privacidade (padrão: mesmo da geração).",
-    )
-
     subparsers = parser.add_subparsers(dest="command")
     discover_parser = subparsers.add_parser(
         "discover",
@@ -198,11 +186,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         config.anonymization.enabled = False
     if args.anonymization_format:
         config.anonymization.output_format = args.anonymization_format
-    if args.double_check_newsletter:
-        config.privacy.double_check_newsletter = True
-    if args.review_model:
-        config.privacy.review_model = args.review_model
-
     enrichment = config.enrichment
     if args.enable_enrichment:
         enrichment.enabled = True
