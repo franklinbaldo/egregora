@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 from .config import PipelineConfig
 from .discover import discover_identifier, format_cli_message
-from .pipeline import generate_newsletter
 from .processor import UnifiedProcessor
 
 
@@ -29,12 +28,6 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Pasta onde as newsletters serão escritas.",
-    )
-    parser.add_argument(
-        "--group-name",
-        type=str,
-        default=None,
-        help="Nome do grupo a ser usado no cabeçalho da newsletter.",
     )
     parser.add_argument(
         "--model",
@@ -128,11 +121,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Lista grupos descobertos e sai.",
     )
-    parser.add_argument(
-        "--use-new-processor",
-        action="store_true",
-        help="Usa o novo processador unificado com auto-discovery.",
-    )
 
     parser.add_argument(
         "--disable-anonymization",
@@ -199,8 +187,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             config.zips_dir = args.zips_dir
         if args.newsletters_dir:
             config.newsletters_dir = args.newsletters_dir
-        if args.group_name:
-            config.group_name = args.group_name
         if args.model:
             config.model = args.model
         if args.timezone:
@@ -210,7 +196,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = PipelineConfig.with_defaults(
             zips_dir=args.zips_dir,
             newsletters_dir=args.newsletters_dir,
-            group_name=args.group_name,
             model=args.model,
             timezone=timezone,
         )
@@ -246,79 +231,53 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
         cache_config.auto_cleanup_days = args.cache_cleanup_days
 
-    # Use new unified processor if requested or if merges are configured
-    if args.use_new_processor or config.merges or args.list:
-        processor = UnifiedProcessor(config)
-        
-        # List mode
-        if args.list:
-            groups = processor.list_groups()
-            
-            print("\n" + "="*60)
-            print("📁 DISCOVERED GROUPS")
-            print("="*60 + "\n")
-            
-            for slug, info in sorted(groups.items()):
-                icon = "📺" if info['type'] == 'virtual' else "📝"
-                print(f"{icon} {info['name']}")
-                print(f"   Slug: {slug}")
-                print(f"   Exports: {info['export_count']}")
-                print(f"   Dates: {info['date_range'][0]} to {info['date_range'][1]}")
-                
-                if info['type'] == 'real' and info['in_virtual']:
-                    print(f"   Part of: {', '.join(info['in_virtual'])}")
-                elif info['type'] == 'virtual':
-                    print(f"   Merges: {', '.join(info['merges'])}")
-                
-                print()
-            
-            print("="*60 + "\n")
-            return 0
-        
-        # Process mode
-        print("\n" + "="*60)
-        print("🚀 PROCESSING WITH UNIFIED PROCESSOR")
-        print("="*60)
-        
-        results = processor.process_all(days=args.days)
-        
-        # Summary
-        print("\n" + "="*60)
-        print("✅ COMPLETE")
-        print("="*60 + "\n")
-        
-        total = sum(len(v) for v in results.values())
-        print(f"Groups processed: {len(results)}")
-        print(f"Newsletters generated: {total}\n")
-        
-        for slug, newsletters in sorted(results.items()):
-            print(f"  {slug}: {len(newsletters)} newsletters")
-        
-        print("\n" + "="*60 + "\n")
+    processor = UnifiedProcessor(config)
+
+    # List mode
+    if args.list:
+        groups = processor.list_groups()
+
+        print("\n" + "=" * 60)
+        print("📁 DISCOVERED GROUPS")
+        print("=" * 60 + "\n")
+
+        for slug, info in sorted(groups.items()):
+            icon = "📺" if info["type"] == "virtual" else "📝"
+            print(f"{icon} {info['name']}")
+            print(f"   Slug: {slug}")
+            print(f"   Exports: {info['export_count']}")
+            print(f"   Dates: {info['date_range'][0]} to {info['date_range'][1]}")
+
+            if info["type"] == "real" and info["in_virtual"]:
+                print(f"   Part of: {', '.join(info['in_virtual'])}")
+            elif info["type"] == "virtual":
+                print(f"   Merges: {', '.join(info['merges'])}")
+
+            print()
+
+        print("=" * 60 + "\n")
         return 0
-    
-    # Legacy single-group processor
-    result = generate_newsletter(config, days=args.days)
 
-    if not result.previous_newsletter_found:
-        print(
-            f"[Aviso] Newsletter de ontem ({result.previous_newsletter_path.name}) não encontrada; prossegui sem esse contexto."
-        )
+    # Process mode
+    print("\n" + "=" * 60)
+    print("🚀 PROCESSING WITH AUTO-DISCOVERY")
+    print("=" * 60)
 
-    if result.enrichment is None:
-        if enrichment.enabled:
-            print("[Aviso] Enriquecimento de conteúdos não retornou resultados.")
-    else:
-        relevant = len(
-            result.enrichment.relevant_items(enrichment.relevance_threshold)
-        )
-        print(
-            f"[Resumo] Enriquecimento considerou {len(result.enrichment.items)} itens; "
-            f"{relevant} atenderam à relevância mínima de {enrichment.relevance_threshold}."
-        )
+    results = processor.process_all(days=args.days)
 
-    processed = ", ".join(day.isoformat() for day in result.processed_dates)
-    print(f"[OK] Newsletter criada em {result.output_path} usando dias {processed}.")
+    # Summary
+    print("\n" + "=" * 60)
+    print("✅ COMPLETE")
+    print("=" * 60 + "\n")
+
+    total = sum(len(v) for v in results.values())
+    print(f"Groups processed: {len(results)}")
+    print(f"Newsletters generated: {total}\n")
+
+    for slug, newsletters in sorted(results.items()):
+        print(f"  {slug}: {len(newsletters)} newsletters")
+
+    print("\n" + "=" * 60 + "\n")
     return 0
 
 

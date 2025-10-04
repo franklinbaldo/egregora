@@ -5,7 +5,6 @@
 model = "gemini-flash-lite-latest"
 timezone = "America/Porto_Velho"
 skip_real_if_in_virtual = true
-group_name = "RC LatAm"  # Only used for legacy single-group mode
 
 [directories]
 zips_dir = "data/whatsapp_zips"

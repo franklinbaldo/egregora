@@ -6,6 +6,8 @@ import re
 import uuid
 from typing import Literal
 
+import polars as pl
+
 
 FormatType = Literal["human", "short", "full"]
 
@@ -114,6 +116,31 @@ class Anonymizer:
             variants["short"] = Anonymizer.anonymize_nickname(identifier, "short")
             variants["full"] = Anonymizer.anonymize_nickname(identifier, "full")
         return variants
+
+    @staticmethod
+    def anonymize_dataframe(
+        df: pl.DataFrame, format: FormatType = "human"
+    ) -> pl.DataFrame:
+        """Return a new DataFrame with the ``author`` column anonymized."""
+
+        if "author" not in df.columns:
+            raise KeyError("DataFrame must have 'author' column")
+
+        return df.with_columns(
+            pl.col("author").map_elements(
+                lambda author: Anonymizer.anonymize_author(author, format),
+                return_dtype=pl.String,
+            )
+        )
+
+    @staticmethod
+    def anonymize_series(series: pl.Series, format: FormatType = "human") -> pl.Series:
+        """Return a new Polars series with anonymized author names."""
+
+        return series.map_elements(
+            lambda author: Anonymizer.anonymize_author(author, format),
+            return_dtype=pl.String,
+        )
 
 
 __all__ = ["Anonymizer", "FormatType"]

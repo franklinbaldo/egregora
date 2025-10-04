@@ -19,6 +19,8 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 
 from urllib.parse import urlparse
 
+import polars as pl
+
 from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 
@@ -480,11 +482,171 @@ class ContentEnricher:
 
         return references
 
+    async def enrich_from_dataframe(
+        self,
+        df: pl.DataFrame,
+        *,
+        client: genai.Client | None,
+        target_dates: list[date] | None = None,
+    ) -> EnrichmentResult:
+        """Enhanced DataFrame-native enrichment pipeline."""
+
+        transcripts = self._dataframe_to_transcripts(df, target_dates)
+        return await self.enrich(transcripts, client=client)
+
+    def _dataframe_to_transcripts(
+        self,
+        df: pl.DataFrame,
+        target_dates: list[date] | None = None,
+    ) -> list[tuple[date, str]]:
+        """Convert DataFrame to transcript format for compatibility."""
+
+        if target_dates:
+            df = df.filter(pl.col("date").is_in(target_dates))
+
+        if df.is_empty():
+            return []
+
+        df_sorted = df.sort("timestamp")
+        transcripts: list[tuple[date, str]] = []
+
+        for day_df in df_sorted.partition_by("date", maintain_order=True):
+            date_value = day_df.get_column("date")[0]
+            if "original_line" in day_df.columns:
+                lines = [line or "" for line in day_df.get_column("original_line").to_list()]
+            else:
+                times = day_df.get_column("time").to_list()
+                authors = day_df.get_column("author").to_list()
+                messages = day_df.get_column("message").to_list()
+                lines = [
+                    f"{time} — {author}: {message}"
+                    for time, author, message in zip(times, authors, messages)
+                ]
+            transcripts.append((date_value, "\n".join(lines)))
+
+        return transcripts
+
+
+def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
+    """Extract URLs from DataFrame and return DataFrame with ``urls`` column."""
+
+    if "message" not in df.columns:
+        raise KeyError("DataFrame must have 'message' column")
+
+    return df.with_columns(
+        pl.col("message")
+        .fill_null("")
+        .str.extract_all(URL_RE.pattern)
+        .alias("urls")
+    )
+
+
+def get_url_contexts_dataframe(
+    df: pl.DataFrame, context_window: int = 3
+) -> pl.DataFrame:
+    """Extract URLs with surrounding context from a conversation DataFrame."""
+
+    if df.is_empty() or "urls" not in df.columns:
+        return pl.DataFrame(
+            {
+                "url": [],
+                "timestamp": [],
+                "author": [],
+                "message": [],
+                "context_before": [],
+                "context_after": [],
+            },
+            schema={
+                "url": pl.String,
+                "timestamp": pl.Datetime,
+                "author": pl.String,
+                "message": pl.String,
+                "context_before": pl.String,
+                "context_after": pl.String,
+            },
+        )
+
+    df_sorted = df.sort("timestamp").with_row_index(name="row_index")
+    rows = df_sorted.to_dicts()
+    formatted_messages = [
+        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip()
+        for row in rows
+    ]
+
+    results: list[dict[str, object]] = []
+    row_count = len(rows)
+
+    for row in rows:
+        urls = row.get("urls") or []
+        if not urls:
+            continue
+
+        idx = int(row.get("row_index", 0))
+        start_before = max(0, idx - context_window)
+        end_after = min(row_count, idx + context_window + 1)
+
+        context_before = "\n".join(formatted_messages[start_before:idx])
+        context_after = "\n".join(formatted_messages[idx + 1 : end_after])
+
+        for url in urls:
+            results.append(
+                {
+                    "url": url,
+                    "timestamp": row.get("timestamp"),
+                    "author": row.get("author"),
+                    "message": row.get("message"),
+                    "context_before": context_before,
+                    "context_after": context_after,
+                }
+            )
+
+    if not results:
+        return pl.DataFrame(
+            {
+                "url": [],
+                "timestamp": [],
+                "author": [],
+                "message": [],
+                "context_before": [],
+                "context_after": [],
+            },
+            schema={
+                "url": pl.String,
+                "timestamp": pl.Datetime,
+                "author": pl.String,
+                "message": pl.String,
+                "context_before": pl.String,
+                "context_after": pl.String,
+            },
+        )
+
+    schema = {
+        "url": pl.String,
+        "timestamp": pl.Datetime,
+        "author": pl.String,
+        "message": pl.String,
+        "context_before": pl.String,
+        "context_after": pl.String,
+    }
+
+    return pl.DataFrame(results, schema=schema).select(
+        [
+            "url",
+            "timestamp",
+            "author",
+            "message",
+            "context_before",
+            "context_after",
+        ]
+    )
+
 
 __all__ = [
     "AnalysisResult",
-    "ContentEnricher",
+    "ContentEnricher", 
     "ContentReference",
     "EnrichedItem",
     "EnrichmentResult",
+    "extract_urls_from_dataframe",
+    "get_url_contexts_dataframe",
 ]

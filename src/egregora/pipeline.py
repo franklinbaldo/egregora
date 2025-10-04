@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import os
 import re
-import asyncio
 import zipfile
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
-from typing import Any, Awaitable, Dict, List, Sequence, TypeVar
+from typing import Any, Sequence
 
 import logging
 
@@ -20,24 +18,8 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
-try:  # pragma: no cover - optional dependency
-    from mcp.client import Client, StdioServerParameters
-except ModuleNotFoundError:  # pragma: no cover - allows running without MCP
-    Client = None  # type: ignore[assignment]
-    StdioServerParameters = None  # type: ignore[assignment]
-
 from .anonymizer import Anonymizer
-from .cache_manager import CacheManager
 from .config import PipelineConfig
-from .mcp_server.tools import format_search_hits
-
-try:  # pragma: no cover - optional dependency
-    from .rag.index import NewsletterRAG
-    from .rag.query_gen import QueryGenerator
-except ModuleNotFoundError:  # pragma: no cover - allows running without llama-index
-    NewsletterRAG = None  # type: ignore[assignment]
-    QueryGenerator = None  # type: ignore[assignment]
-from .enrichment import ContentEnricher, EnrichmentResult
 from .media_extractor import MediaExtractor, MediaFile
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -192,127 +174,6 @@ def _prepare_transcripts_sample(
     return "\n\n".join(collected).strip()
 
 
-def _rag_cache_directory(config: PipelineConfig) -> Path:
-    base = config.cache.cache_dir if config.cache.enabled else Path("cache")
-    return (base / "rag").expanduser()
-
-
-def _collect_rag_context_local(
-    config: PipelineConfig, transcripts_sample: str
-) -> str | None:
-    if NewsletterRAG is None or QueryGenerator is None:
-        raise RuntimeError(
-            "Dependência opcional 'llama-index' não está instalada."
-        )
-
-    rag = NewsletterRAG(
-        newsletters_dir=config.newsletters_dir,
-        cache_dir=_rag_cache_directory(config),
-        config=config.rag,
-    )
-    rag.load_index()
-
-    query_generator = QueryGenerator(config.rag)
-    query_data = query_generator.generate(transcripts_sample)
-    hits = rag.search(
-        query=query_data.search_query,
-        top_k=config.rag.top_k,
-        min_similarity=config.rag.min_similarity,
-        exclude_recent_days=config.rag.exclude_recent_days,
-    )
-
-    if not hits:
-        return None
-
-    return format_search_hits(hits)
-
-
-def _extract_query_from_markdown(markdown: str) -> str:
-    capture = False
-    for line in markdown.splitlines():
-        stripped = line.strip()
-        if capture:
-            if stripped:
-                return stripped
-            continue
-        if stripped.lower().startswith("**query de busca"):
-            capture = True
-    return ""
-
-
-T_co = TypeVar("T_co")
-
-
-def _run_async(coro: Awaitable[T_co]) -> T_co:
-    try:
-        return asyncio.run(coro)
-    except RuntimeError as exc:
-        if "event loop" in str(exc).lower():
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        raise
-
-
-async def _collect_rag_context_via_mcp(
-    config: PipelineConfig, transcripts_sample: str
-) -> str | None:
-    if Client is None or StdioServerParameters is None:
-        raise RuntimeError("A dependência opcional 'mcp' não está instalada.")
-
-    server_params = StdioServerParameters(
-        command=config.rag.mcp_command,
-        args=list(config.rag.mcp_args),
-    )
-
-    async with Client() as client:
-        await client.connect(server_params)
-
-        query_parts = await client.call_tool(
-            "generate_search_query",
-            arguments={"transcripts": transcripts_sample},
-        )
-        query_markdown = "".join(
-            part.text for part in query_parts if hasattr(part, "text") and part.text
-        )
-        search_query = _extract_query_from_markdown(query_markdown)
-        if not search_query:
-            search_query = transcripts_sample[:200]
-
-        search_parts = await client.call_tool(
-            "search_newsletters",
-            arguments={
-                "query": search_query,
-                "top_k": config.rag.top_k,
-                "min_similarity": config.rag.min_similarity,
-                "exclude_recent_days": config.rag.exclude_recent_days,
-            },
-        )
-
-        return "".join(
-            part.text for part in search_parts if hasattr(part, "text") and part.text
-        ).strip()
-
-
-def _collect_rag_context(config: PipelineConfig, transcripts_sample: str) -> str | None:
-    if not transcripts_sample.strip():
-        return None
-
-    if config.rag.use_mcp:
-        try:
-            context = _run_async(_collect_rag_context_via_mcp(config, transcripts_sample))
-            if context:
-                return context
-        except Exception as exc:
-            print(
-                f"[Aviso] RAG via MCP indisponível: {exc}. Tentando fallback local."
-            )
-
-    return _collect_rag_context_local(config, transcripts_sample)
-
-
 def _require_google_dependency() -> None:
     """Ensure the optional google-genai dependency is available."""
 
@@ -321,17 +182,6 @@ def _require_google_dependency() -> None:
             "A dependência opcional 'google-genai' não está instalada. "
             "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
         )
-
-
-@dataclass(slots=True)
-class PipelineResult:
-    """Information about an executed pipeline run."""
-
-    output_path: Path
-    processed_dates: List[date]
-    previous_newsletter_path: Path
-    previous_newsletter_found: bool
-    enrichment: EnrichmentResult | None
 
 
 def find_date_in_name(path: Path) -> date | None:
@@ -626,281 +476,18 @@ def create_client(api_key: str | None = None) -> genai.Client:
     return genai.Client(api_key=key)
 
 
-def _generate_newsletter_from_archives(
-    config: PipelineConfig,
-    archives: Sequence[tuple[date, Path]],
-    *,
-    client: genai.Client | None = None,
-    logger: logging.Logger | None = None,
-    batch_mode: bool = False,
-    skip_enrichment: bool = False,
-) -> PipelineResult:
-    """Generate a newsletter from a predefined list of archives."""
-
-    _require_google_dependency()
-
-    ensure_directories(config)
-
-    if not archives:
-        raise FileNotFoundError("Nenhum dia fornecido para processamento.")
-
-    raw_transcripts: list[tuple[date, str]] = []
-    for archive_date, archive_path in archives:
-        transcript, media_files = read_zip_texts_and_media(
-            archive_path,
-            archive_date=archive_date,
-            media_dir=config.media_dir,
-        )
-        if media_files:
-            _emit(
-                f"[Mídia] {len(media_files)} anexos extraídos de {archive_path.name}.",
-                logger=logger,
-                batch_mode=batch_mode,
-            )
-        raw_transcripts.append((archive_date, transcript))
-
-    sanitized_transcripts = _prepare_transcripts(
-        raw_transcripts,
-        config,
-        logger=logger,
-        batch_mode=batch_mode,
-    )
-
-    today = max(archive_date for archive_date, _ in sanitized_transcripts)
-    previous_path, previous_content = load_previous_newsletter(
-        config.newsletters_dir, today
-    )
-
-    llm_client = client or create_client()
-
-    rag_context: str | None = None
-    if config.rag.enabled:
-        transcripts_sample = _prepare_transcripts_sample(
-            sanitized_transcripts,
-            max_chars=config.rag.max_context_chars * 3,
-        )
-        if transcripts_sample:
-            try:
-                rag_context = _collect_rag_context(config, transcripts_sample)
-                if rag_context:
-                    _emit(
-                        "[RAG] Contexto histórico recuperado.",
-                        logger=logger,
-                        batch_mode=batch_mode,
-                    )
-            except Exception as exc:
-                _emit(
-                    f"[Aviso] RAG indisponível: {exc}",
-                    logger=logger,
-                    batch_mode=batch_mode,
-                    level="warning",
-                )
-
-    cache_manager: CacheManager | None = None
-    if config.cache.enabled:
-        cache_manager = CacheManager(config.cache.cache_dir)
-        if config.cache.auto_cleanup_days is not None:
-            cache_manager.cleanup_old_entries(config.cache.auto_cleanup_days)
-        if config.cache.max_disk_mb is not None:
-            stats = cache_manager.get_stats()
-            if stats.get("disk_usage_mb", 0.0) > config.cache.max_disk_mb:
-                _emit(
-                    "[Aviso] Cache excedeu o limite configurado; considere executar uma limpeza.",
-                    logger=logger,
-                    batch_mode=batch_mode,
-                    level="warning",
-                )
-
-    enrichment_result: EnrichmentResult | None = None
-    enrichment_section: str | None = None
-    should_enrich = config.enrichment.enabled and not skip_enrichment
-    if should_enrich:
-        enricher = ContentEnricher(
-            config.enrichment, cache_manager=cache_manager
-        )
-        try:
-            enrichment_result = asyncio.run(
-                enricher.enrich(sanitized_transcripts, client=llm_client)
-            )
-        except RuntimeError as exc:
-            if "event loop" in str(exc).lower():
-                loop = asyncio.new_event_loop()
-                try:
-                    enrichment_result = loop.run_until_complete(
-                        enricher.enrich(sanitized_transcripts, client=llm_client)
-                    )
-                finally:
-                    loop.close()
-            else:
-                _emit(
-                    f"[Aviso] Enriquecimento não executado: {exc}",
-                    logger=logger,
-                    batch_mode=batch_mode,
-                    level="warning",
-                )
-        except Exception as exc:  # pragma: no cover - depende de rede/modelo
-            _emit(
-                f"[Aviso] Enriquecimento falhou: {exc}",
-                logger=logger,
-                batch_mode=batch_mode,
-                level="error",
-            )
-
-        if enrichment_result:
-            enrichment_section = enrichment_result.format_for_prompt(
-                config.enrichment.relevance_threshold
-            )
-            relevant_count = len(
-                enrichment_result.relevant_items(
-                    config.enrichment.relevance_threshold
-                )
-            )
-            total_count = len(enrichment_result.items)
-            _emit(
-                f"[Enriquecimento] {relevant_count}/{total_count} itens relevantes processados em {enrichment_result.duration_seconds:.1f}s.",
-                logger=logger,
-                batch_mode=batch_mode,
-            )
-            for error in enrichment_result.errors:
-                _emit(
-                    f"[Enriquecimento:falha] {error}",
-                    logger=logger,
-                    batch_mode=batch_mode,
-                    level="warning",
-                )
-
-    insert_input = build_llm_input(
-        group_name=config.group_name,
-        timezone=config.timezone,
-        transcripts=sanitized_transcripts,
-        previous_newsletter=previous_content,
-        enrichment_section=enrichment_section,
-        rag_context=rag_context,
-    )
-
-    contents = [
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=insert_input)],
-        ),
-    ]
-
-    generate_content_config = types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=-1),
-        safety_settings=[
-            types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-        ],
-        system_instruction=build_system_instruction(),
-    )
-
-    output_lines: list[str] = []
-    for chunk in llm_client.models.generate_content_stream(
-        model=config.model,
-        contents=contents,
-        config=generate_content_config,
-    ):
-        if chunk.text:
-            output_lines.append(chunk.text)
-
-    newsletter_text = "".join(output_lines).strip()
-    output_path = config.newsletters_dir / f"{today.isoformat()}.md"
-
-
-    output_path.write_text(newsletter_text, encoding="utf-8")
-
-    return PipelineResult(
-        output_path=output_path,
-        processed_dates=[archive_date for archive_date, _ in sanitized_transcripts],
-        previous_newsletter_path=previous_path,
-        previous_newsletter_found=previous_content is not None,
-        enrichment=enrichment_result,
-    )
-
-
-def generate_newsletter(
-    config: PipelineConfig,
-    *,
-    days: int = 2,
-    client: genai.Client | None = None,
-    logger: logging.Logger | None = None,
-    batch_mode: bool = False,
-    skip_enrichment: bool = False,
-) -> PipelineResult:
-    """Execute the pipeline and return the resulting metadata."""
-
-    archives = list_zip_days(config.zips_dir)
-    if not archives:
-        raise FileNotFoundError(f"Nenhum .zip encontrado em {config.zips_dir.resolve()}")
-
-    selected_archives = select_recent_archives(archives, days=days)
-    return _generate_newsletter_from_archives(
-        config,
-        selected_archives,
-        client=client,
-        logger=logger,
-        batch_mode=batch_mode,
-        skip_enrichment=skip_enrichment,
-    )
-
-
-class Pipeline:
-    """Batch-friendly wrapper around :func:`generate_newsletter`."""
-
-    def __init__(
-        self,
-        config: PipelineConfig,
-        *,
-        batch_mode: bool = False,
-        logger: logging.Logger | None = None,
-        client: genai.Client | None = None,
-    ) -> None:
-        self.config = config
-        self.batch_mode = batch_mode
-        self.logger = logger
-        self._client = client
-
-    def process_day(
-        self,
-        zip_file: str | Path,
-        day: date | str,
-        *,
-        skip_enrichment: bool = False,
-    ) -> PipelineResult:
-        """Process a single day archive into a newsletter."""
-
-        archive_path = Path(zip_file)
-        if not archive_path.exists():
-            raise FileNotFoundError(f"Arquivo .zip não encontrado: {archive_path}")
-        if isinstance(day, str):
-            day_date = datetime.strptime(day, "%Y-%m-%d").date()
-        else:
-            day_date = day
-
-        return _generate_newsletter_from_archives(
-            self.config,
-            [(day_date, archive_path)],
-            client=self._client,
-            logger=self.logger,
-            batch_mode=self.batch_mode,
-            skip_enrichment=skip_enrichment,
-        )
-
-    def get_processing_stats(self) -> Dict[str, Any]:
-        """Return basic pipeline statistics for reporting purposes."""
-
-        return {
-            "batch_mode": self.batch_mode,
-            "newsletters_dir": str(self.config.newsletters_dir),
-            "zips_dir": str(self.config.zips_dir),
-        }
-
-
 __all__ = [
-    "PipelineResult",
+    "build_llm_input",
+    "build_system_instruction",
     "create_client",
-    "Pipeline",
-    "generate_newsletter",
+    "ensure_directories",
+    "find_date_in_name",
+    "list_zip_days",
+    "load_previous_newsletter",
+    "read_zip_texts",
+    "read_zip_texts_and_media",
+    "select_recent_archives",
+    "_anonymize_transcript_line",
+    "_prepare_transcripts",
+    "_prepare_transcripts_sample",
 ]

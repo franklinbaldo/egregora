@@ -279,13 +279,11 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
         zips_dir=temp_dir / "zips",
         newsletters_dir=temp_dir / "newsletters",
         media_dir=temp_dir / "media",
-        group_name="WhatsApp Test Group"
     )
     
     # Validate configuration
     assert config.zips_dir.name == "zips"
     assert config.newsletters_dir.name == "newsletters"
-    assert config.group_name == "WhatsApp Test Group"
     assert config.anonymization.enabled == True
     assert config.enrichment.enabled == True
     

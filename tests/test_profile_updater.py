@@ -1,6 +1,9 @@
 import asyncio
+from datetime import date, datetime
 from pathlib import Path
 import sys
+
+import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -84,3 +87,62 @@ def test_participant_profile_markdown_contains_interaction_section():
     markdown = profile.to_markdown()
     assert "Dinâmica de Participação" in markdown
     assert "Timing de participação" in markdown
+
+
+def test_should_update_profile_dataframe_with_polars() -> None:
+    updater = ProfileUpdater(min_messages=2, min_words_per_message=3)
+    df = pl.DataFrame(
+        {
+            "timestamp": [
+                datetime(2024, 1, 1, 9, 0),
+                datetime(2024, 1, 1, 9, 10),
+                datetime(2024, 1, 1, 9, 20),
+            ],
+            "date": [date(2024, 1, 1)] * 3,
+            "author": [
+                "Member-AAAA",
+                "Member-AAAA",
+                "Member-BBBB",
+            ],
+            "message": [
+                "Mensagem detalhada com múltiplas palavras relevantes",
+                "Outra contribuição com contexto suficiente para análise",
+                "Intervenção breve de outro membro",
+            ],
+        }
+    )
+
+    existing_profile = ParticipantProfile(member_id="Member-AAAA", worldview_summary="Ativo")
+
+    should_update, reason = updater.should_update_profile_dataframe(
+        "Member-AAAA", existing_profile, df
+    )
+
+    assert should_update
+    assert "mensagens significativas" in reason
+
+
+def test_participation_stats_dataframe_computes_metrics() -> None:
+    updater = ProfileUpdater()
+    df = pl.DataFrame(
+        {
+            "timestamp": [
+                datetime(2024, 1, 1, 9, 0),
+                datetime(2024, 1, 1, 9, 30),
+                datetime(2024, 1, 2, 10, 0),
+            ],
+            "date": [date(2024, 1, 1), date(2024, 1, 1), date(2024, 1, 2)],
+            "author": ["Member-AAAA", "Member-AAAA", "Member-AAAA"],
+            "message": [
+                "Primeira mensagem com conteúdo relevante",
+                "Segunda mensagem com detalhes adicionais",
+                "Resumo do dia anterior com próximos passos",
+            ],
+        }
+    )
+
+    stats = updater.get_participation_stats_dataframe("Member-AAAA", df)
+
+    assert stats["total_messages"] == 3
+    assert stats["active_days"] == 2
+    assert stats["most_active_day"] == date(2024, 1, 1)
