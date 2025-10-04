@@ -8,3 +8,22 @@ __pycache__/
 
 # Extracted WhatsApp media
 /media/
+
+# Environments
+.env
+.idea/
+.vscode/
+
+# Cache
+cache/
+
+# OS generated files
+.DS_Store
+*.swo
+*.swp
+*.swn
+
+# Data and config
+data/
+egregora.toml
+*.zip:Zone.Identifier

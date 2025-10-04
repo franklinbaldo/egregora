@@ -16,9 +16,9 @@ class ZipValidationError(ValueError):
     """Raised when a ZIP archive fails validation checks."""
 
 
-_MAX_TOTAL_SIZE = 100 * 1024 * 1024  # 100MB
-_MAX_MEMBER_SIZE = 20 * 1024 * 1024  # 20MB per file
-_MAX_MEMBER_COUNT = 500
+_MAX_TOTAL_SIZE = 500 * 1024 * 1024  # 500MB - increased for media-heavy groups
+_MAX_MEMBER_SIZE = 50 * 1024 * 1024  # 50MB per file - for videos/images
+_MAX_MEMBER_COUNT = 2000  # Increased for WhatsApp groups with lots of media
 
 
 def validate_zip_contents(
