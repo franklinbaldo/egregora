@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import date
+from typing import TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from .media_extractor import MediaFile
 
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
@@ -157,31 +161,60 @@ class UnifiedProcessor:
     def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
         """Process a single source."""
         
+        from .media_extractor import MediaExtractor
+
         output_dir = self.config.newsletters_dir / source.slug
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Get available dates
-        available_dates = get_available_dates(source)
+        available_dates = list(get_available_dates(source))
         
         if not available_dates:
             logger.warning(f"  No messages found")
             return []
         
         target_dates = available_dates[-days:] if days else available_dates
-        
+        target_date_set = set(target_dates)
+
         results = []
-        
+        extractor = MediaExtractor(self.config.media_dir)
+
+        media_by_date: dict[date, dict[str, "MediaFile"]] = {}
+        for export in source.exports:
+            if export.export_date not in target_date_set:
+                continue
+
+            media_files = extractor.extract_media_from_zip(export.zip_path, export.export_date)
+            date_media = media_by_date.setdefault(export.export_date, {})
+
+            for filename, media_file in media_files.items():
+                if filename in date_media:
+                    logger.warning(
+                        "    Duplicate media filename %s for %s; keeping first occurrence",
+                        filename,
+                        export.export_date,
+                    )
+                    continue
+
+                date_media[filename] = media_file
+
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
+
+            # 1. Extract media from all exports for this date
+            all_media = media_by_date.get(target_date, {})
             
-            # Extract transcript
+            # 2. Get transcript
             transcript = extract_transcript(source, target_date)
             
             if not transcript:
                 logger.warning(f"    Empty transcript")
                 continue
             
-            # Stats
+            # 3. Replace media references
+            transcript = MediaExtractor.replace_media_references(transcript, all_media)
+            
+            # 4. Stats
             stats = get_stats_for_date(source, target_date)
             if not stats:
                 logger.warning("    Unable to compute statistics for %s", target_date)
@@ -193,7 +226,7 @@ class UnifiedProcessor:
                 stats['participant_count'],
             )
             
-            # Generate newsletter
+            # 5. Generate newsletter with media-linked transcript
             newsletter = self._generate_newsletter(source, transcript, target_date)
             
             # Save
