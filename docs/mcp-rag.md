@@ -146,7 +146,7 @@ class RAGServer:
         
         # Inicializar RAG
         self.rag = NewsletterRAG(
-            newsletters_dir=Path("newsletters"),
+            newsletters_dir=Path("data/daily"),
             cache_dir=Path("cache/rag"),
             config=self.config,
         )
@@ -211,7 +211,7 @@ class RAGServer:
         
         try:
             newsletter_date = date.fromisoformat(date_str)
-            newsletter_path = Path("newsletters") / f"{date_str}.md"
+            newsletter_path = Path("data/daily") / f"{date_str}.md"
             
             if newsletter_path.exists():
                 return newsletter_path.read_text(encoding="utf-8")
@@ -226,7 +226,7 @@ class RAGServer:
         offset: int = 0,
     ) -> List[Dict[str, str]]:
         """Lista newsletters disponíveis."""
-        newsletters_dir = Path("newsletters")
+        newsletters_dir = Path("data/daily")
         
         if not newsletters_dir.exists():
             return []

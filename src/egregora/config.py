@@ -94,7 +94,7 @@ class PipelineConfig:
 
         return cls(
             zips_dir=_ensure_safe_directory(zips_dir or Path("data/whatsapp_zips")),
-            newsletters_dir=_ensure_safe_directory(newsletters_dir or Path("newsletters")),
+            newsletters_dir=_ensure_safe_directory(newsletters_dir or Path("data/daily")),
             media_dir=_ensure_safe_directory(media_dir or Path("media")),
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
@@ -151,7 +151,7 @@ class PipelineConfig:
 
         return cls(
             zips_dir=_ensure_safe_directory(dirs.get('zips_dir', 'data/whatsapp_zips')),
-            newsletters_dir=_ensure_safe_directory(dirs.get('newsletters_dir', 'newsletters')),
+            newsletters_dir=_ensure_safe_directory(dirs.get('newsletters_dir', 'data/daily')),
             media_dir=_ensure_safe_directory(dirs.get('media_dir', 'media')),
             model=pipeline.get('model', DEFAULT_MODEL),
             timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),

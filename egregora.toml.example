@@ -8,7 +8,7 @@ skip_real_if_in_virtual = true
 
 [directories]
 zips_dir = "data/whatsapp_zips"
-newsletters_dir = "newsletters"
+newsletters_dir = "data/daily"
 media_dir = "media"
 
 # Virtual groups - merge multiple real groups into a single newsletter

@@ -2,6 +2,8 @@
 
 Automação para gerar newsletters diárias a partir de exports do WhatsApp usando o Google Gemini. Agora inclui um sistema opcional de **enriquecimento de conteúdos compartilhados**, capaz de resumir e contextualizar links citados nas conversas antes de gerar a newsletter.
 
+> 📚 Para detalhes técnicos do fluxo de ponta a ponta, consulte as [Copilot Instructions](.github/copilot-instructions.md).
+
 ## 🌟 Principais recursos
 
 - **Pipeline completo** para transformar arquivos `.zip` do WhatsApp em newsletters Markdown.
@@ -111,7 +113,7 @@ Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores p
 ## 🧭 Estrutura padrão
 
 - `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp com a data no nome (`YYYY-MM-DD`).
-- `newsletters/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
+- `data/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
 
 As pastas são criadas automaticamente na primeira execução.
 
@@ -120,7 +122,7 @@ As pastas são criadas automaticamente na primeira execução.
 ```bash
 uv run egregora \
   --zips-dir data/whatsapp_zips \
-  --newsletters-dir newsletters \
+  --newsletters-dir data/daily \
   --group-name "RC LatAm" \
   --model gemini-flash-lite-latest \
   --days 2
@@ -133,7 +135,7 @@ Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final
 Se você tem múltiplos dias de conversas para processar:
 
 1. Coloque todos os zips em `data/whatsapp_zips/` (ou informe outro diretório).
-2. Execute: `python scripts/process_backlog.py data/whatsapp_zips newsletters`
+2. Execute: `python scripts/process_backlog.py data/whatsapp_zips data/daily`
 3. Use `--force` apenas se quiser sobrescrever newsletters já geradas.
 
 O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)

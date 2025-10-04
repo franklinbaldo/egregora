@@ -49,7 +49,7 @@ client = genai.Client()
 config = RAGConfig(use_gemini_embeddings=True, embedding_dimension=768)
 
 rag = NewsletterRAG(
-    newsletters_dir=Path("newsletters"),
+    newsletters_dir=Path("data/daily"),
     cache_dir=Path("cache"),
     config=config,
     gemini_client=client,
