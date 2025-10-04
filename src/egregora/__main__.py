@@ -123,12 +123,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Desativa a anonimização de autores antes do processamento.",
     )
     parser.add_argument(
-        "--anonymization-format",
-        choices=["human", "short", "full"],
-        default=None,
-        help="Formato dos identificadores anônimos (padrão: human).",
-    )
-    parser.add_argument(
         "--double-check-newsletter",
         action="store_true",
         help="Executa uma segunda chamada ao LLM para revisar a newsletter em busca de PII.",
@@ -150,15 +144,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Telefone ou apelido a ser anonimizado.",
     )
     discover_parser.add_argument(
-        "--format",
-        choices=["human", "short", "full"],
-        default="human",
-        help="Formato preferido ao exibir o resultado.",
-    )
-    discover_parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Imprime apenas o identificador no formato escolhido.",
+        help="Imprime apenas o identificador anonimizado.",
     )
     return parser
 
@@ -180,9 +168,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         if args.quiet:
-            print(result.get(args.format))
+            print(result.get())
         else:
-            print(format_cli_message(result, preferred_format=args.format))
+            print(format_cli_message(result))
         return 0
 
     timezone = ZoneInfo(args.timezone) if args.timezone else None
@@ -196,8 +184,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.disable_anonymization:
         config.anonymization.enabled = False
-    if args.anonymization_format:
-        config.anonymization.output_format = args.anonymization_format
     if args.double_check_newsletter:
         config.privacy.double_check_newsletter = True
     if args.review_model:

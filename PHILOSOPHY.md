@@ -44,7 +44,6 @@ dados sensíveis, e há ferramentas para que cada participante calcule o própri
 - `CONTENT_ENRICHMENT_DESIGN.md` — arquitetura detalhada do módulo de enriquecimento.
 - `docs/mcp-rag.md` — funcionamento do servidor MCP e ferramentas disponíveis.
 - `docs/embeddings.md` — como habilitar e operar o modo semântico.
-- `MIGRATION_GUIDE.md` — diferenças entre versões e passos recomendados.
 
 ---
 

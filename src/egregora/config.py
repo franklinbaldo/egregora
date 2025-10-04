@@ -1,17 +1,13 @@
-"""Configuration helpers for the newsletter pipeline and backlog tooling."""
+"""Configuration helpers for the newsletter pipeline."""
 
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import tzinfo
 from pathlib import Path
-from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
-import yaml
-
-from .anonymizer import FormatType
 from .rag.config import RAGConfig
 
 
@@ -44,18 +40,9 @@ class EnrichmentConfig:
 
 @dataclass(slots=True)
 class AnonymizationConfig:
-    """Configuration for author anonymization.
-
-    Attributes:
-        enabled: Controls whether author names are converted before prompting.
-        output_format: Style of the anonymized identifiers:
-            - ``"human"`` → formato legível (ex.: ``User-A1B2``).
-            - ``"short"`` → 8 caracteres hexadecimais (ex.: ``a1b2c3d4``).
-            - ``"full"`` → UUID completo.
-    """
+    """Configuration for author anonymization."""
 
     enabled: bool = True
-    output_format: FormatType = "human"
 
 
 @dataclass(slots=True)
@@ -117,138 +104,14 @@ class PipelineConfig:
         )
 
 
-@dataclass(slots=True)
-class BacklogProcessingConfig:
-    """Configuration related to batch execution parameters."""
-
-    delay_between_days: int = 2
-    max_retries: int = 3
-    timeout_per_day: int = 300
-
-
-@dataclass(slots=True)
-class BacklogAPIConfig:
-    """API throttling controls for batch processing."""
-
-    gemini_rpm_limit: int = 60
-    pause_on_rate_limit: bool = True
-    rate_limit_pause: int = 60
-
-
-@dataclass(slots=True)
-class BacklogEnrichmentConfig:
-    """Configuration for enrichment when running backlog jobs."""
-
-    enabled: bool = True
-    url_timeout: int = 10
-    max_urls_per_day: int = 50
-
-
-@dataclass(slots=True)
-class BacklogRAGConfig:
-    """Configuration for contextual retrieval during backlog processing."""
-
-    use_previous_context: bool = True
-    max_previous_newsletters: int = 5
-    use_gemini_embeddings: bool = True
-
-
-@dataclass(slots=True)
-class BacklogLoggingConfig:
-    """Logging configuration for backlog utilities."""
-
-    level: str = "INFO"
-    file: Path = Path("./cache/backlog_processing.log")
-    detailed_per_day: bool = True
-
-
-@dataclass(slots=True)
-class BacklogCheckpointConfig:
-    """Checkpoint configuration for resumable backlog processing."""
-
-    enabled: bool = True
-    file: Path = Path("./cache/backlog_checkpoint.json")
-    backup: bool = True
-
-
-@dataclass(slots=True)
-class BacklogConfig:
-    """Top-level configuration for backlog processing."""
-
-    processing: BacklogProcessingConfig = field(default_factory=BacklogProcessingConfig)
-    api: BacklogAPIConfig = field(default_factory=BacklogAPIConfig)
-    enrichment: BacklogEnrichmentConfig = field(default_factory=BacklogEnrichmentConfig)
-    rag: BacklogRAGConfig = field(default_factory=BacklogRAGConfig)
-    logging: BacklogLoggingConfig = field(default_factory=BacklogLoggingConfig)
-    checkpoint: BacklogCheckpointConfig = field(default_factory=BacklogCheckpointConfig)
-
-    @classmethod
-    def from_mapping(cls, mapping: Mapping[str, Any] | None) -> "BacklogConfig":
-        """Create a configuration instance from a mapping."""
-
-        if not mapping:
-            return cls()
-
-        data = dict(mapping)
-
-        def build(section: str, factory: type) -> Any:
-            current = data.get(section, {})
-            if isinstance(current, Mapping):
-                base = factory()
-                for key, value in current.items():
-                    if hasattr(base, key):
-                        setattr(base, key, value)
-                return base
-            return factory()
-
-        return cls(
-            processing=build("processing", BacklogProcessingConfig),
-            api=build("api", BacklogAPIConfig),
-            enrichment=build("enrichment", BacklogEnrichmentConfig),
-            rag=build("rag", BacklogRAGConfig),
-            logging=build("logging", BacklogLoggingConfig),
-            checkpoint=build("checkpoint", BacklogCheckpointConfig),
-        )
-
-
-def load_backlog_config(config_path: str | Path | None) -> BacklogConfig:
-    """Load backlog configuration from *config_path*.
-
-    Parameters
-    ----------
-    config_path:
-        Path to a YAML configuration file. When ``None`` the default
-        ``scripts/backlog_config.yaml`` is used. Missing files yield
-        the default configuration.
-    """
-
-    candidate = Path(config_path) if config_path else Path("scripts/backlog_config.yaml")
-    if not candidate.exists():
-        return BacklogConfig()
-
-    raw = candidate.read_text(encoding="utf-8")
-    loaded = yaml.safe_load(raw) or {}
-    if not isinstance(loaded, Mapping):
-        raise ValueError("Configuração de backlog inválida: esperado objeto mapeável.")
-    return BacklogConfig.from_mapping(loaded)
-
-
 __all__ = [
     "DEFAULT_GROUP_NAME",
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",
-    "BacklogAPIConfig",
-    "BacklogCheckpointConfig",
-    "BacklogConfig",
-    "BacklogEnrichmentConfig",
-    "BacklogLoggingConfig",
-    "BacklogProcessingConfig",
-    "BacklogRAGConfig",
     "CacheConfig",
     "EnrichmentConfig",
     "PipelineConfig",
     "PrivacyConfig",
     "RAGConfig",
-    "load_backlog_config",
 ]

@@ -9,8 +9,8 @@ linguagem, recorrendo a uma segunda revisão apenas quando necessário.
 - Telefones e apelidos são convertidos em identificadores como `User-ABCD` ou
   `Member-EFGH` usando UUIDv5.
 - Nenhum mapeamento é persistido; o algoritmo é puro e repetível.
-- O formato padrão (`human`) é amigável para leitura, mas também é possível
-  obter as variantes `short` e `full`.
+- O formato `User-ABCD`/`Member-EFGH` é o padrão fixo para garantir leitura
+  simples e consistência.
 - A flag `--disable-anonymization` desativa esta etapa para depuração local.
 
 ## 2. Instruções explícitas ao LLM
@@ -49,7 +49,6 @@ exemplos e fluxos sugeridos.
 from egregora.config import PipelineConfig
 
 config = PipelineConfig.with_defaults()
-config.anonymization.output_format = "short"
 config.privacy.double_check_newsletter = True
 config.privacy.review_model = "gemini-1.5-flash"
 ```

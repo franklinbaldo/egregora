@@ -17,19 +17,15 @@ Saída típica:
 • Entrada original: +55 11 91234-5678
 • Tipo detectado: phone
 • Forma normalizada: +5511912345678
-• Identificadores disponíveis:
-  → human: User-1A2B
-  · short: 1a2b3c4d
-  · full: 1a2b3c4d-e5f6-7890-ab12-cdef34567890
-• Formato preferido (human): User-1A2B
+• Identificador anônimo: User-1A2B
 ```
 
 ### Somente o identificador
 
-Use `--quiet` para imprimir apenas o identificador em um formato específico:
+Use `--quiet` para imprimir apenas o identificador anonimizado:
 
 ```bash
-uv run egregora discover "+55 11 91234-5678" --format short --quiet
+uv run egregora discover "+55 11 91234-5678" --quiet
 ```
 
 Também é possível descobrir identificadores a partir de apelidos:
