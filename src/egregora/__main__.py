@@ -216,7 +216,7 @@ def discover(
         str,
         typer.Argument(help="Telefone ou apelido a ser anonimizado."),
     ],
-    format: Annotated[
+    output_format: Annotated[
         str,
         typer.Option(
             "--format",
@@ -237,10 +237,10 @@ def discover(
         console.print(f"[red]❌ Erro:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    fmt = format.lower()
+    fmt = output_format.lower()
     selected = result.get(fmt)
     if not selected:
-        console.print(f"[red]❌ Formato desconhecido:[/red] {format}")
+        console.print(f"[red]❌ Formato desconhecido:[/red] {output_format}")
         raise typer.Exit(code=1)
 
     if quiet:
