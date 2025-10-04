@@ -1,8 +1,8 @@
 # 🛡️ Sistema de Privacidade
 
 O Egregora segue uma abordagem enxuta para proteger informações pessoais. O
-processo prioriza anonimização determinística e instruções claras ao modelo de
-linguagem, recorrendo a uma segunda revisão apenas quando necessário.
+processo combina anonimização determinística com instruções claras ao modelo de
+linguagem, reduzindo a chance de informações sensíveis aparecerem no resultado.
 
 ## 1. Anonimização determinística
 
@@ -22,15 +22,10 @@ linguagem, recorrendo a uma segunda revisão apenas quando necessário.
 - A efetividade típica observada com modelos modernos (como Gemini 2.0) fica na
   casa de 80–90% sem nenhuma filtragem adicional.
 
-## Revisão opcional
+## Revisão recomendada
 
-- Quando necessário, habilite `--double-check-newsletter` para executar uma
-  segunda chamada ao LLM revisando a newsletter gerada.
-- O prompt de revisão pede para remover números de telefone, e-mails, nomes
-  próprios e endereços físicos, devolvendo exatamente o mesmo texto quando nada
-  precisa ser alterado.
-- Também é possível manter uma revisão humana como etapa final para newsletters
-  extremamente sensíveis.
+- Para newsletters sensíveis, mantenha uma leitura humana antes do envio.
+- Ajuste o prompt principal conforme necessário para reforçar políticas internas.
 
 ## Autodescoberta segura
 
@@ -51,6 +46,7 @@ from egregora.config import PipelineConfig
 config = PipelineConfig.with_defaults()
 config.privacy.double_check_newsletter = True
 config.privacy.review_model = "gemini-1.5-flash"
+config.anonymization.output_format = "short"
 ```
 
 Essas opções afetam tanto a execução via CLI quanto o uso como biblioteca.
