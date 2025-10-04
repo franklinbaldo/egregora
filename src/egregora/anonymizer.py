@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import re
 import uuid
+from typing import Literal
+
+
+FormatType = Literal["human", "short", "full"]
 
 
 class Anonymizer:
@@ -45,47 +49,59 @@ class Anonymizer:
         return " ".join(nickname.strip().lower().split())
 
     @staticmethod
-    def _format_human(uuid_str: str, prefix: str) -> str:
-        """Return ``uuid_str`` in the canonical human readable format."""
+    def _format_uuid(uuid_str: str, prefix: str, format: FormatType) -> str:
+        """Return ``uuid_str`` in the requested format."""
 
-        short = uuid_str.split("-")[0][:4].upper()
-        return f"{prefix}-{short}"
+        if format == "human":
+            short = uuid_str.split("-")[0][:4].upper()
+            return f"{prefix}-{short}"
+        elif format == "short":
+            return uuid_str.split("-")[0][:8].lower()
+        elif format == "full":
+            return uuid_str
+        else:
+            raise ValueError(f"Unknown format: {format}")
 
     @staticmethod
-    def anonymize_phone(phone: str) -> str:
+    def anonymize_phone(phone: str, format: FormatType = "human") -> str:
         """Return a deterministic pseudonym for ``phone``."""
 
         normalized = Anonymizer.normalize_phone(phone)
         uuid_full = str(uuid.uuid5(Anonymizer.NAMESPACE_PHONE, normalized))
-        return Anonymizer._format_human(uuid_full, "User")
+        return Anonymizer._format_uuid(uuid_full, "User", format)
 
     @staticmethod
-    def anonymize_nickname(nickname: str) -> str:
+    def anonymize_nickname(nickname: str, format: FormatType = "human") -> str:
         """Return a deterministic pseudonym for ``nickname``."""
 
         normalized = Anonymizer.normalize_nickname(nickname)
         uuid_full = str(uuid.uuid5(Anonymizer.NAMESPACE_NICKNAME, normalized))
-        return Anonymizer._format_human(uuid_full, "Member")
+        return Anonymizer._format_uuid(uuid_full, "Member", format)
 
     @staticmethod
-    def anonymize_author(author: str) -> str:
+    def anonymize_author(author: str, format: FormatType = "human") -> str:
         """Return a deterministic pseudonym for either a phone or nickname."""
 
         candidate = author.strip().replace(" ", "").replace("-", "")
         if candidate.startswith("+") or candidate.isdigit():
-            return Anonymizer.anonymize_phone(author)
-        return Anonymizer.anonymize_nickname(author)
+            return Anonymizer.anonymize_phone(author, format)
+        return Anonymizer.anonymize_nickname(author, format)
 
     @staticmethod
     def get_uuid_variants(identifier: str) -> dict[str, str]:
-        """Return the canonical representation for ``identifier``."""
+        """Return the three supported representations for ``identifier``."""
 
-        normalized = identifier.strip().replace(" ", "").replace("-", "")
-        if normalized.startswith("+") or normalized.isdigit():
-            token = Anonymizer.anonymize_phone(identifier)
+        variants: dict[str, str] = {}
+        candidate = identifier.strip().replace(" ", "").replace("-", "")
+        if candidate.startswith("+") or candidate.isdigit():
+            variants["human"] = Anonymizer.anonymize_phone(identifier, "human")
+            variants["short"] = Anonymizer.anonymize_phone(identifier, "short")
+            variants["full"] = Anonymizer.anonymize_phone(identifier, "full")
         else:
-            token = Anonymizer.anonymize_nickname(identifier)
-        return {"human": token}
+            variants["human"] = Anonymizer.anonymize_nickname(identifier, "human")
+            variants["short"] = Anonymizer.anonymize_nickname(identifier, "short")
+            variants["full"] = Anonymizer.anonymize_nickname(identifier, "full")
+        return variants
 
 
-__all__ = ["Anonymizer"]
+__all__ = ["Anonymizer", "FormatType"]

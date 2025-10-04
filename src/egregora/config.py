@@ -8,6 +8,7 @@ from datetime import tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .anonymizer import FormatType
 from .rag.config import RAGConfig
 
 
@@ -40,17 +41,18 @@ class EnrichmentConfig:
 
 @dataclass(slots=True)
 class AnonymizationConfig:
-    """Configuration for author anonymization."""
+    """Configuration for author anonymization.
+
+    Attributes:
+        enabled: Controls whether author names are converted before prompting.
+        output_format: Style of the anonymized identifiers:
+            - ``"human"`` → formato legível (ex.: ``User-A1B2``).
+            - ``"short"`` → 8 caracteres hexadecimais (ex.: ``a1b2c3d4``).
+            - ``"full"`` → UUID completo.
+    """
 
     enabled: bool = True
-
-
-@dataclass(slots=True)
-class PrivacyConfig:
-    """Configuration for optional newsletter privacy reviews."""
-
-    double_check_newsletter: bool = False
-    review_model: str | None = None
+    output_format: FormatType = "human"
 
 
 @dataclass(slots=True)
@@ -67,7 +69,6 @@ class PipelineConfig:
     cache: CacheConfig
     anonymization: AnonymizationConfig
     rag: RAGConfig
-    privacy: PrivacyConfig
 
     @classmethod
     def with_defaults(
@@ -82,7 +83,6 @@ class PipelineConfig:
         cache: CacheConfig | None = None,
         anonymization: AnonymizationConfig | None = None,
         rag: RAGConfig | None = None,
-        privacy: PrivacyConfig | None = None,
         media_dir: Path | None = None,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
@@ -100,7 +100,6 @@ class PipelineConfig:
                 copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
             ),
             rag=(copy.deepcopy(rag) if rag else RAGConfig()),
-            privacy=(copy.deepcopy(privacy) if privacy else PrivacyConfig()),
         )
 
 
@@ -112,6 +111,5 @@ __all__ = [
     "CacheConfig",
     "EnrichmentConfig",
     "PipelineConfig",
-    "PrivacyConfig",
     "RAGConfig",
 ]

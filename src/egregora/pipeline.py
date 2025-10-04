@@ -74,22 +74,11 @@ TRANSCRIPT_PATTERNS = [
     ),
 ]
 
-REVIEW_SYSTEM_PROMPT = r"""
-Você é um revisor de privacidade. Seu papel é garantir que nenhuma informação
-pessoal direta permaneça na newsletter. Remova ou generalize:
-- Nomes próprios de pessoas físicas.
-- Números de telefone ou outros identificadores de contato.
-- E-mails ou endereços.
-
-Não invente fatos novos e preserve o sentido do texto. Se o conteúdo já estiver
-adequado, devolva exatamente o mesmo texto.
-"""
-
-
 def _anonymize_transcript_line(
     line: str,
     *,
     anonymize: bool,
+    format: str = "human",
 ) -> str:
     """Return ``line`` with the author anonymized when enabled."""
 
@@ -107,7 +96,7 @@ def _anonymize_transcript_line(
         message = match.group("message")
 
         if author:
-            anonymized = Anonymizer.anonymize_author(author)
+            anonymized = Anonymizer.anonymize_author(author, format)
         else:
             anonymized = author
 
@@ -146,6 +135,7 @@ def _prepare_transcripts(
             anonymized = _anonymize_transcript_line(
                 line,
                 anonymize=config.anonymization.enabled,
+                format=config.anonymization.output_format,
             )
             processed_parts.append(anonymized + newline)
 
@@ -321,48 +311,6 @@ def _collect_rag_context(config: PipelineConfig, transcripts_sample: str) -> str
             )
 
     return _collect_rag_context_local(config, transcripts_sample)
-
-
-def _run_privacy_review(
-    client: genai.Client,
-    *,
-    model: str,
-    newsletter_text: str,
-) -> str:
-    """Request a second-pass privacy review from the configured LLM."""
-
-    review_prompt = (
-        "Revise a newsletter e remova nomes próprios, números de telefone, "
-        "endereços de e-mail ou outras referências diretas a contato. "
-        "Generalize informações sensíveis quando necessário. Se nada "
-        "precisar ser alterado, devolva o texto exatamente como recebido.\n\n"
-        "<<<NEWSLETTER_ORIGINAL>>>\n"
-        f"{newsletter_text}\n"
-        "<<<FIM>>>"
-    )
-
-    contents = [
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=review_prompt)],
-        )
-    ]
-
-    review_config = types.GenerateContentConfig(
-        system_instruction=[types.Part.from_text(text=REVIEW_SYSTEM_PROMPT.strip())]
-    )
-
-    output_lines: list[str] = []
-    for chunk in client.models.generate_content_stream(
-        model=model,
-        contents=contents,
-        config=review_config,
-    ):
-        if chunk.text:
-            output_lines.append(chunk.text)
-
-    reviewed = "".join(output_lines).strip()
-    return reviewed or newsletter_text
 
 
 def _require_google_dependency() -> None:
@@ -848,26 +796,6 @@ def _generate_newsletter_from_archives(
     newsletter_text = "".join(output_lines).strip()
     output_path = config.newsletters_dir / f"{today.isoformat()}.md"
 
-    if config.privacy.double_check_newsletter:
-        review_model = config.privacy.review_model or config.model
-        revised = _run_privacy_review(
-            llm_client,
-            model=review_model,
-            newsletter_text=newsletter_text,
-        )
-        if revised != newsletter_text:
-            _emit(
-                "[Privacidade] Revisão adicional removeu dados sensíveis.",
-                logger=logger,
-                batch_mode=batch_mode,
-            )
-            newsletter_text = revised
-        else:
-            _emit(
-                "[Privacidade] Revisão adicional não encontrou ajustes.",
-                logger=logger,
-                batch_mode=batch_mode,
-            )
 
     output_path.write_text(newsletter_text, encoding="utf-8")
 

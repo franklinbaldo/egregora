@@ -123,15 +123,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Desativa a anonimização de autores antes do processamento.",
     )
     parser.add_argument(
-        "--double-check-newsletter",
-        action="store_true",
-        help="Executa uma segunda chamada ao LLM para revisar a newsletter em busca de PII.",
-    )
-    parser.add_argument(
-        "--review-model",
-        type=str,
+        "--anonymization-format",
+        choices=["human", "short", "full"],
         default=None,
-        help="Modelo opcional utilizado na revisão de privacidade (padrão: mesmo da geração).",
+        help="Formato dos identificadores anônimos (padrão: human).",
     )
 
     subparsers = parser.add_subparsers(dest="command")
@@ -144,9 +139,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Telefone ou apelido a ser anonimizado.",
     )
     discover_parser.add_argument(
+        "--format",
+        choices=["human", "short", "full"],
+        default="human",
+        help="Formato preferido ao exibir o resultado.",
+    )
+    discover_parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Imprime apenas o identificador anonimizado.",
+        help="Imprime apenas o identificador no formato escolhido.",
     )
     return parser
 
@@ -168,9 +169,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         if args.quiet:
-            print(result.get())
+            print(result.get(args.format))
         else:
-            print(format_cli_message(result))
+            print(format_cli_message(result, preferred_format=args.format))
         return 0
 
     timezone = ZoneInfo(args.timezone) if args.timezone else None
@@ -184,10 +185,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.disable_anonymization:
         config.anonymization.enabled = False
-    if args.double_check_newsletter:
-        config.privacy.double_check_newsletter = True
-    if args.review_model:
-        config.privacy.review_model = args.review_model
+    if args.anonymization_format:
+        config.anonymization.output_format = args.anonymization_format
 
     enrichment = config.enrichment
     if args.enable_enrichment:

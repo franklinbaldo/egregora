@@ -20,11 +20,9 @@ class DiscoveryResult:
     variants: dict[str, str]
 
     def get(self, format: str = "human") -> str:
-        """Return the anonymized identifier in its canonical representation."""
+        """Return the anonymized identifier in the requested format."""
 
-        if format != "human":
-            return ""
-        return self.variants.get("human", "")
+        return self.variants.get(format, "")
 
 
 def detect_type(value: str) -> DiscoveryType:
@@ -58,7 +56,7 @@ def discover_identifier(value: str) -> DiscoveryResult:
     )
 
 
-def format_cli_message(result: DiscoveryResult) -> str:
+def format_cli_message(result: DiscoveryResult, preferred_format: str = "human") -> str:
     """Return a human readable message summarising ``result``."""
 
     lines = [
@@ -66,7 +64,11 @@ def format_cli_message(result: DiscoveryResult) -> str:
         f"• Entrada original: {result.raw_input}",
         f"• Tipo detectado: {result.detected_type}",
         f"• Forma normalizada: {result.normalized}",
-        f"• Identificador anônimo: {result.get()}",
+        "• Identificadores disponíveis:",
+        f"  → human: {result.variants['human']}",
+        f"  · short: {result.variants['short']}",
+        f"  · full: {result.variants['full']}",
+        f"• Formato preferido ({preferred_format}): {result.get(preferred_format)}",
     ]
     return "\n".join(lines)
 
