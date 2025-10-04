@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -70,15 +71,19 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     assert "identificadores anônimos" in system_text
 
 
-def test_privacy_review_removes_names(monkeypatch):
+def test_prepare_transcripts_anonymizes_authors(monkeypatch):
     _install_pipeline_stubs(monkeypatch)
 
-    client = DummyClient(["User-A1B2 sugeriu algo importante."])
-    reviewed = pipeline._run_privacy_review(
-        client,
-        model="fake-model",
-        newsletter_text="João (User-A1B2) sugeriu algo.",
-    )
+    config = pipeline.PipelineConfig.with_defaults()
+    transcripts = [
+        (date(2024, 1, 1), "12:00 - João: Mensagem importante.\n"),
+        (date(2024, 1, 2), "[08:45:10] +551199887766 - Maria: Outra mensagem."),
+    ]
 
-    assert "João" not in reviewed
-    assert "User-A1B2" in reviewed
+    sanitized = pipeline._prepare_transcripts(transcripts, config)
+
+    sanitized_text = "\n".join(text for _, text in sanitized)
+    assert "João" not in sanitized_text
+    assert "Maria" not in sanitized_text
+    assert "Member-" in sanitized_text
+    assert "User-" in sanitized_text
