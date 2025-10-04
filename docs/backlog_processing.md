@@ -22,14 +22,12 @@ The simplified backlog processor is a lightweight script that:
 ```
 project/
 ├── data/
-│   └── zips/
+│   └── whatsapp_zips/
 │       ├── 2024-10-01.zip
 │       └── 2024-10-02.zip
-└── docs/
-    └── reports/
-        └── daily/
-            ├── 2024-10-01.md
-            └── 2024-10-02.md
+└── newsletters/
+    ├── 2024-10-01.md
+    └── 2024-10-02.md
 ```
 
 ## Usage
@@ -39,7 +37,7 @@ project/
 Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py data/zips docs/reports/daily
+python scripts/process_backlog.py data/whatsapp_zips newsletters
 ```
 
 ### Skip Existing Files
@@ -47,7 +45,7 @@ python scripts/process_backlog.py data/zips docs/reports/daily
 By default, the script skips files that already have corresponding newsletters:
 
 ```bash
-python scripts/process_backlog.py data/zips docs/reports/daily
+python scripts/process_backlog.py data/whatsapp_zips newsletters
 # Output:
 # 📊 Found 5 ZIP files
 # ⏭️  2024-10-01 (already exists)
@@ -61,7 +59,7 @@ python scripts/process_backlog.py data/zips docs/reports/daily
 To regenerate existing newsletters:
 
 ```bash
-python scripts/process_backlog.py data/zips docs/reports/daily --force
+python scripts/process_backlog.py data/whatsapp_zips newsletters --force
 ```
 
 ## What was simplified?

@@ -44,8 +44,7 @@ heurísticas frágeis, listas manuais de nomes ou regex complexas.
 ### `src/egregora/anonymizer.py`
 
 - Implementa `Anonymizer`, responsável por normalizar telefones ou apelidos e
-  gerar UUIDv5 determinísticos.
-- Oferece três formatos de saída: `human`, `short` e `full`.
+  gerar UUIDv5 determinísticos com o formato legível `User-XXXX`/`Member-XXXX`.
 - É usado tanto no pipeline principal quanto na ferramenta de descoberta.
 
 ### `src/egregora/pipeline.py`

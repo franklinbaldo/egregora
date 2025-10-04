@@ -49,19 +49,18 @@ class Anonymizer:
         return " ".join(nickname.strip().lower().split())
 
     @staticmethod
-    def _format_uuid(
-        uuid_str: str,
-        prefix: str,
-        format: FormatType,
-    ) -> str:
-        """Return ``uuid_str`` converted into the requested format."""
+    def _format_uuid(uuid_str: str, prefix: str, format: FormatType) -> str:
+        """Return ``uuid_str`` in the requested format."""
 
-        short = uuid_str.split("-")[0][:8]
-        if format == "short":
-            return short
         if format == "human":
-            return f"{prefix}-{short[:4].upper()}"
-        return uuid_str
+            short = uuid_str.split("-")[0][:4].upper()
+            return f"{prefix}-{short}"
+        elif format == "short":
+            return uuid_str.split("-")[0][:8].lower()
+        elif format == "full":
+            return uuid_str
+        else:
+            raise ValueError(f"Unknown format: {format}")
 
     @staticmethod
     def anonymize_phone(
@@ -117,4 +116,4 @@ class Anonymizer:
         return variants
 
 
-__all__ = ["Anonymizer"]
+__all__ = ["Anonymizer", "FormatType"]

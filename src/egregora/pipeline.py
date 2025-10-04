@@ -26,7 +26,7 @@ except ModuleNotFoundError:  # pragma: no cover - allows running without MCP
     Client = None  # type: ignore[assignment]
     StdioServerParameters = None  # type: ignore[assignment]
 
-from .anonymizer import Anonymizer, FormatType
+from .anonymizer import Anonymizer
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .mcp_server.tools import format_search_hits
@@ -75,7 +75,10 @@ TRANSCRIPT_PATTERNS = [
 ]
 
 def _anonymize_transcript_line(
-    line: str, *, anonymize: bool, output_format: FormatType
+    line: str,
+    *,
+    anonymize: bool,
+    format: str = "human",
 ) -> str:
     """Return ``line`` with the author anonymized when enabled."""
 
@@ -93,7 +96,7 @@ def _anonymize_transcript_line(
         message = match.group("message")
 
         if author:
-            anonymized = Anonymizer.anonymize_author(author, format=output_format)
+            anonymized = Anonymizer.anonymize_author(author, format)
         else:
             anonymized = author
 
@@ -132,7 +135,7 @@ def _prepare_transcripts(
             anonymized = _anonymize_transcript_line(
                 line,
                 anonymize=config.anonymization.enabled,
-                output_format=config.anonymization.output_format,
+                format=config.anonymization.output_format,
             )
             processed_parts.append(anonymized + newline)
 
@@ -152,8 +155,7 @@ def _prepare_transcripts(
     if config.anonymization.enabled:
         _emit(
             "[Anonimização] "
-            f"{len(anonymized_authors)} remetentes anonimizados em {processed_lines} linhas. "
-            f"Formato: {config.anonymization.output_format}.",
+            f"{len(anonymized_authors)} remetentes anonimizados em {processed_lines} linhas.",
             logger=logger,
             batch_mode=batch_mode,
         )
@@ -793,6 +795,7 @@ def _generate_newsletter_from_archives(
 
     newsletter_text = "".join(output_lines).strip()
     output_path = config.newsletters_dir / f"{today.isoformat()}.md"
+
 
     output_path.write_text(newsletter_text, encoding="utf-8")
 

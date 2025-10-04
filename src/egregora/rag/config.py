@@ -50,11 +50,6 @@ class RAGConfig:
     persist_dir: Path = field(default_factory=lambda: Path("cache/vector_store"))
     collection_name: str = "newsletters"
 
-    # Advanced options (placeholders for future iterations)
-    use_semantic_chunking: bool = False
-    enable_hybrid_search: bool = False
-    use_batch_api: bool = False
-
     # Backwards-compatibility knobs used by QueryGenerator/tests
     use_gemini_embeddings: bool = True
 

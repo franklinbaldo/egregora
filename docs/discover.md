@@ -26,10 +26,10 @@ Saída típica:
 
 ### Somente o identificador
 
-Use `--quiet` para imprimir apenas o identificador em um formato específico:
+Use `--quiet` para imprimir apenas o identificador anonimizado:
 
 ```bash
-uv run egregora discover "+55 11 91234-5678" --format short --quiet
+uv run egregora discover "+55 11 91234-5678" --quiet
 ```
 
 Também é possível descobrir identificadores a partir de apelidos:

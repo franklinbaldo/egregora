@@ -128,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Formato dos identificadores anônimos (padrão: human).",
     )
+
     subparsers = parser.add_subparsers(dest="command")
     discover_parser = subparsers.add_parser(
         "discover",
@@ -186,6 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         config.anonymization.enabled = False
     if args.anonymization_format:
         config.anonymization.output_format = args.anonymization_format
+
     enrichment = config.enrichment
     if args.enable_enrichment:
         enrichment.enabled = True
