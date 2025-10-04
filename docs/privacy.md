@@ -11,7 +11,7 @@ linguagem, reduzindo a chance de informações sensíveis aparecerem no resultad
 - Nenhum mapeamento é persistido; o algoritmo é puro e repetível.
 - O formato `User-ABCD`/`Member-EFGH` é o padrão fixo para garantir leitura
   simples e consistência.
-- A flag `--disable-anonymization` desativa esta etapa para depuração local.
+- Para desativar temporariamente, ajuste `enabled = false` na seção `[anonymization]` do TOML.
 
 ## 2. Instruções explícitas ao LLM
 

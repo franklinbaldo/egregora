@@ -1,5 +1,6 @@
 """Unified processor with Polars-based message manipulation."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from datetime import date
 import logging
@@ -18,6 +19,19 @@ from .config import PipelineConfig
 logger = logging.getLogger(__name__)
 
 
+@dataclass(slots=True)
+class DryRunPlan:
+    """Summary of what would be processed during a dry run."""
+
+    slug: str
+    name: str
+    is_virtual: bool
+    export_count: int
+    available_dates: list[date]
+    target_dates: list[date]
+    merges: list[str] | None = None
+
+
 class UnifiedProcessor:
     """Unified processor for both real and virtual groups."""
     
@@ -26,24 +40,68 @@ class UnifiedProcessor:
     
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
         """Process everything (real + virtual groups)."""
-        
-        # 1. Discovery
+
+        sources_to_process, _, _ = self._collect_sources()
+
+        results = {}
+        for slug, source in sources_to_process.items():
+            logger.info(f"\n{'📺' if source.is_virtual else '📝'} Processing: {source.name}")
+
+            if source.is_virtual:
+                self._log_merge_stats(source)
+
+            newsletters = self._process_source(source, days)
+            results[slug] = newsletters
+
+        return results
+
+    def plan_runs(self, days: int | None = None) -> list[DryRunPlan]:
+        """Return a preview of what would be processed."""
+
+        sources_to_process, _, _ = self._collect_sources()
+
+        plans: list[DryRunPlan] = []
+        for slug, source in sources_to_process.items():
+            available_dates = list(get_available_dates(source))
+            target_dates = (
+                list(available_dates[-days:]) if days and available_dates else list(available_dates)
+            )
+
+            plans.append(
+                DryRunPlan(
+                    slug=slug,
+                    name=source.name,
+                    is_virtual=source.is_virtual,
+                    export_count=len(source.exports),
+                    available_dates=available_dates,
+                    target_dates=target_dates,
+                    merges=(
+                        list(source.merge_config.source_groups)
+                        if source.is_virtual and source.merge_config
+                        else None
+                    ),
+                )
+            )
+
+        return sorted(plans, key=lambda plan: plan.slug)
+
+    def _collect_sources(self) -> tuple[dict[str, GroupSource], dict, dict[str, GroupSource]]:
+        """Discover and prepare sources for processing."""
+
         logger.info(f"🔍 Scanning {self.config.zips_dir}...")
         real_groups = discover_groups(self.config.zips_dir)
-        
+
         logger.info(f"📦 Found {len(real_groups)} real group(s):")
         for slug, exports in real_groups.items():
             logger.info(f"  • {exports[0].group_name} ({slug}): {len(exports)} exports")
-        
-        # 2. Create virtual groups
+
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
-        
+
         if virtual_groups:
             logger.info(f"🔀 Created {len(virtual_groups)} virtual group(s):")
             for slug, source in virtual_groups.items():
                 logger.info(f"  • {source.name} ({slug}): merges {len(source.exports)} exports")
-        
-        # 3. Convert real groups to GroupSource
+
         real_sources = {
             slug: GroupSource(
                 slug=slug,
@@ -53,25 +111,11 @@ class UnifiedProcessor:
             )
             for slug, exports in real_groups.items()
         }
-        
-        # 4. Combine
+
         all_sources = {**real_sources, **virtual_groups}
-        
-        # 5. Filter
         sources_to_process = self._filter_sources(all_sources)
-        
-        # 6. Process
-        results = {}
-        for slug, source in sources_to_process.items():
-            logger.info(f"\n{'📺' if source.is_virtual else '📝'} Processing: {source.name}")
-            
-            if source.is_virtual:
-                self._log_merge_stats(source)
-            
-            newsletters = self._process_source(source, days)
-            results[slug] = newsletters
-        
-        return results
+
+        return sources_to_process, real_groups, virtual_groups
     
     def _log_merge_stats(self, source: GroupSource):
         """Log merge statistics."""

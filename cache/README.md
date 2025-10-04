@@ -10,17 +10,9 @@ Este diretório armazena as análises persistentes de URLs enriquecidas pelo pip
 
 ## Manutenção
 
-Para limpar entradas não utilizadas há mais de 90 dias:
+Para limpar entradas não utilizadas há mais de 90 dias ajuste `auto_cleanup_days = 90` na seção `[cache]` do TOML.
 
-```bash
-uv run egregora --cache-cleanup-days 90
-```
-
-Para desativar o cache durante uma execução:
-
-```bash
-uv run egregora --disable-cache
-```
+Para desativar o cache durante uma execução defina `enabled = false` no mesmo bloco antes de rodar o pipeline.
 
 Para inspecionar as estatísticas atuais programaticamente:
 

@@ -1,54 +1,71 @@
-# Example configuration file for Egregora with virtual groups
-# Copy this to egregora.toml and customize for your setup
-
-[pipeline]
-model = "gemini-flash-lite-latest"
-timezone = "America/Porto_Velho"
-skip_real_if_in_virtual = true
+# Exemplo de configuração para o pipeline do Egregora.
+# Faça uma cópia (`cp egregora.toml.example egregora.toml`) e ajuste conforme seu ambiente.
 
 [directories]
+# Onde os exports .zip do WhatsApp serão procurados.
 zips_dir = "data/whatsapp_zips"
+# Destino das newsletters geradas.
 newsletters_dir = "data/daily"
+# Pasta onde mídias extraídas serão armazenadas.
 media_dir = "media"
 
-# Virtual groups - merge multiple real groups into a single newsletter
-[merges.rc-americas]
-name = "RC Americas"
-groups = ["rc-latam", "rc-brasil", "rc-mexico"]
-tag_style = "emoji"
-emojis = { rc-latam = "🌎", rc-brasil = "🇧🇷", rc-mexico = "🇲🇽" }
-# model = "gemini-2.0-flash-exp"  # Optional: override model for this merge
+[pipeline]
+# Modelo padrão usado para gerar as newsletters.
+model = "gemini-flash-lite-latest"
+# Fuso horário utilizado para determinar a data das newsletters.
+timezone = "America/Porto_Velho"
+# Evita processar grupos reais que já fazem parte de um grupo virtual.
+skip_real_if_in_virtual = true
 
-[merges.tech-all]
-name = "Tech Ecosystem"
-groups = ["tech-discussion", "tech-jobs", "programming"]
-tag_style = "brackets"
-# model = "gemini-2.0-flash-exp"
-
-[merges.family-extended]
-name = "Extended Family"
-groups = ["family-core", "family-cousins"]
-tag_style = "prefix"
-
-# Other configurations (same as before)
 [enrichment]
+# Define se o módulo de enriquecimento está ativo.
 enabled = true
+# Modelo dedicado para analisar links compartilhados.
 enrichment_model = "gemini-2.0-flash-exp"
+# Quantidade máxima de links analisados por execução.
 max_links = 50
-relevance_threshold = 2
+# Nota mínima (1–5) para um link ser incluído no prompt final.
+relevance_threshold = 3
+# Mensagens vizinhas consideradas como contexto (antes/depois).
 context_window = 3
+# Chamadas simultâneas permitidas ao modelo de enriquecimento.
 max_concurrent_analyses = 5
+# Limite de tempo, em segundos, para o enriquecimento.
 max_total_enrichment_time = 120.0
 
 [cache]
+# Controle do cache persistente das análises de links.
 enabled = true
 cache_dir = "cache"
 auto_cleanup_days = 90
 max_disk_mb = 100
 
 [anonymization]
+# Converte nomes/telefones em identificadores anônimos antes de qualquer prompt.
 enabled = true
+# Formatos disponíveis: "human", "short", "full".
 output_format = "human"
 
 [rag]
+# Habilite para usar o módulo de recuperação de newsletters anteriores.
 enabled = false
+# Consulte docs/embeddings.md para ajustar parâmetros adicionais se necessário.
+
+# --- EXEMPLOS DE GRUPOS VIRTUAIS ---
+[merges.rc-americas]
+name = "RC Americas"
+groups = ["rc-latam", "rc-brasil", "rc-mexico"]
+tag_style = "emoji"
+emojis = { rc-latam = "🌎", rc-brasil = "🇧🇷", rc-mexico = "🇲🇽" }
+# model = "gemini-2.0-flash-exp"  # Opcional: sobrescreve o modelo apenas para este grupo virtual.
+
+[merges.tech-all]
+name = "Tech Ecosystem"
+groups = ["tech-discussion", "tech-jobs", "programming"]
+tag_style = "brackets"
+# model = "gemini-1.5-flash"
+
+[merges.family-extended]
+name = "Extended Family"
+groups = ["family-core", "family-cousins"]
+tag_style = "prefix"
