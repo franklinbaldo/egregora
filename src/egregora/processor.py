@@ -201,7 +201,10 @@ class UnifiedProcessor:
             output_path.write_text(newsletter, encoding='utf-8')
             
             results.append(output_path)
-            logger.info(f"    ✅ {output_path.relative_to(Path.cwd())}")
+            try:
+                logger.info(f"    ✅ {output_path.relative_to(Path.cwd())}")
+            except ValueError:
+                logger.info(f"    ✅ {output_path}")
         
         return results
     
@@ -210,21 +213,26 @@ class UnifiedProcessor:
         source: GroupSource,
         transcript: str,
         target_date: date,
+        llm_client: object | None = None,
     ) -> str:
         """Generate newsletter using existing pipeline."""
         
-        from .pipeline import build_llm_input, build_system_instruction, create_client
+        from .pipeline import build_llm_input, build_system_instruction, create_client, _prepare_transcripts
         try:
             from google import genai
             from google.genai import types
         except ModuleNotFoundError:
             raise ImportError("google-genai is required but not installed")
+
+        # 1. Anonymize transcript BEFORE building LLM input
+        transcripts = [(target_date, transcript)]
+        anonymized_transcripts = _prepare_transcripts(transcripts, self.config)
         
-        # Build LLM input using existing pipeline
+        # 2. Build LLM input with anonymized data
         llm_input = build_llm_input(
             group_name=source.name,
             timezone=self.config.timezone,
-            transcripts=[(target_date, transcript)],
+            transcripts=anonymized_transcripts,  # Use anonymized!
             previous_newsletter=None,  # TODO: integrate previous newsletter
             enrichment_section=None,  # TODO: integrate enrichment
             rag_context=None,  # TODO: integrate RAG
@@ -242,8 +250,8 @@ class UnifiedProcessor:
             else self.config.model
         )
         
-        # Create LLM client and call
-        llm_client = create_client()
+        # Create LLM client lazily to avoid requiring optional dependency during init
+        client = llm_client or create_client()
         
         contents = [
             types.Content(
@@ -264,7 +272,7 @@ class UnifiedProcessor:
         )
 
         output_lines: list[str] = []
-        for chunk in llm_client.models.generate_content_stream(
+        for chunk in client.models.generate_content_stream(
             model=model,
             contents=contents,
             config=generate_content_config,
