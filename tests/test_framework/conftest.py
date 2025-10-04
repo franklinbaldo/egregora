@@ -11,6 +11,11 @@ from typing import Generator
 
 import pytest
 
+try:  # pragma: no cover - dependency guard for optional polars
+    import polars  # noqa: F401
+except ModuleNotFoundError:  # pragma: no cover - gracefully skip when unavailable
+    pytest.skip("polars is required for test framework fixtures", allow_module_level=True)
+
 from egregora.config import PipelineConfig
 
 
