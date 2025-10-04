@@ -7,7 +7,7 @@ import re
 import unicodedata
 import zipfile
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
@@ -131,11 +131,17 @@ def _slugify(text: str) -> str:
 def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
     """Extract date from export (ZIP name > content > mtime)."""
 
-    match = re.search(r"(\d{4}-\d{2}-\d{2})", zip_path.name)
+    match = re.search(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)", zip_path.name)
     if match:
         detected_date = date.fromisoformat(match.group(1))
-        logger.debug("ZIP '%s': Date extracted from filename (%s)", zip_path.name, detected_date)
-        return detected_date
+        validated_date = _validate_extracted_date(detected_date, zip_path)
+        if validated_date == detected_date:
+            logger.debug(
+                "ZIP '%s': Date extracted from filename (%s)",
+                zip_path.name,
+                detected_date,
+            )
+        return validated_date
 
     try:
         ensure_safe_member_size(zf, chat_file)
@@ -151,23 +157,46 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
 
                     parsed_date = parse_flexible_date(match.group(1))
                     if parsed_date:
-                        logger.debug("ZIP '%s': Date extracted from content (%s)", zip_path.name, parsed_date)
-                        return parsed_date
+                        validated_date = _validate_extracted_date(parsed_date, zip_path)
+                        if validated_date == parsed_date:
+                            logger.debug(
+                                "ZIP '%s': Date extracted from content (%s)",
+                                zip_path.name,
+                                parsed_date,
+                            )
+                        return validated_date
         except (UnicodeDecodeError, ZipValidationError) as exc:
             logger.debug("Failed to parse date from %s: %s", chat_file, exc)
 
-    timestamp = zip_path.stat().st_mtime
-    fallback_date = datetime.fromtimestamp(timestamp).date()
-    
+    return _fallback_to_mtime(zip_path, fallback_reason="Date extracted from file mtime")
+
+
+def _validate_extracted_date(extracted_date: date, zip_path: Path) -> date:
+    """Ensure detected dates are reasonable, falling back to mtime when needed."""
+
+    today = date.today()
+    if extracted_date > today + timedelta(days=7):
+        return _fallback_to_mtime(
+            zip_path,
+            fallback_reason=f"Ignoring future date {extracted_date}",
+        )
+
+    return extracted_date
+
+
+def _fallback_to_mtime(zip_path: Path, *, fallback_reason: str) -> date:
+    fallback_date = datetime.fromtimestamp(zip_path.stat().st_mtime).date()
+
     logger.warning(
-        "ZIP '%s': Date extracted from file mtime (%s). "
+        "ZIP '%s': %s. Using file mtime (%s). "
         "Consider renaming to '%s-%s' for explicit control.",
         zip_path.name,
+        fallback_reason,
         fallback_date,
         fallback_date,
-        zip_path.name
+        zip_path.name,
     )
-    
+
     return fallback_date
 
 
