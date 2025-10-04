@@ -44,54 +44,66 @@ def _parse_timezone(value: Optional[str]) -> Optional[ZoneInfo]:
         raise typer.BadParameter(f"Timezone '{value}' não é válido: {exc}") from exc
 
 
-@app.command()
-def process(
-    config_file: Annotated[
-        Optional[Path],
-        typer.Option("--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."),
-    ] = None,
-    zips_dir: Annotated[
-        Optional[Path],
-        typer.Option(help="Diretório onde os arquivos .zip diários estão armazenados."),
-    ] = None,
-    newsletters_dir: Annotated[
-        Optional[Path],
-        typer.Option(help="Diretório onde as newsletters serão escritas."),
-    ] = None,
-    model: Annotated[
-        Optional[str],
-        typer.Option(help="Nome do modelo Gemini a ser usado."),
-    ] = None,
-    timezone: Annotated[
-        Optional[str],
-        typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
-    ] = None,
-    days: Annotated[
-        int,
-        typer.Option(min=1, help="Quantidade de dias mais recentes a incluir no prompt."),
-    ] = 2,
-    disable_enrichment: Annotated[
-        bool,
-        typer.Option(
-            "--disable-enrichment",
-            "--no-enrich",
-            help="Desativa o enriquecimento de conteúdos compartilhados.",
-        ),
-    ] = False,
-    disable_cache: Annotated[
-        bool,
-        typer.Option("--no-cache", help="Desativa o cache persistente de enriquecimento."),
-    ] = False,
-    list_groups: Annotated[
-        bool,
-        typer.Option("--list", "-l", help="Lista grupos descobertos e sai."),
-    ] = False,
-    dry_run: Annotated[
-        bool,
-        typer.Option("--dry-run", help="Simula a execução e mostra quais newsletters seriam geradas."),
-    ] = False,
+ConfigFileOption = Annotated[
+    Optional[Path],
+    typer.Option("--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."),
+]
+ZipsDirOption = Annotated[
+    Optional[Path],
+    typer.Option(help="Diretório onde os arquivos .zip diários estão armazenados."),
+]
+NewslettersDirOption = Annotated[
+    Optional[Path],
+    typer.Option(help="Diretório onde as newsletters serão escritas."),
+]
+ModelOption = Annotated[
+    Optional[str],
+    typer.Option(help="Nome do modelo Gemini a ser usado."),
+]
+TimezoneOption = Annotated[
+    Optional[str],
+    typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
+]
+DaysOption = Annotated[
+    int,
+    typer.Option(min=1, help="Quantidade de dias mais recentes a incluir no prompt."),
+]
+DisableEnrichmentOption = Annotated[
+    bool,
+    typer.Option(
+        "--disable-enrichment",
+        "--no-enrich",
+        help="Desativa o enriquecimento de conteúdos compartilhados.",
+    ),
+]
+DisableCacheOption = Annotated[
+    bool,
+    typer.Option("--no-cache", help="Desativa o cache persistente de enriquecimento."),
+]
+ListGroupsOption = Annotated[
+    bool,
+    typer.Option("--list", "-l", help="Lista grupos descobertos e sai."),
+]
+DryRunOption = Annotated[
+    bool,
+    typer.Option("--dry-run", help="Simula a execução e mostra quais newsletters seriam geradas."),
+]
+
+
+def _process_command(
+    *,
+    config_file: Optional[Path] = None,
+    zips_dir: Optional[Path] = None,
+    newsletters_dir: Optional[Path] = None,
+    model: Optional[str] = None,
+    timezone: Optional[str] = None,
+    days: int = 2,
+    disable_enrichment: bool = False,
+    disable_cache: bool = False,
+    list_groups: bool = False,
+    dry_run: bool = False,
 ) -> None:
-    """Processa grupos do WhatsApp e gera newsletters diárias."""
+    """Executa o fluxo de processamento com as opções fornecidas."""
 
     timezone_override = _parse_timezone(timezone)
 
@@ -134,6 +146,68 @@ def process(
         raise typer.Exit()
 
     _process_and_display(processor, days)
+
+
+@app.command()
+def process(
+    config_file: ConfigFileOption = None,
+    zips_dir: ZipsDirOption = None,
+    newsletters_dir: NewslettersDirOption = None,
+    model: ModelOption = None,
+    timezone: TimezoneOption = None,
+    days: DaysOption = 2,
+    disable_enrichment: DisableEnrichmentOption = False,
+    disable_cache: DisableCacheOption = False,
+    list_groups: ListGroupsOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Processa grupos do WhatsApp e gera newsletters diárias."""
+
+    _process_command(
+        config_file=config_file,
+        zips_dir=zips_dir,
+        newsletters_dir=newsletters_dir,
+        model=model,
+        timezone=timezone,
+        days=days,
+        disable_enrichment=disable_enrichment,
+        disable_cache=disable_cache,
+        list_groups=list_groups,
+        dry_run=dry_run,
+    )
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    config_file: ConfigFileOption = None,
+    zips_dir: ZipsDirOption = None,
+    newsletters_dir: NewslettersDirOption = None,
+    model: ModelOption = None,
+    timezone: TimezoneOption = None,
+    days: DaysOption = 2,
+    disable_enrichment: DisableEnrichmentOption = False,
+    disable_cache: DisableCacheOption = False,
+    list_groups: ListGroupsOption = False,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Permite que o comando padrão execute o processamento sem subcomando explícito."""
+
+    if ctx.invoked_subcommand is not None:
+        return
+
+    _process_command(
+        config_file=config_file,
+        zips_dir=zips_dir,
+        newsletters_dir=newsletters_dir,
+        model=model,
+        timezone=timezone,
+        days=days,
+        disable_enrichment=disable_enrichment,
+        disable_cache=disable_cache,
+        list_groups=list_groups,
+        dry_run=dry_run,
+    )
 
 
 @app.command()
