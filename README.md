@@ -134,10 +134,26 @@ Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores p
 
 ## 🧭 Estrutura padrão
 
-- `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp com a data no nome (`YYYY-MM-DD`).
+- `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp (data opcional no nome).
 - `data/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
 
 As pastas são criadas automaticamente na primeira execução.
+
+### Preparando exports do WhatsApp
+
+1. Exporte sua conversa do WhatsApp como arquivo `.zip`
+2. Coloque-o em `data/whatsapp_zips/`
+3. **Opcional**: Renomeie com prefixo de data `YYYY-MM-DD-` para controle explícito
+
+Exemplos de nomes aceitos:
+- ✅ `Conversa do WhatsApp com Meu Grupo.zip` (detecta data automaticamente)
+- ✅ `2025-10-03-Meu Grupo.zip` (data explícita)  
+- ✅ `WhatsApp Chat with Team.zip` (detecta data automaticamente)
+
+O sistema detecta datas automaticamente a partir do:
+1. **Nome do arquivo** (se contém `YYYY-MM-DD`)
+2. **Conteúdo das mensagens** (primeiras 20 linhas)
+3. **Data de modificação** do arquivo (fallback)
 
 ## 🛠️ Uso via CLI
 

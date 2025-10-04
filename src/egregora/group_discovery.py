@@ -133,7 +133,9 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
 
     match = re.search(r"(\d{4}-\d{2}-\d{2})", zip_path.name)
     if match:
-        return date.fromisoformat(match.group(1))
+        detected_date = date.fromisoformat(match.group(1))
+        logger.debug("ZIP '%s': Date extracted from filename (%s)", zip_path.name, detected_date)
+        return detected_date
 
     try:
         ensure_safe_member_size(zf, chat_file)
@@ -149,12 +151,24 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
 
                     parsed_date = parse_flexible_date(match.group(1))
                     if parsed_date:
+                        logger.debug("ZIP '%s': Date extracted from content (%s)", zip_path.name, parsed_date)
                         return parsed_date
         except (UnicodeDecodeError, ZipValidationError) as exc:
             logger.debug("Failed to parse date from %s: %s", chat_file, exc)
 
     timestamp = zip_path.stat().st_mtime
-    return datetime.fromtimestamp(timestamp).date()
+    fallback_date = datetime.fromtimestamp(timestamp).date()
+    
+    logger.warning(
+        "ZIP '%s': Date extracted from file mtime (%s). "
+        "Consider renaming to '%s-%s' for explicit control.",
+        zip_path.name,
+        fallback_date,
+        fallback_date,
+        zip_path.name
+    )
+    
+    return fallback_date
 
 
 def _safe_text_members(members: Iterable[str]) -> list[str]:
