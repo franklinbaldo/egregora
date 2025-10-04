@@ -19,6 +19,12 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 
 from urllib.parse import urlparse
 
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:
+    _PANDAS_AVAILABLE = False
+
 from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 
@@ -480,11 +486,153 @@ class ContentEnricher:
 
         return references
 
+    async def enrich_from_dataframe(
+        self,
+        df,
+        *,
+        client: genai.Client | None,
+        target_dates: list[date] | None = None,
+    ) -> EnrichmentResult:
+        """Enhanced DataFrame-native enrichment pipeline.
+        
+        Extracts URLs directly from DataFrame messages and enriches them.
+        Much more efficient than string-based transcript processing.
+        
+        Args:
+            df: pandas DataFrame with columns: timestamp, date, time, author, message
+            client: Gemini client for analysis
+            target_dates: Optional list of dates to filter
+            
+        Returns:
+            EnrichmentResult with enriched content
+            
+        Raises:
+            ImportError: If pandas is not available
+        """
+        if not _PANDAS_AVAILABLE:
+            raise ImportError("pandas is required for DataFrame enrichment")
+        
+        # Convert to legacy format for now - TODO: refactor entire pipeline to be DataFrame-native
+        transcripts = self._dataframe_to_transcripts(df, target_dates)
+        return await self.enrich(transcripts, client=client)
+    
+    def _dataframe_to_transcripts(self, df, target_dates: list[date] | None = None) -> list[tuple[date, str]]:
+        """Convert DataFrame to transcript format for compatibility.
+        
+        This is a bridge method until the entire enrichment pipeline is DataFrame-native.
+        """
+        if target_dates:
+            df = df[df['date'].isin(target_dates)]
+        
+        transcripts = []
+        for date_group, day_df in df.groupby('date'):
+            # Sort by timestamp for the day
+            day_df = day_df.sort_values('timestamp')
+            
+            # Convert to transcript lines  
+            lines = []
+            for _, row in day_df.iterrows():
+                # Use original_line if available, else reconstruct
+                if 'original_line' in day_df.columns:
+                    lines.append(row['original_line'])
+                else:
+                    lines.append(f"{row['time']} — {row['author']}: {row['message']}")
+            
+            transcripts.append((date_group, '\n'.join(lines)))
+        
+        return transcripts
+
+
+def extract_urls_from_dataframe(df) -> None:
+    """Extract URLs from DataFrame and add urls column.
+    
+    Adds a new 'urls' column to the DataFrame containing lists of URLs
+    found in each message. This is a vectorized pandas operation.
+    
+    Args:
+        df: pandas DataFrame with 'message' column
+        
+    Raises:
+        ImportError: If pandas is not available
+        KeyError: If DataFrame doesn't have 'message' column
+    """
+    if not _PANDAS_AVAILABLE:
+        raise ImportError("pandas is required for DataFrame operations")
+    
+    if 'message' not in df.columns:
+        raise KeyError("DataFrame must have 'message' column")
+    
+    # Vectorized URL extraction
+    df['urls'] = df['message'].str.findall(URL_RE)
+
+
+def get_url_contexts_dataframe(df, context_window: int = 3):
+    """Extract URLs with context from DataFrame.
+    
+    Returns a new DataFrame with one row per URL, including context
+    from surrounding messages.
+    
+    Args:
+        df: pandas DataFrame with columns: timestamp, author, message, urls
+        context_window: Number of messages before/after for context
+        
+    Returns:
+        DataFrame with columns: url, timestamp, author, message, context_before, context_after
+        
+    Raises:
+        ImportError: If pandas is not available
+    """
+    if not _PANDAS_AVAILABLE:
+        raise ImportError("pandas is required for DataFrame operations")
+    
+    # Filter messages with URLs
+    df_with_urls = df[df['urls'].apply(len) > 0].copy()
+    
+    if df_with_urls.empty:
+        return pd.DataFrame(columns=['url', 'timestamp', 'author', 'message', 'context_before', 'context_after'])
+    
+    # Explode URLs to separate rows
+    df_exploded = df_with_urls.explode('urls').reset_index(drop=True)
+    df_exploded = df_exploded.rename(columns={'urls': 'url'})
+    
+    # Add context using shift operations
+    df_sorted = df.sort_values('timestamp').reset_index(drop=True)
+    
+    contexts = []
+    for _, row in df_exploded.iterrows():
+        # Find position in sorted DataFrame
+        idx = df_sorted[df_sorted['timestamp'] == row['timestamp']].index[0]
+        
+        # Get context before
+        context_before = []
+        for i in range(max(0, idx - context_window), idx):
+            msg = df_sorted.iloc[i]
+            context_before.append(f"{msg['time']} — {msg['author']}: {msg['message']}")
+        
+        # Get context after  
+        context_after = []
+        for i in range(idx + 1, min(len(df_sorted), idx + context_window + 1)):
+            msg = df_sorted.iloc[i]
+            context_after.append(f"{msg['time']} — {msg['author']}: {msg['message']}")
+        
+        contexts.append({
+            'context_before': '\n'.join(context_before),
+            'context_after': '\n'.join(context_after)
+        })
+    
+    # Add contexts to exploded DataFrame
+    context_df = pd.DataFrame(contexts)
+    result = pd.concat([df_exploded, context_df], axis=1)
+    
+    return result[['url', 'timestamp', 'author', 'message', 'context_before', 'context_after']]
+
 
 __all__ = [
     "AnalysisResult",
-    "ContentEnricher",
+    "ContentEnricher", 
     "ContentReference",
     "EnrichedItem",
     "EnrichmentResult",
+    "extract_urls_from_dataframe",
+    "get_url_contexts_dataframe",
 ]

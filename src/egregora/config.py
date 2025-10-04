@@ -14,7 +14,7 @@ from .rag.config import RAGConfig
 from .models import MergeConfig
 
 
-DEFAULT_GROUP_NAME = "RC LatAm"
+# Removed DEFAULT_GROUP_NAME - groups are now discovered automatically
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
@@ -62,12 +62,16 @@ _VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
 
 @dataclass(slots=True)
 class PipelineConfig:
-    """Runtime configuration for the newsletter pipeline."""
+    """Runtime configuration for the newsletter pipeline.
+    
+    Note: group_name has been removed as groups are now discovered automatically
+    from ZIP files using auto-discovery. Use the unified processor for multi-group
+    support and virtual group merging.
+    """
 
     zips_dir: Path
     newsletters_dir: Path
     media_dir: Path
-    group_name: str
     model: str
     timezone: tzinfo
     enrichment: EnrichmentConfig
@@ -75,7 +79,7 @@ class PipelineConfig:
     anonymization: AnonymizationConfig
     rag: RAGConfig
     
-    # Virtual groups (merges)
+    # Virtual groups (merges) - main configuration for multi-group processing
     merges: dict[str, MergeConfig] = field(default_factory=dict)
     
     # If True, skip real groups that are part of virtual groups
@@ -87,7 +91,6 @@ class PipelineConfig:
         *,
         zips_dir: Path | None = None,
         newsletters_dir: Path | None = None,
-        group_name: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
         enrichment: EnrichmentConfig | None = None,
@@ -98,13 +101,15 @@ class PipelineConfig:
         merges: dict[str, MergeConfig] | None = None,
         skip_real_if_in_virtual: bool = True,
     ) -> "PipelineConfig":
-        """Create a configuration using project defaults."""
+        """Create a configuration using project defaults.
+        
+        Note: group_name parameter removed - groups are auto-discovered.
+        """
 
         return cls(
             zips_dir=_ensure_safe_directory(zips_dir or Path("data/whatsapp_zips")),
             newsletters_dir=_ensure_safe_directory(newsletters_dir or Path("newsletters")),
             media_dir=_ensure_safe_directory(media_dir or Path("media")),
-            group_name=group_name or DEFAULT_GROUP_NAME,
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
             enrichment=(copy.deepcopy(enrichment) if enrichment else EnrichmentConfig()),
@@ -162,7 +167,6 @@ class PipelineConfig:
             zips_dir=_ensure_safe_directory(dirs.get('zips_dir', 'data/whatsapp_zips')),
             newsletters_dir=_ensure_safe_directory(dirs.get('newsletters_dir', 'newsletters')),
             media_dir=_ensure_safe_directory(dirs.get('media_dir', 'media')),
-            group_name=pipeline.get('group_name', DEFAULT_GROUP_NAME),
             model=pipeline.get('model', DEFAULT_MODEL),
             timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
             enrichment=EnrichmentConfig(**data.get('enrichment', {})),
@@ -233,7 +237,7 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
 
 
 __all__ = [
-    "DEFAULT_GROUP_NAME",
+    # Removed DEFAULT_GROUP_NAME - groups are auto-discovered
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",

@@ -30,12 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Pasta onde as newsletters serão escritas.",
     )
-    parser.add_argument(
-        "--group-name",
-        type=str,
-        default=None,
-        help="Nome do grupo a ser usado no cabeçalho da newsletter.",
-    )
+    # Removed --group-name - groups are now auto-discovered
     parser.add_argument(
         "--model",
         type=str,
@@ -129,9 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Lista grupos descobertos e sai.",
     )
     parser.add_argument(
-        "--use-new-processor",
+        "--legacy-single-group",
         action="store_true",
-        help="Usa o novo processador unificado com auto-discovery.",
+        help="Usa o processador legado de grupo único (descontinuado).",
     )
 
     parser.add_argument(
@@ -199,8 +194,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             config.zips_dir = args.zips_dir
         if args.newsletters_dir:
             config.newsletters_dir = args.newsletters_dir
-        if args.group_name:
-            config.group_name = args.group_name
+        # Removed group_name override - groups are auto-discovered
         if args.model:
             config.model = args.model
         if args.timezone:
@@ -210,7 +204,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = PipelineConfig.with_defaults(
             zips_dir=args.zips_dir,
             newsletters_dir=args.newsletters_dir,
-            group_name=args.group_name,
             model=args.model,
             timezone=timezone,
         )
@@ -246,8 +239,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
         cache_config.auto_cleanup_days = args.cache_cleanup_days
 
-    # Use new unified processor if requested or if merges are configured
-    if args.use_new_processor or config.merges or args.list:
+    # Use unified processor by default, fallback to legacy only if explicitly requested
+    if not args.legacy_single_group:
         processor = UnifiedProcessor(config)
         
         # List mode
@@ -277,7 +270,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         
         # Process mode
         print("\n" + "="*60)
-        print("🚀 PROCESSING WITH UNIFIED PROCESSOR")
+        print("🚀 PROCESSING WITH AUTO-DISCOVERY")
         print("="*60)
         
         results = processor.process_all(days=args.days)
@@ -297,7 +290,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("\n" + "="*60 + "\n")
         return 0
     
-    # Legacy single-group processor
+    # Legacy single-group processor (deprecated)
+    print("\n⚠️  WARNING: Using deprecated single-group processor")
+    print("   Consider switching to the new auto-discovery processor\n")
+    
     result = generate_newsletter(config, days=args.days)
 
     if not result.previous_newsletter_found:

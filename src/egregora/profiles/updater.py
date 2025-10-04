@@ -14,6 +14,12 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:
+    _PANDAS_AVAILABLE = False
+
 from .profile import ParticipantProfile
 from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
 
@@ -188,6 +194,114 @@ class ProfileUpdater:
             if match:
                 messages.append(match.group(1).strip())
         return messages
+
+    def extract_member_messages_dataframe(self, member_id: str, df) -> pd.DataFrame:
+        """Extract messages from a specific member using DataFrame operations.
+        
+        This is much more efficient than string parsing for large conversations.
+        
+        Args:
+            member_id: The anonymized member identifier 
+            df: pandas DataFrame with 'author' and 'message' columns
+            
+        Returns:
+            DataFrame containing only messages from the specified member
+            
+        Raises:
+            ImportError: If pandas is not available
+        """
+        if not _PANDAS_AVAILABLE:
+            raise ImportError("pandas is required for DataFrame operations")
+        
+        return df[df['author'] == member_id]
+
+    def should_update_profile_dataframe(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        df,
+    ) -> Tuple[bool, str]:
+        """Decide if member warrants profile refresh using DataFrame analysis.
+        
+        Uses vectorized pandas operations instead of string parsing.
+        
+        Args:
+            member_id: The anonymized member identifier
+            current_profile: Existing profile or None
+            df: pandas DataFrame with conversation data
+            
+        Returns:
+            Tuple of (should_update: bool, reason: str)
+        """
+        if not _PANDAS_AVAILABLE:
+            raise ImportError("pandas is required for DataFrame operations")
+        
+        # Extract member messages using pandas query
+        member_df = self.extract_member_messages_dataframe(member_id, df)
+        
+        if member_df.empty:
+            return False, "Nenhuma mensagem encontrada"
+        
+        # Vectorized meaningful message filtering
+        word_counts = member_df['message'].str.split().str.len()
+        meaningful_messages = member_df[word_counts >= self.min_words_per_message]
+        
+        if len(meaningful_messages) < self.min_messages:
+            return False, f"Apenas {len(meaningful_messages)} mensagens significativas (mín: {self.min_messages})"
+        
+        if not current_profile or not current_profile.worldview_summary:
+            return True, "Primeiro perfil sendo criado"
+        
+        # Additional checks can be added here using pandas operations
+        # For example: time since last update, message frequency, etc.
+        
+        return True, f"Perfil elegível para atualização ({len(meaningful_messages)} mensagens significativas)"
+
+    def get_participation_stats_dataframe(self, member_id: str, df):
+        """Get comprehensive participation statistics using DataFrame operations.
+        
+        Returns detailed analytics about a member's participation patterns.
+        
+        Args:
+            member_id: The anonymized member identifier
+            df: pandas DataFrame with conversation data
+            
+        Returns:
+            Dictionary with participation statistics
+        """
+        if not _PANDAS_AVAILABLE:
+            raise ImportError("pandas is required for DataFrame operations")
+        
+        member_df = self.extract_member_messages_dataframe(member_id, df)
+        
+        if member_df.empty:
+            return {}
+        
+        # Vectorized statistics calculation
+        total_messages = len(member_df)
+        word_counts = member_df['message'].str.split().str.len()
+        avg_words_per_message = word_counts.mean()
+        
+        # Time-based analysis
+        first_message = member_df['timestamp'].min()
+        last_message = member_df['timestamp'].max()
+        activity_span = last_message - first_message
+        
+        # Message frequency analysis
+        daily_counts = member_df.groupby(member_df['timestamp'].dt.date).size()
+        avg_messages_per_day = daily_counts.mean()
+        
+        return {
+            'total_messages': total_messages,
+            'avg_words_per_message': avg_words_per_message,
+            'first_message': first_message,
+            'last_message': last_message,
+            'activity_span_days': activity_span.days,
+            'avg_messages_per_day': avg_messages_per_day,
+            'active_days': len(daily_counts),
+            'most_active_day': daily_counts.idxmax() if not daily_counts.empty else None,
+            'max_messages_in_day': daily_counts.max() if not daily_counts.empty else 0,
+        }
 
     def _is_meaningful(self, message: str) -> bool:
         words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
