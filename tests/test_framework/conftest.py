@@ -16,8 +16,12 @@ from egregora.config import PipelineConfig
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
-    """Create a temporary directory for tests."""
-    with tempfile.TemporaryDirectory() as tmp:
+    """Create a temporary directory within the project tree for tests."""
+
+    base = Path.cwd() / "tmp-tests"
+    base.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(dir=base) as tmp:
         yield Path(tmp)
 
 
@@ -43,13 +47,19 @@ def whatsapp_test_data() -> str:
 
 
 @pytest.fixture
+def whatsapp_real_content(whatsapp_test_data: str) -> str:
+    """Provide WhatsApp conversation content for tests expecting a real transcript."""
+
+    return whatsapp_test_data
+
+
+@pytest.fixture
 def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
         newsletters_dir=temp_dir / "newsletters",
         media_dir=temp_dir / "media",
-        group_name="Test Group",
     )
 
 

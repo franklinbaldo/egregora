@@ -5,6 +5,7 @@ from __future__ import annotations
 import zipfile
 from datetime import date
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Tuple
 
 from egregora.config import PipelineConfig
@@ -106,6 +107,45 @@ def simulate_pipeline_run(
     }
     
     return result[0][1], metrics
+
+
+def load_real_whatsapp_transcript(zip_path: Path) -> str:
+    """Load the transcript from a WhatsApp export zip file."""
+
+    if not zip_path.exists():
+        raise FileNotFoundError(f"WhatsApp export not found: {zip_path}")
+
+    return read_zip_texts(zip_path)
+
+
+def summarize_whatsapp_content(content: str) -> Dict[str, Any]:
+    """Return basic statistics extracted from WhatsApp conversation text."""
+
+    lines = [line for line in content.splitlines() if line.strip()]
+    url_count = len(re.findall(r"https?://\S+", content))
+    has_media_attachment = any("arquivo anexado" in line.lower() for line in lines)
+    has_emojis = any(any(ord(ch) > 127 for ch in line) for line in lines)
+
+    authors: set[str] = set()
+    for line in lines:
+        if " - " not in line or ": " not in line:
+            continue
+        try:
+            _, rest = line.split(" - ", 1)
+            author, _ = rest.split(": ", 1)
+        except ValueError:
+            continue
+        author = author.strip()
+        if author and author.lower() not in {"sistema", "você"}:
+            authors.add(author)
+
+    return {
+        "line_count": len(lines),
+        "url_count": url_count,
+        "has_media_attachment": has_media_attachment,
+        "has_emojis": has_emojis,
+        "authors": sorted(authors),
+    }
 
 
 class TestDataGenerator:
