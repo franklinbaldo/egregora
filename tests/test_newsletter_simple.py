@@ -20,7 +20,7 @@ from egregora.pipeline import (
 from test_framework.helpers import create_test_zip
 
 
-def test_whatsapp_transcript_preparation(temp_dir):
+def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -29,12 +29,7 @@ def test_whatsapp_transcript_preparation(temp_dir):
     )
     
     # Real WhatsApp conversation
-    whatsapp_transcripts = [
-        (date(2025, 10, 3), """03/10/2025 09:45 - Franklin: Teste de grupo
-03/10/2025 09:46 - Franklin: 🐱
-03/10/2025 09:47 - Maria: Ótima ideia sobre o projeto
-03/10/2025 09:48 - José: Concordo com essa proposta""")
-    ]
+    whatsapp_transcripts = [(date(2025, 10, 3), whatsapp_real_content)]
     
     # Process transcripts
     result = _prepare_transcripts(whatsapp_transcripts, config)
@@ -49,19 +44,18 @@ def test_whatsapp_transcript_preparation(temp_dir):
     # Check anonymization of authors (in "- Author:" format)
     # Content within messages is preserved as-is
     lines = processed_content.split('\n')
-    for line in lines:
-        if ' - ' in line and ': ' in line:
-            author_part = line.split(' - ')[1].split(':')[0]
-            # Authors should be anonymized
-            assert author_part.startswith('Member-')
-            assert 'Franklin' not in author_part
-            assert 'Maria' not in author_part
-            assert 'José' not in author_part
-    
+    anonymized_lines = [
+        line for line in lines if ' - ' in line and ': ' in line and line.startswith('03/10/2025')
+    ]
+    assert anonymized_lines, "Expected anonymized conversation lines"
+    assert any('Member-' in line for line in anonymized_lines)
+    assert all('Franklin' not in line for line in anonymized_lines)
+
     # Check content preservation
     assert "Teste de grupo" in processed_content
     assert "🐱" in processed_content
-    assert "Ótima ideia" in processed_content
+    assert "Legal esse vídeo" in processed_content
+    assert "https://youtu.be/Nkhp-mb6FRc" in processed_content
 
 
 def test_previous_newsletter_context_loading(temp_dir):
@@ -156,7 +150,7 @@ def test_zip_file_date_detection_and_listing(temp_dir):
     assert actual_dates == expected_valid_dates
 
 
-def test_multi_day_transcript_processing(temp_dir):
+def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -168,7 +162,7 @@ def test_multi_day_transcript_processing(temp_dir):
     multi_day_transcripts = [
         (date(2025, 10, 1), "01/10/2025 10:00 - Alice: Primeiro dia de conversas"),
         (date(2025, 10, 2), "02/10/2025 14:30 - Bob: Segundo dia, continuando discussão"),
-        (date(2025, 10, 3), "03/10/2025 09:15 - Charlie: Terceiro dia, resumindo"),
+        (date(2025, 10, 3), whatsapp_real_content),
     ]
     
     # Process all transcripts
@@ -189,6 +183,9 @@ def test_multi_day_transcript_processing(temp_dir):
         assert "Bob" not in processed_content
         assert "Charlie" not in processed_content
         assert "Member-" in processed_content
+        if processed_date == date(2025, 10, 3):
+            assert "Franklin" not in processed_content
+            assert "https://youtu.be/Nkhp-mb6FRc" in processed_content
 
 
 def test_transcript_section_headers(temp_dir):

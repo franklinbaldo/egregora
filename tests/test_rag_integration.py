@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -13,22 +14,21 @@ from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.query_gen import QueryGenerator, QueryResult
 from egregora.rag.indexer import detect_newsletter_date, hash_text
 from egregora.rag.search import tokenize, STOP_WORDS
-from test_framework.helpers import create_test_zip
+from test_framework.helpers import (
+    load_real_whatsapp_transcript,
+    summarize_whatsapp_content,
+)
 
 
-def test_query_generation_whatsapp_content(temp_dir):
+def test_query_generation_whatsapp_content(temp_dir, whatsapp_real_content):
     """Test query generation components with WhatsApp conversation content."""
-    whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
-03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
-03/10/2025 09:47 - Franklin: Legal esse vídeo sobre programação"""
-    
     # Test tokenization functionality
-    tokens = tokenize(whatsapp_content)
-    
-    # Validate tokenization
+    tokens = tokenize(whatsapp_real_content)
+
+    # Validate tokenization against real data
     assert len(tokens) > 0
-    assert 'tecnologia' in tokens or 'tecnologia' in whatsapp_content.lower()
-    assert 'machine' in tokens or 'learning' in tokens
+    assert 'franklin' in tokens
+    assert any(token in tokens for token in ['grupo', 'vídeo', 'mensagens'])
     
     # Test stop words filtering
     meaningful_tokens = [token for token in tokens if token not in STOP_WORDS]
@@ -117,12 +117,12 @@ def test_search_functionality_patterns(temp_dir):
         assert len(processed) > 0
 
 
-def test_rag_context_preparation(temp_dir):
+def test_rag_context_preparation(temp_dir, whatsapp_real_content):
     """Test RAG context preparation with WhatsApp data."""
     whatsapp_transcripts = [
         (date(2025, 10, 1), "Conversa sobre projeto A"),
         (date(2025, 10, 2), "Discussão sobre implementação"),
-        (date(2025, 10, 3), "Review e próximos passos"),
+        (date(2025, 10, 3), whatsapp_real_content),
     ]
     
     # Test context preparation logic
@@ -130,8 +130,17 @@ def test_rag_context_preparation(temp_dir):
     context_parts = []
     
     for transcript_date, content in whatsapp_transcripts:
-        if len('\n'.join(context_parts)) + len(content) <= max_chars:
-            context_parts.append(f"[{transcript_date}] {content}")
+        base = '\n'.join(context_parts)
+        prefix = f"[{transcript_date}] "
+        available = max_chars - len(base)
+        if context_parts:
+            available -= 1  # account for newline separator
+        available -= len(prefix)
+        if available <= 0:
+            break
+        snippet = content[:available]
+        if snippet:
+            context_parts.append(f"{prefix}{snippet}")
     
     final_context = '\n'.join(context_parts)
     
@@ -144,14 +153,19 @@ def test_rag_context_preparation(temp_dir):
         assert part.startswith('[2025-')
         assert ']' in part
 
+    assert any(part.startswith('[2025-10-03]') for part in context_parts)
+    assert '03/10/2025 09:45' in final_context
 
-def test_text_hashing_functionality(temp_dir):
+
+def test_text_hashing_functionality(temp_dir, whatsapp_real_content):
     """Test text hashing for content change detection."""
-    whatsapp_texts = [
-        "03/10/2025 09:45 - Franklin: Teste de grupo",
-        "03/10/2025 09:46 - Franklin: Legal esse vídeo", 
-        "03/10/2025 09:45 - Franklin: Teste de grupo",  # Duplicate
+    lines = [
+        line for line in whatsapp_real_content.splitlines()
+        if line.startswith('03/10/2025') and 'Franklin:' in line
     ]
+    assert len(lines) >= 3
+
+    whatsapp_texts = [lines[0], lines[1], lines[0]]
     
     hashes = [hash_text(text) for text in whatsapp_texts]
     
@@ -167,34 +181,22 @@ def test_text_hashing_functionality(temp_dir):
     assert hashes[0] != hashes[1]
 
 
-def test_whatsapp_data_processing_pipeline(temp_dir):
+def test_whatsapp_data_processing_pipeline(temp_dir, whatsapp_zip_path):
     """Test complete data processing pipeline with WhatsApp format."""
     # Setup test data
     zips_dir = temp_dir / "zips"
     zips_dir.mkdir()
-    
-    # Create test zip with WhatsApp content
-    whatsapp_content = """03/10/2025 09:45 - Franklin: Vamos falar sobre IA
-03/10/2025 09:46 - Franklin: https://youtu.be/example
-03/10/2025 09:47 - Maria: Ótimo tópico para discussão
-03/10/2025 09:48 - José: Tenho experiência com machine learning"""
-    
+
     test_zip = zips_dir / "2025-10-03.zip"
-    create_test_zip(whatsapp_content, test_zip, "conversation.txt")
-    
-    # Validate zip creation
+    shutil.copy2(whatsapp_zip_path, test_zip)
+
     assert test_zip.exists()
-    
-    # Test that the content can be read
-    import zipfile
-    with zipfile.ZipFile(test_zip, 'r') as zf:
-        files = zf.namelist()
-        assert "conversation.txt" in files
-        
-        with zf.open("conversation.txt") as f:
-            content = f.read().decode('utf-8')
-            assert "Franklin" in content
-            assert "IA" in content
+
+    content = load_real_whatsapp_transcript(test_zip)
+    metadata = summarize_whatsapp_content(content)
+    assert metadata["url_count"] >= 1
+    assert metadata["has_media_attachment"]
+    assert metadata["authors"]
 
 
 def test_rag_performance_considerations(temp_dir):

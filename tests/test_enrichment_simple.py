@@ -9,24 +9,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.enrichment import URL_RE, MESSAGE_RE, MEDIA_TOKEN_RE
-from test_framework.helpers import TestDataGenerator
+from test_framework.helpers import TestDataGenerator, summarize_whatsapp_content
 
 
-def test_url_extraction_patterns():
+def test_url_extraction_patterns(whatsapp_real_content):
     """Test URL extraction regex with WhatsApp content."""
-    whatsapp_content = """03/10/2025 09:46 - Franklin: https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT
-03/10/2025 09:46 - Franklin: Legal esse vídeo
-03/10/2025 09:47 - Maria: Vejam https://example.com/article e http://test.com"""
-    
-    urls = URL_RE.findall(whatsapp_content)
-    
-    assert len(urls) == 3
+
+    extended_content = "\n".join(
+        [
+            whatsapp_real_content,
+            "03/10/2025 09:47 - Maria: Vejam https://example.com/article e http://test.com",
+        ]
+    )
+
+    urls = URL_RE.findall(extended_content)
+
     assert "https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT" in urls
-    assert "https://example.com/article" in urls 
+    assert "https://example.com/article" in urls
     assert "http://test.com" in urls
+    assert len(urls) >= 3
 
 
-def test_message_format_recognition():
+def test_message_format_recognition(whatsapp_real_content):
     """Test message format regex with various WhatsApp patterns."""
     test_cases = [
         ("09:45 - Franklin: Teste de grupo", ("09:45", "Franklin", "Teste de grupo")),
@@ -42,8 +46,20 @@ def test_message_format_recognition():
             result = (match.group("time"), match.group("sender"), match.group("message"))
             assert result == expected, f"Failed for {message}: got {result}, expected {expected}"
 
+    # Validate that real data can be normalised into the expected format
+    real_lines = [
+        line for line in whatsapp_real_content.splitlines()
+        if " - " in line and ": " in line and line[:2].isdigit()
+    ]
+    assert real_lines, "Expected at least one real conversation line"
 
-def test_media_token_detection():
+    for line in real_lines:
+        time_and_rest = " ".join(line.split(" ", 1)[1:])
+        match = MESSAGE_RE.match(time_and_rest)
+        assert match is not None, f"Should parse real line: {line}"
+
+
+def test_media_token_detection(whatsapp_real_content):
     """Test media placeholder detection in messages."""
     test_cases = [
         "09:45 - Franklin: <mídia oculta>",
@@ -51,10 +67,18 @@ def test_media_token_detection():
         "11:30 - Bob: <MÍDIA OCULTA>",  # Case insensitive
         "12:15 - Carol: <midia oculta>",  # Accent variation
     ]
-    
+
     for case in test_cases:
         matches = MEDIA_TOKEN_RE.findall(case)
         assert len(matches) >= 1, f"Should find media token in: {case}"
+
+    # The real conversation contains a media attachment that should not trigger the token
+    attachment_line = next(
+        (line for line in whatsapp_real_content.splitlines() if "arquivo anexado" in line),
+        None,
+    )
+    assert attachment_line is not None
+    assert MEDIA_TOKEN_RE.findall(attachment_line) == []
 
 
 def test_complex_conversation_patterns():
@@ -82,34 +106,17 @@ def test_complex_conversation_patterns():
     assert parsed_messages >= 5, f"Should parse multiple messages, found {parsed_messages}"
 
 
-def test_whatsapp_real_data_patterns():
+def test_whatsapp_real_data_patterns(whatsapp_real_content):
     """Test patterns against real WhatsApp export format."""
-    # Using the actual format from our test file
-    real_whatsapp_lines = [
-        "03/10/2025 09:45 - Franklin: Teste de grupo",
-        "03/10/2025 09:45 - Franklin: 🐱",
-        "03/10/2025 09:46 - Franklin: ‎IMG-20251002-WA0004.jpg (arquivo anexado)",
-        "03/10/2025 09:46 - Franklin: https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT",
-    ]
-    
-    # Note: The current MESSAGE_RE expects HH:MM format, but WhatsApp uses DD/MM/YYYY HH:MM
-    # This test documents the current limitation
-    parsed_count = 0
-    for line in real_whatsapp_lines:
-        # Extract just the time and message part for MESSAGE_RE
-        if " - " in line and ": " in line:
-            # Try to extract time portion: "09:45 - Franklin: message"
-            time_part = line.split(" ", 2)[1:]  # Skip date
-            if len(time_part) >= 2:
-                time_message = " ".join(time_part)
-                if MESSAGE_RE.match(time_message):
-                    parsed_count += 1
-    
-    # URLs should be found regardless
-    all_content = "\n".join(real_whatsapp_lines)
-    urls = URL_RE.findall(all_content)
-    assert len(urls) == 1
-    assert "youtu.be" in urls[0]
+
+    metadata = summarize_whatsapp_content(whatsapp_real_content)
+    assert metadata["line_count"] >= 6
+    assert metadata["url_count"] >= 1
+    assert metadata["has_media_attachment"]
+    assert metadata["has_emojis"]
+
+    urls = URL_RE.findall(whatsapp_real_content)
+    assert any("youtu.be" in url for url in urls)
 
 
 def test_edge_cases_regex_patterns():
