@@ -89,7 +89,7 @@ def test_whatsapp_anonymization_comprehensive(temp_dir, whatsapp_real_content):
 
         # Check anonymization worked for user messages
         if any(name in conversation for name in ("Franklin:", "Maria:", "José:", "Ana:")):
-            assert "Member-" in processed or "User-" in processed
+            assert "Member-" in processed
             assert "Franklin" not in processed
             assert "Maria" not in processed
             assert "José" not in processed

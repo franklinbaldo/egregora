@@ -17,7 +17,7 @@ linguagem para seguir instruções claras.
 WhatsApp ZIP → [Anonimização de autores] → Prompt com instruções de privacidade → Newsletter
 ```
 
-- Telefones e apelidos são convertidos em pseudônimos determinísticos (`User-XXXX`)
+- Telefones e apelidos são convertidos em pseudônimos determinísticos (`Member-XXXX`)
   antes de qualquer processamento.
 - O prompt enviado ao Gemini reforça que a newsletter **não deve** expor nomes,
   telefones ou contatos diretos.

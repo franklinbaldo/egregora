@@ -17,7 +17,11 @@ Saída típica:
 • Entrada original: +55 11 91234-5678
 • Tipo detectado: phone
 • Forma normalizada: +5511912345678
-• Identificador anônimo: User-1A2B
+• Identificadores disponíveis:
+  → human: Member-1A2B
+  · short: 1a2b3c4d
+  · full: 1a2b3c4d-e5f6-7890-ab12-cdef34567890
+• Formato preferido (human): Member-1A2B
 ```
 
 ### Somente o identificador

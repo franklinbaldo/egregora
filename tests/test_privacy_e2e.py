@@ -33,8 +33,7 @@ def test_prepare_transcripts_anonymizes_authors(tmp_path) -> None:
     sanitized_text = sanitized[0][1]
 
     assert "João Silva" not in sanitized_text
-    assert "Member-" in sanitized_text
-    assert "User-" in sanitized_text
+    assert sanitized_text.count("Member-") >= 1
     assert "Maria" in sanitized_text  # conteúdo das mensagens permanece intacto
 
 

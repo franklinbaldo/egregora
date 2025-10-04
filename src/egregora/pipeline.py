@@ -519,7 +519,7 @@ Objetivo:
 - Não inventar nicks. Não resumir links. Não ocultar mensagens relevantes.
 
 🔒 PRIVACIDADE — INSTRUÇÕES CRÍTICAS:
-- Utilize APENAS os identificadores anônimos fornecidos (User-XXXX, Member-XXXX, etc.).
+- Utilize APENAS os identificadores anônimos fornecidos (Member-XXXX, etc.).
 - Nunca repita nomes próprios, telefones completos ou e-mails mencionados NO CONTEÚDO das mensagens.
 - Ao referenciar alguém citado no conteúdo mas sem identificador anônimo, generalize ("um membro", "uma pessoa do grupo").
 - Preserve o sentido original enquanto remove detalhes de contato ou identificação direta.

@@ -6,8 +6,8 @@ linguagem, reduzindo a chance de informações sensíveis aparecerem no resultad
 
 ## 1. Anonimização determinística
 
-- Telefones e apelidos são convertidos em identificadores como `User-ABCD` ou
-  `Member-EFGH` usando UUIDv5.
+- Telefones e apelidos são convertidos em identificadores como `Member-ABCD`
+  usando UUIDv5.
 - Nenhum mapeamento é persistido; o algoritmo é puro e repetível.
 - O formato `User-ABCD`/`Member-EFGH` é o padrão fixo para garantir leitura
   simples e consistência.

@@ -46,7 +46,7 @@ class AnonymizationConfig:
     Attributes:
         enabled: Controls whether author names are converted before prompting.
         output_format: Style of the anonymized identifiers:
-            - ``"human"`` → formato legível (ex.: ``User-A1B2``).
+            - ``"human"`` → formato legível (ex.: ``Member-A1B2``).
             - ``"short"`` → 8 caracteres hexadecimais (ex.: ``a1b2c3d4``).
             - ``"full"`` → UUID completo.
     """
