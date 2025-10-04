@@ -10,11 +10,11 @@ from egregora.config import PipelineConfig
 from egregora.pipeline import _prepare_transcripts
 
 
-def test_prepare_transcripts_anonymizes_authors(tmp_path) -> None:
+def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
-        zips_dir=tmp_path,
-        newsletters_dir=tmp_path,
-        media_dir=tmp_path / "media",
+        zips_dir=temp_dir,
+        newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
 
     transcripts = [
@@ -37,11 +37,11 @@ def test_prepare_transcripts_anonymizes_authors(tmp_path) -> None:
     assert "Maria" in sanitized_text  # conteúdo das mensagens permanece intacto
 
 
-def test_prepare_transcripts_noop_when_disabled(tmp_path) -> None:
+def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
-        zips_dir=tmp_path,
-        newsletters_dir=tmp_path,
-        media_dir=tmp_path / "media",
+        zips_dir=temp_dir,
+        newsletters_dir=temp_dir,
+        media_dir=temp_dir / "media",
     )
     config.anonymization.enabled = False
 

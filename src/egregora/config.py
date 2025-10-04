@@ -13,7 +13,6 @@ from .anonymizer import FormatType
 from .rag.config import RAGConfig
 from .models import MergeConfig
 
-# Removed DEFAULT_GROUP_NAME - groups are now discovered automatically
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
@@ -57,19 +56,13 @@ _VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
 
 @dataclass(slots=True)
 class PipelineConfig:
-    """Runtime configuration for the newsletter pipeline.
-
-    ``group_name`` remains optional and is used solely by the legacy
-    single-group pipeline flow for backwards compatibility. The unified
-    processor should be preferred for modern, multi-group workflows.
-    """
+    """Runtime configuration for the newsletter pipeline."""
 
     zips_dir: Path
     newsletters_dir: Path
     media_dir: Path
     model: str
     timezone: tzinfo
-    group_name: str | None
     enrichment: EnrichmentConfig
     cache: CacheConfig
     anonymization: AnonymizationConfig
@@ -89,7 +82,6 @@ class PipelineConfig:
         newsletters_dir: Path | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
-        group_name: str | None = None,
         enrichment: EnrichmentConfig | None = None,
         cache: CacheConfig | None = None,
         anonymization: AnonymizationConfig | None = None,
@@ -106,7 +98,6 @@ class PipelineConfig:
             media_dir=_ensure_safe_directory(media_dir or Path("media")),
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
-            group_name=group_name,
             enrichment=(copy.deepcopy(enrichment) if enrichment else EnrichmentConfig()),
             cache=(copy.deepcopy(cache) if cache else CacheConfig()),
             anonymization=(
@@ -164,7 +155,6 @@ class PipelineConfig:
             media_dir=_ensure_safe_directory(dirs.get('media_dir', 'media')),
             model=pipeline.get('model', DEFAULT_MODEL),
             timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
-            group_name=pipeline.get('group_name'),
             enrichment=EnrichmentConfig(**data.get('enrichment', {})),
             cache=CacheConfig(**data.get('cache', {})),
             anonymization=AnonymizationConfig(**data.get('anonymization', {})),
