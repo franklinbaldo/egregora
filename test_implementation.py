@@ -147,7 +147,7 @@ def main():
             
     except ImportError as e:
         print(f"❌ Import error: {e}")
-        print("   Make sure pandas is installed: pip install pandas")
+        print("   Make sure polars is installed: pip install polars")
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback

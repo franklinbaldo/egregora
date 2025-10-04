@@ -1,4 +1,4 @@
-"""Unified processor with pandas-based message manipulation."""
+"""Unified processor with Polars-based message manipulation."""
 
 from pathlib import Path
 from datetime import date
@@ -6,10 +6,14 @@ import logging
 
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
-from .transcript import extract_transcript, get_stats_for_date, get_available_dates
-from .models import GroupSource, WhatsAppExport
+from .transcript import (
+    extract_transcript,
+    get_available_dates,
+    get_stats_for_date,
+    load_source_dataframe,
+)
+from .models import GroupSource
 from .config import PipelineConfig
-from .parser import parse_multiple
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +76,20 @@ class UnifiedProcessor:
     def _log_merge_stats(self, source: GroupSource):
         """Log merge statistics."""
         
-        from .merger import merge_with_tags
-        
-        df = merge_with_tags(source.exports, source.merge_config)
+        try:
+            df = load_source_dataframe(source)
+        except ValueError as exc:
+            logger.warning("  Unable to load virtual group %s: %s", source.slug, exc)
+            return
+        if df.is_empty():
+            logger.info("  Merging 0 groups: no messages available")
+            return
+
         stats = get_merge_stats(df)
-        
-        logger.info(f"  Merging {len(stats)} groups:")
-        for _, row in stats.iterrows():
-            logger.info(f"    • {row['group_name']}: {row['message_count']} messages")
+
+        logger.info("  Merging %d groups:", stats.height)
+        for row in stats.iter_rows(named=True):
+            logger.info("    • %s: %d messages", row["group_name"], row["message_count"])
     
     def _filter_sources(self, all_sources: dict[str, GroupSource]) -> dict[str, GroupSource]:
         """Filter sources to process."""
@@ -129,7 +139,15 @@ class UnifiedProcessor:
             
             # Stats
             stats = get_stats_for_date(source, target_date)
-            logger.info(f"    {stats['message_count']} messages from {stats['participant_count']} participants")
+            if not stats:
+                logger.warning("    Unable to compute statistics for %s", target_date)
+                continue
+
+            logger.info(
+                "    %d messages from %d participants",
+                stats['message_count'],
+                stats['participant_count'],
+            )
             
             # Generate newsletter
             newsletter = self._generate_newsletter(source, transcript, target_date)
