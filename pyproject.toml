@@ -22,3 +22,6 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 devenv = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
