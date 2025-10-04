@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List
+from typing import Any, Iterable, List
 
-from llama_index.core.schema import NodeWithScore
+try:  # pragma: no cover - optional dependency
+    from llama_index.core.schema import NodeWithScore
+except ModuleNotFoundError:  # pragma: no cover - allows running without llama-index
+    NodeWithScore = Any  # type: ignore[assignment]
 
 
 def _node_metadata(hit: NodeWithScore) -> dict:

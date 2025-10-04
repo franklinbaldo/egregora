@@ -9,7 +9,9 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
-from typing import Awaitable, List, Sequence, TypeVar
+from typing import Any, Awaitable, Dict, List, Sequence, TypeVar
+
+import logging
 
 try:  # pragma: no cover - executed only when dependency is missing
     from google import genai  # type: ignore
@@ -28,12 +30,33 @@ from .anonymizer import Anonymizer, FormatType
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .mcp_server.tools import format_search_hits
-from .rag.index import NewsletterRAG
-from .rag.query_gen import QueryGenerator
+
+try:  # pragma: no cover - optional dependency
+    from .rag.index import NewsletterRAG
+    from .rag.query_gen import QueryGenerator
+except ModuleNotFoundError:  # pragma: no cover - allows running without llama-index
+    NewsletterRAG = None  # type: ignore[assignment]
+    QueryGenerator = None  # type: ignore[assignment]
 from .enrichment import ContentEnricher, EnrichmentResult
 from .media_extractor import MediaExtractor, MediaFile
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def _emit(
+    message: str,
+    *,
+    logger: logging.Logger | None = None,
+    batch_mode: bool = False,
+    level: str = "info",
+) -> None:
+    """Emit a log message respecting batch execution preferences."""
+
+    if logger is not None:
+        log_func = getattr(logger, level, logger.info)
+        log_func(message)
+    elif not batch_mode:
+        print(message)
 
 
 TRANSCRIPT_PATTERNS = [
@@ -94,6 +117,9 @@ def _anonymize_transcript_line(
 def _prepare_transcripts(
     transcripts: Sequence[tuple[date, str]],
     config: PipelineConfig,
+    *,
+    logger: logging.Logger | None = None,
+    batch_mode: bool = False,
 ) -> list[tuple[date, str]]:
     """Return transcripts with authors anonymized when enabled."""
 
@@ -136,10 +162,12 @@ def _prepare_transcripts(
         sanitized.append((transcript_date, "".join(processed_parts)))
 
     if config.anonymization.enabled:
-        print(
+        _emit(
             "[Anonimização] "
             f"{len(anonymized_authors)} remetentes anonimizados em {processed_lines} linhas. "
-            f"Formato: {config.anonymization.output_format}."
+            f"Formato: {config.anonymization.output_format}.",
+            logger=logger,
+            batch_mode=batch_mode,
         )
 
     return sanitized
@@ -182,6 +210,11 @@ def _rag_cache_directory(config: PipelineConfig) -> Path:
 def _collect_rag_context_local(
     config: PipelineConfig, transcripts_sample: str
 ) -> str | None:
+    if NewsletterRAG is None or QueryGenerator is None:
+        raise RuntimeError(
+            "Dependência opcional 'llama-index' não está instalada."
+        )
+
     rag = NewsletterRAG(
         newsletters_dir=config.newsletters_dir,
         cache_dir=_rag_cache_directory(config),
@@ -633,37 +666,45 @@ def create_client(api_key: str | None = None) -> genai.Client:
     return genai.Client(api_key=key)
 
 
-def generate_newsletter(
+def _generate_newsletter_from_archives(
     config: PipelineConfig,
+    archives: Sequence[tuple[date, Path]],
     *,
-    days: int = 2,
     client: genai.Client | None = None,
+    logger: logging.Logger | None = None,
+    batch_mode: bool = False,
+    skip_enrichment: bool = False,
 ) -> PipelineResult:
-    """Execute the pipeline and return the resulting metadata."""
+    """Generate a newsletter from a predefined list of archives."""
 
     _require_google_dependency()
 
     ensure_directories(config)
 
-    archives = list_zip_days(config.zips_dir)
     if not archives:
-        raise FileNotFoundError(f"Nenhum .zip encontrado em {config.zips_dir.resolve()}")
+        raise FileNotFoundError("Nenhum dia fornecido para processamento.")
 
-    selected_archives = select_recent_archives(archives, days=days)
     raw_transcripts: list[tuple[date, str]] = []
-    for archive_date, archive_path in selected_archives:
+    for archive_date, archive_path in archives:
         transcript, media_files = read_zip_texts_and_media(
             archive_path,
             archive_date=archive_date,
             media_dir=config.media_dir,
         )
         if media_files:
-            print(
-                f"[Mídia] {len(media_files)} anexos extraídos de {archive_path.name}."
+            _emit(
+                f"[Mídia] {len(media_files)} anexos extraídos de {archive_path.name}.",
+                logger=logger,
+                batch_mode=batch_mode,
             )
         raw_transcripts.append((archive_date, transcript))
 
-    sanitized_transcripts = _prepare_transcripts(raw_transcripts, config)
+    sanitized_transcripts = _prepare_transcripts(
+        raw_transcripts,
+        config,
+        logger=logger,
+        batch_mode=batch_mode,
+    )
 
     today = max(archive_date for archive_date, _ in sanitized_transcripts)
     previous_path, previous_content = load_previous_newsletter(
@@ -682,9 +723,18 @@ def generate_newsletter(
             try:
                 rag_context = _collect_rag_context(config, transcripts_sample)
                 if rag_context:
-                    print("[RAG] Contexto histórico recuperado.")
+                    _emit(
+                        "[RAG] Contexto histórico recuperado.",
+                        logger=logger,
+                        batch_mode=batch_mode,
+                    )
             except Exception as exc:
-                print(f"[Aviso] RAG indisponível: {exc}")
+                _emit(
+                    f"[Aviso] RAG indisponível: {exc}",
+                    logger=logger,
+                    batch_mode=batch_mode,
+                    level="warning",
+                )
 
     cache_manager: CacheManager | None = None
     if config.cache.enabled:
@@ -694,14 +744,17 @@ def generate_newsletter(
         if config.cache.max_disk_mb is not None:
             stats = cache_manager.get_stats()
             if stats.get("disk_usage_mb", 0.0) > config.cache.max_disk_mb:
-                print(
-                    "[Aviso] Cache excedeu o limite configurado; considere executar"
-                    " uma limpeza."
+                _emit(
+                    "[Aviso] Cache excedeu o limite configurado; considere executar uma limpeza.",
+                    logger=logger,
+                    batch_mode=batch_mode,
+                    level="warning",
                 )
 
     enrichment_result: EnrichmentResult | None = None
     enrichment_section: str | None = None
-    if config.enrichment.enabled:
+    should_enrich = config.enrichment.enabled and not skip_enrichment
+    if should_enrich:
         enricher = ContentEnricher(
             config.enrichment, cache_manager=cache_manager
         )
@@ -719,9 +772,19 @@ def generate_newsletter(
                 finally:
                     loop.close()
             else:
-                print(f"[Aviso] Enriquecimento não executado: {exc}")
+                _emit(
+                    f"[Aviso] Enriquecimento não executado: {exc}",
+                    logger=logger,
+                    batch_mode=batch_mode,
+                    level="warning",
+                )
         except Exception as exc:  # pragma: no cover - depende de rede/modelo
-            print(f"[Aviso] Enriquecimento falhou: {exc}")
+            _emit(
+                f"[Aviso] Enriquecimento falhou: {exc}",
+                logger=logger,
+                batch_mode=batch_mode,
+                level="error",
+            )
 
         if enrichment_result:
             enrichment_section = enrichment_result.format_for_prompt(
@@ -733,12 +796,18 @@ def generate_newsletter(
                 )
             )
             total_count = len(enrichment_result.items)
-            print(
-                f"[Enriquecimento] {relevant_count}/{total_count} itens relevantes "
-                f"processados em {enrichment_result.duration_seconds:.1f}s."
+            _emit(
+                f"[Enriquecimento] {relevant_count}/{total_count} itens relevantes processados em {enrichment_result.duration_seconds:.1f}s.",
+                logger=logger,
+                batch_mode=batch_mode,
             )
             for error in enrichment_result.errors:
-                print(f"[Enriquecimento:falha] {error}")
+                _emit(
+                    f"[Enriquecimento:falha] {error}",
+                    logger=logger,
+                    batch_mode=batch_mode,
+                    level="warning",
+                )
 
     insert_input = build_llm_input(
         group_name=config.group_name,
@@ -787,10 +856,18 @@ def generate_newsletter(
             newsletter_text=newsletter_text,
         )
         if revised != newsletter_text:
-            print("[Privacidade] Revisão adicional removeu dados sensíveis.")
+            _emit(
+                "[Privacidade] Revisão adicional removeu dados sensíveis.",
+                logger=logger,
+                batch_mode=batch_mode,
+            )
             newsletter_text = revised
         else:
-            print("[Privacidade] Revisão adicional não encontrou ajustes.")
+            _emit(
+                "[Privacidade] Revisão adicional não encontrou ajustes.",
+                logger=logger,
+                batch_mode=batch_mode,
+            )
 
     output_path.write_text(newsletter_text, encoding="utf-8")
 
@@ -803,8 +880,87 @@ def generate_newsletter(
     )
 
 
+def generate_newsletter(
+    config: PipelineConfig,
+    *,
+    days: int = 2,
+    client: genai.Client | None = None,
+    logger: logging.Logger | None = None,
+    batch_mode: bool = False,
+    skip_enrichment: bool = False,
+) -> PipelineResult:
+    """Execute the pipeline and return the resulting metadata."""
+
+    archives = list_zip_days(config.zips_dir)
+    if not archives:
+        raise FileNotFoundError(f"Nenhum .zip encontrado em {config.zips_dir.resolve()}")
+
+    selected_archives = select_recent_archives(archives, days=days)
+    return _generate_newsletter_from_archives(
+        config,
+        selected_archives,
+        client=client,
+        logger=logger,
+        batch_mode=batch_mode,
+        skip_enrichment=skip_enrichment,
+    )
+
+
+class Pipeline:
+    """Batch-friendly wrapper around :func:`generate_newsletter`."""
+
+    def __init__(
+        self,
+        config: PipelineConfig,
+        *,
+        batch_mode: bool = False,
+        logger: logging.Logger | None = None,
+        client: genai.Client | None = None,
+    ) -> None:
+        self.config = config
+        self.batch_mode = batch_mode
+        self.logger = logger
+        self._client = client
+
+    def process_day(
+        self,
+        zip_file: str | Path,
+        day: date | str,
+        *,
+        skip_enrichment: bool = False,
+    ) -> PipelineResult:
+        """Process a single day archive into a newsletter."""
+
+        archive_path = Path(zip_file)
+        if not archive_path.exists():
+            raise FileNotFoundError(f"Arquivo .zip não encontrado: {archive_path}")
+        if isinstance(day, str):
+            day_date = datetime.strptime(day, "%Y-%m-%d").date()
+        else:
+            day_date = day
+
+        return _generate_newsletter_from_archives(
+            self.config,
+            [(day_date, archive_path)],
+            client=self._client,
+            logger=self.logger,
+            batch_mode=self.batch_mode,
+            skip_enrichment=skip_enrichment,
+        )
+
+    def get_processing_stats(self) -> Dict[str, Any]:
+        """Return basic pipeline statistics for reporting purposes."""
+
+        return {
+            "batch_mode": self.batch_mode,
+            "newsletters_dir": str(self.config.newsletters_dir),
+            "zips_dir": str(self.config.zips_dir),
+        }
+
+
 __all__ = [
     "PipelineResult",
     "create_client",
+    "Pipeline",
     "generate_newsletter",
 ]

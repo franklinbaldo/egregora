@@ -1,0 +1,65 @@
+# Configuração de Processamento em Lote
+processing:
+  # Pausa entre dias (segundos) para evitar rate limiting
+  delay_between_days: 2
+
+  # Número máximo de retries em caso de erro
+  max_retries: 3
+
+  # Timeout para cada dia (segundos)
+  timeout_per_day: 300
+
+# Configuração de API
+api:
+  # Rate limiting do Gemini (requisições por minuto)
+  gemini_rpm_limit: 60
+
+  # Pausar se atingir limite
+  pause_on_rate_limit: true
+
+  # Tempo de pausa ao atingir limite (segundos)
+  rate_limit_pause: 60
+
+# Configuração de Enriquecimento
+enrichment:
+  # Enriquecer URLs por padrão
+  enabled: true
+
+  # Timeout para cada URL (segundos)
+  url_timeout: 10
+
+  # Máximo de URLs por dia
+  max_urls_per_day: 50
+
+# Configuração de RAG
+rag:
+  # Usar newsletters anteriores como contexto
+  use_previous_context: true
+
+  # Máximo de newsletters anteriores para contexto
+  max_previous_newsletters: 5
+
+  # Usar embeddings do Gemini (vs TF-IDF)
+  use_gemini_embeddings: true
+
+# Logging
+logging:
+  # Nível de log (DEBUG, INFO, WARNING, ERROR)
+  level: INFO
+
+  # Arquivo de log
+  file: ./cache/backlog_processing.log
+
+  # Log detalhado de cada dia
+  detailed_per_day: true
+
+# Checkpoint
+checkpoint:
+  # Salvar checkpoint após cada dia
+  enabled: true
+
+  # Arquivo de checkpoint
+  file: ./cache/backlog_checkpoint.json
+
+  # Backup de checkpoint
+  backup: true
