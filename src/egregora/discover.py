@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from .anonymizer import Anonymizer, FormatType
+from .anonymizer import Anonymizer
 
 DiscoveryType = Literal["phone", "nickname"]
 
@@ -19,8 +19,8 @@ class DiscoveryResult:
     detected_type: DiscoveryType
     variants: dict[str, str]
 
-    def get(self, format: FormatType = "human") -> str:
-        """Return the anonymized identifier using ``format``."""
+    def get(self, format: str = "human") -> str:
+        """Return the anonymized identifier in the requested format."""
 
         return self.variants.get(format, "")
 
@@ -56,9 +56,7 @@ def discover_identifier(value: str) -> DiscoveryResult:
     )
 
 
-def format_cli_message(
-    result: DiscoveryResult, *, preferred_format: FormatType = "human"
-) -> str:
+def format_cli_message(result: DiscoveryResult, preferred_format: str = "human") -> str:
     """Return a human readable message summarising ``result``."""
 
     lines = [
@@ -67,15 +65,11 @@ def format_cli_message(
         f"• Tipo detectado: {result.detected_type}",
         f"• Forma normalizada: {result.normalized}",
         "• Identificadores disponíveis:",
+        f"  → human: {result.variants['human']}",
+        f"  · short: {result.variants['short']}",
+        f"  · full: {result.variants['full']}",
+        f"• Formato preferido ({preferred_format}): {result.get(preferred_format)}",
     ]
-
-    for fmt in ("human", "short", "full"):
-        marker = "→" if fmt == preferred_format else "·"
-        lines.append(f"  {marker} {fmt}: {result.get(fmt)}")
-
-    lines.append(
-        f"• Formato preferido ({preferred_format}): {result.get(preferred_format)}"
-    )
     return "\n".join(lines)
 
 

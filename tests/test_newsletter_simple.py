@@ -290,11 +290,9 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
     assert config.enrichment.enabled == True
     
     # Test configuration customization
-    config.anonymization.output_format = "short"
     config.enrichment.enabled = False
-    
-    assert config.anonymization.output_format == "short"
-    assert config.enrichment.enabled == False
+
+    assert config.enrichment.enabled is False
 
 
 if __name__ == "__main__":

@@ -132,12 +132,11 @@ Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final
 
 Se você tem múltiplos dias de conversas para processar:
 
-1. Coloque todos os zips em `data/zips/`
-2. Execute: `python scripts/process_backlog.py --scan`
-3. Revise a estimativa de custos
-4. Execute: `python scripts/process_backlog.py`
+1. Coloque todos os zips em `data/whatsapp_zips/` (ou informe outro diretório).
+2. Execute: `python scripts/process_backlog.py data/whatsapp_zips newsletters`
+3. Use `--force` apenas se quiser sobrescrever newsletters já geradas.
 
-Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)
+O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)
 
 ## 🧪 Testes manuais
 
@@ -149,7 +148,11 @@ Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md
 - `ENRICHMENT_QUICKSTART.md` – visão geral + primeiros passos.
 - `CONTENT_ENRICHMENT_DESIGN.md` – arquitetura completa e decisões de design.
 - `PHILOSOPHY.md` – visão filosófica e motivações do projeto.
-- `MIGRATION_GUIDE.md` – passos recomendados para atualizar entre versões.
+
+## 💡 Ideias Futuras
+
+- Exportar newsletters e metadados para um formato colunar (ex.: Parquet) para facilitar análises históricas.
+- Automatizar a geração de arquivos de arquivo/relatórios consolidando várias edições.
 
 ## 🔍 Sistema RAG (Retrieval-Augmented Generation)
 

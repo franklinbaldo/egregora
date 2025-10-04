@@ -45,7 +45,6 @@ def test_anonymize_transcript_line_preserves_leading_bracket() -> None:
     result = _anonymize_transcript_line(
         "[12:34:56] Nome: mensagem",
         anonymize=True,
-        output_format="human",
     )
 
     assert result.startswith("[12:34:56] ")
