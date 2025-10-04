@@ -129,6 +129,17 @@ uv run egregora \
 
 Adicione as flags de enriquecimento conforme necessário. O CLI informa ao final quantos links foram processados e quantos atingiram o limiar de relevância.
 
+## 📬 Processamento de Backlog
+
+Se você tem múltiplos dias de conversas para processar:
+
+1. Coloque todos os zips em `data/zips/`
+2. Execute: `python scripts/process_backlog.py --scan`
+3. Revise a estimativa de custos
+4. Execute: `python scripts/process_backlog.py`
+
+Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)
+
 ## 🧪 Testes manuais
 
 - Rode `python example_enrichment.py` para validar rapidamente o módulo de enriquecimento (define `GEMINI_API_KEY` antes para executar a análise com o LLM).

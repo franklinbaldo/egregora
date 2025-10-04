@@ -13,11 +13,13 @@ Keep advice concrete and tied to the codebase (commands, important files, patter
   - `src/egregora/cache_manager.py` — JSON-based persistent cache semantics and UUID normalization for URLs.
   - `src/egregora/anonymizer.py` — deterministic anonymization rules (phone normalization, three formats: `human`, `short`, `full`).
   - `src/egregora/mcp_server/` — MCP server exposing RAG tools (optional `mcp` dependency).
+  - `src/egregora/backlog/` — scanners, checkpointing and batch processor used by the backlog scripts.
 
 - Important runtime flags & defaults (copy behavior from `__main__.py` and `config.py`):
   - CLI: `uv run egregora` (project uses `uv` for virtualenv/devenv). Alternate: `python -m egregora.__main__` in a pip-installed environment.
   - Key flags: `--enable-enrichment`, `--disable-enrichment`, `--relevance-threshold`, `--max-enrichment-items`, `--max-enrichment-time`, `--cache-dir`, `--disable-cache`, `--disable-anonymization`, `--double-check-newsletter`.
   - Defaults: enrichment enabled, cache enabled at `cache/`, anonymization enabled (`human` format), default Gemini model `gemini-flash-lite-latest`.
+- Batch tooling: use `scripts/process_backlog.py` (flags `--scan`, `--dry-run`, `--resume`, `--skip-enrichment`, `--force-rebuild`) and `scripts/backlog_report.py` for monitoring. Both rely on `BacklogProcessor` and respect `scripts/backlog_config.yaml`.
 
 - Tests & quick checks:
   - Small smoke: `python example_enrichment.py` (honors `GEMINI_API_KEY` env var) to validate enrichment.
