@@ -157,6 +157,8 @@ class UnifiedProcessor:
     def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
         """Process a single source."""
         
+        from .media_extractor import MediaExtractor
+
         output_dir = self.config.newsletters_dir / source.slug
         output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -170,18 +172,28 @@ class UnifiedProcessor:
         target_dates = available_dates[-days:] if days else available_dates
         
         results = []
+        extractor = MediaExtractor(self.config.media_dir)
         
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
             
-            # Extract transcript
+            # 1. Extract media from all exports for this date
+            all_media = {}
+            for export in source.exports:
+                media_files = extractor.extract_media_from_zip(export.zip_path, export.export_date)
+                all_media.update(media_files)
+            
+            # 2. Get transcript
             transcript = extract_transcript(source, target_date)
             
             if not transcript:
                 logger.warning(f"    Empty transcript")
                 continue
             
-            # Stats
+            # 3. Replace media references
+            transcript = MediaExtractor.replace_media_references(transcript, all_media)
+            
+            # 4. Stats
             stats = get_stats_for_date(source, target_date)
             if not stats:
                 logger.warning("    Unable to compute statistics for %s", target_date)
@@ -193,7 +205,7 @@ class UnifiedProcessor:
                 stats['participant_count'],
             )
             
-            # Generate newsletter
+            # 5. Generate newsletter with media-linked transcript
             newsletter = self._generate_newsletter(source, transcript, target_date)
             
             # Save

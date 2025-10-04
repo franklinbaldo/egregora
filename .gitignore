@@ -27,3 +27,6 @@ cache/
 data/
 egregora.toml
 *.zip:Zone.Identifier
+
+# Test output
+tests/temp_output/
