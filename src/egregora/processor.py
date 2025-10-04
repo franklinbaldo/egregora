@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import date
+from typing import TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from .media_extractor import MediaFile
 
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
@@ -163,25 +167,42 @@ class UnifiedProcessor:
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Get available dates
-        available_dates = get_available_dates(source)
+        available_dates = list(get_available_dates(source))
         
         if not available_dates:
             logger.warning(f"  No messages found")
             return []
         
         target_dates = available_dates[-days:] if days else available_dates
-        
+        target_date_set = set(target_dates)
+
         results = []
         extractor = MediaExtractor(self.config.media_dir)
-        
+
+        media_by_date: dict[date, dict[str, "MediaFile"]] = {}
+        for export in source.exports:
+            if export.export_date not in target_date_set:
+                continue
+
+            media_files = extractor.extract_media_from_zip(export.zip_path, export.export_date)
+            date_media = media_by_date.setdefault(export.export_date, {})
+
+            for filename, media_file in media_files.items():
+                if filename in date_media:
+                    logger.warning(
+                        "    Duplicate media filename %s for %s; keeping first occurrence",
+                        filename,
+                        export.export_date,
+                    )
+                    continue
+
+                date_media[filename] = media_file
+
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
-            
+
             # 1. Extract media from all exports for this date
-            all_media = {}
-            for export in source.exports:
-                media_files = extractor.extract_media_from_zip(export.zip_path, export.export_date)
-                all_media.update(media_files)
+            all_media = media_by_date.get(target_date, {})
             
             # 2. Get transcript
             transcript = extract_transcript(source, target_date)
