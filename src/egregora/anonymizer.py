@@ -64,20 +64,32 @@ class Anonymizer:
         return uuid_str
 
     @staticmethod
-    def anonymize_phone(phone: str, format: FormatType = "human") -> str:
-        """Return a deterministic pseudonym for ``phone``."""
+    def anonymize_phone(
+        phone: str,
+        format: FormatType = "human",
+        prefix: str = "Member",
+    ) -> str:
+        """Return a deterministic pseudonym for ``phone``.
+
+        ``prefix`` allows configuring the human-friendly prefix to keep the
+        anonymized format aligned with nickname anonymization.
+        """
 
         normalized = Anonymizer.normalize_phone(phone)
         uuid_full = str(uuid.uuid5(Anonymizer.NAMESPACE_PHONE, normalized))
-        return Anonymizer._format_uuid(uuid_full, "User", format)
+        return Anonymizer._format_uuid(uuid_full, prefix, format)
 
     @staticmethod
-    def anonymize_nickname(nickname: str, format: FormatType = "human") -> str:
+    def anonymize_nickname(
+        nickname: str,
+        format: FormatType = "human",
+        prefix: str = "Member",
+    ) -> str:
         """Return a deterministic pseudonym for ``nickname``."""
 
         normalized = Anonymizer.normalize_nickname(nickname)
         uuid_full = str(uuid.uuid5(Anonymizer.NAMESPACE_NICKNAME, normalized))
-        return Anonymizer._format_uuid(uuid_full, "Member", format)
+        return Anonymizer._format_uuid(uuid_full, prefix, format)
 
     @staticmethod
     def anonymize_author(author: str, format: FormatType = "human") -> str:

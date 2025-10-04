@@ -78,7 +78,7 @@ Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis dire
 ## 🔐 Privacidade por padrão
 
 - **Anonimização determinística**: telefones e apelidos são convertidos em
-  identificadores como `User-ABCD` antes de qualquer processamento. Use
+  identificadores como `Member-ABCD` antes de qualquer processamento. Use
   `--disable-anonymization` apenas para depuração local.
 - **Instruções rígidas ao LLM**: o prompt enviado ao Gemini reforça que nomes
   próprios, telefones e contatos diretos não devem aparecer na newsletter.

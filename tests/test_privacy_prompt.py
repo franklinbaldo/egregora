@@ -73,12 +73,12 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
 def test_privacy_review_removes_names(monkeypatch):
     _install_pipeline_stubs(monkeypatch)
 
-    client = DummyClient(["User-A1B2 sugeriu algo importante."])
+    client = DummyClient(["Member-A1B2 sugeriu algo importante."])
     reviewed = pipeline._run_privacy_review(
         client,
         model="fake-model",
-        newsletter_text="João (User-A1B2) sugeriu algo.",
+        newsletter_text="João (Member-A1B2) sugeriu algo.",
     )
 
     assert "João" not in reviewed
-    assert "User-A1B2" in reviewed
+    assert "Member-A1B2" in reviewed

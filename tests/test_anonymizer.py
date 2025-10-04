@@ -17,9 +17,10 @@ def test_anonymize_phone_is_deterministic() -> None:
     token_b = Anonymizer.anonymize_phone("5511987654321")
 
     assert token_a == token_b
-    assert token_a.startswith("User-")
-    assert len(token_a) == 9
-    assert token_a[5:].isupper()
+    assert token_a.startswith("Member-")
+    suffix = token_a.split("-")[1]
+    assert len(suffix) == 4
+    assert suffix.isupper()
 
 
 def test_anonymize_nickname_uses_member_prefix() -> None:
