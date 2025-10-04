@@ -2,61 +2,19 @@
 
 from __future__ import annotations
 
-import re
 import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import _prepare_transcripts
+from egregora.pipeline import read_zip_texts, _prepare_transcripts
 
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
     """Create a test zip file with conversation content."""
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr(filename, content)
-
-
-def load_real_whatsapp_transcript(zip_path: Path) -> str:
-    """Load the conversation transcript from a WhatsApp export zip."""
-
-    with zipfile.ZipFile(zip_path, "r") as zipped:
-        text_files = sorted(
-            name for name in zipped.namelist() if name.lower().endswith(".txt")
-        )
-
-        chunks: List[str] = []
-        for name in text_files:
-            raw = zipped.read(name)
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                text = raw.decode("latin-1")
-            chunks.append(text.strip())
-
-    return "\n".join(chunk for chunk in chunks if chunk)
-
-
-def summarize_whatsapp_content(content: str) -> Dict[str, Any]:
-    """Collect basic metadata about WhatsApp conversation content."""
-
-    lines = [line for line in content.splitlines() if line.strip()]
-    authors: Dict[str, int] = {}
-    url_pattern = re.compile(r"https?://\S+")
-
-    for line in lines:
-        if " - " in line and ": " in line:
-            author = line.split(" - ", 1)[1].split(":", 1)[0].strip()
-            authors[author] = authors.get(author, 0) + 1
-
-    return {
-        "line_count": len(lines),
-        "url_count": len(url_pattern.findall(content)),
-        "has_media_attachment": "arquivo anexado" in content,
-        "has_emojis": any(ord(char) > 127 for char in content),
-        "authors": authors,
-    }
 
 
 def extract_anonymized_authors(original: str, anonymized: str) -> Dict[str, str]:
