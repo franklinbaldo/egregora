@@ -498,7 +498,7 @@ def build_llm_input(
     return "\n\n".join(sections)
 
 
-def build_system_instruction() -> list[types.Part]:
+def build_system_instruction(has_group_tags: bool = False) -> list[types.Part]:
     """Return the validated system prompt."""
 
     _require_google_dependency()
@@ -582,6 +582,18 @@ Regras de formatação do relatório:
    - [ ] Voz é "nós" narrando nosso próprio dia, não análise externa.
    - [ ] Lacunas no transcrito (se houver) são explicitadas com honestidade.
 """
+    
+    if has_group_tags:
+        system_text += """
+
+⚠️ MENSAGENS TAGUEADAS:
+- Este grupo agrega múltiplas fontes/grupos
+- Tags indicam origem: [Grupo], 🌎, etc
+- Mencione origem quando RELEVANTE para o contexto
+- Trate como conversa UNIFICADA de uma mente coletiva
+- Não force menção das tags em todo parágrafo
+"""
+
     return [types.Part.from_text(text=system_text.strip())]
 
 

@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from .config import PipelineConfig
 from .discover import discover_identifier, format_cli_message
 from .pipeline import generate_newsletter
+from .processor import UnifiedProcessor
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -116,6 +117,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Remove análises cujo último uso é mais antigo que N dias.",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Arquivo TOML de configuração para grupos virtuais.",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Lista grupos descobertos e sai.",
+    )
+    parser.add_argument(
+        "--use-new-processor",
+        action="store_true",
+        help="Usa o novo processador unificado com auto-discovery.",
+    )
 
     parser.add_argument(
         "--disable-anonymization",
@@ -174,14 +191,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(format_cli_message(result, preferred_format=args.format))
         return 0
 
-    timezone = ZoneInfo(args.timezone) if args.timezone else None
-    config = PipelineConfig.with_defaults(
-        zips_dir=args.zips_dir,
-        newsletters_dir=args.newsletters_dir,
-        group_name=args.group_name,
-        model=args.model,
-        timezone=timezone,
-    )
+    # Load config (with TOML support)
+    if args.config and args.config.exists():
+        config = PipelineConfig.from_toml(args.config)
+        # Override with CLI args if provided
+        if args.zips_dir:
+            config.zips_dir = args.zips_dir
+        if args.newsletters_dir:
+            config.newsletters_dir = args.newsletters_dir
+        if args.group_name:
+            config.group_name = args.group_name
+        if args.model:
+            config.model = args.model
+        if args.timezone:
+            config.timezone = ZoneInfo(args.timezone)
+    else:
+        timezone = ZoneInfo(args.timezone) if args.timezone else None
+        config = PipelineConfig.with_defaults(
+            zips_dir=args.zips_dir,
+            newsletters_dir=args.newsletters_dir,
+            group_name=args.group_name,
+            model=args.model,
+            timezone=timezone,
+        )
 
     if args.disable_anonymization:
         config.anonymization.enabled = False
@@ -214,6 +246,58 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cache_cleanup_days is not None and args.cache_cleanup_days >= 0:
         cache_config.auto_cleanup_days = args.cache_cleanup_days
 
+    # Use new unified processor if requested or if merges are configured
+    if args.use_new_processor or config.merges or args.list:
+        processor = UnifiedProcessor(config)
+        
+        # List mode
+        if args.list:
+            groups = processor.list_groups()
+            
+            print("\n" + "="*60)
+            print("📁 DISCOVERED GROUPS")
+            print("="*60 + "\n")
+            
+            for slug, info in sorted(groups.items()):
+                icon = "📺" if info['type'] == 'virtual' else "📝"
+                print(f"{icon} {info['name']}")
+                print(f"   Slug: {slug}")
+                print(f"   Exports: {info['export_count']}")
+                print(f"   Dates: {info['date_range'][0]} to {info['date_range'][1]}")
+                
+                if info['type'] == 'real' and info['in_virtual']:
+                    print(f"   Part of: {', '.join(info['in_virtual'])}")
+                elif info['type'] == 'virtual':
+                    print(f"   Merges: {', '.join(info['merges'])}")
+                
+                print()
+            
+            print("="*60 + "\n")
+            return 0
+        
+        # Process mode
+        print("\n" + "="*60)
+        print("🚀 PROCESSING WITH UNIFIED PROCESSOR")
+        print("="*60)
+        
+        results = processor.process_all(days=args.days)
+        
+        # Summary
+        print("\n" + "="*60)
+        print("✅ COMPLETE")
+        print("="*60 + "\n")
+        
+        total = sum(len(v) for v in results.values())
+        print(f"Groups processed: {len(results)}")
+        print(f"Newsletters generated: {total}\n")
+        
+        for slug, newsletters in sorted(results.items()):
+            print(f"  {slug}: {len(newsletters)} newsletters")
+        
+        print("\n" + "="*60 + "\n")
+        return 0
+    
+    # Legacy single-group processor
     result = generate_newsletter(config, days=args.days)
 
     if not result.previous_newsletter_found:

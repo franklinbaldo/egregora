@@ -1,0 +1,55 @@
+# Example configuration file for Egregora with virtual groups
+# Copy this to egregora.toml and customize for your setup
+
+[pipeline]
+model = "gemini-flash-lite-latest"
+timezone = "America/Porto_Velho"
+skip_real_if_in_virtual = true
+group_name = "RC LatAm"  # Only used for legacy single-group mode
+
+[directories]
+zips_dir = "data/whatsapp_zips"
+newsletters_dir = "newsletters"
+media_dir = "media"
+
+# Virtual groups - merge multiple real groups into a single newsletter
+[merges.rc-americas]
+name = "RC Americas"
+groups = ["rc-latam", "rc-brasil", "rc-mexico"]
+tag_style = "emoji"
+emojis = { rc-latam = "🌎", rc-brasil = "🇧🇷", rc-mexico = "🇲🇽" }
+# model = "gemini-2.0-flash-exp"  # Optional: override model for this merge
+
+[merges.tech-all]
+name = "Tech Ecosystem"
+groups = ["tech-discussion", "tech-jobs", "programming"]
+tag_style = "brackets"
+# model = "gemini-2.0-flash-exp"
+
+[merges.family-extended]
+name = "Extended Family"
+groups = ["family-core", "family-cousins"]
+tag_style = "prefix"
+
+# Other configurations (same as before)
+[enrichment]
+enabled = true
+enrichment_model = "gemini-2.0-flash-exp"
+max_links = 50
+relevance_threshold = 2
+context_window = 3
+max_concurrent_analyses = 5
+max_total_enrichment_time = 120.0
+
+[cache]
+enabled = true
+cache_dir = "cache"
+auto_cleanup_days = 90
+max_disk_mb = 100
+
+[anonymization]
+enabled = true
+output_format = "human"
+
+[rag]
+enabled = false

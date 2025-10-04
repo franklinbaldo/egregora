@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import tzinfo
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .anonymizer import FormatType
 from .rag.config import RAGConfig
+from .models import MergeConfig
 
 
 DEFAULT_GROUP_NAME = "RC LatAm"
@@ -55,6 +57,9 @@ class AnonymizationConfig:
     output_format: FormatType = "human"
 
 
+_VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
+
+
 @dataclass(slots=True)
 class PipelineConfig:
     """Runtime configuration for the newsletter pipeline."""
@@ -69,6 +74,12 @@ class PipelineConfig:
     cache: CacheConfig
     anonymization: AnonymizationConfig
     rag: RAGConfig
+    
+    # Virtual groups (merges)
+    merges: dict[str, MergeConfig] = field(default_factory=dict)
+    
+    # If True, skip real groups that are part of virtual groups
+    skip_real_if_in_virtual: bool = True
 
     @classmethod
     def with_defaults(
@@ -84,13 +95,15 @@ class PipelineConfig:
         anonymization: AnonymizationConfig | None = None,
         rag: RAGConfig | None = None,
         media_dir: Path | None = None,
+        merges: dict[str, MergeConfig] | None = None,
+        skip_real_if_in_virtual: bool = True,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
 
         return cls(
-            zips_dir=(zips_dir or Path("data/whatsapp_zips")).expanduser(),
-            newsletters_dir=(newsletters_dir or Path("newsletters")).expanduser(),
-            media_dir=(media_dir or Path("media")).expanduser(),
+            zips_dir=_ensure_safe_directory(zips_dir or Path("data/whatsapp_zips")),
+            newsletters_dir=_ensure_safe_directory(newsletters_dir or Path("newsletters")),
+            media_dir=_ensure_safe_directory(media_dir or Path("media")),
             group_name=group_name or DEFAULT_GROUP_NAME,
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
@@ -100,7 +113,75 @@ class PipelineConfig:
                 copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
             ),
             rag=(copy.deepcopy(rag) if rag else RAGConfig()),
+            merges=(copy.deepcopy(merges) if merges else {}),
+            skip_real_if_in_virtual=skip_real_if_in_virtual,
         )
+
+    @classmethod
+    def from_toml(cls, toml_path: Path) -> "PipelineConfig":
+        """Load configuration from TOML file."""
+        import tomllib
+        
+        with open(toml_path, 'rb') as f:
+            data = tomllib.load(f)
+
+        # Parse merges
+        merges = {}
+        for slug, merge_data in data.get('merges', {}).items():
+            tag_style = merge_data.get('tag_style', 'emoji')
+            if tag_style not in _VALID_TAG_STYLES:
+                raise ValueError(f"Invalid tag_style '{tag_style}' for merge '{slug}'")
+
+            groups = merge_data.get('groups', [])
+            if not groups:
+                raise ValueError(f"Merge '{slug}' must include at least one source group")
+
+            merges[slug] = MergeConfig(
+                name=merge_data['name'],
+                source_groups=groups,
+                tag_style=tag_style,
+                group_emojis=merge_data.get('emojis', {}),
+                model_override=merge_data.get('model'),
+            )
+
+        # Parse directories
+        dirs = data.get('directories', {})
+        pipeline = data.get('pipeline', {})
+
+        return cls(
+            zips_dir=_ensure_safe_directory(dirs.get('zips_dir', 'data/whatsapp_zips')),
+            newsletters_dir=_ensure_safe_directory(dirs.get('newsletters_dir', 'newsletters')),
+            media_dir=_ensure_safe_directory(dirs.get('media_dir', 'media')),
+            group_name=pipeline.get('group_name', DEFAULT_GROUP_NAME),
+            model=pipeline.get('model', DEFAULT_MODEL),
+            timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
+            enrichment=EnrichmentConfig(**data.get('enrichment', {})),
+            cache=CacheConfig(**data.get('cache', {})),
+            anonymization=AnonymizationConfig(**data.get('anonymization', {})),
+            rag=RAGConfig(**data.get('rag', {})),
+            merges=merges,
+            skip_real_if_in_virtual=pipeline.get('skip_real_if_in_virtual', True),
+        )
+
+
+def _ensure_safe_directory(path_value: Any) -> Path:
+    """Validate and normalise directory paths loaded from configuration."""
+
+    if isinstance(path_value, Path):
+        candidate = path_value.expanduser()
+    else:
+        candidate = Path(str(path_value)).expanduser()
+
+    if any(part == ".." for part in candidate.parts):
+        raise ValueError(f"Directory path '{candidate}' must not contain '..'")
+
+    base_dir = Path.cwd()
+    resolved = (base_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+
+    if not resolved.is_relative_to(base_dir):
+        raise ValueError(f"Directory path '{candidate}' must reside within the project directory")
+
+    return resolved
 
 
 __all__ = [
