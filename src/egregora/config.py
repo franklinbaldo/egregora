@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo

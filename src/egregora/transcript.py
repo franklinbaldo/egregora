@@ -31,19 +31,19 @@ def extract_transcript(source: GroupSource, target_date: date) -> str:
         return '\n'.join(df_day['tagged_line'].tolist())
     
     else:
-        # Real: parse simply
-        exports_for_date = [e for e in source.exports if e.export_date == target_date]
-        
-        if not exports_for_date:
-            return ""
-        
-        df = parse_multiple(exports_for_date)
-        
+        # Real: parse exports and filter messages by date
+        df = parse_multiple(source.exports)
+
         if df.empty:
             return ""
-        
+
+        df_day = df[df['date'] == target_date]
+
+        if df_day.empty:
+            return ""
+
         # Return original lines
-        return '\n'.join(df['original_line'].tolist())
+        return '\n'.join(df_day['original_line'].tolist())
 
 
 def get_stats_for_date(source: GroupSource, target_date: date) -> dict:
@@ -77,5 +77,5 @@ def get_available_dates(source: GroupSource) -> list[date]:
     
     if df.empty:
         return []
-    
+
     return sorted(df['date'].unique())
