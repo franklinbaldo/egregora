@@ -21,9 +21,9 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -31,12 +31,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_tools: "Bash(python -m pytest*),Bash(uv run pytest*),Bash(python -m*),Bash(uv run*),Bash(pip install*),Bash(uv sync*)"
+          custom_instructions: |
+            This is a Python project using uv for dependency management.
+            Run tests with: uv run pytest or python -m pytest
+            Install dependencies with: uv sync
+            Follow the coding patterns in .github/copilot-instructions.md
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
