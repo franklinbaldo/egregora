@@ -1,13 +1,14 @@
 """Auto-discovery of WhatsApp groups from ZIP files."""
 
-from pathlib import Path
-from datetime import date, datetime
-from collections import defaultdict
-import re
-import zipfile
-import unicodedata
 import logging
+import re
+import unicodedata
+import zipfile
+from collections import defaultdict
+from datetime import date, datetime
+from pathlib import Path
 
+from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
 
 logger = logging.getLogger(__name__)
@@ -126,13 +127,11 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
                 line = f.readline().decode('utf-8', errors='ignore')
                 if not line:
                     break
-                match = re.search(r'(\d{2})/(\d{2})/(\d{4}|\d{2})', line)
+                match = re.search(r'(\d{1,2}/\d{1,2}/(?:\d{4}|\d{2}))', line)
                 if match:
-                    day, month, year = match.groups()
-                    year = int(year)
-                    if year < 100:
-                        year += 2000
-                    return date(year, int(month), int(day))
+                    parsed_date = parse_flexible_date(match.group(1))
+                    if parsed_date:
+                        return parsed_date
     except Exception:
         pass
     

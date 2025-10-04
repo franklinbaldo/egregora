@@ -1,12 +1,14 @@
 """WhatsApp chat parser that converts ZIP exports to pandas DataFrames."""
 
+import logging
 import re
 import zipfile
-from datetime import datetime, date
+from datetime import datetime
 from pathlib import Path
-import pandas as pd
-import logging
 
+import pandas as pd
+
+from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
 
 logger = logging.getLogger(__name__)
@@ -73,11 +75,15 @@ def _parse_messages(content: str, export: WhatsAppExport) -> list[dict]:
     # Without date: "10:30 - Author: Message"
     
     pattern = re.compile(
-        r'^(?:(\d{2}/\d{2}/\d{4}),?\s*)?'  # Optional date
-        r'(\d{1,2}:\d{2})'                  # Time
-        r'\s*[—\-]\s*'                      # Separator
-        r'([^:]+?):\s*'                     # Author
-        r'(.+)$',                           # Message
+        r'^(?:'
+        r'(?P<date>\d{1,2}/\d{1,2}/\d{2,4})'
+        r'(?:,\s*|\s+)'
+        r')?'
+        r'(?P<time>\d{1,2}:\d{2})'
+        r'(?:\s*(?P<ampm>[APap][Mm]))?'
+        r'\s*[—\-]\s*'
+        r'(?P<author>[^:]+?):\s*'
+        r'(?P<message>.+)$',
         re.MULTILINE
     )
     
@@ -85,29 +91,37 @@ def _parse_messages(content: str, export: WhatsAppExport) -> list[dict]:
     current_date = export.export_date
     
     for line in content.split('\n'):
-        line = line.strip()
+        line = line.strip().replace('\u202f', ' ')
         if not line:
             continue
-            
+
         match = pattern.match(line)
         if not match:
             continue
-        
-        date_str, time_str, author, message = match.groups()
+
+        date_str = match.group('date')
+        time_str = match.group('time')
+        am_pm = match.group('ampm')
+        author = match.group('author')
+        message = match.group('message')
         
         # Determine date
         if date_str:
-            try:
-                msg_date = datetime.strptime(date_str, "%d/%m/%Y").date()
+            parsed_date = parse_flexible_date(date_str)
+            if parsed_date:
+                msg_date = parsed_date
                 current_date = msg_date  # Update current date for subsequent messages
-            except ValueError:
+            else:
                 msg_date = current_date
         else:
             msg_date = current_date
-        
+
         # Parse time
         try:
-            msg_time = datetime.strptime(time_str, "%H:%M").time()
+            if am_pm:
+                msg_time = datetime.strptime(f"{time_str} {am_pm.upper()}", "%I:%M %p").time()
+            else:
+                msg_time = datetime.strptime(time_str, "%H:%M").time()
             timestamp = datetime.combine(msg_date, msg_time)
         except ValueError:
             logger.debug(f"Failed to parse time '{time_str}' in line: {line}")
@@ -120,7 +134,7 @@ def _parse_messages(content: str, export: WhatsAppExport) -> list[dict]:
         rows.append({
             'timestamp': timestamp,
             'date': msg_date,
-            'time': time_str,
+            'time': msg_time.strftime("%H:%M"),
             'author': author.strip(),
             'message': message.strip(),
             'group_slug': export.group_slug,
