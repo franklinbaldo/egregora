@@ -368,10 +368,11 @@ def _load_prompt(filename: str) -> str:
             return stripped
 
     try:
-        package_text = resources.files("egregora").joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
+        # Use __package__ instead of hard-coded package name for better maintainability
+        package_text = resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
     except FileNotFoundError as exc:  # pragma: no cover - defensive
         raise FileNotFoundError(
-            f"Prompt file '{filename}' is missing. Verifique se os dados do pacote foram instalados corretamente."
+            f"Prompt file '{filename}' is missing. Please verify that package data was installed correctly."
         ) from exc
 
     stripped = package_text.strip()
