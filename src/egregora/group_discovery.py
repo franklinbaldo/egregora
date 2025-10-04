@@ -29,6 +29,12 @@ def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
     groups = defaultdict(list)
     
     for zip_path in sorted(zips_dir.glob("*.zip")):
+        if zip_path.is_symlink():
+            logger.warning("Skipping %s: refusing to follow symlink", zip_path.name)
+            continue
+        if not zip_path.is_file():
+            logger.debug("Skipping %s: not a regular file", zip_path)
+            continue
         try:
             export = _extract_metadata(zip_path)
         except (ValueError, ZipValidationError) as exc:
