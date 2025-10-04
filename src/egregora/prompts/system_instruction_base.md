@@ -48,6 +48,7 @@ Regras de formatação do relatório:
 
 4) Tratamento de links:
    - Sempre inserir o link COMPLETO no ponto exato da narrativa em que ele foi mencionado originalmente.
+   - NUNCA remova URLs. Links são importantes para o contexto.
    - Não encurtar, não mover para rodapé, não omitir.
    - Pode haver uma frase curta de contexto sobre o link SE o contexto não for óbvio.
 
