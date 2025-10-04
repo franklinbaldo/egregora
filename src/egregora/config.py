@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from .anonymizer import FormatType
 from .rag.config import RAGConfig
+from .models import MergeConfig
 
 
 DEFAULT_GROUP_NAME = "RC LatAm"
@@ -69,6 +70,12 @@ class PipelineConfig:
     cache: CacheConfig
     anonymization: AnonymizationConfig
     rag: RAGConfig
+    
+    # Virtual groups (merges)
+    merges: dict[str, MergeConfig] = field(default_factory=dict)
+    
+    # If True, skip real groups that are part of virtual groups
+    skip_real_if_in_virtual: bool = True
 
     @classmethod
     def with_defaults(
@@ -84,6 +91,8 @@ class PipelineConfig:
         anonymization: AnonymizationConfig | None = None,
         rag: RAGConfig | None = None,
         media_dir: Path | None = None,
+        merges: dict[str, MergeConfig] | None = None,
+        skip_real_if_in_virtual: bool = True,
     ) -> "PipelineConfig":
         """Create a configuration using project defaults."""
 
@@ -100,6 +109,46 @@ class PipelineConfig:
                 copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
             ),
             rag=(copy.deepcopy(rag) if rag else RAGConfig()),
+            merges=(copy.deepcopy(merges) if merges else {}),
+            skip_real_if_in_virtual=skip_real_if_in_virtual,
+        )
+
+    @classmethod
+    def from_toml(cls, toml_path: Path) -> "PipelineConfig":
+        """Load configuration from TOML file."""
+        import tomllib
+        
+        with open(toml_path, 'rb') as f:
+            data = tomllib.load(f)
+        
+        # Parse merges
+        merges = {}
+        for slug, merge_data in data.get('merges', {}).items():
+            merges[slug] = MergeConfig(
+                name=merge_data['name'],
+                source_groups=merge_data['groups'],
+                tag_style=merge_data.get('tag_style', 'emoji'),
+                group_emojis=merge_data.get('emojis', {}),
+                model_override=merge_data.get('model'),
+            )
+        
+        # Parse directories
+        dirs = data.get('directories', {})
+        pipeline = data.get('pipeline', {})
+        
+        return cls(
+            zips_dir=Path(dirs.get('zips_dir', 'data/whatsapp_zips')),
+            newsletters_dir=Path(dirs.get('newsletters_dir', 'newsletters')),
+            media_dir=Path(dirs.get('media_dir', 'media')),
+            group_name=pipeline.get('group_name', DEFAULT_GROUP_NAME),
+            model=pipeline.get('model', DEFAULT_MODEL),
+            timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
+            enrichment=EnrichmentConfig(**data.get('enrichment', {})),
+            cache=CacheConfig(**data.get('cache', {})),
+            anonymization=AnonymizationConfig(**data.get('anonymization', {})),
+            rag=RAGConfig(**data.get('rag', {})),
+            merges=merges,
+            skip_real_if_in_virtual=pipeline.get('skip_real_if_in_virtual', True),
         )
 
 
