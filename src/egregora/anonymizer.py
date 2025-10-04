@@ -6,11 +6,7 @@ import re
 import uuid
 from typing import Literal
 
-try:
-    import pandas as pd
-    _PANDAS_AVAILABLE = True
-except ImportError:
-    _PANDAS_AVAILABLE = False
+import polars as pl
 
 
 FormatType = Literal["human", "short", "full"]
@@ -122,52 +118,28 @@ class Anonymizer:
         return variants
 
     @staticmethod
-    def anonymize_dataframe(df, format: FormatType = "human") -> None:
-        """Anonymize author column in DataFrame in-place.
-        
-        This is a vectorized operation that's much faster than processing
-        individual rows. Works directly on pandas DataFrame with 'author' column.
-        
-        Args:
-            df: pandas DataFrame with 'author' column
-            format: Output format for anonymized identifiers
-            
-        Raises:
-            ImportError: If pandas is not available
-            KeyError: If DataFrame doesn't have 'author' column
-        """
-        if not _PANDAS_AVAILABLE:
-            raise ImportError("pandas is required for DataFrame operations")
-        
-        if 'author' not in df.columns:
+    def anonymize_dataframe(
+        df: pl.DataFrame, format: FormatType = "human"
+    ) -> pl.DataFrame:
+        """Return a new DataFrame with the ``author`` column anonymized."""
+
+        if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
-        
-        # Vectorized anonymization using pandas apply
-        df['author'] = df['author'].apply(
-            lambda author: Anonymizer.anonymize_author(author, format)
+
+        return df.with_columns(
+            pl.col("author").map_elements(
+                lambda author: Anonymizer.anonymize_author(author, format),
+                return_dtype=pl.String,
+            )
         )
 
-    @staticmethod 
-    def anonymize_series(series, format: FormatType = "human"):
-        """Anonymize a pandas Series of author names.
-        
-        Returns a new Series with anonymized values.
-        
-        Args:
-            series: pandas Series containing author names
-            format: Output format for anonymized identifiers
-            
-        Returns:
-            pandas Series with anonymized author names
-            
-        Raises:
-            ImportError: If pandas is not available
-        """
-        if not _PANDAS_AVAILABLE:
-            raise ImportError("pandas is required for Series operations")
-        
-        return series.apply(
-            lambda author: Anonymizer.anonymize_author(author, format)
+    @staticmethod
+    def anonymize_series(series: pl.Series, format: FormatType = "human") -> pl.Series:
+        """Return a new Polars series with anonymized author names."""
+
+        return series.map_elements(
+            lambda author: Anonymizer.anonymize_author(author, format),
+            return_dtype=pl.String,
         )
 
 

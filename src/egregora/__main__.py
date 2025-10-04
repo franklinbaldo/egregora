@@ -30,7 +30,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Pasta onde as newsletters serão escritas.",
     )
-    # Removed --group-name - groups are now auto-discovered
+    parser.add_argument(
+        "--group-name",
+        type=str,
+        default=None,
+        help="Nome do grupo usado no modo legado de grupo único.",
+    )
     parser.add_argument(
         "--model",
         type=str,
@@ -194,7 +199,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             config.zips_dir = args.zips_dir
         if args.newsletters_dir:
             config.newsletters_dir = args.newsletters_dir
-        # Removed group_name override - groups are auto-discovered
+        if args.group_name:
+            config.group_name = args.group_name
         if args.model:
             config.model = args.model
         if args.timezone:
@@ -206,6 +212,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             newsletters_dir=args.newsletters_dir,
             model=args.model,
             timezone=timezone,
+            group_name=args.group_name,
         )
 
     if args.disable_anonymization:

@@ -13,11 +13,9 @@ from .anonymizer import FormatType
 from .rag.config import RAGConfig
 from .models import MergeConfig
 
-
 # Removed DEFAULT_GROUP_NAME - groups are now discovered automatically
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
-
 
 @dataclass(slots=True)
 class CacheConfig:
@@ -40,7 +38,6 @@ class EnrichmentConfig:
     max_concurrent_analyses: int = 5
     max_total_enrichment_time: float = 120.0
 
-
 @dataclass(slots=True)
 class AnonymizationConfig:
     """Configuration for author anonymization.
@@ -56,17 +53,15 @@ class AnonymizationConfig:
     enabled: bool = True
     output_format: FormatType = "human"
 
-
 _VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
-
 
 @dataclass(slots=True)
 class PipelineConfig:
     """Runtime configuration for the newsletter pipeline.
-    
-    Note: group_name has been removed as groups are now discovered automatically
-    from ZIP files using auto-discovery. Use the unified processor for multi-group
-    support and virtual group merging.
+
+    ``group_name`` remains optional and is used solely by the legacy
+    single-group pipeline flow for backwards compatibility. The unified
+    processor should be preferred for modern, multi-group workflows.
     """
 
     zips_dir: Path
@@ -74,6 +69,7 @@ class PipelineConfig:
     media_dir: Path
     model: str
     timezone: tzinfo
+    group_name: str | None
     enrichment: EnrichmentConfig
     cache: CacheConfig
     anonymization: AnonymizationConfig
@@ -93,6 +89,7 @@ class PipelineConfig:
         newsletters_dir: Path | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
+        group_name: str | None = None,
         enrichment: EnrichmentConfig | None = None,
         cache: CacheConfig | None = None,
         anonymization: AnonymizationConfig | None = None,
@@ -101,10 +98,7 @@ class PipelineConfig:
         merges: dict[str, MergeConfig] | None = None,
         skip_real_if_in_virtual: bool = True,
     ) -> "PipelineConfig":
-        """Create a configuration using project defaults.
-        
-        Note: group_name parameter removed - groups are auto-discovered.
-        """
+        """Create a configuration using project defaults."""
 
         return cls(
             zips_dir=_ensure_safe_directory(zips_dir or Path("data/whatsapp_zips")),
@@ -112,6 +106,7 @@ class PipelineConfig:
             media_dir=_ensure_safe_directory(media_dir or Path("media")),
             model=model or DEFAULT_MODEL,
             timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
+            group_name=group_name,
             enrichment=(copy.deepcopy(enrichment) if enrichment else EnrichmentConfig()),
             cache=(copy.deepcopy(cache) if cache else CacheConfig()),
             anonymization=(
@@ -169,6 +164,7 @@ class PipelineConfig:
             media_dir=_ensure_safe_directory(dirs.get('media_dir', 'media')),
             model=pipeline.get('model', DEFAULT_MODEL),
             timezone=ZoneInfo(pipeline.get('timezone', DEFAULT_TIMEZONE)),
+            group_name=pipeline.get('group_name'),
             enrichment=EnrichmentConfig(**data.get('enrichment', {})),
             cache=CacheConfig(**data.get('cache', {})),
             anonymization=AnonymizationConfig(**data.get('anonymization', {})),
@@ -176,7 +172,6 @@ class PipelineConfig:
             merges=merges,
             skip_real_if_in_virtual=pipeline.get('skip_real_if_in_virtual', True),
         )
-
 
 def _ensure_safe_directory(path_value: Any) -> Path:
     """Validate and normalise directory paths loaded from configuration."""
@@ -201,9 +196,7 @@ def _ensure_safe_directory(path_value: Any) -> Path:
 
     return resolved
 
-
 _MAX_TOML_BYTES = 512 * 1024  # 512KB should be plenty for configuration files
-
 
 def _load_toml_data(toml_path: Path) -> dict[str, Any]:
     """Load TOML data from ``toml_path`` with strict validation."""
@@ -234,7 +227,6 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
         raise ValueError("Top-level TOML structure must be a table")
 
     return data
-
 
 __all__ = [
     # Removed DEFAULT_GROUP_NAME - groups are auto-discovered

@@ -641,6 +641,11 @@ def _generate_newsletter_from_archives(
 
     ensure_directories(config)
 
+    if not config.group_name:
+        raise ValueError(
+            "PipelineConfig.group_name deve ser informado ao usar o modo legado de grupo único."
+        )
+
     if not archives:
         raise FileNotFoundError("Nenhum dia fornecido para processamento.")
 
