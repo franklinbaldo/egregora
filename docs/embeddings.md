@@ -1,108 +1,119 @@
-# Gemini Embeddings para RAG
+# Recuperação Semântica com Gemini Embeddings
 
-## Visão geral
+O módulo de RAG (Retrieval-Augmented Generation) do Egrégora indexa as
+newsletters em um vetor store usando embeddings do Gemini fornecidos pelo
+[LlamaIndex](https://www.llamaindex.ai/). Este documento resume o fluxo atual,
+os pontos de configuração disponíveis e como habilitar a funcionalidade quando
+ela for necessária.
 
-O sistema RAG do Egregora opera com dois modos complementares:
+---
 
-1. **TF-IDF clássico** (padrão) — rápido, sem custo de API e ideal para buscas por termos literais.
-2. **Embeddings do Gemini** (opcional) — busca semântica avançada com suporte a sinônimos, variações linguísticas e contexto multimodal.
+## 🧠 Visão Geral do Fluxo
 
-Ambos os modos compartilham o mesmo pipeline de indexação (`src/egregora/rag/`), permitindo alternar ou combinar estratégias conforme o cenário.
+1. `NewsletterRAG` (`src/egregora/rag/index.py`) carrega ou cria um índice
+   vetorial persistente em `cache/vector_store/`.
+2. As newsletters (`*.md`) são quebradas em chunks com `TokenTextSplitter` e
+   inseridas no índice.
+3. As buscas executam similaridade semântica via `VectorIndexRetriever`, com
+   filtros para ignorar dias muito recentes conforme configuração.
+4. Os embeddings são gerados por `CachedGeminiEmbedding`
+   (`src/egregora/rag/embeddings.py`), que usa a API oficial do Gemini quando a
+   variável `GOOGLE_API_KEY` está presente e recorre a um fallback determinístico
+   offline quando não está.
 
-## Quando usar embeddings?
+---
 
-Use **TF-IDF** quando:
+## ⚙️ Configuração
 
-- Precisa buscar termos técnicos exatos ou abreviações específicas.
-- Deseja zero custo de API e indexação instantânea.
-- Executa consultas de diagnóstico ou com baixa ambiguidade.
+A classe `RAGConfig` controla todo o comportamento. Os campos mais relevantes
+são:
 
-Prefira **embeddings** quando:
+| Campo                   | Padrão                    | Descrição |
+|-------------------------|---------------------------|-----------|
+| `enabled`               | `False`                   | Ativa o uso do RAG no pipeline ou MCP server. |
+| `embedding_model`       | `"models/gemini-embedding-001"` | Modelo usado para gerar embeddings. |
+| `embedding_dimension`   | `768`                     | Dimensão dos vetores retornados. |
+| `enable_cache`          | `True`                    | Persiste vetores em `cache/embeddings/`. |
+| `vector_store_type`     | `"simple"`               | Usa `SimpleVectorStore` (in-memory + persistência local). |
+| `chunk_size` / `chunk_overlap` | `1800` / `360`     | Tamanho e overlap dos trechos gerados pelo splitter. |
+| `top_k` / `min_similarity`     | `5` / `0.65`        | Ajustes padrão para consultas semânticas. |
 
-- Busca conceitos amplos ("como configurar autenticação") ou perguntas abertas.
-- Quer resultados robustos a sinônimos, variações e idiomas diferentes.
-- Precisa correlacionar contextos entre newsletters, chats e materiais externos.
-- Já utiliza o MCP server com clientes como Claude Desktop e quer respostas mais ricas.
+Definição completa: `src/egregora/rag/config.py`.
 
-## Como ativar
+### Via `egregora.toml`
 
-### Via CLI
+Habilite a seção `[rag]` no arquivo de configuração:
 
-```bash
-uv run egregora --use-gemini-embeddings --embedding-dimension 768
+```toml
+[rag]
+enabled = true
+embedding_model = "models/gemini-embedding-001"
+embedding_dimension = 768
 ```
 
-Flags relevantes:
+Qualquer campo omitido usa os defaults acima. Quando `enabled = true`, o módulo
+passa a ser carregado pelo MCP server automaticamente.
 
-- `--use-gemini-embeddings`: ativa o fluxo semântico.
-- `--embedding-dimension`: aceita `768`, `1536` ou `3072` (padrão: `768`).
-- `--force-reindex`: recria o índice mesmo se o cache existir.
-
-### Via código Python
+### Via Python
 
 ```python
 from pathlib import Path
-from egregora.rag import NewsletterRAG, RAGConfig
-from google import genai
+from egregora.rag import NewsletterRAG
+from egregora.rag.config import RAGConfig
 
-client = genai.Client()
-config = RAGConfig(use_gemini_embeddings=True, embedding_dimension=768)
-
+config = RAGConfig(enabled=True, embedding_dimension=768)
 rag = NewsletterRAG(
     newsletters_dir=Path("data/daily"),
     cache_dir=Path("cache"),
     config=config,
-    gemini_client=client,
 )
-
-rag.load_index()  # usa cache se disponível
-results = rag.search("como resolver problemas de conexão", top_k=5)
+rag.update_index(force_rebuild=True)
+results = rag.search("automações discutidas", top_k=3)
 ```
 
-## Cache de embeddings
+---
 
-Os vetores calculados são armazenados em `cache/embeddings/` para evitar custos repetidos:
+## 💾 Cache e Fallback
 
-```
-cache/embeddings/
-├── index.json        # metadados (dimensão, versão, datas)
-└── {hash}.npy        # vetores NumPy por documento
-```
+- Os vetores ficam em `cache/embeddings/` juntamente com metadados do modelo.
+- `CachedGeminiEmbedding` grava cada embedding identificado por hash, evitando
+  custos repetidos de API.
+- Se a API não estiver disponível, o fallback interno usa hashing determinístico
+  para produzir vetores estáveis, garantindo que o MCP server continue
+  respondendo mesmo offline.
 
-Use `--force-reindex` para reconstruir o índice ou limpe a pasta manualmente.
+---
 
-## Custos estimados
+## 🔍 Consultas e Integração
 
-| Operação            | TF-IDF          | Embeddings Gemini                  |
-|---------------------|-----------------|------------------------------------|
-| Indexação inicial   | Instantânea     | ~5 minutos para 500 newsletters    |
-| Custo de indexação  | $0              | ~US$0.025 (embeddings 768 dims)    |
-| Custo de queries    | $0              | ~US$0.01/mês (100 buscas)          |
-| Latência média      | <1 ms           | ~500 ms (inclui chamada à API)     |
-| Qualidade           | Termos literais | Semântica, sinônimos, multilíngue  |
+- `NewsletterRAG.search(...)` retorna `NodeWithScore`, contendo o texto do chunk,
+  a similaridade e metadados (data, seção) prontos para formatação.
+- O MCP server expõe as ferramentas `search_newsletters`, `list_newsletters` e
+  `get_newsletter`, reutilizando o índice carregado uma única vez por execução.
+  
 
-> Os valores são estimativas com base na tabela pública de preços do Gemini (`gemini-embedding-001`). Ajuste conforme o volume real.
+---
 
-## Boas práticas
+## ✅ Boas Práticas
 
-- **Habilite o cache**: deixe `embedding_cache_enabled=True` para evitar custos recorrentes.
-- **Escolha a dimensão adequada**: `768` equilibra custo e precisão; `3072` é reservado para casos críticos.
-- **Combine filtros**: use `min_similarity` e `top_k` para ajustar o retorno em cada consulta.
-- **Fallback automático**: se a API estiver indisponível, o RAG retorna ao TF-IDF.
+- Execute `update_index(force_rebuild=True)` sempre que uma grande quantidade de
+  newsletters for adicionada de uma vez.
+- Mantenha a variável `GOOGLE_API_KEY` configurada para obter embeddings reais;
+  sem ela o fallback funciona, mas os resultados são menos precisos.
+- Utilize `cache_dir` dedicado em ambientes com múltiplos usuários para evitar
+  conflitos de permissões.
 
-## Troubleshooting
+---
 
-| Sintoma                                      | Possível causa                         | Ação sugerida                               |
-|---------------------------------------------|----------------------------------------|---------------------------------------------|
-| "Embeddings muito lentos"                  | Dimensão alta ou sem cache             | Reduza para 768 e confirme `cache/embeddings`|
-| "Custo acima do esperado"                  | Reindexações frequentes                | Verifique se `--force-reindex` está desativado|
-| "Resultados semânticos pouco relevantes"   | Poucos dados ou consultas muito curtas | Forneça contexto adicional ou aumente `top_k`|
-| Erro `PermissionDenied` do Gemini           | API key sem acesso ao modelo           | Habilite `gemini-embedding-001` no console    |
+## 🚀 Próximos Passos Sugeridos
 
-## Próximos passos
+1. Adicionar testes automatizados para `CachedGeminiEmbedding` e o pipeline de
+   indexação.
+2. Documentar benchmarks comparando o fallback determinístico com embeddings
+   reais.
+3. Permitir escolha dinâmica de `vector_store_type` via CLI/TOML quando outras
+   opções (ex.: Chroma) forem necessárias.
 
-- Documentar benchmarks comparando TF-IDF x embeddings.
-- Adicionar testes automatizados cobrindo geração e cache de embeddings.
-- Expandir o MCP server para permitir escolha dinâmica do modo de busca por tool.
-
-*Última atualização: 2025-10-03*
+Manter esta página alinhada com o código evita confusão sobre flags antigas e
+reforça que a stack atual gira em torno do Gemini + LlamaIndex, com fallback
+confiável para ambientes offline.
