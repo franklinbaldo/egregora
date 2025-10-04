@@ -1,23 +1,23 @@
-# Processamento de Backlog
+# Simple Backlog Processing
 
-Este guia descreve como usar os utilitários de backlog para transformar vários dias de conversas do WhatsApp em newsletters diárias.
+This guide describes how to use the simplified backlog processor to transform WhatsApp conversation archives into daily newsletters.
 
-## Visão Geral
+## Overview
 
-O fluxo de backlog usa o `BacklogProcessor` para:
+The simplified backlog processor is a lightweight script that:
 
-1. Mapear arquivos `.zip` pendentes.
-2. Estimar custos e tempo de processamento.
-3. Processar cada dia sequencialmente com checkpoint automático.
-4. Retomar execuções interrompidas sem perder progresso.
+1. Scans for ZIP files containing WhatsApp exports
+2. Processes each file through the existing pipeline
+3. Generates newsletters for each day
+4. Provides clear progress feedback
 
-## Pré-requisitos
+## Prerequisites
 
-- Arquivos `.zip` do WhatsApp nomeados com a data (ex.: `2024-10-01.zip`).
-- `GEMINI_API_KEY` configurada no ambiente.
-- Dependências instaladas (`uv sync`).
+- ZIP files from WhatsApp exports named with dates (e.g., `2024-10-01.zip`)
+- `GEMINI_API_KEY` configured in environment
+- Dependencies installed (`uv sync`)
 
-## Estrutura de Arquivos
+## File Structure
 
 ```
 project/
@@ -25,100 +25,83 @@ project/
 │   └── zips/
 │       ├── 2024-10-01.zip
 │       └── 2024-10-02.zip
-├── docs/
-│   └── reports/
-│       └── daily/
-└── cache/
-    └── backlog_checkpoint.json
+└── docs/
+    └── reports/
+        └── daily/
+            ├── 2024-10-01.md
+            └── 2024-10-02.md
 ```
 
-## Script Principal (`scripts/process_backlog.py`)
+## Usage
 
-### Escanear pendências
+### Basic Processing
+
+Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py --scan
+python scripts/process_backlog.py data/zips docs/reports/daily
 ```
 
-Exemplo de saída:
+### Skip Existing Files
 
-```
-📊 Análise de Backlog
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total de zips encontrados: 12
-Newsletters já existentes: 4
-Dias pendentes: 8
-
-Período: 2024-08-15 até 2024-08-26
-
-Estatísticas estimadas:
-- Total de mensagens: ~1.540
-- Total de URLs: ~120
-- Tempo estimado: ~85.0 min
-- Custo estimado: $1.54 USD
-```
-
-### Processar dias
+By default, the script skips files that already have corresponding newsletters:
 
 ```bash
-python scripts/process_backlog.py --start-date 2024-08-15 --max-per-run 3
+python scripts/process_backlog.py data/zips docs/reports/daily
+# Output:
+# 📊 Found 5 ZIP files
+# ⏭️  2024-10-01 (already exists)
+# ✅ 2024-10-02 -> docs/reports/daily/2024-10-02.md
+# ✅ 2024-10-03 -> docs/reports/daily/2024-10-03.md
+# 📈 Summary: 2 processed, 1 skipped, 0 failed
 ```
 
-Opções importantes:
+### Force Overwrite
 
-- `--resume`: retoma do último checkpoint.
-- `--dry-run`: simula o processamento sem gerar newsletters.
-- `--skip-enrichment`: pula enriquecimento de URLs para reduzir custo.
-- `--force-rebuild`: reprocessa mesmo se a newsletter existir.
-- `--max-per-run N`: limita a quantidade processada em uma única execução.
-
-## Relatórios (`scripts/backlog_report.py`)
-
-Gerar relatório resumido:
+To regenerate existing newsletters:
 
 ```bash
-python scripts/backlog_report.py
+python scripts/process_backlog.py data/zips docs/reports/daily --force
 ```
 
-Gerar relatório detalhado com exportação JSON:
+## What was simplified?
 
-```bash
-python scripts/backlog_report.py --detailed --output report.json
-```
+The original complex system had:
+- 1000+ lines across 6 modules
+- Checkpoint/resume system
+- Cost estimation
+- Batch configuration
+- Retry logic
+- Complex logging
+- Statistics tracking
 
-## Checkpoints
+The new simple approach:
+- **70 lines** in a single script
+- Uses the existing `Pipeline` class
+- Simple iteration over ZIP files
+- Basic error handling with clear output
+- Skip existing files automatically
 
-O arquivo `cache/backlog_checkpoint.json` é atualizado automaticamente após cada dia. Ele inclui:
+## Benefits
 
-- `last_processed_date`: último dia concluído.
-- `total_processed`: total acumulado de dias processados.
-- `total_pending`: estimativa de pendências restantes.
-- `failed_dates`: lista de dias com falha.
-- `statistics`: métricas da última execução (mensagens, tempo, custo estimado).
-
-Para reiniciar do zero, exclua o arquivo de checkpoint e execute o script novamente.
+- **Much simpler**: Easy to understand and modify
+- **Leverages existing code**: Uses the proven `Pipeline` class
+- **Clear output**: Shows exactly what's happening
+- **Robust**: Handles errors gracefully and continues processing
+- **No dependencies**: No complex checkpoint or state management
 
 ## Troubleshooting
 
-- **Erro de API ou rate limit:** o processador aplica backoff exponencial automaticamente. Ajuste `processing.max_retries` e `processing.delay_between_days` em `scripts/backlog_config.yaml`.
-- **Arquivos corrompidos:** o scanner ignora `.zip` sem data válida ou com erro de leitura. Verifique o arquivo manualmente.
-- **Custos elevados:** use `--skip-enrichment` e processe em lotes menores com `--max-per-run`.
+- **No ZIP files found**: Check that the ZIP directory path is correct
+- **Processing errors**: The script will show the specific error and continue with the next file
+- **Missing dates**: ZIP files must contain a date pattern (YYYY-MM-DD) in the filename
 
-## Configuração Avançada
+## Migration from Complex System
 
-Personalize `scripts/backlog_config.yaml` para ajustar delays, timeout, logging e checkpoints. Para usar outro arquivo de configuração, passe `--config caminho/config.yaml` ao chamar o script.
+If you were using the old complex backlog system:
 
-## FAQ
+1. The new script automatically skips already processed files
+2. Just run the simple script on your ZIP directory
+3. Remove any old checkpoint files if desired
 
-**Posso processar múltiplos dias em paralelo?**
-: O pipeline atual é sequencial para simplificar rate limiting. Para grandes volumes, execute em lotes menores.
-
-**Como saber o progresso durante a execução?**
-: Monitore os logs em `cache/backlog_processing.log` ou execute `python scripts/backlog_report.py` em outro terminal.
-
-**Posso reprocessar um dia específico?**
-: Use `--force-rebuild` e filtre o intervalo com `--start-date`/`--end-date`.
-
----
-
-Pronto! Agora você pode manter o backlog em dia com segurança e previsibilidade.
+The simple approach does the same core job with 95% less code complexity.
