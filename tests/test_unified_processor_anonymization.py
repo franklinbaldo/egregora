@@ -46,23 +46,26 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
     """Test that the UnifiedProcessor anonymizes the transcript in an end-to-end test."""
 
     class MockLLMClient:
-        def generate_content_stream(self, model, contents, config):
-            # Extract the transcript from the contents
-            transcript = contents[0].parts[0].text
-            # Check that the transcript is anonymized
-            assert "Member-" in transcript
-            assert "+55 11 94529-4774" not in transcript
-            # Return a dummy response
-            class MockStream:
-                def __init__(self, text):
-                    self.text = text
-                def __iter__(self):
-                    yield self
+        class _Models:
+            def generate_content_stream(self, *, model, contents, config):
+                # Extract the transcript from the contents
+                transcript = contents[0].parts[0].text
+                # Check that the transcript is anonymized
+                assert "Member-" in transcript
+                assert "+55 11 94529-4774" not in transcript
+                # Yield a dummy response mimicking streaming chunks
+                yield type("Chunk", (), {"text": f"Newsletter.\n{transcript}"})
 
-            return MockStream(f"Newsletter.\n{transcript}")
+        def __init__(self):
+            self.models = self._Models()
+
+    mock_client = MockLLMClient()
+    monkeypatch.setattr(
+        "egregora.pipeline.create_client",
+        lambda api_key=None: mock_client,
+    )
 
     processor = UnifiedProcessor(config_with_anonymization)
-    processor.llm_client = MockLLMClient()
     processor.process_all(days=1)
 
     # Check the output file

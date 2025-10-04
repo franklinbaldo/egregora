@@ -36,9 +36,7 @@ class UnifiedProcessor:
     """Unified processor for both real and virtual groups."""
     
     def __init__(self, config: PipelineConfig):
-        from .pipeline import create_client
         self.config = config
-        self.llm_client = create_client()
     
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -215,7 +213,7 @@ class UnifiedProcessor:
         source: GroupSource,
         transcript: str,
         target_date: date,
-        llm_client = None,
+        llm_client: object | None = None,
     ) -> str:
         """Generate newsletter using existing pipeline."""
         
@@ -252,8 +250,8 @@ class UnifiedProcessor:
             else self.config.model
         )
         
-        # Create LLM client and call
-        client = llm_client or self.llm_client
+        # Create LLM client lazily to avoid requiring optional dependency during init
+        client = llm_client or create_client()
         
         contents = [
             types.Content(
@@ -274,7 +272,7 @@ class UnifiedProcessor:
         )
 
         output_lines: list[str] = []
-        for chunk in client.generate_content_stream(
+        for chunk in client.models.generate_content_stream(
             model=model,
             contents=contents,
             config=generate_content_config,
