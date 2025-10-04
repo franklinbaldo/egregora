@@ -12,6 +12,7 @@ from typing import Generator
 import pytest
 
 from egregora.config import PipelineConfig
+from test_framework.helpers import load_real_whatsapp_transcript
 
 
 @pytest.fixture
@@ -28,18 +29,10 @@ def whatsapp_zip_path() -> Path:
 
 
 @pytest.fixture
-def whatsapp_test_data() -> str:
-    """Raw WhatsApp conversation content for testing."""
-    return """03/10/2025 09:45 - As mensagens e ligações são protegidas com a criptografia de ponta a ponta. Somente as pessoas que fazem parte da conversa podem ler, ouvir e compartilhar esse conteúdo. Saiba mais
-03/10/2025 09:45 - Você criou este grupo
-03/10/2025 09:45 - ‎Iuri Brasil foi adicionado(a)
-03/10/2025 09:45 - Você atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa ‎24 horas após o envio, exceto se salvas na conversa.
-03/10/2025 09:45 - Você removeu Iuri Brasil
-03/10/2025 09:45 - Franklin: Teste de grupo
-03/10/2025 09:45 - Franklin: 🐱
-03/10/2025 09:46 - Franklin: ‎IMG-20251002-WA0004.jpg (arquivo anexado)
-03/10/2025 09:46 - Franklin: https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT
-03/10/2025 09:46 - Franklin: Legal esse vídeo"""
+def whatsapp_real_content(whatsapp_zip_path: Path) -> str:
+    """Conversation content extracted from the real WhatsApp test archive."""
+
+    return load_real_whatsapp_transcript(whatsapp_zip_path)
 
 
 @pytest.fixture

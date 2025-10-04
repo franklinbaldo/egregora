@@ -23,7 +23,7 @@ from test_framework.helpers import (
     extract_anonymized_authors,
     count_message_types,
     validate_whatsapp_format,
-    TestDataGenerator
+    TestDataGenerator,
 )
 
 
@@ -64,7 +64,7 @@ def test_date_recognition_whatsapp():
         assert result == expected_date, f"Failed for {filename}: got {result}, expected {expected_date}"
 
 
-def test_whatsapp_anonymization_comprehensive(temp_dir):
+def test_whatsapp_anonymization_comprehensive(temp_dir, whatsapp_real_content):
     """Comprehensive test of WhatsApp format anonymization."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -74,35 +74,37 @@ def test_whatsapp_anonymization_comprehensive(temp_dir):
     
     # Test various WhatsApp message formats
     test_conversations = [
-        # Basic messages
+        whatsapp_real_content,
         "03/10/2025 09:45 - Franklin: Teste de grupo",
-        # With emojis
         "03/10/2025 09:45 - Maria: Olá! 🐱",
-        # With attachments
         "03/10/2025 09:46 - José: ‎arquivo.pdf (arquivo anexado)",
-        # With URLs
         "03/10/2025 09:47 - Ana: https://example.com/link",
-        # System messages (should not be anonymized)
         "03/10/2025 09:48 - Você criou este grupo",
     ]
-    
+
     for conversation in test_conversations:
         transcripts = [(date(2025, 10, 3), conversation)]
         result = _prepare_transcripts(transcripts, config)
         processed = result[0][1]
-        
+
         # Check anonymization worked for user messages
-        if "Franklin:" in conversation or "Maria:" in conversation:
+        if any(name in conversation for name in ("Franklin:", "Maria:", "José:", "Ana:")):
             assert "Member-" in processed or "User-" in processed
             assert "Franklin" not in processed
             assert "Maria" not in processed
-        
+            assert "José" not in processed
+            assert "Ana" not in processed
+
+        if conversation == whatsapp_real_content:
+            assert "https://youtu.be" in processed
+            assert "arquivo anexado" in processed
+
         # Check system messages are preserved
         if "Você criou" in conversation:
             assert "Você criou" in processed
 
 
-def test_message_type_preservation(temp_dir):
+def test_message_type_preservation(temp_dir, whatsapp_real_content):
     """Test that different message types are preserved during processing."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -111,6 +113,7 @@ def test_message_type_preservation(temp_dir):
     )
     
     complex_conversation = TestDataGenerator.create_complex_conversation()
+    real_counts = count_message_types(whatsapp_real_content)
     
     # Count original message types
     original_counts = count_message_types(complex_conversation)
@@ -128,8 +131,16 @@ def test_message_type_preservation(temp_dir):
     assert processed_counts['urls'] == original_counts['urls']
     assert processed_counts['emojis'] >= original_counts['emojis']  # May add anonymization markers
 
+    # Ensure the real conversation characteristics are preserved too
+    transcripts = [(date(2025, 10, 3), whatsapp_real_content)]
+    real_processed = _prepare_transcripts(transcripts, config)[0][1]
+    real_processed_counts = count_message_types(real_processed)
+    assert real_processed_counts['media_attachments'] == real_counts['media_attachments']
+    assert real_processed_counts['urls'] == real_counts['urls']
+    assert real_processed_counts['emojis'] >= real_counts['emojis']
 
-def test_multi_day_processing(temp_dir):
+
+def test_multi_day_processing(temp_dir, whatsapp_real_content):
     """Test processing conversations across multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -138,6 +149,7 @@ def test_multi_day_processing(temp_dir):
     )
     
     multi_day_content = TestDataGenerator.create_multi_day_content()
+    multi_day_content[-1] = (date(2025, 10, 3), whatsapp_real_content)
     result = _prepare_transcripts(multi_day_content, config)
     
     # Verify all days processed
@@ -182,7 +194,7 @@ def test_anonymization_consistency(temp_dir):
     assert franklin_count == 3, f"Franklin should appear 3 times, found {franklin_count}"
 
 
-def test_edge_cases_handling(temp_dir):
+def test_edge_cases_handling(temp_dir, whatsapp_real_content):
     """Test handling of edge cases in WhatsApp conversations."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -191,6 +203,7 @@ def test_edge_cases_handling(temp_dir):
     )
     
     edge_cases = TestDataGenerator.create_edge_cases()
+    edge_cases.append(whatsapp_real_content)
     
     for case in edge_cases:
         try:
