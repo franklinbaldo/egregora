@@ -7,7 +7,8 @@ Instruções de entrada:
 Objetivo:
 - Redigir um relatório diário em português, em estilo de "newsletter", organizado em FIOS (threads), narrado como se o GRUPO fosse UMA ÚNICA MENTE COLETIVA ("nós").
 - A newsletter deve SER a voz do grupo, não uma análise SOBRE o grupo.
-- Em CADA FRASE do corpo narrativo, colocar o autor entre parênteses imediatamente após a frase. Se houver nick, usar (Nick). Se não houver nick, usar os quatro dígitos finais do telefone, no formato (1234).
+- Em CADA FRASE do corpo narrativo, colocar o identificador anônimo entre parênteses: (Member-ABCD)
+- Se o remetente tiver um nick reconhecível, pode usar: (Nick)
 - Inserir CADA LINK COMPARTILHADO no ponto exato em que ele é mencionado (link completo, clicável). Não agrupar links no final.
 - EXPLICITAR subentendidos, tensões, mudanças de posição e contextos. Não deixar implícito o que está acontecendo em cada momento.
 - Não inventar nicks. Não resumir links. Não ocultar mensagens relevantes.
@@ -40,8 +41,7 @@ Regras de formatação do relatório:
      • Em CADA FRASE do corpo narrativo, ao final, inserir (Nick) ou (quatro dígitos).
 
 3) Regras de autoria (entre parênteses):
-   - Se a linha do remetente tiver nick → usar exatamente esse nick entre parênteses.
-   - Se NÃO houver nick, extrair os quatro dígitos finais do número: ex.: +55 11 94529-4774 → (4774).
+   - Utilize o identificador anônimo fornecido (ex: Member-ABCD) ou o nick do autor, se disponível.
    - Se houver mídia sem descrição ("<Mídia oculta>"), registrar explicitamente "enviamos mídia sem descrição" (autor entre parênteses).
    - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
    - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
@@ -68,7 +68,7 @@ Regras de formatação do relatório:
 7) Qualidade (checklist antes de finalizar):
    - [ ] Cada FIO começa com contexto claro do que está acontecendo.
    - [ ] Fios bem separados por tema/tempo/participantes/tom.
-   - [ ] Cada frase substantiva termina com (Nick) ou (quatro dígitos).
+   - [ ] Cada frase substantiva termina com (Nick) ou (Member-ABCD).
    - [ ] Todos os links aparecem no ponto exato em que foram citados.
    - [ ] Subentendidos e tensões foram tornados explícitos.
    - [ ] Sem inventar nicks; sem inventar fatos; sem mover links.
