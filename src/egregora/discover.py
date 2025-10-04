@@ -19,10 +19,10 @@ class DiscoveryResult:
     detected_type: DiscoveryType
     variants: dict[str, str]
 
-    def get(self, format: str = "human") -> str:
+    def get(self, format_name: str = "human") -> str:
         """Return the anonymized identifier in the requested format."""
 
-        return self.variants.get(format, "")
+        return self.variants.get(format_name, "")
 
 
 def detect_type(value: str) -> DiscoveryType:
@@ -54,28 +54,8 @@ def discover_identifier(value: str) -> DiscoveryResult:
         detected_type=detected,
         variants=variants,
     )
-
-
-def format_cli_message(result: DiscoveryResult, preferred_format: str = "human") -> str:
-    """Return a human readable message summarising ``result``."""
-
-    lines = [
-        "📛 Autodescoberta de identificador anônimo",
-        f"• Entrada original: {result.raw_input}",
-        f"• Tipo detectado: {result.detected_type}",
-        f"• Forma normalizada: {result.normalized}",
-        "• Identificadores disponíveis:",
-        f"  → human: {result.variants['human']}",
-        f"  · short: {result.variants['short']}",
-        f"  · full: {result.variants['full']}",
-        f"• Formato preferido ({preferred_format}): {result.get(preferred_format)}",
-    ]
-    return "\n".join(lines)
-
-
 __all__ = [
     "DiscoveryResult",
     "discover_identifier",
-    "format_cli_message",
     "detect_type",
 ]
