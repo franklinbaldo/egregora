@@ -26,6 +26,15 @@ class LLMConfig:
     thinking_budget: int = DEFAULT_THINKING_BUDGET
 
 
+
+@dataclass(slots=True)
+class LLMConfig:
+    """Configuration for the language model."""
+
+    safety_threshold: str = "BLOCK_NONE"
+    thinking_budget: int = -1
+
+
 @dataclass(slots=True)
 class CacheConfig:
     """Configuration for the persistent enrichment cache."""
@@ -77,7 +86,7 @@ class PipelineConfig:
     media_dir: Path
     model: str
     timezone: tzinfo
-    llm: LLMConfig
+    llm: LLMConfig = field(default_factory=LLMConfig)
     enrichment: EnrichmentConfig
     cache: CacheConfig
     anonymization: AnonymizationConfig

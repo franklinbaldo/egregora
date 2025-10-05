@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .models import GroupSource
 
     if genai:
-        from google.genai import Client as GeminiClient
+        from google.generativeai.client import Client as GeminiClient
 
 
 @dataclass(slots=True)
@@ -52,22 +52,6 @@ class NewsletterGenerator:
         self.config = config
         self._client = llm_client
 
-    def __enter__(self) -> "NewsletterGenerator":
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Context manager exit with cleanup."""
-        self.close()
-
-    def close(self) -> None:
-        """Clean up resources."""
-        if self._client is not None:
-            # Close the client if it has a close method
-            if hasattr(self._client, 'close'):
-                self._client.close()
-            self._client = None
-
     def _require_google_dependency(self) -> None:
         """Ensure the optional google-genai dependency is available."""
         if genai is None or types is None:
@@ -93,28 +77,27 @@ class NewsletterGenerator:
 
     def _load_prompt(self, filename: str) -> str:
         """Load a prompt either from the editable folder or package data."""
-        # Try local file first
         local_prompt_path = _PROMPTS_DIR / filename
         if local_prompt_path.exists():
             text = local_prompt_path.read_text(encoding="utf-8")
-            return self._read_and_validate_prompt(text, str(local_prompt_path))
+            stripped = text.strip()
+            if not stripped:
+                raise ValueError(f"Prompt file '{local_prompt_path}' is empty")
+            return stripped
 
-        # Fallback to package resources
+        # Fallback to package resources if local file doesn't exist
         try:
             package_text = (
                 resources.files(__package__)
                 .joinpath(f"prompts/{filename}")
                 .read_text(encoding="utf-8")
             )
-            return self._read_and_validate_prompt(package_text, f"prompts/{filename}")
         except FileNotFoundError as exc:
             raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
 
-    def _read_and_validate_prompt(self, text: str, source: str) -> str:
-        """Validate and return stripped prompt text."""
-        stripped = text.strip()
+        stripped = package_text.strip()
         if not stripped:
-            raise ValueError(f"Prompt '{source}' is empty")
+            raise ValueError(f"Prompt resource '{filename}' is empty")
         return stripped
 
     def _build_system_instruction(
@@ -197,12 +180,13 @@ class NewsletterGenerator:
             has_group_tags=source.is_virtual
         )
 
-        # Determine which model to use
-        model = self.config.model
-        if (source.is_virtual 
-            and source.merge_config 
-            and source.merge_config.model_override):
-            model = source.merge_config.model_override
+        model = (
+            source.merge_config.model_override
+            if source.is_virtual
+            and source.merge_config
+            and source.merge_config.model_override
+            else self.config.model
+        )
 
         contents = [
             types.Content(
@@ -211,19 +195,14 @@ class NewsletterGenerator:
             ),
         ]
 
-        # Configure safety settings for all harm categories
-        harm_categories = [
-            "HARM_CATEGORY_HARASSMENT",
-            "HARM_CATEGORY_HATE_SPEECH", 
-            "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            "HARM_CATEGORY_DANGEROUS_CONTENT",
-        ]
         safety_settings = [
-            types.SafetySetting(
-                category=category, 
-                threshold=self.config.llm.safety_threshold
+            types.SafetySetting(category=category, threshold=self.config.llm.safety_threshold)
+            for category in (
+                "HARM_CATEGORY_HARASSMENT",
+                "HARM_CATEGORY_HATE_SPEECH",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "HARM_CATEGORY_DANGEROUS_CONTENT",
             )
-            for category in harm_categories
         ]
 
         generate_content_config = types.GenerateContentConfig(
