@@ -43,11 +43,11 @@ class DummyChunk:
         self.text = text
 
 
-class DummyClient:
+class DummyModel:
     def __init__(self, responses: list[str]):
         self._responses = responses
 
-    def generate_content(self, *, model, contents, generation_config, system_instruction, stream: bool):
+    def generate_content(self, *, contents, generation_config, system_instruction, stream: bool):
         if not stream:
             raise NotImplementedError("This dummy client only supports streaming.")
         for text in self._responses:
@@ -60,7 +60,7 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     instruction = pipeline.build_system_instruction()
     assert instruction, "system instruction should not be empty"
 
-    system_text = instruction[0].text
+    system_text = instruction
     assert "PRIVACIDADE — INSTRUÇÕES CRÍTICAS" in system_text
     assert "Nunca repita nomes próprios" in system_text
     assert "identificadores anônimos" in system_text
@@ -69,10 +69,9 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
 def test_privacy_review_removes_names(monkeypatch):
     _install_pipeline_stubs(monkeypatch)
 
-    client = DummyClient(["User-A1B2 sugeriu algo importante."])
+    model = DummyModel(["User-A1B2 sugeriu algo importante."])
     reviewed = pipeline._run_privacy_review(
-        client,
-        model="fake-model",
+        model,
         newsletter_text="João (User-A1B2) sugeriu algo.",
     )
 

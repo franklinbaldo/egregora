@@ -39,13 +39,6 @@ def create_mock_response(summary, key_points, tone, relevance):
     )
 
 
-@pytest.fixture
-def mock_client():
-    client = Mock()
-    client.generate_content.return_value = create_mock_response("Summary", ["Point 1"], "neutral", 4)
-    return client
-
-
 def test_url_extraction_whatsapp_content(tmp_path):
     """Test URL extraction from WhatsApp conversation content using regex."""
     whatsapp_content = """03/10/2025 09:46 - Franklin: https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT
@@ -70,7 +63,7 @@ def test_whatsapp_message_parsing(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_content_enrichment_with_whatsapp_urls(tmp_path, mock_client):
+async def test_content_enrichment_with_whatsapp_urls(tmp_path):
     """Test content enrichment with URLs from WhatsApp conversations."""
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
     config = EnrichmentConfig(enabled=True, max_concurrent_analyses=2)
@@ -78,9 +71,13 @@ async def test_content_enrichment_with_whatsapp_urls(tmp_path, mock_client):
     enricher = ContentEnricher(config, cache_manager=cache_manager)
     
     mock_response = create_mock_response("Summary", ["Point 1"], "neutral", 4)
-    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
-        result = await enricher.enrich([(date.today(), conversation_with_urls)], client=mock_client)
-        assert mock_to_thread.call_count > 0
+    with patch('egregora.enrichment.genai.GenerativeModel') as mock_gen_model:
+        mock_instance = Mock()
+        mock_instance.generate_content.return_value = mock_response
+        mock_gen_model.return_value = mock_instance
+        with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+            result = await enricher.enrich([(date.today(), conversation_with_urls)])
+            assert mock_to_thread.call_count > 0
 
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) >= 1
@@ -89,7 +86,7 @@ async def test_content_enrichment_with_whatsapp_urls(tmp_path, mock_client):
 
 
 @pytest.mark.asyncio
-async def test_enrichment_caching_functionality(tmp_path, mock_client):
+async def test_enrichment_caching_functionality(tmp_path):
     """Test that enrichment results are properly cached."""
     test_url = "https://example.com/test-article"
     content = f"check this out: {test_url}"
@@ -99,25 +96,29 @@ async def test_enrichment_caching_functionality(tmp_path, mock_client):
 
     mock_response = create_mock_response("Summary", ["Point 1"], "neutral", 4)
 
-    # First call, should call API
-    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
-        await enricher.enrich([(date.today(), content)], client=mock_client)
-        assert mock_to_thread.call_count == 1
+    with patch('egregora.enrichment.genai.GenerativeModel') as mock_gen_model:
+        mock_instance = Mock()
+        mock_instance.generate_content.return_value = mock_response
+        mock_gen_model.return_value = mock_instance
+        # First call, should call API
+        with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+            await enricher.enrich([(date.today(), content)])
+            assert mock_to_thread.call_count == 1
 
-    # Second call, should use cache
-    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
-        await enricher.enrich([(date.today(), content)], client=mock_client)
-        assert mock_to_thread.call_count == 0
+        # Second call, should use cache
+        with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+            await enricher.enrich([(date.today(), content)])
+            assert mock_to_thread.call_count == 0
 
 
 @pytest.mark.asyncio
-async def test_media_placeholder_handling(tmp_path, mock_client):
+async def test_media_placeholder_handling(tmp_path):
     """Test handling of media placeholders in WhatsApp content."""
     content_with_media = "09:46 - Franklin: <mídia oculta>"
     config = EnrichmentConfig(enabled=True)
     cache_manager = CacheManager(tmp_path / "cache")
     enricher = ContentEnricher(config, cache_manager=cache_manager)
-    result = await enricher.enrich([(date.today(), content_with_media)], client=mock_client)
+    result = await enricher.enrich([(date.today(), content_with_media)])
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) == 1
     assert result.items[0].analysis.summary is not None
@@ -128,43 +129,50 @@ async def test_enrichment_with_disabled_config(tmp_path):
     """Test that enrichment is skipped when disabled in config."""
     config = EnrichmentConfig(enabled=False)
     enricher = ContentEnricher(config)
-    result = await enricher.enrich([], client=None)
+    result = await enricher.enrich([])
     assert len(result.items) == 0
 
 
 @pytest.mark.asyncio
-async def test_error_handling_in_enrichment(tmp_path, mock_client):
+async def test_error_handling_in_enrichment(tmp_path):
     """Test error handling during enrichment process."""
     config = EnrichmentConfig(enabled=True)
-    reference = ContentReference(date.today(), "http://test.com", "Test", "12:00", "test", [], [])
+    content = "http://test.com"
     enricher = ContentEnricher(config)
     
-    with patch('egregora.enrichment.asyncio.to_thread', side_effect=Exception("API Error")) as mock_to_thread:
-        result = await enricher._analyze_reference(reference, mock_client)
-        assert mock_to_thread.call_count == 1
+    with patch('egregora.enrichment.genai.GenerativeModel') as mock_gen_model:
+        mock_instance = Mock()
+        mock_gen_model.return_value = mock_instance
+        with patch('egregora.enrichment.asyncio.to_thread', side_effect=Exception("API Error")) as mock_to_thread:
+            result = await enricher.enrich([(date.today(), content)])
+            assert mock_to_thread.call_count == 1
     
-    assert isinstance(result, AnalysisResult)
-    assert result.error == "API Error"
-    assert not result.is_successful
+    assert isinstance(result, EnrichmentResult)
+    assert len(result.errors) > 0
+    assert "API Error" in result.errors[0]
 
 
 @pytest.mark.asyncio
-async def test_concurrent_url_processing(tmp_path, mock_client):
+async def test_concurrent_url_processing(tmp_path):
     """Test concurrent processing of multiple URLs."""
     content = "https://a.com\nhttps://b.com\nhttps://c.com"
     config = EnrichmentConfig(enabled=True, max_concurrent_analyses=3)
     enricher = ContentEnricher(config)
     
     mock_response = create_mock_response("Summary", [], "neutral", 4)
-    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
-        result = await enricher.enrich([(date.today(), content)], client=mock_client)
-        assert mock_to_thread.call_count == 3
+    with patch('egregora.enrichment.genai.GenerativeModel') as mock_gen_model:
+        mock_instance = Mock()
+        mock_instance.generate_content.return_value = mock_response
+        mock_gen_model.return_value = mock_instance
+        with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+            result = await enricher.enrich([(date.today(), content)])
+            assert mock_to_thread.call_count == 3
     
     assert len(result.items) == 3
 
 
 @pytest.mark.asyncio
-async def test_relevance_filtering(tmp_path, mock_client):
+async def test_relevance_filtering(tmp_path):
     """Test filtering of results based on relevance scores."""
     config = EnrichmentConfig(enabled=True, relevance_threshold=5)
     enricher = ContentEnricher(config)
@@ -181,9 +189,12 @@ async def test_relevance_filtering(tmp_path, mock_client):
         relevance = 8 if "high" in url else 4
         return create_mock_response("Summary", [], "neutral", relevance)
 
-    with patch('egregora.enrichment.asyncio.to_thread', side_effect=side_effect) as mock_to_thread:
-        result = await enricher.enrich([(date.today(), content)], client=mock_client)
-        assert mock_to_thread.call_count == 2
+    with patch('egregora.enrichment.genai.GenerativeModel') as mock_gen_model:
+        mock_instance = Mock()
+        mock_gen_model.return_value = mock_instance
+        with patch('egregora.enrichment.asyncio.to_thread', side_effect=side_effect) as mock_to_thread:
+            result = await enricher.enrich([(date.today(), content)])
+            assert mock_to_thread.call_count == 2
 
     prompt = result.format_for_prompt(config.relevance_threshold)
     assert prompt is not None

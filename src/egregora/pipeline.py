@@ -290,9 +290,8 @@ def _collect_rag_context(config: PipelineConfig, transcripts_sample: str) -> str
 
 
 def _run_privacy_review(
-    client: genai.Client,
+    model: genai.GenerativeModel,
     *,
-    model: str,
     newsletter_text: str,
 ) -> str:
     """Request a second-pass privacy review from the configured LLM."""
@@ -307,19 +306,12 @@ def _run_privacy_review(
         "<<<FIM>>>"
     )
 
-    contents = [
-        genai.Content(
-            role="user",
-            parts=[genai.Part.from_text(text=review_prompt)],
-        )
-    ]
-
+    contents = [review_prompt]
     review_config = GenerationConfig()
-    system_instruction = genai.Part.from_text(text=REVIEW_SYSTEM_PROMPT.strip())
+    system_instruction = REVIEW_SYSTEM_PROMPT.strip()
 
     output_lines: list[str] = []
-    for chunk in client.generate_content(
-        model=model,
+    for chunk in model.generate_content(
         contents=contents,
         generation_config=review_config,
         system_instruction=system_instruction,
@@ -484,7 +476,7 @@ def build_llm_input(
     return "\n\n".join(sections)
 
 
-def build_system_instruction() -> list[genai.Part]:
+def build_system_instruction() -> str:
     """Return the validated system prompt."""
 
     _require_google_dependency()
@@ -568,7 +560,7 @@ Regras de formatação do relatório:
    - [ ] Voz é "nós" narrando nosso próprio dia, não análise externa.
    - [ ] Lacunas no transcrito (se houver) são explicitadas com honestidade.
 """
-    return [genai.Part.from_text(text=system_text.strip())]
+    return system_text.strip()
 
 
 def ensure_directories(config: PipelineConfig) -> None:
@@ -588,7 +580,7 @@ def select_recent_archives(
     return list(archives[-days:]) if len(archives) >= days else list(archives)
 
 
-def create_client(api_key: str | None = None) -> genai.Client:
+def configure_genai(api_key: str | None = None) -> None:
     """Instantiate the Gemini client."""
 
     _require_google_dependency()
@@ -596,18 +588,19 @@ def create_client(api_key: str | None = None) -> genai.Client:
     key = api_key or os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
-    return genai.Client(api_key=key)
+    genai.configure(api_key=key)
 
 
 def generate_newsletter(
     config: PipelineConfig,
     *,
     days: int = 2,
-    client: genai.Client | None = None,
+    model: genai.GenerativeModel | None = None,
 ) -> PipelineResult:
     """Execute the pipeline and return the resulting metadata."""
 
     _require_google_dependency()
+    configure_genai()
 
     ensure_directories(config)
 
@@ -627,7 +620,8 @@ def generate_newsletter(
         config.newsletters_dir, today
     )
 
-    llm_client = client or create_client()
+    system_instruction = build_system_instruction()
+    llm_model = model or genai.GenerativeModel(config.model, system_instruction=system_instruction)
 
     rag_context: str | None = None
     if config.rag.enabled:
@@ -664,14 +658,14 @@ def generate_newsletter(
         )
         try:
             enrichment_result = asyncio.run(
-                enricher.enrich(sanitized_transcripts, client=llm_client)
+                enricher.enrich(sanitized_transcripts)
             )
         except RuntimeError as exc:
             if "event loop" in str(exc).lower():
                 loop = asyncio.new_event_loop()
                 try:
                     enrichment_result = loop.run_until_complete(
-                        enricher.enrich(sanitized_transcripts, client=llm_client)
+                        enricher.enrich(sanitized_transcripts)
                     )
                 finally:
                     loop.close()
@@ -706,13 +700,7 @@ def generate_newsletter(
         rag_context=rag_context,
     )
 
-    contents = [
-        genai.Content(
-            role="user",
-            parts=[genai.Part.from_text(text=insert_input)],
-        ),
-    ]
-
+    contents = [insert_input]
     generate_content_config = GenerationConfig()
     safety_settings = [
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -720,14 +708,11 @@ def generate_newsletter(
         {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
         {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
     ]
-    system_instruction = build_system_instruction()
 
     output_lines: list[str] = []
-    for chunk in llm_client.generate_content(
-        model=config.model,
+    for chunk in llm_model.generate_content(
         contents=contents,
         generation_config=generate_content_config,
-        system_instruction=system_instruction,
         safety_settings=safety_settings,
         stream=True
     ):
@@ -738,10 +723,10 @@ def generate_newsletter(
     output_path = config.newsletters_dir / f"{today.isoformat()}.md"
 
     if config.privacy.double_check_newsletter:
-        review_model = config.privacy.review_model or config.model
+        review_model_name = config.privacy.review_model or config.model
+        review_model = genai.GenerativeModel(review_model_name)
         revised = _run_privacy_review(
-            llm_client,
-            model=review_model,
+            review_model,
             newsletter_text=newsletter_text,
         )
         if revised != newsletter_text:
@@ -763,6 +748,6 @@ def generate_newsletter(
 
 __all__ = [
     "PipelineResult",
-    "create_client",
+    "configure_genai",
     "generate_newsletter",
 ]

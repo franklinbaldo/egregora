@@ -147,11 +147,15 @@ class ContentEnricher:
     async def enrich(
         self,
         transcripts: Sequence[tuple[date, str]],
-        *,
-        client: genai.Client | None,
     ) -> EnrichmentResult:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
+        if not self._config.enabled:
+            return EnrichmentResult(duration_seconds=0.0)
 
+        if genai is None:
+            return EnrichmentResult(errors=["google-generativeai is not installed."])
+
+        model = genai.GenerativeModel(self._config.enrichment_model)
         start = perf_counter()
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
@@ -182,7 +186,7 @@ class ContentEnricher:
                 return EnrichedItem(reference=reference, analysis=cached_item)
 
             async with semaphore_analysis:
-                analysis = await self._analyze_reference(reference, client)
+                analysis = await self._analyze_reference(reference, model)
             if analysis.error:
                 return EnrichedItem(
                     reference=reference,
@@ -222,9 +226,9 @@ class ContentEnricher:
         return result
 
     async def _analyze_reference(
-        self, reference: ContentReference, client: genai.Client | None
+        self, reference: ContentReference, model: genai.GenerativeModel
     ) -> AnalysisResult:
-        if genai is None or client is None:
+        if genai is None:
             return AnalysisResult(
                 summary=None,
                 key_points=[],
@@ -237,8 +241,7 @@ class ContentEnricher:
         prompt = self._build_prompt(reference)
 
         def _invoke() -> object:
-            return client.generate_content(
-                model=self._config.enrichment_model,
+            return model.generate_content(
                 contents=[
                     genai.Content(
                         role="user",

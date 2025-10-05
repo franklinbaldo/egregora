@@ -43,7 +43,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", staticmethod(_fake_analysis))
 
-    result_first = asyncio.run(enricher.enrich(_build_transcripts(), client=None))
+    result_first = asyncio.run(enricher.enrich(_build_transcripts()))
     assert result_first.items
     extracted_url = result_first.items[0].reference.url
     assert extracted_url is not None
@@ -54,7 +54,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", staticmethod(_fail))
 
-    result_second = asyncio.run(enricher.enrich(_build_transcripts(), client=None))
+    result_second = asyncio.run(enricher.enrich(_build_transcripts()))
     assert result_second.items
     assert result_second.items[0].analysis is not None
     assert result_second.items[0].analysis.summary == "Conteúdo resumido"

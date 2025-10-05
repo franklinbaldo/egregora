@@ -23,11 +23,12 @@ from egregora.pipeline import (
 from test_framework.helpers import create_test_zip
 
 
-class MockGeminiClient:
-    """Mock Gemini client for newsletter generation testing."""
+class MockGenerativeModel:
+    """Mock GenerativeModel for newsletter generation testing."""
 
-    def __init__(self, response_text=None):
-        self.response_text = response_text or self._default_newsletter()
+    def __init__(self, model_name=None, system_instruction=None):
+        self.model_name = model_name
+        self.system_instruction = system_instruction
         self.call_count = 0
 
     def _default_newsletter(self):
@@ -39,9 +40,9 @@ Conversas do grupo focaram em tecnologia e compartilhamento de conteúdo educati
     def generate_content(self, *args, **kwargs):
         self.call_count += 1
         if kwargs.get("stream"):
-            yield Mock(text=self.response_text)
+            yield Mock(text=self._default_newsletter())
         else:
-            return Mock(text=self.response_text)
+            return Mock(text=self._default_newsletter())
 
 
 def test_newsletter_generation_with_whatsapp_data(tmp_path):
@@ -60,10 +61,9 @@ def test_newsletter_generation_with_whatsapp_data(tmp_path):
     )
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
-        with patch("egregora.pipeline.genai"):
+        with patch("egregora.pipeline.genai.GenerativeModel", new=MockGenerativeModel) as mock_model:
             with patch("egregora.pipeline._require_google_dependency"):
-                mock_client = MockGeminiClient()
-                result = generate_newsletter(config, client=mock_client)
+                result = generate_newsletter(config)
 
                 assert isinstance(result, PipelineResult)
                 assert result.output_path.exists()
