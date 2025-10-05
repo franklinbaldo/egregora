@@ -97,6 +97,8 @@ Além do enriquecimento de links, o Egregora agora extrai automaticamente mídia
 2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` são substituídos por links Markdown para a mídia extraída (ex: `![IMG-20251003-WA0001.jpg](media/2025-10-03/IMG-20251003-WA0001.jpg)`).
 3.  **Preservação**: O nome do arquivo original é mantido para fácil referência.
 
+> Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que os links apontem para o diretório público.
+
 Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis diretamente na newsletter gerada, enriquecendo ainda mais o contexto.
 
 ## 🔐 Privacidade por padrão

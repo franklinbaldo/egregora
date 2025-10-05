@@ -23,3 +23,9 @@ markdown_extensions:
       permalink: true
 
 docs_dir: docs
+
+plugins:
+  - search
+  - tools.mkdocs_media_plugin:
+      source_dir: media
+      target_dir: media

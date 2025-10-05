@@ -40,3 +40,32 @@ def test_replace_media_references_converts_to_markdown() -> None:
 
     assert "![IMG-20251002-WA0004.jpg](media/2025-10-03/IMG-20251002-WA0004.jpg)" in updated
     assert "_(arquivo anexado)_" in updated
+
+
+def test_build_public_paths_relative(tmp_path) -> None:
+    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    extractor = MediaExtractor(tmp_path / "media")
+
+    media_files = extractor.extract_media_from_zip(zip_path, date(2025, 10, 3))
+
+    output_dir = tmp_path / "docs" / "reports"
+    output_dir.mkdir(parents=True)
+
+    public_paths = MediaExtractor.build_public_paths(media_files, relative_to=output_dir)
+    path = public_paths["IMG-20251002-WA0004.jpg"]
+
+    assert path.startswith("../../media/2025-10-03/")
+    assert path.endswith("IMG-20251002-WA0004.jpg")
+
+
+def test_build_public_paths_with_prefix(tmp_path) -> None:
+    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    extractor = MediaExtractor(tmp_path / "media")
+
+    media_files = extractor.extract_media_from_zip(zip_path, date(2025, 10, 3))
+
+    public_paths = MediaExtractor.build_public_paths(media_files, url_prefix="/media")
+    path = public_paths["IMG-20251002-WA0004.jpg"]
+
+    assert path.startswith("/media/2025-10-03/")
+    assert path.endswith("IMG-20251002-WA0004.jpg")

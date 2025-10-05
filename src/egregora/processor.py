@@ -198,43 +198,46 @@ class UnifiedProcessor:
             return []
 
         target_dates = available_dates[-days:] if days else available_dates
-        target_date_set = set(target_dates)
 
         results = []
         extractor = MediaExtractor(self.config.media_dir)
 
-        media_by_date: dict[date, dict[str, "MediaFile"]] = {}
-        for export in source.exports:
-            if export.export_date not in target_date_set:
-                continue
-
-            media_files = extractor.extract_media_from_zip(
-                export.zip_path, export.export_date
-            )
-            date_media = media_by_date.setdefault(export.export_date, {})
-
-            for filename, media_file in media_files.items():
-                if filename in date_media:
-                    logger.warning(
-                        "    Duplicate media filename %s for %s; keeping first occurrence",
-                        filename,
-                        export.export_date,
-                    )
-                    continue
-
-                date_media[filename] = media_file
-
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
 
-            all_media = media_by_date.get(target_date, {})
             transcript = extract_transcript(source, target_date)
 
             if not transcript:
                 logger.warning(f"    Empty transcript")
                 continue
 
-            transcript = MediaExtractor.replace_media_references(transcript, all_media)
+            attachment_names = MediaExtractor.find_attachment_names(transcript)
+            all_media: dict[str, "MediaFile"] = {}
+            if attachment_names:
+                remaining = set(attachment_names)
+                for export in source.exports:
+                    extracted = extractor.extract_specific_media_from_zip(
+                        export.zip_path,
+                        target_date,
+                        remaining,
+                    )
+                    if extracted:
+                        all_media.update(extracted)
+                        remaining.difference_update(extracted.keys())
+                    if not remaining:
+                        break
+
+            public_paths = MediaExtractor.build_public_paths(
+                all_media,
+                url_prefix=self.config.media_url_prefix,
+                relative_to=(output_dir if self.config.media_url_prefix is None else None),
+            )
+
+            transcript = MediaExtractor.replace_media_references(
+                transcript,
+                all_media,
+                public_paths=public_paths,
+            )
             stats = get_stats_for_date(source, target_date)
             if not stats:
                 logger.warning("    Unable to compute statistics for %s", target_date)
@@ -289,6 +292,15 @@ class UnifiedProcessor:
                 rag_context=rag_context,
             )
             newsletter = self.generator.generate(source, context)
+
+            media_section = MediaExtractor.format_media_section(
+                all_media,
+                public_paths=public_paths,
+            )
+            if media_section:
+                newsletter = (
+                    f"{newsletter.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
+                )
 
             output_path = output_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")

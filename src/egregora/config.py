@@ -100,6 +100,7 @@ class PipelineConfig(BaseSettings):
         default_factory=lambda: _ensure_safe_directory("data/daily")
     )
     media_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("media"))
+    media_url_prefix: str | None = None
     model: str = DEFAULT_MODEL
     timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
     llm: LLMConfig = Field(default_factory=LLMConfig)
@@ -217,6 +218,7 @@ class PipelineConfig(BaseSettings):
         zips_dir: Path | None = None,
         newsletters_dir: Path | None = None,
         media_dir: Path | None = None,
+        media_url_prefix: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
         llm: LLMConfig | dict[str, Any] | None = None,
@@ -237,6 +239,8 @@ class PipelineConfig(BaseSettings):
             payload["media_dir"] = media_dir
         if model is not None:
             payload["model"] = model
+        if media_url_prefix is not None:
+            payload["media_url_prefix"] = media_url_prefix
         if timezone is not None:
             payload["timezone"] = timezone
         if llm is not None:
@@ -271,7 +275,7 @@ class PipelineConfig(BaseSettings):
 
         pipeline = data.get("pipeline", {})
         if isinstance(pipeline, dict):
-            for key in ("model", "skip_real_if_in_virtual"):
+            for key in ("model", "skip_real_if_in_virtual", "media_url_prefix"):
                 value = pipeline.get(key)
                 if value is not None:
                     payload[key] = value
