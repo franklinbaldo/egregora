@@ -8,8 +8,9 @@ This plan addresses the critical architectural and engineering issues identified
 
 1. **Incremental Migration**: No "big bang" rewrites. Changes are small, testable, and reversible.
 2. **Risk Minimization**: High-impact, low-risk changes first (e.g., library replacements).
-3. **DataFrame-Native Architecture**: All data processing should use `polars` DataFrames end-to-end.
-4. **Standard Libraries First**: Prefer battle-tested libraries over custom implementations.
+3. **LLM-First Architecture**: Sempre que a tarefa for semântica (classificar, resumir, agrupar, extrair campos), use LLM com saída estruturada; evite NLP tradicional.
+4. **DataFrame-Native**: I/O e orquestração em `polars` fim-a-fim; LLM entra apenas como "função" que transforma dados.
+5. **Standard Libraries First**: Prefer battle-tested libraries over custom implementations.
 
 ---
 
@@ -64,53 +65,38 @@ This plan addresses the critical architectural and engineering issues identified
 
 ---
 
-### 1.3 Externalize Hardcoded Data
-**Priority: MEDIUM | Risk: LOW | Effort: LOW**
+### 1.3 LLM-First Text Ops (replace legacy NLP)
+**Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Problem**: Configuration data hardcoded in Python files.
+**Problem**: Stoplists, TF-IDF e filtros manuais aumentam manutenção e quebram com variações linguísticas.
 
 **Action Items**:
-- [x] Remove Portuguese stopword filtering from `analytics.py`
-  - Rely on minimal token-length checks instead of maintaining stopword lists
-  - Drop package data and configuration toggles tied to stopwords
-
-- [ ] Externalize system message filters from `parser.py`
-  - Create `config/system_message_filters.txt` or similar
-  - Update `parser.py` to load from file
-  - Allow custom filter lists via configuration
+- [ ] Remover dependência de stopwords e n-grams em `analytics.py`; substituir por resumos/contagens estruturadas via LLM (JSON: `{summary, topics[], actions[]}`).
+- [ ] Substituir “system message filters” manuais em `parser.py` por uma classificação leve via LLM (campos `{is_system, is_noise, reason}`) aplicada linha-a-linha com budget controlado.
+- [ ] Documentar limites de custo (p.ex. máx. 0.5k chamadas/dia) e cachear respostas por hash do conteúdo.
 
 **Success Criteria**:
-- Hardcoded data either removed when redundant or externalized when needed
-- Code is cleaner and more maintainable
+- Zero listas de stopwords e heurísticas linguísticas fixas.
+- Mesmas ou melhores métricas de precisão/recall em rotulagem e analytics, com custo sob orçamento.
 
 ---
 
 ## Phase 2: Architecture Migration (High-Impact, Medium-Risk)
 
-### 2.1 Audit and Deprecate Legacy Systems
-**Priority: HIGH | Risk: MEDIUM | Effort: MEDIUM**
+### 2.1 Standardize Retrieval on Embeddings (remove TF-IDF)
+**Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Problem**: Redundant TF-IDF search system coexists with modern llama-index RAG.
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings (Gemini + LlamaIndex).
 
 **Action Items**:
-- [ ] Audit usage of `rag/search.py` (legacy TF-IDF)
-  - Identify all callsites across the codebase
-  - Document what functionality it currently provides
-  - Compare capabilities with llama-index RAG
-
-- [ ] Create migration path if needed
-  - If TF-IDF provides unique value, document why
-  - Otherwise, create deprecation plan
-
-- [ ] Deprecate or remove legacy TF-IDF
-  - Update all consumers to use llama-index
-  - Remove `rag/search.py` and related code
-  - Update documentation
+- [ ] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
+- [ ] Garantir cache de embeddings e fallback determinístico já existentes.
+- [ ] Validar paridade de resultados com amostras reais de busca.
 
 **Success Criteria**:
-- Single, unified search/RAG system
-- No redundant search implementations
-- Clear documentation of chosen approach
+- Único sistema de busca/RAG (embeddings).
+- Nenhuma implementação redundante baseada em TF-IDF.
+- Documentação e testes alinhados ao fluxo LLM/embeddings.
 
 ---
 
