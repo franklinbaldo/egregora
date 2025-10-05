@@ -17,6 +17,9 @@ nav:
       - Diários: reports/daily/index.md
       - Semanais: reports/weekly/index.md
       - Mensais: reports/monthly/index.md
+  - Perfis:
+      - Guia: profiles.md
+      - Índice gerado: profiles/index.md
 
 markdown_extensions:
   - toc:

@@ -10,6 +10,7 @@ Automação para gerar newsletters diárias a partir de exports do WhatsApp usan
 - **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
 - **Enriquecimento de links**: identifica URLs e mídias e usa o suporte nativo do Gemini a `Part.from_uri` para analisá-los em paralelo com um modelo dedicado.
 - **Sistema RAG integrado**: indexa newsletters anteriores para busca rápida via CLI ou MCP.
+- **Perfis incrementais dos membros**: gera fichas analíticas por participante e atualiza automaticamente após cada newsletter.
 - **Configuração flexível**: diretórios, fusos, modelos e limites ficam centralizados em `egregora.toml`, com overrides mínimos pela CLI.
 - **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
 
@@ -221,6 +222,38 @@ uv run egregora --use-gemini-embeddings --embedding-dimension 768
 
 Isso substitui o índice TF-IDF padrão por embeddings `gemini-embedding-001` com cache
 persistente. A flag é opcional: se a API não estiver disponível o sistema volta ao TF-IDF.
+
+## 👥 Perfis dos participantes
+
+O Egregora pode manter perfis analíticos incrementais para cada membro do grupo.
+Após gerar a newsletter diária, o pipeline reavalia quem participou, decide se o
+perfil precisa ser atualizado e grava o resultado em dois formatos:
+
+- `data/profiles/<uuid>.json`: dados estruturados para uso posterior;
+- `docs/profiles/<uuid>.md`: versão em Markdown, automaticamente exposta pelo MkDocs.
+
+### Como habilitar
+
+1. Certifique-se de que a chave `GEMINI_API_KEY` (ou `GOOGLE_API_KEY`) esteja configurada.
+2. Ajuste a seção `[profiles]` no `egregora.toml`:
+
+   ```toml
+   [profiles]
+   enabled = true
+   profiles_dir = "data/profiles"
+   profiles_docs_dir = "docs/profiles"
+   min_messages = 2
+   min_words_per_message = 15
+   decision_model = "gemini-2.0-flash-exp"
+   rewrite_model = "gemini-2.0-flash-exp"
+   ```
+
+3. Execute o pipeline normalmente. Cada participante que contribuir de forma
+   significativa terá o perfil reavaliado e registrado.
+
+Os perfis publicados ficam acessíveis em `docs/profiles/index.md`, com uma lista
+clicável de todos os membros analisados. Esse arquivo é atualizado a cada execução,
+facilitando o upload como artefato no GitHub Actions ou em outro repositório.
 
 ## 🤝 Contribuição
 

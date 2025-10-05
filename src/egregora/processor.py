@@ -5,8 +5,11 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
+import polars as pl
+
+from .anonymizer import Anonymizer
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
@@ -16,6 +19,7 @@ from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
 from .pipeline import load_previous_newsletter
 from .parser import configure_system_message_filters, load_system_filters_from_file
+from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
 from .transcript import (
@@ -55,6 +59,20 @@ class UnifiedProcessor:
             configure_system_message_filters(filters)
         else:
             configure_system_message_filters(None)
+
+        self._profile_repository: ProfileRepository | None = None
+        self._profile_updater: ProfileUpdater | None = None
+        if self.config.profiles.enabled:
+            self._profile_repository = ProfileRepository(
+                data_dir=self.config.profiles.profiles_dir,
+                docs_dir=self.config.profiles.docs_dir,
+            )
+            self._profile_updater = ProfileUpdater(
+                min_messages=self.config.profiles.min_messages,
+                min_words_per_message=self.config.profiles.min_words_per_message,
+                decision_model=self.config.profiles.decision_model,
+                rewrite_model=self.config.profiles.rewrite_model,
+            )
 
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -309,6 +327,20 @@ class UnifiedProcessor:
             output_path = output_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")
 
+            if self._profile_repository and self._profile_updater:
+                try:
+                    self._update_profiles_for_day(
+                        source=source,
+                        target_date=target_date,
+                        newsletter_text=newsletter,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "    ⚠️ Falha ao atualizar perfis para %s: %s",
+                        target_date,
+                        exc,
+                    )
+
             results.append(output_path)
             try:
                 logger.info(f"    ✅ {output_path.relative_to(Path.cwd())}")
@@ -316,6 +348,162 @@ class UnifiedProcessor:
                 logger.info(f"    ✅ {output_path}")
 
         return results
+
+    def _update_profiles_for_day(
+        self,
+        *,
+        source: GroupSource,
+        target_date: date,
+        newsletter_text: str,
+    ) -> None:
+        repository = self._profile_repository
+        updater = self._profile_updater
+        if repository is None or updater is None:
+            return
+
+        try:
+            df = load_source_dataframe(source)
+        except Exception as exc:
+            logger.debug("    Unable to load dataframe for profiles: %s", exc)
+            return
+
+        df_day = df.filter(pl.col("date") == target_date)
+        if df_day.is_empty():
+            return
+
+        df_day = df_day.sort("timestamp")
+        conversation = self._build_profile_conversation(df_day)
+        if not conversation.strip():
+            return
+
+        client = self._get_profiles_client()
+        if client is None:
+            return
+
+        context_block = self._format_profile_context(target_date, conversation, newsletter_text)
+        updates_made = False
+
+        authors_series = df_day.get_column("author")
+        unique_authors = {
+            str(author).strip()
+            for author in authors_series.to_list()
+            if isinstance(author, str) and author.strip()
+        }
+
+        for raw_author in sorted(unique_authors):
+            member_uuid = Anonymizer.anonymize_author(raw_author, format="full")
+            member_label = Anonymizer.anonymize_author(raw_author, format="human")
+            current_profile = repository.load(member_uuid)
+
+            should_consider, _ = updater.should_update_profile_dataframe(
+                raw_author,
+                current_profile,
+                df_day,
+            )
+            if not should_consider:
+                continue
+
+            try:
+                profile = asyncio.run(
+                    self._async_update_profile(
+                        updater=updater,
+                        member_label=member_label,
+                        current_profile=current_profile,
+                        conversation=conversation,
+                        context_block=context_block,
+                        client=client,
+                    )
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "    ⚠️ Erro ao atualizar perfil de %s: %s",
+                    member_label,
+                    exc,
+                )
+                continue
+
+            if profile is None:
+                continue
+
+            repository.save(member_uuid, profile)
+            updates_made = True
+            logger.info(
+                "    👤 Perfil atualizado: %s (versão %d)",
+                member_label,
+                profile.analysis_version,
+            )
+
+        if updates_made:
+            repository.write_index()
+
+    async def _async_update_profile(
+        self,
+        *,
+        updater: ProfileUpdater,
+        member_label: str,
+        current_profile,
+        conversation: str,
+        context_block: str,
+        client,
+    ) -> Optional[ParticipantProfile]:
+        should_update, reasoning, highlights, insights = await updater.should_update_profile(
+            member_id=member_label,
+            current_profile=current_profile,
+            full_conversation=conversation,
+            gemini_client=client,
+        )
+
+        if not should_update:
+            logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
+            return None
+
+        profile = await updater.rewrite_profile(
+            member_id=member_label,
+            old_profile=current_profile,
+            recent_conversations=[context_block],
+            participation_highlights=highlights,
+            interaction_insights=insights,
+            gemini_client=client,
+        )
+        return profile
+
+    def _build_profile_conversation(self, df_day: pl.DataFrame) -> str:
+        lines: list[str] = []
+        for row in df_day.iter_rows(named=True):
+            timestamp = row.get("timestamp")
+            if hasattr(timestamp, "strftime"):
+                time_str = timestamp.strftime("%H:%M")
+            else:
+                time_str = "??:??"
+            author = str(row.get("author") or "").strip()
+            message = str(row.get("message") or "").strip()
+            if not author:
+                continue
+            member_label = Anonymizer.anonymize_author(author, format="human")
+            lines.append(f"{time_str} - {member_label}: {message}")
+        return "\n".join(lines)
+
+    def _format_profile_context(
+        self,
+        target_date: date,
+        conversation: str,
+        newsletter_text: str,
+    ) -> str:
+        blocks = [f"### {target_date.isoformat()}\n{conversation.strip()}".strip()]
+        if newsletter_text.strip():
+            blocks.append(
+                "### Newsletter do dia\n" + newsletter_text.strip()
+            )
+        return "\n\n".join(blocks)
+
+    def _get_profiles_client(self):
+        if self._profile_updater is None:
+            return None
+        try:
+            return self.generator.client
+        except RuntimeError as exc:
+            logger.warning("    ⚠️ Perfis desativados: %s", exc)
+            return None
 
     def list_groups(self) -> dict[str, dict]:
         """List discovered groups."""

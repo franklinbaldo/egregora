@@ -84,6 +84,38 @@ class AnonymizationConfig(BaseModel):
         return candidate  # type: ignore[return-value]
 
 
+class ProfilesConfig(BaseModel):
+    """Configuration for participant profile generation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    enabled: bool = True
+    profiles_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("data/profiles")
+    )
+    docs_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("docs/profiles")
+    )
+    min_messages: int = 2
+    min_words_per_message: int = 15
+    history_days: int = 5
+    decision_model: str = "gemini-2.0-flash-exp"
+    rewrite_model: str = "gemini-2.0-flash-exp"
+
+    @field_validator("profiles_dir", "docs_dir", mode="before")
+    @classmethod
+    def _validate_directories(cls, value: Any) -> Path:
+        return _ensure_safe_directory(value)
+
+    @field_validator("min_messages", "min_words_per_message", "history_days")
+    @classmethod
+    def _validate_positive(cls, value: Any) -> int:
+        ivalue = int(value)
+        if ivalue < 1:
+            raise ValueError("profile thresholds must be positive integers")
+        return ivalue
+
+
 class PipelineConfig(BaseSettings):
     """Runtime configuration for the newsletter pipeline."""
 
@@ -108,6 +140,7 @@ class PipelineConfig(BaseSettings):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
+    profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     merges: dict[str, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
@@ -171,6 +204,15 @@ class PipelineConfig(BaseSettings):
             return RAGConfig(**value)
         raise TypeError("rag configuration must be a mapping")
 
+    @field_validator("profiles", mode="before")
+    @classmethod
+    def _validate_profiles(cls, value: Any) -> ProfilesConfig:
+        if isinstance(value, ProfilesConfig):
+            return value
+        if isinstance(value, dict):
+            return ProfilesConfig(**value)
+        raise TypeError("profiles configuration must be a mapping")
+
     @field_validator("merges", mode="before")
     @classmethod
     def _validate_merges(cls, value: Any) -> dict[str, MergeConfig]:
@@ -226,6 +268,7 @@ class PipelineConfig(BaseSettings):
         cache: CacheConfig | dict[str, Any] | None = None,
         anonymization: AnonymizationConfig | dict[str, Any] | None = None,
         rag: RAGConfig | dict[str, Any] | None = None,
+        profiles: ProfilesConfig | dict[str, Any] | None = None,
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
         system_message_filters_file: Path | None = None,
@@ -253,6 +296,8 @@ class PipelineConfig(BaseSettings):
             payload["anonymization"] = anonymization
         if rag is not None:
             payload["rag"] = rag
+        if profiles is not None:
+            payload["profiles"] = profiles
         if merges is not None:
             payload["merges"] = merges
         if skip_real_if_in_virtual is not None:
@@ -286,7 +331,7 @@ class PipelineConfig(BaseSettings):
             if filters_file is not None:
                 payload["system_message_filters_file"] = filters_file
 
-        for section in ("llm", "enrichment", "cache", "anonymization", "rag"):
+        for section in ("llm", "enrichment", "cache", "anonymization", "rag", "profiles"):
             if section in data:
                 payload[section] = data[section]
 
@@ -365,5 +410,6 @@ __all__ = [
     "EnrichmentConfig",
     "LLMConfig",
     "PipelineConfig",
+    "ProfilesConfig",
     "RAGConfig",
 ]
