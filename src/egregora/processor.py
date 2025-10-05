@@ -202,6 +202,10 @@ class UnifiedProcessor:
         results = []
         extractor = MediaExtractor(self.config.media_dir)
 
+        exports_by_date: dict[date, list] = {}
+        for export in source.exports:
+            exports_by_date.setdefault(export.export_date, []).append(export)
+
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
 
@@ -215,7 +219,7 @@ class UnifiedProcessor:
             all_media: dict[str, "MediaFile"] = {}
             if attachment_names:
                 remaining = set(attachment_names)
-                for export in source.exports:
+                for export in exports_by_date.get(target_date, []):
                     extracted = extractor.extract_specific_media_from_zip(
                         export.zip_path,
                         target_date,
