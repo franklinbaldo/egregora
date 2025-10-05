@@ -22,11 +22,11 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Two over-engineered custom caching systems reinvent the wheel.
 
 **Action Items**:
-- [ ] Add `diskcache` to project dependencies
-- [ ] Replace `cache_manager.py` with `diskcache`
-  - Update all imports and usages across the codebase
-  - Test cache hit/miss behavior matches original
-  - Remove `cache_manager.py` once verified
+- [x] Add `diskcache` to project dependencies
+- [x] Replace the enrichment cache with `diskcache`
+  - [x] Update all imports and usages across the codebase
+  - [x] Test cache hit/miss behavior matches original
+  - [x] Remove the legacy module once verified
 - [ ] Replace `rag/embedding_cache.py` with `diskcache`
   - Update RAG components to use new cache
   - Verify embedding retrieval performance
