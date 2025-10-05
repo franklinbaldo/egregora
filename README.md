@@ -124,10 +124,10 @@ Também é possível acessar as estatísticas programaticamente:
 
 ```python
 from pathlib import Path
-from egregora.cache import create_enrichment_cache, get_enrichment_stats
+from egregora.cache_manager import CacheManager
 
-cache = create_enrichment_cache(Path("cache"))
-print(get_enrichment_stats(cache))
+manager = CacheManager(Path("cache"))
+print(manager.export_report())
 ```
 
 Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores práticas.

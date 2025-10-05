@@ -7,39 +7,14 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from egregora.cache import create_enrichment_cache
 from egregora.config import EnrichmentConfig
-from egregora.enrichment import (
-    AnalysisResult,
-    EnrichmentResult,
-    EnrichmentWorker,
-    MESSAGE_RE,
-    URL_RE,
-)
+from egregora.enrichment import ContentEnricher, URL_RE, MESSAGE_RE
+from egregora.cache_manager import CacheManager
 from test_framework.helpers import TestDataGenerator
-
-
-class MockGeminiClient:
-    def __init__(self) -> None:
-        self.call_count = 0
-
-    def generate_content(self, *args, **kwargs):
-        self.call_count += 1
-        return Mock(
-            text=json.dumps(
-                {
-                    "summary": "Resumo de teste",
-                    "key_points": ["um", "dois"],
-                    "tone": "informativo",
-                    "relevance": 4,
-                }
-            )
-        )
 
 
 def test_url_extraction_whatsapp_content(temp_dir):
@@ -87,13 +62,13 @@ def test_content_enrichment_with_whatsapp_urls(temp_dir):
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
     
     config = EnrichmentConfig(enabled=True, max_concurrent_requests=2)
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     with patch('egregora.enrichment.genai') as mock_genai:
         mock_client = MockGeminiClient()
         mock_genai.Client.return_value = mock_client
         
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         # Process conversation
         result = enricher.process_conversation(
@@ -111,13 +86,13 @@ def test_enrichment_caching_functionality(temp_dir):
     test_url = "https://example.com/test-article"
     
     config = EnrichmentConfig(enabled=True)
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     with patch('egregora.enrichment.genai') as mock_genai:
         mock_client = MockGeminiClient()
         mock_genai.Client.return_value = mock_client
         
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         # First call should hit the API
         result1 = enricher._analyze_url(test_url)
@@ -140,11 +115,11 @@ def test_media_placeholder_handling(temp_dir):
 09:47 - Franklin: Que acham?"""
     
     config = EnrichmentConfig(enabled=True)
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     with patch('egregora.enrichment.genai') as mock_genai:
         mock_client = MockGeminiClient()
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         result = enricher.process_conversation(content_with_media, date.today())
         
@@ -158,9 +133,9 @@ def test_enrichment_with_disabled_config(temp_dir):
     conversation = TestDataGenerator.create_complex_conversation()
     
     config = EnrichmentConfig(enabled=False)  # Disabled
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
-
-    enricher = EnrichmentWorker(config, cache=enrichment_cache)
+    cache_manager = CacheManager(temp_dir / "cache")
+    
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
     
     result = enricher.process_conversation(conversation, date.today())
     
@@ -173,7 +148,7 @@ def test_enrichment_with_disabled_config(temp_dir):
 def test_error_handling_in_enrichment(temp_dir):
     """Test error handling during enrichment process."""
     config = EnrichmentConfig(enabled=True)
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     # Mock client that raises exceptions
     class FailingClient:
@@ -182,7 +157,7 @@ def test_error_handling_in_enrichment(temp_dir):
     
     with patch('egregora.enrichment.genai') as mock_genai:
         failing_client = FailingClient()
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         # Should handle errors gracefully
         result = enricher._analyze_url("https://example.com/test")
@@ -200,13 +175,13 @@ def test_concurrent_url_processing(temp_dir):
 09:48 - Franklin: https://example.com/link3"""
     
     config = EnrichmentConfig(enabled=True, max_concurrent_requests=3)
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     with patch('egregora.enrichment.genai') as mock_genai:
         mock_client = MockGeminiClient()
         mock_genai.Client.return_value = mock_client
         
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         result = enricher.process_conversation(content_with_multiple_urls, date.today())
         
@@ -219,7 +194,7 @@ def test_concurrent_url_processing(temp_dir):
 def test_relevance_filtering(temp_dir):
     """Test filtering of results based on relevance scores."""
     config = EnrichmentConfig(enabled=True, min_relevance=6)  # Higher threshold
-    enrichment_cache = create_enrichment_cache(temp_dir / "cache")
+    cache_manager = CacheManager(temp_dir / "cache")
     
     # Custom client with varying relevance scores
     class VariableRelevanceClient:
@@ -238,7 +213,7 @@ def test_relevance_filtering(temp_dir):
     
     with patch('egregora.enrichment.genai') as mock_genai:
         variable_client = VariableRelevanceClient()
-        enricher = EnrichmentWorker(config, cache=enrichment_cache)
+        enricher = ContentEnricher(config, cache_manager=cache_manager)
         
         content = """09:45 - Franklin: https://example.com/low-relevance
 09:46 - Franklin: https://example.com/high-relevance"""
