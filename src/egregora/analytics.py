@@ -369,7 +369,9 @@ def detect_emerging_topics(
         return pl.DataFrame({"word": [], "recent_count": [], "historical_count": [], "growth_ratio": []}, schema={"word": pl.String, "recent_count": pl.Int64, "historical_count": pl.Int64, "growth_ratio": pl.Float64})
 
     words_recent = _tokenize_messages(recent_df.get_column("message"), stopwords)
-    words_historical = _tokenize_messages(historical_df.get_column("message"), stopwords)
+    words_historical = _tokenize_messages(
+        historical_df.get_column("message"), stopwords
+    )
 
     recent_counter = Counter(words_recent)
     historical_counter = Counter(words_historical)
@@ -395,193 +397,15 @@ def detect_emerging_topics(
 
 
 def _tokenize_messages(
-    messages: Sequence[str] | pl.Series,
-    stopwords: Iterable[str] | None,
+    messages: Sequence[str] | pl.Series, stopwords: Iterable[str] | None
 ) -> list[str]:
-    """Tokenize messages using a very small Portuguese stopword list."""
+    """Tokenize messages, optionally excluding custom stopwords."""
 
-    if stopwords is None:
-        stopwords = {
-            "o",
-            "a",
-            "de",
-            "que",
-            "e",
-            "do",
-            "da",
-            "em",
-            "um",
-            "para",
-            "é",
-            "com",
-            "não",
-            "uma",
-            "os",
-            "no",
-            "se",
-            "na",
-            "por",
-            "mais",
-            "as",
-            "dos",
-            "como",
-            "mas",
-            "foi",
-            "ao",
-            "ele",
-            "das",
-            "tem",
-            "à",
-            "seu",
-            "sua",
-            "ou",
-            "ser",
-            "quando",
-            "muito",
-            "há",
-            "nos",
-            "já",
-            "está",
-            "eu",
-            "também",
-            "só",
-            "pelo",
-            "pela",
-            "até",
-            "isso",
-            "ela",
-            "entre",
-            "era",
-            "depois",
-            "sem",
-            "mesmo",
-            "aos",
-            "ter",
-            "seus",
-            "suas",
-            "nem",
-            "às",
-            "meu",
-            "minha",
-            "numa",
-            "pelos",
-            "pelas",
-            "essa",
-            "esse",
-            "este",
-            "esta",
-            "então",
-            "ainda",
-            "hoje",
-            "aqui",
-            "agora",
-            "sempre",
-            "todos",
-            "bem",
-            "pode",
-            "onde",
-            "quem",
-            "tudo",
-            "vai",
-            "sim",
-            "sobre",
-            "vez",
-            "tanto",
-            "qual",
-            "cada",
-            "pouco",
-            "antes",
-            "menos",
-            "outro",
-            "outra",
-            "durante",
-            "alguns",
-            "algum",
-            "dia",
-            "tempo",
-            "assim",
-            "lugar",
-            "ano",
-            "trabalho",
-            "casa",
-            "duas",
-            "dois",
-            "nome",
-            "lado",
-            "parte",
-            "grande",
-            "primeiro",
-            "primeira",
-            "última",
-            "último",
-            "pessoa",
-            "coisa",
-            "coisas",
-            "novo",
-            "nova",
-            "toda",
-            "todo",
-            "nada",
-            "vida",
-            "país",
-            "mão",
-            "mãos",
-            "nunca",
-            "vezes",
-            "alta",
-            "alto",
-            "baixo",
-            "baixa",
-            "dir",
-            "esq",
-            "direita",
-            "esquerda",
-            "faz",
-            "fazer",
-            "feito",
-            "feita",
-            "vou",
-            "vamos",
-            "vai",
-            "foram",
-            "são",
-            "sou",
-            "estar",
-            "estava",
-            "estão",
-            "estou",
-            "teve",
-            "tive",
-            "ter",
-            "tinha",
-            "temos",
-            "tenho",
-            "fala",
-            "falar",
-            "falou",
-            "disse",
-            "dizer",
-            "ver",
-            "viu",
-            "visto",
-            "olha",
-            "olhar",
-            "quer",
-            "querer",
-            "saber",
-            "sei",
-            "sabia",
-            "sabe",
-            "poder",
-            "poderia",
-            "deve",
-            "dever",
-            "deveria",
-            "gente",
-            "pessoal",
-            "lá",
-            "ali",
-        }
+    stopwords_set = (
+        {word.casefold() for word in stopwords}
+        if stopwords is not None
+        else set()
+    )
 
     if isinstance(messages, pl.Series):
         iterable: Iterable[str] = messages.to_list()
@@ -589,13 +413,14 @@ def _tokenize_messages(
         iterable = messages
 
     result: list[str] = []
-    stopwords_set = set(stopwords)
     for message in iterable:
         if not message:
             continue
-        for word in message.lower().split():
-            word = word.strip()
-            if len(word) <= 2 or word in stopwords_set:
+        for word in message.split():
+            lowered = word.strip().casefold()
+            if not lowered or len(lowered) <= 2:
                 continue
-            result.append(word)
+            if lowered in stopwords_set:
+                continue
+            result.append(lowered)
     return result

@@ -8,8 +8,9 @@ This plan addresses the critical architectural and engineering issues identified
 
 1. **Incremental Migration**: No "big bang" rewrites. Changes are small, testable, and reversible.
 2. **Risk Minimization**: High-impact, low-risk changes first (e.g., library replacements).
-3. **DataFrame-Native Architecture**: All data processing should use `polars` DataFrames end-to-end.
-4. **Standard Libraries First**: Prefer battle-tested libraries over custom implementations.
+3. **LLM-First Architecture**: Sempre que a tarefa for semântica (classificar, resumir, agrupar, extrair campos), use LLM com saída estruturada; evite NLP tradicional.
+4. **DataFrame-Native**: I/O e orquestração em `polars` fim-a-fim; LLM entra apenas como "função" que transforma dados.
+5. **Standard Libraries First**: Prefer battle-tested libraries over custom implementations.
 
 ---
 
@@ -64,54 +65,41 @@ This plan addresses the critical architectural and engineering issues identified
 
 ---
 
-### 1.3 Externalize Hardcoded Data
-**Priority: MEDIUM | Risk: LOW | Effort: LOW**
+### 1.3 LLM-First Text Ops (replace legacy NLP)
+**Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Problem**: Configuration data hardcoded in Python files.
+**Problem**: Stoplists, TF-IDF e filtros manuais aumentam manutenção e quebram com variações linguísticas.
 
 **Action Items**:
-- [ ] Externalize Portuguese stopwords from `analytics.py`
-  - Create `config/stopwords_pt.txt` or similar
-  - Update `analytics.py` to load from file
-  - Make stopword list configurable per language
-
-- [ ] Externalize system message filters from `parser.py`
-  - Create `config/system_message_filters.txt` or similar
-  - Update `parser.py` to load from file
-  - Allow custom filter lists via configuration
+- [ ] Remover dependência de stopwords e n-grams em `analytics.py`; substituir por resumos/contagens estruturadas via LLM (JSON: `{summary, topics[], actions[]}`).
+- [ ] Substituir “system message filters” manuais em `parser.py` por uma classificação leve via LLM (campos `{is_system, is_noise, reason}`) aplicada linha-a-linha com budget controlado.
+- [ ] Documentar limites de custo (p.ex. máx. 0.5k chamadas/dia) e cachear respostas por hash do conteúdo.
+- [ ] Introduzir o agente tipado do `pydanticai` como orquestrador das respostas estruturadas do Gemini.
 
 **Success Criteria**:
-- All data lists are externalized and configurable
-- Code is cleaner and more maintainable
+- Zero listas de stopwords e heurísticas linguísticas fixas.
+- Mesmas ou melhores métricas de precisão/recall em rotulagem e analytics, com custo sob orçamento.
+- Respostas estruturadas validadas por modelos `pydanticai`.
 
 ---
 
 ## Phase 2: Architecture Migration (High-Impact, Medium-Risk)
 
-### 2.1 Audit and Deprecate Legacy Systems
-**Priority: HIGH | Risk: MEDIUM | Effort: MEDIUM**
+### 2.1 Standardize Retrieval on txtai + pydanticai (remove TF-IDF)
+**Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Problem**: Redundant TF-IDF search system coexists with modern llama-index RAG.
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com `txtai.Embeddings` + agentes `pydanticai` alimentados pelo Gemini.
 
 **Action Items**:
-- [ ] Audit usage of `rag/search.py` (legacy TF-IDF)
-  - Identify all callsites across the codebase
-  - Document what functionality it currently provides
-  - Compare capabilities with llama-index RAG
-
-- [ ] Create migration path if needed
-  - If TF-IDF provides unique value, document why
-  - Otherwise, create deprecation plan
-
-- [ ] Deprecate or remove legacy TF-IDF
-  - Update all consumers to use llama-index
-  - Remove `rag/search.py` and related code
-  - Update documentation
+- [ ] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
+- [ ] Introduzir `txtai` como índice vetorial primário (ingestão `(id, texto, meta)` e busca `search`).
+- [ ] Reorquestrar respostas com `pydanticai.Agent`, mantendo cache e limites de custo.
+- [ ] Validar paridade de resultados com amostras reais de busca.
 
 **Success Criteria**:
-- Single, unified search/RAG system
-- No redundant search implementations
-- Clear documentation of chosen approach
+- Único sistema de busca/RAG (txtai + Gemini via pydanticai).
+- Nenhuma implementação redundante baseada em TF-IDF ou LlamaIndex.
+- Documentação e testes alinhados ao fluxo LLM/embeddings.
 
 ---
 
@@ -192,7 +180,7 @@ This plan addresses the critical architectural and engineering issues identified
 - [ ] Document the unified pipeline flow
 - [ ] Create migration guide for users of old API
 - [ ] Update API documentation
-- [ ] Document configuration options for externalized data
+- [ ] Document LLM usage patterns, budget limits e estratégias de cache/embeddings
 
 ### 3.3 Testing & Validation
 **Priority: HIGH | Risk: LOW | Effort: MEDIUM**
@@ -210,10 +198,10 @@ This plan addresses the critical architectural and engineering issues identified
 ### Sprint 1 (Week 1-2): Foundation
 - Replace custom caching systems
 - Adopt standard libraries (dateutil, Pydantic)
-- Externalize hardcoded data
+- Implement LLM-first text operations para analytics e parser (Gemini + `pydanticai`, respostas estruturadas, caching, budget guardrails)
 
 ### Sprint 2 (Week 3-4): Legacy Cleanup
-- Audit and deprecate TF-IDF system
+- Standardize retrieval on txtai + pydanticai (remove TF-IDF stack)
 - Begin DataFrame-native refactoring of enrichment.py
 
 ### Sprint 3 (Week 5-6): Core Migration
@@ -227,7 +215,7 @@ This plan addresses the critical architectural and engineering issues identified
 
 ### Sprint 5 (Week 9-10): Polish
 - Performance optimization
-- Documentation updates
+- Documentation updates (architecture, LLM cost controls, fluxo txtai + pydanticai + Gemini)
 - Final testing and validation
 
 ---
@@ -256,6 +244,11 @@ This plan addresses the critical architectural and engineering issues identified
   - Reduced codebase complexity
   - Clear separation of concerns
   - Improved documentation
+- **LLM-First Execution**:
+  - Tarefas semânticas atendidas por fluxos de LLM com saídas estruturadas
+  - Custo e latência sob controle via cache/configuração documentada
+  - Ausência de heurísticas linguísticas manuais (stopwords, TF-IDF, filtros fixos)
+  - Recuperação e orquestração padronizadas em `txtai` + `pydanticai`
 
 - **Architecture**:
   - DataFrame-native end-to-end

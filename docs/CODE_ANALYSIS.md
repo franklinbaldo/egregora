@@ -39,8 +39,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 
 ### `src/egregora/analytics.py`
 *   **Verdict:** Good, but with a missed opportunity.
-*   **Analysis:** A powerful analytics module using `polars`. The main weakness is a large, hardcoded list of Portuguese stopwords.
-*   **Recommendation:** Externalize the stopword list to a configuration file to make it manageable and customizable.
+*   **Analysis:** A powerful analytics module using `polars`. Tokenization now relies on minimal filtering, avoiding the maintenance burden of Portuguese stopword lists.
+*   **Recommendation:** Continue validating topic detection accuracy as the dataset evolves.
 
 ### `src/egregora/anonymizer.py`
 *   **Verdict:** Excellent.

@@ -7,7 +7,10 @@ import logging
 import re
 import zipfile
 from datetime import datetime
-from typing import Iterable
+from functools import lru_cache
+from importlib import resources
+from pathlib import Path
+from typing import Iterable, Sequence
 
 import polars as pl
 
@@ -18,7 +21,11 @@ from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip
 logger = logging.getLogger(__name__)
 
 
-def parse_export(export: WhatsAppExport) -> pl.DataFrame:
+def parse_export(
+    export: WhatsAppExport,
+    *,
+    system_message_filters: Iterable[str] | None = None,
+) -> pl.DataFrame:
     """Parse an individual export into a Polars ``DataFrame``."""
 
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -28,7 +35,9 @@ def parse_export(export: WhatsAppExport) -> pl.DataFrame:
         try:
             with zf.open(export.chat_file) as raw:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                rows = _parse_messages(text_stream, export)
+                rows = _parse_messages(
+                    text_stream, export, filters=system_message_filters
+                )
         except UnicodeDecodeError as exc:
             raise ZipValidationError(
                 f"Failed to decode chat file '{export.chat_file}': {exc}"
@@ -41,14 +50,18 @@ def parse_export(export: WhatsAppExport) -> pl.DataFrame:
     return pl.DataFrame(rows).sort("timestamp")
 
 
-def parse_multiple(exports: list[WhatsAppExport]) -> pl.DataFrame:
+def parse_multiple(
+    exports: Sequence[WhatsAppExport],
+    *,
+    system_message_filters: Iterable[str] | None = None,
+) -> pl.DataFrame:
     """Parse multiple exports and concatenate them ordered by timestamp."""
 
     frames: list[pl.DataFrame] = []
 
     for export in exports:
         try:
-            df = parse_export(export)
+            df = parse_export(export, system_message_filters=system_message_filters)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
@@ -74,7 +87,12 @@ _LINE_PATTERN = re.compile(
 )
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
+def _parse_messages(
+    lines: Iterable[str],
+    export: WhatsAppExport,
+    *,
+    filters: Iterable[str] | None,
+) -> list[dict]:
     """Parse messages from an iterable of strings."""
 
     rows: list[dict] = []
@@ -116,7 +134,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             logger.debug("Failed to parse time '%s' in line: %s", time_str, line)
             continue
 
-        if _is_system_message(author.strip(), message.strip()):
+        if _is_system_message(author.strip(), message.strip(), filters=filters):
             continue
 
         rows.append(
@@ -135,29 +153,62 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     return rows
 
 
-def _is_system_message(author: str, message: str) -> bool:
+def _is_system_message(
+    author: str,
+    message: str,
+    *,
+    filters: Iterable[str] | None,
+) -> bool:
     """Check if this is a WhatsApp system message to skip."""
 
-    system_phrases = [
-        "mudou o assunto do grupo",
-        "changed the group subject",
-        "cambió el asunto del grupo",
-        "adicionou",
-        "added you",
-        "te agregó",
-        "saiu",
-        "left",
-        "salió",
-        "criou o grupo",
-        "created group",
-        "creó el grupo",
-        "as mensagens e chamadas",
-        "messages and calls",
-        "los mensajes y las llamadas",
-        "criptografia de ponta a ponta",
-        "end-to-end encrypted",
-        "cifrado de extremo a extremo",
-    ]
+    phrases = _resolve_system_filters(filters)
+    if not phrases:
+        return False
 
     combined_text = f"{author} {message}".casefold()
-    return any(phrase in combined_text for phrase in system_phrases)
+    return any(phrase in combined_text for phrase in phrases)
+
+
+def configure_system_message_filters(filters: Iterable[str] | None) -> None:
+    """Override the default system message filters at runtime."""
+
+    global _SYSTEM_FILTERS_OVERRIDE
+    if filters is None:
+        _SYSTEM_FILTERS_OVERRIDE = None
+        return
+
+    processed = tuple({phrase.casefold() for phrase in filters if phrase.strip()})
+    _SYSTEM_FILTERS_OVERRIDE = processed or None
+
+
+def load_system_filters_from_file(path: Path) -> tuple[str, ...]:
+    """Load custom system message filters from ``path``."""
+
+    content = path.read_text(encoding="utf-8")
+    phrases = [line.strip() for line in content.splitlines() if line.strip()]
+    return tuple(phrase.casefold() for phrase in phrases)
+
+
+def _resolve_system_filters(filters: Iterable[str] | None) -> tuple[str, ...]:
+    if filters is not None:
+        return tuple({phrase.casefold() for phrase in filters if phrase.strip()})
+    if _SYSTEM_FILTERS_OVERRIDE is not None:
+        return _SYSTEM_FILTERS_OVERRIDE
+    return _load_default_system_filters()
+
+
+@lru_cache(maxsize=1)
+def _load_default_system_filters() -> tuple[str, ...]:
+    try:
+        data = resources.files("egregora.data").joinpath(
+            "system_message_filters.txt"
+        )
+        content = data.read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError):
+        return tuple()
+
+    phrases = [line.strip() for line in content.splitlines() if line.strip()]
+    return tuple(phrase.casefold() for phrase in phrases)
+
+
+_SYSTEM_FILTERS_OVERRIDE: tuple[str, ...] | None = None

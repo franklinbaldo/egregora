@@ -2,57 +2,71 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
-from ..config import RAGConfig
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-try:  # Python 3.11+
-    import tomllib as toml  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - fallback for Py311-
-    import tomli as toml  # type: ignore
+from ..config import _ensure_safe_directory
+from ..rag.config import RAGConfig
 
 
-@dataclass(slots=True)
-class MCPServerConfig:
+class MCPServerConfig(BaseModel):
     """Runtime configuration values for the MCP server."""
 
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True, validate_assignment=True)
+
     config_path: Path | None = None
-    newsletters_dir: Path = Path("data/daily")
-    cache_dir: Path = Path("cache") / "rag"
-    rag: RAGConfig = RAGConfig()
+    newsletters_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/daily"))
+    cache_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("cache/rag"))
+    rag: RAGConfig = Field(default_factory=RAGConfig)
+
+    @field_validator("newsletters_dir", "cache_dir", mode="before")
+    @classmethod
+    def _validate_directories(cls, value: Any) -> Path:
+        return _ensure_safe_directory(value)
+
+    @field_validator("rag", mode="before")
+    @classmethod
+    def _validate_rag(cls, value: Any) -> RAGConfig:
+        if isinstance(value, RAGConfig):
+            return value
+        if isinstance(value, Mapping):
+            return RAGConfig(**dict(value))
+        raise TypeError("rag configuration must be a mapping")
 
     @classmethod
     def from_path(cls, path: Path | None) -> "MCPServerConfig":
         if not path or not path.exists():
             return cls(config_path=path)
 
-        data = toml.loads(path.read_text(encoding="utf-8"))
-        rag_data = data.get("rag", {}) if isinstance(data, Mapping) else {}
+        try:
+            data = path.read_text(encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - filesystem failures
+            raise ValueError(f"Unable to read MCP configuration: {exc}") from exc
 
-        rag_kwargs: dict[str, object] = {}
-        cache_dir = cls.cache_dir
-        newsletters_dir = cls.newsletters_dir
+        import tomllib
 
-        if isinstance(rag_data, Mapping):
-            allowed = set(RAGConfig.__dataclass_fields__.keys())
-            for key, value in rag_data.items():
-                if key in {"cache_dir", "newsletters_dir"}:
-                    if key == "cache_dir":
-                        cache_dir = Path(value)
-                    else:
-                        newsletters_dir = Path(value)
-                    continue
-                if key in allowed:
-                    rag_kwargs[key] = value
+        payload = tomllib.loads(data)
+        rag_section = payload.get("rag") if isinstance(payload, Mapping) else None
+        rag_data: dict[str, Any] = {}
+        newsletters_dir = None
+        cache_dir = None
 
-        rag_config = RAGConfig(**rag_kwargs) if rag_kwargs else RAGConfig()
+        if isinstance(rag_section, Mapping):
+            for key, value in rag_section.items():
+                if key == "newsletters_dir":
+                    newsletters_dir = value
+                elif key == "cache_dir":
+                    cache_dir = value
+                else:
+                    rag_data[key] = value
+
         return cls(
             config_path=path,
-            newsletters_dir=newsletters_dir.expanduser(),
-            cache_dir=cache_dir.expanduser(),
-            rag=rag_config,
+            newsletters_dir=newsletters_dir or _ensure_safe_directory("data/daily"),
+            cache_dir=cache_dir or _ensure_safe_directory("cache/rag"),
+            rag=RAGConfig(**rag_data) if rag_data else RAGConfig(),
         )
 
 

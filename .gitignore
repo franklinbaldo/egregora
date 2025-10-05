@@ -25,6 +25,8 @@ cache/
 
 # Data and config
 data/
+!src/egregora/data/
+!src/egregora/data/**
 egregora.toml
 *.zip:Zone.Identifier
 
