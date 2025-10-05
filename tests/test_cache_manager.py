@@ -9,11 +9,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.cache_manager import CacheManager
+from egregora.cache_manager import CacheManager, ISO_FORMAT
 
 
 def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    timestamp = datetime.now(timezone.utc).strftime(ISO_FORMAT)
     return {
         "model": model,
         "analyzed_at": timestamp,
@@ -72,12 +72,7 @@ def test_set_and_get_roundtrip(tmp_path: Path) -> None:
     assert stats["cache_hits"] == 1
     assert stats["cache_misses"] == 1
     assert pytest.approx(stats["cache_hit_rate"], rel=1e-3) == 0.5
-
-    index_path = manager.index_path
-    index_data = json.loads(index_path.read_text(encoding="utf-8"))
-    entry = next(iter(index_data["entries"].values()))
-    assert entry["hit_count"] == 1
-    assert entry["analysis_path"].startswith("cache/analyses/")
+    assert stats["total_entries"] == 1
 
 
 def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
@@ -86,28 +81,21 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
     manager.set(url, _build_analysis())
 
     uuid_value = manager.generate_uuid(url)
-    manager._index["entries"][uuid_value]["last_used"] = (
+    entry = manager._cache.get(uuid_value)  # type: ignore[attr-defined]
+    assert entry is not None
+    entry["last_used"] = (
         datetime.now(timezone.utc) - timedelta(days=120)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
-    manager._save_index()
+    ).strftime(ISO_FORMAT)
+    manager._cache.set(uuid_value, entry)  # type: ignore[attr-defined]
 
     removed = manager.cleanup_old_entries(90)
     assert removed == 1
     assert not manager.exists(url)
 
 
-def test_corrupted_analysis_marks_entry_as_error(tmp_path: Path) -> None:
+def test_missing_entry_counts_as_miss(tmp_path: Path) -> None:
     manager = CacheManager(tmp_path / "cache")
-    url = "https://example.com/corrompido"
-    manager.set(url, _build_analysis())
-
-    uuid_value = manager.generate_uuid(url)
-    entry = manager._index["entries"][uuid_value]
-    analysis_path = manager._resolve_analysis_path(entry["analysis_path"])
-    assert analysis_path is not None
-    analysis_path.write_text("{invalid}", encoding="utf-8")
-
-    cached = manager.get(url)
-    assert cached is None
-    updated_entry = manager._index["entries"][uuid_value]
-    assert updated_entry["status"] == "error"
+    assert manager.get("https://example.com/absent") is None
+    stats = manager.get_stats()
+    assert stats["cache_hits"] == 0
+    assert stats["cache_misses"] == 1

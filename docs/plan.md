@@ -70,10 +70,9 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Configuration data hardcoded in Python files.
 
 **Action Items**:
-- [ ] Externalize Portuguese stopwords from `analytics.py`
-  - Create `config/stopwords_pt.txt` or similar
-  - Update `analytics.py` to load from file
-  - Make stopword list configurable per language
+- [x] Remove Portuguese stopword filtering from `analytics.py`
+  - Rely on minimal token-length checks instead of maintaining stopword lists
+  - Drop package data and configuration toggles tied to stopwords
 
 - [ ] Externalize system message filters from `parser.py`
   - Create `config/system_message_filters.txt` or similar
@@ -81,7 +80,7 @@ This plan addresses the critical architectural and engineering issues identified
   - Allow custom filter lists via configuration
 
 **Success Criteria**:
-- All data lists are externalized and configurable
+- Hardcoded data either removed when redundant or externalized when needed
 - Code is cleaner and more maintainable
 
 ---

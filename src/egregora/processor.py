@@ -15,6 +15,7 @@ from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
 from .pipeline import load_previous_newsletter
+from .parser import configure_system_message_filters, load_system_filters_from_file
 from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
 from .transcript import (
@@ -49,6 +50,11 @@ class UnifiedProcessor:
     def __init__(self, config: PipelineConfig):
         self.config = config
         self.generator = NewsletterGenerator(config)
+        if config.system_message_filters_file:
+            filters = load_system_filters_from_file(config.system_message_filters_file)
+            configure_system_message_filters(filters)
+        else:
+            configure_system_message_filters(None)
 
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -245,7 +251,16 @@ class UnifiedProcessor:
             # Enrichment
             enrichment_section = None
             if self.config.enrichment.enabled:
-                cache_manager = CacheManager(self.config.cache.cache_dir)
+                cache_manager = None
+                if self.config.cache.enabled:
+                    cache_manager = CacheManager(
+                        self.config.cache.cache_dir,
+                        size_limit_mb=self.config.cache.max_disk_mb,
+                    )
+                    if self.config.cache.auto_cleanup_days:
+                        cache_manager.cleanup_old_entries(
+                            self.config.cache.auto_cleanup_days
+                        )
                 enricher = ContentEnricher(self.config.enrichment, cache_manager=cache_manager)
                 enrichment_result = asyncio.run(enricher.enrich([(target_date, transcript)], client=self.generator.client))
                 enrichment_section = enrichment_result.format_for_prompt(

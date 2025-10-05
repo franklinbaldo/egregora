@@ -1,92 +1,214 @@
-"""Configuration helpers for the newsletter pipeline."""
+"""Configuration helpers powered by :mod:`pydantic`."""
 
 from __future__ import annotations
 
-import copy
-from dataclasses import dataclass, field
 from datetime import tzinfo
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic_settings import BaseSettings
+
 from .anonymizer import FormatType
-from .rag.config import RAGConfig
 from .models import MergeConfig
+from .rag.config import RAGConfig
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
+_VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
 
-@dataclass(slots=True)
-class LLMConfig:
-    """Configuration for the language model."""
+
+class LLMConfig(BaseModel):
+    """Configuration options for the language model."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     safety_threshold: str = "BLOCK_NONE"
     thinking_budget: int = -1
 
 
-@dataclass(slots=True)
-class CacheConfig:
+class CacheConfig(BaseModel):
     """Configuration for the persistent enrichment cache."""
 
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
     enabled: bool = True
-    cache_dir: Path = Path("cache")
+    cache_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("cache"))
     auto_cleanup_days: int | None = 90
     max_disk_mb: int | None = 100
 
+    @field_validator("cache_dir", mode="before")
+    @classmethod
+    def _validate_cache_dir(cls, value: Any) -> Path:
+        return _ensure_safe_directory(value)
 
-@dataclass(slots=True)
-class EnrichmentConfig:
+
+class EnrichmentConfig(BaseModel):
     """Configuration specific to the enrichment subsystem."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
     enrichment_model: str = "gemini-2.0-flash-exp"
     max_links: int = 50
     context_window: int = 3
     relevance_threshold: int = 2
-    max_concurrent_analyses: int = 5
+    max_concurrent_analyses: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "max_concurrent_analyses",
+            "max_concurrent_requests",
+        ),
+    )
     max_total_enrichment_time: float = 120.0
 
 
-@dataclass(slots=True)
-class AnonymizationConfig:
-    """Configuration for author anonymization.
+class AnonymizationConfig(BaseModel):
+    """Configuration for author anonymisation."""
 
-    Attributes:
-        enabled: Controls whether author names are converted before prompting.
-        output_format: Style of the anonymized identifiers:
-            - ``"human"`` → formato legível (ex.: ``Member-A1B2``).
-            - ``"short"`` → 8 caracteres hexadecimais (ex.: ``a1b2c3d4``).
-            - ``"full"`` → UUID completo.
-    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
     output_format: FormatType = "human"
 
+    @field_validator("output_format", mode="before")
+    @classmethod
+    def _validate_output_format(cls, value: Any) -> FormatType:
+        candidate = str(value)
+        if candidate not in ("human", "short", "full"):
+            raise ValueError(
+                "output_format must be one of 'human', 'short' or 'full'"
+            )
+        return candidate  # type: ignore[return-value]
 
-_VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
 
-
-@dataclass(slots=True)
-class PipelineConfig:
+class PipelineConfig(BaseSettings):
     """Runtime configuration for the newsletter pipeline."""
 
-    zips_dir: Path
-    newsletters_dir: Path
-    media_dir: Path
-    model: str
-    timezone: tzinfo
-    llm: LLMConfig = field(default_factory=LLMConfig)
-    enrichment: EnrichmentConfig
-    cache: CacheConfig
-    anonymization: AnonymizationConfig
-    rag: RAGConfig
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+    )
 
-    # Virtual groups (merges) - main configuration for multi-group processing
-    merges: dict[str, MergeConfig] = field(default_factory=dict)
-
-    # If True, skip real groups that are part of virtual groups
+    zips_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips")
+    )
+    newsletters_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("data/daily")
+    )
+    media_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("media"))
+    model: str = DEFAULT_MODEL
+    timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
+    merges: dict[str, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
+    system_message_filters_file: Path | None = None
+
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def _coerce_timezone(cls, value: Any) -> ZoneInfo:
+        if isinstance(value, ZoneInfo):
+            return value
+        if isinstance(value, str):
+            return ZoneInfo(value)
+        raise TypeError("timezone must be an IANA timezone string or ZoneInfo")
+
+    @field_validator("zips_dir", "newsletters_dir", "media_dir", mode="before")
+    @classmethod
+    def _validate_directories(cls, value: Any) -> Path:
+        return _ensure_safe_directory(value)
+
+    @field_validator("llm", mode="before")
+    @classmethod
+    def _validate_llm(cls, value: Any) -> LLMConfig:
+        if isinstance(value, LLMConfig):
+            return value
+        if isinstance(value, dict):
+            return LLMConfig(**value)
+        raise TypeError("llm configuration must be a mapping")
+
+    @field_validator("enrichment", mode="before")
+    @classmethod
+    def _validate_enrichment(cls, value: Any) -> EnrichmentConfig:
+        if isinstance(value, EnrichmentConfig):
+            return value
+        if isinstance(value, dict):
+            return EnrichmentConfig(**value)
+        raise TypeError("enrichment configuration must be a mapping")
+
+    @field_validator("cache", mode="before")
+    @classmethod
+    def _validate_cache(cls, value: Any) -> CacheConfig:
+        if isinstance(value, CacheConfig):
+            return value
+        if isinstance(value, dict):
+            return CacheConfig(**value)
+        raise TypeError("cache configuration must be a mapping")
+
+    @field_validator("anonymization", mode="before")
+    @classmethod
+    def _validate_anonymization(cls, value: Any) -> AnonymizationConfig:
+        if isinstance(value, AnonymizationConfig):
+            return value
+        if isinstance(value, dict):
+            return AnonymizationConfig(**value)
+        raise TypeError("anonymization configuration must be a mapping")
+
+    @field_validator("rag", mode="before")
+    @classmethod
+    def _validate_rag(cls, value: Any) -> RAGConfig:
+        if isinstance(value, RAGConfig):
+            return value
+        if isinstance(value, dict):
+            return RAGConfig(**value)
+        raise TypeError("rag configuration must be a mapping")
+
+    @field_validator("merges", mode="before")
+    @classmethod
+    def _validate_merges(cls, value: Any) -> dict[str, MergeConfig]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise TypeError("merges must be a mapping")
+
+        merges: dict[str, MergeConfig] = {}
+        for slug, payload in value.items():
+            if not isinstance(payload, dict):
+                raise TypeError(f"Merge '{slug}' must be a mapping")
+            tag_style = payload.get("tag_style", "emoji")
+            if tag_style not in _VALID_TAG_STYLES:
+                raise ValueError(
+                    f"Invalid tag_style '{tag_style}' for merge '{slug}'"
+                )
+            groups = payload.get("groups", [])
+            if not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
+                raise ValueError(f"Merge '{slug}' groups must be a list of strings")
+            if not groups:
+                raise ValueError(
+                    f"Merge '{slug}' must include at least one source group"
+                )
+            merges[slug] = MergeConfig(
+                name=payload["name"],
+                source_groups=list(groups),
+                tag_style=tag_style,  # type: ignore[arg-type]
+                group_emojis=payload.get("emojis", {}),
+                model_override=payload.get("model"),
+            )
+        return merges
+
+    @field_validator("system_message_filters_file", mode="before")
+    @classmethod
+    def _validate_filters_path(cls, value: Any) -> Path | None:
+        if value is None:
+            return None
+        return _ensure_safe_directory(value)
 
     @classmethod
     def with_defaults(
@@ -97,107 +219,83 @@ class PipelineConfig:
         media_dir: Path | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
-        llm: LLMConfig | None = None,
-        enrichment: EnrichmentConfig | None = None,
-        cache: CacheConfig | None = None,
-        anonymization: AnonymizationConfig | None = None,
-        rag: RAGConfig | None = None,
-        merges: dict[str, MergeConfig] | None = None,
-        skip_real_if_in_virtual: bool = True,
+        llm: LLMConfig | dict[str, Any] | None = None,
+        enrichment: EnrichmentConfig | dict[str, Any] | None = None,
+        cache: CacheConfig | dict[str, Any] | None = None,
+        anonymization: AnonymizationConfig | dict[str, Any] | None = None,
+        rag: RAGConfig | dict[str, Any] | None = None,
+        merges: dict[str, Any] | None = None,
+        skip_real_if_in_virtual: bool | None = None,
+        system_message_filters_file: Path | None = None,
     ) -> "PipelineConfig":
-        """Create a configuration using project defaults."""
-
-        return cls(
-            zips_dir=_ensure_safe_directory(zips_dir or Path("data/whatsapp_zips")),
-            newsletters_dir=_ensure_safe_directory(
-                newsletters_dir or Path("data/daily")
-            ),
-            media_dir=_ensure_safe_directory(media_dir or Path("media")),
-            model=model or DEFAULT_MODEL,
-            timezone=timezone or ZoneInfo(DEFAULT_TIMEZONE),
-            llm=(copy.deepcopy(llm) if llm else LLMConfig()),
-            enrichment=(
-                copy.deepcopy(enrichment) if enrichment else EnrichmentConfig()
-            ),
-            cache=(copy.deepcopy(cache) if cache else CacheConfig()),
-            anonymization=(
-                copy.deepcopy(anonymization) if anonymization else AnonymizationConfig()
-            ),
-            rag=(copy.deepcopy(rag) if rag else RAGConfig()),
-            merges=(copy.deepcopy(merges) if merges else {}),
-            skip_real_if_in_virtual=skip_real_if_in_virtual,
-        )
+        payload: dict[str, Any] = {}
+        if zips_dir is not None:
+            payload["zips_dir"] = zips_dir
+        if newsletters_dir is not None:
+            payload["newsletters_dir"] = newsletters_dir
+        if media_dir is not None:
+            payload["media_dir"] = media_dir
+        if model is not None:
+            payload["model"] = model
+        if timezone is not None:
+            payload["timezone"] = timezone
+        if llm is not None:
+            payload["llm"] = llm
+        if enrichment is not None:
+            payload["enrichment"] = enrichment
+        if cache is not None:
+            payload["cache"] = cache
+        if anonymization is not None:
+            payload["anonymization"] = anonymization
+        if rag is not None:
+            payload["rag"] = rag
+        if merges is not None:
+            payload["merges"] = merges
+        if skip_real_if_in_virtual is not None:
+            payload["skip_real_if_in_virtual"] = skip_real_if_in_virtual
+        if system_message_filters_file is not None:
+            payload["system_message_filters_file"] = system_message_filters_file
+        return cls(**payload)
 
     @classmethod
     def from_toml(cls, toml_path: Path) -> "PipelineConfig":
-        """Load configuration from TOML file."""
-
         data = _load_toml_data(toml_path)
+        payload: dict[str, Any] = {}
 
-        # Parse merges
-        merges_raw = data.get("merges", {})
-        if not isinstance(merges_raw, dict):
-            raise ValueError("'merges' section must be a table")
+        directories = data.get("directories", {})
+        if isinstance(directories, dict):
+            for key in ("zips_dir", "newsletters_dir", "media_dir"):
+                value = directories.get(key)
+                if value is not None:
+                    payload[key] = value
 
-        merges: dict[str, MergeConfig] = {}
-        for slug, merge_data in merges_raw.items():
-            if not isinstance(merge_data, dict):
-                raise ValueError(f"Merge '{slug}' must be a table")
-            tag_style = merge_data.get("tag_style", "emoji")
-            if tag_style not in _VALID_TAG_STYLES:
-                raise ValueError(f"Invalid tag_style '{tag_style}' for merge '{slug}'")
-
-            groups = merge_data.get("groups", [])
-            if not isinstance(groups, list) or not all(
-                isinstance(g, str) for g in groups
-            ):
-                raise ValueError(f"Merge '{slug}' groups must be a list of strings")
-            if not groups:
-                raise ValueError(
-                    f"Merge '{slug}' must include at least one source group"
-                )
-
-            merges[slug] = MergeConfig(
-                name=merge_data["name"],
-                source_groups=groups,
-                tag_style=tag_style,
-                group_emojis=merge_data.get("emojis", {}),
-                model_override=merge_data.get("model"),
-            )
-
-        # Parse directories
-        dirs = data.get("directories", {})
         pipeline = data.get("pipeline", {})
-        if not isinstance(dirs, dict):
-            raise ValueError("'directories' section must be a table")
-        if not isinstance(pipeline, dict):
-            raise ValueError("'pipeline' section must be a table")
+        if isinstance(pipeline, dict):
+            for key in ("model", "skip_real_if_in_virtual"):
+                value = pipeline.get(key)
+                if value is not None:
+                    payload[key] = value
+            timezone_value = pipeline.get("timezone")
+            if timezone_value is not None:
+                payload["timezone"] = timezone_value
+            filters_file = pipeline.get("system_message_filters_file")
+            if filters_file is not None:
+                payload["system_message_filters_file"] = filters_file
 
-        return cls(
-            zips_dir=_ensure_safe_directory(dirs.get("zips_dir", "data/whatsapp_zips")),
-            newsletters_dir=_ensure_safe_directory(
-                dirs.get("newsletters_dir", "data/daily")
-            ),
-            media_dir=_ensure_safe_directory(dirs.get("media_dir", "media")),
-            model=pipeline.get("model", DEFAULT_MODEL),
-            timezone=ZoneInfo(pipeline.get("timezone", DEFAULT_TIMEZONE)),
-            llm=LLMConfig(**data.get("llm", {})),
-            enrichment=EnrichmentConfig(**data.get("enrichment", {})),
-            cache=CacheConfig(**data.get("cache", {})),
-            anonymization=AnonymizationConfig(**data.get("anonymization", {})),
-            rag=RAGConfig(**data.get("rag", {})),
-            merges=merges,
-            skip_real_if_in_virtual=pipeline.get("skip_real_if_in_virtual", True),
-        )
+        for section in ("llm", "enrichment", "cache", "anonymization", "rag"):
+            if section in data:
+                payload[section] = data[section]
+
+        if "merges" in data:
+            payload["merges"] = data["merges"]
+
+        return cls(**payload)
 
 
 def _ensure_safe_directory(path_value: Any) -> Path:
     """Validate and normalise directory paths loaded from configuration."""
 
-    if isinstance(path_value, Path):
-        candidate = path_value.expanduser()
-    else:
-        candidate = Path(str(path_value)).expanduser()
+    candidate = Path(path_value).expanduser()
 
     if any(part == ".." for part in candidate.parts):
         raise ValueError(f"Directory path '{candidate}' must not contain '..'")
@@ -211,7 +309,7 @@ def _ensure_safe_directory(path_value: Any) -> Path:
 
     try:
         resolved.relative_to(base_dir)
-    except ValueError:  # pragma: no cover - defensive on Path API differences
+    except ValueError:
         raise ValueError(
             f"Directory path '{candidate}' must reside within the project directory"
         )
@@ -219,7 +317,7 @@ def _ensure_safe_directory(path_value: Any) -> Path:
     return resolved
 
 
-_MAX_TOML_BYTES = 512 * 1024  # 512KB should be plenty for configuration files
+_MAX_TOML_BYTES = 512 * 1024
 
 
 def _load_toml_data(toml_path: Path) -> dict[str, Any]:
@@ -256,7 +354,6 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
 
 
 __all__ = [
-    # Removed DEFAULT_GROUP_NAME - groups are auto-discovered
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",
