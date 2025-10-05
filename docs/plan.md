@@ -177,7 +177,7 @@ This plan addresses the critical architectural and engineering issues identified
 - [ ] Document the unified pipeline flow
 - [ ] Create migration guide for users of old API
 - [ ] Update API documentation
-- [ ] Document configuration options for externalized data
+- [ ] Document LLM usage patterns, budget limits e estratégias de cache/embeddings
 
 ### 3.3 Testing & Validation
 **Priority: HIGH | Risk: LOW | Effort: MEDIUM**
@@ -195,10 +195,10 @@ This plan addresses the critical architectural and engineering issues identified
 ### Sprint 1 (Week 1-2): Foundation
 - Replace custom caching systems
 - Adopt standard libraries (dateutil, Pydantic)
-- Externalize hardcoded data
+- Implement LLM-first text operations for analytics and parser (introduce structured responses, caching, budget guardrails)
 
 ### Sprint 2 (Week 3-4): Legacy Cleanup
-- Audit and deprecate TF-IDF system
+- Standardize retrieval on embeddings (remove TF-IDF stack)
 - Begin DataFrame-native refactoring of enrichment.py
 
 ### Sprint 3 (Week 5-6): Core Migration
@@ -212,7 +212,7 @@ This plan addresses the critical architectural and engineering issues identified
 
 ### Sprint 5 (Week 9-10): Polish
 - Performance optimization
-- Documentation updates
+- Documentation updates (architecture, LLM cost controls, embedding-only search flow)
 - Final testing and validation
 
 ---
@@ -241,6 +241,10 @@ This plan addresses the critical architectural and engineering issues identified
   - Reduced codebase complexity
   - Clear separation of concerns
   - Improved documentation
+- **LLM-First Execution**:
+  - Tarefas semânticas atendidas por fluxos de LLM com saídas estruturadas
+  - Custo e latência sob controle via cache/configuração documentada
+  - Ausência de heurísticas linguísticas manuais (stopwords, TF-IDF, filtros fixos)
 
 - **Architecture**:
   - DataFrame-native end-to-end
