@@ -76,11 +76,11 @@ class PipelineConfig:
     media_dir: Path
     model: str
     timezone: tzinfo
-    llm: LLMConfig = field(default_factory=LLMConfig)
     enrichment: EnrichmentConfig
     cache: CacheConfig
     anonymization: AnonymizationConfig
     rag: RAGConfig
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
     # Virtual groups (merges) - main configuration for multi-group processing
     merges: dict[str, MergeConfig] = field(default_factory=dict)

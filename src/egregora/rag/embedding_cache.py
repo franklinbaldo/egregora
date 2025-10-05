@@ -1,13 +1,14 @@
-"""Persistent caching utilities for Gemini embeddings."""
+"""Persistent caching utilities for Gemini embeddings using diskcache."""
 
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Mapping
+from typing import Iterable, Mapping
+
+import diskcache
 
 
 @dataclass(slots=True)
@@ -28,7 +29,7 @@ class CachedEmbedding:
         return payload
 
     @classmethod
-    def from_dict(cls, payload: Dict[str, object]) -> "CachedEmbedding":
+    def from_dict(cls, payload: dict[str, object]) -> CachedEmbedding:
         cached_at = payload.get("cached_at")
         timestamp = datetime.fromisoformat(str(cached_at)) if cached_at else datetime.utcnow()
         namespace = payload.get("namespace")
@@ -40,7 +41,7 @@ class CachedEmbedding:
 
 
 class EmbeddingCache:
-    """Simple file-based cache for embedding vectors."""
+    """Disk-based cache for embedding vectors using diskcache."""
 
     def __init__(
         self,
@@ -52,70 +53,64 @@ class EmbeddingCache:
     ) -> None:
         self.cache_dir = cache_dir / "embeddings"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.index_path = self.cache_dir / "index.json"
+
         self._namespace = self._build_namespace(model=model, dimension=dimension, extra=extra)
-        self._index: dict[str, CachedEmbedding] = self._load_index()
+
+        # Use diskcache for both embeddings and metadata
+        self._cache = diskcache.Cache(str(self.cache_dir / "vectors"))
+        self._metadata = diskcache.Cache(str(self.cache_dir / "metadata"))
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def get(self, text: str) -> list[float] | None:
-        """Return a cached embedding for *text* if available."""
-
+        """Return a cached embedding for text if available."""
         text_hash = self._hash_text(text)
-        entry = self._index.get(text_hash)
-        if not entry:
+
+        # Check metadata first
+        metadata = self._metadata.get(text_hash)
+        if not metadata:
             return None
 
-        if entry.namespace and entry.namespace != self._namespace:
+        # Verify namespace matches
+        if isinstance(metadata, dict):
+            entry = CachedEmbedding.from_dict(metadata)
+            if entry.namespace and entry.namespace != self._namespace:
+                return None
+
+        # Get the actual embedding vector
+        embedding = self._cache.get(text_hash)
+        if not embedding or not isinstance(embedding, list):
             return None
 
-        payload_path = self.cache_dir / f"{text_hash}.json"
-        if not payload_path.exists():
-            return None
-
-        try:
-            payload = json.loads(payload_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:  # pragma: no cover - defensive
-            return None
-
-        values = payload.get("embedding")
-        if not isinstance(values, list):
-            return None
-
-        return [float(value) for value in values]
+        return [float(value) for value in embedding]
 
     def set(self, text: str, embedding: Iterable[float]) -> None:
-        """Store *embedding* for *text* in the cache."""
-
+        """Store embedding for text in the cache."""
         vector = [float(value) for value in embedding]
         text_hash = self._hash_text(text)
-        payload_path = self.cache_dir / f"{text_hash}.json"
 
-        payload = {"embedding": vector}
-        payload_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        # Store the embedding vector
+        self._cache.set(text_hash, vector)
 
-        self._index[text_hash] = CachedEmbedding(
+        # Store metadata
+        entry = CachedEmbedding(
             dimension=len(vector),
             cached_at=datetime.utcnow(),
             namespace=self._namespace,
         )
-        self._save_index()
+        self._metadata.set(text_hash, entry.to_dict())
 
     def clear(self) -> None:
         """Remove all cached embeddings."""
-
-        for path in self.cache_dir.glob("*.json"):
-            if path.name == "index.json":
-                continue
-            path.unlink(missing_ok=True)
-        self._index.clear()
-        self._save_index()
+        self._cache.clear()
+        self._metadata.clear()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
     def _hash_text(self, text: str) -> str:
+        """Generate a hash for the text with namespace."""
         payload = f"{self._namespace}::{text}"
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         return digest
@@ -127,6 +122,7 @@ class EmbeddingCache:
         dimension: int,
         extra: Mapping[str, str | int] | None = None,
     ) -> str:
+        """Build a namespace string from model and parameters."""
         components = [f"model={model}", f"dimension={dimension}"]
         if extra:
             for key in sorted(extra):
@@ -134,32 +130,5 @@ class EmbeddingCache:
                 components.append(f"{key}={value}")
         return "|".join(components)
 
-    def _load_index(self) -> dict[str, CachedEmbedding]:
-        if not self.index_path.exists():
-            return {}
-
-        try:
-            payload = json.loads(self.index_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:  # pragma: no cover - defensive
-            return {}
-
-        entries = {}
-        for key, value in payload.items():
-            if not isinstance(value, dict):
-                continue
-            entry = CachedEmbedding.from_dict(value)
-            if entry.namespace and entry.namespace != self._namespace:
-                continue
-            entries[key] = entry
-        return entries
-
-    def _save_index(self) -> None:
-        payload = {key: entry.to_dict() for key, entry in self._index.items()}
-        self.index_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
 
 __all__ = ["EmbeddingCache", "CachedEmbedding"]
-

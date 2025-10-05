@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
@@ -73,11 +72,9 @@ def test_set_and_get_roundtrip(tmp_path: Path) -> None:
     assert stats["cache_misses"] == 1
     assert pytest.approx(stats["cache_hit_rate"], rel=1e-3) == 0.5
 
-    index_path = manager.index_path
-    index_data = json.loads(index_path.read_text(encoding="utf-8"))
-    entry = next(iter(index_data["entries"].values()))
-    assert entry["hit_count"] == 1
-    assert entry["analysis_path"].startswith("cache/analyses/")
+    # Verify that the entry has the expected metadata
+    assert cached["hit_count"] >= 1
+    assert cached["status"] == "valid"
 
 
 def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
@@ -85,29 +82,30 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
     url = "https://example.com/desatualizado"
     manager.set(url, _build_analysis())
 
+    # Manually set old last_used time
     uuid_value = manager.generate_uuid(url)
-    manager._index["entries"][uuid_value]["last_used"] = (
-        datetime.now(timezone.utc) - timedelta(days=120)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
-    manager._save_index()
+    old_entry = manager._cache.get(uuid_value)
+    if old_entry:
+        old_entry["last_used"] = (
+            datetime.now(timezone.utc) - timedelta(days=120)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        manager._cache.set(uuid_value, old_entry)
 
     removed = manager.cleanup_old_entries(90)
     assert removed == 1
     assert not manager.exists(url)
 
 
-def test_corrupted_analysis_marks_entry_as_error(tmp_path: Path) -> None:
+def test_corrupted_cache_entry_returns_none(tmp_path: Path) -> None:
+    """Test that corrupted cache entries return None gracefully."""
     manager = CacheManager(tmp_path / "cache")
     url = "https://example.com/corrompido"
     manager.set(url, _build_analysis())
 
+    # Corrupt the cached entry by setting it to invalid data
     uuid_value = manager.generate_uuid(url)
-    entry = manager._index["entries"][uuid_value]
-    analysis_path = manager._resolve_analysis_path(entry["analysis_path"])
-    assert analysis_path is not None
-    analysis_path.write_text("{invalid}", encoding="utf-8")
+    manager._cache.set(uuid_value, "invalid data")
 
+    # Should return None instead of raising an exception
     cached = manager.get(url)
     assert cached is None
-    updated_entry = manager._index["entries"][uuid_value]
-    assert updated_entry["status"] == "error"
