@@ -14,7 +14,12 @@ try:  # pragma: no cover - optional dependency
 except ModuleNotFoundError:  # pragma: no cover - handled in fallback
     GeminiEmbedding = None  # type: ignore[misc]
 
-from .embedding_cache import EmbeddingCache
+from egregora.cache import (
+    build_embedding_namespace,
+    create_embedding_cache,
+    load_cached_embedding,
+    store_cached_embedding,
+)
 
 
 class _FallbackEmbedding(BaseEmbedding):
@@ -75,18 +80,14 @@ class CachedGeminiEmbedding(BaseEmbedding):
         using_fallback = not resolved_api_key or GeminiEmbedding is None
         object.__setattr__(self, "_using_fallback", using_fallback)
 
-        cache_extra = {"mode": "fallback" if using_fallback else "online"}
-        cache = (
-            EmbeddingCache(
-                cache_dir,
-                model=model_name,
-                dimension=dimension,
-                extra=cache_extra,
-            )
-            if cache_dir
-            else None
+        cache_namespace = build_embedding_namespace(
+            model=model_name,
+            dimension=dimension,
+            extra={"mode": "fallback" if using_fallback else "online"},
         )
+        cache = create_embedding_cache(cache_namespace, cache_dir)
         object.__setattr__(self, "_cache", cache)
+        object.__setattr__(self, "_cache_namespace", cache_namespace)
 
         if not using_fallback and GeminiEmbedding is not None:
             embed_model: BaseEmbedding = GeminiEmbedding(
@@ -97,18 +98,17 @@ class CachedGeminiEmbedding(BaseEmbedding):
             embed_model = _FallbackEmbedding(dimension)
         object.__setattr__(self, "_embed_model", embed_model)
 
-    def _cache_key(self, text: str, *, kind: str) -> str:
-        return f"{kind}::{text}"
-
     def _lookup_cache(self, text: str, *, kind: str) -> list[float] | None:
-        if not self._cache:
+        cache = self._cache
+        if not cache:
             return None
-        return self._cache.get(self._cache_key(text, kind=kind))
+        return load_cached_embedding(cache, self._cache_namespace, text, kind=kind)
 
     def _store_cache(self, text: str, values: Iterable[float], *, kind: str) -> None:
-        if not self._cache:
+        cache = self._cache
+        if not cache:
             return
-        self._cache.set(self._cache_key(text, kind=kind), values)
+        store_cached_embedding(cache, self._cache_namespace, text, values, kind=kind)
 
     def _embed(self, text: str, *, kind: str) -> list[float]:
         cached = self._lookup_cache(text, kind=kind)
