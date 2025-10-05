@@ -16,8 +16,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 1.  **Architectural Schizophrenia:** The primary issue is the conflict between the modern DataFrame pipeline and the legacy text-based pipeline. Modules like `processor.py` and `pipeline.py` bridge this gap in the worst way possible, converting structured DataFrames back into raw text.
     *   **Recommendation:** Begin a **gradual refactoring** to create a single, unified, DataFrame-native pipeline. The goal should be to make `processor.py` the central orchestrator that passes DataFrames between components, reducing the role of `pipeline.py` over time and eventually phasing it out.
 
-2.  **Over-engineering ("Not Invented Here" Syndrome):** The project still ships with a hand-rolled caching layer for embeddings (`rag/embedding_cache.py`).
-    *   **Recommendation:** Follow the enrichment cache's lead—now implemented via `cache/__init__.py` with `diskcache`—and migrate the RAG cache to the same approach.
+2.  **Over-engineering ("Not Invented Here" Syndrome):** The project contains two custom-built, complex caching systems (`cache_manager.py`, `rag/embedding_cache.py`) that reinvent the wheel.
+    *   **Recommendation:** These are high-priority, low-risk fixes. **Replace both custom caches with `diskcache`** to improve robustness and simplify the code.
 
 3.  **Redundant/Legacy Code:** The `rag` directory contains a complete, hand-rolled TF-IDF search system (`rag/search.py`) that is separate from the main `llama-index` RAG implementation.
     *   **Recommendation:** **Audit the usage of the legacy TF-IDF system**. If it provides no unique value over the modern `llama-index` stack, it should be deprecated and removed to reduce complexity.
@@ -46,10 +46,10 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 *   **Verdict:** Excellent.
 *   **Analysis:** A model of clarity and simplicity. It uses UUIDv5 for deterministic anonymization, which is the correct approach.
 
-### `src/egregora/cache/__init__.py`
-*   **Verdict:** Good.
-*   **Analysis:** Lightweight helpers around `diskcache` keep enrichment payload caching simple while preserving statistics.
-*   **Recommendation:** Mirror the same approach in other caches (notably `rag/embedding_cache.py`).
+### `src/egregora/cache_manager.py`
+*   **Verdict:** **Critical Flaw (Over-engineered).**
+*   **Analysis:** A textbook example of over-engineering. This is a complex, hand-rolled caching system that reinvents a solved problem.
+*   **Recommendation:** Replace the entire module with the `diskcache` library. This is a high-impact, low-risk change.
 
 ### `src/egregora/config.py`
 *   **Verdict:** Okay, but a major missed opportunity.

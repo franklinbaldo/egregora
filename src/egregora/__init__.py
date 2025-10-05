@@ -2,7 +2,7 @@
 
 __all__ = [
     "anonymizer",
-    "cache",
+    "cache_manager",
     "config",
     "discover",
     "enrichment",
