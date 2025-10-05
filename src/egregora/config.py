@@ -15,6 +15,7 @@ from .models import MergeConfig
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+DEFAULT_THINKING_BUDGET = -1  # Unlimited thinking
 
 
 @dataclass(slots=True)
@@ -22,7 +23,7 @@ class LLMConfig:
     """Configuration for the language model."""
 
     safety_threshold: str = "BLOCK_NONE"
-    thinking_budget: int = -1
+    thinking_budget: int = DEFAULT_THINKING_BUDGET
 
 
 @dataclass(slots=True)
