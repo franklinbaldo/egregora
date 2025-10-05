@@ -6,7 +6,13 @@ readme = "README.md"
 authors = [{ name = "Egregora" }]
 requires-python = ">=3.10"
 dependencies = [
-    "google-genai>=0.3.0",
+    "google-generativeai>=0.3.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
 ]
 
 [project.scripts]
@@ -15,6 +21,3 @@ egregora = "egregora.__main__:run"
 [build-system]
 requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
-
-[tool.uv]
-devenv = true
