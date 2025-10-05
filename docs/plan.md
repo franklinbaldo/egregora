@@ -74,28 +74,31 @@ This plan addresses the critical architectural and engineering issues identified
 - [ ] Remover dependência de stopwords e n-grams em `analytics.py`; substituir por resumos/contagens estruturadas via LLM (JSON: `{summary, topics[], actions[]}`).
 - [ ] Substituir “system message filters” manuais em `parser.py` por uma classificação leve via LLM (campos `{is_system, is_noise, reason}`) aplicada linha-a-linha com budget controlado.
 - [ ] Documentar limites de custo (p.ex. máx. 0.5k chamadas/dia) e cachear respostas por hash do conteúdo.
+- [ ] Introduzir o agente tipado do `pydanticai` como orquestrador das respostas estruturadas do Gemini.
 
 **Success Criteria**:
 - Zero listas de stopwords e heurísticas linguísticas fixas.
 - Mesmas ou melhores métricas de precisão/recall em rotulagem e analytics, com custo sob orçamento.
+- Respostas estruturadas validadas por modelos `pydanticai`.
 
 ---
 
 ## Phase 2: Architecture Migration (High-Impact, Medium-Risk)
 
-### 2.1 Standardize Retrieval on Embeddings (remove TF-IDF)
+### 2.1 Standardize Retrieval on txtai + pydanticai (remove TF-IDF)
 **Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings (Gemini + LlamaIndex).
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com `txtai.Embeddings` + agentes `pydanticai` alimentados pelo Gemini.
 
 **Action Items**:
 - [ ] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
-- [ ] Garantir cache de embeddings e fallback determinístico já existentes.
+- [ ] Introduzir `txtai` como índice vetorial primário (ingestão `(id, texto, meta)` e busca `search`).
+- [ ] Reorquestrar respostas com `pydanticai.Agent`, mantendo cache e limites de custo.
 - [ ] Validar paridade de resultados com amostras reais de busca.
 
 **Success Criteria**:
-- Único sistema de busca/RAG (embeddings).
-- Nenhuma implementação redundante baseada em TF-IDF.
+- Único sistema de busca/RAG (txtai + Gemini via pydanticai).
+- Nenhuma implementação redundante baseada em TF-IDF ou LlamaIndex.
 - Documentação e testes alinhados ao fluxo LLM/embeddings.
 
 ---
@@ -195,10 +198,10 @@ This plan addresses the critical architectural and engineering issues identified
 ### Sprint 1 (Week 1-2): Foundation
 - Replace custom caching systems
 - Adopt standard libraries (dateutil, Pydantic)
-- Implement LLM-first text operations for analytics and parser (introduce structured responses, caching, budget guardrails)
+- Implement LLM-first text operations para analytics e parser (Gemini + `pydanticai`, respostas estruturadas, caching, budget guardrails)
 
 ### Sprint 2 (Week 3-4): Legacy Cleanup
-- Standardize retrieval on embeddings (remove TF-IDF stack)
+- Standardize retrieval on txtai + pydanticai (remove TF-IDF stack)
 - Begin DataFrame-native refactoring of enrichment.py
 
 ### Sprint 3 (Week 5-6): Core Migration
@@ -212,7 +215,7 @@ This plan addresses the critical architectural and engineering issues identified
 
 ### Sprint 5 (Week 9-10): Polish
 - Performance optimization
-- Documentation updates (architecture, LLM cost controls, embedding-only search flow)
+- Documentation updates (architecture, LLM cost controls, fluxo txtai + pydanticai + Gemini)
 - Final testing and validation
 
 ---
@@ -245,6 +248,7 @@ This plan addresses the critical architectural and engineering issues identified
   - Tarefas semânticas atendidas por fluxos de LLM com saídas estruturadas
   - Custo e latência sob controle via cache/configuração documentada
   - Ausência de heurísticas linguísticas manuais (stopwords, TF-IDF, filtros fixos)
+  - Recuperação e orquestração padronizadas em `txtai` + `pydanticai`
 
 - **Architecture**:
   - DataFrame-native end-to-end
