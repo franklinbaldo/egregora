@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, tzinfo
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 try:
     from google import genai
@@ -19,6 +19,9 @@ from .pipeline import _prepare_transcripts
 if TYPE_CHECKING:
     from .config import PipelineConfig
     from .models import GroupSource
+
+    if genai:
+        from google.generativeai.client import Client as GeminiClient
 
 
 @dataclass(slots=True)
@@ -41,7 +44,11 @@ _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 class NewsletterGenerator:
     """Generates newsletters using an LLM."""
 
-    def __init__(self, config: PipelineConfig, llm_client: Any | None = None):
+    _client: "GeminiClient | None"
+
+    def __init__(
+        self, config: "PipelineConfig", llm_client: "GeminiClient | None" = None
+    ):
         self.config = config
         self._client = llm_client
 
@@ -53,7 +60,7 @@ class NewsletterGenerator:
                 "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
             )
 
-    def _create_client(self) -> genai.Client:
+    def _create_client(self) -> "GeminiClient":
         """Instantiate the Gemini client."""
         self._require_google_dependency()
         key = os.environ.get("GEMINI_API_KEY")
@@ -62,7 +69,7 @@ class NewsletterGenerator:
         return genai.Client(api_key=key)
 
     @property
-    def client(self) -> genai.Client:
+    def client(self) -> "GeminiClient":
         """Lazy-loaded Gemini client."""
         if self._client is None:
             self._client = self._create_client()
@@ -70,14 +77,15 @@ class NewsletterGenerator:
 
     def _load_prompt(self, filename: str) -> str:
         """Load a prompt either from the editable folder or package data."""
-        candidates = [_PROMPTS_DIR / filename]
-        for candidate in candidates:
-            if candidate.exists():
-                text = candidate.read_text(encoding="utf-8")
-                stripped = text.strip()
-                if not stripped:
-                    raise ValueError(f"Prompt file '{candidate}' is empty")
-                return stripped
+        local_prompt_path = _PROMPTS_DIR / filename
+        if local_prompt_path.exists():
+            text = local_prompt_path.read_text(encoding="utf-8")
+            stripped = text.strip()
+            if not stripped:
+                raise ValueError(f"Prompt file '{local_prompt_path}' is empty")
+            return stripped
+
+        # Fallback to package resources if local file doesn't exist
         try:
             package_text = (
                 resources.files(__package__)
@@ -85,15 +93,16 @@ class NewsletterGenerator:
                 .read_text(encoding="utf-8")
             )
         except FileNotFoundError as exc:
-            raise FileNotFoundError(
-                f"Prompt file '{filename}' is missing."
-            ) from exc
+            raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
+
         stripped = package_text.strip()
         if not stripped:
             raise ValueError(f"Prompt resource '{filename}' is empty")
         return stripped
 
-    def _build_system_instruction(self, has_group_tags: bool = False) -> list[types.Part]:
+    def _build_system_instruction(
+        self, has_group_tags: bool = False
+    ) -> list["types.Part"]:
         """Return the validated system prompt."""
         self._require_google_dependency()
         base_prompt = self._load_prompt(_BASE_PROMPT_NAME)
@@ -126,47 +135,39 @@ class NewsletterGenerator:
         ]
 
         if context.previous_newsletter:
-            sections.extend(
-                [
-                    "NEWSLETTER DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-                    "<<<NEWSLETTER_ONTEM_INICIO>>>",
-                    context.previous_newsletter.strip(),
-                    "<<<NEWSLETTER_ONTEM_FIM>>>",
-                ]
-            )
+            sections.extend([
+                "NEWSLETTER DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+                "<<<NEWSLETTER_ONTEM_INICIO>>>",
+                context.previous_newsletter.strip(),
+                "<<<NEWSLETTER_ONTEM_FIM>>>",
+            ])
         else:
             sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
 
         if context.enrichment_section:
-            sections.extend(
-                [
-                    "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
-                    context.enrichment_section,
-                ]
-            )
+            sections.extend([
+                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
+                context.enrichment_section,
+            ])
 
         if context.rag_context:
-            sections.extend(
-                [
-                    "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
-                    context.rag_context,
-                ]
-            )
+            sections.extend([
+                "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
+                context.rag_context,
+            ])
 
         header = self._format_transcript_section_header(len(anonymized_transcripts))
         sections.append(header)
         for transcript_date, transcript_text in anonymized_transcripts:
-            sections.extend(
-                [
-                    f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
-                    transcript_text.strip() if transcript_text.strip() else "(vazio)",
-                    f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
-                ]
-            )
+            sections.extend([
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
+                transcript_text.strip() if transcript_text.strip() else "(vazio)",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
+            ])
 
         return "\n\n".join(sections)
 
-    def generate(self, source: GroupSource, context: NewsletterContext) -> str:
+    def generate(self, source: "GroupSource", context: NewsletterContext) -> str:
         """Generate newsletter for a specific date."""
         self._require_google_dependency()
 
@@ -194,22 +195,21 @@ class NewsletterGenerator:
             ),
         ]
 
+        safety_settings = [
+            types.SafetySetting(category=category, threshold=self.config.llm.safety_threshold)
+            for category in (
+                "HARM_CATEGORY_HARASSMENT",
+                "HARM_CATEGORY_HATE_SPEECH",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "HARM_CATEGORY_DANGEROUS_CONTENT",
+            )
+        ]
+
         generate_content_config = types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_budget=-1),
-            safety_settings=[
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"
-                ),
-            ],
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=self.config.llm.thinking_budget
+            ),
+            safety_settings=safety_settings,
             system_instruction=system_instruction,
         )
 

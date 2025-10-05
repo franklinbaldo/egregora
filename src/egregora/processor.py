@@ -1,26 +1,31 @@
 """Unified processor with Polars-based message manipulation."""
 
-from dataclasses import dataclass
-from pathlib import Path
-from datetime import date
-from typing import TYPE_CHECKING
+import asyncio
 import logging
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from .media_extractor import MediaFile
-
+from .cache_manager import CacheManager
 from .config import PipelineConfig
+from .enrichment import ContentEnricher
 from .generator import NewsletterContext, NewsletterGenerator
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
 from .pipeline import load_previous_newsletter
+from .rag.index import NewsletterRAG
+from .rag.query_gen import QueryGenerator
 from .transcript import (
     extract_transcript,
     get_available_dates,
     get_stats_for_date,
     load_source_dataframe,
 )
+
+if TYPE_CHECKING:
+    from .media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
 
@@ -216,20 +221,14 @@ class UnifiedProcessor:
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
 
-            # 1. Extract media from all exports for this date
             all_media = media_by_date.get(target_date, {})
-
-            # 2. Get transcript
             transcript = extract_transcript(source, target_date)
 
             if not transcript:
                 logger.warning(f"    Empty transcript")
                 continue
 
-            # 3. Replace media references
             transcript = MediaExtractor.replace_media_references(transcript, all_media)
-
-            # 4. Stats
             stats = get_stats_for_date(source, target_date)
             if not stats:
                 logger.warning("    Unable to compute statistics for %s", target_date)
@@ -241,16 +240,31 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            # 5. Gather all context for the generator
             _, previous_newsletter = load_previous_newsletter(output_dir, target_date)
 
-            # TODO: Call enrichment module
+            # Enrichment
             enrichment_section = None
+            if self.config.enrichment.enabled:
+                cache_manager = CacheManager(self.config.cache.cache_dir)
+                enricher = ContentEnricher(self.config.enrichment, cache_manager=cache_manager)
+                enrichment_result = asyncio.run(enricher.enrich([(target_date, transcript)], client=self.generator.client))
+                enrichment_section = enrichment_result.format_for_prompt(
+                    self.config.enrichment.relevance_threshold
+                )
 
-            # TODO: Call RAG module
+            # RAG
             rag_context = None
+            if self.config.rag.enabled:
+                rag = NewsletterRAG(newsletters_dir=output_dir, config=self.config.rag)
+                query_gen = QueryGenerator(self.config.rag)
+                query = query_gen.generate(transcript)
+                search_results = rag.search(query.search_query)
+                if search_results:
+                    rag_context = "\n\n".join(
+                        f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
+                        for i, node in enumerate(search_results, 1)
+                    )
 
-            # 6. Generate newsletter with all context
             context = NewsletterContext(
                 group_name=source.name,
                 transcript=transcript,
@@ -261,7 +275,6 @@ class UnifiedProcessor:
             )
             newsletter = self.generator.generate(source, context)
 
-            # Save
             output_path = output_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")
 
@@ -281,7 +294,6 @@ class UnifiedProcessor:
 
         all_info = {}
 
-        # Real groups
         for slug, exports in real_groups.items():
             dates = [e.export_date for e in exports]
             all_info[slug] = {
@@ -296,7 +308,6 @@ class UnifiedProcessor:
                 ],
             }
 
-        # Virtual groups
         for slug, source in virtual_groups.items():
             dates = [e.export_date for e in source.exports]
             all_info[slug] = {
