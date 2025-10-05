@@ -18,6 +18,9 @@ from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip
 logger = logging.getLogger(__name__)
 
 
+FUTURE_DATE_TOLERANCE_DAYS = 7
+
+
 def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
     """
     Scan ZIP files and return discovered groups.
@@ -133,15 +136,24 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
 
     match = re.search(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)", zip_path.name)
     if match:
-        detected_date = date.fromisoformat(match.group(1))
-        validated_date = _validate_extracted_date(detected_date, zip_path)
-        if validated_date == detected_date:
+        candidate_date = match.group(1)
+        try:
+            detected_date = date.fromisoformat(candidate_date)
+        except ValueError:
             logger.debug(
-                "ZIP '%s': Date extracted from filename (%s)",
+                "ZIP '%s': Ignoring invalid filename date '%s'",
                 zip_path.name,
-                detected_date,
+                candidate_date,
             )
-        return validated_date
+        else:
+            validated_date = _validate_extracted_date(detected_date, zip_path)
+            if validated_date == detected_date:
+                logger.debug(
+                    "ZIP '%s': Date extracted from filename (%s)",
+                    zip_path.name,
+                    detected_date,
+                )
+            return validated_date
 
     try:
         ensure_safe_member_size(zf, chat_file)
@@ -175,7 +187,7 @@ def _validate_extracted_date(extracted_date: date, zip_path: Path) -> date:
     """Ensure detected dates are reasonable, falling back to mtime when needed."""
 
     today = date.today()
-    if extracted_date > today + timedelta(days=7):
+    if extracted_date > today + timedelta(days=FUTURE_DATE_TOLERANCE_DAYS):
         return _fallback_to_mtime(
             zip_path,
             fallback_reason=f"Ignoring future date {extracted_date}",

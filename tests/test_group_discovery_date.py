@@ -61,3 +61,16 @@ def test_future_date_falls_back_to_mtime(tmp_path):
         extracted_date = _extract_date(zip_path, zf, chat_file)
 
     assert extracted_date == mtime.date()
+
+
+def test_invalid_filename_date_falls_back_to_content(tmp_path):
+    chat_file, zip_path = _create_zip(
+        tmp_path,
+        "chat-2025-99-99.zip",
+        content="03/10/2025 09:45 - Test message",
+    )
+
+    with zipfile.ZipFile(zip_path) as zf:
+        extracted_date = _extract_date(zip_path, zf, chat_file)
+
+    assert extracted_date == date(2025, 10, 3)
