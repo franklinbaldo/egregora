@@ -245,22 +245,6 @@ def read_zip_texts_and_media(
     return transcript, media_files
 
 
-def read_zip_texts(
-    zippath: Path,
-    *,
-    archive_date: date | None = None,
-    media_dir: Path | None = None,
-) -> str:
-    """Compatibility wrapper returning only the transcript text."""
-
-    transcript, _ = read_zip_texts_and_media(
-        zippath,
-        archive_date=archive_date,
-        media_dir=media_dir,
-    )
-    return transcript
-
-
 def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
     """Load yesterday's newsletter if it exists."""
 
@@ -269,132 +253,6 @@ def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path
     if path.exists():
         return path, path.read_text(encoding="utf-8")
     return path, None
-
-
-def _format_transcript_section_header(transcript_count: int) -> str:
-    """Return a localized header describing how many transcripts are included."""
-
-    if transcript_count <= 1:
-        return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
-    return (
-        f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS "
-        "(NA ORDEM CRONOLÓGICA POR DIA):"
-    )
-
-
-def build_llm_input(
-    *,
-    group_name: str,
-    timezone: tzinfo,
-    transcripts: Sequence[tuple[date, str]],
-    previous_newsletter: str | None,
-    enrichment_section: str | None = None,
-    rag_context: str | None = None,
-    transcript_count: int | None = None,
-) -> str:
-    """Compose the user prompt sent to Gemini.
-
-    Parameters
-    ----------
-    transcript_count:
-        Optional override for how many days of transcripts are mentioned in the
-        header. Defaults to the number of transcript entries provided.
-    """
-
-    today_str = datetime.now(timezone).date().isoformat()
-    sections: list[str] = [
-        f"NOME DO GRUPO: {group_name}",
-        f"DATA DE HOJE: {today_str}",
-    ]
-
-    if previous_newsletter:
-        sections.extend(
-            [
-                "NEWSLETTER DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-                "<<<NEWSLETTER_ONTEM_INICIO>>>",
-                previous_newsletter.strip(),
-                "<<<NEWSLETTER_ONTEM_FIM>>>",
-            ]
-        )
-    else:
-        sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
-
-    if enrichment_section:
-        sections.extend(
-            [
-                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
-                enrichment_section,
-            ]
-        )
-
-    if rag_context:
-        sections.extend(
-            [
-                "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
-                rag_context,
-            ]
-        )
-
-    header = _format_transcript_section_header(transcript_count or len(transcripts))
-    sections.append(header)
-    for transcript_date, transcript_text in transcripts:
-        sections.extend(
-            [
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
-                transcript_text.strip() if transcript_text.strip() else "(vazio)",
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
-            ]
-        )
-
-    return "\n\n".join(sections)
-
-
-_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-_BASE_PROMPT_NAME = "system_instruction_base.md"
-_MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
-
-
-def _load_prompt(filename: str) -> str:
-    """Load a prompt either from the editable folder or package data."""
-
-    candidates = [_PROMPTS_DIR / filename]
-
-    for candidate in candidates:
-        if candidate.exists():
-            text = candidate.read_text(encoding="utf-8")
-            stripped = text.strip()
-            if not stripped:
-                raise ValueError(f"Prompt file '{candidate}' is empty")
-            return stripped
-
-    try:
-        # Use __package__ instead of hard-coded package name for better maintainability
-        package_text = resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
-    except FileNotFoundError as exc:  # pragma: no cover - defensive
-        raise FileNotFoundError(
-            f"Prompt file '{filename}' is missing. Please verify that package data was installed correctly."
-        ) from exc
-
-    stripped = package_text.strip()
-    if not stripped:
-        raise ValueError(f"Prompt resource '{filename}' is empty")
-
-    return stripped
-
-
-def build_system_instruction(has_group_tags: bool = False) -> list[types.Part]:
-    """Return the validated system prompt."""
-
-    _require_google_dependency()
-
-    base_prompt = _load_prompt(_BASE_PROMPT_NAME)
-    if has_group_tags:
-        multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
-        prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
-    else:
-        prompt_text = base_prompt
-
-    return [types.Part.from_text(text=prompt_text)]
 
 
 def ensure_directories(config: PipelineConfig) -> None:
@@ -415,26 +273,11 @@ def select_recent_archives(
     return list(archives[-days:]) if len(archives) >= days else list(archives)
 
 
-def create_client(api_key: str | None = None) -> genai.Client:
-    """Instantiate the Gemini client."""
-
-    _require_google_dependency()
-
-    key = api_key or os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
-    return genai.Client(api_key=key)
-
-
 __all__ = [
-    "build_llm_input",
-    "build_system_instruction",
-    "create_client",
     "ensure_directories",
     "find_date_in_name",
     "list_zip_days",
     "load_previous_newsletter",
-    "read_zip_texts",
     "read_zip_texts_and_media",
     "select_recent_archives",
     "_anonymize_transcript_line",
