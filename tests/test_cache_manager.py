@@ -9,7 +9,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.cache_manager import CacheManager, ISO_FORMAT
+from egregora.cache import (
+    ISO_FORMAT,
+    cache_key_for_url,
+    cleanup_enrichment_cache,
+    create_enrichment_cache,
+    get_enrichment_stats,
+    has_enrichment,
+    load_enrichment,
+    store_enrichment,
+)
 
 
 def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
@@ -40,35 +49,34 @@ def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
     }
 
 
-def test_generate_uuid_normalizes_urls(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+def test_cache_key_normalizes_urls() -> None:
     url_a = "https://Example.com/path/?b=2&a=1"
     url_b = "https://example.com/path?a=1&b=2"
     url_c = "https://example.com/other"
 
-    uuid_a = manager.generate_uuid(url_a)
-    uuid_b = manager.generate_uuid(url_b)
-    uuid_c = manager.generate_uuid(url_c)
+    uuid_a = cache_key_for_url(url_a)
+    uuid_b = cache_key_for_url(url_b)
+    uuid_c = cache_key_for_url(url_c)
 
     assert uuid_a == uuid_b
     assert uuid_a != uuid_c
 
 
 def test_set_and_get_roundtrip(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    cache = create_enrichment_cache(tmp_path / "cache")
     url = "https://example.com/artigo"
     payload = _build_analysis()
 
-    assert manager.get("https://example.com/novo") is None
+    assert load_enrichment(cache, "https://example.com/novo") is None
 
-    stored = manager.set(url, payload)
+    stored = store_enrichment(cache, url, payload)
     assert stored["enrichment"]["summary"] == "Resumo de teste"
 
-    cached = manager.get(url)
+    cached = load_enrichment(cache, url)
     assert cached is not None
     assert cached["enrichment"]["relevance"] == 4
 
-    stats = manager.get_stats()
+    stats = get_enrichment_stats(cache)
     assert stats["cache_hits"] == 1
     assert stats["cache_misses"] == 1
     assert pytest.approx(stats["cache_hit_rate"], rel=1e-3) == 0.5
@@ -76,26 +84,26 @@ def test_set_and_get_roundtrip(tmp_path: Path) -> None:
 
 
 def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    cache = create_enrichment_cache(tmp_path / "cache")
     url = "https://example.com/desatualizado"
-    manager.set(url, _build_analysis())
+    store_enrichment(cache, url, _build_analysis())
 
-    uuid_value = manager.generate_uuid(url)
-    entry = manager._cache.get(uuid_value)  # type: ignore[attr-defined]
+    key = cache_key_for_url(url)
+    entry = cache.get(key)
     assert entry is not None
     entry["last_used"] = (
         datetime.now(timezone.utc) - timedelta(days=120)
     ).strftime(ISO_FORMAT)
-    manager._cache.set(uuid_value, entry)  # type: ignore[attr-defined]
+    cache.set(key, entry)
 
-    removed = manager.cleanup_old_entries(90)
+    removed = cleanup_enrichment_cache(cache, 90)
     assert removed == 1
-    assert not manager.exists(url)
+    assert not has_enrichment(cache, url)
 
 
 def test_missing_entry_counts_as_miss(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
-    assert manager.get("https://example.com/absent") is None
-    stats = manager.get_stats()
+    cache = create_enrichment_cache(tmp_path / "cache")
+    assert load_enrichment(cache, "https://example.com/absent") is None
+    stats = get_enrichment_stats(cache)
     assert stats["cache_hits"] == 0
     assert stats["cache_misses"] == 1

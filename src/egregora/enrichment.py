@@ -20,8 +20,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 from urllib.parse import urlparse
 
 import polars as pl
+from diskcache import Cache
 
-from .cache_manager import CacheManager
+from .cache import load_enrichment, store_enrichment
 from .config import EnrichmentConfig
 
 MESSAGE_RE = re.compile(
@@ -137,14 +138,21 @@ class EnrichmentResult:
         return "\n".join(lines)
 
 
-class ContentEnricher:
+class EnrichmentWorker:
     """High-level orchestrator that extracts and analyzes shared links."""
 
     def __init__(
-        self, config: EnrichmentConfig, *, cache_manager: CacheManager | None = None
+        self,
+        config: EnrichmentConfig,
+        *,
+        cache: Cache | None = None,
+        cache_manager: Cache | None = None,
     ) -> None:
+        if cache and cache_manager:
+            raise ValueError("Pass only one cache instance")
+
         self._config = config
-        self._cache = cache_manager
+        self._cache: Cache | None = cache or cache_manager
 
     async def enrich(
         self,
@@ -176,8 +184,11 @@ class ContentEnricher:
                 return EnrichedItem(reference=reference, analysis=analysis)
 
             cached_item: AnalysisResult | None = None
-            if self._cache:
-                cached_payload = self._cache.get(reference.url)
+            if self._cache and reference.url:
+                try:
+                    cached_payload = load_enrichment(self._cache, reference.url)
+                except Exception:
+                    cached_payload = None
                 if cached_payload:
                     cached_item = self._analysis_from_cache(cached_payload)
             if cached_item:
@@ -301,7 +312,7 @@ class ContentEnricher:
             "version": CACHE_RECORD_VERSION,
         }
         try:
-            self._cache.set(reference.url, payload)
+            store_enrichment(self._cache, reference.url, payload)
         except Exception:
             # Cache failures must not break the enrichment flow.
             return
@@ -362,13 +373,13 @@ class ContentEnricher:
                 "relevance": 1,
             }
 
-        summary = ContentEnricher._coerce_string(payload.get("summary"))
+        summary = EnrichmentWorker._coerce_string(payload.get("summary"))
         key_points = [
             point.strip()
             for point in payload.get("key_points", [])
             if isinstance(point, str)
         ]
-        tone = ContentEnricher._coerce_string(payload.get("tone"))
+        tone = EnrichmentWorker._coerce_string(payload.get("tone"))
         relevance = payload.get("relevance")
         if not isinstance(relevance, int):
             relevance = 1
@@ -641,12 +652,16 @@ def get_url_contexts_dataframe(
     )
 
 
+ContentEnricher = EnrichmentWorker
+
+
 __all__ = [
     "AnalysisResult",
-    "ContentEnricher", 
+    "ContentEnricher",
     "ContentReference",
     "EnrichedItem",
     "EnrichmentResult",
+    "EnrichmentWorker",
     "extract_urls_from_dataframe",
     "get_url_contexts_dataframe",
 ]

@@ -7,9 +7,11 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .cache_manager import CacheManager
+from diskcache import Cache
+
+from .cache import cleanup_enrichment_cache, create_enrichment_cache
 from .config import PipelineConfig
-from .enrichment import ContentEnricher
+from .enrichment import EnrichmentWorker
 from .generator import NewsletterContext, NewsletterGenerator
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
@@ -251,17 +253,20 @@ class UnifiedProcessor:
             # Enrichment
             enrichment_section = None
             if self.config.enrichment.enabled:
-                cache_manager = None
+                enrichment_cache: Cache | None = None
                 if self.config.cache.enabled:
-                    cache_manager = CacheManager(
+                    enrichment_cache = create_enrichment_cache(
                         self.config.cache.cache_dir,
                         size_limit_mb=self.config.cache.max_disk_mb,
                     )
                     if self.config.cache.auto_cleanup_days:
-                        cache_manager.cleanup_old_entries(
-                            self.config.cache.auto_cleanup_days
+                        cleanup_enrichment_cache(
+                            enrichment_cache,
+                            self.config.cache.auto_cleanup_days,
                         )
-                enricher = ContentEnricher(self.config.enrichment, cache_manager=cache_manager)
+                enricher = EnrichmentWorker(
+                    self.config.enrichment, cache=enrichment_cache
+                )
                 enrichment_result = asyncio.run(enricher.enrich([(target_date, transcript)], client=self.generator.client))
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
