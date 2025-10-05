@@ -27,12 +27,12 @@ from test_framework.helpers import (
 )
 
 
-def test_zip_processing_whatsapp_format(temp_dir, whatsapp_zip_path):
+def test_zip_processing_whatsapp_format(tmp_path, whatsapp_zip_path):
     """Test zip file processing with real WhatsApp data."""
     if not whatsapp_zip_path.exists():
         # Create test zip if real one doesn't exist
         test_content = TestDataGenerator.create_complex_conversation()
-        test_zip = temp_dir / "test.zip"
+        test_zip = tmp_path / "test.zip"
         create_test_zip(test_content, test_zip)
         zip_path = test_zip
     else:
@@ -64,11 +64,11 @@ def test_date_recognition_whatsapp():
         assert result == expected_date, f"Failed for {filename}: got {result}, expected {expected_date}"
 
 
-def test_whatsapp_anonymization_comprehensive(temp_dir):
+def test_whatsapp_anonymization_comprehensive(tmp_path):
     """Comprehensive test of WhatsApp format anonymization."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # Test various WhatsApp message formats
@@ -101,11 +101,11 @@ def test_whatsapp_anonymization_comprehensive(temp_dir):
             assert "Você criou" in processed
 
 
-def test_message_type_preservation(temp_dir):
+def test_message_type_preservation(tmp_path):
     """Test that different message types are preserved during processing."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     complex_conversation = TestDataGenerator.create_complex_conversation()
@@ -127,11 +127,11 @@ def test_message_type_preservation(temp_dir):
     assert processed_counts['emojis'] >= original_counts['emojis']  # May add anonymization markers
 
 
-def test_multi_day_processing(temp_dir):
+def test_multi_day_processing(tmp_path):
     """Test processing conversations across multiple days."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     multi_day_content = TestDataGenerator.create_multi_day_content()
@@ -149,11 +149,11 @@ def test_multi_day_processing(temp_dir):
         assert len(processed_content) > 0
 
 
-def test_anonymization_consistency(temp_dir):
+def test_anonymization_consistency(tmp_path):
     """Test that the same author gets the same anonymized name consistently."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # Multiple messages from the same author
@@ -178,11 +178,11 @@ def test_anonymization_consistency(temp_dir):
     assert franklin_count == 3, f"Franklin should appear 3 times, found {franklin_count}"
 
 
-def test_edge_cases_handling(temp_dir):
+def test_edge_cases_handling(tmp_path):
     """Test handling of edge cases in WhatsApp conversations."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     edge_cases = TestDataGenerator.create_edge_cases()
@@ -201,9 +201,9 @@ def test_edge_cases_handling(temp_dir):
             assert False, f"Edge case failed: {case[:50]}... Error: {e}"
 
 
-def test_zip_listing_functionality(temp_dir):
+def test_zip_listing_functionality(tmp_path):
     """Test the zip listing functionality with date-named files."""
-    zips_dir = temp_dir / "zips"
+    zips_dir = tmp_path / "zips"
     zips_dir.mkdir()
     
     # Create test zip files with dates
@@ -234,34 +234,34 @@ if __name__ == "__main__":
     import tempfile
     
     with tempfile.TemporaryDirectory() as tmp:
-        temp_dir = Path(tmp)
+        tmp_path = Path(tmp)
         whatsapp_zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
         
         print("Running core pipeline tests...")
         
         try:
-            test_zip_processing_whatsapp_format(temp_dir, whatsapp_zip_path)
+            test_zip_processing_whatsapp_format(tmp_path, whatsapp_zip_path)
             print("✓ Zip processing test passed")
             
             test_date_recognition_whatsapp()
             print("✓ Date recognition test passed")
             
-            test_whatsapp_anonymization_comprehensive(temp_dir)
+            test_whatsapp_anonymization_comprehensive(tmp_path)
             print("✓ Anonymization test passed")
             
-            test_message_type_preservation(temp_dir)
+            test_message_type_preservation(tmp_path)
             print("✓ Message preservation test passed")
             
-            test_multi_day_processing(temp_dir)
+            test_multi_day_processing(tmp_path)
             print("✓ Multi-day processing test passed")
             
-            test_anonymization_consistency(temp_dir)
+            test_anonymization_consistency(tmp_path)
             print("✓ Anonymization consistency test passed")
             
-            test_edge_cases_handling(temp_dir)
+            test_edge_cases_handling(tmp_path)
             print("✓ Edge cases test passed")
             
-            test_zip_listing_functionality(temp_dir)
+            test_zip_listing_functionality(tmp_path)
             print("✓ Zip listing test passed")
             
             print("\n🎉 All core pipeline tests passed!")

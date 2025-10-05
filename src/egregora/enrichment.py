@@ -11,11 +11,11 @@ from time import perf_counter
 from typing import Sequence
 
 try:  # pragma: no cover - optional dependency
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
+    import google.generativeai as genai
+    from google.generativeai.types import GenerationConfig
 except ModuleNotFoundError:  # pragma: no cover - allows the module to load without dependency
-    genai = None  # type: ignore[assignment]
-    types = None  # type: ignore[assignment]
+    genai = None  # type: ignore
+    GenerationConfig = None  # type: ignore
 
 from urllib.parse import urlparse
 
@@ -224,7 +224,7 @@ class ContentEnricher:
     async def _analyze_reference(
         self, reference: ContentReference, client: genai.Client | None
     ) -> AnalysisResult:
-        if types is None or client is None:
+        if genai is None or client is None:
             return AnalysisResult(
                 summary=None,
                 key_points=[],
@@ -237,18 +237,18 @@ class ContentEnricher:
         prompt = self._build_prompt(reference)
 
         def _invoke() -> object:
-            return client.models.generate_content(
+            return client.generate_content(
                 model=self._config.enrichment_model,
                 contents=[
-                    types.Content(
+                    genai.Content(
                         role="user",
                         parts=[
-                            types.Part.from_text(text=prompt),
-                            types.Part.from_uri(file_uri=reference.url),
+                            genai.Part.from_text(text=prompt),
+                            genai.Part.from_uri(uri=reference.url),
                         ],
                     )
                 ],
-                config=types.GenerateContentConfig(
+                generation_config=GenerationConfig(
                     temperature=0.2,
                     response_mime_type="application/json",
                 ),

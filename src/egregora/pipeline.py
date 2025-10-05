@@ -12,11 +12,11 @@ from pathlib import Path
 from typing import Awaitable, List, Sequence, TypeVar
 
 try:  # pragma: no cover - executed only when dependency is missing
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
+    import google.generativeai as genai
+    from google.generativeai.types import GenerationConfig
 except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
-    genai = None  # type: ignore[assignment]
-    types = None  # type: ignore[assignment]
+    genai = None  # type: ignore
+    GenerationConfig = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency
     from mcp.client import Client, StdioServerParameters
@@ -308,21 +308,22 @@ def _run_privacy_review(
     )
 
     contents = [
-        types.Content(
+        genai.Content(
             role="user",
-            parts=[types.Part.from_text(text=review_prompt)],
+            parts=[genai.Part.from_text(text=review_prompt)],
         )
     ]
 
-    review_config = types.GenerateContentConfig(
-        system_instruction=[types.Part.from_text(text=REVIEW_SYSTEM_PROMPT.strip())]
-    )
+    review_config = GenerationConfig()
+    system_instruction = genai.Part.from_text(text=REVIEW_SYSTEM_PROMPT.strip())
 
     output_lines: list[str] = []
-    for chunk in client.models.generate_content_stream(
+    for chunk in client.generate_content(
         model=model,
         contents=contents,
-        config=review_config,
+        generation_config=review_config,
+        system_instruction=system_instruction,
+        stream=True
     ):
         if chunk.text:
             output_lines.append(chunk.text)
@@ -334,7 +335,7 @@ def _run_privacy_review(
 def _require_google_dependency() -> None:
     """Ensure the optional google-genai dependency is available."""
 
-    if genai is None or types is None:
+    if genai is None:
         raise RuntimeError(
             "A dependência opcional 'google-genai' não está instalada. "
             "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
@@ -483,7 +484,7 @@ def build_llm_input(
     return "\n\n".join(sections)
 
 
-def build_system_instruction() -> list[types.Part]:
+def build_system_instruction() -> list[genai.Part]:
     """Return the validated system prompt."""
 
     _require_google_dependency()
@@ -567,7 +568,7 @@ Regras de formatação do relatório:
    - [ ] Voz é "nós" narrando nosso próprio dia, não análise externa.
    - [ ] Lacunas no transcrito (se houver) são explicitadas com honestidade.
 """
-    return [types.Part.from_text(text=system_text.strip())]
+    return [genai.Part.from_text(text=system_text.strip())]
 
 
 def ensure_directories(config: PipelineConfig) -> None:
@@ -706,28 +707,29 @@ def generate_newsletter(
     )
 
     contents = [
-        types.Content(
+        genai.Content(
             role="user",
-            parts=[types.Part.from_text(text=insert_input)],
+            parts=[genai.Part.from_text(text=insert_input)],
         ),
     ]
 
-    generate_content_config = types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=-1),
-        safety_settings=[
-            types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-            types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-        ],
-        system_instruction=build_system_instruction(),
-    )
+    generate_content_config = GenerationConfig()
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
+    system_instruction = build_system_instruction()
 
     output_lines: list[str] = []
-    for chunk in llm_client.models.generate_content_stream(
+    for chunk in llm_client.generate_content(
         model=config.model,
         contents=contents,
-        config=generate_content_config,
+        generation_config=generate_content_config,
+        system_instruction=system_instruction,
+        safety_settings=safety_settings,
+        stream=True
     ):
         if chunk.text:
             output_lines.append(chunk.text)

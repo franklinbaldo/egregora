@@ -20,11 +20,11 @@ from egregora.pipeline import (
 from test_framework.helpers import create_test_zip
 
 
-def test_whatsapp_transcript_preparation(temp_dir):
+def test_whatsapp_transcript_preparation(tmp_path):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # Real WhatsApp conversation
@@ -63,9 +63,9 @@ def test_whatsapp_transcript_preparation(temp_dir):
     assert "Ótima ideia" in processed_content
 
 
-def test_previous_newsletter_context_loading(temp_dir):
+def test_previous_newsletter_context_loading(tmp_path):
     """Test loading previous newsletter for context."""
-    newsletters_dir = temp_dir / "newsletters"
+    newsletters_dir = tmp_path / "newsletters"
     newsletters_dir.mkdir()
     
     # Create previous newsletter
@@ -96,9 +96,9 @@ def test_previous_newsletter_context_loading(temp_dir):
     assert "projeto Alpha" in loaded_content
 
 
-def test_newsletter_without_previous_context(temp_dir):
+def test_newsletter_without_previous_context(tmp_path):
     """Test behavior when no previous newsletter exists."""
-    newsletters_dir = temp_dir / "newsletters_empty"
+    newsletters_dir = tmp_path / "newsletters_empty"
     newsletters_dir.mkdir()
     
     # Test with empty directory
@@ -115,9 +115,9 @@ def test_newsletter_without_previous_context(temp_dir):
     assert loaded_content is None
 
 
-def test_zip_file_date_detection_and_listing(temp_dir):
+def test_zip_file_date_detection_and_listing(tmp_path):
     """Test zip file date detection and listing functionality."""
-    zips_dir = temp_dir / "zips"
+    zips_dir = tmp_path / "zips"
     zips_dir.mkdir()
     
     # Create test zip files with various naming patterns
@@ -155,11 +155,11 @@ def test_zip_file_date_detection_and_listing(temp_dir):
     assert actual_dates == expected_valid_dates
 
 
-def test_multi_day_transcript_processing(temp_dir):
+def test_multi_day_transcript_processing(tmp_path):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # Create multi-day transcripts
@@ -189,7 +189,7 @@ def test_multi_day_transcript_processing(temp_dir):
         assert "Member-" in processed_content
 
 
-def test_transcript_section_headers(temp_dir):
+def test_transcript_section_headers(tmp_path):
     """Test transcript section header formatting."""
     # Test different transcript counts
     test_cases = [
@@ -204,11 +204,11 @@ def test_transcript_section_headers(temp_dir):
         assert "CRONOLÓGICA" in header
 
 
-def test_whatsapp_content_with_special_characters(temp_dir):
+def test_whatsapp_content_with_special_characters(tmp_path):
     """Test processing WhatsApp content with special characters and media."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # WhatsApp content with various special elements
@@ -239,11 +239,11 @@ def test_whatsapp_content_with_special_characters(temp_dir):
     assert "Member-" in processed_content
 
 
-def test_anonymization_consistency_across_days(temp_dir):
+def test_anonymization_consistency_across_days(tmp_path):
     """Test that anonymization is consistent across multiple days."""
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        zips_dir=tmp_path,
+        newsletters_dir=tmp_path,
     )
     
     # Same person across multiple days
@@ -271,12 +271,12 @@ def test_anonymization_consistency_across_days(temp_dir):
     assert len(unique_names) == 1, f"Expected 1 unique name, got {len(unique_names)}: {unique_names}"
 
 
-def test_config_validation_with_whatsapp_setup(temp_dir):
+def test_config_validation_with_whatsapp_setup(tmp_path):
     """Test configuration validation for WhatsApp processing."""
     # Test valid configuration
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir / "zips",
-        newsletters_dir=temp_dir / "newsletters",
+        zips_dir=tmp_path / "zips",
+        newsletters_dir=tmp_path / "newsletters",
         group_name="WhatsApp Test Group"
     )
     
@@ -300,36 +300,36 @@ if __name__ == "__main__":
     import tempfile
     
     with tempfile.TemporaryDirectory() as tmp:
-        temp_dir = Path(tmp)
+        tmp_path = Path(tmp)
         
         print("Running simplified newsletter generation tests...")
         
         try:
-            test_whatsapp_transcript_preparation(temp_dir)
+            test_whatsapp_transcript_preparation(tmp_path)
             print("✓ WhatsApp transcript preparation test passed")
             
-            test_previous_newsletter_context_loading(temp_dir)
+            test_previous_newsletter_context_loading(tmp_path)
             print("✓ Previous newsletter context loading test passed")
             
-            test_newsletter_without_previous_context(temp_dir)
+            test_newsletter_without_previous_context(tmp_path)
             print("✓ Newsletter without previous context test passed")
             
-            test_zip_file_date_detection_and_listing(temp_dir)
+            test_zip_file_date_detection_and_listing(tmp_path)
             print("✓ Zip file date detection and listing test passed")
             
-            test_multi_day_transcript_processing(temp_dir)
+            test_multi_day_transcript_processing(tmp_path)
             print("✓ Multi-day transcript processing test passed")
             
-            test_transcript_section_headers(temp_dir)
+            test_transcript_section_headers(tmp_path)
             print("✓ Transcript section headers test passed")
             
-            test_whatsapp_content_with_special_characters(temp_dir)
+            test_whatsapp_content_with_special_characters(tmp_path)
             print("✓ WhatsApp content with special characters test passed")
             
-            test_anonymization_consistency_across_days(temp_dir)
+            test_anonymization_consistency_across_days(tmp_path)
             print("✓ Anonymization consistency across days test passed")
             
-            test_config_validation_with_whatsapp_setup(temp_dir)
+            test_config_validation_with_whatsapp_setup(tmp_path)
             print("✓ Config validation with WhatsApp setup test passed")
             
             print("\n🎉 All simplified newsletter generation tests passed!")

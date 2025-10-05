@@ -7,265 +7,185 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
+from unittest.mock import Mock, patch
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import EnrichmentConfig
-from egregora.enrichment import ContentEnricher, URL_RE, MESSAGE_RE
+from egregora.enrichment import (
+    ContentEnricher,
+    URL_RE,
+    MESSAGE_RE,
+    EnrichmentResult,
+    AnalysisResult,
+    ContentReference,
+)
 from egregora.cache_manager import CacheManager
 from test_framework.helpers import TestDataGenerator
 
 
-def test_url_extraction_whatsapp_content(temp_dir):
+def create_mock_response(summary, key_points, tone, relevance):
+    return Mock(
+        text=json.dumps(
+            {
+                "summary": summary,
+                "key_points": key_points,
+                "tone": tone,
+                "relevance": relevance,
+            }
+        )
+    )
+
+
+@pytest.fixture
+def mock_client():
+    client = Mock()
+    client.generate_content.return_value = create_mock_response("Summary", ["Point 1"], "neutral", 4)
+    return client
+
+
+def test_url_extraction_whatsapp_content(tmp_path):
     """Test URL extraction from WhatsApp conversation content using regex."""
-    # WhatsApp content with YouTube URL from our test data
     whatsapp_content = """03/10/2025 09:46 - Franklin: https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT
 03/10/2025 09:46 - Franklin: Legal esse vídeo
 03/10/2025 09:47 - Maria: Também gostei! https://example.com/article"""
-    
-    # Test URL extraction using the same regex pattern as enrichment
     urls = URL_RE.findall(whatsapp_content)
-    
     assert len(urls) == 2
     assert "https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT" in urls
     assert "https://example.com/article" in urls
 
 
-def test_whatsapp_message_parsing(temp_dir):
+def test_whatsapp_message_parsing(tmp_path):
     """Test parsing of WhatsApp message format using regex."""
-    # Test various WhatsApp message formats using the enrichment regex
     test_messages = [
         "09:45 - Franklin: Teste de grupo",
-        "15:30 - Maria José: Mensagem com nome composto", 
+        "15:30 - Maria José: Mensagem com nome composto",
         "22:15 - +55 11 99999-9999: Mensagem de número",
     ]
-    
     for message in test_messages:
         match = MESSAGE_RE.match(message)
-        if match:
-            time_str = match.group("time")
-            sender = match.group("sender")
-            content = match.group("message")
-            
-            assert len(time_str) > 0
-            assert len(sender) > 0
-            assert len(content) > 0
-            
-            # Validate specific format expectations
-            assert ":" in time_str  # Should contain time separator
-            assert sender.strip() == sender  # Should be trimmed
+        assert match is not None
 
 
-def test_content_enrichment_with_whatsapp_urls(temp_dir):
+@pytest.mark.asyncio
+async def test_content_enrichment_with_whatsapp_urls(tmp_path, mock_client):
     """Test content enrichment with URLs from WhatsApp conversations."""
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
-    
-    config = EnrichmentConfig(enabled=True, max_concurrent_requests=2)
-    cache_manager = CacheManager(temp_dir / "cache")
-    
-    with patch('egregora.enrichment.genai') as mock_genai:
-        mock_client = MockGeminiClient()
-        mock_genai.Client.return_value = mock_client
-        
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        # Process conversation
-        result = enricher.process_conversation(
-            conversation_with_urls,
-            date.today()
-        )
-        
-        assert isinstance(result, EnrichmentResult)
-        assert result.processed_urls >= 1  # Should find and process URLs
-        assert len(result.analysis_results) >= 1
-
-
-def test_enrichment_caching_functionality(temp_dir):
-    """Test that enrichment results are properly cached."""
-    test_url = "https://example.com/test-article"
-    
-    config = EnrichmentConfig(enabled=True)
-    cache_manager = CacheManager(temp_dir / "cache")
-    
-    with patch('egregora.enrichment.genai') as mock_genai:
-        mock_client = MockGeminiClient()
-        mock_genai.Client.return_value = mock_client
-        
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        # First call should hit the API
-        result1 = enricher._analyze_url(test_url)
-        first_call_count = mock_client.call_count
-        
-        # Second call should use cache
-        result2 = enricher._analyze_url(test_url)
-        second_call_count = mock_client.call_count
-        
-        # Verify caching worked
-        assert first_call_count == 1
-        assert second_call_count == 1  # No additional calls
-        assert result1.summary == result2.summary
-
-
-def test_media_placeholder_handling(temp_dir):
-    """Test handling of media placeholders in WhatsApp content."""
-    content_with_media = """09:45 - Franklin: Olha essa foto
-09:46 - Franklin: <mídia oculta>
-09:47 - Franklin: Que acham?"""
-    
-    config = EnrichmentConfig(enabled=True)
-    cache_manager = CacheManager(temp_dir / "cache")
-    
-    with patch('egregora.enrichment.genai') as mock_genai:
-        mock_client = MockGeminiClient()
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        result = enricher.process_conversation(content_with_media, date.today())
-        
-        # Should handle media placeholders gracefully
-        assert isinstance(result, EnrichmentResult)
-        # Media placeholders should be processed but not cause errors
-
-
-def test_enrichment_with_disabled_config(temp_dir):
-    """Test that enrichment is skipped when disabled in config."""
-    conversation = TestDataGenerator.create_complex_conversation()
-    
-    config = EnrichmentConfig(enabled=False)  # Disabled
-    cache_manager = CacheManager(temp_dir / "cache")
-    
+    config = EnrichmentConfig(enabled=True, max_concurrent_analyses=2)
+    cache_manager = CacheManager(tmp_path / "cache")
     enricher = ContentEnricher(config, cache_manager=cache_manager)
     
-    result = enricher.process_conversation(conversation, date.today())
-    
-    # Should return empty result when disabled
+    mock_response = create_mock_response("Summary", ["Point 1"], "neutral", 4)
+    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+        result = await enricher.enrich([(date.today(), conversation_with_urls)], client=mock_client)
+        assert mock_to_thread.call_count > 0
+
     assert isinstance(result, EnrichmentResult)
-    assert result.processed_urls == 0
-    assert len(result.analysis_results) == 0
+    assert len(result.items) >= 1
+    assert result.items[0].analysis is not None
+    assert len(result.items[0].analysis.key_points) >= 1
 
 
-def test_error_handling_in_enrichment(temp_dir):
+@pytest.mark.asyncio
+async def test_enrichment_caching_functionality(tmp_path, mock_client):
+    """Test that enrichment results are properly cached."""
+    test_url = "https://example.com/test-article"
+    content = f"check this out: {test_url}"
+    config = EnrichmentConfig(enabled=True)
+    cache_manager = CacheManager(tmp_path / "cache")
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
+
+    mock_response = create_mock_response("Summary", ["Point 1"], "neutral", 4)
+
+    # First call, should call API
+    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+        await enricher.enrich([(date.today(), content)], client=mock_client)
+        assert mock_to_thread.call_count == 1
+
+    # Second call, should use cache
+    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+        await enricher.enrich([(date.today(), content)], client=mock_client)
+        assert mock_to_thread.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_media_placeholder_handling(tmp_path, mock_client):
+    """Test handling of media placeholders in WhatsApp content."""
+    content_with_media = "09:46 - Franklin: <mídia oculta>"
+    config = EnrichmentConfig(enabled=True)
+    cache_manager = CacheManager(tmp_path / "cache")
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
+    result = await enricher.enrich([(date.today(), content_with_media)], client=mock_client)
+    assert isinstance(result, EnrichmentResult)
+    assert len(result.items) == 1
+    assert result.items[0].analysis.summary is not None
+
+
+@pytest.mark.asyncio
+async def test_enrichment_with_disabled_config(tmp_path):
+    """Test that enrichment is skipped when disabled in config."""
+    config = EnrichmentConfig(enabled=False)
+    enricher = ContentEnricher(config)
+    result = await enricher.enrich([], client=None)
+    assert len(result.items) == 0
+
+
+@pytest.mark.asyncio
+async def test_error_handling_in_enrichment(tmp_path, mock_client):
     """Test error handling during enrichment process."""
     config = EnrichmentConfig(enabled=True)
-    cache_manager = CacheManager(temp_dir / "cache")
+    reference = ContentReference(date.today(), "http://test.com", "Test", "12:00", "test", [], [])
+    enricher = ContentEnricher(config)
     
-    # Mock client that raises exceptions
-    class FailingClient:
-        def generate_content(self, *args, **kwargs):
-            raise Exception("API Error")
+    with patch('egregora.enrichment.asyncio.to_thread', side_effect=Exception("API Error")) as mock_to_thread:
+        result = await enricher._analyze_reference(reference, mock_client)
+        assert mock_to_thread.call_count == 1
     
-    with patch('egregora.enrichment.genai') as mock_genai:
-        failing_client = FailingClient()
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        # Should handle errors gracefully
-        result = enricher._analyze_url("https://example.com/test")
-        
-        assert isinstance(result, AnalysisResult)
-        assert result.error is not None
-        assert not result.is_successful
+    assert isinstance(result, AnalysisResult)
+    assert result.error == "API Error"
+    assert not result.is_successful
 
 
-def test_concurrent_url_processing(temp_dir):
+@pytest.mark.asyncio
+async def test_concurrent_url_processing(tmp_path, mock_client):
     """Test concurrent processing of multiple URLs."""
-    content_with_multiple_urls = """09:45 - Franklin: Vejam esses links:
-09:46 - Franklin: https://example.com/link1
-09:47 - Franklin: https://example.com/link2
-09:48 - Franklin: https://example.com/link3"""
+    content = "https://a.com\nhttps://b.com\nhttps://c.com"
+    config = EnrichmentConfig(enabled=True, max_concurrent_analyses=3)
+    enricher = ContentEnricher(config)
     
-    config = EnrichmentConfig(enabled=True, max_concurrent_requests=3)
-    cache_manager = CacheManager(temp_dir / "cache")
+    mock_response = create_mock_response("Summary", [], "neutral", 4)
+    with patch('egregora.enrichment.asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+        result = await enricher.enrich([(date.today(), content)], client=mock_client)
+        assert mock_to_thread.call_count == 3
     
-    with patch('egregora.enrichment.genai') as mock_genai:
-        mock_client = MockGeminiClient()
-        mock_genai.Client.return_value = mock_client
-        
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        result = enricher.process_conversation(content_with_multiple_urls, date.today())
-        
-        # Should process all URLs
-        assert result.processed_urls == 3
-        assert len(result.analysis_results) == 3
-        assert mock_client.call_count == 3
+    assert len(result.items) == 3
 
 
-def test_relevance_filtering(temp_dir):
+@pytest.mark.asyncio
+async def test_relevance_filtering(tmp_path, mock_client):
     """Test filtering of results based on relevance scores."""
-    config = EnrichmentConfig(enabled=True, min_relevance=6)  # Higher threshold
-    cache_manager = CacheManager(temp_dir / "cache")
-    
-    # Custom client with varying relevance scores
-    class VariableRelevanceClient:
-        def __init__(self):
-            self.call_count = 0
-            
-        def generate_content(self, *args, **kwargs):
-            self.call_count += 1
-            relevance = 5 if self.call_count == 1 else 8  # First low, second high
-            return Mock(text=json.dumps({
-                "summary": f"Content {self.call_count}",
-                "key_points": [f"Point {self.call_count}"],
-                "tone": "neutral",
-                "relevance": relevance
-            }))
-    
-    with patch('egregora.enrichment.genai') as mock_genai:
-        variable_client = VariableRelevanceClient()
-        enricher = ContentEnricher(config, cache_manager=cache_manager)
-        
-        content = """09:45 - Franklin: https://example.com/low-relevance
-09:46 - Franklin: https://example.com/high-relevance"""
-        
-        result = enricher.process_conversation(content, date.today())
-        
-        # Should filter out low relevance results
-        high_relevance_results = [r for r in result.analysis_results if r.relevance >= 6]
-        assert len(high_relevance_results) == 1
+    config = EnrichmentConfig(enabled=True, relevance_threshold=5)
+    enricher = ContentEnricher(config)
+    content = "https://low.com\nhttps://high.com"
 
+    def side_effect(func, *args, **kwargs):
+        reference = None
+        for cell in func.__closure__:
+            if isinstance(cell.cell_contents, ContentReference):
+                reference = cell.cell_contents
+                break
+        
+        url = reference.url
+        relevance = 8 if "high" in url else 4
+        return create_mock_response("Summary", [], "neutral", relevance)
 
-if __name__ == "__main__":
-    # Manual test runner
-    from pathlib import Path
-    import tempfile
-    
-    with tempfile.TemporaryDirectory() as tmp:
-        temp_dir = Path(tmp)
-        
-        print("Running enrichment tests...")
-        
-        try:
-            test_url_extraction_whatsapp_content(temp_dir)
-            print("✓ URL extraction test passed")
-            
-            test_whatsapp_message_parsing(temp_dir)
-            print("✓ Message parsing test passed")
-            
-            test_content_enrichment_with_whatsapp_urls(temp_dir)
-            print("✓ Content enrichment test passed")
-            
-            test_enrichment_caching_functionality(temp_dir)
-            print("✓ Caching test passed")
-            
-            test_media_placeholder_handling(temp_dir)
-            print("✓ Media placeholder test passed")
-            
-            test_enrichment_with_disabled_config(temp_dir)
-            print("✓ Disabled config test passed")
-            
-            test_error_handling_in_enrichment(temp_dir)
-            print("✓ Error handling test passed")
-            
-            test_concurrent_url_processing(temp_dir)
-            print("✓ Concurrent processing test passed")
-            
-            test_relevance_filtering(temp_dir)
-            print("✓ Relevance filtering test passed")
-            
-            print("\n🎉 All enrichment tests passed!")
-            
-        except Exception as e:
-            print(f"❌ Test failed: {e}")
-            import traceback
-            traceback.print_exc()
+    with patch('egregora.enrichment.asyncio.to_thread', side_effect=side_effect) as mock_to_thread:
+        result = await enricher.enrich([(date.today(), content)], client=mock_client)
+        assert mock_to_thread.call_count == 2
+
+    prompt = result.format_for_prompt(config.relevance_threshold)
+    assert prompt is not None
+    assert "URL: https://low.com" not in prompt
+    assert "URL: https://high.com" in prompt

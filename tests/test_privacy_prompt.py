@@ -30,13 +30,12 @@ class DummyGenerateContentConfig:
 
 
 def _install_pipeline_stubs(monkeypatch):
-    stub_types = SimpleNamespace(
+    mock_genai = SimpleNamespace(
         Part=DummyPart,
         Content=DummyContent,
-        GenerateContentConfig=DummyGenerateContentConfig,
     )
-    monkeypatch.setattr(pipeline, "types", stub_types)
-    monkeypatch.setattr(pipeline, "genai", object())
+    monkeypatch.setattr(pipeline, "genai", mock_genai)
+    monkeypatch.setattr(pipeline, "GenerationConfig", DummyGenerateContentConfig)
 
 
 class DummyChunk:
@@ -44,18 +43,15 @@ class DummyChunk:
         self.text = text
 
 
-class DummyModelAPI:
+class DummyClient:
     def __init__(self, responses: list[str]):
         self._responses = responses
 
-    def generate_content_stream(self, *, model: str, contents, config):  # noqa: ANN001
+    def generate_content(self, *, model, contents, generation_config, system_instruction, stream: bool):
+        if not stream:
+            raise NotImplementedError("This dummy client only supports streaming.")
         for text in self._responses:
             yield DummyChunk(text)
-
-
-class DummyClient:
-    def __init__(self, responses: list[str]):
-        self.models = DummyModelAPI(responses)
 
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):

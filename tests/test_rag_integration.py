@@ -16,7 +16,7 @@ from egregora.rag.search import tokenize, STOP_WORDS
 from test_framework.helpers import create_test_zip
 
 
-def test_query_generation_whatsapp_content(temp_dir):
+def test_query_generation_whatsapp_content(tmp_path):
     """Test query generation components with WhatsApp conversation content."""
     whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
 03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
@@ -40,7 +40,7 @@ def test_query_generation_whatsapp_content(temp_dir):
     assert isinstance(query_gen.config, RAGConfig)
 
 
-def test_newsletter_date_detection(temp_dir):
+def test_newsletter_date_detection(tmp_path):
     """Test newsletter date detection functionality."""
     # Test date detection in file paths
     test_files = [
@@ -62,7 +62,7 @@ def test_newsletter_date_detection(temp_dir):
         assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
 
 
-def test_rag_config_validation(temp_dir):
+def test_rag_config_validation(tmp_path):
     """Test RAG configuration with WhatsApp setup."""
     # Test various RAG configurations
     configs = [
@@ -73,8 +73,8 @@ def test_rag_config_validation(temp_dir):
     
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
-            zips_dir=temp_dir,
-            newsletters_dir=temp_dir,
+            zips_dir=tmp_path,
+            newsletters_dir=tmp_path,
         )
         config.rag = rag_config
         
@@ -85,7 +85,7 @@ def test_rag_config_validation(temp_dir):
             assert 0.0 <= config.rag.min_similarity <= 1.0
 
 
-def test_search_functionality_patterns(temp_dir):
+def test_search_functionality_patterns(tmp_path):
     """Test search patterns with WhatsApp-like content."""
     # Create test content that simulates indexed conversations
     test_conversations = [
@@ -116,7 +116,7 @@ def test_search_functionality_patterns(temp_dir):
         assert len(processed) > 0
 
 
-def test_rag_context_preparation(temp_dir):
+def test_rag_context_preparation(tmp_path):
     """Test RAG context preparation with WhatsApp data."""
     whatsapp_transcripts = [
         (date(2025, 10, 1), "Conversa sobre projeto A"),
@@ -144,7 +144,7 @@ def test_rag_context_preparation(temp_dir):
         assert ']' in part
 
 
-def test_text_hashing_functionality(temp_dir):
+def test_text_hashing_functionality(tmp_path):
     """Test text hashing for content change detection."""
     whatsapp_texts = [
         "03/10/2025 09:45 - Franklin: Teste de grupo",
@@ -166,10 +166,10 @@ def test_text_hashing_functionality(temp_dir):
     assert hashes[0] != hashes[1]
 
 
-def test_whatsapp_data_processing_pipeline(temp_dir):
+def test_whatsapp_data_processing_pipeline(tmp_path):
     """Test complete data processing pipeline with WhatsApp format."""
     # Setup test data
-    zips_dir = temp_dir / "zips"
+    zips_dir = tmp_path / "zips"
     zips_dir.mkdir()
     
     # Create test zip with WhatsApp content
@@ -196,7 +196,7 @@ def test_whatsapp_data_processing_pipeline(temp_dir):
             assert "IA" in content
 
 
-def test_rag_performance_considerations(temp_dir):
+def test_rag_performance_considerations(tmp_path):
     """Test performance considerations for RAG with large datasets."""
     # Simulate large conversation dataset
     large_conversations = []
@@ -251,33 +251,33 @@ if __name__ == "__main__":
     import tempfile
     
     with tempfile.TemporaryDirectory() as tmp:
-        temp_dir = Path(tmp)
+        tmp_path = Path(tmp)
         
         print("Running RAG integration tests...")
         
         try:
-            test_query_generation_whatsapp_content(temp_dir)
+            test_query_generation_whatsapp_content(tmp_path)
             print("✓ Query generation test passed")
             
-            test_newsletter_date_detection(temp_dir)
+            test_newsletter_date_detection(tmp_path)
             print("✓ Newsletter date detection test passed")
             
-            test_rag_config_validation(temp_dir)
+            test_rag_config_validation(tmp_path)
             print("✓ RAG config validation test passed")
             
-            test_search_functionality_patterns(temp_dir)
+            test_search_functionality_patterns(tmp_path)
             print("✓ Search functionality patterns test passed")
             
-            test_rag_context_preparation(temp_dir)
+            test_rag_context_preparation(tmp_path)
             print("✓ RAG context preparation test passed")
             
-            test_text_hashing_functionality(temp_dir)
+            test_text_hashing_functionality(tmp_path)
             print("✓ Text hashing functionality test passed")
             
-            test_whatsapp_data_processing_pipeline(temp_dir)
+            test_whatsapp_data_processing_pipeline(tmp_path)
             print("✓ WhatsApp data processing pipeline test passed")
             
-            test_rag_performance_considerations(temp_dir)
+            test_rag_performance_considerations(tmp_path)
             print("✓ RAG performance considerations test passed")
             
             test_search_result_structure()
