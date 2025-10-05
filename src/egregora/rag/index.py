@@ -7,12 +7,12 @@ import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Sequence
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import TokenTextSplitter
 from llama_index.core.retrievers import VectorIndexRetriever
-from llama_index.core.schema import NodeWithScore
+from llama_index.core.schema import NodeWithScore, TextNode
 from llama_index.core.vector_stores import SimpleVectorStore
 
 from .config import RAGConfig
@@ -57,6 +57,11 @@ class NewsletterRAG:
 
         base_config.persist_dir = base_config.persist_dir.expanduser()
         base_config.persist_dir.mkdir(parents=True, exist_ok=True)
+
+        if base_config.export_embeddings:
+            base_config.embedding_export_path = (
+                base_config.embedding_export_path.expanduser()
+            )
 
         self.config = base_config
 
@@ -167,10 +172,18 @@ class NewsletterRAG:
         if nodes:
             index.insert_nodes(nodes)
 
-        return {
+        exported_rows = 0
+        if nodes and self.config.export_embeddings:
+            exported_rows = self._export_embeddings(nodes)
+
+        result = {
             "newsletters_count": len(documents),
             "chunks_count": len(nodes),
         }
+        if self.config.export_embeddings:
+            result["embedding_rows"] = exported_rows
+            result["embedding_export_path"] = str(self.config.embedding_export_path)
+        return result
 
     def search(
         self,
@@ -239,6 +252,55 @@ class NewsletterRAG:
         self._index = None
         self._init_vector_store()
 
+    def _export_embeddings(self, nodes: Sequence[TextNode]) -> int:
+        try:
+            import polars as pl
+        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError(
+                "Exportar embeddings em Parquet requer a dependência opcional 'polars'."
+            ) from exc
+
+        embeddings: list[list[float]] = []
+        chunk_ids: list[str] = []
+        doc_ids: list[str | None] = []
+        file_names: list[str | None] = []
+        dates: list[str | None] = []
+        texts: list[str] = []
+        dimensions: list[int] = []
+
+        for node in nodes:
+            text = node.get_content()
+            vector = self._embedding.get_text_embedding(text)
+
+            embeddings.append(vector)
+            chunk_ids.append(node.node_id or "")
+            doc_ids.append(getattr(node, "ref_doc_id", None))
+            metadata = getattr(node, "metadata", {}) or {}
+            file_names.append(metadata.get("file_name"))
+            dates.append(metadata.get("date"))
+            texts.append(text)
+            dimensions.append(len(vector))
+
+        if not embeddings:
+            return 0
+
+        export_path = self.config.embedding_export_path
+        export_path.parent.mkdir(parents=True, exist_ok=True)
+
+        df = pl.DataFrame(
+            {
+                "chunk_id": chunk_ids,
+                "doc_id": doc_ids,
+                "file_name": file_names,
+                "date": dates,
+                "text": texts,
+                "embedding_dimension": dimensions,
+                "embedding": embeddings,
+            }
+        )
+        df.write_parquet(export_path, compression="zstd")
+        return df.height
+
     def _load_newsletter_documents(self) -> List[Document]:
         documents: list[Document] = []
         for path in sorted(self.newsletters_dir.glob("*.md")):
@@ -291,4 +353,3 @@ class NewsletterRAG:
 
 
 __all__ = ["NewsletterRAG", "IndexStats"]
-

@@ -44,6 +44,10 @@ class RAGConfig:
     embedding_dimension: int = 768
     enable_cache: bool = True
     cache_dir: Path = field(default_factory=lambda: Path("cache/embeddings"))
+    export_embeddings: bool = False
+    embedding_export_path: Path = field(
+        default_factory=lambda: Path("artifacts/embeddings/newsletter_chunks.parquet")
+    )
 
     # Vector store
     vector_store_type: str = "simple"
@@ -55,4 +59,3 @@ class RAGConfig:
 
 
 __all__ = ["RAGConfig"]
-

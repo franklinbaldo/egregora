@@ -207,6 +207,7 @@ contexto relevante durante a geração de novas edições e em integrações com
 - Busca semântica e por palavras-chave sobre o histórico de newsletters.
 - Ferramentas MCP (`search_newsletters`, `list_newsletters`) para Claude e outros clientes.
 - Suporte opcional a embeddings do Gemini para resultados mais ricos.
+- Exportação opcional dos embeddings para Parquet, pronta para publicação como artefato no GitHub Actions ou Internet Archive (`export_embeddings` + `embedding_export_path`).
 
 Consulte `docs/mcp-rag.md` e `docs/embeddings.md` para detalhes de uso e configuração.
 

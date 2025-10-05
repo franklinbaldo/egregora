@@ -34,6 +34,8 @@ são:
 | `embedding_model`       | `"models/gemini-embedding-001"` | Modelo usado para gerar embeddings. |
 | `embedding_dimension`   | `768`                     | Dimensão dos vetores retornados. |
 | `enable_cache`          | `True`                    | Persiste vetores em `cache/embeddings/`. |
+| `export_embeddings`     | `False`                   | Gera um arquivo Parquet com todos os chunks indexados. |
+| `embedding_export_path` | `artifacts/embeddings/newsletter_chunks.parquet` | Caminho padrão do Parquet exportado (respeita caminhos relativos). |
 | `vector_store_type`     | `"simple"`               | Usa `SimpleVectorStore` (in-memory + persistência local). |
 | `chunk_size` / `chunk_overlap` | `1800` / `360`     | Tamanho e overlap dos trechos gerados pelo splitter. |
 | `top_k` / `min_similarity`     | `5` / `0.65`        | Ajustes padrão para consultas semânticas. |
@@ -49,6 +51,9 @@ Habilite a seção `[rag]` no arquivo de configuração:
 enabled = true
 embedding_model = "models/gemini-embedding-001"
 embedding_dimension = 768
+# Exporta embeddings em Parquet para publicar em artefatos
+export_embeddings = true
+embedding_export_path = "artifacts/embeddings/newsletter_chunks.parquet"
 ```
 
 Qualquer campo omitido usa os defaults acima. Quando `enabled = true`, o módulo
@@ -81,6 +86,30 @@ results = rag.search("automações discutidas", top_k=3)
 - Se a API não estiver disponível, o fallback interno usa hashing determinístico
   para produzir vetores estáveis, garantindo que o MCP server continue
   respondendo mesmo offline.
+
+---
+
+## 📦 Exportação e Artefatos
+
+- Com `export_embeddings = true`, cada execução de `update_index()` escreve um
+  Parquet em `embedding_export_path` contendo, por chunk, o texto, metadados e o
+  vetor (como coluna de listas). O arquivo é sobrescrito em toda atualização.
+- O caminho aceita valores relativos; por padrão salvamos em
+  `artifacts/embeddings/newsletter_chunks.parquet`, facilitando o upload como
+  artefato de GitHub Actions.
+- Em workflows CI/CD, basta adicionar um passo de upload, por exemplo:
+
+  ```yaml
+  - name: Publicar embeddings
+    uses: actions/upload-artifact@v4
+    with:
+      name: newsletter-embeddings
+      path: artifacts/embeddings/newsletter_chunks.parquet
+  ```
+
+- Para enviar ao Internet Archive, reutilize o mesmo arquivo exportado; apenas
+  certifique-se de executar o workflow com a chave apropriada e evite expor
+  dados sensíveis no Parquet.
 
 ---
 

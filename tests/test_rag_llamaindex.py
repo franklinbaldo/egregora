@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from egregora.rag.config import RAGConfig
@@ -117,3 +118,51 @@ def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
     for hit in hits:
         metadata = getattr(hit.node, "metadata", {})
         assert metadata.get("date") == old_day.isoformat()
+
+
+def test_export_embeddings_to_parquet(tmp_path: Path) -> None:
+    newsletters_dir = tmp_path / "letters"
+    newsletters_dir.mkdir()
+
+    _write_markdown(
+        newsletters_dir,
+        "2024-02-01.md",
+        "Discussão sobre coordenação e estratégia de IA",
+    )
+    _write_markdown(
+        newsletters_dir,
+        "2024-02-02.md",
+        "Análise detalhada de dados compartilhados",
+    )
+
+    export_path = tmp_path / "artifacts" / "chunks.parquet"
+
+    config = RAGConfig(
+        persist_dir=tmp_path / "vec",
+        cache_dir=tmp_path / "cache",
+        export_embeddings=True,
+        embedding_export_path=export_path,
+        min_similarity=0.0,
+    )
+
+    rag = NewsletterRAG(newsletters_dir=newsletters_dir, config=config)
+    stats = rag.update_index(force_rebuild=True)
+
+    assert export_path.exists(), "Expected embeddings parquet to be created"
+
+    df = pl.read_parquet(export_path)
+    assert df.height == stats["chunks_count"]
+    assert {
+        "chunk_id",
+        "doc_id",
+        "file_name",
+        "date",
+        "text",
+        "embedding_dimension",
+        "embedding",
+    } <= set(df.columns)
+
+    first = df.row(0, named=True)
+    assert isinstance(first["embedding"], list)
+    assert len(first["embedding"]) == config.embedding_dimension
+    assert first["embedding_dimension"] == config.embedding_dimension
