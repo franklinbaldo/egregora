@@ -16,6 +16,9 @@
 
 # Cache
 cache/
+docs/reports/
+site/
+mkdocs-dev.yml
 
 # OS generated files
 .DS_Store
@@ -32,4 +35,3 @@ egregora.toml
 
 # Test output
 tests/temp_output/
-
