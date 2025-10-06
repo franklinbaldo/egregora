@@ -244,6 +244,8 @@ perfil precisa ser atualizado e grava o resultado em dois formatos:
    profiles_docs_dir = "docs/profiles"
    min_messages = 2
    min_words_per_message = 15
+   max_api_retries = 3
+   minimum_retry_seconds = 30.0
    decision_model = "gemini-2.0-flash-exp"
    rewrite_model = "gemini-2.0-flash-exp"
    ```
@@ -254,6 +256,12 @@ perfil precisa ser atualizado e grava o resultado em dois formatos:
 Os perfis publicados ficam acessíveis em `docs/profiles/index.md`, com uma lista
 clicável de todos os membros analisados. Esse arquivo é atualizado a cada execução,
 facilitando o upload como artefato no GitHub Actions ou em outro repositório.
+
+- `min_messages` / `min_words_per_message`: limites mínimos para considerar uma
+  participação relevante no dia.
+- `max_api_retries` / `minimum_retry_seconds`: controla retentativas quando o
+  Gemini retorna `RESOURCE_EXHAUSTED` (rate limit) e o intervalo mínimo entre
+  tentativas.
 
 ## 🤝 Contribuição
 

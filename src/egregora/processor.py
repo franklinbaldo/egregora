@@ -72,6 +72,8 @@ class UnifiedProcessor:
                 min_words_per_message=self.config.profiles.min_words_per_message,
                 decision_model=self.config.profiles.decision_model,
                 rewrite_model=self.config.profiles.rewrite_model,
+                max_api_retries=self.config.profiles.max_api_retries,
+                minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
 
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:

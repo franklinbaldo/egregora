@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -28,6 +29,8 @@ class ProfileUpdater:
     min_words_per_message: int = 15
     decision_model: str = "gemini-2.0-flash-exp"
     rewrite_model: str = "gemini-2.0-flash-exp"
+    max_api_retries: int = 3
+    minimum_retry_seconds: float = 30.0
 
     async def should_update_profile(
         self,
@@ -59,13 +62,11 @@ class ProfileUpdater:
             full_conversation=full_conversation,
         )
 
-        response = await gemini_client.models.generate_content(
+        response = await self._generate_with_retry(
+            gemini_client,
             model=self.decision_model,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.3,
-                response_mime_type="application/json",
-            ),
+            temperature=0.3,
         )
 
         raw_text = getattr(response, "text", "")
@@ -133,13 +134,11 @@ class ProfileUpdater:
             interaction_insights=insights_block,
         )
 
-        response = await gemini_client.models.generate_content(
+        response = await self._generate_with_retry(
+            gemini_client,
             model=self.rewrite_model,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                response_mime_type="application/json",
-            ),
+            temperature=0.7,
         )
 
         raw_text = getattr(response, "text", "")
@@ -183,6 +182,53 @@ class ProfileUpdater:
         )
         profile.update_timestamp()
         return profile
+    async def _generate_with_retry(
+        self,
+        client: genai.Client,
+        *,
+        model: str,
+        contents: str,
+        temperature: float,
+    ):
+        attempt = 0
+        last_exc: Exception | None = None
+        while attempt < max(self.max_api_retries, 1):
+            attempt += 1
+            try:
+                return await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        response_mime_type="application/json",
+                    ),
+                )
+            except Exception as exc:  # pragma: no cover - depends on API behaviour
+                last_exc = exc
+                delay = self._extract_retry_delay(exc)
+                if delay is None or attempt >= self.max_api_retries:
+                    break
+                await asyncio.sleep(max(delay, self.minimum_retry_seconds))
+        raise last_exc if last_exc is not None else RuntimeError("Unknown error calling Gemini API")
+
+    @staticmethod
+    def _extract_retry_delay(exc: Exception) -> float | None:
+        message = str(exc)
+        if "RESOURCE_EXHAUSTED" not in message:
+            return None
+
+        match = re.search(r"retryDelay['\"]?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
+        if match:
+            whole = match.group(1)
+            frac = match.group(2) or ""
+            return float(f"{whole}.{frac}" if frac else whole)
+
+        match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
+        if match:
+            return float(match.group(1))
+
+        return None
 
     def _extract_member_messages(self, member_id: str, conversation: str) -> List[str]:
         pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")

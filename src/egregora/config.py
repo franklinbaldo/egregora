@@ -101,19 +101,34 @@ class ProfilesConfig(BaseModel):
     history_days: int = 5
     decision_model: str = "gemini-2.0-flash-exp"
     rewrite_model: str = "gemini-2.0-flash-exp"
+    max_api_retries: int = 3
+    minimum_retry_seconds: float = 30.0
 
     @field_validator("profiles_dir", "docs_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
 
-    @field_validator("min_messages", "min_words_per_message", "history_days")
+    @field_validator(
+        "min_messages",
+        "min_words_per_message",
+        "history_days",
+        "max_api_retries",
+    )
     @classmethod
     def _validate_positive(cls, value: Any) -> int:
         ivalue = int(value)
         if ivalue < 1:
             raise ValueError("profile thresholds must be positive integers")
         return ivalue
+
+    @field_validator("minimum_retry_seconds")
+    @classmethod
+    def _validate_retry_seconds(cls, value: Any) -> float:
+        fvalue = float(value)
+        if fvalue < 0:
+            raise ValueError("minimum_retry_seconds must be non-negative")
+        return fvalue
 
 
 class PipelineConfig(BaseSettings):
