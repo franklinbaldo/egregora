@@ -304,7 +304,10 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = NewsletterRAG(newsletters_dir=daily_dir, config=self.config.rag)
+                rag = NewsletterRAG(
+                    newsletters_dir=self.config.newsletters_dir,
+                    config=self.config.rag,
+                )
                 query_gen = QueryGenerator(self.config.rag)
                 query = query_gen.generate(transcript)
                 search_results = rag.search(query.search_query)
