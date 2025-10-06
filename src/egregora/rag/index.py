@@ -326,23 +326,14 @@ class NewsletterRAG:
     def _collect_newsletter_paths(self) -> list[Path]:
         """Return markdown newsletters, supporting both legacy and nested layouts."""
 
-        candidates: set[Path] = set()
-        # Legacy layout: newsletters stored directly under the configured directory
-        candidates.update(
-            path for path in self.newsletters_dir.glob("*.md") if path.is_file()
+        return sorted(
+            (
+                path
+                for path in self.newsletters_dir.glob("*/daily/*.md")
+                if path.is_file()
+            ),
+            key=lambda path: path.stem,
         )
-        # New layout: data/<group>/daily/<file>.md
-        candidates.update(
-            path for path in self.newsletters_dir.glob("*/daily/*.md") if path.is_file()
-        )
-
-        if not candidates:
-            # As a last resort, scan recursively to accommodate custom setups.
-            candidates.update(
-                path for path in self.newsletters_dir.rglob("*.md") if path.is_file()
-            )
-
-        return sorted(candidates, key=lambda path: path.stem)
 
     def iter_newsletter_files(self) -> list[Path]:
         """Public helper primarily used by tooling to list available newsletters."""

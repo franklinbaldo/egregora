@@ -28,37 +28,16 @@ def ensure_dirs():
         p.mkdir(parents=True, exist_ok=True)
 
 def iter_daily_files():
-    """Yield daily reports in both legacy and nested layouts."""
+    """Yield daily reports stored under the group-aware layout."""
 
-    # New layout: data/<group>/daily/YYYY-MM-DD.md
-    yielded = False
     for md in sorted(DAILY_SRC.glob("*/daily/*.md")):
         if md.is_file():
-            yielded = True
             yield md
-
-    if yielded:
-        return
-
-    # Legacy layout fallback: data/daily/YYYY/MM/DD.md
-    legacy_root = DAILY_SRC / "daily"
-    for year_dir in sorted(legacy_root.glob("[0-9][0-9][0-9][0-9]")):
-        for month_dir in sorted(year_dir.glob("[0-1][0-9]")):
-            for md in sorted(month_dir.glob("[0-3][0-9].md")):
-                if md.is_file():
-                    yield md
 
 def parse_date_from_path(p: Path) -> datetime:
     """Extract the ISO date from the filename."""
 
-    try:
-        return datetime.fromisoformat(p.stem).replace(tzinfo=TZ)
-    except ValueError:
-        # Legacy fallback expected YYYY/MM/DD.md
-        y = int(p.parent.parent.name)
-        m = int(p.parent.name)
-        d = int(p.stem)
-        return datetime(y, m, d, tzinfo=TZ)
+    return datetime.fromisoformat(p.stem).replace(tzinfo=TZ)
 
 def read_text(p: Path) -> str:
     return p.read_text(encoding="utf-8", errors="replace")
