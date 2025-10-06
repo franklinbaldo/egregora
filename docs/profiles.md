@@ -22,8 +22,8 @@ profiles_dir = "data/profiles"
 profiles_docs_dir = "docs/profiles"
 min_messages = 2
 min_words_per_message = 15
-decision_model = "gemini-2.0-flash-exp"
-rewrite_model = "gemini-2.0-flash-exp"
+decision_model = "models/gemini-flash-latest"
+rewrite_model = "models/gemini-flash-latest"
 ```
 
 - `enabled`: habilita/desabilita o módulo (por padrão já vem ativo).

@@ -99,8 +99,8 @@ class ProfilesConfig(BaseModel):
     min_messages: int = 2
     min_words_per_message: int = 15
     history_days: int = 5
-    decision_model: str = "gemini-2.0-flash-exp"
-    rewrite_model: str = "gemini-2.0-flash-exp"
+    decision_model: str = "models/gemini-flash-latest"
+    rewrite_model: str = "models/gemini-flash-latest"
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
 

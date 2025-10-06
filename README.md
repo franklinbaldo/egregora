@@ -246,8 +246,8 @@ perfil precisa ser atualizado e grava o resultado em dois formatos:
    min_words_per_message = 15
    max_api_retries = 3
    minimum_retry_seconds = 30.0
-   decision_model = "gemini-2.0-flash-exp"
-   rewrite_model = "gemini-2.0-flash-exp"
+   decision_model = "models/gemini-flash-latest"
+   rewrite_model = "models/gemini-flash-latest"
    ```
 
 3. Execute o pipeline normalmente. Cada participante que contribuir de forma
