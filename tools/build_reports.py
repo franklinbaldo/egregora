@@ -131,8 +131,8 @@ def build_section_indexes():
             for md in sorted(month_dir.glob("[0-3][0-9].md")):
                 d = md.stem
                 label = f"{d}/{month}/{year}"
-                rel = md.relative_to(DOCS_DIR).as_posix()
-                links.append(f"[{label}](/{rel})")
+                rel = md.relative_to(DAILY_DST).as_posix()
+                links.append(f"[{label}]({rel})")
             if links:
                 daily_index.append(f"- **{year}-{month}**: " + " • ".join(links))
     (DAILY_DST / "index.md").write_text("\n".join(daily_index) + "\n", encoding="utf-8")
@@ -144,8 +144,8 @@ def build_section_indexes():
         weekly_index.append(f"## {year}")
         items = []
         for md in sorted(year_dir.glob("*.md")):
-            rel = md.relative_to(DOCS_DIR).as_posix()
-            items.append(f"[{md.stem}](/{rel})")
+            rel = md.relative_to(WEEKLY_DST).as_posix()
+            items.append(f"[{md.stem}]({rel})")
         if items:
             weekly_index.append("- " + " • ".join(items))
     (WEEKLY_DST / "index.md").write_text("\n".join(weekly_index) + "\n", encoding="utf-8")
@@ -157,8 +157,8 @@ def build_section_indexes():
         monthly_index.append(f"## {year}")
         items = []
         for md in sorted(year_dir.glob("*.md")):
-            rel = md.relative_to(DOCS_DIR).as_posix()
-            items.append(f"[{md.stem}](/{rel})")
+            rel = md.relative_to(MONTHLY_DST).as_posix()
+            items.append(f"[{md.stem}]({rel})")
         if items:
             monthly_index.append("- " + " • ".join(items))
     (MONTHLY_DST / "index.md").write_text("\n".join(monthly_index) + "\n", encoding="utf-8")
