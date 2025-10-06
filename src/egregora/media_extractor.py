@@ -74,6 +74,8 @@ class MediaExtractor:
         zip_path: Path,
         newsletter_date: date,
         filenames: Iterable[str],
+        *,
+        group_slug: str | None = None,
     ) -> Dict[str, MediaFile]:
         """Extract only ``filenames`` from *zip_path* into ``newsletter_date`` directory."""
 
@@ -84,7 +86,8 @@ class MediaExtractor:
             return {}
 
         extracted: Dict[str, MediaFile] = {}
-        target_dir = self.media_base_dir / newsletter_date.isoformat()
+        group_key = (group_slug or "shared").strip() or "shared"
+        target_dir = self.media_base_dir / group_key / "media"
         target_dir.mkdir(parents=True, exist_ok=True)
 
         with zipfile.ZipFile(zip_path, "r") as zipped:
@@ -112,7 +115,9 @@ class MediaExtractor:
                     with zipped.open(info, "r") as source, open(dest_path, "wb") as target:
                         shutil.copyfileobj(source, target)
 
-                relative_path = str(Path("media") / newsletter_date.isoformat() / stored_name)
+                relative_path = str(
+                    Path("data") / "media" / group_key / "media" / stored_name
+                )
                 extracted[cleaned_name] = MediaFile(
                     filename=stored_name,
                     media_type=media_type,
@@ -127,6 +132,8 @@ class MediaExtractor:
         self,
         zip_path: Path,
         newsletter_date: date,
+        *,
+        group_slug: str | None = None,
     ) -> Dict[str, MediaFile]:
         """Extract all recognised media files from *zip_path*."""
 
@@ -144,6 +151,7 @@ class MediaExtractor:
             zip_path,
             newsletter_date,
             filenames,
+            group_slug=group_slug,
         )
 
     def _detect_media_type(self, filename: str) -> str | None:
@@ -244,6 +252,8 @@ class MediaExtractor:
 
             for key, media in media_files.items():
                 suffix_parts = list(PurePosixPath(media.relative_path).parts)
+                if suffix_parts and suffix_parts[0] == "data":
+                    suffix_parts = suffix_parts[1:]
                 if suffix_parts and suffix_parts[0] == "media":
                     suffix_parts = suffix_parts[1:]
                 suffix = PurePosixPath(*suffix_parts)

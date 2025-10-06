@@ -30,5 +30,5 @@ docs_dir: docs
 plugins:
   - search
   - tools.mkdocs_media_plugin:
-      source_dir: media
+      source_dir: data/media
       target_dir: media

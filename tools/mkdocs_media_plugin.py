@@ -10,10 +10,10 @@ from mkdocs.plugins import BasePlugin
 
 
 class MediaFilesPlugin(BasePlugin):
-    """Copy the repository ``media/`` directory into the built site."""
+    """Copy the repository ``data/media/`` directory into the built site."""
 
     config_scheme = (
-        ("source_dir", config_options.Type(str, default="media")),
+        ("source_dir", config_options.Type(str, default="data/media")),
         ("target_dir", config_options.Type(str, default="media")),
     )
 

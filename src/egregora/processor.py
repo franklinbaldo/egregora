@@ -242,6 +242,7 @@ class UnifiedProcessor:
                         export.zip_path,
                         target_date,
                         remaining,
+                        group_slug=source.slug,
                     )
                     if extracted:
                         all_media.update(extracted)

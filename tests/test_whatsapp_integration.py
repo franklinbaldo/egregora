@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from datetime import date
+import shutil
+import uuid
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import read_zip_texts, _prepare_transcripts
+from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
 
 
 def test_whatsapp_zip_processing(tmp_path) -> None:
@@ -18,7 +20,7 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     
     # Test zip reading
     media_dir = tmp_path / "media"
-    result = read_zip_texts(
+    result, _ = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
         media_dir=media_dir,
@@ -28,17 +30,23 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     assert "Franklin: Teste de grupo" in result
     assert "Franklin: 🐱" in result
     assert "Franklin: Legal esse vídeo" in result
-    assert "![IMG-20251002-WA0004.jpg](media/2025-10-03/IMG-20251002-WA0004.jpg)" in result
-    assert (media_dir / "2025-10-03" / "IMG-20251002-WA0004.jpg").exists()
+    assert (
+        "![IMG-20251002-WA0004.jpg](data/media/shared/media/IMG-20251002-WA0004.jpg)"
+        in result
+    )
+    assert (media_dir / "shared" / "media" / "IMG-20251002-WA0004.jpg").exists()
     assert "https://youtu.be/Nkhp-mb6FRc" in result
 
 
 def test_whatsapp_format_anonymization(tmp_path) -> None:
     """Test anonymization of WhatsApp conversation format."""
+    workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"
+    workspace.mkdir(parents=True, exist_ok=True)
+
     config = PipelineConfig.with_defaults(
-        zips_dir=tmp_path,
-        newsletters_dir=tmp_path,
-        media_dir=tmp_path / "media",
+        zips_dir=workspace,
+        newsletters_dir=workspace,
+        media_dir=workspace / "media",
     )
     
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message
@@ -73,17 +81,20 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
     
     # Read the zip
-    content = read_zip_texts(
+    workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    content, _ = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
-        media_dir=tmp_path / "media",
+        media_dir=workspace / "media",
     )
-    
+
     # Create config
     config = PipelineConfig.with_defaults(
-        zips_dir=tmp_path,
-        newsletters_dir=tmp_path,
-        media_dir=tmp_path / "media",
+        zips_dir=workspace,
+        newsletters_dir=workspace,
+        media_dir=workspace / "media",
     )
     
     # Process with anonymization
@@ -99,6 +110,10 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     
     # Verify file header is included
     assert "# Arquivo: Conversa do WhatsApp com Teste.txt" in processed_content
+
+    shutil.rmtree(workspace, ignore_errors=True)
+
+    shutil.rmtree(workspace, ignore_errors=True)
 
 
 if __name__ == "__main__":

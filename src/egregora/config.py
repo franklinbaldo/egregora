@@ -131,7 +131,7 @@ class PipelineConfig(BaseSettings):
     newsletters_dir: Path = Field(
         default_factory=lambda: _ensure_safe_directory("data/daily")
     )
-    media_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("media"))
+    media_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/media"))
     media_url_prefix: str | None = None
     model: str = DEFAULT_MODEL
     timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
