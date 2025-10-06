@@ -38,7 +38,7 @@ project/
 Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/daily
+python scripts/process_backlog.py data/whatsapp_zips data
 ```
 
 ### Skip Existing Files
@@ -46,7 +46,7 @@ python scripts/process_backlog.py data/whatsapp_zips data/daily
 By default, the script skips files that already have corresponding newsletters:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/daily
+python scripts/process_backlog.py data/whatsapp_zips data
 # Output:
 # 📊 Found 5 ZIP files
 # ⏭️  2024-10-01 (already exists)
@@ -60,7 +60,7 @@ python scripts/process_backlog.py data/whatsapp_zips data/daily
 To regenerate existing newsletters:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/daily --force
+python scripts/process_backlog.py data/whatsapp_zips data --force
 ```
 
 ## What was simplified?

@@ -1,28 +1,36 @@
 import re
-from pathlib import Path
-from datetime import date
+import shutil
 import zipfile
+from datetime import date
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from egregora.config import AnonymizationConfig, PipelineConfig, RAGConfig, EnrichmentConfig, CacheConfig
+from egregora.config import (
+    AnonymizationConfig,
+    CacheConfig,
+    EnrichmentConfig,
+    PipelineConfig,
+    RAGConfig,
+)
 from egregora.processor import UnifiedProcessor
 
 
 @pytest.fixture
 def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
     """Config with anonymization enabled."""
-    zips_dir = tmp_path / "zips"
-    zips_dir.mkdir()
-    newsletters_dir = tmp_path / "newsletters"
-    newsletters_dir.mkdir()
-    media_dir = tmp_path / "media"
-    media_dir.mkdir()
+    base_dir = Path("tests/temp_output/anonymization")
+    shutil.rmtree(base_dir, ignore_errors=True)
+    zips_dir = base_dir / "zips"
+    newsletters_dir = base_dir / "newsletters"
+    media_dir = base_dir / "media"
+    for directory in (zips_dir, newsletters_dir, media_dir):
+        directory.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file
     zip_path = zips_dir / "Conversa do WhatsApp com Teste.zip"
-    chat_txt_path = tmp_path / "_chat.txt"
+    chat_txt_path = base_dir / "_chat.txt"
     with open(chat_txt_path, "w") as f:
         f.write("03/10/2025 09:45 - +55 11 94529-4774: Teste de grupo\n")
     
@@ -61,15 +69,20 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
 
     mock_client = MockLLMClient()
     monkeypatch.setattr(
-        "egregora.pipeline.create_client",
-        lambda api_key=None: mock_client,
+        "egregora.generator.NewsletterGenerator._create_client",
+        lambda self: mock_client,
     )
 
     processor = UnifiedProcessor(config_with_anonymization)
     processor.process_all(days=1)
 
     # Check the output file
-    output_file = config_with_anonymization.newsletters_dir / "_chat" / "2025-10-03.md"
+    output_file = (
+        config_with_anonymization.newsletters_dir
+        / "_chat"
+        / "daily"
+        / "2025-10-03.md"
+    )
     assert output_file.exists()
     content = output_file.read_text()
     assert "Member-" in content

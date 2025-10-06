@@ -146,7 +146,7 @@ class PipelineConfig(BaseSettings):
         default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips")
     )
     newsletters_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data/daily")
+        default_factory=lambda: _ensure_safe_directory("data")
     )
     media_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/media"))
     media_url_prefix: str | None = None

@@ -4,8 +4,9 @@
 [directories]
 # Onde os exports .zip do WhatsApp serão procurados.
 zips_dir = "data/whatsapp_zips"
-# Destino das newsletters geradas.
-newsletters_dir = "data/daily"
+# Pasta onde os dados dos grupos serão armazenados. As newsletters ficam em
+# "<grupo>/daily" dentro dessa raiz.
+newsletters_dir = "data"
 # Pasta onde mídias extraídas serão armazenadas.
 media_dir = "media"
 
