@@ -230,7 +230,7 @@ Após gerar a newsletter diária, o pipeline reavalia quem participou, decide se
 perfil precisa ser atualizado e grava o resultado em dois formatos:
 
 - `data/profiles/<uuid>.json`: dados estruturados para uso posterior;
-- `docs/profiles/<uuid>.md`: versão em Markdown, automaticamente exposta pelo MkDocs.
+- `docs/profiles/index.md`: índice em Markdown apontando para os JSONs públicos.
 
 ### Como habilitar
 

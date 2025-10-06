@@ -13,7 +13,7 @@ from .profile import ParticipantProfile
 
 @dataclass(slots=True)
 class ProfileRepository:
-    """Manage profile persistence on disk for JSON and Markdown outputs."""
+    """Manage profile persistence on disk and build a documentation index."""
 
     data_dir: Path
     docs_dir: Path
@@ -37,7 +37,7 @@ class ProfileRepository:
         return ParticipantProfile.from_dict(payload)
 
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
-        """Persist *profile* to JSON and Markdown outputs."""
+        """Persist *profile* to JSON outputs."""
 
         json_path = self._json_path(identifier)
         json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,10 +45,6 @@ class ProfileRepository:
             json.dumps(profile.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-
-        markdown_path = self._markdown_path(identifier)
-        markdown_path.parent.mkdir(parents=True, exist_ok=True)
-        markdown_path.write_text(profile.to_markdown(), encoding="utf-8")
 
     def iter_profiles(self) -> Iterator[Tuple[str, ParticipantProfile]]:
         """Yield ``(identifier, profile)`` pairs for stored profiles."""
@@ -91,23 +87,21 @@ class ProfileRepository:
         if not entries:
             lines.append("_Nenhum perfil disponível no momento._")
         else:
-            lines.append("| Identificador | Última atualização | Versão |")
-            lines.append("| --- | --- | --- |")
+            lines.append("| Membro | Arquivo JSON | Última atualização | Versão |")
+            lines.append("| --- | --- | --- | --- |")
             for last_updated, identifier, member_id, version in sorted(
                 entries, key=lambda item: item[0], reverse=True
             ):
                 date_text = _format_datetime(last_updated)
+                json_link = f"../../data/profiles/{identifier}.json"
                 lines.append(
-                    f"| [{member_id}]({identifier}.md) | {date_text} | {version} |"
+                    f"| {member_id} | [ver dados]({json_link}) | {date_text} | {version} |"
                 )
 
         index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def _json_path(self, identifier: str) -> Path:
         return self.data_dir / f"{identifier}.json"
-
-    def _markdown_path(self, identifier: str) -> Path:
-        return self.docs_dir / f"{identifier}.md"
 
 
 def _format_datetime(value: datetime | None) -> str:

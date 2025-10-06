@@ -7,10 +7,8 @@ Após cada newsletter diária, o pipeline analisa a participação de cada integ
 ## Estrutura de diretórios
 
 - `data/profiles/<uuid>.json` – dados estruturados, ideais para uso posterior ou
-  integrações.
-- `docs/profiles/<uuid>.md` – versão em Markdown exposta pelo MkDocs. O arquivo
-  `docs/profiles/index.md` é reescrito automaticamente com uma lista atualizada
-  de todos os perfis disponíveis.
+  integrações. O arquivo `docs/profiles/index.md` cria uma visão geral em
+  Markdown apontando para esses JSONs.
 
 Os identificadores de arquivo utilizam UUID v5 determinísticos a partir do
 telefone ou apelido original (antes da anonimização).

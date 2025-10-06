@@ -29,6 +29,22 @@ jobs:
         run: |
           mkdocs build --strict
 
+      - name: Upload embeddings artifact
+        if: ${{ hashFiles('artifacts/embeddings/newsletter_chunks.parquet') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: newsletter-embeddings
+          path: artifacts/embeddings/newsletter_chunks.parquet
+          if-no-files-found: ignore
+
+      - name: Upload participant profiles
+        if: ${{ hashFiles('data/profiles/**/*.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: participant-profiles
+          path: data/profiles
+          if-no-files-found: ignore
+
       - name: Deploy to Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
