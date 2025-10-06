@@ -241,9 +241,10 @@ perfil precisa ser atualizado e grava o resultado em dois formatos:
    [profiles]
    enabled = true
    profiles_dir = "data/profiles"
-   profiles_docs_dir = "docs/profiles"
+   docs_dir = "docs/profiles"
    min_messages = 2
    min_words_per_message = 15
+   max_profiles_per_run = 3
    max_api_retries = 3
    minimum_retry_seconds = 30.0
    decision_model = "models/gemini-flash-latest"
@@ -259,6 +260,8 @@ facilitando o upload como artefato no GitHub Actions ou em outro repositório.
 
 - `min_messages` / `min_words_per_message`: limites mínimos para considerar uma
   participação relevante no dia.
+- `max_profiles_per_run`: restringe quantos perfis podem ser atualizados em uma
+  execução (útil para respeitar limites de cota).
 - `max_api_retries` / `minimum_retry_seconds`: controla retentativas quando o
   Gemini retorna `RESOURCE_EXHAUSTED` (rate limit) e o intervalo mínimo entre
   tentativas.

@@ -19,9 +19,12 @@ telefone ou apelido original (antes da anonimização).
 [profiles]
 enabled = true
 profiles_dir = "data/profiles"
-profiles_docs_dir = "docs/profiles"
+docs_dir = "docs/profiles"
 min_messages = 2
 min_words_per_message = 15
+max_profiles_per_run = 3
+max_api_retries = 3
+minimum_retry_seconds = 30.0
 decision_model = "models/gemini-flash-latest"
 rewrite_model = "models/gemini-flash-latest"
 ```
@@ -29,6 +32,11 @@ rewrite_model = "models/gemini-flash-latest"
 - `enabled`: habilita/desabilita o módulo (por padrão já vem ativo).
 - `min_messages` / `min_words_per_message`: limites mínimos para considerar uma
   participação relevante no dia.
+- `max_profiles_per_run`: restringe quantos perfis podem ser reescritos em uma
+  mesma execução (útil para respeitar limites de cota).
+- `max_api_retries` / `minimum_retry_seconds`: controla retentativas quando o
+  sistema recebe `RESOURCE_EXHAUSTED` (rate limit) e o intervalo mínimo entre
+  tentativas.
 - `decision_model` / `rewrite_model`: modelos Gemini usados para decidir pela
   atualização e reescrever o perfil.
 

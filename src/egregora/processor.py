@@ -62,6 +62,10 @@ class UnifiedProcessor:
 
         self._profile_repository: ProfileRepository | None = None
         self._profile_updater: ProfileUpdater | None = None
+        self._profile_repository: ProfileRepository | None = None
+        self._profile_updater: ProfileUpdater | None = None
+        self._profile_limit_per_run: int = 0
+
         if self.config.profiles.enabled:
             self._profile_repository = ProfileRepository(
                 data_dir=self.config.profiles.profiles_dir,
@@ -75,6 +79,7 @@ class UnifiedProcessor:
                 max_api_retries=self.config.profiles.max_api_retries,
                 minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
+            self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
     def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -393,7 +398,19 @@ class UnifiedProcessor:
             if isinstance(author, str) and author.strip()
         }
 
+        processed = 0
+        quota_exhausted = False
+
         for raw_author in sorted(unique_authors):
+            if quota_exhausted:
+                break
+            if self._profile_limit_per_run and processed >= self._profile_limit_per_run:
+                logger.info(
+                    "    ⏸️  Limite diário de perfis atingido (%d)",
+                    self._profile_limit_per_run,
+                )
+                break
+
             member_uuid = Anonymizer.anonymize_author(raw_author, format="full")
             member_label = Anonymizer.anonymize_author(raw_author, format="human")
             current_profile = repository.load(member_uuid)
@@ -407,17 +424,54 @@ class UnifiedProcessor:
                 continue
 
             try:
+                should_update, reasoning, highlights, insights = asyncio.run(
+                    updater.should_update_profile(
+                        member_id=member_label,
+                        current_profile=current_profile,
+                        full_conversation=conversation,
+                        gemini_client=client,
+                    )
+                )
+            except RuntimeError as exc:
+                if "RESOURCE_EXHAUSTED" in str(exc):
+                    logger.warning(
+                        "    ⚠️ Limite diário do Gemini atingido ao decidir perfil de %s; interrompendo atualizações.",
+                        member_label,
+                    )
+                    quota_exhausted = True
+                    break
+                logger.warning(
+                    "    ⚠️ Erro ao decidir atualização de perfil de %s: %s",
+                    member_label,
+                    exc,
+                )
+                continue
+
+            if not should_update:
+                logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
+                continue
+
+            try:
                 profile = asyncio.run(
                     self._async_update_profile(
                         updater=updater,
                         member_label=member_label,
                         current_profile=current_profile,
+                        highlights=highlights,
+                        insights=insights,
                         conversation=conversation,
                         context_block=context_block,
                         client=client,
                     )
                 )
             except RuntimeError as exc:
+                if "RESOURCE_EXHAUSTED" in str(exc):
+                    logger.warning(
+                        "    ⚠️ Limite diário do Gemini atingido ao reescrever perfil de %s; interrompendo atualizações.",
+                        member_label,
+                    )
+                    quota_exhausted = True
+                    break
                 logger.warning(
                     "    ⚠️ Erro ao atualizar perfil de %s: %s",
                     member_label,
@@ -425,11 +479,9 @@ class UnifiedProcessor:
                 )
                 continue
 
-            if profile is None:
-                continue
-
             repository.save(member_uuid, profile)
             updates_made = True
+            processed += 1
             logger.info(
                 "    👤 Perfil atualizado: %s (versão %d)",
                 member_label,
@@ -445,21 +497,12 @@ class UnifiedProcessor:
         updater: ProfileUpdater,
         member_label: str,
         current_profile,
+        highlights,
+        insights,
         conversation: str,
         context_block: str,
         client,
     ) -> Optional[ParticipantProfile]:
-        should_update, reasoning, highlights, insights = await updater.should_update_profile(
-            member_id=member_label,
-            current_profile=current_profile,
-            full_conversation=conversation,
-            gemini_client=client,
-        )
-
-        if not should_update:
-            logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
-            return None
-
         profile = await updater.rewrite_profile(
             member_id=member_label,
             old_profile=current_profile,

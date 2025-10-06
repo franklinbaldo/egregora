@@ -99,6 +99,7 @@ class ProfilesConfig(BaseModel):
     min_messages: int = 2
     min_words_per_message: int = 15
     history_days: int = 5
+    max_profiles_per_run: int = 3
     decision_model: str = "models/gemini-flash-latest"
     rewrite_model: str = "models/gemini-flash-latest"
     max_api_retries: int = 3
@@ -113,6 +114,7 @@ class ProfilesConfig(BaseModel):
         "min_messages",
         "min_words_per_message",
         "history_days",
+        "max_profiles_per_run",
         "max_api_retries",
     )
     @classmethod
