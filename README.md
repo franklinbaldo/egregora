@@ -138,7 +138,7 @@ Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores p
 ## 🧭 Estrutura padrão
 
 - `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp (data opcional no nome).
-- `data/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
+- `data/<grupo>/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
 
 As pastas são criadas automaticamente na primeira execução.
 
@@ -177,7 +177,7 @@ uv run egregora --config egregora.toml --dry-run
 Se você tem múltiplos dias de conversas para processar:
 
 1. Coloque todos os zips em `data/whatsapp_zips/` (ou informe outro diretório).
-2. Execute: `python scripts/process_backlog.py data/whatsapp_zips data/daily`
+2. Execute: `python scripts/process_backlog.py data/whatsapp_zips data`
 3. Use `--force` apenas se quiser sobrescrever newsletters já geradas.
 
 O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)

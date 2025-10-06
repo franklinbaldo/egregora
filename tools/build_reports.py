@@ -12,7 +12,7 @@ from collections import defaultdict
 TZ = tz.gettz("America/Porto_Velho")
 
 # fonte dos diários (produzidos pelo seu pipeline)
-DAILY_SRC = Path("data/daily")
+DAILY_SRC = Path("data")
 
 # destino publicado no MkDocs
 DOCS_DIR = Path("docs")
@@ -28,18 +28,16 @@ def ensure_dirs():
         p.mkdir(parents=True, exist_ok=True)
 
 def iter_daily_files():
-    # espera data/daily/YYYY/MM/DD.md
-    for year_dir in sorted((DAILY_SRC).glob("[0-9][0-9][0-9][0-9]")):
-        for month_dir in sorted(year_dir.glob("[0-1][0-9]")):
-            for md in sorted(month_dir.glob("[0-3][0-9].md")):
-                yield md
+    """Yield daily reports stored under the group-aware layout."""
+
+    for md in sorted(DAILY_SRC.glob("*/daily/*.md")):
+        if md.is_file():
+            yield md
 
 def parse_date_from_path(p: Path) -> datetime:
-    # .../YYYY/MM/DD.md
-    y = int(p.parent.parent.name)
-    m = int(p.parent.name)
-    d = int(p.stem)
-    return datetime(y, m, d, tzinfo=TZ)
+    """Extract the ISO date from the filename."""
+
+    return datetime.fromisoformat(p.stem).replace(tzinfo=TZ)
 
 def read_text(p: Path) -> str:
     return p.read_text(encoding="utf-8", errors="replace")

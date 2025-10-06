@@ -19,11 +19,12 @@ def _write_markdown(directory: Path, name: str, body: str) -> None:
 
 @pytest.fixture()
 def rag(tmp_path: Path) -> NewsletterRAG:
-    newsletters_dir = tmp_path / "newsletters"
-    newsletters_dir.mkdir()
+    newsletters_root = tmp_path / "newsletters"
+    daily_dir = newsletters_root / "group" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
 
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         "2024-01-01.md",
         """
         # Boletim 1
@@ -32,7 +33,7 @@ def rag(tmp_path: Path) -> NewsletterRAG:
         """,
     )
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         "2024-01-05.md",
         """
         # Boletim 2
@@ -41,7 +42,7 @@ def rag(tmp_path: Path) -> NewsletterRAG:
         """,
     )
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         "2023-12-15.md",
         """
         # Boletim 3
@@ -58,7 +59,7 @@ def rag(tmp_path: Path) -> NewsletterRAG:
         min_similarity=0.0,
     )
 
-    return NewsletterRAG(newsletters_dir=newsletters_dir, config=config)
+    return NewsletterRAG(newsletters_dir=newsletters_root, config=config)
 
 
 def test_update_index_rebuilds_vector_store(rag: NewsletterRAG) -> None:
@@ -86,20 +87,21 @@ def test_search_returns_relevant_chunks(rag: NewsletterRAG) -> None:
 
 
 def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
-    newsletters_dir = tmp_path / "letters"
-    newsletters_dir.mkdir()
+    newsletters_root = tmp_path / "letters"
+    daily_dir = newsletters_root / "group" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
 
     today = date.today()
     recent_day = today - timedelta(days=3)
     old_day = today - timedelta(days=60)
 
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         f"{recent_day.isoformat()}.md",
         "Discussão recente sobre agentes de IA",
     )
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         f"{old_day.isoformat()}.md",
         "Resumo antigo com notas sobre machine learning clássico",
     )
@@ -110,7 +112,7 @@ def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
         min_similarity=0.0,
     )
 
-    rag = NewsletterRAG(newsletters_dir=newsletters_dir, config=config)
+    rag = NewsletterRAG(newsletters_dir=newsletters_root, config=config)
     rag.update_index(force_rebuild=True)
 
     hits = rag.search("machine learning", top_k=5, min_similarity=0.0, exclude_recent_days=30)
@@ -121,16 +123,17 @@ def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
 
 
 def test_export_embeddings_to_parquet(tmp_path: Path) -> None:
-    newsletters_dir = tmp_path / "letters"
-    newsletters_dir.mkdir()
+    newsletters_root = tmp_path / "letters"
+    daily_dir = newsletters_root / "group" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
 
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         "2024-02-01.md",
         "Discussão sobre coordenação e estratégia de IA",
     )
     _write_markdown(
-        newsletters_dir,
+        daily_dir,
         "2024-02-02.md",
         "Análise detalhada de dados compartilhados",
     )
@@ -145,7 +148,7 @@ def test_export_embeddings_to_parquet(tmp_path: Path) -> None:
         min_similarity=0.0,
     )
 
-    rag = NewsletterRAG(newsletters_dir=newsletters_dir, config=config)
+    rag = NewsletterRAG(newsletters_dir=newsletters_root, config=config)
     stats = rag.update_index(force_rebuild=True)
 
     assert export_path.exists(), "Expected embeddings parquet to be created"

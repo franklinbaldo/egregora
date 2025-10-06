@@ -62,13 +62,16 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     def mock_create_client():
         return MockLLMClient()
 
-    monkeypatch.setattr("egregora.pipeline.create_client", mock_create_client)
+    monkeypatch.setattr(
+        "egregora.generator.NewsletterGenerator._create_client",
+        lambda self: mock_create_client(),
+    )
 
     processor = UnifiedProcessor(config_with_media)
     results = processor.process_all(days=1)
 
     # Verify media directory exists
-    media_output_dir = config_with_media.media_dir / "2025-10-03"
+    media_output_dir = config_with_media.media_dir / "_chat" / "media"
     assert media_output_dir.exists()
 
     # Verify media files extracted

@@ -125,9 +125,9 @@ class RAGServer:
 
     async def get_newsletter(self, *, date_str: str) -> str | None:
         await self.ensure_indexed()
-        newsletter_path = self.config.newsletters_dir / f"{date_str}.md"
-        if newsletter_path.exists():
-            return newsletter_path.read_text(encoding="utf-8")
+        for path in self.rag.iter_newsletter_files():
+            if path.stem == date_str:
+                return path.read_text(encoding="utf-8")
         return None
 
     async def list_newsletters(self, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
@@ -135,7 +135,9 @@ class RAGServer:
         if not directory.exists():
             return []
 
-        files = sorted(directory.glob("*.md"), key=lambda path: path.stem, reverse=True)
+        files = sorted(
+            self.rag.iter_newsletter_files(), key=lambda path: path.stem, reverse=True
+        )
         selected = files[offset : offset + limit]
         return [
             {

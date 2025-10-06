@@ -68,7 +68,7 @@ from egregora.rag.config import RAGConfig
 
 config = RAGConfig(enabled=True, embedding_dimension=768)
 rag = NewsletterRAG(
-    newsletters_dir=Path("data/daily"),
+    newsletters_dir=Path("data"),
     cache_dir=Path("cache"),
     config=config,
 )

@@ -212,8 +212,9 @@ class UnifiedProcessor:
 
         from .media_extractor import MediaExtractor
 
-        output_dir = self.config.newsletters_dir / source.slug
-        output_dir.mkdir(parents=True, exist_ok=True)
+        group_dir = self.config.newsletters_dir / source.slug
+        daily_dir = group_dir / "daily"
+        daily_dir.mkdir(parents=True, exist_ok=True)
 
         # Get available dates
         available_dates = list(get_available_dates(source))
@@ -260,7 +261,7 @@ class UnifiedProcessor:
             public_paths = MediaExtractor.build_public_paths(
                 all_media,
                 url_prefix=self.config.media_url_prefix,
-                relative_to=(output_dir if self.config.media_url_prefix is None else None),
+                relative_to=(daily_dir if self.config.media_url_prefix is None else None),
             )
 
             transcript = MediaExtractor.replace_media_references(
@@ -279,7 +280,7 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            _, previous_newsletter = load_previous_newsletter(output_dir, target_date)
+            _, previous_newsletter = load_previous_newsletter(daily_dir, target_date)
 
             # Enrichment
             enrichment_section = None
@@ -303,7 +304,10 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = NewsletterRAG(newsletters_dir=output_dir, config=self.config.rag)
+                rag = NewsletterRAG(
+                    newsletters_dir=self.config.newsletters_dir,
+                    config=self.config.rag,
+                )
                 query_gen = QueryGenerator(self.config.rag)
                 query = query_gen.generate(transcript)
                 search_results = rag.search(query.search_query)
@@ -332,7 +336,7 @@ class UnifiedProcessor:
                     f"{newsletter.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
                 )
 
-            output_path = output_dir / f"{target_date}.md"
+            output_path = daily_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")
 
             if self._profile_repository and self._profile_updater:

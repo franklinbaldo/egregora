@@ -303,7 +303,7 @@ class NewsletterRAG:
 
     def _load_newsletter_documents(self) -> List[Document]:
         documents: list[Document] = []
-        for path in sorted(self.newsletters_dir.glob("*.md")):
+        for path in self._collect_newsletter_paths():
             text = path.read_text(encoding="utf-8")
             metadata = {
                 "file_path": str(path),
@@ -322,6 +322,23 @@ class NewsletterRAG:
                 )
             )
         return documents
+
+    def _collect_newsletter_paths(self) -> list[Path]:
+        """Return markdown newsletters, supporting both legacy and nested layouts."""
+
+        return sorted(
+            (
+                path
+                for path in self.newsletters_dir.glob("*/daily/*.md")
+                if path.is_file()
+            ),
+            key=lambda path: path.stem,
+        )
+
+    def iter_newsletter_files(self) -> list[Path]:
+        """Public helper primarily used by tooling to list available newsletters."""
+
+        return self._collect_newsletter_paths()
 
     def _extract_date(self, path: Path) -> date | None:
         match = re.search(r"(\d{4}-\d{2}-\d{2})", path.stem)
