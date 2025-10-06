@@ -40,19 +40,18 @@ extra:
 
 nav:
   - Início: index.md
-  - Guia Rápido:
-      - Configuração do pipeline: quickstart.md
+  - Relatórios:
+      - Rationality Club LatAm:
+          - Diários: reports/daily/index.md
+          - Semanais: reports/weekly/index.md
+          - Mensais: reports/monthly/index.md
+  - Documentação:
+      - Guia rápido: quickstart.md
       - Processamento de backlog: backlog_processing.md
       - Embeddings & RAG: embeddings.md
-  - Relatórios:
-      - Diários: reports/daily/index.md
-      - Semanais: reports/weekly/index.md
-      - Mensais: reports/monthly/index.md
-  - Privacidade:
       - Sistema de privacidade: privacy.md
       - Autodescoberta: discover.md
-  - Perfis:
-      - Guia: profiles.md
+      - Perfis: profiles.md
 
 markdown_extensions:
   - toc:

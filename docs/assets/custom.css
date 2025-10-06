@@ -110,3 +110,49 @@
 .quick-links a:hover {
   text-decoration: underline;
 }
+
+.recent-daily {
+  padding-left: 1rem;
+  list-style: none;
+}
+
+.recent-daily li {
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.recent-daily a {
+  color: var(--md-primary-fg-color);
+  text-decoration: none;
+}
+
+.recent-daily a:hover {
+  text-decoration: underline;
+}
+
+.report-preview {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: var(--md-surface);
+  box-shadow: 0 8px 24px rgba(44, 52, 77, 0.12);
+  border: 1px solid rgba(69, 91, 164, 0.15);
+}
+
+.report-preview h3 {
+  margin-top: 0;
+}
+
+.report-preview .more-link {
+  margin-top: 1rem;
+  font-weight: 600;
+}
+
+.report-preview .more-link a {
+  color: var(--md-primary-fg-color);
+  text-decoration: none;
+}
+
+.report-preview .more-link a:hover {
+  text-decoration: underline;
+}

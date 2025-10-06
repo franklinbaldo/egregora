@@ -8,6 +8,11 @@ import re
 import shutil
 from collections import defaultdict
 
+PLACEHOLDER_BUTTON_START = "<!-- LATEST_DAILY_BUTTON -->"
+PLACEHOLDER_BUTTON_END = "<!-- /LATEST_DAILY_BUTTON -->"
+PLACEHOLDER_CONTENT_START = "<!-- LATEST_DAILY_CONTENT -->"
+PLACEHOLDER_CONTENT_END = "<!-- /LATEST_DAILY_CONTENT -->"
+
 # --- Config ---
 TZ = tz.gettz("America/Porto_Velho")
 
@@ -162,6 +167,93 @@ def build_section_indexes():
         if items:
             monthly_index.append("- " + " • ".join(items))
     (MONTHLY_DST / "index.md").write_text("\n".join(monthly_index) + "\n", encoding="utf-8")
+
+    recent_daily = _collect_recent_daily()
+    _update_homepage(recent_daily)
+
+
+def _collect_recent_daily(limit: int = 3) -> list[tuple[datetime, str, str, str]]:
+    candidates: list[tuple[datetime, str, str, str]] = []
+    for path in DAILY_DST.glob("*/**/*.md"):
+        if path.name == "index.md":
+            continue
+        try:
+            year = int(path.parent.parent.name)
+            month = int(path.parent.name)
+            day = int(path.stem)
+            dt = datetime(year, month, day, tzinfo=TZ)
+        except (ValueError, IndexError):
+            try:
+                dt = parse_date_from_path(path)
+            except ValueError:
+                continue
+        rel_path = path.relative_to(DAILY_DST)
+        label = dt.strftime("%d/%m/%Y")
+        slug = rel_path.with_suffix("").as_posix()
+        rel = rel_path.as_posix()
+        candidates.append((dt, label, slug, rel))
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[:limit]
+
+
+def _replace_block(text: str, start_marker: str, end_marker: str, new_content: str) -> str:
+    pattern = re.compile(
+        rf"({re.escape(start_marker)}\s*)(.*?)(\s*{re.escape(end_marker)})",
+        re.DOTALL,
+    )
+
+    def _repl(match: re.Match[str]) -> str:
+        leading, trailing = match.group(1), match.group(3)
+        return f"{leading}{new_content}{trailing}"
+
+    return pattern.sub(_repl, text)
+
+
+def _update_homepage(recent_daily: list[tuple[datetime, str, str, str]]) -> None:
+    index_path = Path("docs/index.md")
+    if not index_path.exists():
+        return
+
+    text = index_path.read_text(encoding="utf-8")
+
+    if recent_daily:
+        _, latest_label, latest_slug, _ = recent_daily[0]
+        latest_button = (
+            f'    <a class="primary" href="reports/daily/{latest_slug}/">\n'
+            f'      <span class="twemoji">🆕</span>\n'
+            f'      Relatório de {latest_label}\n'
+            f'    </a>'
+        )
+        previews: list[str] = []
+        for _, label, slug, rel in recent_daily:
+            report_path = DAILY_DST / rel
+            try:
+                report_md = report_path.read_text(encoding="utf-8").strip()
+            except FileNotFoundError:
+                continue
+            preview = (
+                f"<div class=\"report-preview\">\n"
+                f"### {label}\n\n"
+                f"{report_md}\n\n"
+                f"<p class=\"more-link\"><a href=\"reports/daily/{slug}/\">Abrir relatório completo →</a></p>\n"
+                f"</div>"
+            )
+            previews.append(preview)
+        content_block = "\n\n".join(previews) if previews else "<p>Nenhum relatório publicado ainda.</p>"
+    else:
+        latest_button = (
+            "    <a class=\"primary\" href=\"#\">\n"
+            "      <span class=\"twemoji\">🆕</span>\n"
+            "      Nenhum relatório disponível\n"
+            "    </a>"
+        )
+        content_block = "<p>Nenhum relatório publicado ainda.</p>"
+
+    text = _replace_block(text, PLACEHOLDER_BUTTON_START, PLACEHOLDER_BUTTON_END, latest_button)
+    text = _replace_block(text, PLACEHOLDER_CONTENT_START, PLACEHOLDER_CONTENT_END, content_block)
+
+    index_path.write_text(text, encoding="utf-8")
 
 def main():
     ensure_dirs()
