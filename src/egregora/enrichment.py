@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field, asdict
 from datetime import date, datetime, timezone
 from time import perf_counter
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -23,6 +23,10 @@ import polars as pl
 
 from .cache_manager import CacheManager
 from .config import EnrichmentConfig
+from .gemini_manager import GeminiQuotaError
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .gemini_manager import GeminiManager
 
 MESSAGE_RE = re.compile(
     r"^(?P<time>\d{1,2}:\d{2})\s+[—\-–]\s+(?P<sender>[^:]+):\s*(?P<message>.*)$"
@@ -141,10 +145,15 @@ class ContentEnricher:
     """High-level orchestrator that extracts and analyzes shared links."""
 
     def __init__(
-        self, config: EnrichmentConfig, *, cache_manager: CacheManager | None = None
+        self,
+        config: EnrichmentConfig,
+        *,
+        cache_manager: CacheManager | None = None,
+        gemini_manager: "GeminiManager | None" = None,
     ) -> None:
         self._config = config
         self._cache = cache_manager
+        self._gemini_manager = gemini_manager
 
     async def enrich(
         self,
@@ -184,7 +193,10 @@ class ContentEnricher:
                 return EnrichedItem(reference=reference, analysis=cached_item)
 
             async with semaphore_analysis:
-                analysis = await self._analyze_reference(reference, client)
+                analysis = await self._analyze_reference(
+                    reference,
+                    client=client,
+                )
             if analysis.error:
                 return EnrichedItem(
                     reference=reference,
@@ -224,9 +236,13 @@ class ContentEnricher:
         return result
 
     async def _analyze_reference(
-        self, reference: ContentReference, client: genai.Client | None
+        self,
+        reference: ContentReference,
+        client: genai.Client | None,
     ) -> AnalysisResult:
-        if types is None or client is None:
+        manager = self._gemini_manager
+
+        if manager is None and (types is None or client is None):
             return AnalysisResult(
                 summary=None,
                 key_points=[],
@@ -238,26 +254,44 @@ class ContentEnricher:
 
         prompt = self._build_prompt(reference)
 
-        def _invoke() -> object:
-            return client.models.generate_content(
-                model=self._config.enrichment_model,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_text(text=prompt),
-                            types.Part.from_uri(file_uri=reference.url),
-                        ],
-                    )
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=prompt),
+                    types.Part.from_uri(file_uri=reference.url),
                 ],
-                config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json",
-                ),
             )
+        ]
+        config = types.GenerateContentConfig(
+            temperature=0.2,
+            response_mime_type="application/json",
+        )
 
         try:
-            response = await asyncio.to_thread(_invoke)
+            if manager is not None:
+                response = await manager.generate_content(
+                    "enrichment",
+                    model=self._config.enrichment_model,
+                    contents=contents,
+                    config=config,
+                )
+            else:
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=self._config.enrichment_model,
+                    contents=contents,
+                    config=config,
+                )
+        except GeminiQuotaError as exc:
+            return AnalysisResult(
+                summary=None,
+                key_points=[],
+                tone=None,
+                relevance=1,
+                raw_response=None,
+                error=str(exc),
+            )
         except Exception as exc:  # pragma: no cover - depends on network/model
             return AnalysisResult(
                 summary=None,
