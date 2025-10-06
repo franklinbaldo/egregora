@@ -68,7 +68,7 @@ from egregora.rag.config import RAGConfig
 
 config = RAGConfig(enabled=True, embedding_dimension=768)
 rag = NewsletterRAG(
-    newsletters_dir=Path("data/daily"),
+    newsletters_dir=Path("data/meu-grupo"),
     cache_dir=Path("cache"),
     config=config,
 )
@@ -80,9 +80,10 @@ results = rag.search("automações discutidas", top_k=3)
 
 ## 💾 Cache e Fallback
 
-- Os vetores ficam em `cache/embeddings/` juntamente com metadados do modelo.
-- `CachedGeminiEmbedding` grava cada embedding identificado por hash, evitando
-  custos repetidos de API.
+- Os vetores ficam em `cache/embeddings/` juntamente com metadados do modelo,
+  graças aos utilitários de `egregora.cache`.
+- `CachedGeminiEmbedding` grava cada embedding identificado pelo hash do
+  namespace + texto, evitando custos repetidos de API.
 - Se a API não estiver disponível, o fallback interno usa hashing determinístico
   para produzir vetores estáveis, garantindo que o MCP server continue
   respondendo mesmo offline.

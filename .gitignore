@@ -16,6 +16,8 @@ __pycache__/
 
 # Cache
 cache/
+!src/egregora/cache/
+!src/egregora/cache/**
 
 # OS generated files
 .DS_Store
