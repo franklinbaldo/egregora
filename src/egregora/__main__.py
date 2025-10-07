@@ -60,6 +60,13 @@ ModelOption = Annotated[
     Optional[str],
     typer.Option(help="Nome do modelo Gemini a ser usado."),
 ]
+RemoteUrlOption = Annotated[
+    Optional[str],
+    typer.Option(
+        "--remote-url",
+        help="URL do Google Drive com exports .zip para sincronizar automaticamente.",
+    ),
+]
 TimezoneOption = Annotated[
     Optional[str],
     typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
@@ -96,6 +103,7 @@ def _process_command(
     zips_dir: Optional[Path] = None,
     newsletters_dir: Optional[Path] = None,
     model: Optional[str] = None,
+    remote_url: Optional[str] = None,
     timezone: Optional[str] = None,
     days: int = 2,
     disable_enrichment: bool = False,
@@ -107,18 +115,23 @@ def _process_command(
 
     timezone_override = _parse_timezone(timezone)
 
+    remote_url_value = remote_url.strip() if remote_url else None
+
     if config_file:
         try:
             config = PipelineConfig.from_toml(config_file)
         except Exception as exc:  # pragma: no cover - configuration validation
             console.print(f"[red]❌ Não foi possível carregar o arquivo TOML:[/red] {exc}")
             raise typer.Exit(code=1) from exc
+        if remote_url_value:
+            config.remote_source.gdrive_url = remote_url_value
     else:
         config = PipelineConfig.with_defaults(
             zips_dir=zips_dir,
             newsletters_dir=newsletters_dir,
             model=model,
             timezone=timezone_override,
+            remote_source={"gdrive_url": remote_url_value} if remote_url_value else None,
         )
 
     if zips_dir:
@@ -154,6 +167,7 @@ def process(
     zips_dir: ZipsDirOption = None,
     newsletters_dir: NewslettersDirOption = None,
     model: ModelOption = None,
+    remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
     days: DaysOption = 2,
     disable_enrichment: DisableEnrichmentOption = False,
@@ -168,6 +182,7 @@ def process(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir,
         model=model,
+        remote_url=remote_url,
         timezone=timezone,
         days=days,
         disable_enrichment=disable_enrichment,
@@ -184,6 +199,7 @@ def main(
     zips_dir: ZipsDirOption = None,
     newsletters_dir: NewslettersDirOption = None,
     model: ModelOption = None,
+    remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
     days: DaysOption = 2,
     disable_enrichment: DisableEnrichmentOption = False,
@@ -201,6 +217,7 @@ def main(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir,
         model=model,
+        remote_url=remote_url,
         timezone=timezone,
         days=days,
         disable_enrichment=disable_enrichment,

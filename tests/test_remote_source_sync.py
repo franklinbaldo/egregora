@@ -1,11 +1,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from egregora.__main__ import app
 from egregora.remote_source import RemoteSourceError, sync_remote_zips
 
 
@@ -123,3 +125,76 @@ def test_sync_remote_zips_renames_missing_extension(monkeypatch: pytest.MonkeyPa
     expected = (target_dir / "folder" / "export.zip").resolve()
     assert expected in downloaded
     assert expected.exists()
+
+
+def test_cli_process_accepts_remote_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+
+    class DummyProcessor:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def list_groups(self):
+            return {}
+
+        def plan_runs(self, days: int):
+            return []
+
+        def process_all(self, days: int | None = None):
+            return {}
+
+    monkeypatch.setattr("egregora.__main__.UnifiedProcessor", DummyProcessor)
+
+    url = "https://drive.google.com/drive/folders/from-cli"
+    result = runner.invoke(app, ["process", "--remote-url", url, "--dry-run"])
+
+    assert result.exit_code == 0
+    config = captured["config"]
+    assert config.remote_source.get_gdrive_url() == url
+
+
+def test_cli_root_overrides_config_remote_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+
+    class DummyProcessor:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def list_groups(self):
+            return {}
+
+        def plan_runs(self, days: int):
+            return []
+
+        def process_all(self, days: int | None = None):
+            return {}
+
+    monkeypatch.setattr("egregora.__main__.UnifiedProcessor", DummyProcessor)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[pipeline.remote_source]
+gdrive_url = "https://drive.google.com/drive/folders/original"
+""".strip()
+    )
+
+    override = "https://drive.google.com/drive/folders/override"
+    result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "--remote-url",
+            override,
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    config = captured["config"]
+    assert config.remote_source.get_gdrive_url() == override
