@@ -133,4 +133,6 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
     assert profile_data["member_id"] in generated_text
     assert "[!NOTE]" in generated_text
 
+    assert (group_dir / "media").exists()
+
     shutil.rmtree(workspace, ignore_errors=True)

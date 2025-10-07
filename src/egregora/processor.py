@@ -247,9 +247,13 @@ class UnifiedProcessor:
         daily_dir = group_dir / "daily"
         daily_dir.mkdir(parents=True, exist_ok=True)
 
+        profiles_base = group_dir / "profiles"
+        profiles_base.mkdir(parents=True, exist_ok=True)
+
+        (group_dir / "media").mkdir(parents=True, exist_ok=True)
+
         profile_repository = None
         if self.config.profiles.enabled and self._profile_updater:
-            profiles_base = group_dir / "profiles"
             profile_repository = ProfileRepository(
                 data_dir=profiles_base / "json",
                 docs_dir=profiles_base,
@@ -265,7 +269,7 @@ class UnifiedProcessor:
         target_dates = available_dates[-days:] if days else available_dates
 
         results = []
-        extractor = MediaExtractor(self.config.media_dir)
+        extractor = MediaExtractor(group_dir, group_scoped=True)
 
         exports_by_date: dict[date, list] = {}
         for export in source.exports:

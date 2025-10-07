@@ -71,7 +71,7 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     results = processor.process_all(days=1)
 
     # Verify media directory exists
-    media_output_dir = config_with_media.media_dir / "_chat" / "media"
+    media_output_dir = config_with_media.newsletters_dir / "_chat" / "media"
     assert media_output_dir.exists()
 
     # Verify media files extracted
