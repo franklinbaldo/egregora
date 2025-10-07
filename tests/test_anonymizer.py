@@ -34,5 +34,7 @@ def test_anonymize_nickname_uses_member_prefix() -> None:
 def test_get_uuid_variants_returns_human_identifier() -> None:
     variants = Anonymizer.get_uuid_variants("Maria")
 
-    assert set(variants.keys()) == {"human"}
+    assert set(variants.keys()) == {"full", "short", "human"}
     assert variants["human"].startswith("Member-")
+    assert len(variants["full"]) == 36
+    assert len(variants["short"]) == 8

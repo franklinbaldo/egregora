@@ -17,10 +17,10 @@ from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
 def test_whatsapp_zip_processing(tmp_path) -> None:
     """Test that WhatsApp zip files are properly processed."""
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
-    
+
     # Test zip reading
     media_dir = tmp_path / "media"
-    result, _ = read_zip_texts_and_media(
+    result, media_files = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
         media_dir=media_dir,
@@ -30,11 +30,18 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     assert "Franklin: Teste de grupo" in result
     assert "Franklin: 🐱" in result
     assert "Franklin: Legal esse vídeo" in result
-    assert (
-        "![IMG-20251002-WA0004.jpg](data/media/shared/media/IMG-20251002-WA0004.jpg)"
-        in result
-    )
-    assert (media_dir / "shared" / "media" / "IMG-20251002-WA0004.jpg").exists()
+
+    # Verify media was renamed and referenced correctly
+    original_filename = "IMG-20251002-WA0004.jpg"
+    assert original_filename in media_files
+    media = media_files[original_filename]
+
+    expected_link = f"![{media.filename}]({media.relative_path})"
+    assert expected_link in result
+    assert media.dest_path.exists()
+    # Ensure the old filename does not exist
+    assert not (media_dir / "shared" / "media" / original_filename).exists()
+
     assert "https://youtu.be/Nkhp-mb6FRc" in result
 
 

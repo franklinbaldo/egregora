@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
+import uuid
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -90,6 +92,9 @@ class MediaExtractor:
         target_dir = self.media_base_dir / group_key / "media"
         target_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create a stable namespace for this group to generate deterministic UUIDs
+        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_key)
+
         with zipfile.ZipFile(zip_path, "r") as zipped:
             for info in zipped.infolist():
                 if info.is_dir():
@@ -107,19 +112,25 @@ class MediaExtractor:
                 if cleaned_name in extracted:
                     continue
 
-                dest_path, stored_name = self._resolve_destination(
-                    target_dir, cleaned_name
-                )
+                # Generate a deterministic UUID based on file content to avoid collisions
+                with zipped.open(info, "r") as source:
+                    file_content = source.read()
+
+                content_hash = hashlib.sha256(file_content).hexdigest()
+                file_uuid = uuid.uuid5(namespace, content_hash)
+                file_extension = Path(cleaned_name).suffix
+                new_filename = f"{file_uuid}{file_extension}"
+                dest_path = target_dir / new_filename
 
                 if not dest_path.exists():
-                    with zipped.open(info, "r") as source, open(dest_path, "wb") as target:
-                        shutil.copyfileobj(source, target)
+                    with open(dest_path, "wb") as target:
+                        target.write(file_content)
 
                 relative_path = str(
-                    Path("data") / "media" / group_key / "media" / stored_name
+                    Path("data") / "media" / group_key / "media" / new_filename
                 )
                 extracted[cleaned_name] = MediaFile(
-                    filename=stored_name,
+                    filename=new_filename,
                     media_type=media_type,
                     source_path=info.filename,
                     dest_path=dest_path,
@@ -172,14 +183,13 @@ class MediaExtractor:
 
         def replacement(match: re.Match[str]) -> str:
             raw_name = match.group(1).strip()
-            media = MediaExtractor._lookup_media(raw_name, media_files)
+            key, media = MediaExtractor._lookup_media(raw_name, media_files)
             if media is None:
                 return match.group(0)
 
-            canonical = MediaExtractor._clean_attachment_name(media.filename)
             path = (
-                public_paths.get(canonical)
-                if public_paths and canonical in public_paths
+                public_paths.get(key)
+                if public_paths and key in public_paths
                 else media.relative_path
             )
 
@@ -278,17 +288,20 @@ class MediaExtractor:
         return results
 
     @staticmethod
-    def _lookup_media(filename: str, media_files: Dict[str, MediaFile]) -> MediaFile | None:
+    def _lookup_media(
+        filename: str, media_files: Dict[str, MediaFile]
+    ) -> tuple[str | None, MediaFile | None]:
+        """Find a media file by its original name, returning the key and the file."""
         canonical = MediaExtractor._clean_attachment_name(Path(filename).name)
         if canonical in media_files:
-            return media_files[canonical]
+            return canonical, media_files[canonical]
 
         lowercase = canonical.lower()
         for key, media in media_files.items():
             candidate = MediaExtractor._clean_attachment_name(Path(key).name)
-            if candidate.lower() == lowercase or media.filename.lower() == lowercase:
-                return media
-        return None
+            if candidate.lower() == lowercase:
+                return key, media
+        return None, None
 
     @staticmethod
     def _format_markdown_reference(media: MediaFile, path: str) -> str:
@@ -306,19 +319,3 @@ class MediaExtractor:
     def _clean_attachment_name(cls, filename: str) -> str:
         cleaned = cls._directional_marks.sub("", filename)
         return cleaned.strip()
-
-    @staticmethod
-    def _resolve_destination(directory: Path, filename: str) -> tuple[Path, str]:
-        base_path = directory / filename
-        if not base_path.exists():
-            return base_path, filename
-
-        stem = Path(filename).stem
-        suffix = Path(filename).suffix
-        counter = 2
-        while True:
-            candidate_name = f"{stem}-{counter}{suffix}"
-            candidate_path = directory / candidate_name
-            if not candidate_path.exists():
-                return candidate_path, candidate_name
-            counter += 1

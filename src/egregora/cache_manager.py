@@ -44,10 +44,11 @@ class CacheManager:
     def __init__(self, cache_dir: Path, *, size_limit_mb: int | None = None) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        size_limit = (
-            None if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
+        # diskcache uses 0 for no limit, not None.
+        size_in_bytes = (
+            0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
         )
-        self._cache = Cache(directory=str(self.cache_dir), size_limit=size_limit)
+        self._cache = Cache(directory=str(self.cache_dir), size_limit=size_in_bytes)
         stats = self._cache.get(_STATS_KEY, default=None)
         self._stats = stats if isinstance(stats, CacheStats) else CacheStats()
 
@@ -201,6 +202,20 @@ class CacheManager:
             fragment="",
         )
         return urlunparse(normalised)
+        parts = urlparse(url)
+        scheme = parts.scheme.lower()
+        netloc = parts.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+
+        path = parts.path
+        if len(path) > 1:
+            path = path.rstrip('/')
+
+        query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)))
+        fragment = ""
+
+        return urlunparse((scheme, netloc, path, parts.params, query, fragment))
 
     @classmethod
     def _hash_url(cls, url: str) -> str:

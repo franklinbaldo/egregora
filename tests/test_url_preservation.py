@@ -1,6 +1,7 @@
 from datetime import date
 from pathlib import Path
 import zipfile
+from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +21,7 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
     media_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file with a URL
-    zip_path = zips_dir / "Conversa do WhatsApp com Teste.zip"
+    zip_path = zips_dir / "Conversa do WhatsApp com URL.zip"
     chat_txt_path = tmp_path / "_chat.txt"
     with open(chat_txt_path, "w") as f:
         f.write("03/10/2025 09:46 - Franklin: Check this: https://example.com\n")
@@ -36,7 +37,8 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
     )
 
 
-def test_urls_preserved_in_newsletter(config_with_url: PipelineConfig, monkeypatch):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_urls_preserved_in_newsletter(mock_guess_type, config_with_url: PipelineConfig, monkeypatch):
     """Verify URLs from WhatsApp are present in the final newsletter."""
 
     class MockLLMClient:
@@ -54,7 +56,10 @@ def test_urls_preserved_in_newsletter(config_with_url: PipelineConfig, monkeypat
     def mock_create_client():
         return MockLLMClient()
 
-    monkeypatch.setattr("egregora.pipeline.create_client", mock_create_client)
+    monkeypatch.setattr(
+        "egregora.generator.NewsletterGenerator._create_client",
+        lambda self: mock_create_client(),
+    )
 
     processor = UnifiedProcessor(config_with_url)
     results = processor.process_all(days=1)
