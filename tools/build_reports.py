@@ -411,7 +411,7 @@ def update_home_latest(config: LanguageConfig, entries: List[Dict[str, object]],
     replace_block(path, "latest", lines)
 
 
-def main() -> None:
+def build_reports() -> None:
     entries = collect_daily_entries()
     weekly_groups, monthly_groups = build_weekly_and_monthly_groups(entries)
 
@@ -431,4 +431,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    build_reports()

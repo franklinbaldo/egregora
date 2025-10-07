@@ -62,10 +62,15 @@ nav:
 markdown_extensions:
   - toc:
       permalink: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.details
+  - pymdownx.superfences
 
 docs_dir: docs
 
 plugins:
+  - tools.mkdocs_build_reports_plugin
   - search
   - media-files:
       source_dir: data/newsletters

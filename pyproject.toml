@@ -33,6 +33,7 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
+    "pymdown-extensions>=10.0",
 ]
 
 [project.scripts]
