@@ -19,6 +19,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "pydantic>=2.6",
     "pydantic-settings>=2.1",
+    "gdown>=5.2.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ test = [
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
+    "mkdocs-static-i18n[material]>=1.0.0",
     "python-dateutil>=2.9",
 ]
 
