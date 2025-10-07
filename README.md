@@ -50,7 +50,7 @@ uv run egregora --config egregora.toml --dry-run
 uv run egregora --config egregora.toml --days 2
 ```
 
-Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L131】
+Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, `--remote-url` to fetch ZIP exports from a shared Google Drive link, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
 
 ## Command line interface
 
@@ -60,6 +60,7 @@ The root command is equivalent to `egregora process` and accepts the same option
 
 - `--config / -c` – Load a specific TOML configuration file.
 - `--zips-dir` / `--newsletters-dir` – Override directories at runtime.
+- `--remote-url` – Sincroniza exports .zip do Google Drive antes de processar, sem editar o TOML.
 - `--days` – Number of recent days to include in each prompt.
 - `--disable-enrichment`, `--no-cache`, `--dry-run`, `--list` – Control enrichment, caching, and planning flows.
 - `--timezone` – Run the pipeline as if executed in another IANA timezone.
