@@ -70,6 +70,21 @@ These switches map directly to the Typer options defined in `egregora.__main__`.
 
 Explicit subcommand wrapper around the same options, useful when scripting multiple CLI calls or when future subcommands are added.【F:src/egregora/__main__.py†L99-L136】
 
+### `egregora sync`
+
+Synchronise WhatsApp exports from the configured Google Drive folder without running the full pipeline. The command reuses the same configuration loaders as `process`, so `--config`, `--zips-dir`, and related overrides behave identically. Use it in cron jobs to stage new archives ahead of scheduled processing runs or to validate that sharing permissions are correct before generating newsletters.【F:src/egregora/__main__.py†L138-L213】【F:src/egregora/remote_sync.py†L1-L46】
+
+```bash
+# Download archives into the configured directory
+uv run egregora sync --config egregora.toml
+
+# Combine with process to stage then render newsletters
+uv run egregora sync --config egregora.toml && \
+  uv run egregora process --config egregora.toml --days 2
+```
+
+The command reports how many new ZIP archives were discovered and lists their relative paths, making it easy to detect permission or naming issues before invoking `process`.
+
 ### `egregora discover`
 
 Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in newsletters. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】

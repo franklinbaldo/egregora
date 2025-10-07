@@ -14,6 +14,7 @@ from rich.table import Table
 from .config import PipelineConfig
 from .discover import discover_identifier
 from .processor import UnifiedProcessor
+from .remote_sync import sync_remote_source_config
 
 app = typer.Typer(
     name="egregora",
@@ -90,20 +91,17 @@ DryRunOption = Annotated[
 ]
 
 
-def _process_command(
+def _build_pipeline_config(
     *,
     config_file: Optional[Path] = None,
     zips_dir: Optional[Path] = None,
     newsletters_dir: Optional[Path] = None,
     model: Optional[str] = None,
     timezone: Optional[str] = None,
-    days: int = 2,
     disable_enrichment: bool = False,
     disable_cache: bool = False,
-    list_groups: bool = False,
-    dry_run: bool = False,
-) -> None:
-    """Executa o fluxo de processamento com as opções fornecidas."""
+) -> PipelineConfig:
+    """Carrega ou monta um :class:`PipelineConfig` a partir das opções da CLI."""
 
     timezone_override = _parse_timezone(timezone)
 
@@ -135,6 +133,34 @@ def _process_command(
     if disable_cache:
         config.cache.enabled = False
 
+    return config
+
+
+def _process_command(
+    *,
+    config_file: Optional[Path] = None,
+    zips_dir: Optional[Path] = None,
+    newsletters_dir: Optional[Path] = None,
+    model: Optional[str] = None,
+    timezone: Optional[str] = None,
+    days: int = 2,
+    disable_enrichment: bool = False,
+    disable_cache: bool = False,
+    list_groups: bool = False,
+    dry_run: bool = False,
+) -> None:
+    """Executa o fluxo de processamento com as opções fornecidas."""
+
+    config = _build_pipeline_config(
+        config_file=config_file,
+        zips_dir=zips_dir,
+        newsletters_dir=newsletters_dir,
+        model=model,
+        timezone=timezone,
+        disable_enrichment=disable_enrichment,
+        disable_cache=disable_cache,
+    )
+
     processor = UnifiedProcessor(config)
 
     if list_groups:
@@ -146,6 +172,88 @@ def _process_command(
         raise typer.Exit()
 
     _process_and_display(processor, days)
+
+
+@app.command("sync")
+def sync_command(
+    config_file: ConfigFileOption = None,
+    zips_dir: ZipsDirOption = None,
+    newsletters_dir: NewslettersDirOption = None,
+    model: ModelOption = None,
+    timezone: TimezoneOption = None,
+    disable_enrichment: DisableEnrichmentOption = False,
+    disable_cache: DisableCacheOption = False,
+) -> None:
+    """Baixa exports do WhatsApp da fonte remota configurada."""
+
+    config = _build_pipeline_config(
+        config_file=config_file,
+        zips_dir=zips_dir,
+        newsletters_dir=newsletters_dir,
+        model=model,
+        timezone=timezone,
+        disable_enrichment=disable_enrichment,
+        disable_cache=disable_cache,
+    )
+
+    console.print(
+        Panel(
+            f"[bold]Diretório de destino:[/bold] {config.zips_dir.resolve()}",
+            title="☁️ Sincronização Remota",
+            border_style="cyan",
+        )
+    )
+
+    outcome = sync_remote_source_config(config)
+
+    if not outcome.attempted:
+        console.print(
+            Panel(
+                "Nenhuma URL remota configurada. Atualize o TOML ou variáveis de ambiente.",
+                border_style="yellow",
+            )
+        )
+        raise typer.Exit(code=1)
+
+    if outcome.error:
+        console.print(
+            Panel(
+                f"[red]Falha ao sincronizar exports:[/red] {outcome.error}",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(code=1)
+
+    summary_panel = Panel(
+        f"Foram sincronizados [bold]{len(outcome.new_archives)}[/bold] arquivo(s) novo(s).",
+        border_style="green" if outcome.new_archives else "blue",
+    )
+    console.print(summary_panel)
+
+    if outcome.new_archives:
+        table = Table(
+            title="📦 Arquivos novos",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        table.add_column("Arquivo", style="green")
+
+        base = config.zips_dir.resolve()
+        for path in outcome.new_archives:
+            try:
+                rel = path.relative_to(base)
+            except ValueError:
+                rel = path
+            table.add_row(str(rel))
+
+        console.print(table)
+
+    console.print(
+        Panel(
+            f"Total de arquivos disponíveis: [bold]{len(outcome.all_archives)}[/bold]",
+            border_style="magenta",
+        )
+    )
 
 
 @app.command()

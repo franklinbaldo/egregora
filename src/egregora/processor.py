@@ -22,7 +22,7 @@ from .parser import configure_system_message_filters, load_system_filters_from_f
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
-from .remote_source import RemoteSourceError, sync_remote_zips
+from .remote_sync import sync_remote_source_config
 from .transcript import (
     extract_transcript,
     get_available_dates,
@@ -127,29 +127,18 @@ class UnifiedProcessor:
     def _sync_remote_source(self) -> None:
         """Download WhatsApp exports from the configured remote source."""
 
-        url = self.config.remote_source.get_gdrive_url()
-        if not url:
+        outcome = sync_remote_source_config(self.config, logger=logger)
+        if not outcome.attempted:
             return
 
-        logger.info("☁️  Sincronizando exports remotos...")
-
-        zips_dir = self.config.zips_dir
-        zips_dir.mkdir(parents=True, exist_ok=True)
-
-        before = {path.resolve() for path in zips_dir.rglob("*.zip")}
-        try:
-            sync_remote_zips(url, zips_dir)
-        except RemoteSourceError as exc:
-            logger.warning("  ⚠️ Falha ao sincronizar fonte remota: %s", exc)
+        if outcome.error:
+            logger.warning("  ⚠️ Falha ao sincronizar fonte remota: %s", outcome.error)
             return
 
-        after = {path.resolve() for path in zips_dir.rglob("*.zip")}
-        new_paths = sorted(after - before)
-
-        if new_paths:
-            base = zips_dir.resolve()
-            logger.info("  %d arquivo(s) novo(s) sincronizado(s):", len(new_paths))
-            for path in new_paths:
+        if outcome.new_archives:
+            base = self.config.zips_dir.resolve()
+            logger.info("  %d arquivo(s) novo(s) sincronizado(s):", len(outcome.new_archives))
+            for path in outcome.new_archives:
                 try:
                     rel = path.relative_to(base)
                 except ValueError:
