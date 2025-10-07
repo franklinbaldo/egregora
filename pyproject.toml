@@ -38,6 +38,9 @@ docs = [
 [project.scripts]
 egregora = "egregora.__main__:run"
 
+[project.entry-points."mkdocs.plugins"]
+media-files = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+
 [build-system]
 requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
