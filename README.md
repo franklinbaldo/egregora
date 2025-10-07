@@ -94,8 +94,8 @@ uv run egregora --config egregora.toml --dry-run
 
 Além do enriquecimento de links, o Egregora agora extrai automaticamente mídias (imagens, vídeos, áudio) dos arquivos `.zip` do WhatsApp.
 
-1.  **Extração**: Arquivos de mídia são salvos em `data/media/<slug-do-grupo>/media/<arquivo>` mantendo o nome original.
-2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` viram links Markdown: `![IMG-20251003-WA0001.jpg](../../media/<slug-do-grupo>/media/IMG-20251003-WA0001.jpg)` na newsletter.
+1.  **Extração**: Arquivos de mídia são salvos em `data/media/<slug-do-grupo>/media/<uuidv5>.<extensão>`, onde o nome é um UUID v5 determinístico gerado a partir do conteúdo do arquivo para evitar colisões entre execuções.
+2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` viram links Markdown apontando para o novo nome, por exemplo: `![IMG-20251003-WA0001.jpg](../../media/<slug-do-grupo>/media/7c8f2a44-4d57-59e0-9e59-0a0f9450a8b9.jpg)` na newsletter.
 3.  **Preservação**: Cada grupo possui seu próprio diretório, evitando colisões mesmo em execuções diferentes.
 
 > Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que os links apontem para o diretório público.
