@@ -54,8 +54,4 @@ class RAGConfig:
     persist_dir: Path = field(default_factory=lambda: Path("cache/vector_store"))
     collection_name: str = "newsletters"
 
-    # Backwards-compatibility knobs used by QueryGenerator/tests
-    use_gemini_embeddings: bool = True
-
-
 __all__ = ["RAGConfig"]
