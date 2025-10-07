@@ -182,6 +182,12 @@ Se você tem múltiplos dias de conversas para processar:
 
 O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)
 
+## 🤖 Integração com GitHub Actions
+
+- Defina o segredo `WHATSAPP_ZIPS_DRIVE_URL` no repositório apontando para a URL compartilhável de uma pasta pública no Google Drive contendo os exports `.zip` do WhatsApp.
+- Durante o workflow `Deploy MkDocs`, o passo `Download WhatsApp exports` baixa automaticamente os arquivos para `data/whatsapp_zips/` usando `tools/download_drive_zips.py` (que faz o download da pasta inteira via `gdown`).
+- Para validar manualmente, execute `python tools/download_drive_zips.py "<url-da-pasta>"` e confirme que os `.zip` foram salvos localmente antes de rodar o pipeline.
+
 ## 🧪 Testes manuais
 
 - Rode `python example_enrichment.py` para validar rapidamente o módulo de enriquecimento (define `GEMINI_API_KEY` antes para executar a análise com o LLM).
