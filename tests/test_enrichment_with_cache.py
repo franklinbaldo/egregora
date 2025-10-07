@@ -16,7 +16,7 @@ from egregora.enrichment import AnalysisResult, ContentEnricher
 
 @pytest.fixture()
 def cache_manager(tmp_path: Path) -> CacheManager:
-    return CacheManager(tmp_path / "cache")
+    return CacheManager(tmp_path / "cache", size_limit_mb=1)
 
 
 async def _fake_analysis(self, reference, *, client=None) -> AnalysisResult:

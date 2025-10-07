@@ -41,11 +41,14 @@ class CacheStats:
 class CacheManager:
     """Lightweight wrapper around :class:`diskcache.Cache` for enrichments."""
 
-    def __init__(self, cache_dir: Path, *, size_limit_mb: int = 100) -> None:
+    def __init__(self, cache_dir: Path, *, size_limit_mb: int | None = None) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        size_limit = max(0, int(size_limit_mb)) * 1024 * 1024
-        self._cache = Cache(directory=str(self.cache_dir), size_limit=size_limit)
+        # diskcache uses 0 for no limit, not None.
+        size_in_bytes = (
+            0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
+        )
+        self._cache = Cache(directory=str(self.cache_dir), size_limit=size_in_bytes)
         stats = self._cache.get(_STATS_KEY, default=None)
         self._stats = stats if isinstance(stats, CacheStats) else CacheStats()
 

@@ -272,7 +272,9 @@ class ContentEnricher:
                     config=config,
                 )
             else:
-                response = await client.generate_content_async(
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model_name=self._config.enrichment_model,
                     contents=contents,
                     generation_config=config,
                 )
