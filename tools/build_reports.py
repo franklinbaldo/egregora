@@ -211,49 +211,76 @@ def _replace_block(text: str, start_marker: str, end_marker: str, new_content: s
 
 
 def _update_homepage(recent_daily: list[tuple[datetime, str, str, str]]) -> None:
-    index_path = Path("docs/index.md")
-    if not index_path.exists():
-        return
+    homepages = {
+        "en": {"path": Path("docs/en/index.md"), "prefix": ""},
+        "pt-BR": {"path": Path("docs/pt-BR/index.md"), "prefix": "../"},
+    }
 
-    text = index_path.read_text(encoding="utf-8")
+    for lang, config in homepages.items():
+        index_path = config["path"]
+        prefix = config["prefix"]
 
-    if recent_daily:
-        _, latest_label, latest_slug, _ = recent_daily[0]
-        latest_button = (
-            f'    <a class="primary" href="reports/daily/{latest_slug}/">\n'
-            f'      <span class="twemoji">🆕</span>\n'
-            f'      Relatório de {latest_label}\n'
-            f'    </a>'
-        )
-        previews: list[str] = []
-        for _, label, slug, rel in recent_daily:
-            report_path = DAILY_DST / rel
-            try:
-                report_md = report_path.read_text(encoding="utf-8").strip()
-            except FileNotFoundError:
-                continue
-            preview = (
-                f"<div class=\"report-preview\">\n"
-                f"### {label}\n\n"
-                f"{report_md}\n\n"
-                f"<p class=\"more-link\"><a href=\"reports/daily/{slug}/\">Abrir relatório completo →</a></p>\n"
-                f"</div>"
+        if not index_path.exists():
+            continue
+
+        text = index_path.read_text(encoding="utf-8")
+
+        if recent_daily:
+            _, latest_label, latest_slug, _ = recent_daily[0]
+
+            if lang == "en":
+                button_text = f"Report of {latest_label}"
+                more_link_text = "Open full report →"
+                no_reports_text = "<p>No reports published yet.</p>"
+            else:  # pt-BR
+                button_text = f"Relatório de {latest_label}"
+                more_link_text = "Abrir relatório completo →"
+                no_reports_text = "<p>Nenhum relatório publicado ainda.</p>"
+
+            latest_button = (
+                f'    <a class="primary" href="{prefix}reports/daily/{latest_slug}/">\n'
+                f'      <span class="twemoji">🆕</span>\n'
+                f'      {button_text}\n'
+                f'    </a>'
             )
-            previews.append(preview)
-        content_block = "\n\n".join(previews) if previews else "<p>Nenhum relatório publicado ainda.</p>"
-    else:
-        latest_button = (
-            "    <a class=\"primary\" href=\"#\">\n"
-            "      <span class=\"twemoji\">🆕</span>\n"
-            "      Nenhum relatório disponível\n"
-            "    </a>"
-        )
-        content_block = "<p>Nenhum relatório publicado ainda.</p>"
 
-    text = _replace_block(text, PLACEHOLDER_BUTTON_START, PLACEHOLDER_BUTTON_END, latest_button)
-    text = _replace_block(text, PLACEHOLDER_CONTENT_START, PLACEHOLDER_CONTENT_END, content_block)
+            previews: list[str] = []
+            for _, label, slug, rel in recent_daily:
+                report_path = DAILY_DST / rel
+                try:
+                    report_md = report_path.read_text(encoding="utf-8").strip()
+                except FileNotFoundError:
+                    continue
 
-    index_path.write_text(text, encoding="utf-8")
+                preview = (
+                    f'<div class="report-preview">\n'
+                    f"### {label}\n\n"
+                    f"{report_md}\n\n"
+                    f'<p class="more-link"><a href="{prefix}reports/daily/{slug}/">{more_link_text}</a></p>\n'
+                    f"</div>"
+                )
+                previews.append(preview)
+            content_block = "\n\n".join(previews) if previews else no_reports_text
+        else:
+            if lang == "en":
+                button_text = "No reports available"
+                content_text = "<p>No reports published yet.</p>"
+            else:  # pt-BR
+                button_text = "Nenhum relatório disponível"
+                content_text = "<p>Nenhum relatório publicado ainda.</p>"
+
+            latest_button = (
+                '    <a class="primary" href="#">\n'
+                '      <span class="twemoji">🆕</span>\n'
+                f"      {button_text}\n"
+                "    </a>"
+            )
+            content_block = content_text
+
+        text = _replace_block(text, PLACEHOLDER_BUTTON_START, PLACEHOLDER_BUTTON_END, latest_button)
+        text = _replace_block(text, PLACEHOLDER_CONTENT_START, PLACEHOLDER_CONTENT_END, content_block)
+
+        index_path.write_text(text, encoding="utf-8")
 
 def main():
     ensure_dirs()
