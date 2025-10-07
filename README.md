@@ -185,8 +185,8 @@ O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para
 ## 🤖 Integração com GitHub Actions
 
 - Defina o segredo `WHATSAPP_ZIPS_DRIVE_URL` no repositório apontando para a URL compartilhável de uma pasta pública no Google Drive contendo os exports `.zip` do WhatsApp.
-- Durante o workflow `Deploy MkDocs`, o passo `Download WhatsApp exports` baixa automaticamente os arquivos para `data/whatsapp_zips/` usando `tools/download_drive_zips.py` (que faz o download da pasta inteira via `gdown`).
-- Para validar manualmente, execute `python tools/download_drive_zips.py "<url-da-pasta>"` e confirme que os `.zip` foram salvos localmente antes de rodar o pipeline.
+- Durante o workflow `Deploy MkDocs`, o passo `Download WhatsApp exports` baixa automaticamente o export `.zip` mais recente para `data/whatsapp_zips/` usando `tools/download_drive_zips.py`.
+- Para validar manualmente, execute `python tools/download_drive_zips.py "<url-da-pasta>"` e confirme que o `.zip` mais recente foi salvo localmente antes de rodar o pipeline. Use `--all` se precisar baixar todos os arquivos disponíveis.
 
 ## 🧪 Testes manuais
 
