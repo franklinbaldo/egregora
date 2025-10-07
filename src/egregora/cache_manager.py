@@ -177,9 +177,26 @@ class CacheManager:
     def _normalise_url(url: str) -> str:
         parsed = urlparse(url)
         query = urlencode(sorted(parse_qsl(parsed.query, keep_blank_values=True)))
+
+        scheme = parsed.scheme.lower()
+        netloc = parsed.netloc.lower()
+
+        if parsed.port is not None:
+            default_port = None
+            if scheme == "http" and parsed.port == 80:
+                default_port = 80
+            elif scheme == "https" and parsed.port == 443:
+                default_port = 443
+
+            if default_port is not None:
+                userinfo, at, host_port = netloc.rpartition("@")
+                if host_port.endswith(f":{default_port}"):
+                    host_port = host_port[: -len(f":{default_port}")]
+                    netloc = f"{userinfo}{at}{host_port}" if at else host_port
+
         normalised = parsed._replace(
-            scheme=parsed.scheme.lower(),
-            netloc=parsed.netloc.lower(),
+            scheme=scheme,
+            netloc=netloc,
             query=query,
             fragment="",
         )
