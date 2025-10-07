@@ -22,6 +22,7 @@ from .parser import configure_system_message_filters, load_system_filters_from_f
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
+from .remote_source import RemoteSourceError, sync_remote_zips
 from .transcript import (
     extract_transcript,
     get_available_dates,
@@ -60,17 +61,10 @@ class UnifiedProcessor:
         else:
             configure_system_message_filters(None)
 
-        self._profile_repository: ProfileRepository | None = None
-        self._profile_updater: ProfileUpdater | None = None
-        self._profile_repository: ProfileRepository | None = None
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
 
         if self.config.profiles.enabled:
-            self._profile_repository = ProfileRepository(
-                data_dir=self.config.profiles.profiles_dir,
-                docs_dir=self.config.profiles.docs_dir,
-            )
             self._profile_updater = ProfileUpdater(
                 min_messages=self.config.profiles.min_messages,
                 min_words_per_message=self.config.profiles.min_words_per_message,
@@ -130,10 +124,47 @@ class UnifiedProcessor:
 
         return sorted(plans, key=lambda plan: plan.slug)
 
+    def _sync_remote_source(self) -> None:
+        """Download WhatsApp exports from the configured remote source."""
+
+        url = self.config.remote_source.get_gdrive_url()
+        if not url:
+            return
+
+        logger.info("☁️  Sincronizando exports remotos...")
+
+        zips_dir = self.config.zips_dir
+        zips_dir.mkdir(parents=True, exist_ok=True)
+
+        before = {path.resolve() for path in zips_dir.rglob("*.zip")}
+        try:
+            sync_remote_zips(url, zips_dir)
+        except RemoteSourceError as exc:
+            logger.warning("  ⚠️ Falha ao sincronizar fonte remota: %s", exc)
+            return
+
+        after = {path.resolve() for path in zips_dir.rglob("*.zip")}
+        new_paths = sorted(after - before)
+
+        if new_paths:
+            base = zips_dir.resolve()
+            logger.info("  %d arquivo(s) novo(s) sincronizado(s):", len(new_paths))
+            for path in new_paths:
+                try:
+                    rel = path.relative_to(base)
+                except ValueError:
+                    rel = path
+                logger.info("    • %s", rel)
+        else:
+            logger.info("  Nenhum arquivo novo encontrado.")
+
+
     def _collect_sources(
         self,
     ) -> tuple[dict[str, GroupSource], dict, dict[str, GroupSource]]:
         """Discover and prepare sources for processing."""
+
+        self._sync_remote_source()
 
         logger.info(f"🔍 Scanning {self.config.zips_dir}...")
         real_groups = discover_groups(self.config.zips_dir)
@@ -215,6 +246,14 @@ class UnifiedProcessor:
         group_dir = self.config.newsletters_dir / source.slug
         daily_dir = group_dir / "daily"
         daily_dir.mkdir(parents=True, exist_ok=True)
+
+        profile_repository = None
+        if self.config.profiles.enabled and self._profile_updater:
+            profiles_base = group_dir / "profiles"
+            profile_repository = ProfileRepository(
+                data_dir=profiles_base / "json",
+                docs_dir=profiles_base,
+            )
 
         # Get available dates
         available_dates = list(get_available_dates(source))
@@ -339,9 +378,10 @@ class UnifiedProcessor:
             output_path = daily_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")
 
-            if self._profile_repository and self._profile_updater:
+            if profile_repository and self._profile_updater:
                 try:
                     self._update_profiles_for_day(
+                        repository=profile_repository,
                         source=source,
                         target_date=target_date,
                         newsletter_text=newsletter,
@@ -364,13 +404,13 @@ class UnifiedProcessor:
     def _update_profiles_for_day(
         self,
         *,
+        repository: ProfileRepository,
         source: GroupSource,
         target_date: date,
         newsletter_text: str,
     ) -> None:
-        repository = self._profile_repository
         updater = self._profile_updater
-        if repository is None or updater is None:
+        if updater is None:
             return
 
         try:

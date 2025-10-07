@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import tzinfo
+import os
 import copy
 from pathlib import Path
 from typing import Any
@@ -141,12 +142,31 @@ class ProfilesConfig(BaseModel):
         return fvalue
 
 
+
+
+def _default_remote_gdrive_url() -> SecretStr | None:
+    for key in ("PIPELINE__REMOTE_SOURCE__GDRIVE_URL", "REMOTE_SOURCE__GDRIVE_URL"):
+        value = os.getenv(key)
+        if value is None:
+            continue
+        stripped = value.strip()
+        if stripped:
+            return SecretStr(stripped)
+    return None
+
 class RemoteSourceConfig(BaseModel):
     """Configuration for remote ZIP sources such as Google Drive."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    gdrive_url: SecretStr | None = None
+    gdrive_url: SecretStr | None = Field(
+        default_factory=_default_remote_gdrive_url,
+        validation_alias=AliasChoices(
+            "gdrive_url",
+            "REMOTE_SOURCE__GDRIVE_URL",
+            "PIPELINE__REMOTE_SOURCE__GDRIVE_URL",
+        ),
+    )
 
     @field_validator("gdrive_url", mode="before")
     @classmethod

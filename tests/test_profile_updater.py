@@ -8,6 +8,7 @@ import polars as pl
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.profiles import ParticipantProfile, ProfileUpdater
+from egregora.profiles.updater import _extract_summary_from_markdown
 
 
 def test_should_update_profile_requires_meaningful_participation():
@@ -69,6 +70,7 @@ def test_participant_profile_serialization_round_trip():
             "response_style": "Escuta antes de sintetizar.",
             "influence_on_group": "Orientador de rumo estratégico.",
         },
+        markdown_document="# Perfil Analítico: Member-ABCD\n\nResumo de teste.",
         analysis_version=3,
     )
 
@@ -79,6 +81,7 @@ def test_participant_profile_serialization_round_trip():
     assert clone.worldview_summary == profile.worldview_summary
     assert clone.core_interests == profile.core_interests
     assert clone.interaction_patterns == profile.interaction_patterns
+    assert clone.markdown_document == profile.markdown_document
     assert clone.analysis_version == profile.analysis_version
 
 
@@ -146,3 +149,17 @@ def test_participation_stats_dataframe_computes_metrics() -> None:
     assert stats["total_messages"] == 3
     assert stats["active_days"] == 2
     assert stats["most_active_day"] == date(2024, 1, 1)
+
+
+def test_extract_summary_from_markdown() -> None:
+    markdown = """# Perfil Analítico: Member-123
+
+## Visão Geral
+Contribui com análises estratégicas e provoca debates aprofundados.
+
+## Participação Recente
+- Ponto
+"""
+    summary = _extract_summary_from_markdown(markdown)
+    assert "análises estratégicas" in summary.lower()
+

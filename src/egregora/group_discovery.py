@@ -28,7 +28,7 @@ def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
     
     groups = defaultdict(list)
     
-    for zip_path in sorted(zips_dir.glob("*.zip")):
+    for zip_path in sorted(zips_dir.rglob("*.zip")):
         if zip_path.is_symlink():
             logger.warning("Skipping %s: refusing to follow symlink", zip_path.name)
             continue

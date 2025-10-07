@@ -46,6 +46,7 @@ class ParticipantProfile:
     recent_shifts: list[str] = field(default_factory=list)
     growing_interests: list[str] = field(default_factory=list)
     interaction_patterns: Dict[str, str] = field(default_factory=dict)
+    markdown_document: str | None = None
     last_updated: datetime = field(default_factory=lambda: datetime.now(UTC))
     analysis_version: int = 0
 
@@ -68,6 +69,7 @@ class ParticipantProfile:
             "recent_shifts": list(self.recent_shifts),
             "growing_interests": list(self.growing_interests),
             "interaction_patterns": dict(self.interaction_patterns),
+            "markdown_document": self.markdown_document,
             "last_updated": self.last_updated.isoformat(),
             "analysis_version": self.analysis_version,
         }
@@ -109,12 +111,16 @@ class ParticipantProfile:
             recent_shifts=list(data.get("recent_shifts", [])),
             growing_interests=list(data.get("growing_interests", [])),
             interaction_patterns=dict(data.get("interaction_patterns", {})),
+            markdown_document=str(data.get("markdown_document")) if data.get("markdown_document") else None,
             last_updated=last_updated,
             analysis_version=int(data.get("analysis_version", 0)),
         )
 
     def to_markdown(self) -> str:
         """Return a human friendly Markdown representation."""
+
+        if self.markdown_document:
+            return self.markdown_document
 
         interests_text = _format_mapping(self.core_interests)
         expertise_text = _format_mapping(self.expertise_areas)

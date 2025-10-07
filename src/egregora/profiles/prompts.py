@@ -93,26 +93,23 @@ Reescreva o perfil COMPLETO do zero, incorporando:
 - Documente evolução se houver
 - Destaque qualidade das contribuições NO CONTEXTO do grupo
 
-Retorne o JSON completo do novo perfil:
+Retorne APENAS um texto em Markdown seguindo exatamente esta estrutura:
 
-{{
-    "worldview_summary": "Parágrafo incorporando como {member_id} se posiciona nas discussões do grupo...",
-    "core_interests": {{}},
-    "thinking_style": "Incluir como {member_id} desenvolve ideias em interação...",
-    "values_and_priorities": [],
-    "expertise_areas": {{}},
-    "contribution_style": "Detalhar COMO {member_id} contribui: timing, resposta a contextos, impacto...",
-    "argument_patterns": ["Incluir como argumenta EM RESPOSTA a outros"],
-    "questioning_approach": "Como e quando faz perguntas...",
-    "intellectual_influences": [],
-    "aligns_with": ["Member-XXX (em que contextos/tópicos?)"],
-    "debates_with": ["Member-XXX (sobre o quê? Como debate?)"],
-    "recent_shifts": [],
-    "growing_interests": [],
-    "interaction_patterns": {{
-        "participation_timing": "Quando tende a participar?",
-        "response_style": "Como responde a diferentes estímulos?",
-        "influence_on_group": "Que papel desempenha nas discussões?"
-    }}
-}}
+# Perfil Analítico: {member_id}
+
+## Visão Geral
+Parágrafo único resumindo a postura de {member_id} nas discussões recentes e o impacto nas decisões do grupo.
+
+## Participação Recente
+- Bullet destacando contribuições relevantes com contexto de datas ou tópicos
+- Outro bullet observando interações com outros membros
+
+## Estilo de Colaboração
+Parágrafo descrevendo a forma de colaborar, responder e liderar conversas, incluindo o timing das participações.
+
+## Observações Estratégicas
+- Bullet com insights sobre interesses atuais
+- Bullet com possíveis evoluções ou alertas
+
+_Finalize com uma linha em itálico indicando que o texto foi gerado automaticamente pela data de hoje._
 """
