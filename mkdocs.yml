@@ -61,6 +61,10 @@ nav:
 markdown_extensions:
   - toc:
       permalink: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.details
+  - pymdownx.superfences
 
 docs_dir: docs
 
