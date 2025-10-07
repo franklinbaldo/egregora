@@ -35,10 +35,10 @@ theme:
 extra:
   alternate:
     - name: English
-      link: /
+      link: /egregora/
       lang: en
     - name: Português (Brasil)
-      link: /pt-BR/
+      link: /egregora/pt-BR/
       lang: pt-BR
   social:
     - icon: fontawesome/brands/github
