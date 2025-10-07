@@ -4,6 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Mapping
+
+_DEPRECATED_RAG_KEYS = {"use_gemini_embeddings"}
+
+
+def sanitize_rag_config_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return ``payload`` without deprecated configuration keys."""
+
+    return {
+        key: value
+        for key, value in payload.items()
+        if key not in _DEPRECATED_RAG_KEYS
+    }
 
 
 def _default_mcp_args() -> tuple[str, ...]:
@@ -54,4 +67,4 @@ class RAGConfig:
     persist_dir: Path = field(default_factory=lambda: Path("cache/vector_store"))
     collection_name: str = "newsletters"
 
-__all__ = ["RAGConfig"]
+__all__ = ["RAGConfig", "sanitize_rag_config_payload"]
