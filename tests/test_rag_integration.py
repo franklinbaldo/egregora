@@ -75,7 +75,6 @@ def test_rag_config_validation(temp_dir):
         config = PipelineConfig.with_defaults(
             zips_dir=temp_dir,
             newsletters_dir=temp_dir,
-            media_dir=temp_dir / "media",
         )
         config.rag = rag_config
         

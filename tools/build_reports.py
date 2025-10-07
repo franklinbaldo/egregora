@@ -15,7 +15,7 @@ from dateutil import tz
 TZ = tz.gettz("America/Porto_Velho")
 
 # fonte dos diários (produzidos pelo seu pipeline)
-DAILY_SRC = Path("data")
+DAILY_SRC = Path("data/newsletters")
 
 # destino publicado no MkDocs
 DOCS_DIR = Path("docs")

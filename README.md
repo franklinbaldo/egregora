@@ -98,7 +98,7 @@ Além do enriquecimento de links, o Egregora agora extrai automaticamente mídia
 2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` viram links Markdown apontando para o novo nome, por exemplo: `![IMG-20251003-WA0001.jpg](../../media/<slug-do-grupo>/media/7c8f2a44-4d57-59e0-9e59-0a0f9450a8b9.jpg)` na newsletter.
 3.  **Preservação**: Cada grupo possui seu próprio diretório, evitando colisões mesmo em execuções diferentes.
 
-> Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que os links apontem para o diretório público.
+> Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que as mídias apareçam em `/media/<slug>/` no site estático.
 
 Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis diretamente na newsletter gerada, enriquecendo ainda mais o contexto.
 
@@ -138,7 +138,8 @@ Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores p
 ## 🧭 Estrutura padrão
 
 - `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp (data opcional no nome).
-- `data/<grupo>/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
+- `data/newsletters/<grupo>/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
+- `data/newsletters/<grupo>/media/`: arquivos de mídia extraídos para cada dia.
 
 As pastas são criadas automaticamente na primeira execução.
 

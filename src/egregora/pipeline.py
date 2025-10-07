@@ -317,16 +317,23 @@ def read_zip_texts_and_media(
     zippath: Path,
     *,
     archive_date: date | None = None,
-    media_dir: Path | None = None,
+    newsletters_dir: Path | None = None,
+    group_slug: str | None = None,
 ) -> tuple[str, dict[str, MediaFile]]:
     """Read texts from *zippath* and optionally extract media files."""
 
     extractor: MediaExtractor | None = None
     media_files: dict[str, MediaFile] = {}
 
-    if archive_date is not None and media_dir is not None:
-        extractor = MediaExtractor(media_dir)
-        media_files = extractor.extract_media_from_zip(zippath, archive_date)
+    if archive_date is not None:
+        if (newsletters_dir is None) != (group_slug is None):
+            raise ValueError(
+                "newsletters_dir and group_slug must both be provided to extract media",
+            )
+        if newsletters_dir is not None and group_slug is not None:
+            group_dir = newsletters_dir / group_slug
+            extractor = MediaExtractor(group_dir, group_slug=group_slug)
+            media_files = extractor.extract_media_from_zip(zippath, archive_date)
 
     chunks: list[str] = []
     with zipfile.ZipFile(zippath, "r") as zipped:
@@ -370,7 +377,6 @@ def ensure_directories(config: PipelineConfig) -> None:
 
     config.newsletters_dir.mkdir(parents=True, exist_ok=True)
     config.zips_dir.mkdir(parents=True, exist_ok=True)
-    config.media_dir.mkdir(parents=True, exist_ok=True)
 
 
 def select_recent_archives(
