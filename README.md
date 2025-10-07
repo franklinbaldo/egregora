@@ -1,279 +1,175 @@
 # Egregora
 
-Automação para gerar newsletters diárias a partir de exports do WhatsApp usando o Google Gemini. Agora inclui um sistema opcional de **enriquecimento de conteúdos compartilhados**, capaz de resumir e contextualizar links citados nas conversas antes de gerar a newsletter.
+> Automated WhatsApp-to-newsletter pipeline with contextual enrichment, privacy controls, and search-ready archives.
 
-> 📚 Para detalhes técnicos do fluxo de ponta a ponta, consulte as [Copilot Instructions](.github/copilot-instructions.md).
+Egregora ingests WhatsApp group exports, anonymises participants, enriches shared links, and publishes human-quality newsletters. The `egregora` CLI orchestrates ingestion, enrichment, retrieval, and profile generation so that communities receive a daily brief without manual curation.
 
-## 🌟 Principais recursos
+## Highlights
 
-- **Pipeline completo** para transformar arquivos `.zip` do WhatsApp em newsletters Markdown.
-- **Integração com Gemini**: usa `google-genai` com configuração de segurança ajustada para conteúdos de grupos reais.
-- **Enriquecimento de links**: identifica URLs e mídias e usa o suporte nativo do Gemini a `Part.from_uri` para analisá-los em paralelo com um modelo dedicado.
-- **Sistema RAG integrado**: indexa newsletters anteriores para busca rápida via CLI ou MCP.
-- **Perfis incrementais dos membros**: gera fichas analíticas por participante e atualiza automaticamente após cada newsletter.
-- **Configuração flexível**: diretórios, fusos, modelos e limites ficam centralizados em `egregora.toml`, com overrides mínimos pela CLI.
-- **Documentação extensa**: consulte `ENRICHMENT_QUICKSTART.md` e `CONTENT_ENRICHMENT_DESIGN.md` para aprofundar.
+- **Zero-touch ingestion** – Discover exports locally or sync them from Google Drive before processing, build virtual groups, and skip duplicates automatically via `UnifiedProcessor` and the remote source helper.【F:src/egregora/processor.py†L72-L168】【F:src/egregora/remote_source.py†L55-L113】
+- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior newsletters, and RAG search hits to create high-signal Markdown reports using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
+- **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so newsletters embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
+- **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
+- **Searchable archive & MCP tooling** – Index generated newsletters with Gemini embeddings and expose retrieval/search helpers through the RAG utilities and MCP server for downstream tools.【F:src/egregora/rag/index.py†L12-L189】【F:src/egregora/mcp_server/server.py†L87-L355】
+- **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
 
-## 📦 Requisitos
+## Pipeline at a glance
 
-- [Python](https://www.python.org/) 3.10 ou superior
-- [uv](https://docs.astral.sh/uv/) para gerenciar dependências
-- Variável `GEMINI_API_KEY` configurada com uma chave válida da API do Gemini
+1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
+2. **Extract daily transcripts** – Parse, anonymise, and consolidate daily conversations while tracking per-day activity stats.【F:src/egregora/pipeline.py†L125-L220】【F:src/egregora/transcript.py†L12-L205】
+3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L146-L290】【F:src/egregora/cache_manager.py†L16-L142】
+4. **Assemble newsletters** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown report per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
+5. **Publish artefacts** – Persist newsletters, media, and profile dossiers in predictable folders ready for MkDocs publishing or further automation.【F:src/egregora/processor.py†L209-L487】
 
-Dependências principais:
+## Quick start
 
-- `google-genai`
+### Requirements
 
-## 🚀 Instalação
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) with access to the Gemini models used by the pipeline
 
-1. Instale o `uv` (caso ainda não tenha):
-
-   ```bash
-   pip install uv
-   ```
-
-2. Sincronize as dependências do projeto:
-
-   ```bash
-   uv sync
-   ```
-
-3. Verifique se a variável `GEMINI_API_KEY` está presente no ambiente:
-
-   ```bash
-   export GEMINI_API_KEY="sua-chave"
-   ```
-
-## 🧠 Enriquecimento de conteúdos
-
-O novo módulo de enriquecimento executa três etapas:
-
-1. **Extração** – percorre os transcritos procurando URLs e marcadores de mídia (`<Mídia oculta>`), capturando até 3 mensagens de contexto antes/depois.
-2. **Análise com Gemini** – envia cada referência para um modelo configurável que lê a URL diretamente e devolve resumo, pontos-chave, tom e relevância (1–5).
-3. **Filtragem** – somente itens com relevância acima do limiar configurado entram no prompt final.
-
-### Configuração rápida
-
-1. Copie o arquivo de exemplo e ajuste conforme necessário:
-
-   ```bash
-   cp egregora.toml.example egregora.toml
-   ```
-
-2. Abra o arquivo e personalize as seções `[directories]`, `[pipeline]` e `[enrichment]` com os valores desejados.
-
-3. Execute o pipeline apontando para o TOML:
-
-   ```bash
-   uv run egregora --config egregora.toml
-   ```
-
-Quer testar sem chamar o modelo? Use o modo de simulação:
+### Install & configure
 
 ```bash
+pip install uv
+uv sync
+cp egregora.toml.example egregora.toml
+export GEMINI_API_KEY="your-api-key"
+```
+
+Adjust `egregora.toml` to match your directories, timezone, and enrichment preferences (see [Configuration](#configuration-egregoratoml)).
+
+### Generate your first newsletters
+
+```bash
+# Preview which groups and dates would run
 uv run egregora --config egregora.toml --dry-run
-```
 
-### 🧪 Rodando os testes
-
-1. Crie o ambiente virtual com `uv venv` (se ainda não existir).
-2. Execute `uv sync` para instalar todas as dependências travadas — isso garante que bibliotecas opcionais como `polars` sejam baixadas automaticamente.
-3. Rode a suíte desejada com `uv run --with pytest pytest`. Também é possível limitar o escopo, por exemplo:
-
-   ```bash
-   uv run --with pytest pytest tests/test_unified_processor_anonymization.py
-   ```
-
-## ✏️ Personalize o prompt do sistema
-
-- Edite `src/egregora/prompts/system_instruction_base.md` para ajustar o tom padrão das newsletters (ou `egregora/prompts/system_instruction_base.md` em instalações via `pip`).
-- Utilize `src/egregora/prompts/system_instruction_multigroup.md` para complementar instruções de grupos virtuais (ou `egregora/prompts/system_instruction_multigroup.md` no pacote instalado).
-- Caso mantenha cópias personalizadas para produção, lembre-se de sincronizar qualquer alteração com o diretório de prompts instalado.
-
-## 🖼️ Extração de Mídia
-
-Além do enriquecimento de links, o Egregora agora extrai automaticamente mídias (imagens, vídeos, áudio) dos arquivos `.zip` do WhatsApp.
-
-1.  **Extração**: Arquivos de mídia são salvos em `data/media/<slug-do-grupo>/media/<uuidv5>.<extensão>`, onde o nome é um UUID v5 determinístico gerado a partir do conteúdo do arquivo para evitar colisões entre execuções.
-2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` viram links Markdown apontando para o novo nome, por exemplo: `![IMG-20251003-WA0001.jpg](../../media/<slug-do-grupo>/media/7c8f2a44-4d57-59e0-9e59-0a0f9450a8b9.jpg)` na newsletter.
-3.  **Preservação**: Cada grupo possui seu próprio diretório, evitando colisões mesmo em execuções diferentes.
-
-> Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que as mídias apareçam em `/media/<slug>/` no site estático.
-
-Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis diretamente na newsletter gerada, enriquecendo ainda mais o contexto.
-
-## 🔐 Privacidade por padrão
-
-- **Anonimização determinística**: telefones e apelidos são convertidos em
-  identificadores como `Member-ABCD` antes de qualquer processamento. Ajuste
-  a seção `[anonymization]` no TOML caso precise desativar temporariamente.
-- **Instruções rígidas ao LLM**: o prompt enviado ao Gemini reforça que nomes
-  próprios, telefones e contatos diretos não devem aparecer na newsletter.
-- **Revisão humana quando necessário**: para newsletters sensíveis, mantenha uma
-  leitura final manual antes do envio.
-- **Autodescoberta**: cada pessoa pode calcular o próprio identificador com
-  `uv run egregora discover "<telefone ou apelido>"` ou consultar
-  `docs/discover.md` para exemplos completos.
-
-## 💾 Sistema de Cache
-
-O Egregora mantém um cache persistente das análises de URLs para reduzir custos com API e acelerar execuções futuras. Por padrão o cache está habilitado e utiliza o diretório `cache/` versionado no repositório.
-
-- Configure diretório, limpeza automática e limites através da seção `[cache]` no TOML.
-- Defina `enabled = false` para desativar temporariamente.
-- Ajuste `auto_cleanup_days` para controlar a retenção de análises antigas.
-
-Também é possível acessar as estatísticas programaticamente:
-
-```python
-from pathlib import Path
-from egregora.cache_manager import CacheManager
-
-manager = CacheManager(Path("cache"))
-print(manager.export_report())
-```
-
-Consulte `ENRICHMENT_QUICKSTART.md` para ver exemplos de execução e melhores práticas.
-
-## 🧭 Estrutura padrão
-
-- `data/whatsapp_zips/`: arquivos `.zip` exportados do WhatsApp (data opcional no nome).
-- `data/newsletters/<grupo>/daily/`: destino das newsletters geradas (`YYYY-MM-DD.md`).
-- `data/newsletters/<grupo>/media/`: arquivos de mídia extraídos para cada dia.
-
-As pastas são criadas automaticamente na primeira execução.
-
-### Preparando exports do WhatsApp
-
-1. Exporte sua conversa do WhatsApp como arquivo `.zip`
-2. Coloque-o em `data/whatsapp_zips/`
-3. **Opcional**: Renomeie com prefixo de data `YYYY-MM-DD-` para controle explícito
-
-Exemplos de nomes aceitos:
-- ✅ `Conversa do WhatsApp com Meu Grupo.zip` (detecta data automaticamente)
-- ✅ `2025-10-03-Meu Grupo.zip` (data explícita)  
-- ✅ `WhatsApp Chat with Team.zip` (detecta data automaticamente)
-
-O sistema detecta datas automaticamente a partir do:
-1. **Nome do arquivo** (se contém `YYYY-MM-DD`)
-2. **Conteúdo das mensagens** (primeiras 20 linhas)
-3. **Data de modificação** do arquivo (fallback)
-
-## 🛠️ Uso via CLI
-
-```bash
+# Process the latest two days for every discovered group
 uv run egregora --config egregora.toml --days 2
 ```
 
-O arquivo TOML concentra as opções avançadas. Use `--zips-dir` ou `--newsletters-dir` apenas para sobrescrever temporariamente os caminhos definidos na configuração.
+Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L131】
 
-Para inspecionar o plano antes de acionar o Gemini:
+## Command line interface
 
-```bash
-uv run egregora --config egregora.toml --dry-run
+### `egregora` (default command)
+
+The root command is equivalent to `egregora process` and accepts the same options:
+
+- `--config / -c` – Load a specific TOML configuration file.
+- `--zips-dir` / `--newsletters-dir` – Override directories at runtime.
+- `--days` – Number of recent days to include in each prompt.
+- `--disable-enrichment`, `--no-cache`, `--dry-run`, `--list` – Control enrichment, caching, and planning flows.
+- `--timezone` – Run the pipeline as if executed in another IANA timezone.
+
+These switches map directly to the Typer options defined in `egregora.__main__`. When run without subcommands the pipeline executes immediately.【F:src/egregora/__main__.py†L20-L138】
+
+### `egregora process`
+
+Explicit subcommand wrapper around the same options, useful when scripting multiple CLI calls or when future subcommands are added.【F:src/egregora/__main__.py†L99-L136】
+
+### `egregora discover`
+
+Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in newsletters. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
+
+## Configuration (`egregora.toml`)
+
+`PipelineConfig` is powered by Pydantic settings and supports granular tuning of each subsystem.【F:src/egregora/config.py†L210-L371】 Key sections include:
+
+```toml
+[zips]
+# Optional when using custom overrides; defaults live under data/
+
+[directories]
+zips_dir = "data/whatsapp_zips"
+newsletters_dir = "data/newsletters"
+media_url_prefix = "/media"           # Optional public URL when hosting output
+
+[llm]
+model = "gemini-flash-lite-latest"
+safety_threshold = "BLOCK_NONE"
+
+[enrichment]
+enabled = true
+relevance_threshold = 2
+max_links = 50
+
+[cache]
+enabled = true
+auto_cleanup_days = 90
+
+[rag]
+enabled = true
+cache_dir = "cache/rag"
+
+[profiles]
+enabled = true
+max_profiles_per_run = 3
+min_messages = 2
+
+[remote_source]
+# Provide a Google Drive share/folder URL to sync exports automatically
+#gdrive_url = "https://drive.google.com/drive/folders/..."
+
+[merges.virtual_daily]
+name = "Community Digest"
+groups = ["core-group", "side-group"]
+tag_style = "emoji"
+model = "gemini-flash-lite-latest"
+
+[merges.virtual_daily.emojis]
+"core-group" = "🌐"
+"side-group" = "🛰️"
 ```
 
-## 📬 Processamento de Backlog
+- `directories.*` override where WhatsApp ZIPs and output artefacts live.
+- `llm`, `enrichment`, and `cache` tune Gemini usage, enrichment thresholds, and persistent caches.
+- `rag` enables newsletter indexing for retrieval-augmented prompts and MCP tooling.
+- `profiles` controls when participant dossiers are generated and stored.
+- `remote_source.gdrive_url` keeps a Google Drive folder in sync before each run.
+- `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
 
-Se você tem múltiplos dias de conversas para processar:
+All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 
-1. Coloque todos os zips em `data/whatsapp_zips/` (ou informe outro diretório).
-2. Execute: `python scripts/process_backlog.py data/whatsapp_zips data`
-3. Use `--force` apenas se quiser sobrescrever newsletters já geradas.
+## Outputs & publishing
 
-O script simples usa o mesmo pipeline diário e imprime um resumo ao final. Para mais detalhes, veja [docs/backlog_processing.md](docs/backlog_processing.md)
+During processing the pipeline materialises a predictable directory tree:
 
-## 🧪 Testes manuais
+- `data/newsletters/<slug>/daily/YYYY-MM-DD.md` – Generated newsletters ready for MkDocs or email distribution.
+- `data/newsletters/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/processor.py†L209-L313】
+- `data/newsletters/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L315-L422】
+- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
+- `docs/` – MkDocs site that can publish newsletters and reports (`uv run mkdocs serve`).
 
-- Rode `python example_enrichment.py` para validar rapidamente o módulo de enriquecimento (define `GEMINI_API_KEY` antes para executar a análise com o LLM).
-- Execute o comando principal com `--days 1` usando um exporto pequeno para validar o fluxo completo.
+Enable the bundled MkDocs plugin (`tools.mkdocs_media_plugin`) to expose media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L1-L74】
 
-## 📚 Documentação complementar
+## Retrieval & MCP integrations
 
-- `ENRICHMENT_QUICKSTART.md` – visão geral + primeiros passos.
-- `CONTENT_ENRICHMENT_DESIGN.md` – arquitetura completa e decisões de design.
-- `PHILOSOPHY.md` – visão filosófica e motivações do projeto.
+The Retrieval-Augmented Generation utilities store newsletter embeddings in ChromaDB via `NewsletterRAG` and expose search/list/index maintenance commands through the MCP server. Use them to power chat assistants or IDE integrations.【F:src/egregora/rag/index.py†L12-L189】【F:src/egregora/mcp_server/server.py†L87-L355】
 
-## 💡 Ideias Futuras
-
-- Exportar newsletters e metadados para um formato colunar (ex.: Parquet) para facilitar análises históricas.
-- Automatizar a geração de arquivos de arquivo/relatórios consolidando várias edições.
-
-## 🔍 Sistema RAG (Retrieval-Augmented Generation)
-
-O Egregora mantém um índice consultável de newsletters anteriores para recuperar
-contexto relevante durante a geração de novas edições e em integrações com MCP.
-
-**Características principais:**
-
-- Busca semântica e por palavras-chave sobre o histórico de newsletters.
-- Ferramentas MCP (`search_newsletters`, `list_newsletters`) para Claude e outros clientes.
-- Suporte opcional a embeddings do Gemini para resultados mais ricos.
-- Exportação opcional dos embeddings para Parquet, pronta para publicação como artefato no GitHub Actions ou Internet Archive (`export_embeddings` + `embedding_export_path`).
-
-Consulte `docs/mcp-rag.md` e `docs/embeddings.md` para detalhes de uso e configuração.
-
-## 🧠 Embeddings Modernos (Opcional)
-
-Para elevar a qualidade das buscas do RAG, ative embeddings semânticos do Gemini.
+Launch the MCP server directly:
 
 ```bash
-uv run egregora --use-gemini-embeddings --embedding-dimension 768
+uv run python -m egregora.mcp_server --config egregora.toml
 ```
 
-Isso substitui o índice TF-IDF padrão por embeddings `gemini-embedding-001` com cache
-persistente. A flag é opcional: se a API não estiver disponível o sistema volta ao TF-IDF.
+## Custom prompts & filters
 
-## 👥 Perfis dos participantes
+Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
 
-O Egregora pode manter perfis analíticos incrementais para cada membro do grupo.
-Após gerar a newsletter diária, o pipeline reavalia quem participou, decide se o
-perfil precisa ser atualizado e grava o resultado em dois formatos:
+Optionally supply `system_message_filters_file` in the configuration to strip templated notifications or bot spam before summarisation.【F:src/egregora/config.py†L222-L229】【F:src/egregora/processor.py†L51-L70】
 
-- `data/profiles/<uuid>.json`: dados estruturados para uso posterior;
-- `docs/profiles/index.md`: índice em Markdown apontando para os JSONs públicos.
+## Development
 
-### Como habilitar
+- Sync dependencies: `uv sync`
+- Run tests: `uv run --with pytest pytest`
+- Type-check or explore datasets with `polars` and the utilities under `scripts/`
+- Build docs locally: `uv run --with docs mkdocs serve`
 
-1. Certifique-se de que a chave `GEMINI_API_KEY` (ou `GOOGLE_API_KEY`) esteja configurada.
-2. Ajuste a seção `[profiles]` no `egregora.toml`:
+The codebase targets Python 3.10+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 
-   ```toml
-   [profiles]
-   enabled = true
-   profiles_dir = "data/profiles"
-   docs_dir = "docs/profiles"
-   min_messages = 2
-   min_words_per_message = 15
-   max_profiles_per_run = 3
-   max_api_retries = 3
-   minimum_retry_seconds = 30.0
-   decision_model = "models/gemini-flash-latest"
-   rewrite_model = "models/gemini-flash-latest"
-   ```
+## License
 
-3. Execute o pipeline normalmente. Cada participante que contribuir de forma
-   significativa terá o perfil reavaliado e registrado.
-
-Os perfis publicados ficam acessíveis em `docs/profiles/index.md`, com uma lista
-clicável de todos os membros analisados. Esse arquivo é atualizado a cada execução,
-facilitando o upload como artefato no GitHub Actions ou em outro repositório.
-
-- `min_messages` / `min_words_per_message`: limites mínimos para considerar uma
-  participação relevante no dia.
-- `max_profiles_per_run`: restringe quantos perfis podem ser atualizados em uma
-  execução (útil para respeitar limites de cota).
-- `max_api_retries` / `minimum_retry_seconds`: controla retentativas quando o
-  Gemini retorna `RESOURCE_EXHAUSTED` (rate limit) e o intervalo mínimo entre
-  tentativas.
-
-## 🤝 Contribuição
-
-1. Faça fork do repositório e crie um branch.
-2. Instale as dependências com `uv sync`.
-3. Adicione testes ou atualize os exemplos conforme necessário.
-4. Abra um PR descrevendo claramente as alterações.
-
-## 📄 Licença
-
-Distribuído sob a licença [MIT](LICENSE).
+Egregora is released under the MIT License. See [LICENSE](LICENSE) for details.
