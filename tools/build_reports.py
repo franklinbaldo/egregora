@@ -27,8 +27,34 @@ def iter_daily_files():
             yield md
 
 def parse_date_from_path(p: Path) -> datetime:
-    """Extract the ISO date from the filename."""
-    return datetime.fromisoformat(p.stem).replace(tzinfo=TZ)
+    """Extract a date from either ISO-stemmed files or generated daily paths."""
+
+    try:
+        return datetime.fromisoformat(p.stem).replace(tzinfo=TZ)
+    except ValueError:
+        pass
+
+    # Generated daily report paths live under YYYY/MM/DD.md directories.
+    day_name = p.stem
+    month_dir = p.parent
+    year_dir = month_dir.parent
+
+    if (
+        day_name.isdigit()
+        and len(day_name) <= 2
+        and month_dir.name.isdigit()
+        and len(month_dir.name) == 2
+        and year_dir.name.isdigit()
+        and len(year_dir.name) == 4
+    ):
+        try:
+            return datetime(
+                int(year_dir.name), int(month_dir.name), int(day_name), tzinfo=TZ
+            )
+        except ValueError:
+            pass
+
+    raise ValueError(f"Unable to parse date from path: {p}")
 
 def read_text(p: Path) -> str:
     return p.read_text(encoding="utf-8", errors="replace")
