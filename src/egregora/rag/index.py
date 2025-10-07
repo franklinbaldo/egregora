@@ -154,12 +154,6 @@ class NewsletterRAG:
             for doc in documents:
                 try:
                     index.delete_ref_doc(doc.doc_id, raise_error=False)  # type: ignore[call-arg]
-                except TypeError:
-                    # Older llama-index versions do not accept the keyword argument
-                    try:
-                        index.delete_ref_doc(doc.doc_id)  # type: ignore[call-arg]
-                    except Exception:
-                        continue
                 except Exception:
                     continue
 
