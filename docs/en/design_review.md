@@ -11,7 +11,7 @@ This review captures the current state of the documentation site and highlights 
 ## Pain Points
 
 - **Navigation density** – Mixed technical and operational topics create long menus that make it hard to find audience-specific information.
-- **Language mismatch** – Portuguese and English documents coexist without structure, confusing search, SEO, and cross-linking.
+- **Incomplete English Translations** – Following a structural refactoring, all documents are now in their correct language-specific directories. However, many English documents are placeholders awaiting translation from the original Portuguese versions.
 - **Report discoverability** – Generated newsletters live deep in the tree and lack entry pages that explain their context or current availability.
 
 ## Recommendations
