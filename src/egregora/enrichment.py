@@ -257,7 +257,15 @@ class ContentEnricher:
 
         prompt = self._build_prompt(reference)
 
-        contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=prompt),
+                    types.Part.from_uri(file_uri=reference.url),
+                ],
+            )
+        ]
         config = types.GenerateContentConfig(
             temperature=0.2,
             response_mime_type="application/json",
@@ -274,9 +282,9 @@ class ContentEnricher:
             else:
                 response = await asyncio.to_thread(
                     client.models.generate_content,
-                    model_name=self._config.enrichment_model,
+                    model=self._config.enrichment_model,
                     contents=contents,
-                    generation_config=config,
+                    config=config,
                 )
         except GeminiQuotaError as exc:
             return AnalysisResult(

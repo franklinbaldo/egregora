@@ -1,6 +1,7 @@
 from datetime import date
 from pathlib import Path
 import zipfile
+from unittest.mock import patch
 
 import pytest
 
@@ -36,7 +37,8 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
     )
 
 
-def test_urls_preserved_in_newsletter(config_with_url: PipelineConfig, monkeypatch):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_urls_preserved_in_newsletter(mock_guess_type, config_with_url: PipelineConfig, monkeypatch):
     """Verify URLs from WhatsApp are present in the final newsletter."""
 
     class MockLLMClient:

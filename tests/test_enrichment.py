@@ -8,7 +8,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -25,7 +25,7 @@ class MockGeminiModel:
         self.relevance = relevance
         self.error = error
 
-    def generate_content(self, model_name, contents, generation_config):
+    def generate_content(self, model, contents, config):
         self.call_count += 1
         if self.error:
             raise self.error
@@ -52,7 +52,8 @@ class MockGeminiClient:
     def call_count(self):
         return self.models.call_count
 
-def test_content_enrichment_with_whatsapp_urls(tmp_path):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
     config = EnrichmentConfig(enabled=True, max_concurrent_analyses=2)
     cache_manager = CacheManager(tmp_path / "cache", size_limit_mb=10)
@@ -66,7 +67,8 @@ def test_content_enrichment_with_whatsapp_urls(tmp_path):
     assert result.items[0].analysis is not None
     assert result.items[0].analysis.summary == "Mocked summary"
 
-def test_enrichment_caching_functionality(tmp_path):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
     test_url = "https://example.com/test-article"
     transcript = [(date.today(), f"Check this out: {test_url}")]
     config = EnrichmentConfig(enabled=True)
@@ -99,7 +101,8 @@ def test_enrichment_with_disabled_config(tmp_path):
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) == 0
 
-def test_error_handling_in_enrichment(tmp_path):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
     config = EnrichmentConfig(enabled=True)
     transcript = [(date.today(), "https://example.com/failing-url")]
     mock_client = MockGeminiClient(error=Exception("API Error"))
@@ -110,7 +113,8 @@ def test_error_handling_in_enrichment(tmp_path):
     assert len(result.errors) == 1
     assert "API Error" in result.errors[0]
 
-def test_concurrent_url_processing(tmp_path):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_concurrent_url_processing(mock_guess_type, tmp_path):
     content = "https://a.com\nhttps://b.com\nhttps://c.com"
     config = EnrichmentConfig(enabled=True, max_concurrent_analyses=3)
     mock_client = MockGeminiClient()
@@ -119,7 +123,8 @@ def test_concurrent_url_processing(tmp_path):
     assert len(result.items) == 3
     assert mock_client.call_count == 3
 
-def test_relevance_filtering(tmp_path):
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_relevance_filtering(mock_guess_type, tmp_path):
     config = EnrichmentConfig(enabled=True, relevance_threshold=6)
     content = "https://low.com\nhttps://high.com"
 
@@ -127,7 +132,7 @@ def test_relevance_filtering(tmp_path):
         def __init__(self):
             self.models = self
             self.calls = 0
-        def generate_content(self, model_name, contents, generation_config):
+        def generate_content(self, model, contents, config):
             self.calls += 1
             prompt_text = contents[0].parts[0].text
             relevance = 5 if '"url": "https://low.com"' in prompt_text else 8
