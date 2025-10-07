@@ -177,19 +177,52 @@ class CacheManager:
     @staticmethod
     def _normalise_url(url: str) -> str:
         parts = urlparse(url)
+
         scheme = parts.scheme.lower()
-        netloc = parts.netloc.lower()
-        if netloc.startswith("www."):
-            netloc = netloc[4:]
+
+        hostname = (parts.hostname or "").lower()
+        if hostname.startswith("www."):
+            hostname = hostname[4:]
+
+        if hostname and ":" in hostname and not hostname.startswith("["):
+            hostname = f"[{hostname}]"
+
+        default_port: int | None
+        if scheme == "http":
+            default_port = 80
+        elif scheme == "https":
+            default_port = 443
+        else:
+            default_port = None
+
+        port = parts.port
+        if default_port is not None and port == default_port:
+            port = None
+
+        userinfo = ""
+        if parts.username:
+            userinfo = parts.username
+            if parts.password:
+                userinfo += f":{parts.password}"
+            userinfo += "@"
+
+        netloc = hostname
+        if port is not None and hostname:
+            netloc = f"{hostname}:{port}"
+        elif port is not None:
+            netloc = f":{port}"
+
+        netloc = f"{userinfo}{netloc}" if userinfo or netloc else userinfo
 
         path = parts.path
         if len(path) > 1:
-            path = path.rstrip('/')
+            path = path.rstrip("/")
 
-        query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)))
-        fragment = ""
+        query = urlencode(
+            sorted(parse_qsl(parts.query, keep_blank_values=True)), doseq=True
+        )
 
-        return urlunparse((scheme, netloc, path, parts.params, query, fragment))
+        return urlunparse((scheme, netloc, path, parts.params, query, ""))
 
     @classmethod
     def _hash_url(cls, url: str) -> str:
