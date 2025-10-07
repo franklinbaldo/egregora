@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -115,7 +116,8 @@ class MediaExtractor:
                 with zipped.open(info, "r") as source:
                     file_content = source.read()
 
-                file_uuid = uuid.uuid5(namespace, file_content)
+                content_hash = hashlib.sha256(file_content).hexdigest()
+                file_uuid = uuid.uuid5(namespace, content_hash)
                 file_extension = Path(cleaned_name).suffix
                 new_filename = f"{file_uuid}{file_extension}"
                 dest_path = target_dir / new_filename
