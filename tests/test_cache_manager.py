@@ -41,7 +41,7 @@ def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
 
 
 def test_generate_uuid_normalizes_urls(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     url_a = "https://Example.com/path/?b=2&a=1"
     url_b = "https://example.com/path?a=1&b=2"
     url_c = "https://example.com/other"
@@ -55,7 +55,7 @@ def test_generate_uuid_normalizes_urls(tmp_path: Path) -> None:
 
 
 def test_set_and_get_roundtrip(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     url = "https://example.com/artigo"
     payload = _build_analysis()
 
@@ -76,7 +76,7 @@ def test_set_and_get_roundtrip(tmp_path: Path) -> None:
 
 
 def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     url = "https://example.com/desatualizado"
     manager.set(url, _build_analysis())
 
@@ -94,7 +94,7 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
 
 
 def test_missing_entry_counts_as_miss(tmp_path: Path) -> None:
-    manager = CacheManager(tmp_path / "cache")
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     assert manager.get("https://example.com/absent") is None
     stats = manager.get_stats()
     assert stats["cache_hits"] == 0

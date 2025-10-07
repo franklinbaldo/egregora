@@ -81,4 +81,16 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     # Verify markdown links in newsletter
     newsletter_path = results["_chat"][0]
     newsletter_text = newsletter_path.read_text()
-    assert "![IMG-20251002-WA0004.jpg]" in newsletter_text
+
+    # The filename is now a UUID, so we can't hardcode it.
+    # Instead, we check that a markdown image link is present
+    # and that the original filename is NOT present.
+    assert "![image]" not in newsletter_text  # Should be replaced by the real filename
+    assert ".jpg" in newsletter_text  # Check if some image is referenced
+    assert "IMG-20251002-WA0004.jpg" not in newsletter_text
+
+    # More robust check: find the new filename and assert its presence
+    media_files = list(media_output_dir.glob("*.jpg"))
+    assert len(media_files) == 1
+    new_filename = media_files[0].name
+    assert f"![{new_filename}]" in newsletter_text

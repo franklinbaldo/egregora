@@ -164,11 +164,14 @@ class ContentEnricher:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
 
         start = perf_counter()
+        if not self._config.enabled:
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=0.0)
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
 
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
