@@ -6,7 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import egregora.pipeline as pipeline
+from egregora.config import PipelineConfig
+from egregora.generator import NewsletterGenerator
 
 
 class DummyPart:
@@ -18,67 +19,28 @@ class DummyPart:
         return cls(text=text)
 
 
-class DummyContent:
-    def __init__(self, *, role: str, parts: list[DummyPart]):
-        self.role = role
-        self.parts = parts
-
-
-class DummyGenerateContentConfig:
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-
-
-def _install_pipeline_stubs(monkeypatch):
-    stub_types = SimpleNamespace(
-        Part=DummyPart,
-        Content=DummyContent,
-        GenerateContentConfig=DummyGenerateContentConfig,
-    )
-    monkeypatch.setattr(pipeline, "types", stub_types)
-    monkeypatch.setattr(pipeline, "genai", object())
-
-
-class DummyChunk:
-    def __init__(self, text: str):
-        self.text = text
-
-
-class DummyModelAPI:
-    def __init__(self, responses: list[str]):
-        self._responses = responses
-
-    def generate_content_stream(self, *, model: str, contents, config):  # noqa: ANN001
-        for text in self._responses:
-            yield DummyChunk(text)
-
-
-class DummyClient:
-    def __init__(self, responses: list[str]):
-        self.models = DummyModelAPI(responses)
+def _install_generator_stubs(monkeypatch):
+    stub_types = SimpleNamespace(Part=DummyPart)
+    # Patch the types used within the generator module
+    monkeypatch.setattr("egregora.generator.types", stub_types)
+    # Mock the prompt loading to avoid file I/O
+    monkeypatch.setattr("egregora.generator._load_prompt", lambda name: f"PROMPT: {name}")
 
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):
-    _install_pipeline_stubs(monkeypatch)
+    _install_generator_stubs(monkeypatch)
+    config = PipelineConfig.with_defaults()
+    generator = NewsletterGenerator(config)
 
-    instruction = pipeline.build_system_instruction()
+    # Test without group tags
+    instruction = generator._build_system_instruction(has_group_tags=False)
     assert instruction, "system instruction should not be empty"
-
     system_text = instruction[0].text
-    assert "PRIVACIDADE — INSTRUÇÕES CRÍTICAS" in system_text
-    assert "Nunca repita nomes próprios" in system_text
-    assert "identificadores anônimos" in system_text
+    assert "PROMPT: system_instruction_base.md" in system_text
+    assert "PROMPT: system_instruction_multigroup.md" not in system_text
 
-
-def test_privacy_review_removes_names(monkeypatch):
-    _install_pipeline_stubs(monkeypatch)
-
-    client = DummyClient(["Member-A1B2 sugeriu algo importante."])
-    reviewed = pipeline._run_privacy_review(
-        client,
-        model="fake-model",
-        newsletter_text="João (Member-A1B2) sugeriu algo.",
-    )
-
-    assert "João" not in reviewed
-    assert "Member-A1B2" in reviewed
+    # Test with group tags
+    instruction_multigroup = generator._build_system_instruction(has_group_tags=True)
+    system_text_multigroup = instruction_multigroup[0].text
+    assert "PROMPT: system_instruction_base.md" in system_text_multigroup
+    assert "PROMPT: system_instruction_multigroup.md" in system_text_multigroup

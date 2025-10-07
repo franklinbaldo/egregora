@@ -164,11 +164,14 @@ class ContentEnricher:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
 
         start = perf_counter()
+        if not self._config.enabled:
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=0.0)
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
 
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
@@ -254,15 +257,7 @@ class ContentEnricher:
 
         prompt = self._build_prompt(reference)
 
-        contents = [
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_text(text=prompt),
-                    types.Part.from_uri(file_uri=reference.url),
-                ],
-            )
-        ]
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
         config = types.GenerateContentConfig(
             temperature=0.2,
             response_mime_type="application/json",
@@ -277,11 +272,9 @@ class ContentEnricher:
                     config=config,
                 )
             else:
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=self._config.enrichment_model,
+                response = await client.generate_content_async(
                     contents=contents,
-                    config=config,
+                    generation_config=config,
                 )
         except GeminiQuotaError as exc:
             return AnalysisResult(

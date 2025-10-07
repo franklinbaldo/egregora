@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import uuid
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -90,6 +91,9 @@ class MediaExtractor:
         target_dir = self.media_base_dir / group_key / "media"
         target_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create a stable namespace for this group to generate deterministic UUIDs
+        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_key)
+
         with zipfile.ZipFile(zip_path, "r") as zipped:
             for info in zipped.infolist():
                 if info.is_dir():
@@ -107,19 +111,23 @@ class MediaExtractor:
                 if cleaned_name in extracted:
                     continue
 
-                dest_path, stored_name = self._resolve_destination(
-                    target_dir, cleaned_name
-                )
+                # Generate a deterministic UUID for the filename
+                file_uuid = uuid.uuid5(namespace, cleaned_name)
+                file_extension = Path(cleaned_name).suffix
+                new_filename = f"{file_uuid}{file_extension}"
+                dest_path = target_dir / new_filename
 
                 if not dest_path.exists():
-                    with zipped.open(info, "r") as source, open(dest_path, "wb") as target:
+                    with zipped.open(info, "r") as source, open(
+                        dest_path, "wb"
+                    ) as target:
                         shutil.copyfileobj(source, target)
 
                 relative_path = str(
-                    Path("data") / "media" / group_key / "media" / stored_name
+                    Path("data") / "media" / group_key / "media" / new_filename
                 )
                 extracted[cleaned_name] = MediaFile(
-                    filename=stored_name,
+                    filename=new_filename,
                     media_type=media_type,
                     source_path=info.filename,
                     dest_path=dest_path,
@@ -306,19 +314,3 @@ class MediaExtractor:
     def _clean_attachment_name(cls, filename: str) -> str:
         cleaned = cls._directional_marks.sub("", filename)
         return cleaned.strip()
-
-    @staticmethod
-    def _resolve_destination(directory: Path, filename: str) -> tuple[Path, str]:
-        base_path = directory / filename
-        if not base_path.exists():
-            return base_path, filename
-
-        stem = Path(filename).stem
-        suffix = Path(filename).suffix
-        counter = 2
-        while True:
-            candidate_name = f"{stem}-{counter}{suffix}"
-            candidate_path = directory / candidate_name
-            if not candidate_path.exists():
-                return candidate_path, candidate_name
-            counter += 1
