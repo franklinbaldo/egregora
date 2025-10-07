@@ -98,6 +98,8 @@ Além do enriquecimento de links, o Egregora agora extrai automaticamente mídia
 2.  **Substituição**: Marcadores como `IMG-20251003-WA0001.jpg (arquivo anexado)` viram links Markdown apontando para o novo nome, por exemplo: `![IMG-20251003-WA0001.jpg](../../media/<slug-do-grupo>/media/7c8f2a44-4d57-59e0-9e59-0a0f9450a8b9.jpg)` na newsletter.
 3.  **Preservação**: Cada grupo possui seu próprio diretório, evitando colisões mesmo em execuções diferentes.
 
+Para usos programáticos, utilize `egregora.pipeline.read_zip_texts_and_media` — agora o ponto único de acesso para ler conversas exportadas e obter tanto o transcript consolidado quanto o mapeamento de mídias extraídas. A antiga função auxiliar `read_zip_texts` foi removida para evitar caminhos duplicados.
+
 > Dica: ao publicar via MkDocs, habilite o plugin `tools.mkdocs_media_plugin` (já configurado em `mkdocs.yml`) e defina `media_url_prefix = "/media"` no TOML para que os links apontem para o diretório público.
 
 Essa funcionalidade garante que as mídias compartilhadas sejam acessíveis diretamente na newsletter gerada, enriquecendo ainda mais o contexto.

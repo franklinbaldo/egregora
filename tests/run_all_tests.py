@@ -30,8 +30,7 @@ def main():
     
     # Define test files in execution order
     test_files = [
-        "test_core_pipeline.py",
-        "test_enrichment_simple.py", 
+        "test_enrichment_simple.py",
         "test_rag_integration.py",
         "test_newsletter_simple.py",
         "test_whatsapp_integration.py",

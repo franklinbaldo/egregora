@@ -348,13 +348,6 @@ def read_zip_texts_and_media(
     return transcript, media_files
 
 
-def read_zip_texts(zippath: Path) -> str:
-    """Backward-compatible helper that returns only the transcript text."""
-
-    transcript, _ = read_zip_texts_and_media(zippath)
-    return transcript
-
-
 def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
     """Load yesterday's newsletter if it exists."""
 
@@ -390,7 +383,6 @@ __all__ = [
     "find_date_in_name",
     "list_zip_days",
     "load_previous_newsletter",
-    "read_zip_texts",
     "read_zip_texts_and_media",
     "select_recent_archives",
     "_anonymize_transcript_line",
