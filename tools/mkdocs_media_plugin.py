@@ -1,4 +1,4 @@
-"""MkDocs plugin to expose the extracted media directory."""
+"""MkDocs plugin to publish per-group media directories."""
 
 from __future__ import annotations
 
@@ -10,29 +10,42 @@ from mkdocs.plugins import BasePlugin
 
 
 class MediaFilesPlugin(BasePlugin):
-    """Copy the repository ``data/media/`` directory into the built site."""
+    """Collect group media folders under ``data/newsletters`` for publication."""
 
     config_scheme = (
-        ("source_dir", config_options.Type(str, default="data/media")),
+        ("source_dir", config_options.Type(str, default="data/newsletters")),
         ("target_dir", config_options.Type(str, default="media")),
     )
 
     def on_post_build(self, config) -> None:  # type: ignore[override]
-        source = Path(self.config["source_dir"])
-        if not source.exists():
+        source_root = Path(self.config["source_dir"])
+        if not source_root.exists():
             return
 
-        target = Path(config["site_dir"]) / self.config["target_dir"]
-        if target.exists():
-            shutil.rmtree(target)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source, target)
+        target_root = Path(config["site_dir"]) / self.config["target_dir"]
+        if target_root.exists():
+            shutil.rmtree(target_root)
+
+        for slug, media_dir in self._iter_media_directories(source_root):
+            destination = target_root / slug
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(media_dir, destination)
 
     def on_serve(self, server, config, builder):  # type: ignore[override]
-        source = Path(self.config["source_dir"])
-        if source.exists():
-            server.watch(str(source), builder)
+        source_root = Path(self.config["source_dir"])
+        if source_root.exists():
+            server.watch(str(source_root), builder)
         return server
+
+    def _iter_media_directories(self, source_root: Path) -> list[tuple[str, Path]]:
+        directories: list[tuple[str, Path]] = []
+        for group_dir in sorted(source_root.iterdir()):
+            if not group_dir.is_dir():
+                continue
+            media_dir = group_dir / "media"
+            if media_dir.is_dir():
+                directories.append((group_dir.name, media_dir))
+        return directories
 
 
 def on_config(config):

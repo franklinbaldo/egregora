@@ -19,8 +19,6 @@ def config_with_media(tmp_path: Path) -> PipelineConfig:
     zips_dir.mkdir(parents=True, exist_ok=True)
     newsletters_dir = Path("tests/temp_output/newsletters")
     newsletters_dir.mkdir(parents=True, exist_ok=True)
-    media_dir = Path("tests/temp_output/media")
-    media_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file with media
     zip_path = zips_dir / "Conversa do WhatsApp com Teste.zip"
@@ -39,7 +37,6 @@ def config_with_media(tmp_path: Path) -> PipelineConfig:
     return PipelineConfig.with_defaults(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir,
-        media_dir=media_dir,
         model="gemini/gemini-1.5-flash-latest",
     )
 
@@ -71,7 +68,7 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     results = processor.process_all(days=1)
 
     # Verify media directory exists
-    media_output_dir = config_with_media.media_dir / "_chat" / "media"
+    media_output_dir = config_with_media.newsletters_dir / "_chat" / "media"
     assert media_output_dir.exists()
 
     # Verify media files extracted

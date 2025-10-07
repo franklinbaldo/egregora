@@ -26,9 +26,11 @@ project/
 │       ├── 2024-10-01.zip
 │       └── 2024-10-02.zip
 └── data/
-    └── daily/
-        ├── 2024-10-01.md
-        └── 2024-10-02.md
+    └── newsletters/
+        └── grupo-exemplo/
+            └── daily/
+                ├── 2024-10-01.md
+                └── 2024-10-02.md
 ```
 
 ## Usage
@@ -38,7 +40,7 @@ project/
 Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data
+python scripts/process_backlog.py data/whatsapp_zips data/newsletters
 ```
 
 ### Skip Existing Files
@@ -46,12 +48,12 @@ python scripts/process_backlog.py data/whatsapp_zips data
 By default, the script skips files that already have corresponding newsletters:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data
+python scripts/process_backlog.py data/whatsapp_zips data/newsletters
 # Output:
 # 📊 Found 5 ZIP files
 # ⏭️  2024-10-01 (already exists)
-# ✅ 2024-10-02 -> docs/reports/daily/2024-10-02.md
-# ✅ 2024-10-03 -> docs/reports/daily/2024-10-03.md
+# ✅ 2024-10-02 -> data/newsletters/grupo/daily/2024-10-02.md
+# ✅ 2024-10-03 -> data/newsletters/grupo/daily/2024-10-03.md
 # 📈 Summary: 2 processed, 1 skipped, 0 failed
 ```
 
@@ -60,7 +62,7 @@ python scripts/process_backlog.py data/whatsapp_zips data
 To regenerate existing newsletters:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data --force
+python scripts/process_backlog.py data/whatsapp_zips data/newsletters --force
 ```
 
 ## What was simplified?
