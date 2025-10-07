@@ -67,8 +67,9 @@ class MediaExtractor:
     )
     _directional_marks = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 
-    def __init__(self, media_base_dir: Path) -> None:
+    def __init__(self, media_base_dir: Path, *, group_scoped: bool = False) -> None:
         self.media_base_dir = media_base_dir
+        self._group_scoped = group_scoped
         self.media_base_dir.mkdir(parents=True, exist_ok=True)
 
     def extract_specific_media_from_zip(
@@ -81,16 +82,20 @@ class MediaExtractor:
     ) -> Dict[str, MediaFile]:
         """Extract only ``filenames`` from *zip_path* into ``newsletter_date`` directory."""
 
+        extracted: Dict[str, MediaFile] = {}
+        group_key = (group_slug or "shared").strip() or "shared"
+        target_dir = (
+            self.media_base_dir / "media"
+            if self._group_scoped
+            else self.media_base_dir / group_key / "media"
+        )
+        target_dir.mkdir(parents=True, exist_ok=True)
+
         cleaned_targets = {
             self._clean_attachment_name(name): name for name in filenames if name
         }
         if not cleaned_targets:
             return {}
-
-        extracted: Dict[str, MediaFile] = {}
-        group_key = (group_slug or "shared").strip() or "shared"
-        target_dir = self.media_base_dir / group_key / "media"
-        target_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a stable namespace for this group to generate deterministic UUIDs
         namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_key)
@@ -126,9 +131,14 @@ class MediaExtractor:
                     with open(dest_path, "wb") as target:
                         target.write(file_content)
 
-                relative_path = str(
-                    Path("data") / "media" / group_key / "media" / new_filename
-                )
+                if self._group_scoped:
+                    relative_path = PurePosixPath(
+                        os.path.relpath(dest_path, Path.cwd())
+                    ).as_posix()
+                else:
+                    relative_path = str(
+                        Path("data") / "media" / group_key / "media" / new_filename
+                    )
                 extracted[cleaned_name] = MediaFile(
                     filename=new_filename,
                     media_type=media_type,
