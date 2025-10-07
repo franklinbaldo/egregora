@@ -37,6 +37,9 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/franklinbaldo/egregora
       name: Código-fonte
+  media_files_plugin:
+    source_dir: data/media
+    target_dir: media
 
 nav:
   - Início: index.md
@@ -68,3 +71,6 @@ docs_dir: docs
 
 plugins:
   - search
+
+hooks:
+  - tools/mkdocs_media_plugin.py
