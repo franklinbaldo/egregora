@@ -9,7 +9,7 @@ import re
 from typing import Any, Dict, List, Tuple
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import read_zip_texts, _prepare_transcripts
+from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
 
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
@@ -115,7 +115,8 @@ def load_real_whatsapp_transcript(zip_path: Path) -> str:
     if not zip_path.exists():
         raise FileNotFoundError(f"WhatsApp export not found: {zip_path}")
 
-    return read_zip_texts(zip_path)
+    transcript, _ = read_zip_texts_and_media(zip_path)
+    return transcript
 
 
 def summarize_whatsapp_content(content: str) -> Dict[str, Any]:

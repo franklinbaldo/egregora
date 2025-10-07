@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
-    read_zip_texts,
+    read_zip_texts_and_media,
     _prepare_transcripts,
     list_zip_days,
     find_date_in_name,
@@ -39,7 +39,7 @@ def test_zip_processing_whatsapp_format(temp_dir, whatsapp_zip_path):
         zip_path = whatsapp_zip_path
     
     # Test zip reading
-    content = read_zip_texts(zip_path)
+    content, _ = read_zip_texts_and_media(zip_path)
     
     # Validate content
     assert len(content) > 0
