@@ -1,15 +1,15 @@
 site_name: Egrégora Reports
 site_url: https://franklinbaldo.github.io/egregora
 repo_url: https://github.com/franklinbaldo/egregora
+site_description: "Automated newsletter generation from WhatsApp chats using LLMs."
 
 theme:
   name: material
-  language: pt
+  language: en
   font:
     text: Inter
     code: "JetBrains Mono"
   features:
-    - navigation.instant
     - navigation.sections
     - navigation.top
     - navigation.tracking
@@ -24,37 +24,42 @@ theme:
       accent: amber
       toggle:
         icon: material/weather-night
-        name: Alternar para modo escuro
+        name: Switch to dark mode
     - scheme: slate
       primary: indigo
       accent: amber
       toggle:
         icon: material/weather-sunny
-        name: Alternar para modo claro
+        name: Switch to light mode
 
 extra:
+  alternate:
+    - name: English
+      link: /en/
+      lang: en
+    - name: Português (Brasil)
+      link: /pt-BR/
+      lang: pt-BR
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/franklinbaldo/egregora
-      name: Código-fonte
+      name: Source Code
   media_files_plugin:
     source_dir: data/media
     target_dir: media
 
+
 nav:
-  - Início: index.md
-  - Relatórios:
-      - Rationality Club LatAm:
-          - Diários: reports/daily/index.md
-          - Semanais: reports/weekly/index.md
-          - Mensais: reports/monthly/index.md
-  - Documentação:
-      - Guia rápido: quickstart.md
-      - Processamento de backlog: backlog_processing.md
+  - Home: index.md
+  - User Guide:
+      - Quickstart: quickstart.md
+      - Backlog Processing: backlog_processing.md
       - Embeddings & RAG: embeddings.md
-      - Sistema de privacidade: privacy.md
-      - Autodescoberta: discover.md
-      - Perfis: profiles.md
+      - Privacy System: privacy.md
+      - Discovery: discover.md
+      - Profiles: profiles.md
+  - Developer Guide:
+      - Design Review: design_review.md
 
 markdown_extensions:
   - toc:
@@ -71,6 +76,15 @@ docs_dir: docs
 
 plugins:
   - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          name: English
+          default: true
+        - locale: pt-BR
+          name: Português (Brasil)
+      fallback_to_default: true
 
 hooks:
   - tools/mkdocs_media_plugin.py

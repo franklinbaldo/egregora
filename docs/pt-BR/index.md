@@ -12,10 +12,6 @@
       Relatório de 03/10/2025
     </a>
     <!-- /LATEST_DAILY_BUTTON -->
-    <a class="secondary" href="{{ 'reports/daily/index.md' | url }}">
-      <span class="twemoji">📚</span>
-      Ver todos os diários
-    </a>
   </div>
 </div>
 
@@ -74,32 +70,6 @@ O dia foi dominado pela tensão entre a adoção da IA e a preservação da agê
 <p class="more-link"><a href="reports/daily/2025/10/03/">Abrir relatório completo →</a></p>
 </div>
 <!-- /LATEST_DAILY_CONTENT -->
-
-## Consolidados semanais e mensais
-
-<div class="card-grid">
-  <div class="feature-card">
-    <h3>🗓️ Semanal</h3>
-    <p>Resumo dos diários da semana ISO correspondente.</p>
-    <div class="quick-links">
-      <a href="{{ 'reports/weekly/index.md' | url }}">Abrir índice semanal</a>
-    </div>
-  </div>
-  <div class="feature-card">
-    <h3>📅 Mensal</h3>
-    <p>Visão agregada do mês, com links para cada dia publicado.</p>
-    <div class="quick-links">
-      <a href="{{ 'reports/monthly/index.md' | url }}">Abrir índice mensal</a>
-    </div>
-  </div>
-  <div class="feature-card">
-    <h3>🔎 Buscas e contexto</h3>
-    <p>Habilite o módulo de RAG para pesquisar o histórico com embeddings do Gemini.</p>
-    <div class="quick-links">
-      <a href="{{ 'embeddings.md' | url }}">Como ativar RAG</a>
-    </div>
-  </div>
-</div>
 
 ## Documentação do pipeline
 
