@@ -62,7 +62,7 @@ def test_sync_command_reports_new_archives(
         return [str(first), str(second)]
 
     monkeypatch.setattr(
-        "egregora.remote_source.sync_remote_zips",
+        "egregora.remote_sync.sync_remote_zips",
         fake_sync_remote_zips,
         raising=True,
     )
