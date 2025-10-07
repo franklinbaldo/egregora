@@ -1,8 +1,9 @@
 site_name: Egrégora Documentation
 site_description: >-
   Multi-language knowledge base for the Egrégora WhatsApp reporting pipeline, including user guides, developer notes, and automated newsletters.
-site_url: https://SEU_USUARIO.github.io/SEU_REPO
-repo_url: https://github.com/SEU_USUARIO/SEU_REPO
+site_url: https://franklinbaldo.github.io/egregora/
+repo_url: https://github.com/franklinbaldo/egregora
+edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -71,40 +72,42 @@ docs_dir: docs
 plugins:
   - tools.mkdocs_build_reports_plugin
   - search
-  - tools.mkdocs_media_plugin:
+  - media-files:
       source_dir: data/newsletters
       target_dir: media
   - i18n:
-      default_language: en
       docs_structure: folder
-      languages:
-        en: English
-        pt-BR: Português (Brasil)
-      nav_translations:
-        pt-BR:
-          Home: Início
-          User Guide: Guia de Usuário
-          Overview: Visão Geral
-          Identifier Self-Discovery: Autodescoberta de Identificadores
-          Privacy Overview: Privacidade
-          Profiles Directory: Índice de Perfis
-          WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
-          Reports: Relatórios
-          Daily: Diários
-          Weekly: Semanais
-          Monthly: Mensais
-          Developer Guide: Guia de Desenvolvimento
-          Architecture Philosophy: Filosofia de Arquitetura
-          Code Analysis: Análise de Código
-          Enrichment Quickstart: Guia Rápido de Enriquecimento
-          Backlog Processing: Processamento de Backlog
-          Content Enrichment Design: Design de Enriquecimento de Conteúdo
-          Embedding Strategy: Estratégia de Embeddings
-          Merged Groups Workflow: Fluxo de Grupos Mesclados
-          MCP RAG Integration: Integração MCP RAG
-          Privacy Implementation Plan: Plano de Implementação de Privacidade
-          Refactoring Plan: Plano de Refatoração
-          Design Review: Revisão de Design
       reconfigure_material: true
-      material_alternate: true
       fallback_to_default: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: pt-BR
+          name: Português (Brasil)
+          build: true
+          nav_translations:
+            Home: Início
+            User Guide: Guia de Usuário
+            Overview: Visão Geral
+            Identifier Self-Discovery: Autodescoberta de Identificadores
+            Privacy Overview: Privacidade
+            Profiles Directory: Índice de Perfis
+            WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
+            Reports: Relatórios
+            Daily: Diários
+            Weekly: Semanais
+            Monthly: Mensais
+            Developer Guide: Guia de Desenvolvimento
+            Architecture Philosophy: Filosofia de Arquitetura
+            Code Analysis: Análise de Código
+            Enrichment Quickstart: Guia Rápido de Enriquecimento
+            Backlog Processing: Processamento de Backlog
+            Content Enrichment Design: Design de Enriquecimento de Conteúdo
+            Embedding Strategy: Estratégia de Embeddings
+            Merged Groups Workflow: Fluxo de Grupos Mesclados
+            MCP RAG Integration: Integração MCP RAG
+            Privacy Implementation Plan: Plano de Implementação de Privacidade
+            Refactoring Plan: Plano de Refatoração
+            Design Review: Revisão de Design

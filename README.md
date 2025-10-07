@@ -141,7 +141,7 @@ During processing the pipeline materialises a predictable directory tree:
 - `data/newsletters/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/processor.py†L209-L313】
 - `data/newsletters/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L315-L422】
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
-- `docs/` – MkDocs site that can publish newsletters and reports (`uv run mkdocs serve`).
+- `docs/` – MkDocs site that can publish newsletters and reports (`uv run --extra docs --with ./ mkdocs serve`).
 
 Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_build_reports_plugin` regenerates the daily/weekly/monthly archives whenever you run `mkdocs build` or `mkdocs serve`, and `tools.mkdocs_media_plugin` exposes media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L56-L74】
 
@@ -166,7 +166,7 @@ Optionally supply `system_message_filters_file` in the configuration to strip te
 - Sync dependencies: `uv sync`
 - Run tests: `uv run --with pytest pytest`
 - Type-check or explore datasets with `polars` and the utilities under `scripts/`
-- Build docs locally: `uv run --with docs mkdocs serve`
+- Build docs locally: `uv run --extra docs --with ./ mkdocs serve`
 
 The codebase targets Python 3.10+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 

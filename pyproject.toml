@@ -39,6 +39,9 @@ docs = [
 [project.scripts]
 egregora = "egregora.__main__:run"
 
+[project.entry-points."mkdocs.plugins"]
+media-files = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+
 [build-system]
 requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
@@ -53,8 +56,10 @@ pythonpath = ["src"]
 "src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
 "src/egregora/prompts/system_instruction_multigroup.md" = "egregora/prompts/system_instruction_multigroup.md"
 "src/egregora/data/system_message_filters.txt" = "egregora/data/system_message_filters.txt"
+"tools" = "tools"
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
 "src/egregora/prompts/system_instruction_multigroup.md" = "egregora/prompts/system_instruction_multigroup.md"
 "src/egregora/data/system_message_filters.txt" = "egregora/data/system_message_filters.txt"
+"tools" = "tools"
