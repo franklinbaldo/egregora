@@ -24,11 +24,10 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
     workspace = Path("tmp-tests") / f"profiles-{uuid.uuid4().hex}"
     zips_dir = workspace / "zips"
     newsletters_dir = workspace / "letters"
-    media_dir = workspace / "media"
     profiles_dir = workspace / "profiles_data"
     profiles_docs_dir = workspace / "profiles_docs"
 
-    for directory in (zips_dir, newsletters_dir, media_dir, profiles_dir, profiles_docs_dir):
+    for directory in (zips_dir, newsletters_dir, profiles_dir, profiles_docs_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     conversation = """03/10/2025 09:00 - +55 11 99999-1111: Mensagem longa com contexto relevante para o grupo
@@ -41,7 +40,6 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
     config = PipelineConfig(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir,
-        media_dir=media_dir,
         enrichment=EnrichmentConfig(enabled=False),
         cache=CacheConfig(enabled=False),
         anonymization=AnonymizationConfig(enabled=True),

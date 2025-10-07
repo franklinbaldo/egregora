@@ -24,8 +24,7 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
     shutil.rmtree(base_dir, ignore_errors=True)
     zips_dir = base_dir / "zips"
     newsletters_dir = base_dir / "newsletters"
-    media_dir = base_dir / "media"
-    for directory in (zips_dir, newsletters_dir, media_dir):
+    for directory in (zips_dir, newsletters_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file
@@ -40,7 +39,6 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
     return PipelineConfig(
         zips_dir=zips_dir,
         newsletters_dir=newsletters_dir.resolve(),
-        media_dir=media_dir,
         anonymization=AnonymizationConfig(enabled=True),
         model="gemini/gemini-1.5-flash-latest",
         timezone=ZoneInfo("America/Sao_Paulo"),

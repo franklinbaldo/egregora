@@ -18,7 +18,7 @@ from egregora.rag.index import NewsletterRAG
 def main() -> None:
     print("🚀 Migrando índice das newsletters para LlamaIndex...")
 
-    newsletters_dir = PROJECT_ROOT / "data"
+    newsletters_dir = PROJECT_ROOT / "data" / "newsletters"
     config = RAGConfig(vector_store_type="chroma")
 
     rag = NewsletterRAG(

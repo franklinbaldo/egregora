@@ -67,29 +67,28 @@ class MediaExtractor:
     )
     _directional_marks = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 
-    def __init__(self, media_base_dir: Path, *, group_scoped: bool = False) -> None:
-        self.media_base_dir = media_base_dir
-        self._group_scoped = group_scoped
+    def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
+        self.group_dir = group_dir
+        self.group_dir.mkdir(parents=True, exist_ok=True)
+
+        slug = (group_slug or "shared").strip() or "shared"
+        self.group_slug = slug
+
+        self.media_base_dir = self.group_dir / "media"
         self.media_base_dir.mkdir(parents=True, exist_ok=True)
+
+        self._relative_root = self.group_dir.parent
 
     def extract_specific_media_from_zip(
         self,
         zip_path: Path,
         newsletter_date: date,
         filenames: Iterable[str],
-        *,
-        group_slug: str | None = None,
     ) -> Dict[str, MediaFile]:
         """Extract only ``filenames`` from *zip_path* into ``newsletter_date`` directory."""
 
         extracted: Dict[str, MediaFile] = {}
-        group_key = (group_slug or "shared").strip() or "shared"
-        target_dir = (
-            self.media_base_dir / "media"
-            if self._group_scoped
-            else self.media_base_dir / group_key / "media"
-        )
-        target_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = self.media_base_dir
 
         cleaned_targets = {
             self._clean_attachment_name(name): name for name in filenames if name
@@ -98,7 +97,7 @@ class MediaExtractor:
             return {}
 
         # Create a stable namespace for this group to generate deterministic UUIDs
-        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_key)
+        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, self.group_slug)
 
         with zipfile.ZipFile(zip_path, "r") as zipped:
             for info in zipped.infolist():
@@ -131,14 +130,9 @@ class MediaExtractor:
                     with open(dest_path, "wb") as target:
                         target.write(file_content)
 
-                if self._group_scoped:
-                    relative_path = PurePosixPath(
-                        os.path.relpath(dest_path, Path.cwd())
-                    ).as_posix()
-                else:
-                    relative_path = str(
-                        Path("data") / "media" / group_key / "media" / new_filename
-                    )
+                relative_path = PurePosixPath(
+                    os.path.relpath(dest_path, self._relative_root)
+                ).as_posix()
                 extracted[cleaned_name] = MediaFile(
                     filename=new_filename,
                     media_type=media_type,
@@ -153,8 +147,6 @@ class MediaExtractor:
         self,
         zip_path: Path,
         newsletter_date: date,
-        *,
-        group_slug: str | None = None,
     ) -> Dict[str, MediaFile]:
         """Extract all recognised media files from *zip_path*."""
 
@@ -172,7 +164,6 @@ class MediaExtractor:
             zip_path,
             newsletter_date,
             filenames,
-            group_slug=group_slug,
         )
 
     def _detect_media_type(self, filename: str) -> str | None:
@@ -272,15 +263,12 @@ class MediaExtractor:
 
             for key, media in media_files.items():
                 suffix_parts = list(PurePosixPath(media.relative_path).parts)
-                if suffix_parts and suffix_parts[0] == "data":
+                if suffix_parts and suffix_parts[0] in {"data", "newsletters"}:
                     suffix_parts = suffix_parts[1:]
-                if suffix_parts and suffix_parts[0] == "media":
-                    suffix_parts = suffix_parts[1:]
+                if len(suffix_parts) >= 2 and suffix_parts[1] == "media":
+                    suffix_parts = [suffix_parts[0], *suffix_parts[2:]]
                 suffix = PurePosixPath(*suffix_parts)
-                if prefix_path is not None:
-                    combined = prefix_path.joinpath(suffix)
-                else:
-                    combined = suffix
+                combined = prefix_path.joinpath(suffix) if prefix_path else suffix
                 path = combined.as_posix()
                 results[key] = f"/{path}" if absolute else path
             return results
