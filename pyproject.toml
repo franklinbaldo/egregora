@@ -30,6 +30,7 @@ test = [
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
+    "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
 ]
 

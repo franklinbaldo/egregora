@@ -1,25 +1,62 @@
-site_name: Egrégora Reports
+site_name: Egrégora Documentation
+site_description: >-
+  Multi-language knowledge base for the Egrégora WhatsApp reporting pipeline, including user guides, developer notes, and automated newsletters.
 site_url: https://SEU_USUARIO.github.io/SEU_REPO
 repo_url: https://github.com/SEU_USUARIO/SEU_REPO
+
 theme:
   name: material
+  language: en
   features:
     - navigation.tracking
     - navigation.indexes
     - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+extra:
+  alternate:
+    - name: English
+      link: /
+      lang: en
+    - name: Português (Brasil)
+      link: /pt-BR/
+      lang: pt-BR
 
 nav:
-  - Início: index.md
-  - Privacidade:
-      - Sistema de privacidade: privacy.md
-      - Autodescoberta: discover.md
-  - Relatórios:
-      - Diários: reports/daily/index.md
-      - Semanais: reports/weekly/index.md
-      - Mensais: reports/monthly/index.md
-  - Perfis:
-      - Guia: profiles.md
-      - Índice gerado: profiles/index.md
+  - Home: en/index.md
+  - User Guide:
+      - Overview: en/user-guide/index.md
+      - Identifier Self-Discovery: en/user-guide/discover.md
+      - Privacy Overview: en/user-guide/privacy.md
+      - Profiles Directory: en/user-guide/profiles.md
+      - WhatsApp ZIP Naming Guide: en/user-guide/zip-naming.md
+  - Reports:
+      - Daily: en/reports/daily/index.md
+      - Weekly: en/reports/weekly/index.md
+      - Monthly: en/reports/monthly/index.md
+  - Developer Guide:
+      - Overview: en/developer-guide/index.md
+      - Architecture Philosophy: en/developer-guide/PHILOSOPHY.md
+      - Code Analysis: en/developer-guide/CODE_ANALYSIS.md
+      - Enrichment Quickstart: en/developer-guide/ENRICHMENT_QUICKSTART.md
+      - Backlog Processing: en/developer-guide/backlog_processing.md
+      - Content Enrichment Design: en/developer-guide/CONTENT_ENRICHMENT_DESIGN.md
+      - Embedding Strategy: en/developer-guide/embeddings.md
+      - Merged Groups Workflow: en/developer-guide/merged-groups.md
+      - MCP RAG Integration: en/developer-guide/mcp-rag.md
+      - Privacy Implementation Plan: en/developer-guide/privacy-implementation.md
+      - Refactoring Plan: en/developer-guide/plan.md
+  - Design Review: en/design_review.md
 
 markdown_extensions:
   - toc:
@@ -32,3 +69,37 @@ plugins:
   - tools.mkdocs_media_plugin:
       source_dir: data/media
       target_dir: media
+  - i18n:
+      default_language: en
+      docs_structure: folder
+      languages:
+        en: English
+        pt-BR: Português (Brasil)
+      nav_translations:
+        pt-BR:
+          Home: Início
+          User Guide: Guia de Usuário
+          Overview: Visão Geral
+          Identifier Self-Discovery: Autodescoberta de Identificadores
+          Privacy Overview: Privacidade
+          Profiles Directory: Índice de Perfis
+          WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
+          Reports: Relatórios
+          Daily: Diários
+          Weekly: Semanais
+          Monthly: Mensais
+          Developer Guide: Guia de Desenvolvimento
+          Architecture Philosophy: Filosofia de Arquitetura
+          Code Analysis: Análise de Código
+          Enrichment Quickstart: Guia Rápido de Enriquecimento
+          Backlog Processing: Processamento de Backlog
+          Content Enrichment Design: Design de Enriquecimento de Conteúdo
+          Embedding Strategy: Estratégia de Embeddings
+          Merged Groups Workflow: Fluxo de Grupos Mesclados
+          MCP RAG Integration: Integração MCP RAG
+          Privacy Implementation Plan: Plano de Implementação de Privacidade
+          Refactoring Plan: Plano de Refatoração
+          Design Review: Revisão de Design
+      reconfigure_material: true
+      material_alternate: true
+      fallback_to_default: true
