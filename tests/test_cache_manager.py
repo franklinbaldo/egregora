@@ -54,6 +54,22 @@ def test_generate_uuid_normalizes_urls(tmp_path: Path) -> None:
     assert uuid_a != uuid_c
 
 
+def test_generate_uuid_ignores_default_ports(tmp_path: Path) -> None:
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
+
+    http_with_port = "http://example.com:80/path"
+    http_without_port = "http://example.com/path"
+    https_with_port = "https://example.com:443/path"
+    https_without_port = "https://example.com/path"
+
+    assert manager.generate_uuid(http_with_port) == manager.generate_uuid(
+        http_without_port
+    )
+    assert manager.generate_uuid(https_with_port) == manager.generate_uuid(
+        https_without_port
+    )
+
+
 def test_set_and_get_roundtrip(tmp_path: Path) -> None:
     manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     url = "https://example.com/artigo"
