@@ -17,6 +17,10 @@ model = "gemini-flash-lite-latest"
 timezone = "America/Porto_Velho"
 # Evita processar grupos reais que já fazem parte de um grupo virtual.
 skip_real_if_in_virtual = true
+# Configuração opcional para buscar ZIPs em fonte remota (ex.: Google Drive).
+# Recomenda-se definir `PIPELINE__REMOTE_SOURCE__GDRIVE_URL` via ambiente para manter sigilo.
+# [pipeline.remote_source]
+# gdrive_url = "https://drive.google.com/uc?id=EXEMPLO"
 
 [enrichment]
 # Define se o módulo de enriquecimento está ativo.

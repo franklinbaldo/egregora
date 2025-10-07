@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 from datetime import tzinfo
+import copy
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+)
 from pydantic_settings import BaseSettings
 
 from .anonymizer import FormatType
@@ -133,6 +141,46 @@ class ProfilesConfig(BaseModel):
         return fvalue
 
 
+class RemoteSourceConfig(BaseModel):
+    """Configuration for remote ZIP sources such as Google Drive."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    gdrive_url: SecretStr | None = None
+
+    @field_validator("gdrive_url", mode="before")
+    @classmethod
+    def _validate_gdrive_url(cls, value: Any) -> SecretStr | None | str:
+        if value is None:
+            return None
+
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
+        raw = raw.strip()
+        if not raw:
+            return None
+
+        from urllib.parse import urlparse
+
+        parsed = urlparse(raw)
+        if parsed.scheme not in {"https"} or not parsed.netloc:
+            raise ValueError("gdrive_url must be a valid HTTPS URL")
+        return value
+
+    def get_gdrive_url(self) -> str | None:
+        """Return the raw Google Drive URL, if configured."""
+
+        if self.gdrive_url is None:
+            return None
+        return self.gdrive_url.get_secret_value()
+
+    def masked_gdrive_url(self) -> str | None:
+        """Return a masked value suitable for logs and diagnostics."""
+
+        if self.gdrive_url is None:
+            return None
+        return str(self.gdrive_url)
+
+
 class PipelineConfig(BaseSettings):
     """Runtime configuration for the newsletter pipeline."""
 
@@ -158,6 +206,7 @@ class PipelineConfig(BaseSettings):
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
+    remote_source: RemoteSourceConfig = Field(default_factory=RemoteSourceConfig)
     merges: dict[str, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
@@ -230,6 +279,17 @@ class PipelineConfig(BaseSettings):
             return ProfilesConfig(**value)
         raise TypeError("profiles configuration must be a mapping")
 
+    @field_validator("remote_source", mode="before")
+    @classmethod
+    def _validate_remote_source(cls, value: Any) -> RemoteSourceConfig:
+        if value is None:
+            return RemoteSourceConfig()
+        if isinstance(value, RemoteSourceConfig):
+            return value
+        if isinstance(value, dict):
+            return RemoteSourceConfig(**value)
+        raise TypeError("remote_source configuration must be a mapping or RemoteSourceConfig")
+
     @field_validator("merges", mode="before")
     @classmethod
     def _validate_merges(cls, value: Any) -> dict[str, MergeConfig]:
@@ -286,6 +346,7 @@ class PipelineConfig(BaseSettings):
         anonymization: AnonymizationConfig | dict[str, Any] | None = None,
         rag: RAGConfig | dict[str, Any] | None = None,
         profiles: ProfilesConfig | dict[str, Any] | None = None,
+        remote_source: RemoteSourceConfig | dict[str, Any] | None = None,
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
         system_message_filters_file: Path | None = None,
@@ -315,6 +376,8 @@ class PipelineConfig(BaseSettings):
             payload["rag"] = rag
         if profiles is not None:
             payload["profiles"] = profiles
+        if remote_source is not None:
+            payload["remote_source"] = remote_source
         if merges is not None:
             payload["merges"] = merges
         if skip_real_if_in_virtual is not None:
@@ -348,6 +411,10 @@ class PipelineConfig(BaseSettings):
             if filters_file is not None:
                 payload["system_message_filters_file"] = filters_file
 
+            remote_source = pipeline.get("remote_source")
+            if remote_source is not None:
+                payload["remote_source"] = remote_source
+
         for section in ("llm", "enrichment", "cache", "anonymization", "rag", "profiles"):
             if section in data:
                 payload[section] = data[section]
@@ -356,6 +423,17 @@ class PipelineConfig(BaseSettings):
             payload["merges"] = data["merges"]
 
         return cls(**payload)
+
+    def safe_dict(self) -> dict[str, Any]:
+        """Return a dictionary representation with sensitive values redacted."""
+
+        data = copy.deepcopy(
+            self.model_dump(mode="python", exclude_none=True, round_trip=True)
+        )
+        remote = data.get("remote_source")
+        if isinstance(remote, dict) and "gdrive_url" in remote:
+            remote["gdrive_url"] = self.remote_source.masked_gdrive_url()
+        return data
 
 
 def _ensure_safe_directory(path_value: Any) -> Path:
@@ -428,5 +506,6 @@ __all__ = [
     "LLMConfig",
     "PipelineConfig",
     "ProfilesConfig",
+    "RemoteSourceConfig",
     "RAGConfig",
 ]
