@@ -67,7 +67,7 @@ docs_dir: docs
 plugins:
   - search
   - tools.mkdocs_media_plugin:
-      source_dir: data/media
+      source_dir: data/newsletters
       target_dir: media
   - i18n:
       default_language: en

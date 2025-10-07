@@ -28,7 +28,6 @@ def process_backlog(zip_dir: str, output_dir: str, force: bool = False):
     config = PipelineConfig.with_defaults(
         zips_dir=zip_path,
         newsletters_dir=out_path,
-        media_dir=out_path / "media",
     )
 
     processor = UnifiedProcessor(config)

@@ -25,7 +25,6 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
-        media_dir=temp_dir / "media",
     )
     
     # Real WhatsApp conversation
@@ -155,7 +154,6 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
-        media_dir=temp_dir / "media",
     )
     
     # Create multi-day transcripts
@@ -208,7 +206,6 @@ def test_whatsapp_content_with_special_characters(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
-        media_dir=temp_dir / "media",
     )
     
     # WhatsApp content with various special elements
@@ -244,7 +241,6 @@ def test_anonymization_consistency_across_days(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
-        media_dir=temp_dir / "media",
     )
     
     # Same person across multiple days
@@ -278,7 +274,6 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
         newsletters_dir=temp_dir / "newsletters",
-        media_dir=temp_dir / "media",
     )
     
     # Validate configuration

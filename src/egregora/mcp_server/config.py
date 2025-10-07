@@ -17,7 +17,9 @@ class MCPServerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True, validate_assignment=True)
 
     config_path: Path | None = None
-    newsletters_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
+    newsletters_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("data/newsletters")
+    )
     cache_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("cache/rag"))
     rag: RAGConfig = Field(default_factory=RAGConfig)
 
@@ -64,7 +66,8 @@ class MCPServerConfig(BaseModel):
 
         return cls(
             config_path=path,
-            newsletters_dir=newsletters_dir or _ensure_safe_directory("data"),
+            newsletters_dir=
+            newsletters_dir or _ensure_safe_directory("data/newsletters"),
             cache_dir=cache_dir or _ensure_safe_directory("cache/rag"),
             rag=RAGConfig(**rag_data) if rag_data else RAGConfig(),
         )

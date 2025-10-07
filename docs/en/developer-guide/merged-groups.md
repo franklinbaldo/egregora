@@ -109,7 +109,7 @@ reais que fazem parte de merges quando `skip_real_if_in_virtual = true`.
 
 1. Expor métricas de merges (participantes por origem) diretamente na saída do
    CLI para facilitar auditoria.
-2. Permitir que merges definam `media_dir` dedicado quando anexos forem comuns.
+2. Avaliar configuração específica de mídia para merges com anexos frequentes.
 3. Acrescentar testes que cubram `tag_style = prefix/brackets` e validação de
    `group_emojis` ausentes.
 

@@ -59,7 +59,6 @@ def sample_config(temp_dir: Path) -> PipelineConfig:
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
         newsletters_dir=temp_dir / "newsletters",
-        media_dir=temp_dir / "media",
     )
 
 

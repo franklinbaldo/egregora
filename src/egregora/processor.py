@@ -269,7 +269,7 @@ class UnifiedProcessor:
         target_dates = available_dates[-days:] if days else available_dates
 
         results = []
-        extractor = MediaExtractor(group_dir, group_scoped=True)
+        extractor = MediaExtractor(group_dir, group_slug=source.slug)
 
         exports_by_date: dict[date, list] = {}
         for export in source.exports:
@@ -293,7 +293,6 @@ class UnifiedProcessor:
                         export.zip_path,
                         target_date,
                         remaining,
-                        group_slug=source.slug,
                     )
                     if extracted:
                         all_media.update(extracted)
