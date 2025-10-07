@@ -46,8 +46,10 @@ Regras de formatação do relatório:
    - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
    - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
 
-4) Tratamento de links:
+4) Tratamento de links e mídia:
    - Sempre inserir o link COMPLETO no ponto exato da narrativa em que ele foi mencionado originalmente.
+   - Formate SEMPRE como Markdown: `[texto](URL)`. Se não houver texto específico, use o próprio URL como texto.
+   - Para imagens, vídeos ou anexos, descreva brevemente e use `![Descrição](URL)` (imagens) ou `[Descrição do conteúdo](URL)` (demais mídias).
    - NUNCA remova URLs. Links são importantes para o contexto.
    - Não encurtar, não mover para rodapé, não omitir.
    - Pode haver uma frase curta de contexto sobre o link SE o contexto não for óbvio.
