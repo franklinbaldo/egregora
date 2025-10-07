@@ -152,7 +152,7 @@ The Retrieval-Augmented Generation utilities store newsletter embeddings in Chro
 Launch the MCP server directly:
 
 ```bash
-uv run python -m egregora.mcp_server --config egregora.toml
+uv run python -m egregora.mcp_server.server --config egregora.toml
 ```
 
 ## Custom prompts & filters
