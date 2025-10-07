@@ -35,7 +35,7 @@ theme:
 extra:
   alternate:
     - name: English
-      link: /en/
+      link: /
       lang: en
     - name: Português (Brasil)
       link: /pt-BR/
