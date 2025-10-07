@@ -69,6 +69,7 @@ markdown_extensions:
 docs_dir: docs
 
 plugins:
+  - tools.mkdocs_build_reports_plugin
   - search
   - tools.mkdocs_media_plugin:
       source_dir: data/newsletters

@@ -143,7 +143,7 @@ During processing the pipeline materialises a predictable directory tree:
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
 - `docs/` – MkDocs site that can publish newsletters and reports (`uv run mkdocs serve`).
 
-Enable the bundled MkDocs plugin (`tools.mkdocs_media_plugin`) to expose media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L1-L74】
+Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_build_reports_plugin` regenerates the daily/weekly/monthly archives whenever you run `mkdocs build` or `mkdocs serve`, and `tools.mkdocs_media_plugin` exposes media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L56-L74】
 
 ## Retrieval & MCP integrations
 
