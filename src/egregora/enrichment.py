@@ -257,15 +257,14 @@ class ContentEnricher:
 
         prompt = self._build_prompt(reference)
 
-        contents = [
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_text(text=prompt),
-                    types.Part.from_uri(file_uri=reference.url),
-                ],
-            )
-        ]
+        parts = [types.Part.from_text(text=prompt)]
+        if reference.url:
+            try:
+                parts.append(types.Part.from_uri(file_uri=reference.url))
+            except Exception:  # pragma: no cover - depends on mimetype detection
+                fallback = f"URL compartilhada: {reference.url}"
+                parts.append(types.Part.from_text(text=fallback))
+        contents = [types.Content(role="user", parts=parts)]
         config = types.GenerateContentConfig(
             temperature=0.2,
             response_mime_type="application/json",

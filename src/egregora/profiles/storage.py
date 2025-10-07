@@ -36,8 +36,9 @@ class ProfileRepository:
             return None
         return ParticipantProfile.from_dict(payload)
 
+
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
-        """Persist *profile* to JSON outputs."""
+        """Persist *profile* to JSON outputs and generated Markdown."""
 
         json_path = self._json_path(identifier)
         json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +46,25 @@ class ProfileRepository:
             json.dumps(profile.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+        markdown = profile.to_markdown().strip()
+        if not markdown:
+            markdown = (
+                f"# Perfil Analítico: {profile.member_id}\n\n"
+                "(Conteúdo indisponível no momento.)"
+            )
+        disclaimer = (
+            "> [!NOTE]\n"
+            "> Perfil gerado automaticamente pelo pipeline Egregora.\n"
+            "> Revise antes de publicar externamente."
+        )
+        if not markdown.endswith("\n"):
+            markdown += "\n"
+        markdown_content = f"{disclaimer}\n\n{markdown}"
+
+        markdown_path = self.docs_dir / "generated" / f"{identifier}.md"
+        markdown_path.parent.mkdir(parents=True, exist_ok=True)
+        markdown_path.write_text(markdown_content, encoding="utf-8")
 
     def iter_profiles(self) -> Iterator[Tuple[str, ParticipantProfile]]:
         """Yield ``(identifier, profile)`` pairs for stored profiles."""
@@ -78,25 +98,38 @@ class ProfileRepository:
         index_path = self.docs_dir / "index.md"
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
+
+        total_profiles = len(entries)
+        latest_update = max((entry[0] for entry in entries), default=None)
+        highest_version = max((entry[3] for entry in entries), default=0)
+
         lines: list[str] = ["# Perfis dos Participantes", ""]
         lines.append(
-            "Perfis analíticos atualizados automaticamente conforme a participação nos grupos."
+            "Resumo automatizado para acompanhar o módulo de perfis sem expor dados específicos."
         )
         lines.append("")
-
-        if not entries:
-            lines.append("_Nenhum perfil disponível no momento._")
-        else:
-            lines.append("| Membro | Arquivo JSON | Última atualização | Versão |")
-            lines.append("| --- | --- | --- | --- |")
-            for last_updated, identifier, member_id, version in sorted(
-                entries, key=lambda item: item[0], reverse=True
-            ):
-                date_text = _format_datetime(last_updated)
-                json_link = f"../../data/profiles/{identifier}.json"
-                lines.append(
-                    f"| {member_id} | [ver dados]({json_link}) | {date_text} | {version} |"
-                )
+        lines.append(f"- Perfis monitorados: {total_profiles}")
+        lines.append(f"- Última atualização registrada: {_format_datetime(latest_update)}")
+        lines.append(f"- Maior versão gerada: {highest_version}")
+        lines.append("")
+        lines.append("## Onde encontrar os dados")
+        lines.append(
+            "- JSON anonimizado: `data/profiles/` (uso interno e integrações)."
+        )
+        lines.append(
+            "- Relatórios em Markdown: `docs/profiles/generated/` para revisão antes da publicação."
+        )
+        lines.append(
+            "- Esta página permanece genérica por padrão; edite-a manualmente caso queira destacar perfis específicos."
+        )
+        lines.append("")
+        lines.append("## Fluxo sugerido para publicar no site")
+        lines.append("1. Revise os arquivos em `docs/profiles/generated/`.")
+        lines.append("2. Copie os perfis aprovados para uma seção pública da documentação.")
+        lines.append("3. Atualize este índice com links curados, se necessário.")
+        lines.append("4. Remova arquivos antigos de `data/profiles/` quando quiser reiniciar as análises.")
+        lines.append("")
+        lines.append("> Dica: utilize `uv run egregora --config egregora.toml --dry-run` para validar quais perfis seriam afetados antes de consumir cota do modelo.")
 
         index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

@@ -10,6 +10,7 @@ dependencies = [
     "llama-index-core>=0.11.0",
     "llama-index-embeddings-gemini>=0.2.0",
     "llama-index-vector-stores-chroma>=0.2.0",
+    "gdown>=5.2.0",
     "chromadb>=0.5.0",
     "PyYAML>=6.0",
     "polars>=0.20",
