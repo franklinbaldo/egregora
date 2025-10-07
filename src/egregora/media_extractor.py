@@ -180,14 +180,13 @@ class MediaExtractor:
 
         def replacement(match: re.Match[str]) -> str:
             raw_name = match.group(1).strip()
-            media = MediaExtractor._lookup_media(raw_name, media_files)
+            key, media = MediaExtractor._lookup_media(raw_name, media_files)
             if media is None:
                 return match.group(0)
 
-            canonical = MediaExtractor._clean_attachment_name(media.filename)
             path = (
-                public_paths.get(canonical)
-                if public_paths and canonical in public_paths
+                public_paths.get(key)
+                if public_paths and key in public_paths
                 else media.relative_path
             )
 
@@ -286,17 +285,20 @@ class MediaExtractor:
         return results
 
     @staticmethod
-    def _lookup_media(filename: str, media_files: Dict[str, MediaFile]) -> MediaFile | None:
+    def _lookup_media(
+        filename: str, media_files: Dict[str, MediaFile]
+    ) -> tuple[str | None, MediaFile | None]:
+        """Find a media file by its original name, returning the key and the file."""
         canonical = MediaExtractor._clean_attachment_name(Path(filename).name)
         if canonical in media_files:
-            return media_files[canonical]
+            return canonical, media_files[canonical]
 
         lowercase = canonical.lower()
         for key, media in media_files.items():
             candidate = MediaExtractor._clean_attachment_name(Path(key).name)
-            if candidate.lower() == lowercase or media.filename.lower() == lowercase:
-                return media
-        return None
+            if candidate.lower() == lowercase:
+                return key, media
+        return None, None
 
     @staticmethod
     def _format_markdown_reference(media: MediaFile, path: str) -> str:
