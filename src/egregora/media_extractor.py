@@ -111,17 +111,18 @@ class MediaExtractor:
                 if cleaned_name in extracted:
                     continue
 
-                # Generate a deterministic UUID for the filename
-                file_uuid = uuid.uuid5(namespace, cleaned_name)
+                # Generate a deterministic UUID based on file content to avoid collisions
+                with zipped.open(info, "r") as source:
+                    file_content = source.read()
+
+                file_uuid = uuid.uuid5(namespace, file_content)
                 file_extension = Path(cleaned_name).suffix
                 new_filename = f"{file_uuid}{file_extension}"
                 dest_path = target_dir / new_filename
 
                 if not dest_path.exists():
-                    with zipped.open(info, "r") as source, open(
-                        dest_path, "wb"
-                    ) as target:
-                        shutil.copyfileobj(source, target)
+                    with open(dest_path, "wb") as target:
+                        target.write(file_content)
 
                 relative_path = str(
                     Path("data") / "media" / group_key / "media" / new_filename
