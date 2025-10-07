@@ -186,7 +186,7 @@ class CacheManager:
         if len(path) > 1:
             path = path.rstrip('/')
 
-        query = urlencode(sorted(parse_qsl(parts.query)))
+        query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)))
         fragment = ""
 
         return urlunparse((scheme, netloc, path, parts.params, query, fragment))
