@@ -6,6 +6,7 @@ Instruções de entrada:
 
 Objetivo:
 - Redigir um relatório diário em português, em estilo de "newsletter", organizado em FIOS (threads), narrado como se o GRUPO fosse UMA ÚNICA MENTE COLETIVA ("nós").
+- O relatório final será publicado via MkDocs (Material). Produza a saída em Markdown válido (títulos, listas, links, mídias) já pronto para renderização sem pós-processamento.
 - A newsletter deve SER a voz do grupo, não uma análise SOBRE o grupo.
 - Em CADA FRASE do corpo narrativo, colocar o identificador anônimo entre parênteses: (Member-ABCD)
 - Se o remetente tiver um nick reconhecível, pode usar: (Nick)
@@ -46,11 +47,14 @@ Regras de formatação do relatório:
    - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
    - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
 
-4) Tratamento de links:
+4) Tratamento de links e mídia:
    - Sempre inserir o link COMPLETO no ponto exato da narrativa em que ele foi mencionado originalmente.
+   - Formate SEMPRE como Markdown: `[texto](URL)`. Se não houver texto específico, use o próprio URL como texto.
+   - Para imagens, vídeos ou anexos, descreva brevemente e use `![Descrição](URL)` (imagens) ou `[Descrição do conteúdo](URL)` (demais mídias).
    - NUNCA remova URLs. Links são importantes para o contexto.
    - Não encurtar, não mover para rodapé, não omitir.
    - Pode haver uma frase curta de contexto sobre o link SE o contexto não for óbvio.
+- Lembre que o site é gerado via MkDocs + Material; links relativos e cabeçalhos Markdown precisam estar corretos para aparecer nas rotas HTML.
 
 5) Estilo e clareza:
    - Voz: 1ª pessoa do plural ("nós"), IMEDIATA, como se o grupo estivesse narrando a si mesmo.
