@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import uuid
 import zipfile
@@ -64,6 +65,9 @@ class MediaExtractor:
 
     _ATTACHMENT_MARKER = "(arquivo anexado)"
     _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
+    _attachment_pattern = re.compile(
+        rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE
+    )
 
     def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
         self.group_dir = group_dir
@@ -257,17 +261,24 @@ class MediaExtractor:
                 return ""
 
             def replacement(match: re.Match[str]) -> str:
-                raw_name = match.group(1).strip()
-                key, media = cls._lookup_media(raw_name, media_files)
+                segment = match.group(0)
+                extracted = cls._extract_attachment_segment(segment)
+                if extracted is None:
+                    return segment
+
+                sanitized_name, original_segment = extracted
+                key, media = cls._lookup_media(sanitized_name, media_files)
                 if media is None:
-                    return match.group(0)
+                    return segment
 
                 path = paths.get(key) if key and key in paths else None
                 if path is None:
                     path = media.relative_path
 
                 markdown = cls._format_markdown_reference(media, path)
-                return f"{markdown} _(arquivo anexado)_"
+                return segment.replace(
+                    original_segment, f"{markdown} _(arquivo anexado)_"
+                )
 
             return pattern.sub(replacement, text)
 
@@ -295,14 +306,19 @@ class MediaExtractor:
         pattern = cls._attachment_pattern
 
         def replacement(match: re.Match[str]) -> str:
-            raw_name = match.group(1).strip()
-            key, media = cls._lookup_media(raw_name, media_files)
+            segment = match.group(0)
+            extracted = cls._extract_attachment_segment(segment)
+            if extracted is None:
+                return segment
+
+            sanitized_name, original_segment = extracted
+            key, media = cls._lookup_media(sanitized_name, media_files)
             if media is None:
-                return match.group(0)
+                return segment
 
             path = paths.get(key) if key and key in paths else media.relative_path
             markdown = cls._format_markdown_reference(media, path)
-            return f"{markdown} _(arquivo anexado)_"
+            return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
 
         return pattern.sub(replacement, text)
         attachments: set[str] = set()
