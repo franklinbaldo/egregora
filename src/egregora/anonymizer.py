@@ -146,10 +146,7 @@ class Anonymizer:
     def anonymize_transcript_dataframe(
         df: pl.DataFrame, format: FormatType = "human"
     ) -> pl.DataFrame:
-        """Return a new DataFrame with the author in 'original_line' anonymized."""
-        if "original_line" not in df.columns:
-            return df
-
+        """Return a new DataFrame with the author in 'original_line' and 'tagged_line' anonymized."""
         # This regex is more robust to handle different timestamp formats
         line_pattern = re.compile(
             r"^(?P<prefix>(?:(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4})?[\s,]*?)?\d{1,2}:\d{2}(?:\s*[APap][Mm])?\s*[-–—]\s*)(?P<author>[^:]+?)(?P<suffix>:.*)$"
@@ -172,11 +169,21 @@ class Anonymizer:
                 return f"{prefix}{anonymized_author}{suffix}"
             return line
 
-        return df.with_columns(
-            pl.col("original_line")
-            .map_elements(_anonymize_line, return_dtype=pl.String)
-            .alias("original_line")
-        )
+        cols_to_update = []
+        if "original_line" in df.columns:
+            cols_to_update.append(
+                pl.col("original_line")
+                .map_elements(_anonymize_line, return_dtype=pl.String)
+                .alias("original_line")
+            )
+        if "tagged_line" in df.columns:
+            cols_to_update.append(
+                pl.col("tagged_line")
+                .map_elements(_anonymize_line, return_dtype=pl.String)
+                .alias("tagged_line")
+            )
+
+        return df.with_columns(*cols_to_update) if cols_to_update else df
 
 
 __all__ = ["Anonymizer", "FormatType"]
