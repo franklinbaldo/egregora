@@ -270,6 +270,19 @@ class UnifiedProcessor:
 
         return filtered
 
+    def _existing_daily_posts(self, group_dir: Path) -> list[Path]:
+        """Return existing daily posts for *group_dir* if they are present."""
+
+        daily_dir = group_dir / "posts" / "daily"
+        if not daily_dir.exists():
+            return []
+
+        return [
+            path
+            for path in daily_dir.glob("*.md")
+            if path.is_file()
+        ]
+
     def _write_group_index(
         self,
         source: "GroupSource",
@@ -289,17 +302,16 @@ class UnifiedProcessor:
 
         # Merge existing posts on disk with the ones produced in this run so the
         # index remains cumulative when processing a limited window of days.
-        all_posts: set[Path] = set()
+        existing_posts = self._existing_daily_posts(group_dir)
 
-        daily_dir = group_dir / "posts" / "daily"
-        if daily_dir.exists():
-            all_posts.update(
-                path
-                for path in daily_dir.glob("*.md")
-                if path.is_file()
-            )
+        def _normalize(path: Path) -> Path:
+            try:
+                return path.resolve()
+            except OSError:
+                return path
 
-        all_posts.update(post_paths)
+        all_posts: set[Path] = {_normalize(path) for path in existing_posts}
+        all_posts.update(_normalize(path) for path in post_paths)
 
         items: list[str] = []
         for path in sorted(all_posts, key=lambda p: p.stem, reverse=True):
