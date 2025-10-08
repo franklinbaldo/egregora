@@ -34,9 +34,7 @@ def ensure_message_schema(
     normalisation is applied when necessary.
     """
 
-    casts = {name: dtype for name, dtype in MESSAGE_SCHEMA.items()}
-    if df.is_empty():
-        return pl.DataFrame(schema=casts)
+    target_schema = dict(MESSAGE_SCHEMA)
 
     tz = timezone or DEFAULT_TIMEZONE
     if isinstance(tz, ZoneInfo):
@@ -44,13 +42,20 @@ def ensure_message_schema(
     else:
         tz_name = str(tz)
 
+    desired_dtype = pl.Datetime(time_unit="ns", time_zone=tz_name)
+    target_schema["timestamp"] = desired_dtype
+
+    if df.is_empty():
+        return pl.DataFrame(schema=target_schema)
+
+    casts = {name: dtype for name, dtype in target_schema.items() if name != "timestamp"}
+
     frame = df.cast(casts, strict=False)
 
     timestamp_dtype = frame.schema.get("timestamp")
     if timestamp_dtype is None:
         raise ValueError("DataFrame is missing required 'timestamp' column")
 
-    desired_dtype = pl.Datetime(time_unit="ns", time_zone=tz_name)
     if timestamp_dtype == desired_dtype:
         timestamp_expr = pl.col("timestamp")
     elif isinstance(timestamp_dtype, DateTimeType):
@@ -61,7 +66,11 @@ def ensure_message_schema(
                 .dt.replace_time_zone(tz_name)
             )
         else:
-            timestamp_expr = pl.col("timestamp").dt.convert_time_zone(tz_name)
+            timestamp_expr = (
+                pl.col("timestamp")
+                .dt.cast_time_unit("ns")
+                .dt.convert_time_zone(tz_name)
+            )
     else:
         timestamp_expr = (
             pl.col("timestamp").str.strptime(pl.Datetime(time_unit="ns"))
