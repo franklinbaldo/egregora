@@ -1,7 +1,7 @@
 [project]
 name = "egregora"
 version = "0.2.0"
-description = "Pipeline para gerar newsletters diárias a partir de exports do WhatsApp."
+description = "Pipeline para gerar posts diárias a partir de exports do WhatsApp."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
 requires-python = ">=3.10"

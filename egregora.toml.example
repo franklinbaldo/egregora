@@ -4,15 +4,19 @@
 [directories]
 # Onde os exports .zip do WhatsApp serão procurados.
 zips_dir = "data/whatsapp_zips"
-# Pasta onde os dados dos grupos serão armazenados. As newsletters ficam em
-# "newsletters/<grupo>/daily" dentro dessa raiz.
-newsletters_dir = "data/newsletters"
+# Pasta onde os dados dos grupos serão armazenados. As posts ficam em
+# "posts/<grupo>/daily" dentro dessa raiz.
+posts_dir = "data/posts"
 
 [pipeline]
-# Modelo padrão usado para gerar as newsletters.
+# Modelo padrão usado para gerar as posts.
 model = "gemini-flash-lite-latest"
-# Fuso horário utilizado para determinar a data das newsletters.
+# Fuso horário utilizado para determinar a data das posts.
 timezone = "America/Porto_Velho"
+# Idioma registrado no front matter para o plugin de blog.
+post_language = "pt-BR"
+# Autor padrão referenciado em `docs/<lang>/.authors.yml`.
+default_post_author = "egregora"
 # Evita processar grupos reais que já fazem parte de um grupo virtual.
 skip_real_if_in_virtual = true
 # Configuração opcional para buscar ZIPs em fonte remota (ex.: Google Drive).
@@ -50,7 +54,7 @@ enabled = true
 output_format = "human"
 
 [rag]
-# Habilite para usar o módulo de recuperação de newsletters anteriores.
+# Habilite para usar o módulo de recuperação de posts anteriores.
 enabled = false
 # Consulte docs/embeddings.md para ajustar parâmetros adicionais se necessário.
 

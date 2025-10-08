@@ -23,13 +23,13 @@ if TYPE_CHECKING:
 
 
 @dataclass(slots=True)
-class NewsletterContext:
-    """All data required to generate a newsletter."""
+class PostContext:
+    """All data required to generate a post."""
 
     group_name: str
     transcript: str
     target_date: date
-    previous_newsletter: str | None = None
+    previous_post: str | None = None
     enrichment_section: str | None = None
     rag_context: str | None = None
 
@@ -38,8 +38,8 @@ _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 
 
-class NewsletterGenerator:
-    """Generates newsletters using an LLM."""
+class PostGenerator:
+    """Generates posts using an LLM."""
 
     _client: "GeminiClient | None"
 
@@ -54,7 +54,7 @@ class NewsletterGenerator:
         if genai is None or types is None:
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada. "
-                "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
+                "Instale-a para gerar posts (ex.: `pip install google-genai`)."
             )
 
     def _create_client(self) -> "GeminiClient":
@@ -87,7 +87,7 @@ class NewsletterGenerator:
 
     def _build_llm_input(
         self,
-        context: NewsletterContext,
+        context: PostContext,
         anonymized_transcripts: Sequence[tuple[date, str]],
     ) -> str:
         """Compose the user prompt sent to Gemini."""
@@ -96,13 +96,13 @@ class NewsletterGenerator:
             group_name=context.group_name,
             timezone=self.config.timezone,
             transcripts=anonymized_transcripts,
-            previous_newsletter=context.previous_newsletter,
+            previous_post=context.previous_post,
             enrichment_section=context.enrichment_section,
             rag_context=context.rag_context,
         )
 
-    def generate(self, source: "GroupSource", context: NewsletterContext) -> str:
-        """Generate newsletter for a specific date."""
+    def generate(self, source: "GroupSource", context: PostContext) -> str:
+        """Generate post for a specific date."""
         self._require_google_dependency()
 
         transcripts = [(context.target_date, context.transcript)]

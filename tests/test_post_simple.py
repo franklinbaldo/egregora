@@ -1,4 +1,4 @@
-"""Simplified newsletter generation tests focusing on testable components."""
+"""Simplified post generation tests focusing on testable components."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
     _prepare_transcripts,
-    load_previous_newsletter,
+    load_previous_post,
     list_zip_days,
     find_date_in_name,
     _format_transcript_section_header
@@ -24,7 +24,7 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Real WhatsApp conversation
@@ -57,16 +57,16 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     assert "https://youtu.be/Nkhp-mb6FRc" in processed_content
 
 
-def test_previous_newsletter_context_loading(temp_dir):
-    """Test loading previous newsletter for context."""
-    newsletters_dir = temp_dir / "newsletters"
-    newsletters_dir.mkdir()
+def test_previous_post_context_loading(temp_dir):
+    """Test loading previous post for context."""
+    posts_dir = temp_dir / "posts"
+    posts_dir.mkdir()
     
-    # Create previous newsletter
+    # Create previous post
     yesterday = date.today() - timedelta(days=1)
-    previous_path = newsletters_dir / f"{yesterday.isoformat()}.md"
+    previous_path = posts_dir / f"{yesterday.isoformat()}.md"
     
-    previous_content = """# Newsletter Anterior - {yesterday}
+    previous_content = """# Post Anterior - {yesterday}
 
 ## Contexto do Dia Anterior
 - Discussão sobre projeto Alpha
@@ -81,7 +81,7 @@ def test_previous_newsletter_context_loading(temp_dir):
     previous_path.write_text(previous_content)
     
     # Test loading
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
     
     # Validate loading
     assert loaded_path == previous_path
@@ -90,22 +90,22 @@ def test_previous_newsletter_context_loading(temp_dir):
     assert "projeto Alpha" in loaded_content
 
 
-def test_newsletter_without_previous_context(temp_dir):
-    """Test behavior when no previous newsletter exists."""
-    newsletters_dir = temp_dir / "newsletters_empty"
-    newsletters_dir.mkdir()
+def test_post_without_previous_context(temp_dir):
+    """Test behavior when no previous post exists."""
+    posts_dir = temp_dir / "posts_empty"
+    posts_dir.mkdir()
     
     # Test with empty directory
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
     
     assert loaded_content is None
     assert not loaded_path.exists()
     
     # Test with non-matching dates
-    wrong_date = newsletters_dir / "2020-01-01.md"
-    wrong_date.write_text("Old newsletter")
+    wrong_date = posts_dir / "2020-01-01.md"
+    wrong_date.write_text("Old post")
     
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
     assert loaded_content is None
 
 
@@ -153,7 +153,7 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Create multi-day transcripts
@@ -205,7 +205,7 @@ def test_whatsapp_content_with_special_characters(temp_dir):
     """Test processing WhatsApp content with special characters and media."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # WhatsApp content with various special elements
@@ -240,7 +240,7 @@ def test_anonymization_consistency_across_days(temp_dir):
     """Test that anonymization is consistent across multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Same person across multiple days
@@ -273,12 +273,12 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
     # Test valid configuration
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
-        newsletters_dir=temp_dir / "newsletters",
+        posts_dir=temp_dir / "posts",
     )
     
     # Validate configuration
     assert config.zips_dir.name == "zips"
-    assert config.newsletters_dir.name == "newsletters"
+    assert config.posts_dir.name == "posts"
     assert config.anonymization.enabled == True
     assert config.enrichment.enabled == True
     
@@ -295,17 +295,17 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp:
         temp_dir = Path(tmp)
         
-        print("Running simplified newsletter generation tests...")
+        print("Running simplified post generation tests...")
         
         try:
             test_whatsapp_transcript_preparation(temp_dir)
             print("✓ WhatsApp transcript preparation test passed")
             
-            test_previous_newsletter_context_loading(temp_dir)
-            print("✓ Previous newsletter context loading test passed")
+            test_previous_post_context_loading(temp_dir)
+            print("✓ Previous post context loading test passed")
             
-            test_newsletter_without_previous_context(temp_dir)
-            print("✓ Newsletter without previous context test passed")
+            test_post_without_previous_context(temp_dir)
+            print("✓ Post without previous context test passed")
             
             test_zip_file_date_detection_and_listing(temp_dir)
             print("✓ Zip file date detection and listing test passed")
@@ -325,7 +325,7 @@ if __name__ == "__main__":
             test_config_validation_with_whatsapp_setup(temp_dir)
             print("✓ Config validation with WhatsApp setup test passed")
             
-            print("\n🎉 All simplified newsletter generation tests passed!")
+            print("\n🎉 All simplified post generation tests passed!")
             
         except Exception as e:
             print(f"❌ Test failed: {e}")

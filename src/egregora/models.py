@@ -32,7 +32,7 @@ class MergeConfig:
 @dataclass(slots=True)
 class GroupSource:
     """
-    Source for generating newsletters.
+    Source for generating posts.
     Can be real (single group) or virtual (merge of multiple groups).
     """
     

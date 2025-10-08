@@ -19,11 +19,11 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
 
     # Test zip reading
-    newsletters_dir = tmp_path / "newsletters"
+    posts_dir = tmp_path / "posts"
     result, media_files = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         group_slug="grupo-teste",
     )
 
@@ -40,7 +40,7 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     expected_link = f"![{media.filename}]({media.relative_path})"
     assert expected_link in result
     assert media.dest_path.exists()
-    assert (newsletters_dir / "grupo-teste" / "media" / media.filename).exists()
+    assert (posts_dir / "grupo-teste" / "media" / media.filename).exists()
 
     assert "https://youtu.be/Nkhp-mb6FRc" in result
 
@@ -50,11 +50,11 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
     workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"
     workspace.mkdir(parents=True, exist_ok=True)
 
-    newsletters_root = workspace / "newsletters"
-    newsletters_root.mkdir(parents=True, exist_ok=True)
+    posts_root = workspace / "posts"
+    posts_root.mkdir(parents=True, exist_ok=True)
     config = PipelineConfig.with_defaults(
         zips_dir=workspace,
-        newsletters_dir=newsletters_root,
+        posts_dir=posts_root,
     )
     
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message
@@ -92,19 +92,19 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"
     workspace.mkdir(parents=True, exist_ok=True)
 
-    newsletters_root = workspace / "newsletters"
-    newsletters_root.mkdir(parents=True, exist_ok=True)
+    posts_root = workspace / "posts"
+    posts_root.mkdir(parents=True, exist_ok=True)
     content, _ = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
-        newsletters_dir=newsletters_root,
+        posts_dir=posts_root,
         group_slug="grupo",
     )
 
     # Create config
     config = PipelineConfig.with_defaults(
         zips_dir=workspace,
-        newsletters_dir=newsletters_root,
+        posts_dir=posts_root,
     )
     
     # Process with anonymization

@@ -1,6 +1,6 @@
 # Simple Backlog Processing
 
-This guide describes how to use the simplified backlog processor to transform WhatsApp conversation archives into daily newsletters.
+This guide describes how to use the simplified backlog processor to transform WhatsApp conversation archives into daily posts.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The simplified backlog processor is a lightweight script that:
 
 1. Scans for ZIP files containing WhatsApp exports
 2. Processes each file through the existing pipeline
-3. Generates newsletters for each day
+3. Generates posts for each day
 4. Provides clear progress feedback
 
 ## Prerequisites
@@ -26,7 +26,7 @@ project/
 │       ├── 2024-10-01.zip
 │       └── 2024-10-02.zip
 └── data/
-    └── newsletters/
+    └── posts/
         └── grupo-exemplo/
             └── daily/
                 ├── 2024-10-01.md
@@ -40,29 +40,29 @@ project/
 Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/newsletters
+python scripts/process_backlog.py data/whatsapp_zips data/posts
 ```
 
 ### Skip Existing Files
 
-By default, the script skips files that already have corresponding newsletters:
+By default, the script skips files that already have corresponding posts:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/newsletters
+python scripts/process_backlog.py data/whatsapp_zips data/posts
 # Output:
 # 📊 Found 5 ZIP files
 # ⏭️  2024-10-01 (already exists)
-# ✅ 2024-10-02 -> data/newsletters/grupo/daily/2024-10-02.md
-# ✅ 2024-10-03 -> data/newsletters/grupo/daily/2024-10-03.md
+# ✅ 2024-10-02 -> data/posts/grupo/daily/2024-10-02.md
+# ✅ 2024-10-03 -> data/posts/grupo/daily/2024-10-03.md
 # 📈 Summary: 2 processed, 1 skipped, 0 failed
 ```
 
 ### Force Overwrite
 
-To regenerate existing newsletters:
+To regenerate existing posts:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data/newsletters --force
+python scripts/process_backlog.py data/whatsapp_zips data/posts --force
 ```
 
 ## What was simplified?

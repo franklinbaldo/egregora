@@ -24,7 +24,7 @@ linguagem, reduzindo a chance de informações sensíveis aparecerem no resultad
 
 ## Revisão recomendada
 
-- Para newsletters sensíveis, mantenha uma leitura humana antes do envio.
+- Para posts sensíveis, mantenha uma leitura humana antes do envio.
 - Ajuste o prompt principal conforme necessário para reforçar políticas internas.
 
 ## Autodescoberta segura
@@ -44,7 +44,7 @@ exemplos e fluxos sugeridos.
 from egregora.config import PipelineConfig
 
 config = PipelineConfig.with_defaults()
-config.privacy.double_check_newsletter = True
+config.privacy.double_check_post = True
 config.privacy.review_model = "gemini-1.5-flash"
 config.anonymization.output_format = "short"
 ```

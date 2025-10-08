@@ -1,6 +1,6 @@
 # Egregora — Manual Essencial
 
-Egregora é um projeto comunitário que transforma exports de grupos do WhatsApp em newsletters diárias. Este documento descreve os
+Egregora é um projeto comunitário que transforma exports de grupos do WhatsApp em posts diárias. Este documento descreve os
 princípios que orientam as decisões de produto, sem repetir o conteúdo dos guias técnicos.
 
 ## 1. Visão e valores
@@ -17,7 +17,7 @@ O módulo de enriquecimento lê URLs e marcadores de mídia com o suporte nativo
 e calcula relevância antes de o prompt principal ser montado. O cache persistente evita custos repetidos.
 
 ### Busca com RAG
-O histórico de newsletters fica indexado para consulta rápida. O modo padrão usa TF-IDF, e é possível ativar embeddings do Gemini
+O histórico de posts fica indexado para consulta rápida. O modo padrão usa TF-IDF, e é possível ativar embeddings do Gemini
 para buscas semânticas quando a API estiver disponível. O servidor MCP expõe o RAG para Claude e outros clientes.
 
 ### Privacidade por padrão

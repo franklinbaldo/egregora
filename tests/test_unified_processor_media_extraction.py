@@ -17,8 +17,8 @@ def config_with_media(tmp_path: Path) -> PipelineConfig:
     # Create directories inside the project directory to avoid ValueError
     zips_dir = Path("tests/temp_output/zips")
     zips_dir.mkdir(parents=True, exist_ok=True)
-    newsletters_dir = Path("tests/temp_output/newsletters")
-    newsletters_dir.mkdir(parents=True, exist_ok=True)
+    posts_dir = Path("tests/temp_output/posts")
+    posts_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file with media
     zip_path = zips_dir / "Conversa do WhatsApp com Teste.zip"
@@ -36,13 +36,13 @@ def config_with_media(tmp_path: Path) -> PipelineConfig:
 
     return PipelineConfig.with_defaults(
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
     )
 
 
 def test_unified_processor_extracts_media(config_with_media: PipelineConfig, monkeypatch):
-    """Verify media is extracted and referenced in newsletter."""
+    """Verify media is extracted and referenced in post."""
 
     class MockLLMClient:
         def __init__(self):
@@ -54,13 +54,13 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
                     self.text = text
                 def __iter__(self):
                     yield self
-            return MockStream(f"Newsletter.\n{transcript}")
+            return MockStream(f"Post.\n{transcript}")
 
     def mock_create_client():
         return MockLLMClient()
 
     monkeypatch.setattr(
-        "egregora.generator.NewsletterGenerator._create_client",
+        "egregora.generator.PostGenerator._create_client",
         lambda self: mock_create_client(),
     )
 
@@ -68,26 +68,26 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     results = processor.process_all(days=1)
 
     # Verify media directory exists
-    media_output_dir = config_with_media.newsletters_dir / "_chat" / "media"
+    media_output_dir = config_with_media.posts_dir / "_chat" / "media"
     assert media_output_dir.exists()
 
     # Verify media files extracted
     media_files = list(media_output_dir.glob("*"))
     assert len(media_files) > 0
 
-    # Verify markdown links in newsletter
-    newsletter_path = results["_chat"][0]
-    newsletter_text = newsletter_path.read_text()
+    # Verify markdown links in post
+    post_path = results["_chat"][0]
+    post_text = post_path.read_text()
 
     # The filename is now a UUID, so we can't hardcode it.
     # Instead, we check that a markdown image link is present
     # and that the original filename is NOT present.
-    assert "![image]" not in newsletter_text  # Should be replaced by the real filename
-    assert ".jpg" in newsletter_text  # Check if some image is referenced
-    assert "IMG-20251002-WA0004.jpg" not in newsletter_text
+    assert "![image]" not in post_text  # Should be replaced by the real filename
+    assert ".jpg" in post_text  # Check if some image is referenced
+    assert "IMG-20251002-WA0004.jpg" not in post_text
 
     # More robust check: find the new filename and assert its presence
     media_files = list(media_output_dir.glob("*.jpg"))
     assert len(media_files) == 1
     new_filename = media_files[0].name
-    assert f"![{new_filename}]" in newsletter_text
+    assert f"![{new_filename}]" in post_text

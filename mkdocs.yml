@@ -1,6 +1,6 @@
 site_name: Egrégora Documentation
 site_description: >-
-  Multi-language knowledge base for the Egrégora WhatsApp reporting pipeline, including user guides, developer notes, and automated newsletters.
+  Multi-language knowledge base for the Egrégora WhatsApp posting pipeline, including user guides, developer notes, and automated posts.
 site_url: https://franklinbaldo.github.io/egregora/
 repo_url: https://github.com/franklinbaldo/egregora
 edit_uri: edit/main/docs/
@@ -41,10 +41,10 @@ nav:
       - Privacy Overview: en/user-guide/privacy.md
       - Profiles Directory: en/user-guide/profiles.md
       - WhatsApp ZIP Naming Guide: en/user-guide/zip-naming.md
-  - Reports:
-      - Daily: en/reports/daily/index.md
-      - Weekly: en/reports/weekly/index.md
-      - Monthly: en/reports/monthly/index.md
+  - Posts:
+      - Daily: en/posts/daily/index.md
+      - Weekly: en/posts/weekly/index.md
+      - Monthly: en/posts/monthly/index.md
   - Developer Guide:
       - Overview: en/developer-guide/index.md
       - Architecture Philosophy: en/developer-guide/PHILOSOPHY.md
@@ -70,10 +70,18 @@ markdown_extensions:
 docs_dir: docs
 
 plugins:
-  - tools.mkdocs_build_reports_plugin
+  - tools.mkdocs_build_posts_plugin
+  - blog:
+      blog_dir: en
+      post_dir: "{blog}/posts"
+      authors_file: "{blog}/.authors.yml"
+  - blog:
+      blog_dir: pt-BR
+      post_dir: "{blog}/posts"
+      authors_file: "{blog}/.authors.yml"
   - search
   - media-files:
-      source_dir: data/newsletters
+      source_dir: data/posts
       target_dir: media
   - i18n:
       docs_structure: folder
@@ -95,7 +103,7 @@ plugins:
             Privacy Overview: Privacidade
             Profiles Directory: Índice de Perfis
             WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
-            Reports: Relatórios
+            Posts: Publicações
             Daily: Diários
             Weekly: Semanais
             Monthly: Mensais

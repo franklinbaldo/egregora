@@ -4,7 +4,7 @@
 
 ## 1. Objetivo
 
-Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que analisa links e marcadores de mídia citados nas conversas antes de gerar a newsletter. A meta é fornecer contexto adicional ao modelo principal sem comprometer tempo de execução ou custo de maneira significativa.
+Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que analisa links e marcadores de mídia citados nas conversas antes de gerar a post. A meta é fornecer contexto adicional ao modelo principal sem comprometer tempo de execução ou custo de maneira significativa.
 
 ## 2. Requisitos
 
@@ -18,7 +18,7 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
    - descrição do tom;
    - nota de relevância (1–5).
 4. Incluir somente itens acima do limiar configurado na entrada do modelo principal.
-5. Registrar erros de busca/análise sem interromper a geração da newsletter.
+5. Registrar erros de busca/análise sem interromper a geração da post.
 
 ### Não funcionais
 
@@ -71,7 +71,7 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
    - Retorna `EnrichmentResult` + lista de erros humanos.
    - Formata seção com marcadores `<<<ENRIQUECIMENTO_INICIO/FIM>>>`.
 
-5. `pipeline.generate_newsletter`
+5. `pipeline.generate_post`
    - Executa enriquecimento (se habilitado) antes de montar o prompt principal.
    - Injeta a seção formatada e registra estatísticas.
 
@@ -146,4 +146,4 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 
 ## 12. Conclusão
 
-O sistema de enriquecimento adiciona contexto valioso às newsletters com custo controlado. A arquitetura simplificada (enricher + Gemini) reduz manutenção e dependências, mantendo espaço para evoluções futuras como caching e suporte a novos tipos de mídia. O sucesso depende de monitorar relevância versus custo, ajustando limiares conforme o comportamento da comunidade.
+O sistema de enriquecimento adiciona contexto valioso às posts com custo controlado. A arquitetura simplificada (enricher + Gemini) reduz manutenção e dependências, mantendo espaço para evoluções futuras como caching e suporte a novos tipos de mídia. O sucesso depende de monitorar relevância versus custo, ajustando limiares conforme o comportamento da comunidade.

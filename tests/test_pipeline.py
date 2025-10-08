@@ -1,4 +1,4 @@
-"""Tests for the newsletter pipeline helpers."""
+"""Tests for the post pipeline helpers."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def test_build_llm_input_uses_singular_label_for_one_day() -> None:
         group_name="Grupo Teste",
         timezone=timezone.utc,
         transcripts=[_build_transcript(1)],
-        previous_newsletter=None,
+        previous_post=None,
     )
 
     assert "TRANSCRITO BRUTO DO ÚLTIMO DIA" in prompt
@@ -35,7 +35,7 @@ def test_build_llm_input_uses_plural_label_for_multiple_days() -> None:
             _build_transcript(2),
             _build_transcript(3),
         ],
-        previous_newsletter=None,
+        previous_post=None,
     )
 
     assert "TRANSCRITO BRUTO DOS ÚLTIMOS 3 DIAS" in prompt
