@@ -202,6 +202,18 @@ class PostRAG:
 
         nodes = retriever.retrieve(query)
 
+        def _sort_key(item: NodeWithScore) -> tuple[float, int]:
+            score_bucket = round(item.score or 0.0, 1)
+            metadata = getattr(item.node, "metadata", {}) or {}
+            raw_date = metadata.get("date")
+            try:
+                ordinal = date.fromisoformat(str(raw_date)).toordinal()
+            except Exception:
+                ordinal = date.min.toordinal()
+            return (-score_bucket, -ordinal)
+
+        nodes = sorted(nodes, key=_sort_key)
+
         exclude_days = (
             exclude_recent_days
             if exclude_recent_days is not None
@@ -214,6 +226,10 @@ class PostRAG:
         threshold = min_similarity if min_similarity is not None else self.config.min_similarity
         if threshold > 0:
             nodes = [node for node in nodes if node.score is None or node.score >= threshold]
+
+        for node in nodes:
+            if node.score is not None:
+                node.score = round(node.score, 3)
 
         return nodes
 
@@ -319,10 +335,13 @@ class PostRAG:
     def _collect_post_paths(self) -> list[Path]:
         """Return markdown posts stored in the nested directory layout."""
 
-        return sorted(
-            (path for path in self.posts_dir.glob("*/posts/daily/*.md") if path.is_file()),
-            key=lambda path: path.stem,
-        )
+        candidates: set[Path] = set()
+        for pattern in ("*/posts/daily/*.md", "*/daily/*.md"):
+            for path in self.posts_dir.glob(pattern):
+                if path.is_file():
+                    candidates.add(path)
+
+        return sorted(candidates, key=lambda path: path.stem)
 
     def iter_post_files(self) -> list[Path]:
         """Public helper primarily used by tooling to list available posts."""

@@ -92,7 +92,7 @@ Calculate deterministic pseudonyms for phone numbers or nicknames so participant
 
 ## Configuration (`egregora.toml`)
 
-`PipelineConfig` is powered by Pydantic settings and supports granular tuning of each subsystem.【F:src/egregora/config.py†L210-L371】 Key sections include:
+`PipelineConfig` is powered by Pydantic settings and automatically reads `egregora.toml` from the project root, falling back to the class defaults when the file is missing. Environment variables take precedence over TOML values, so CI pipelines can override sensitive fields without editing the repository copy. Use :py:meth:`PipelineConfig.load`/ :py:meth:`MCPServerConfig.load` to materialise validated instances from alternative files when needed.【F:src/egregora/config.py†L210-L371】【F:src/egregora/mcp_server/config.py†L55-L139】 Key sections include:
 
 ```toml
 [zips]

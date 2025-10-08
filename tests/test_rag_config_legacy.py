@@ -34,7 +34,7 @@ use_gemini_embeddings = false
         encoding="utf-8",
     )
 
-    config = PipelineConfig.from_toml(config_path)
+    config = PipelineConfig.load(toml_path=config_path)
     assert config.rag.enabled is True
 
 
@@ -54,7 +54,7 @@ use_gemini_embeddings = true
         encoding="utf-8",
     )
 
-    config = MCPServerConfig.from_path(config_path)
+    config = MCPServerConfig.load(toml_path=config_path)
     assert config.rag.enabled is True
     with config_path.open("rb") as fh:
         # Sanity check to ensure file contains the legacy key for future regressions.
