@@ -1,4 +1,4 @@
-*__pycache__*
+__pycache__/
 *.py[cod]
 .venv/
 .uv/
@@ -16,9 +16,8 @@
 
 # Cache
 cache/
-runtime/cache/
-artifacts/
-data/posts/
+!src/egregora/cache/
+!src/egregora/cache/**
 
 # OS generated files
 .DS_Store
@@ -30,9 +29,7 @@ data/posts/
 data/
 !src/egregora/data/
 !src/egregora/data/**
-!tests/data/
-!tests/data/**
-!egregora.toml
+egregora.toml
 *.zip:Zone.Identifier
 
 # Test output
