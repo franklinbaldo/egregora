@@ -287,8 +287,22 @@ class UnifiedProcessor:
         }
         front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
 
+        # Merge existing posts on disk with the ones produced in this run so the
+        # index remains cumulative when processing a limited window of days.
+        all_posts: set[Path] = set()
+
+        daily_dir = group_dir / "posts" / "daily"
+        if daily_dir.exists():
+            all_posts.update(
+                path
+                for path in daily_dir.glob("*.md")
+                if path.is_file()
+            )
+
+        all_posts.update(post_paths)
+
         items: list[str] = []
-        for path in sorted(post_paths, key=lambda p: p.stem, reverse=True):
+        for path in sorted(all_posts, key=lambda p: p.stem, reverse=True):
             try:
                 relative = path.relative_to(group_dir)
             except ValueError:
