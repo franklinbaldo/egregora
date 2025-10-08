@@ -23,8 +23,6 @@ jobs:
       - name: Run tests
         run: uv run --with pytest pytest
       - name: Backlog smoke test
-        env:
-          GEMINI_API_KEY: test-key
         run: |
-          uv run python scripts/process_backlog.py tests/data/zips ./_tmp_posts --force
+          uv run python scripts/process_backlog.py tests/data/zips ./_tmp_posts --force --offline --quiet
           test -d ./_tmp_posts
