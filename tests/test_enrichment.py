@@ -372,8 +372,13 @@ def test_example_enrichment_script_runs_with_stub(tmp_path):
     env["FAKE_GEMINI_RESPONSE"] = json.dumps(
         {
             "summary": "Smoke test response",
-            "key_points": ["Ponto 1"],
-            "tone": "claro",
+            "topics": ["Ponto 1"],
+            "actions": [
+                {
+                    "description": "Revisar notas compartilhadas",
+                    "owner": "time",
+                }
+            ],
             "relevance": 3,
         },
         ensure_ascii=False,

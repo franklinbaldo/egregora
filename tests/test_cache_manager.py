@@ -19,8 +19,13 @@ def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
         "analyzed_at": timestamp,
         "enrichment": {
             "summary": "Resumo de teste",
-            "key_points": ["um", "dois"],
-            "tone": "informativo",
+            "topics": ["um", "dois"],
+            "actions": [
+                {
+                    "description": "Compartilhar com a equipe",
+                    "owner": "Alice",
+                }
+            ],
             "relevance": 4,
             "raw_response": "{}",
         },
