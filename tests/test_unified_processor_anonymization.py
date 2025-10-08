@@ -78,6 +78,7 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
     output_file = (
         config_with_anonymization.posts_dir
         / "_chat"
+        / "posts"
         / "daily"
         / "2025-10-03.md"
     )
@@ -85,3 +86,8 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
     content = output_file.read_text()
     assert "Member-" in content
     assert "+55 11 94529-4774" not in content
+
+    index_file = config_with_anonymization.posts_dir / "_chat" / "index.md"
+    assert index_file.exists()
+    index_text = index_file.read_text()
+    assert "2025-10-03" in index_text
