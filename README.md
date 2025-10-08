@@ -177,7 +177,7 @@ uv run python -m egregora.mcp_server.server --config egregora.toml
 
 Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
 
-Optionally supply `system_message_filters_file` in the configuration to strip templated notifications or bot spam before summarisation.【F:src/egregora/config.py†L222-L229】【F:src/egregora/processor.py†L51-L70】
+Keyword extraction and system-message filtering now rely on LLM adapters instead of brittle phrase lists. Configure model credentials through the regular pipeline settings and provide custom keyword providers when embedding the library in other tooling.【F:src/egregora/rag/query_gen.py†L17-L60】【F:src/egregora/system_classifier.py†L39-L196】
 
 ## Development
 

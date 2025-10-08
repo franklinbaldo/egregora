@@ -68,9 +68,13 @@ class MockGeminiClient:
 def test_parse_response_with_valid_json():
     payload = {
         "summary": "Conteúdo estruturado",
-        "key_points": ["a", "b"],
-        "tone": "positivo",
-        "relevance": 4,
+        "topics": ["a", "b"],
+        "actions": [
+            {
+                "description": "Revisar conteúdo compartilhado",
+                "owner": "time",
+            }
+        ],
     }
     mock_response = MagicMock()
     mock_response.text = json.dumps(payload)
@@ -78,9 +82,11 @@ def test_parse_response_with_valid_json():
     analysis = ContentEnricher._parse_response(mock_response)
 
     assert analysis.summary == payload["summary"]
-    assert analysis.key_points == payload["key_points"]
-    assert analysis.tone == payload["tone"]
-    assert analysis.relevance == payload["relevance"]
+    assert analysis.topics == payload["topics"]
+    assert [item.description for item in analysis.actions] == [
+        payload["actions"][0]["description"]
+    ]
+    assert analysis.relevance == 5
     assert analysis.raw_response == mock_response.text
 
 
@@ -91,7 +97,8 @@ def test_parse_response_falls_back_to_plain_text():
     analysis = ContentEnricher._parse_response(mock_response)
 
     assert analysis.summary == "Resposta sem JSON estruturado"
-    assert analysis.key_points == []
+    assert analysis.topics == []
+    assert analysis.actions == []
     assert analysis.relevance == 1
 
 

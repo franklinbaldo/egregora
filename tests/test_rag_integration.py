@@ -15,7 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.index import PostRAG
-from egregora.rag.keyword_utils import KeywordExtractor, tokenize_text
+from egregora.rag.indexer import detect_post_date, hash_text
+from egregora.rag.keyword_utils import KeywordExtractor, KeywordProvider
 from egregora.rag.query_gen import QueryGenerator
 from test_framework.helpers import (
     load_real_whatsapp_transcript,
@@ -38,21 +39,47 @@ def rag_posts_dir(tmp_path: Path) -> Path:
     return target
 
 
-def test_keyword_tokenization_filters_stop_words(whatsapp_real_content: str) -> None:
-    tokens = tokenize_text(whatsapp_real_content)
-    assert tokens, "expected tokenizer to produce tokens"
+@pytest.fixture()
+def stub_keyword_provider() -> KeywordProvider:
+    def _provider(text: str, *, max_keywords: int) -> list[str]:
+        summary = summarize_whatsapp_content(text)
+        keywords: list[str] = [author.lower() for author in summary["authors"]]
+        if summary["has_media_attachment"]:
+            keywords.append("anexos de mídia")
+        keywords.append(str(summary["line_count"]))
+        keywords.append("whatsapp")
 
-    extractor = KeywordExtractor(max_keywords=5)
-    keywords = extractor.select_keywords(tokens)
+        deduped: list[str] = []
+        for keyword in keywords:
+            if keyword not in deduped:
+                deduped.append(keyword)
+            if len(deduped) >= max_keywords:
+                break
+        return deduped[:max_keywords]
 
-    assert "franklin" in keywords
-    assert all(len(keyword) >= extractor.min_token_length for keyword in keywords)
+    return _provider
+
+
+def test_keyword_extractor_uses_provider(
+    whatsapp_real_content: str, stub_keyword_provider
+) -> None:
+    extractor = KeywordExtractor(
+        max_keywords=5,
+        keyword_provider=stub_keyword_provider,
+    )
+    keywords = extractor.extract(whatsapp_real_content)
+
+    assert keywords
+    assert len(keywords) <= 5
+    assert keywords[0] == keywords[0].lower()
 
 
 def test_query_generator_matches_baseline(
-    whatsapp_real_content: str, rag_baseline: dict[str, object]
+    whatsapp_real_content: str,
+    rag_baseline: dict[str, object],
+    stub_keyword_provider,
 ) -> None:
-    generator = QueryGenerator()
+    generator = QueryGenerator(keyword_provider=stub_keyword_provider)
     result = generator.generate(whatsapp_real_content)
 
     expected = rag_baseline["query_generation"]["whatsapp_transcript"]
@@ -62,13 +89,14 @@ def test_query_generator_matches_baseline(
     assert result.context.startswith("03/10/2025 09:45")
 
 
-def test_query_generator_respects_max_keywords(whatsapp_real_content: str) -> None:
-    config = RAGConfig(max_keywords=3, keyword_stop_words=("2025", "franklin"))
-    generator = QueryGenerator(config)
+def test_query_generator_respects_max_keywords(
+    whatsapp_real_content: str, stub_keyword_provider
+) -> None:
+    config = RAGConfig(max_keywords=3)
+    generator = QueryGenerator(config, keyword_provider=stub_keyword_provider)
     result = generator.generate(whatsapp_real_content)
 
     assert len(result.keywords) <= 3
-    assert all(keyword not in {"2025", "franklin"} for keyword in result.keywords)
 
 
 def test_post_rag_search_matches_baseline(

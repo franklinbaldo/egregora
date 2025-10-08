@@ -2,21 +2,17 @@
   "query_generation": {
     "whatsapp_transcript": {
       "keywords": [
-        "2025",
         "franklin",
-        "mensagens",
-        "conversa",
-        "você",
-        "ponta",
-        "esse",
-        "grupo"
+        "anexos de mídia",
+        "10",
+        "whatsapp"
       ],
       "main_topics": [
-        "2025",
         "franklin",
-        "mensagens"
+        "anexos de mídia",
+        "10"
       ],
-      "search_query": "2025, franklin, mensagens, conversa, você, ponta"
+      "search_query": "franklin, anexos de mídia, 10, whatsapp"
     }
   },
   "post_search_queries": {
