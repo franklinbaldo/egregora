@@ -197,7 +197,11 @@ def load_system_filters_from_file(path: Path) -> tuple[str, ...]:
     """Load custom system message filters from ``path``."""
 
     content = path.read_text(encoding="utf-8")
-    phrases = [line.strip() for line in content.splitlines() if line.strip()]
+    phrases = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
     return tuple(phrase.casefold() for phrase in phrases)
 
 
@@ -219,7 +223,11 @@ def _load_default_system_filters() -> tuple[str, ...]:
     except (FileNotFoundError, ModuleNotFoundError):
         return tuple()
 
-    phrases = [line.strip() for line in content.splitlines() if line.strip()]
+    phrases = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
     return tuple(phrase.casefold() for phrase in phrases)
 
 

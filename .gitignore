@@ -16,6 +16,9 @@
 
 # Cache
 cache/
+runtime/cache/
+artifacts/
+data/posts/
 
 # OS generated files
 .DS_Store

@@ -25,7 +25,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ### Requirements
 
-- Python 3.10+
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) with access to the Gemini models used by the pipeline
 
@@ -169,7 +169,7 @@ The Retrieval-Augmented Generation utilities store post embeddings in ChromaDB v
 Launch the MCP server directly:
 
 ```bash
-uv run python -m egregora.mcp_server.server --config egregora.toml
+uv run egregora-mcp --config egregora.toml
 ```
 
 ## Custom prompts & filters
@@ -185,7 +185,7 @@ Optionally supply `system_message_filters_file` in the configuration to strip te
 - Type-check or explore datasets with `polars` and the utilities under `scripts/`
 - Build docs locally: `uv run --extra docs --with ./ mkdocs serve`
 
-The codebase targets Python 3.10+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
+The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 
 ## License
 

@@ -73,27 +73,27 @@ def merge_with_tags(
             default="📱",
         )
         tagged = pl.format(
-            "{time} — {author} {emoji}: {message}",
-            time=pl.col("time"),
-            author=pl.col("author"),
-            emoji=emoji_expr,
-            message=pl.col("message"),
+            "{} — {} {}: {}",
+            pl.col("time"),
+            pl.col("author"),
+            emoji_expr,
+            pl.col("message"),
         )
     elif merge_config.tag_style == "prefix":
         tagged = pl.format(
-            "{time} — [{group_name}] {author}: {message}",
-            time=pl.col("time"),
-            group_name=pl.col("group_name"),
-            author=pl.col("author"),
-            message=pl.col("message"),
+            "{} — [{}] {}: {}",
+            pl.col("time"),
+            pl.col("group_name"),
+            pl.col("author"),
+            pl.col("message"),
         )
     else:  # brackets
         tagged = pl.format(
-            "{time} — {author} [{group_name}]: {message}",
-            time=pl.col("time"),
-            author=pl.col("author"),
-            group_name=pl.col("group_name"),
-            message=pl.col("message"),
+            "{} — {} [{}]: {}",
+            pl.col("time"),
+            pl.col("author"),
+            pl.col("group_name"),
+            pl.col("message"),
         )
 
     return df.with_columns(tagged.alias("tagged_line"))

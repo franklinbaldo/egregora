@@ -34,10 +34,10 @@ def render_transcript(
         )
 
     fallback = pl.format(
-        "{time} — {author}: {message}",
-        time=pl.col("time"),
-        author=pl.col("author").fill_null(""),
-        message=pl.col("message").fill_null(""),
+        "{} — {}: {}",
+        pl.col("time"),
+        pl.col("author").fill_null(""),
+        pl.col("message").fill_null(""),
     )
 
     candidates: list[pl.Expr] = []

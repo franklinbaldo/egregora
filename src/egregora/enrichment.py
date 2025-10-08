@@ -600,10 +600,10 @@ class ContentEnricher:
         )
 
         fallback = pl.format(
-            "{time} — {author}: {message}",
-            time=pl.col("__time_str"),
-            author=pl.col("author"),
-            message=pl.col("message"),
+            "{} — {}: {}",
+            pl.col("__time_str"),
+            pl.col("author"),
+            pl.col("message"),
         )
 
         context_candidates: list[pl.Expr] = [fallback]
@@ -686,7 +686,7 @@ class ContentEnricher:
         seen: set[tuple[str | None, str]] = set()
 
         url_rows = (
-            frame.filter(pl.col("__urls").list.lengths() > 0)
+            frame.filter(pl.col("__urls").list.len() > 0)
             .explode("__urls")
             .filter(pl.col("__urls").str.len_chars() > 0)
         )
@@ -718,7 +718,7 @@ class ContentEnricher:
 
         placeholder_rows = frame.filter(
             pl.col("__media_placeholder")
-            & (pl.col("__urls").list.lengths() == 0)
+            & (pl.col("__urls").list.len() == 0)
         )
 
         for row in placeholder_rows.iter_rows(named=True):

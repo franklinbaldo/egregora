@@ -248,7 +248,7 @@ if __name__ == "__main__":
     
     with tempfile.TemporaryDirectory() as tmp:
         temp_dir = Path(tmp)
-        whatsapp_zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+        whatsapp_zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
         
         print("Running core pipeline tests...")
         

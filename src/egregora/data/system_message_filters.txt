@@ -1,18 +1,18 @@
-mudou o assunto do grupo
-changed the group subject
-cambió el asunto del grupo
-adicionou
+# UTF-8 encoded filter phrases. Keep sorted and deduplicated.
 added you
-te agregó
-saiu
-left
-salió
-criou o grupo
+adicionou
+as mensagens e chamadas
+cambió el asunto del grupo
+changed the group subject
+cifrado de extremo a extremo
 created group
 creó el grupo
-as mensagens e chamadas
-messages and calls
-los mensajes y las llamadas
-criptografia de ponta a ponta
+criou o grupo
 end-to-end encrypted
-cifrado de extremo a extremo
+left
+los mensajes y las llamadas
+messages and calls
+mudou o assunto do grupo
+saiu
+salió
+te agregó

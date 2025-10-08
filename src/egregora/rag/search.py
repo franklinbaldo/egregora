@@ -1,4 +1,5 @@
-"""Tokenisation and similarity helpers for the RAG implementation."""
+"""DEPRECATED: TF-IDF search path. Use PostRAG (llama-index) instead.
+This module will be removed after parity checks are complete."""
 
 from __future__ import annotations
 

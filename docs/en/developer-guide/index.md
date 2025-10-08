@@ -2,14 +2,8 @@
 
 Reference material for engineers evolving the ingestion, enrichment, and posting pipeline.
 
-- [Architecture Philosophy](PHILOSOPHY.md)
 - [Code Analysis Summary](CODE_ANALYSIS.md)
-- [Enrichment Quickstart](ENRICHMENT_QUICKSTART.md)
 - [Backlog Processing](backlog_processing.md)
-- [Content Enrichment Design](CONTENT_ENRICHMENT_DESIGN.md)
-- [Embedding Strategy](embeddings.md)
-- [Merged Groups Workflow](merged-groups.md)
-- [MCP RAG Integration](mcp-rag.md)
-- [Privacy Implementation Plan](privacy-implementation.md)
-- [Refactoring Plan](plan.md)
 - [ADR-006: DataFrame-native pipeline](ADR-006-dataframe-pipeline.md)
+
+Additional engineering guides (architecture, enrichment, privacy) remain available in Portuguese until their English translations are ready. Browse the [Portuguese Developer Guide](/pt-BR/developer-guide/) for the full catalogue.

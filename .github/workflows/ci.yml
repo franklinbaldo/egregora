@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Sync dependencies
+        run: uv sync
+      - name: Run pre-commit
+        run: uv run --with pre-commit pre-commit run --all-files
+      - name: Run tests
+        run: uv run --with pytest pytest
+      - name: Backlog smoke test
+        env:
+          GEMINI_API_KEY: test-key
+        run: |
+          uv run python scripts/process_backlog.py tests/data/zips ./_tmp_posts --force
+          test -d ./_tmp_posts

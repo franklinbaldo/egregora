@@ -10,7 +10,7 @@ como executá-lo.
 ## 📦 Onde fica o servidor?
 
 - **Arquivo principal**: `src/egregora/mcp_server/server.py`
-- **Script de conveniência**: `scripts/start_mcp_server.py`
+- **Script de conveniência**: console script `egregora-mcp` (mapeia para `scripts/start_mcp_server.py`)
 - **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML.
 
 A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
@@ -26,7 +26,7 @@ A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 3. Execute o servidor:
 
 ```bash
-uv run python scripts/start_mcp_server.py --config egregora.toml
+uv run egregora-mcp --config egregora.toml
 ```
 
 O script parseia `--config` e chama `asyncio.run(main(...))`.
