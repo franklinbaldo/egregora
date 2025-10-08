@@ -188,6 +188,10 @@ Optionally supply `system_message_filters_file` in the configuration to strip te
 
 The codebase targets Python 3.10+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 
+### CI workflows
+
+- `Request Codex Review`: Comments `@codex code review` on newly opened pull requests via the account associated with the personal access token stored in the `CODEX_REVIEW_TOKEN` repository secret. The workflow authenticates the GitHub CLI with this token (via `GH_TOKEN`) before issuing the comment so it originates from a human-owned account rather than `github-actions`. Use a classic PAT with `public_repo` (or `repo` for private repos) scope.
+
 ## License
 
 Egregora is released under the MIT License. See [LICENSE](LICENSE) for details.
