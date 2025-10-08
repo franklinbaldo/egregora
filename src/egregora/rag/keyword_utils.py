@@ -7,6 +7,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+try:  # pragma: no cover - optional dependency
+    from google.genai import types as genai_types  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    genai_types = None  # type: ignore[assignment]
+
 __all__ = [
     "KeywordExtractor",
     "KeywordProvider",
@@ -17,8 +22,7 @@ __all__ = [
 class KeywordProvider(Protocol):
     """Callable responsible for producing semantic keywords from text."""
 
-    def __call__(self, text: str, *, max_keywords: int) -> Sequence[str]:
-        ...
+    def __call__(self, text: str, *, max_keywords: int) -> Sequence[str]: ...
 
 
 def _normalise_keywords(values: Sequence[str], limit: int) -> list[str]:
@@ -63,9 +67,7 @@ class KeywordExtractor:
 
         provider = keyword_provider or self.keyword_provider
         if provider is None:
-            raise RuntimeError(
-                "KeywordExtractor requires a keyword_provider callable to operate"
-            )
+            raise RuntimeError("KeywordExtractor requires a keyword_provider callable to operate")
 
         if not text or not text.strip():
             return []
@@ -82,17 +84,15 @@ def build_llm_keyword_provider(
 ) -> KeywordProvider:
     """Return a provider that asks a Gemini model to extract keywords."""
 
-    try:
-        from google.genai import types as genai_types  # type: ignore
-    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+    if genai_types is None:  # pragma: no cover - optional dependency
         raise RuntimeError(
             "google-genai must be installed to build an LLM keyword provider"
-        ) from exc
+        ) from None
 
     base_instruction = system_instruction or (
         "Você é um assistente que identifica até N palavras-chave únicas em uma "
         "conversa do WhatsApp. Responda sempre em JSON com o formato "
-        "{\"keywords\": [\"palavra\", ...]} e nunca inclua comentários adicionais."
+        '{"keywords": ["palavra", ...]} e nunca inclua comentários adicionais.'
     )
 
     def _provider(text: str, *, max_keywords: int) -> list[str]:

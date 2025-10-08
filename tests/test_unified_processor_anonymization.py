@@ -1,7 +1,5 @@
-import re
 import shutil
 import zipfile
-from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -32,9 +30,9 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
     chat_txt_path = base_dir / "_chat.txt"
     with open(chat_txt_path, "w") as f:
         f.write("03/10/2025 09:45 - +55 11 94529-4774: Teste de grupo\n")
-    
-    with zipfile.ZipFile(zip_path, 'w') as zf:
-        zf.write(chat_txt_path, arcname='_chat.txt')
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(chat_txt_path, arcname="_chat.txt")
 
     return PipelineConfig(
         zips_dir=zips_dir,
@@ -76,12 +74,14 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
 
     # Check the output file
     output_file = (
-        config_with_anonymization.posts_dir
-        / "_chat"
-        / "daily"
-        / "2025-10-03.md"
+        config_with_anonymization.posts_dir / "_chat" / "posts" / "daily" / "2025-10-03.md"
     )
     assert output_file.exists()
     content = output_file.read_text()
     assert "Member-" in content
     assert "+55 11 94529-4774" not in content
+
+    index_file = config_with_anonymization.posts_dir / "_chat" / "index.md"
+    assert index_file.exists()
+    index_text = index_file.read_text()
+    assert "2025-10-03" in index_text

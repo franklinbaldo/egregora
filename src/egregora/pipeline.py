@@ -6,10 +6,10 @@ import logging
 import os
 import re
 import zipfile
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, tzinfo
 from importlib import resources
 from pathlib import Path
-from typing import Any, Sequence
 
 try:  # pragma: no cover - executed only when dependency is missing
     from google import genai  # type: ignore
@@ -25,6 +25,7 @@ from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
 from .system_classifier import SystemMessageClassifier
+from .types import GroupSlug
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -61,9 +62,7 @@ def _load_prompt(filename: str) -> str:
 
     try:
         package_text = (
-            resources.files(__package__)
-            .joinpath(f"prompts/{filename}")
-            .read_text(encoding="utf-8")
+            resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
         )
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
@@ -88,6 +87,7 @@ TRANSCRIPT_PATTERNS = [
         r"^(?P<prefix>\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s+[-–—]\s+)(?P<author>[^:]+)(?P<separator>:\s*)(?P<message>.*)$"
     ),
 ]
+
 
 def _build_system_classifier(
     config: PipelineConfig,
@@ -116,6 +116,7 @@ def _build_system_classifier(
         )
     except Exception:
         return None
+
 
 def _anonymize_transcript_line(
     line: str,
@@ -221,10 +222,7 @@ def _format_transcript_section_header(transcript_count: int) -> str:
 
     if transcript_count <= 1:
         return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
-    return (
-        f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS "
-        "(NA ORDEM CRONOLÓGICA POR DIA):"
-    )
+    return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
 
 
 def _prepare_transcripts_sample(
@@ -256,7 +254,7 @@ def _prepare_transcripts_sample(
     return "\n\n".join(collected).strip()
 
 
-def build_llm_input(
+def build_llm_input(  # noqa: PLR0913
     *,
     group_name: str,
     timezone: tzinfo,
@@ -274,37 +272,45 @@ def build_llm_input(
     ]
 
     if previous_post:
-        sections.extend([
-            "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-            "<<<POST_ONTEM_INICIO>>>",
-            previous_post.strip(),
-            "<<<POST_ONTEM_FIM>>>",
-        ])
+        sections.extend(
+            [
+                "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+                "<<<POST_ONTEM_INICIO>>>",
+                previous_post.strip(),
+                "<<<POST_ONTEM_FIM>>>",
+            ]
+        )
     else:
         sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
 
     if enrichment_section:
-        sections.extend([
-            "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
-            enrichment_section,
-        ])
+        sections.extend(
+            [
+                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
+                enrichment_section,
+            ]
+        )
 
     if rag_context:
-        sections.extend([
-            "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
-            rag_context,
-        ])
+        sections.extend(
+            [
+                "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
+                rag_context,
+            ]
+        )
 
     header = _format_transcript_section_header(len(transcripts))
     sections.append(header)
 
     for transcript_date, transcript_text in transcripts:
         content = transcript_text.strip()
-        sections.extend([
-            f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
-            content if content else "(vazio)",
-            f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
-        ])
+        sections.extend(
+            [
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
+                content if content else "(vazio)",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
+            ]
+        )
 
     return "\n\n".join(sections)
 
@@ -359,7 +365,7 @@ def read_zip_texts_and_media(
     *,
     archive_date: date | None = None,
     posts_dir: Path | None = None,
-    group_slug: str | None = None,
+    group_slug: GroupSlug | None = None,
 ) -> tuple[str, dict[str, MediaFile]]:
     """Read texts from *zippath* and optionally extract media files."""
 

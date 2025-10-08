@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from pydantic import BaseModel, Field
 
 
@@ -36,8 +34,8 @@ class SummaryResponse(BaseModel):
     """Structured analytics block summarising a conversation."""
 
     summary: str = Field(..., min_length=1)
-    topics: List[str] = Field(default_factory=list)
-    actions: List[ActionItem] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+    actions: list[ActionItem] = Field(default_factory=list)
 
     model_config = {
         "extra": "ignore",
@@ -91,4 +89,3 @@ class SystemMessageLabel(BaseModel):
 
 
 __all__ = ["SummaryResponse", "SystemMessageLabel", "ActionItem"]
-

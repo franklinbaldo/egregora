@@ -5,7 +5,7 @@
 # Diretório com os exports .zip do WhatsApp.
 zips_dir = "data/whatsapp_zips"
 # Raiz onde as postagens (daily) serão salvas.
-posts_dir = "data/posts"
+posts_dir = "data"
 
 [pipeline]
 model = "gemini-flash-lite-latest"

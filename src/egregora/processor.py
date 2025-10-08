@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import polars as pl
 import yaml
@@ -16,8 +16,9 @@ from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
 from .group_discovery import discover_groups
+from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
-from .models import GroupSource
+from .models import GroupSource, WhatsAppExport
 from .pipeline import load_previous_post
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
@@ -29,6 +30,7 @@ from .transcript import (
     load_source_dataframe,
     render_transcript,
 )
+from .types import GroupSlug
 
 if TYPE_CHECKING:
     from .media_extractor import MediaFile
@@ -41,9 +43,7 @@ def _build_post_metadata(
 ) -> dict[str, object]:
     """Return front matter metadata compatible with the Material blog plugin."""
 
-    created = datetime.combine(target_date, time.min).replace(
-        tzinfo=config.timezone
-    )
+    created = datetime.combine(target_date, time.min).replace(tzinfo=config.timezone)
     categories = ["daily", source.slug]
     tags = [source.name, "whatsapp"]
 
@@ -67,9 +67,7 @@ def _ensure_blog_front_matter(
         return text
 
     metadata = _build_post_metadata(source, target_date, config)
-    front_matter = yaml.safe_dump(
-        metadata, sort_keys=False, allow_unicode=True
-    ).strip()
+    front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
 
     prefix_len = len(text) - len(stripped)
     prefix = text[:prefix_len]
@@ -80,13 +78,13 @@ def _ensure_blog_front_matter(
 class DryRunPlan:
     """Summary of what would be processed during a dry run."""
 
-    slug: str
+    slug: GroupSlug
     name: str
     is_virtual: bool
     export_count: int
     available_dates: list[date]
     target_dates: list[date]
-    merges: list[str] | None = None
+    merges: list[GroupSlug] | None = None
 
 
 class UnifiedProcessor:
@@ -110,12 +108,12 @@ class UnifiedProcessor:
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
-    def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
+    def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
 
         sources_to_process, _, _ = self._collect_sources()
 
-        results = {}
+        results: dict[GroupSlug, list[Path]] = {}
         for slug, source in sources_to_process.items():
             logger.info(f"\n{'📺' if source.is_virtual else '📝'} Processing: {source.name}")
 
@@ -136,9 +134,7 @@ class UnifiedProcessor:
         for slug, source in sources_to_process.items():
             available_dates = list(get_available_dates(source))
             target_dates = (
-                list(available_dates[-days:])
-                if days and available_dates
-                else list(available_dates)
+                list(available_dates[-days:]) if days and available_dates else list(available_dates)
             )
 
             plans.append(
@@ -182,10 +178,13 @@ class UnifiedProcessor:
         else:
             logger.info("  Nenhum arquivo novo encontrado.")
 
-
     def _collect_sources(
         self,
-    ) -> tuple[dict[str, GroupSource], dict, dict[str, GroupSource]]:
+    ) -> tuple[
+        dict[GroupSlug, GroupSource],
+        dict[GroupSlug, list[WhatsAppExport]],
+        dict[GroupSlug, GroupSource],
+    ]:
         """Discover and prepare sources for processing."""
 
         self._sync_remote_source()
@@ -202,11 +201,9 @@ class UnifiedProcessor:
         if virtual_groups:
             logger.info(f"🔀 Created {len(virtual_groups)} virtual group(s):")
             for slug, source in virtual_groups.items():
-                logger.info(
-                    f"  • {source.name} ({slug}): merges {len(source.exports)} exports"
-                )
+                logger.info(f"  • {source.name} ({slug}): merges {len(source.exports)} exports")
 
-        real_sources = {
+        real_sources: dict[GroupSlug, GroupSource] = {
             slug: GroupSource(
                 slug=slug,
                 name=exports[0].group_name,
@@ -216,7 +213,10 @@ class UnifiedProcessor:
             for slug, exports in real_groups.items()
         }
 
-        all_sources = {**real_sources, **virtual_groups}
+        all_sources: dict[GroupSlug, GroupSource] = {
+            **real_sources,
+            **virtual_groups,
+        }
         sources_to_process = self._filter_sources(all_sources)
 
         return sources_to_process, real_groups, virtual_groups
@@ -237,23 +237,21 @@ class UnifiedProcessor:
 
         logger.info("  Merging %d groups:", stats.height)
         for row in stats.iter_rows(named=True):
-            logger.info(
-                "    • %s: %d messages", row["group_name"], row["message_count"]
-            )
+            logger.info("    • %s: %d messages", row["group_name"], row["message_count"])
 
     def _filter_sources(
-        self, all_sources: dict[str, GroupSource]
-    ) -> dict[str, GroupSource]:
+        self, all_sources: dict[GroupSlug, GroupSource]
+    ) -> dict[GroupSlug, GroupSource]:
         """Filter sources to process."""
 
         if not self.config.skip_real_if_in_virtual:
             return all_sources
 
-        groups_in_merges = set()
+        groups_in_merges: set[GroupSlug] = set()
         for merge_config in self.config.merges.values():
             groups_in_merges.update(merge_config.source_groups)
 
-        filtered = {}
+        filtered: dict[GroupSlug, GroupSource] = {}
         for slug, source in all_sources.items():
             if source.is_virtual or slug not in groups_in_merges:
                 filtered[slug] = source
@@ -262,19 +260,93 @@ class UnifiedProcessor:
 
         return filtered
 
-    def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
+    def _existing_daily_posts(self, group_dir: Path) -> list[Path]:
+        """Return existing daily posts for *group_dir* if they are present."""
+
+        daily_dir = group_dir / "posts" / "daily"
+        if not daily_dir.exists():
+            return []
+
+        return [path for path in daily_dir.glob("*.md") if path.is_file()]
+
+    def _write_group_index(
+        self,
+        source: "GroupSource",
+        group_dir: Path,
+        post_paths: list[Path],
+    ) -> None:
+        """Ensure an index page summarising generated posts for *source*."""
+
+        index_path = group_dir / "index.md"
+        metadata = {
+            "title": f"{source.name} — Sumário",
+            "lang": self.config.post_language,
+            "authors": [self.config.default_post_author],
+            "categories": [source.slug, "summary"],
+        }
+        front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
+
+        # Merge existing posts on disk with the ones produced in this run so the
+        # index remains cumulative when processing a limited window of days.
+        existing_posts = self._existing_daily_posts(group_dir)
+
+        def _normalize(path: Path) -> Path:
+            try:
+                return path.resolve()
+            except OSError:
+                return path
+
+        all_posts: set[Path] = {_normalize(path) for path in existing_posts}
+        all_posts.update(_normalize(path) for path in post_paths)
+
+        items: list[str] = []
+        for path in sorted(all_posts, key=lambda p: p.stem, reverse=True):
+            try:
+                relative = path.relative_to(group_dir)
+            except ValueError:
+                relative = path
+            items.append(f"- [{path.stem}]({relative.as_posix()})")
+
+        if not items:
+            items.append("_Nenhuma edição gerada ainda._")
+
+        body = "\n".join(items)
+        content_lines = [
+            "---",
+            front_matter,
+            "---",
+            "",
+            f"# {source.name}",
+            "",
+            body,
+            "",
+        ]
+        content = "\n".join(content_lines)
+
+        if index_path.exists():
+            existing = index_path.read_text(encoding="utf-8")
+            if existing == content:
+                return
+
+        index_path.write_text(content, encoding="utf-8")
+
+    def _process_source(  # noqa: PLR0912, PLR0915
+        self, source: GroupSource, days: int | None
+    ) -> list[Path]:
         """Process a single source."""
 
-        from .media_extractor import MediaExtractor
-
         group_dir = self.config.posts_dir / source.slug
-        daily_dir = group_dir / "daily"
+        group_dir.mkdir(parents=True, exist_ok=True)
+
+        posts_base = group_dir / "posts"
+        daily_dir = posts_base / "daily"
         daily_dir.mkdir(parents=True, exist_ok=True)
+
+        media_dir = group_dir / "media"
+        media_dir.mkdir(parents=True, exist_ok=True)
 
         profiles_base = group_dir / "profiles"
         profiles_base.mkdir(parents=True, exist_ok=True)
-
-        (group_dir / "media").mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
         if self.config.profiles.enabled and self._profile_updater:
@@ -290,7 +362,7 @@ class UnifiedProcessor:
             return []
 
         if full_df.is_empty():
-            logger.warning(f"  No messages found")
+            logger.warning("  No messages found")
             return []
 
         available_dates = sorted({d for d in full_df.get_column("date").to_list()})
@@ -313,7 +385,7 @@ class UnifiedProcessor:
                 continue
 
             attachment_names = MediaExtractor.find_attachment_names_dataframe(df_day)
-            all_media: dict[str, "MediaFile"] = {}
+            all_media: dict[str, MediaFile] = {}
             if attachment_names:
                 remaining = set(attachment_names)
                 for export in exports_by_date.get(target_date, []):
@@ -366,9 +438,7 @@ class UnifiedProcessor:
                         size_limit_mb=self.config.cache.max_disk_mb,
                     )
                     if self.config.cache.auto_cleanup_days:
-                        cache_manager.cleanup_old_entries(
-                            self.config.cache.auto_cleanup_days
-                        )
+                        cache_manager.cleanup_old_entries(self.config.cache.auto_cleanup_days)
                 enricher = ContentEnricher(
                     self.config.enrichment,
                     cache_manager=cache_manager,
@@ -443,9 +513,7 @@ class UnifiedProcessor:
                 public_paths=public_paths,
             )
             if media_section:
-                post = (
-                    f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
-                )
+                post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
@@ -475,9 +543,10 @@ class UnifiedProcessor:
             except ValueError:
                 logger.info(f"    ✅ {output_path}")
 
+        self._write_group_index(source, group_dir, results)
         return results
 
-    def _update_profiles_for_day(
+    def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
         *,
         repository: ProfileRepository,
@@ -611,7 +680,7 @@ class UnifiedProcessor:
         if updates_made:
             repository.write_index()
 
-    async def _async_update_profile(
+    async def _async_update_profile(  # noqa: PLR0913
         self,
         *,
         updater: ProfileUpdater,
@@ -622,7 +691,7 @@ class UnifiedProcessor:
         conversation: str,
         context_block: str,
         client,
-    ) -> Optional[ParticipantProfile]:
+    ) -> ParticipantProfile | None:
         profile = await updater.rewrite_profile(
             member_id=member_label,
             old_profile=current_profile,
@@ -657,9 +726,7 @@ class UnifiedProcessor:
     ) -> str:
         blocks = [f"### {target_date.isoformat()}\n{conversation.strip()}".strip()]
         if post_text.strip():
-            blocks.append(
-                "### Post do dia\n" + post_text.strip()
-            )
+            blocks.append("### Post do dia\n" + post_text.strip())
         return "\n\n".join(blocks)
 
     def _get_profiles_client(self):
@@ -671,13 +738,13 @@ class UnifiedProcessor:
             logger.warning("    ⚠️ Perfis desativados: %s", exc)
             return None
 
-    def list_groups(self) -> dict[str, dict]:
+    def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
         real_groups = discover_groups(self.config.zips_dir)
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
-        all_info = {}
+        all_info: dict[GroupSlug, dict[str, object]] = {}
 
         for slug, exports in real_groups.items():
             dates = [e.export_date for e in exports]
@@ -686,11 +753,7 @@ class UnifiedProcessor:
                 "type": "real",
                 "export_count": len(exports),
                 "date_range": (min(dates), max(dates)),
-                "in_virtual": [
-                    s
-                    for s, c in self.config.merges.items()
-                    if slug in c.source_groups
-                ],
+                "in_virtual": [s for s, c in self.config.merges.items() if slug in c.source_groups],
             }
 
         for slug, source in virtual_groups.items():

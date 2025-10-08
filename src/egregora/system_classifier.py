@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Sequence
 
 from pydantic import ValidationError
 
@@ -17,6 +16,8 @@ except Exception:  # pragma: no cover - keep runtime lean without optional deps
 
 from .cache_manager import CacheManager
 from .llm_models import SystemMessageLabel
+
+EXPECTED_AUTHOR_PAYLOAD_PARTS = 2
 
 
 @dataclass(slots=True)
@@ -209,11 +210,10 @@ class SystemMessageClassifier:
 
     def _looks_like_user_message(self, line: str) -> bool:
         parts = line.split(":", 1)
-        if len(parts) != 2:
+        if len(parts) != EXPECTED_AUTHOR_PAYLOAD_PARTS:
             return False
         author, payload = parts
         return bool(author.strip() and payload.strip())
 
 
 __all__ = ["SystemMessageClassifier", "ClassificationMetrics"]
-

@@ -6,19 +6,20 @@ import logging
 
 import polars as pl
 
-from .models import WhatsAppExport, MergeConfig, GroupSource
+from .models import GroupSource, MergeConfig, WhatsAppExport
 from .parser import parse_multiple
+from .types import GroupSlug
 
 logger = logging.getLogger(__name__)
 
 
 def create_virtual_groups(
-    real_groups: dict[str, list[WhatsAppExport]],
-    merge_configs: dict[str, MergeConfig],
-) -> dict[str, GroupSource]:
+    real_groups: dict[GroupSlug, list[WhatsAppExport]],
+    merge_configs: dict[GroupSlug, MergeConfig],
+) -> dict[GroupSlug, GroupSource]:
     """Create virtual groups from merge configurations."""
 
-    virtual: dict[str, GroupSource] = {}
+    virtual: dict[GroupSlug, GroupSource] = {}
 
     for slug, config in merge_configs.items():
         merged_exports: list[WhatsAppExport] = []
@@ -26,9 +27,7 @@ def create_virtual_groups(
         for source_slug in config.source_groups:
             exports = real_groups.get(source_slug, [])
             if not exports:
-                logger.warning(
-                    "Virtual group '%s': source '%s' not found", slug, source_slug
-                )
+                logger.warning("Virtual group '%s': source '%s' not found", slug, source_slug)
                 continue
             merged_exports.extend(exports)
 
@@ -103,11 +102,13 @@ def get_merge_stats(df: pl.DataFrame) -> pl.DataFrame:
     """Statistics of merge by group."""
 
     if df.is_empty():
-        return pl.DataFrame({
-            "group_slug": pl.Series(dtype=pl.Utf8, values=[]),
-            "group_name": pl.Series(dtype=pl.Utf8, values=[]),
-            "message_count": pl.Series(dtype=pl.Int64, values=[]),
-        })
+        return pl.DataFrame(
+            {
+                "group_slug": pl.Series(dtype=pl.Utf8, values=[]),
+                "group_name": pl.Series(dtype=pl.Utf8, values=[]),
+                "message_count": pl.Series(dtype=pl.Int64, values=[]),
+            }
+        )
 
     return (
         df.group_by("group_slug", "group_name")

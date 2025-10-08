@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import tzinfo
-import os
 import copy
+import os
+import tomllib
+from datetime import tzinfo
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from pydantic import (
@@ -22,6 +24,7 @@ from pydantic_settings import BaseSettings
 from .anonymizer import FormatType
 from .models import MergeConfig
 from .rag.config import RAGConfig, sanitize_rag_config_payload
+from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
@@ -109,9 +112,7 @@ class AnonymizationConfig(BaseModel):
     def _validate_output_format(cls, value: Any) -> FormatType:
         candidate = str(value)
         if candidate not in ("human", "short", "full"):
-            raise ValueError(
-                "output_format must be one of 'human', 'short' or 'full'"
-            )
+            raise ValueError("output_format must be one of 'human', 'short' or 'full'")
         return candidate  # type: ignore[return-value]
 
 
@@ -121,12 +122,8 @@ class ProfilesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
-    profiles_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data/profiles")
-    )
-    docs_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("docs/profiles")
-    )
+    profiles_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles"))
+    docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("docs/profiles"))
     min_messages: int = 2
     min_words_per_message: int = 15
     history_days: int = 5
@@ -164,8 +161,6 @@ class ProfilesConfig(BaseModel):
         return fvalue
 
 
-
-
 def _default_remote_gdrive_url() -> SecretStr | None:
     for key in ("PIPELINE__REMOTE_SOURCE__GDRIVE_URL", "REMOTE_SOURCE__GDRIVE_URL"):
         value = os.getenv(key)
@@ -175,6 +170,7 @@ def _default_remote_gdrive_url() -> SecretStr | None:
         if stripped:
             return SecretStr(stripped)
     return None
+
 
 class RemoteSourceConfig(BaseModel):
     """Configuration for remote ZIP sources such as Google Drive."""
@@ -200,8 +196,6 @@ class RemoteSourceConfig(BaseModel):
         raw = raw.strip()
         if not raw:
             return None
-
-        from urllib.parse import urlparse
 
         parsed = urlparse(raw)
         if parsed.scheme not in {"https"} or not parsed.netloc:
@@ -232,12 +226,8 @@ class PipelineConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    zips_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips")
-    )
-    posts_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data/posts")
-    )
+    zips_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips"))
+    posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
     post_language: str = "pt-BR"
     default_post_author: str = "egregora"
     media_url_prefix: str | None = None
@@ -251,7 +241,7 @@ class PipelineConfig(BaseSettings):
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     remote_source: RemoteSourceConfig = Field(default_factory=RemoteSourceConfig)
-    merges: dict[str, MergeConfig] = Field(default_factory=dict)
+    merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
     use_dataframe_pipeline: bool = Field(
@@ -352,39 +342,46 @@ class PipelineConfig(BaseSettings):
 
     @field_validator("merges", mode="before")
     @classmethod
-    def _validate_merges(cls, value: Any) -> dict[str, MergeConfig]:
+    def _validate_merges(cls, value: Any) -> dict[GroupSlug, MergeConfig]:
         if value is None:
             return {}
         if not isinstance(value, dict):
             raise TypeError("merges must be a mapping")
 
-        merges: dict[str, MergeConfig] = {}
-        for slug, payload in value.items():
+        merges: dict[GroupSlug, MergeConfig] = {}
+        for raw_slug, payload in value.items():
+            slug = GroupSlug(str(raw_slug))
             if not isinstance(payload, dict):
                 raise TypeError(f"Merge '{slug}' must be a mapping")
+
             tag_style = payload.get("tag_style", "emoji")
             if tag_style not in _VALID_TAG_STYLES:
-                raise ValueError(
-                    f"Invalid tag_style '{tag_style}' for merge '{slug}'"
-                )
+                raise ValueError(f"Invalid tag_style '{tag_style}' for merge '{slug}'")
+
             groups = payload.get("groups", [])
             if not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
                 raise ValueError(f"Merge '{slug}' groups must be a list of strings")
             if not groups:
-                raise ValueError(
-                    f"Merge '{slug}' must include at least one source group"
-                )
+                raise ValueError(f"Merge '{slug}' must include at least one source group")
+
+            source_groups = [GroupSlug(group) for group in groups]
+
+            raw_emojis = payload.get("emojis", {})
+            if not isinstance(raw_emojis, dict):
+                raise TypeError(f"Merge '{slug}' emojis must be a mapping of slug to emoji")
+            group_emojis = {GroupSlug(str(key)): str(value) for key, value in raw_emojis.items()}
+
             merges[slug] = MergeConfig(
                 name=payload["name"],
-                source_groups=list(groups),
+                source_groups=source_groups,
                 tag_style=tag_style,  # type: ignore[arg-type]
-                group_emojis=payload.get("emojis", {}),
+                group_emojis=group_emojis,
                 model_override=payload.get("model"),
             )
         return merges
 
     @classmethod
-    def with_defaults(
+    def with_defaults(  # noqa: PLR0912, PLR0913
         cls,
         *,
         zips_dir: Path | None = None,
@@ -404,7 +401,7 @@ class PipelineConfig(BaseSettings):
         skip_real_if_in_virtual: bool | None = None,
         system_message_filters_file: Path | None = None,
         use_dataframe_pipeline: bool | None = None,
-    ) -> "PipelineConfig":
+    ) -> PipelineConfig:
         payload: dict[str, Any] = {}
         if zips_dir is not None:
             payload["zips_dir"] = zips_dir
@@ -443,7 +440,7 @@ class PipelineConfig(BaseSettings):
         return cls(**payload)
 
     @classmethod
-    def from_toml(cls, toml_path: Path) -> "PipelineConfig":
+    def from_toml(cls, toml_path: Path) -> PipelineConfig:  # noqa: PLR0912
         data = _load_toml_data(toml_path)
         payload: dict[str, Any] = {}
 
@@ -483,9 +480,7 @@ class PipelineConfig(BaseSettings):
     def safe_dict(self) -> dict[str, Any]:
         """Return a dictionary representation with sensitive values redacted."""
 
-        data = copy.deepcopy(
-            self.model_dump(mode="python", exclude_none=True, round_trip=True)
-        )
+        data = copy.deepcopy(self.model_dump(mode="python", exclude_none=True, round_trip=True))
         remote = data.get("remote_source")
         if isinstance(remote, dict) and "gdrive_url" in remote:
             remote["gdrive_url"] = self.remote_source.masked_gdrive_url()
@@ -502,17 +497,15 @@ def _ensure_safe_directory(path_value: Any) -> Path:
 
     base_dir = Path.cwd().resolve()
     resolved = (
-        (base_dir / candidate).resolve()
-        if not candidate.is_absolute()
-        else candidate.resolve()
+        (base_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
     )
 
     try:
         resolved.relative_to(base_dir)
-    except ValueError:
+    except ValueError as exc:
         raise ValueError(
             f"Directory path '{candidate}' must reside within the project directory"
-        )
+        ) from exc
 
     return resolved
 
@@ -522,8 +515,6 @@ _MAX_TOML_BYTES = 512 * 1024
 
 def _load_toml_data(toml_path: Path) -> dict[str, Any]:
     """Load TOML data from ``toml_path`` with strict validation."""
-
-    import tomllib
 
     if not toml_path.exists():
         raise FileNotFoundError(toml_path)
@@ -541,9 +532,7 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
     try:
         decoded = content.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValueError(
-            f"Configuration file '{toml_path}' must be UTF-8 encoded"
-        ) from exc
+        raise ValueError(f"Configuration file '{toml_path}' must be UTF-8 encoded") from exc
 
     data = tomllib.loads(decoded)
 

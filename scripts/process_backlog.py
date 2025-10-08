@@ -23,7 +23,7 @@ class ProcessBacklogSummary:
     undated_files: list[str]
 
 
-def process_backlog(
+def process_backlog(  # noqa: PLR0912
     zip_dir: str | Path,
     output_dir: str | Path,
     force: bool = False,
@@ -161,6 +161,6 @@ if __name__ == "__main__":
 
     if args.quiet:
         print(
-            "Processed {summary.zip_count} ZIP(s), {summary.groups_processed} group(s), "
-            "{summary.posts_generated} post(s)".format(summary=summary)
+            f"Processed {summary.zip_count} ZIP(s), {summary.groups_processed} group(s), "
+            f"{summary.posts_generated} post(s)"
         )

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date, timezone
-from pathlib import Path
 import sys
+from datetime import UTC, date
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.pipeline import build_llm_input, _anonymize_transcript_line
+from egregora.pipeline import _anonymize_transcript_line, build_llm_input
 
 
 def _build_transcript(day: int) -> tuple[date, str]:
@@ -18,7 +18,7 @@ def _build_transcript(day: int) -> tuple[date, str]:
 def test_build_llm_input_uses_singular_label_for_one_day() -> None:
     prompt = build_llm_input(
         group_name="Grupo Teste",
-        timezone=timezone.utc,
+        timezone=UTC,
         transcripts=[_build_transcript(1)],
         previous_post=None,
     )
@@ -29,7 +29,7 @@ def test_build_llm_input_uses_singular_label_for_one_day() -> None:
 def test_build_llm_input_uses_plural_label_for_multiple_days() -> None:
     prompt = build_llm_input(
         group_name="Grupo Teste",
-        timezone=timezone.utc,
+        timezone=UTC,
         transcripts=[
             _build_transcript(1),
             _build_transcript(2),

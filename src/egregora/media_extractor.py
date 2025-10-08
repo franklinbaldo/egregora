@@ -5,15 +5,16 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import shutil
 import uuid
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable
 
 import polars as pl
+
+from .types import GroupSlug
 
 MEDIA_TYPE_BY_EXTENSION = {
     # Images
@@ -48,6 +49,8 @@ MEDIA_TYPE_BY_EXTENSION = {
     ".zip": "document",
 }
 
+MEDIA_SUFFIX_MIN_PARTS = 2
+
 
 @dataclass(slots=True)
 class MediaFile:
@@ -65,16 +68,15 @@ class MediaExtractor:
 
     _ATTACHMENT_MARKER = "(arquivo anexado)"
     _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
-    _attachment_pattern = re.compile(
-        rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE
-    )
+    _attachment_pattern = re.compile(rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE)
 
-    def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
+    def __init__(self, group_dir: Path, *, group_slug: GroupSlug | None = None) -> None:
         self.group_dir = group_dir
         self.group_dir.mkdir(parents=True, exist_ok=True)
 
-        slug = (group_slug or "shared").strip() or "shared"
-        self.group_slug = slug
+        raw_slug = group_slug or "shared"
+        slug = str(raw_slug).strip() or "shared"
+        self.group_slug: GroupSlug = GroupSlug(slug)
 
         self.media_base_dir = self.group_dir / "media"
         self.media_base_dir.mkdir(parents=True, exist_ok=True)
@@ -86,15 +88,13 @@ class MediaExtractor:
         zip_path: Path,
         post_date: date,
         filenames: Iterable[str],
-    ) -> Dict[str, MediaFile]:
+    ) -> dict[str, MediaFile]:
         """Extract only ``filenames`` from *zip_path* into ``post_date`` directory."""
 
-        extracted: Dict[str, MediaFile] = {}
+        extracted: dict[str, MediaFile] = {}
         target_dir = self.media_base_dir
 
-        cleaned_targets = {
-            self._clean_attachment_name(name): name for name in filenames if name
-        }
+        cleaned_targets = {self._clean_attachment_name(name): name for name in filenames if name}
         if not cleaned_targets:
             return {}
 
@@ -149,7 +149,7 @@ class MediaExtractor:
         self,
         zip_path: Path,
         post_date: date,
-    ) -> Dict[str, MediaFile]:
+    ) -> dict[str, MediaFile]:
         """Extract all recognised media files from *zip_path*."""
 
         with zipfile.ZipFile(zip_path, "r") as zipped:
@@ -157,9 +157,7 @@ class MediaExtractor:
                 Path(info.filename).name
                 for info in zipped.infolist()
                 if not info.is_dir()
-                and self._detect_media_type(
-                    self._clean_attachment_name(Path(info.filename).name)
-                )
+                and self._detect_media_type(self._clean_attachment_name(Path(info.filename).name))
             ]
 
         return self.extract_specific_media_from_zip(
@@ -172,60 +170,13 @@ class MediaExtractor:
         extension = Path(filename).suffix.lower()
         return MEDIA_TYPE_BY_EXTENSION.get(extension)
 
-    @staticmethod
-    def replace_media_references(
-        text: str,
-        media_files: Dict[str, MediaFile],
-        *,
-        public_paths: Dict[str, str] | None = None,
-    ) -> str:
-        """Replace WhatsApp attachment markers with Markdown references."""
-
-        if not media_files:
-            return text
-
-        lines: list[str] = []
-        for raw_line in text.splitlines(keepends=True):
-            if raw_line.endswith("\n"):
-                line = raw_line[:-1]
-                newline = "\n"
-            else:
-                line = raw_line
-                newline = ""
-
-            extracted = MediaExtractor._extract_attachment_segment(line)
-            if extracted is None:
-                lines.append(raw_line)
-                continue
-
-            sanitized_name, original_segment = extracted
-            key, media = MediaExtractor._lookup_media(sanitized_name, media_files)
-            if media is None:
-                lines.append(raw_line)
-                continue
-
-            path = (
-                public_paths.get(key)
-                if public_paths and key in public_paths
-                else media.relative_path
-            )
-
-            markdown = MediaExtractor._format_markdown_reference(media, path)
-            replaced = line.replace(
-                original_segment,
-                f"{markdown} _(arquivo anexado)_",
-            )
-            lines.append(replaced + newline)
-
-        return "".join(lines)
-
     @classmethod
     def replace_media_references_dataframe(
         cls,
         df: pl.DataFrame,
-        media_files: Dict[str, MediaFile],
+        media_files: dict[str, MediaFile],
         *,
-        public_paths: Dict[str, str] | None = None,
+        public_paths: dict[str, str] | None = None,
         column: str | None = None,
     ) -> pl.DataFrame:
         """Return a DataFrame with attachment markers expanded in ``column``."""
@@ -276,9 +227,7 @@ class MediaExtractor:
                     path = media.relative_path
 
                 markdown = cls._format_markdown_reference(media, path)
-                return segment.replace(
-                    original_segment, f"{markdown} _(arquivo anexado)_"
-                )
+                return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
 
             return pattern.sub(replacement, text)
 
@@ -293,9 +242,9 @@ class MediaExtractor:
     def replace_media_references(
         cls,
         text: str,
-        media_files: Dict[str, MediaFile],
+        media_files: dict[str, MediaFile],
         *,
-        public_paths: Dict[str, str] | None = None,
+        public_paths: dict[str, str] | None = None,
     ) -> str:
         """Return ``text`` with attachment markers replaced by Markdown links."""
 
@@ -321,15 +270,6 @@ class MediaExtractor:
             return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
 
         return pattern.sub(replacement, text)
-        attachments: set[str] = set()
-        for line in text.splitlines():
-            extracted = cls._extract_attachment_segment(line)
-            if extracted is None:
-                continue
-            sanitized_name, _ = extracted
-            if sanitized_name:
-                attachments.add(sanitized_name)
-        return attachments
 
     @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
@@ -340,9 +280,7 @@ class MediaExtractor:
 
         frame = df
         if "time" not in frame.columns:
-            frame = frame.with_columns(
-                pl.col("timestamp").dt.strftime("%H:%M").alias("time")
-            )
+            frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("time"))
         time_expr = (
             pl.when(pl.col("time").is_not_null())
             .then(pl.col("time"))
@@ -393,9 +331,9 @@ class MediaExtractor:
 
     @staticmethod
     def format_media_section(
-        media_files: Dict[str, MediaFile],
+        media_files: dict[str, MediaFile],
         *,
-        public_paths: Dict[str, str] | None = None,
+        public_paths: dict[str, str] | None = None,
     ) -> str | None:
         """Return a Markdown bullet list describing the shared media."""
 
@@ -427,17 +365,17 @@ class MediaExtractor:
 
     @staticmethod
     def build_public_paths(
-        media_files: Dict[str, MediaFile],
+        media_files: dict[str, MediaFile],
         *,
         relative_to: Path | None = None,
         url_prefix: str | None = None,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Return paths suitable for linking from a post."""
 
         if not media_files:
             return {}
 
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
 
         if url_prefix:
             absolute = url_prefix.startswith("/")
@@ -448,7 +386,7 @@ class MediaExtractor:
                 suffix_parts = list(PurePosixPath(media.relative_path).parts)
                 if suffix_parts and suffix_parts[0] in {"data", "posts"}:
                     suffix_parts = suffix_parts[1:]
-                if len(suffix_parts) >= 2 and suffix_parts[1] == "media":
+                if len(suffix_parts) >= MEDIA_SUFFIX_MIN_PARTS and suffix_parts[1] == "media":
                     suffix_parts = [suffix_parts[0], *suffix_parts[2:]]
                 suffix = PurePosixPath(*suffix_parts)
                 combined = prefix_path.joinpath(suffix) if prefix_path else suffix
@@ -470,7 +408,7 @@ class MediaExtractor:
 
     @staticmethod
     def _lookup_media(
-        filename: str, media_files: Dict[str, MediaFile]
+        filename: str, media_files: dict[str, MediaFile]
     ) -> tuple[str | None, MediaFile | None]:
         """Find a media file by its original name, returning the key and the file."""
         canonical = MediaExtractor._clean_attachment_name(Path(filename).name)

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any
 
 
 def _format_list(items: Sequence[str]) -> str:
@@ -19,7 +20,7 @@ def _format_mapping(mapping: Mapping[str, Any]) -> str:
 
     lines: list[str] = []
     for key, value in mapping.items():
-        if isinstance(value, (list, tuple, set)):
+        if isinstance(value, list | tuple | set):
             values = ", ".join(str(item) for item in value)
         else:
             values = str(value)
@@ -33,10 +34,10 @@ class ParticipantProfile:
 
     member_id: str
     worldview_summary: str = ""
-    core_interests: Dict[str, Sequence[str] | str] = field(default_factory=dict)
+    core_interests: dict[str, Sequence[str] | str] = field(default_factory=dict)
     thinking_style: str = ""
     values_and_priorities: list[str] = field(default_factory=list)
-    expertise_areas: Dict[str, Sequence[str] | str] = field(default_factory=dict)
+    expertise_areas: dict[str, Sequence[str] | str] = field(default_factory=dict)
     contribution_style: str = ""
     argument_patterns: list[str] = field(default_factory=list)
     questioning_approach: str = ""
@@ -45,12 +46,12 @@ class ParticipantProfile:
     debates_with: list[str] = field(default_factory=list)
     recent_shifts: list[str] = field(default_factory=list)
     growing_interests: list[str] = field(default_factory=list)
-    interaction_patterns: Dict[str, str] = field(default_factory=dict)
+    interaction_patterns: dict[str, str] = field(default_factory=dict)
     markdown_document: str | None = None
     last_updated: datetime = field(default_factory=lambda: datetime.now(UTC))
     analysis_version: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the profile into a JSON-friendly dictionary."""
 
         return {
@@ -75,7 +76,7 @@ class ParticipantProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "ParticipantProfile":
+    def from_dict(cls, data: Mapping[str, Any]) -> ParticipantProfile:
         """Deserialize a profile from a dictionary."""
 
         last_updated_raw = data.get("last_updated")
@@ -90,7 +91,9 @@ class ParticipantProfile:
                 last_updated = datetime.now(UTC)
         elif isinstance(last_updated_raw, datetime):
             last_updated = (
-                last_updated_raw if last_updated_raw.tzinfo else last_updated_raw.replace(tzinfo=UTC)
+                last_updated_raw
+                if last_updated_raw.tzinfo
+                else last_updated_raw.replace(tzinfo=UTC)
             )
         else:
             last_updated = datetime.now(UTC)
@@ -111,7 +114,9 @@ class ParticipantProfile:
             recent_shifts=list(data.get("recent_shifts", [])),
             growing_interests=list(data.get("growing_interests", [])),
             interaction_patterns=dict(data.get("interaction_patterns", {})),
-            markdown_document=str(data.get("markdown_document")) if data.get("markdown_document") else None,
+            markdown_document=str(data.get("markdown_document"))
+            if data.get("markdown_document")
+            else None,
             last_updated=last_updated,
             analysis_version=int(data.get("analysis_version", 0)),
         )
@@ -134,9 +139,7 @@ class ParticipantProfile:
             "participation_timing", "Em observação"
         )
         response_style = self.interaction_patterns.get("response_style", "Em observação")
-        influence_on_group = self.interaction_patterns.get(
-            "influence_on_group", "Em observação"
-        )
+        influence_on_group = self.interaction_patterns.get("influence_on_group", "Em observação")
 
         aligns_with = ", ".join(self.aligns_with) if self.aligns_with else "Diversos membros"
         debates_with = ", ".join(self.debates_with) if self.debates_with else "Diversos membros"

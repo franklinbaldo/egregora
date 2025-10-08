@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -10,18 +9,18 @@ class Part:
     file_uri: str | None = None
 
     @classmethod
-    def from_text(cls, text: str) -> "Part":
+    def from_text(cls, text: str) -> Part:
         return cls(text=text)
 
     @classmethod
-    def from_uri(cls, file_uri: str) -> "Part":
+    def from_uri(cls, file_uri: str) -> Part:
         return cls(file_uri=file_uri)
 
 
 @dataclass
 class Content:
     role: str
-    parts: List[Part]
+    parts: list[Part]
 
 
 @dataclass

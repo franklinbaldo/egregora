@@ -7,27 +7,28 @@ import re
 import unicodedata
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
 
 from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
+from .types import GroupSlug
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 logger = logging.getLogger(__name__)
 
 
-def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
+def discover_groups(zips_dir: Path) -> dict[GroupSlug, list[WhatsAppExport]]:
     """
     Scan ZIP files and return discovered groups.
-    
+
     Returns:
         {slug: [exports]} ordered by date
     """
-    
-    groups = defaultdict(list)
-    
+
+    groups: defaultdict[GroupSlug, list[WhatsAppExport]] = defaultdict(list)
+
     for zip_path in sorted(zips_dir.rglob("*.zip")):
         if zip_path.is_symlink():
             logger.warning("Skipping %s: refusing to follow symlink", zip_path.name)
@@ -45,20 +46,18 @@ def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
             continue
 
         groups[export.group_slug].append(export)
-        logger.debug(
-            "Discovered export for %s (%s)", export.group_name, export.group_slug
-        )
-    
+        logger.debug("Discovered export for %s (%s)", export.group_name, export.group_slug)
+
     # Sort exports by date
     for slug in groups:
         groups[slug].sort(key=lambda e: e.export_date)
-    
+
     return dict(groups)
 
 
 def _extract_metadata(zip_path: Path) -> WhatsAppExport:
     """Extract metadata from a ZIP file."""
-    
+
     with zipfile.ZipFile(zip_path) as zf:
         validate_zip_contents(zf)
 
@@ -75,11 +74,7 @@ def _extract_metadata(zip_path: Path) -> WhatsAppExport:
         # Extract date
         export_date = _extract_date(zip_path, zf, chat_file)
 
-        media_files = [
-            f
-            for f in zf.namelist()
-            if f != chat_file and not f.startswith("__MACOSX")
-        ]
+        media_files = [f for f in zf.namelist() if f != chat_file and not f.startswith("__MACOSX")]
 
         return WhatsAppExport(
             zip_path=zip_path,
@@ -96,36 +91,36 @@ def _extract_group_name(filename: str) -> str:
     Extract group name from internal .txt file.
     Supports PT, EN, ES.
     """
-    
+
     patterns = [
-        r'Conversa do WhatsApp com (.+?)\.txt',      # PT
-        r'WhatsApp Chat with (.+?)\.txt',            # EN
-        r'Chat de WhatsApp con (.+?)\.txt',          # ES
-        r'Conversación de WhatsApp con (.+?)\.txt',  # ES alt
+        r"Conversa do WhatsApp com (.+?)\.txt",  # PT
+        r"WhatsApp Chat with (.+?)\.txt",  # EN
+        r"Chat de WhatsApp con (.+?)\.txt",  # ES
+        r"Conversación de WhatsApp con (.+?)\.txt",  # ES alt
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, filename, re.IGNORECASE)
         if match:
             return match.group(1).strip()
-    
+
     # Fallback
-    return filename.replace('.txt', '').strip()
+    return filename.replace(".txt", "").strip()
 
 
-def _slugify(text: str) -> str:
+def _slugify(text: str) -> GroupSlug:
     """Convert to filesystem-safe slug."""
-    
+
     # Remove accents
-    text = unicodedata.normalize('NFKD', text)
-    text = text.encode('ascii', 'ignore').decode('ascii')
-    
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+
     # Lowercase, remove special chars, replace spaces
     text = text.lower()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[-\s]+', '-', text)
-    
-    return text.strip('-')
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[-\s]+", "-", text)
+
+    return GroupSlug(text.strip("-"))
 
 
 def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
@@ -151,23 +146,25 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
 
                     parsed_date = parse_flexible_date(match.group(1))
                     if parsed_date:
-                        logger.debug("ZIP '%s': Date extracted from content (%s)", zip_path.name, parsed_date)
+                        logger.debug(
+                            "ZIP '%s': Date extracted from content (%s)", zip_path.name, parsed_date
+                        )
                         return parsed_date
         except (UnicodeDecodeError, ZipValidationError) as exc:
             logger.debug("Failed to parse date from %s: %s", chat_file, exc)
 
     timestamp = zip_path.stat().st_mtime
     fallback_date = datetime.fromtimestamp(timestamp).date()
-    
+
     logger.warning(
         "ZIP '%s': Date extracted from file mtime (%s). "
         "Consider renaming to '%s-%s' for explicit control.",
         zip_path.name,
         fallback_date,
         fallback_date,
-        zip_path.name
+        zip_path.name,
     )
-    
+
     return fallback_date
 
 

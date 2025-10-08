@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-import hashlib
-import uuid
 
 from diskcache import Cache
 
@@ -26,9 +26,7 @@ class CacheStats:
 
     def as_dict(self, total_entries: int) -> dict[str, float | int | None]:
         total_requests = self.cache_hits + self.cache_misses
-        hit_rate = (
-            self.cache_hits / total_requests if total_requests else 0.0
-        )
+        hit_rate = self.cache_hits / total_requests if total_requests else 0.0
         return {
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
@@ -45,9 +43,7 @@ class CacheManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         # diskcache uses 0 for no limit, not None.
-        size_in_bytes = (
-            0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
-        )
+        size_in_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
         self._cache = Cache(directory=str(self.cache_dir), size_limit=size_in_bytes)
         stats = self._cache.get(_STATS_KEY, default=None)
         self._stats = stats if isinstance(stats, CacheStats) else CacheStats()
@@ -159,7 +155,7 @@ class CacheManager:
 
     @staticmethod
     def _now() -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     @classmethod
     def _now_iso(cls) -> str:
@@ -170,7 +166,7 @@ class CacheManager:
         if not value:
             return None
         try:
-            return datetime.strptime(value, ISO_FORMAT).replace(tzinfo=timezone.utc)
+            return datetime.strptime(value, ISO_FORMAT).replace(tzinfo=UTC)
         except ValueError:
             return None
 
@@ -218,9 +214,7 @@ class CacheManager:
         if len(path) > 1:
             path = path.rstrip("/")
 
-        query = urlencode(
-            sorted(parse_qsl(parts.query, keep_blank_values=True)), doseq=True
-        )
+        query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)), doseq=True)
 
         return urlunparse((scheme, netloc, path, parts.params, query, ""))
 

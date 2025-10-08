@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List
+from collections.abc import Iterable
+from typing import Any
 
 try:  # pragma: no cover - optional dependency
     from llama_index.core.schema import NodeWithScore
@@ -40,7 +41,7 @@ def format_search_hits(hits: Iterable[NodeWithScore]) -> str:
     return "\n".join(lines).rstrip()
 
 
-def serialize_hits(hits: Iterable[NodeWithScore]) -> List[dict]:
+def serialize_hits(hits: Iterable[NodeWithScore]) -> list[dict]:
     """Return ``hits`` converted to dictionaries for transport."""
 
     items: list[dict] = []

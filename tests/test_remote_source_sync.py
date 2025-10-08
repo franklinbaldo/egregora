@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import zipfile
@@ -18,18 +17,31 @@ def target_dir(tmp_path: Path) -> Path:
     return path
 
 
-def test_sync_remote_zips_downloads_folder(monkeypatch: pytest.MonkeyPatch, target_dir: Path) -> None:
+def test_sync_remote_zips_downloads_folder(
+    monkeypatch: pytest.MonkeyPatch, target_dir: Path
+) -> None:
     captured: dict[str, object] = {}
 
-    def fake_download_folder(*, url: str, output: str, quiet: bool, use_cookies: bool, remaining_ok: bool, resume: bool, **kwargs):
-        captured.update({
-            "url": url,
-            "output": output,
-            "quiet": quiet,
-            "use_cookies": use_cookies,
-            "remaining_ok": remaining_ok,
-            "resume": resume,
-        })
+    def fake_download_folder(  # noqa: PLR0913
+        *,
+        url: str,
+        output: str,
+        quiet: bool,
+        use_cookies: bool,
+        remaining_ok: bool,
+        resume: bool,
+        **kwargs,
+    ):
+        captured.update(
+            {
+                "url": url,
+                "output": output,
+                "quiet": quiet,
+                "use_cookies": use_cookies,
+                "remaining_ok": remaining_ok,
+                "resume": resume,
+            }
+        )
         nested = Path(output) / "folder" / "export.zip"
         nested.parent.mkdir(parents=True, exist_ok=True)
         nested.write_bytes(b"data")
@@ -62,7 +74,15 @@ def test_sync_remote_zips_downloads_folder(monkeypatch: pytest.MonkeyPatch, targ
 def test_sync_remote_zips_downloads_file(monkeypatch: pytest.MonkeyPatch, target_dir: Path) -> None:
     calls: list[tuple[str, str]] = []
 
-    def fake_download(url: str, output: str, quiet: bool, use_cookies: bool, fuzzy: bool, resume: bool, **kwargs):
+    def fake_download(  # noqa: PLR0913
+        url: str,
+        output: str,
+        quiet: bool,
+        use_cookies: bool,
+        fuzzy: bool,
+        resume: bool,
+        **kwargs,
+    ):
         calls.append((url, output))
         destination = Path(output.rstrip("/")) / "single.zip"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -101,9 +121,19 @@ def test_sync_remote_zips_wraps_errors(monkeypatch: pytest.MonkeyPatch, target_d
     assert "failure" in str(exc.value)
 
 
-
-def test_sync_remote_zips_renames_missing_extension(monkeypatch: pytest.MonkeyPatch, target_dir: Path) -> None:
-    def fake_download_folder(*, url: str, output: str, quiet: bool, use_cookies: bool, remaining_ok: bool, resume: bool, **kwargs):
+def test_sync_remote_zips_renames_missing_extension(
+    monkeypatch: pytest.MonkeyPatch, target_dir: Path
+) -> None:
+    def fake_download_folder(  # noqa: PLR0913
+        *,
+        url: str,
+        output: str,
+        quiet: bool,
+        use_cookies: bool,
+        remaining_ok: bool,
+        resume: bool,
+        **kwargs,
+    ):
         nested = Path(output) / "folder" / "export"
         nested.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(nested, "w") as zf:

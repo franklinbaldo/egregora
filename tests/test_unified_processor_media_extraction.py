@@ -1,6 +1,6 @@
-from pathlib import Path
-import zipfile
 import shutil
+import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -25,14 +25,14 @@ def config_with_media(tmp_path: Path) -> PipelineConfig:
     chat_txt_path = tmp_path / "_chat.txt"
     with open(chat_txt_path, "w") as f:
         f.write("03/10/2025 09:46 - Franklin: ‎IMG-20251002-WA0004.jpg (arquivo anexado)\n")
-    
+
     media_path = tmp_path / "IMG-20251002-WA0004.jpg"
     with open(media_path, "w") as f:
         f.write("dummy image data")
 
-    with zipfile.ZipFile(zip_path, 'w') as zf:
-        zf.write(chat_txt_path, arcname='_chat.txt')
-        zf.write(media_path, arcname='IMG-20251002-WA0004.jpg')
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(chat_txt_path, arcname="_chat.txt")
+        zf.write(media_path, arcname="IMG-20251002-WA0004.jpg")
 
     return PipelineConfig.with_defaults(
         zips_dir=zips_dir,
@@ -47,13 +47,17 @@ def test_unified_processor_extracts_media(config_with_media: PipelineConfig, mon
     class MockLLMClient:
         def __init__(self):
             self.models = self
+
         def generate_content_stream(self, model, contents, config):
             transcript = contents[0].parts[0].text
+
             class MockStream:
                 def __init__(self, text):
                     self.text = text
+
                 def __iter__(self):
                     yield self
+
             return MockStream(f"Post.\n{transcript}")
 
     def mock_create_client():
