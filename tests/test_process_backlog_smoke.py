@@ -4,9 +4,25 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
+from egregora.config import PipelineConfig
 from scripts.process_backlog import process_backlog
+
+
+_ORIGINAL_WITH_DEFAULTS = PipelineConfig.with_defaults
+
+
+def _offline_defaults(**kwargs) -> PipelineConfig:
+    """Return a pipeline configuration with online features disabled."""
+
+    config = _ORIGINAL_WITH_DEFAULTS(**kwargs)
+    config.enrichment.enabled = False
+    config.cache.enabled = False
+    config.rag.enabled = False
+    config.profiles.enabled = False
+    return config
 
 
 def test_process_backlog_generates_posts() -> None:
@@ -19,7 +35,17 @@ def test_process_backlog_generates_posts() -> None:
     sample_zip = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     shutil.copy(sample_zip, zip_dir / sample_zip.name)
 
-    summary = process_backlog(zip_dir, output_dir, force=True, verbose=False)
+    with (
+        patch(
+            "scripts.process_backlog.PipelineConfig.with_defaults",
+            side_effect=_offline_defaults,
+        ),
+        patch(
+            "egregora.generator.PostGenerator.generate",
+            return_value="## Post de teste\nConteúdo sintético.",
+        ),
+    ):
+        summary = process_backlog(zip_dir, output_dir, force=True, verbose=False)
 
     assert summary.zip_count == 1
     assert summary.posts_generated >= 1
