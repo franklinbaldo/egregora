@@ -8,14 +8,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.cache_manager import ISO_FORMAT, CacheManager
+from egregora.cache_manager import CacheManager
 
 EXPECTED_RELEVANCE_SCORE = 4
 EXPECTED_CACHE_HIT_RATE = 0.5
 
 
 def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
-    timestamp = datetime.now(UTC).strftime(ISO_FORMAT)
+    timestamp = datetime.now(UTC).isoformat()
     return {
         "model": model,
         "analyzed_at": timestamp,
@@ -102,7 +102,7 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
     uuid_value = manager.generate_uuid(url)
     entry = manager._cache.get(uuid_value)  # type: ignore[attr-defined]
     assert entry is not None
-    entry["last_used"] = (datetime.now(UTC) - timedelta(days=120)).strftime(ISO_FORMAT)
+    entry["last_used"] = datetime.now(UTC) - timedelta(days=120)
     manager._cache.set(uuid_value, entry)  # type: ignore[attr-defined]
 
     removed = manager.cleanup_old_entries(90)
