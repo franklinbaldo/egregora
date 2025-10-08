@@ -321,7 +321,7 @@ class PostRAG:
         return documents
 
     def _collect_post_paths(self) -> list[Path]:
-        """Return markdown posts, supporting both legacy and nested layouts."""
+        """Return markdown posts stored in the nested directory layout."""
 
         return sorted(
             (
