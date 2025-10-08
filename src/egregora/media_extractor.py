@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import uuid
 import zipfile
@@ -64,6 +65,9 @@ class MediaExtractor:
 
     _ATTACHMENT_MARKER = "(arquivo anexado)"
     _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
+    _attachment_pattern = re.compile(
+        rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE
+    )
 
     def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
         self.group_dir = group_dir
@@ -250,13 +254,33 @@ class MediaExtractor:
             raise KeyError(f"Column '{target_column}' not found in DataFrame")
 
         paths = public_paths or cls.build_public_paths(media_files)
+        pattern = cls._attachment_pattern
 
         def _replace(text: str | None) -> str:
-            return cls.replace_media_references(
-                text or "",
-                media_files,
-                public_paths=paths,
-            )
+            if not text:
+                return ""
+
+            def replacement(match: re.Match[str]) -> str:
+                segment = match.group(0)
+                extracted = cls._extract_attachment_segment(segment)
+                if extracted is None:
+                    return segment
+
+                sanitized_name, original_segment = extracted
+                key, media = cls._lookup_media(sanitized_name, media_files)
+                if media is None:
+                    return segment
+
+                path = paths.get(key) if key and key in paths else None
+                if path is None:
+                    path = media.relative_path
+
+                markdown = cls._format_markdown_reference(media, path)
+                return segment.replace(
+                    original_segment, f"{markdown} _(arquivo anexado)_"
+                )
+
+            return pattern.sub(replacement, text)
 
         return df.with_columns(
             pl.col(target_column)
@@ -266,9 +290,37 @@ class MediaExtractor:
         )
 
     @classmethod
-    def find_attachment_names(cls, text: str) -> set[str]:
-        """Return sanitized attachment filenames referenced in *text*."""
+    def replace_media_references(
+        cls,
+        text: str,
+        media_files: Dict[str, MediaFile],
+        *,
+        public_paths: Dict[str, str] | None = None,
+    ) -> str:
+        """Return ``text`` with attachment markers replaced by Markdown links."""
 
+        if not text or not media_files:
+            return text
+
+        paths = public_paths or cls.build_public_paths(media_files)
+        pattern = cls._attachment_pattern
+
+        def replacement(match: re.Match[str]) -> str:
+            segment = match.group(0)
+            extracted = cls._extract_attachment_segment(segment)
+            if extracted is None:
+                return segment
+
+            sanitized_name, original_segment = extracted
+            key, media = cls._lookup_media(sanitized_name, media_files)
+            if media is None:
+                return segment
+
+            path = paths.get(key) if key and key in paths else media.relative_path
+            markdown = cls._format_markdown_reference(media, path)
+            return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
+
+        return pattern.sub(replacement, text)
         attachments: set[str] = set()
         for line in text.splitlines():
             extracted = cls._extract_attachment_segment(line)

@@ -9,22 +9,86 @@ import os
 import re
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from typing import Sequence
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import EnrichmentConfig
-from egregora.enrichment import (
-    ContentEnricher,
-    URL_RE,
-    MESSAGE_RE,
-    EnrichmentResult,
-)
+import polars as pl
+
+from egregora.enrichment import ContentEnricher, URL_RE, EnrichmentResult
 from egregora.cache_manager import CacheManager
 from test_framework.helpers import TestDataGenerator
+
+
+_LINE_PATTERN = re.compile(
+    r"^(?P<date>\d{1,2}/\d{1,2}/\d{2,4})\s+(?P<time>\d{1,2}:\d{2})\s*-\s*(?P<rest>.+)$"
+)
+
+
+def _transcripts_to_frame(
+    transcripts: Sequence[tuple[date, str]]
+) -> pl.DataFrame:
+    rows: list[dict[str, object]] = []
+
+    for provided_date, transcript in transcripts:
+        base_dt = datetime.combine(provided_date, time.min)
+        offset = 0
+        for raw_line in transcript.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            match = _LINE_PATTERN.match(line)
+            if match:
+                date_str = match.group("date")
+                time_str = match.group("time")
+                rest = match.group("rest")
+                try:
+                    parsed_dt = datetime.strptime(
+                        f"{date_str} {time_str}", "%d/%m/%Y %H:%M"
+                    )
+                except ValueError:
+                    parsed_dt = base_dt + timedelta(minutes=offset)
+                if ": " in rest:
+                    author, message = rest.split(": ", 1)
+                else:
+                    author, message = "", rest
+                rows.append(
+                    {
+                        "date": parsed_dt.date(),
+                        "timestamp": parsed_dt,
+                        "author": author,
+                        "message": message,
+                    }
+                )
+            else:
+                current_dt = base_dt + timedelta(minutes=offset)
+                rows.append(
+                    {
+                        "date": current_dt.date(),
+                        "timestamp": current_dt,
+                        "author": "",
+                        "message": line,
+                    }
+                )
+            offset += 1
+
+    if not rows:
+        return pl.DataFrame(
+            {
+                "date": [transcripts[0][0]],
+                "timestamp": [datetime.combine(transcripts[0][0], time.min)],
+                "author": [""],
+                "message": [transcripts[0][1]],
+            }
+        )
+
+    return pl.DataFrame(rows)
 
 
 class MockGeminiModel:
@@ -124,7 +188,11 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     mock_client = MockGeminiClient()
 
     enricher = ContentEnricher(config, cache_manager=cache_manager)
-    result = asyncio.run(enricher.enrich([(date.today(), conversation_with_urls)], client=mock_client))
+    transcripts = [(date.today(), conversation_with_urls)]
+    frame = _transcripts_to_frame(transcripts)
+    result = asyncio.run(
+        enricher.enrich_dataframe(frame, client=mock_client)
+    )
 
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) >= 1
@@ -144,17 +212,21 @@ def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
     mock_client = MockGeminiClient()
 
     enricher = ContentEnricher(config, cache_manager=cache_manager)
-    asyncio.run(enricher.enrich(transcript, client=mock_client))
+    frame = _transcripts_to_frame(transcript)
+    asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
     assert mock_client.call_count == 1
 
-    asyncio.run(enricher.enrich(transcript, client=mock_client))
+    frame = _transcripts_to_frame(transcript)
+    asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
     assert mock_client.call_count == 1
 
 def test_media_placeholder_handling(tmp_path):
     content_with_media = "09:46 - Franklin: <mídia oculta>"
     config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
     enricher = ContentEnricher(config)
-    result = asyncio.run(enricher.enrich([(date.today(), content_with_media)], client=None))
+    transcripts = [(date.today(), content_with_media)]
+    frame = _transcripts_to_frame(transcripts)
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=None))
 
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) == 1
@@ -165,7 +237,8 @@ def test_enrichment_with_disabled_config(tmp_path):
     conversation = TestDataGenerator.create_complex_conversation()
     config = EnrichmentConfig(enabled=False, metrics_csv_path=tmp_path / "metrics.csv")
     enricher = ContentEnricher(config)
-    result = asyncio.run(enricher.enrich([(date.today(), conversation)], client=None))
+    frame = _transcripts_to_frame([(date.today(), conversation)])
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=None))
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) == 0
 
@@ -176,7 +249,8 @@ def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
     mock_client = MockGeminiClient(error=Exception("API Error"))
 
     enricher = ContentEnricher(config)
-    result = asyncio.run(enricher.enrich(transcript, client=mock_client))
+    frame = _transcripts_to_frame(transcript)
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
 
     assert len(result.errors) == 1
     assert "API Error" in result.errors[0]
@@ -191,7 +265,8 @@ def test_concurrent_url_processing(mock_guess_type, tmp_path):
     )
     mock_client = MockGeminiClient()
     enricher = ContentEnricher(config)
-    result = asyncio.run(enricher.enrich([(date.today(), content)], client=mock_client))
+    frame = _transcripts_to_frame([(date.today(), content)])
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
     assert len(result.items) == 3
     assert mock_client.call_count == 3
 
@@ -224,7 +299,8 @@ def test_relevance_filtering(mock_guess_type, tmp_path):
     enricher = ContentEnricher(
         config.model_copy(update={"metrics_csv_path": tmp_path / "metrics.csv"})
     )
-    result = asyncio.run(enricher.enrich([(date.today(), content)], client=mock_client))
+    frame = _transcripts_to_frame([(date.today(), content)])
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
 
     assert len(result.items) == 2
     relevant_items = result.relevant_items(config.relevance_threshold)
@@ -259,9 +335,9 @@ def test_enrich_with_real_transcript_and_metrics(mock_guess_type, tmp_path):
     mock_client = MockGeminiClient(relevance=4)
     enricher = ContentEnricher(config)
 
-    result = asyncio.run(
-        enricher.enrich([(date(2025, 10, 3), transcript)], client=mock_client)
-    )
+    frame = _transcripts_to_frame([(date(2025, 10, 3), transcript)])
+    enrichment_task = enricher.enrich_dataframe(frame, client=mock_client)
+    result = asyncio.run(enrichment_task)
 
     assert result.errors == []
     assert result.duration_seconds >= 0
@@ -296,8 +372,13 @@ def test_example_enrichment_script_runs_with_stub(tmp_path):
     env["FAKE_GEMINI_RESPONSE"] = json.dumps(
         {
             "summary": "Smoke test response",
-            "key_points": ["Ponto 1"],
-            "tone": "claro",
+            "topics": ["Ponto 1"],
+            "actions": [
+                {
+                    "description": "Revisar notas compartilhadas",
+                    "owner": "time",
+                }
+            ],
             "relevance": 3,
         },
         ensure_ascii=False,

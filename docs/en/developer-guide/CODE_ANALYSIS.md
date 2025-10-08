@@ -13,8 +13,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Security:** The `zip_utils.py` module provides robust, necessary security for handling user-uploaded files.
 
 **Critical Weaknesses & Recommendations:**
-1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration. A slim compatibility layer remains for legacy text consumers, so regression tests must ensure the DataFrame pipeline stays the default.
-    *   **Recommendation:** Keep the feature flag only as an escape hatch, expand coverage for the DataFrame flow, and plan a future removal of the legacy wrapper once downstream tooling migrates.
+1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration end-to-end. With the legacy compatibility layer gone, regressions will immediately impact production runs.
+    *   **Recommendation:** Expand coverage for the DataFrame flow and keep observability around enrichment/media transforms to catch issues before they affect published posts.
 
 2.  **Over-engineering ("Not Invented Here" Syndrome):** The enrichment flow still ships a bespoke `cache_manager.py` wrapper around `diskcache`.
     *   **Recommendation:** Evaluate whether the remaining wrapper adds value now that the embedding cache has been inlined on top of `diskcache`, and consider consolidating on a single caching abstraction.
@@ -93,14 +93,14 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Recommendation:** Continue validating parsing accuracy against new WhatsApp export formats.
 
 ### `src/egregora/pipeline.py`
-*   **Verdict:** Legacy shim.
-*   **Analysis:** The module now acts as a compatibility wrapper around the new orchestration. It is still present for prompt-loading helpers and tests that target the old API surface.
-*   **Recommendation:** Deprecate the remaining helpers in favour of the Processor/Generator stack and schedule removal once no downstream code imports the module directly.
+*   **Verdict:** Utility helper.
+*   **Analysis:** The module now focuses on prompt-loading utilities, transcript anonymisation helpers, and ZIP ingestion for tests. The legacy orchestration shim has been removed.
+*   **Recommendation:** Continue migrating callers to higher-level Processor helpers and trim dead surface area as coverage improves.
 
 ### `src/egregora/processor.py`
 *   **Verdict:** Excellent.
-*   **Analysis:** The processor now orchestrates the entire run in Polars, handling enrichment, media extraction, and rendering directly from DataFrames while retaining a feature flag for legacy compatibility.
-*   **Recommendation:** Remove the fallback once downstream consumers stop relying on the text-only path and keep instrumentation around the new metrics outputs.
+*   **Analysis:** The processor now orchestrates the entire run in Polars, handling enrichment, media extraction, and rendering directly from DataFrames with no feature-flag fallbacks.
+*   **Recommendation:** Keep instrumentation around the enrichment metrics outputs so regressions in the fully DataFrame-native flow are surfaced quickly.
 
 ### `src/egregora/transcript.py`
 *   **Verdict:** Good.

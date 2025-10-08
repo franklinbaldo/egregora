@@ -13,11 +13,16 @@ class _FakeModel:
         default_payload = json.dumps(
             {
                 "summary": "Stubbed summary from fake Gemini client.",
-                "key_points": [
+                "topics": [
                     "Resposta estática para validar integração.",
                     "Utilize FAKE_GEMINI_RESPONSE para customizar.",
                 ],
-                "tone": "amigável",
+                "actions": [
+                    {
+                        "description": "Revisar conteúdo compartilhado",
+                        "owner": "time",
+                    }
+                ],
                 "relevance": 3,
             },
             ensure_ascii=False,

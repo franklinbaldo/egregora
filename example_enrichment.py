@@ -6,11 +6,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import date
+from datetime import date, datetime, time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import polars as pl
 from egregora.config import EnrichmentConfig
 from egregora.enrichment import ContentEnricher
 
@@ -22,11 +23,16 @@ class _OfflineModel:
             json.dumps(
                 {
                     "summary": "Resumo offline de exemplo para https://example.com.",
-                    "key_points": [
+                    "topics": [
                         "Demonstra fluxo sem depender da API.",
                         "Resultados são determinísticos para testes.",
                     ],
-                    "tone": "informativo",
+                    "actions": [
+                        {
+                            "description": "Compartilhar insights com o time",
+                            "owner": "time",
+                        }
+                    ],
                     "relevance": 3,
                 },
                 ensure_ascii=False,
@@ -109,13 +115,23 @@ async def _run_enrichment(client: Any, metrics_path: Path | None) -> int:
     )
     enricher = ContentEnricher(config)
 
-    transcript = "\n".join(
-        [
-            "09:00 - Alice: Olhem este artigo: https://example.com/guia",
-            "09:05 - Bob: Outro link bacana https://example.org/detalhes",
-        ]
+    today = date.today()
+    rows = [
+        (time(hour=9, minute=0), "Alice", "Olhem este artigo: https://example.com/guia"),
+        (time(hour=9, minute=5), "Bob", "Outro link bacana https://example.org/detalhes"),
+    ]
+    timestamps = [datetime.combine(today, row_time) for row_time, _, _ in rows]
+    authors = [author for _, author, _ in rows]
+    messages = [message for _, _, message in rows]
+    frame = pl.DataFrame(
+        {
+            "date": [today] * len(rows),
+            "timestamp": timestamps,
+            "author": authors,
+            "message": messages,
+        }
     )
-    result = await enricher.enrich([(date.today(), transcript)], client=client)
+    result = await enricher.enrich_dataframe(frame, client=client)
     relevant = result.relevant_items(config.relevance_threshold)
 
     if not relevant:

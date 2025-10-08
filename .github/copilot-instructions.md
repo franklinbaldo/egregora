@@ -3,12 +3,13 @@
 Use this file to give short, practical guidance for AI coding agents working on the Egregora repository.
 Keep advice concrete and tied to the codebase (commands, important files, patterns).
 
-- Big picture: Egregora converts WhatsApp export .zip files into Markdown posts, enriquece links com Gemini e mantém um RAG acessível via MCP. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) chama `src/egregora/pipeline.py`, que orquestra anonimização, enriquecimento opcional (`src/egregora/enrichment.py`), buscas RAG (`src/egregora/rag/*`) e escreve `data/posts/<grupo>/daily/YYYY-MM-DD.md`.
+- Big picture: Egregora converts WhatsApp export .zip files into Markdown posts, enriquece links com Gemini e mantém um RAG acessível via MCP. Main execution path: CLI entrypoint `egregora` (console script -> `src/egregora/__main__.py`) instancia `UnifiedProcessor` (`src/egregora/processor.py`), que orquestra anonimização, enriquecimento opcional (`src/egregora/enrichment.py`), buscas RAG (`src/egregora/rag/*`) e escreve `data/posts/<grupo>/daily/YYYY-MM-DD.md`.
 
 - Where to look first:
   - `README.md` / `PHILOSOPHY.md` — visão geral do projeto, exemplos de execução e contexto filosófico.
   - `pyproject.toml` — entry point (`egregora.__main__:run`) and dependency hint (requires `google-genai`).
-  - `src/egregora/pipeline.py` — core orchestration and CLI-config translation (how flags map to `PipelineConfig`).
+  - `src/egregora/processor.py` — core orchestration for the Polars-native pipeline (discovers groups, enriches, renders, writes posts).
+  - `src/egregora/pipeline.py` — prompt loaders, transcript anonymisation helpers, and ZIP/text utilities kept for testing.
   - `src/egregora/enrichment.py` — enrichment flow, caching, and Gemini-specific usage (uses `types.Part.from_uri`).
   - `src/egregora/cache_manager.py` — JSON-based persistent cache semantics and UUID normalization for URLs.
   - `src/egregora/anonymizer.py` — deterministic anonymization rules (phone normalization, three formats: `human`, `short`, `full`).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import zipfile
@@ -10,14 +11,14 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Sequence
 
-import logging
-
 try:  # pragma: no cover - executed only when dependency is missing
     from google import genai  # type: ignore
     from google.genai import types  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
+
+import polars as pl
 
 from .anonymizer import Anonymizer
 from .cache_manager import CacheManager
@@ -389,10 +390,13 @@ def read_zip_texts_and_media(
             chunks.append(f"\n# Arquivo: {name}\n{text.strip()}\n")
 
     transcript = "\n".join(chunks).strip()
-    if extractor is not None and transcript:
-        transcript = MediaExtractor.replace_media_references(transcript, media_files)
-
+    if extractor is not None and media_files:
+        frame = pl.DataFrame({"message": transcript.splitlines()})
+        replaced = MediaExtractor.replace_media_references_dataframe(frame, media_files)
+        transcript = "\n".join(replaced["message"].to_list())
     return transcript, media_files
+
+
 def load_previous_post(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
     """Load yesterday's post if it exists."""
 
