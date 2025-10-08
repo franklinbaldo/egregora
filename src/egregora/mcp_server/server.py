@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Dict, List
 
 from llama_index.core.schema import NodeWithScore
 
 from ..rag.index import PostRAG
+from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
 from .tools import format_post_listing, format_search_hits
@@ -78,6 +81,114 @@ else:  # pragma: no cover - fallback when dependency missing
     read_resource = app.read_resource
 
 
+_WORD_RE = re.compile(r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]+", re.UNICODE)
+_STOPWORDS = {
+    "a",
+    "agora",
+    "ai",
+    "as",
+    "assim",
+    "ate",
+    "até",
+    "com",
+    "como",
+    "da",
+    "das",
+    "de",
+    "do",
+    "dos",
+    "e",
+    "ela",
+    "ele",
+    "eles",
+    "em",
+    "era",
+    "essa",
+    "esse",
+    "esta",
+    "este",
+    "eu",
+    "foi",
+    "ja",
+    "já",
+    "la",
+    "lá",
+    "mais",
+    "mas",
+    "na",
+    "nas",
+    "não",
+    "nao",
+    "no",
+    "nos",
+    "nós",
+    "o",
+    "os",
+    "para",
+    "por",
+    "pra",
+    "que",
+    "se",
+    "sem",
+    "ser",
+    "sim",
+    "só",
+    "so",
+    "sua",
+    "são",
+    "sao",
+    "ta",
+    "tá",
+    "tem",
+    "têm",
+    "uma",
+    "umas",
+    "vai",
+    "você",
+    "vocês",
+    "voce",
+    "voces",
+}  # Basic Portuguese stopwords for heuristic keyword extraction
+
+
+def _heuristic_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+    """Return a lightweight keyword list when no LLM provider is available."""
+
+    if max_keywords < 1:
+        return []
+
+    lowered = text.casefold()
+    tokens = [
+        match.group(0)
+        for match in _WORD_RE.finditer(lowered)
+        if len(match.group(0)) >= 3
+    ]
+    filtered: list[str] = []
+    first_seen: dict[str, int] = {}
+    for index, token in enumerate(tokens):
+        if token in _STOPWORDS:
+            continue
+        if token not in first_seen:
+            first_seen[token] = index
+        filtered.append(token)
+
+    if not filtered:
+        return []
+
+    counts = Counter(filtered)
+    ranked = sorted(
+        counts.items(),
+        key=lambda item: (-item[1], first_seen[item[0]]),
+    )
+
+    keywords: list[str] = []
+    for token, _ in ranked:
+        keywords.append(token)
+        if len(keywords) >= max_keywords:
+            break
+    return keywords
+
+
 class RAGServer:
     """Wrapper que expõe o RAG através do MCP."""
 
@@ -89,7 +200,11 @@ class RAGServer:
             cache_dir=config.cache_dir,
             config=config.rag,
         )
-        self.query_gen = QueryGenerator(config.rag)
+        self._keyword_provider: KeywordProvider = _heuristic_keyword_provider
+        self.query_gen = QueryGenerator(
+            config.rag,
+            keyword_provider=self._keyword_provider,
+        )
         self._indexed = False
 
     async def ensure_indexed(self) -> None:
@@ -114,8 +229,11 @@ class RAGServer:
             exclude_recent_days=exclude_recent_days,
         )
 
-    async def generate_query(self, *, transcripts: str, model: str | None = None) -> dict[str, Any]:
-        result = await asyncio.to_thread(self.query_gen.generate, transcripts, model=model)
+    async def generate_query(
+        self, *, transcripts: str, model: str | None = None
+    ) -> dict[str, Any]:
+        # ``model`` is accepted for forward compatibility but currently unused.
+        result = await asyncio.to_thread(self.query_gen.generate, transcripts)
         return {
             "search_query": result.search_query,
             "keywords": result.keywords,
