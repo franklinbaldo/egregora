@@ -319,7 +319,7 @@ class MediaExtractor:
             pl.col("__matches")
             .list.eval(
                 pl.element()
-                .str.replace_all(cls._attachment_pattern.pattern, r"\1")
+                .str.replace_all(cls._attachment_pattern.pattern, r"$1")
                 .str.strip_chars()
             )
             .alias("__clean")
