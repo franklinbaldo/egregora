@@ -17,7 +17,6 @@ from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.index import PostRAG
 from egregora.rag.indexer import detect_post_date, hash_text
 from egregora.rag.keyword_utils import KeywordExtractor, KeywordProvider
-from egregora.rag.keyword_utils import KeywordExtractor, tokenize_text
 from egregora.rag.query_gen import QueryGenerator
 from test_framework.helpers import (
     load_real_whatsapp_transcript,
