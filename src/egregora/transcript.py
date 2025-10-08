@@ -1,4 +1,4 @@
-"""Convert DataFrames back to text transcripts for newsletter generation."""
+"""Convert DataFrames back to text transcripts for post generation."""
 
 from __future__ import annotations
 

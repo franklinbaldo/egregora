@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.query_gen import QueryGenerator, QueryResult
-from egregora.rag.indexer import detect_newsletter_date, hash_text
+from egregora.rag.indexer import detect_post_date, hash_text
 from egregora.rag.search import tokenize, STOP_WORDS
 from test_framework.helpers import (
     load_real_whatsapp_transcript,
@@ -40,12 +40,12 @@ def test_query_generation_whatsapp_content(temp_dir, whatsapp_real_content):
     assert isinstance(query_gen.config, RAGConfig)
 
 
-def test_newsletter_date_detection(temp_dir):
-    """Test newsletter date detection functionality."""
+def test_post_date_detection(temp_dir):
+    """Test post date detection functionality."""
     # Test date detection in file paths
     test_files = [
         "2025-10-03.md",
-        "newsletter-2025-10-03.md", 
+        "post-2025-10-03.md", 
         "daily-2025-12-25.txt",
         "no-date-file.md",
     ]
@@ -58,7 +58,7 @@ def test_newsletter_date_detection(temp_dir):
     ]
     
     for filename, expected in zip(test_files, expected_dates):
-        result = detect_newsletter_date(Path(filename))
+        result = detect_post_date(Path(filename))
         assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
 
 
@@ -74,7 +74,7 @@ def test_rag_config_validation(temp_dir):
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
             zips_dir=temp_dir,
-            newsletters_dir=temp_dir,
+            posts_dir=temp_dir,
         )
         config.rag = rag_config
         
@@ -261,8 +261,8 @@ if __name__ == "__main__":
             test_query_generation_whatsapp_content(temp_dir)
             print("✓ Query generation test passed")
             
-            test_newsletter_date_detection(temp_dir)
-            print("✓ Newsletter date detection test passed")
+            test_post_date_detection(temp_dir)
+            print("✓ Post date detection test passed")
             
             test_rag_config_validation(temp_dir)
             print("✓ RAG config validation test passed")

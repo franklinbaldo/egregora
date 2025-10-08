@@ -18,7 +18,7 @@ from .remote_sync import sync_remote_source_config
 
 app = typer.Typer(
     name="egregora",
-    help="🗣️ Gera newsletters diárias a partir de exports do WhatsApp.",
+    help="🗣️ Gera posts diárias a partir de exports do WhatsApp.",
     add_completion=True,
     rich_markup_mode="rich",
 )
@@ -53,9 +53,9 @@ ZipsDirOption = Annotated[
     Optional[Path],
     typer.Option(help="Diretório com exports .zip do WhatsApp (nomes naturais ou com prefixo YYYY-MM-DD)."),
 ]
-NewslettersDirOption = Annotated[
+PostsDirOption = Annotated[
     Optional[Path],
-    typer.Option(help="Diretório onde as newsletters serão escritas."),
+    typer.Option(help="Diretório onde as posts serão escritas."),
 ]
 ModelOption = Annotated[
     Optional[str],
@@ -94,7 +94,7 @@ ListGroupsOption = Annotated[
 ]
 DryRunOption = Annotated[
     bool,
-    typer.Option("--dry-run", help="Simula a execução e mostra quais newsletters seriam geradas."),
+    typer.Option("--dry-run", help="Simula a execução e mostra quais posts seriam geradas."),
 ]
 
 
@@ -102,7 +102,7 @@ def _build_pipeline_config(
     *,
     config_file: Optional[Path] = None,
     zips_dir: Optional[Path] = None,
-    newsletters_dir: Optional[Path] = None,
+    posts_dir: Optional[Path] = None,
     model: Optional[str] = None,
     remote_url: Optional[str] = None,
     timezone: Optional[str] = None,
@@ -126,7 +126,7 @@ def _build_pipeline_config(
     else:
         config = PipelineConfig.with_defaults(
             zips_dir=zips_dir,
-            newsletters_dir=newsletters_dir,
+            posts_dir=posts_dir,
             model=model,
             timezone=timezone_override,
             remote_source={"gdrive_url": remote_url_value} if remote_url_value else None,
@@ -134,8 +134,8 @@ def _build_pipeline_config(
 
     if zips_dir:
         config.zips_dir = zips_dir
-    if newsletters_dir:
-        config.newsletters_dir = newsletters_dir
+    if posts_dir:
+        config.posts_dir = posts_dir
     if model:
         config.model = model
     if timezone_override:
@@ -153,7 +153,7 @@ def _process_command(
     *,
     config_file: Optional[Path] = None,
     zips_dir: Optional[Path] = None,
-    newsletters_dir: Optional[Path] = None,
+    posts_dir: Optional[Path] = None,
     model: Optional[str] = None,
     remote_url: Optional[str] = None,
     timezone: Optional[str] = None,
@@ -168,7 +168,7 @@ def _process_command(
     config = _build_pipeline_config(
         config_file=config_file,
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model=model,
         remote_url=remote_url,
         timezone=timezone,
@@ -193,7 +193,7 @@ def _process_command(
 def sync_command(
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
-    newsletters_dir: NewslettersDirOption = None,
+    posts_dir: PostsDirOption = None,
     model: ModelOption = None,
     timezone: TimezoneOption = None,
     disable_enrichment: DisableEnrichmentOption = False,
@@ -204,7 +204,7 @@ def sync_command(
     config = _build_pipeline_config(
         config_file=config_file,
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model=model,
         timezone=timezone,
         disable_enrichment=disable_enrichment,
@@ -275,7 +275,7 @@ def sync_command(
 def process(
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
-    newsletters_dir: NewslettersDirOption = None,
+    posts_dir: PostsDirOption = None,
     model: ModelOption = None,
     remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
@@ -285,12 +285,12 @@ def process(
     list_groups: ListGroupsOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Processa grupos do WhatsApp e gera newsletters diárias."""
+    """Processa grupos do WhatsApp e gera posts diárias."""
 
     _process_command(
         config_file=config_file,
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model=model,
         remote_url=remote_url,
         timezone=timezone,
@@ -307,7 +307,7 @@ def main(
     ctx: typer.Context,
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
-    newsletters_dir: NewslettersDirOption = None,
+    posts_dir: PostsDirOption = None,
     model: ModelOption = None,
     remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
@@ -325,7 +325,7 @@ def main(
     _process_command(
         config_file=config_file,
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model=model,
         remote_url=remote_url,
         timezone=timezone,
@@ -464,7 +464,7 @@ def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
         console.print("Use --config ou ajuste diretórios para apontar para os exports corretos.\n")
         return
 
-    total_newsletters = 0
+    total_posts = 0
     for plan in plans:
         icon = "📺" if plan.is_virtual else "📝"
         console.print(f"\n[cyan]{icon} {plan.name}[/cyan] ([dim]{plan.slug}[/dim])")
@@ -485,12 +485,12 @@ def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
             console.print(
                 f"   Será gerado para {len(plan.target_dates)} dia(s): [green]{formatted_dates}[/green]"
             )
-            total_newsletters += len(plan.target_dates)
+            total_posts += len(plan.target_dates)
         else:
-            console.print("   Nenhuma newsletter seria gerada (sem dados recentes)")
+            console.print("   Nenhuma post seria gerada (sem dados recentes)")
 
     console.print(
-        f"\n[bold]Resumo:[/bold] {len(plans)} grupo(s) gerariam até {total_newsletters} newsletter(s).\n"
+        f"\n[bold]Resumo:[/bold] {len(plans)} grupo(s) gerariam até {total_posts} post(s).\n"
     )
 
 
@@ -508,10 +508,10 @@ def _process_and_display(processor: UnifiedProcessor, days: int) -> None:
         header_style="bold green",
     )
     table.add_column("Grupo", style="cyan")
-    table.add_column("Newsletters", justify="right", style="green")
+    table.add_column("Posts", justify="right", style="green")
 
-    for slug, newsletters in sorted(results.items()):
-        table.add_row(slug, str(len(newsletters)))
+    for slug, posts in sorted(results.items()):
+        table.add_row(slug, str(len(posts)))
 
     table.add_row("[bold]TOTAL[/bold]", f"[bold]{total}[/bold]", style="bold")
 

@@ -23,8 +23,8 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
     base_dir = Path("tests/temp_output/anonymization")
     shutil.rmtree(base_dir, ignore_errors=True)
     zips_dir = base_dir / "zips"
-    newsletters_dir = base_dir / "newsletters"
-    for directory in (zips_dir, newsletters_dir):
+    posts_dir = base_dir / "posts"
+    for directory in (zips_dir, posts_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file
@@ -38,7 +38,7 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
 
     return PipelineConfig(
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir.resolve(),
+        posts_dir=posts_dir.resolve(),
         anonymization=AnonymizationConfig(enabled=True),
         model="gemini/gemini-1.5-flash-latest",
         timezone=ZoneInfo("America/Sao_Paulo"),
@@ -60,14 +60,14 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
                 assert "Member-" in transcript
                 assert "+55 11 94529-4774" not in transcript
                 # Yield a dummy response mimicking streaming chunks
-                yield type("Chunk", (), {"text": f"Newsletter.\n{transcript}"})
+                yield type("Chunk", (), {"text": f"Post.\n{transcript}"})
 
         def __init__(self):
             self.models = self._Models()
 
     mock_client = MockLLMClient()
     monkeypatch.setattr(
-        "egregora.generator.NewsletterGenerator._create_client",
+        "egregora.generator.PostGenerator._create_client",
         lambda self: mock_client,
     )
 
@@ -76,7 +76,7 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
 
     # Check the output file
     output_file = (
-        config_with_anonymization.newsletters_dir
+        config_with_anonymization.posts_dir
         / "_chat"
         / "daily"
         / "2025-10-03.md"

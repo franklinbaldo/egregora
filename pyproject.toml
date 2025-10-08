@@ -1,7 +1,7 @@
 [project]
 name = "egregora"
 version = "0.2.0"
-description = "Pipeline para gerar newsletters diárias a partir de exports do WhatsApp."
+description = "Pipeline para gerar posts diárias a partir de exports do WhatsApp."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ dependencies = [
     "llama-index-vector-stores-chroma>=0.2.0",
     "gdown>=5.2.0",
     "chromadb>=0.5.0",
-    "PyYAML>=6.0",
+    "pyyaml>=6.0",
     "polars>=0.20",
     "typer>=0.12.0",
     "rich>=13.7.0",

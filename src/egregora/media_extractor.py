@@ -82,10 +82,10 @@ class MediaExtractor:
     def extract_specific_media_from_zip(
         self,
         zip_path: Path,
-        newsletter_date: date,
+        post_date: date,
         filenames: Iterable[str],
     ) -> Dict[str, MediaFile]:
-        """Extract only ``filenames`` from *zip_path* into ``newsletter_date`` directory."""
+        """Extract only ``filenames`` from *zip_path* into ``post_date`` directory."""
 
         extracted: Dict[str, MediaFile] = {}
         target_dir = self.media_base_dir
@@ -146,7 +146,7 @@ class MediaExtractor:
     def extract_media_from_zip(
         self,
         zip_path: Path,
-        newsletter_date: date,
+        post_date: date,
     ) -> Dict[str, MediaFile]:
         """Extract all recognised media files from *zip_path*."""
 
@@ -162,7 +162,7 @@ class MediaExtractor:
 
         return self.extract_specific_media_from_zip(
             zip_path,
-            newsletter_date,
+            post_date,
             filenames,
         )
 
@@ -249,7 +249,7 @@ class MediaExtractor:
         relative_to: Path | None = None,
         url_prefix: str | None = None,
     ) -> Dict[str, str]:
-        """Return paths suitable for linking from a newsletter."""
+        """Return paths suitable for linking from a post."""
 
         if not media_files:
             return {}
@@ -263,7 +263,7 @@ class MediaExtractor:
 
             for key, media in media_files.items():
                 suffix_parts = list(PurePosixPath(media.relative_path).parts)
-                if suffix_parts and suffix_parts[0] in {"data", "newsletters"}:
+                if suffix_parts and suffix_parts[0] in {"data", "posts"}:
                     suffix_parts = suffix_parts[1:]
                 if len(suffix_parts) >= 2 and suffix_parts[1] == "media":
                     suffix_parts = [suffix_parts[0], *suffix_parts[2:]]

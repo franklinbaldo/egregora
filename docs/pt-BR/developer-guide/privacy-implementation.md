@@ -14,14 +14,14 @@ linguagem para seguir instruções claras.
 ## 🧭 Novo Fluxo
 
 ```
-WhatsApp ZIP → [Anonimização de autores] → Prompt com instruções de privacidade → Newsletter
+WhatsApp ZIP → [Anonimização de autores] → Prompt com instruções de privacidade → Post
 ```
 
 - Telefones e apelidos são convertidos em pseudônimos determinísticos (`Member-XXXX`)
   antes de qualquer processamento.
-- O prompt enviado ao Gemini reforça que a newsletter **não deve** expor nomes,
+- O prompt enviado ao Gemini reforça que a post **não deve** expor nomes,
   telefones ou contatos diretos.
-- Para newsletters sensíveis, mantenha uma revisão humana antes do envio.
+- Para posts sensíveis, mantenha uma revisão humana antes do envio.
 
 Esse arranjo cobre 80–90% das necessidades de privacidade sem depender de
 heurísticas frágeis, listas manuais de nomes ou regex complexas.
@@ -91,7 +91,7 @@ heurísticas frágeis, listas manuais de nomes ou regex complexas.
    etapa automatizada.
 2. Ajustar as instruções do prompt conforme feedback.
 3. Documentar recomendações de revisão humana (checklist simples) para casos em
-   que a newsletter trate de temas muito sensíveis.
+   que a post trate de temas muito sensíveis.
 
 Com essas mudanças, o Egregora mantém a privacidade como prioridade sem carregar
 complexidade desnecessária.

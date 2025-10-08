@@ -43,7 +43,7 @@ O enriquecimento depende apenas do suporte nativo do Gemini:
 
 ## 3. Pipeline com enriquecimento
 
-Com a configuração pronta (`enrichment.enabled = true` e `relevance_threshold = 3`), gere uma newsletter recente apontando para o TOML:
+Com a configuração pronta (`enrichment.enabled = true` e `relevance_threshold = 3`), gere uma post recente apontando para o TOML:
 
 ```bash
 uv run egregora --config egregora.toml --days 1
@@ -60,7 +60,7 @@ Saída esperada do processamento real (resumo):
 ```
 [Enriquecimento] 4/6 itens relevantes processados em 42.1s.
 [Resumo] Enriquecimento considerou 6 itens; 4 atenderam à relevância mínima de 3.
-[OK] Newsletter criada em newsletters/2024-05-12.md usando dias 2024-05-12.
+[OK] Post criada em posts/2024-05-12.md usando dias 2024-05-12.
 ```
 
 > **Dica:** Para pausar o módulo, defina `enabled = false` na seção `[enrichment]` do TOML.

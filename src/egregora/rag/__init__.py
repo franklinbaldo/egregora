@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from .config import RAGConfig  # noqa: F401
     from .embeddings import CachedGeminiEmbedding  # noqa: F401
-    from .index import IndexStats, NewsletterRAG  # noqa: F401
+    from .index import IndexStats, PostRAG  # noqa: F401
     from .query_gen import QueryGenerator  # noqa: F401
 
 
 __all__ = [
     "CachedGeminiEmbedding",
     "IndexStats",
-    "NewsletterRAG",
+    "PostRAG",
     "QueryGenerator",
     "RAGConfig",
 ]
@@ -28,7 +28,7 @@ def __getattr__(name: str):  # pragma: no cover
     if name in {"CachedGeminiEmbedding"}:
         module = import_module("egregora.rag.embeddings")
         return getattr(module, name)
-    if name in {"IndexStats", "NewsletterRAG"}:
+    if name in {"IndexStats", "PostRAG"}:
         module = import_module("egregora.rag.index")
         return getattr(module, name)
     if name == "QueryGenerator":

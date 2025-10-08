@@ -13,7 +13,7 @@ from egregora.pipeline import _prepare_transcripts
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
 
     transcripts = [
@@ -39,7 +39,7 @@ def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
 def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     config.anonymization.enabled = False
 

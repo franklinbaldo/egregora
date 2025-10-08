@@ -12,7 +12,7 @@ from egregora.media_extractor import MediaExtractor, MediaFile
 
 def test_extract_media_from_zip_creates_files(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
-    group_dir = tmp_path / "newsletters" / "grupo-teste"
+    group_dir = tmp_path / "posts" / "grupo-teste"
     extractor = MediaExtractor(group_dir, group_slug="grupo-teste")
 
     media_files = extractor.extract_media_from_zip(
@@ -32,7 +32,7 @@ def test_replace_media_references_converts_to_markdown() -> None:
         media_type="image",
         source_path="IMG-20251002-WA0004.jpg",
         dest_path=Path(
-            "data/newsletters/grupo-teste/media/IMG-20251002-WA0004.jpg"
+            "data/posts/grupo-teste/media/IMG-20251002-WA0004.jpg"
         ),
         relative_path="grupo-teste/media/IMG-20251002-WA0004.jpg",
     )
@@ -54,26 +54,26 @@ def test_replace_media_references_converts_to_markdown() -> None:
 
 def test_build_public_paths_relative(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
-    extractor = MediaExtractor(tmp_path / "newsletters" / "grupo", group_slug="grupo")
+    extractor = MediaExtractor(tmp_path / "posts" / "grupo", group_slug="grupo")
 
     media_files = extractor.extract_media_from_zip(
         zip_path, date(2025, 10, 3)
     )
 
-    output_dir = tmp_path / "docs" / "reports"
+    output_dir = tmp_path / "docs" / "posts"
     output_dir.mkdir(parents=True)
 
     public_paths = MediaExtractor.build_public_paths(media_files, relative_to=output_dir)
     media = media_files["IMG-20251002-WA0004.jpg"]
     path = public_paths["IMG-20251002-WA0004.jpg"]
 
-    assert path.startswith("../../newsletters/grupo/media/")
+    assert path.startswith("../../posts/grupo/media/")
     assert path.endswith(media.filename)
 
 
 def test_build_public_paths_with_prefix(tmp_path) -> None:
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
-    extractor = MediaExtractor(tmp_path / "newsletters" / "grupo", group_slug="grupo")
+    extractor = MediaExtractor(tmp_path / "posts" / "grupo", group_slug="grupo")
 
     media_files = extractor.extract_media_from_zip(
         zip_path, date(2025, 10, 3)
@@ -96,7 +96,7 @@ def test_extract_media_renames_to_uuid_and_updates_reference(tmp_path) -> None:
     """
     zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
     extractor = MediaExtractor(
-        tmp_path / "newsletters" / "grupo-uuid-teste", group_slug="grupo-uuid-teste"
+        tmp_path / "posts" / "grupo-uuid-teste", group_slug="grupo-uuid-teste"
     )
     original_filename = "IMG-20251002-WA0004.jpg"
 

@@ -23,11 +23,11 @@ from egregora.processor import UnifiedProcessor
 def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
     workspace = Path("tmp-tests") / f"profiles-{uuid.uuid4().hex}"
     zips_dir = workspace / "zips"
-    newsletters_dir = workspace / "letters"
+    posts_dir = workspace / "letters"
     profiles_dir = workspace / "profiles_data"
     profiles_docs_dir = workspace / "profiles_docs"
 
-    for directory in (zips_dir, newsletters_dir, profiles_dir, profiles_docs_dir):
+    for directory in (zips_dir, posts_dir, profiles_dir, profiles_docs_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     conversation = """03/10/2025 09:00 - +55 11 99999-1111: Mensagem longa com contexto relevante para o grupo
@@ -39,7 +39,7 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
 
     config = PipelineConfig(
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         enrichment=EnrichmentConfig(enabled=False),
         cache=CacheConfig(enabled=False),
         anonymization=AnonymizationConfig(enabled=True),
@@ -54,8 +54,8 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
     )
 
     monkeypatch.setattr(
-        "egregora.generator.NewsletterGenerator.generate",
-        lambda self, source, context: "Newsletter de teste",
+        "egregora.generator.PostGenerator.generate",
+        lambda self, source, context: "Post de teste",
         raising=False,
     )
     monkeypatch.setattr(
@@ -108,7 +108,7 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
     processor = UnifiedProcessor(config)
     processor.process_all(days=1)
 
-    group_dir = newsletters_dir / "grupo-teste"
+    group_dir = posts_dir / "grupo-teste"
     json_files = list((group_dir / "profiles" / "json").glob("*.json"))
     assert json_files, "Nenhum perfil JSON foi gerado"
 

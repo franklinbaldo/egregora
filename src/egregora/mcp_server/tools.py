@@ -20,9 +20,9 @@ def format_search_hits(hits: Iterable[NodeWithScore]) -> str:
 
     hits = list(hits)
     if not hits:
-        return "Nenhum resultado encontrado nas newsletters arquivadas."
+        return "Nenhum resultado encontrado nas posts arquivadas."
 
-    lines: list[str] = ["# Trechos Relevantes de Newsletters Anteriores\n"]
+    lines: list[str] = ["# Trechos Relevantes de Posts Anteriores\n"]
     for index, hit in enumerate(hits, start=1):
         metadata = _node_metadata(hit)
         date_label = metadata.get("date") or metadata.get("file_name") or "????-??-??"
@@ -62,14 +62,14 @@ def serialize_hits(hits: Iterable[NodeWithScore]) -> List[dict]:
     return items
 
 
-def format_newsletter_listing(entries: Iterable[dict]) -> str:
-    """Format a list of newsletter metadata dictionaries as Markdown."""
+def format_post_listing(entries: Iterable[dict]) -> str:
+    """Format a list of post metadata dictionaries as Markdown."""
 
     entries = list(entries)
     if not entries:
-        return "Nenhuma newsletter encontrada no histórico."
+        return "Nenhuma post encontrada no histórico."
 
-    lines = ["# Newsletters Disponíveis\n"]
+    lines = ["# Posts Disponíveis\n"]
     for entry in entries:
         lines.append(
             f"- **{entry.get('date', '????-??-??')}** ― {entry.get('path', '')} "

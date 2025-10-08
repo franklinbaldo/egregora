@@ -27,7 +27,7 @@ def process_backlog(zip_dir: str, output_dir: str, force: bool = False):
 
     config = PipelineConfig.with_defaults(
         zips_dir=zip_path,
-        newsletters_dir=out_path,
+        posts_dir=out_path,
     )
 
     processor = UnifiedProcessor(config)
@@ -49,10 +49,10 @@ def process_backlog(zip_dir: str, output_dir: str, force: bool = False):
     total = sum(len(paths) for paths in results.values())
     print("\n📈 Summary:")
     print(f"  Groups processed: {len(results)}")
-    print(f"  Newsletters generated: {total}")
+    print(f"  Posts generated: {total}")
 
     for slug, paths in sorted(results.items()):
-        print(f"  • {slug}: {len(paths)} newsletter(s)")
+        print(f"  • {slug}: {len(paths)} post(s)")
 
 
 if __name__ == "__main__":
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Simple WhatsApp backlog processor")
     parser.add_argument("zip_dir", help="Directory containing ZIP files")
-    parser.add_argument("output_dir", help="Output directory for newsletters")
+    parser.add_argument("output_dir", help="Output directory for posts")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files")
     
     args = parser.parse_args()

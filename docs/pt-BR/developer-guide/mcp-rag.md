@@ -1,7 +1,7 @@
-# Servidor MCP para o RAG de Newsletters
+# Servidor MCP para o RAG de Posts
 
 O repositório inclui um servidor [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol)
-que expõe as newsletters processadas pelo Egrégora como ferramentas de consulta.
+que expõe as posts processadas pelo Egrégora como ferramentas de consulta.
 Esta página descreve o estado atual da implementação, onde encontrar o código e
 como executá-lo.
 
@@ -14,7 +14,7 @@ como executá-lo.
 - **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML.
 
 A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
-`NewsletterRAG`) e inicia o loop MCP com `app.run_stdio()`.
+`PostRAG`) e inicia o loop MCP com `app.run_stdio()`.
 
 ---
 
@@ -48,17 +48,17 @@ ferramentas MCP disponíveis para clientes como Claude Desktop.
 
 | Tool                  | Função                                                                 |
 |-----------------------|-------------------------------------------------------------------------|
-| `search_newsletters`  | Busca semântica (top_k, min_similarity, exclude_recent_days).           |
+| `search_posts`  | Busca semântica (top_k, min_similarity, exclude_recent_days).           |
 | `generate_search_query` | Gera queries otimizadas a partir de transcritos de conversas.        |
-| `get_newsletter`      | Retorna o Markdown completo de uma data específica.                    |
-| `list_newsletters`    | Lista newsletters com paginação (`limit`, `offset`).                   |
-| `get_rag_stats`       | Resume contagem de newsletters, chunks e caminho do índice.            |
-| `reindex_newsletters` | Reprocessa newsletters novas ou alteradas (com `force=true` opcional). |
+| `get_post`      | Retorna o Markdown completo de uma data específica.                    |
+| `list_posts`    | Lista posts com paginação (`limit`, `offset`).                   |
+| `get_rag_stats`       | Resume contagem de posts, chunks e caminho do índice.            |
+| `reindex_posts` | Reprocessa posts novas ou alteradas (com `force=true` opcional). |
 
 Cada chamada é roteada por `handle_call_tool` (no mesmo arquivo), que formata a
 resposta em Markdown antes de devolvê-la ao cliente.
 
-Além das tools, o servidor expõe um resource `newsletter://YYYY-MM-DD`, permitindo
+Além das tools, o servidor expõe um resource `post://YYYY-MM-DD`, permitindo
 que clientes leiam o conteúdo bruto através de `handle_read_resource`
 (implementado em `server.py`).
 
@@ -67,9 +67,9 @@ que clientes leiam o conteúdo bruto através de `handle_read_resource`
 ## 🔁 Índice e Cache
 
 - `RAGServer.ensure_indexed()` garante que o índice vetorial exista, criando-o
-  sob demanda. O método usa `NewsletterRAG`, que aplica `CachedGeminiEmbedding`
+  sob demanda. O método usa `PostRAG`, que aplica `CachedGeminiEmbedding`
   com cache opcional em disco.
-- A tool `reindex_newsletters` chama `NewsletterRAG.update_index(force_rebuild=...)`
+- A tool `reindex_posts` chama `PostRAG.update_index(force_rebuild=...)`
   e devolve estatísticas amigáveis.
 
 ---
@@ -80,7 +80,7 @@ que clientes leiam o conteúdo bruto através de `handle_read_resource`
   durante `main()` ou quando as tools são listadas/chamadas.
 - Requisições inválidas retornam mensagens ricas (ex.: "Tool desconhecida" ou
   `TextContent` com detalhes do erro).
-- `handle_read_resource` valida URIs e acusa newsletter ausente com exceção.
+- `handle_read_resource` valida URIs e acusa post ausente com exceção.
 
 
 ---

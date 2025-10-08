@@ -43,7 +43,7 @@ def config_file(tmp_path: Path) -> Path:
     return config_path
 
 
-def test_sync_command_reports_new_archives(
+def test_sync_command_posts_new_archives(
     monkeypatch, local_exports_dir: Path, config_file: Path
 ) -> None:
     exports_dir = local_exports_dir

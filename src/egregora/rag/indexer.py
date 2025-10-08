@@ -1,4 +1,4 @@
-"""Utilities for building and updating the local newsletter index."""
+"""Utilities for building and updating the local post index."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ HEADER_RE = re.compile(r"^(?P<level>#+)\s+(?P<title>.+)$")
 DATE_IN_STEM_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
-def detect_newsletter_date(path: Path) -> date | None:
-    """Return the date encoded in a newsletter file name, if present."""
+def detect_post_date(path: Path) -> date | None:
+    """Return the date encoded in a post file name, if present."""
 
     match = DATE_IN_STEM_RE.search(path.stem)
     if not match:
@@ -129,7 +129,7 @@ def split_into_chunks(
 
 
 def list_markdown_files(directory: Path) -> Iterable[Path]:
-    """Yield markdown newsletter files sorted by name."""
+    """Yield markdown post files sorted by name."""
 
     if not directory.exists():
         return []

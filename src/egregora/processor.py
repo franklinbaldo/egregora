@@ -3,24 +3,25 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import polars as pl
+import yaml
 
 from .anonymizer import Anonymizer
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
-from .generator import NewsletterContext, NewsletterGenerator
+from .generator import PostContext, PostGenerator
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
-from .pipeline import load_previous_newsletter
+from .pipeline import load_previous_post
 from .parser import configure_system_message_filters, load_system_filters_from_file
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
-from .rag.index import NewsletterRAG
+from .rag.index import PostRAG
 from .rag.query_gen import QueryGenerator
 from .remote_sync import sync_remote_source_config
 from .transcript import (
@@ -34,6 +35,46 @@ if TYPE_CHECKING:
     from .media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
+
+
+def _build_post_metadata(
+    source: "GroupSource", target_date: date, config: PipelineConfig
+) -> dict[str, object]:
+    """Return front matter metadata compatible with the Material blog plugin."""
+
+    created = datetime.combine(target_date, time.min).replace(
+        tzinfo=config.timezone
+    )
+    categories = ["daily", source.slug]
+    tags = [source.name, "whatsapp"]
+
+    return {
+        "title": f"📩 {source.name} — Diário de {target_date:%Y-%m-%d}",
+        "date": created.isoformat(),
+        "lang": config.post_language,
+        "authors": [config.default_post_author],
+        "categories": categories,
+        "tags": tags,
+    }
+
+
+def _ensure_blog_front_matter(
+    text: str, *, source: "GroupSource", target_date: date, config: PipelineConfig
+) -> str:
+    """Prepend YAML front matter when it's missing."""
+
+    stripped = text.lstrip()
+    if stripped.startswith("---"):
+        return text
+
+    metadata = _build_post_metadata(source, target_date, config)
+    front_matter = yaml.safe_dump(
+        metadata, sort_keys=False, allow_unicode=True
+    ).strip()
+
+    prefix_len = len(text) - len(stripped)
+    prefix = text[:prefix_len]
+    return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
 
 
 @dataclass(slots=True)
@@ -54,7 +95,7 @@ class UnifiedProcessor:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        self.generator = NewsletterGenerator(config)
+        self.generator = PostGenerator(config)
         if config.system_message_filters_file:
             filters = load_system_filters_from_file(config.system_message_filters_file)
             configure_system_message_filters(filters)
@@ -87,8 +128,8 @@ class UnifiedProcessor:
             if source.is_virtual:
                 self._log_merge_stats(source)
 
-            newsletters = self._process_source(source, days)
-            results[slug] = newsletters
+            posts = self._process_source(source, days)
+            results[slug] = posts
 
         return results
 
@@ -232,7 +273,7 @@ class UnifiedProcessor:
 
         from .media_extractor import MediaExtractor
 
-        group_dir = self.config.newsletters_dir / source.slug
+        group_dir = self.config.posts_dir / source.slug
         daily_dir = group_dir / "daily"
         daily_dir.mkdir(parents=True, exist_ok=True)
 
@@ -311,7 +352,7 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            _, previous_newsletter = load_previous_newsletter(daily_dir, target_date)
+            _, previous_post = load_previous_post(daily_dir, target_date)
 
             # Enrichment
             enrichment_section = None
@@ -335,8 +376,8 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = NewsletterRAG(
-                    newsletters_dir=self.config.newsletters_dir,
+                rag = PostRAG(
+                    posts_dir=self.config.posts_dir,
                     config=self.config.rag,
                 )
                 query_gen = QueryGenerator(self.config.rag)
@@ -348,27 +389,31 @@ class UnifiedProcessor:
                         for i, node in enumerate(search_results, 1)
                     )
 
-            context = NewsletterContext(
+            context = PostContext(
                 group_name=source.name,
                 transcript=transcript,
                 target_date=target_date,
-                previous_newsletter=previous_newsletter,
+                previous_post=previous_post,
                 enrichment_section=enrichment_section,
                 rag_context=rag_context,
             )
-            newsletter = self.generator.generate(source, context)
+            post = self.generator.generate(source, context)
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
                 public_paths=public_paths,
             )
             if media_section:
-                newsletter = (
-                    f"{newsletter.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
+                post = (
+                    f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
                 )
 
+            post = _ensure_blog_front_matter(
+                post, source=source, target_date=target_date, config=self.config
+            )
+
             output_path = daily_dir / f"{target_date}.md"
-            output_path.write_text(newsletter, encoding="utf-8")
+            output_path.write_text(post, encoding="utf-8")
 
             if profile_repository and self._profile_updater:
                 try:
@@ -376,7 +421,7 @@ class UnifiedProcessor:
                         repository=profile_repository,
                         source=source,
                         target_date=target_date,
-                        newsletter_text=newsletter,
+                        post_text=post,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -399,7 +444,7 @@ class UnifiedProcessor:
         repository: ProfileRepository,
         source: GroupSource,
         target_date: date,
-        newsletter_text: str,
+        post_text: str,
     ) -> None:
         updater = self._profile_updater
         if updater is None:
@@ -424,7 +469,7 @@ class UnifiedProcessor:
         if client is None:
             return
 
-        context_block = self._format_profile_context(target_date, conversation, newsletter_text)
+        context_block = self._format_profile_context(target_date, conversation, post_text)
         updates_made = False
 
         authors_series = df_day.get_column("author")
@@ -569,12 +614,12 @@ class UnifiedProcessor:
         self,
         target_date: date,
         conversation: str,
-        newsletter_text: str,
+        post_text: str,
     ) -> str:
         blocks = [f"### {target_date.isoformat()}\n{conversation.strip()}".strip()]
-        if newsletter_text.strip():
+        if post_text.strip():
             blocks.append(
-                "### Newsletter do dia\n" + newsletter_text.strip()
+                "### Post do dia\n" + post_text.strip()
             )
         return "\n\n".join(blocks)
 

@@ -58,7 +58,7 @@ def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
-        newsletters_dir=temp_dir / "newsletters",
+        posts_dir=temp_dir / "posts",
     )
 
 
@@ -67,11 +67,11 @@ def setup_test_environment(temp_dir: Path, whatsapp_zip_path: Path) -> Path:
     """Set up a complete test environment with WhatsApp data."""
     # Create necessary directories
     zips_dir = temp_dir / "zips"
-    newsletters_dir = temp_dir / "newsletters"
+    posts_dir = temp_dir / "posts"
     cache_dir = temp_dir / "cache"
     
     zips_dir.mkdir(parents=True)
-    newsletters_dir.mkdir(parents=True)
+    posts_dir.mkdir(parents=True)
     cache_dir.mkdir(parents=True)
     
     # Copy WhatsApp test file
@@ -91,7 +91,7 @@ def mock_gemini_client():
     
     class MockResponse:
         def __init__(self):
-            self.text = "Mock newsletter content generated from conversation."
+            self.text = "Mock post content generated from conversation."
     
     return MockClient()
 

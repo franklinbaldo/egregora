@@ -26,11 +26,11 @@ jobs:
           mkdocs build --strict
 
       - name: Upload embeddings artifact
-        if: ${{ hashFiles('artifacts/embeddings/newsletter_chunks.parquet') != '' }}
+        if: ${{ hashFiles('artifacts/embeddings/post_chunks.parquet') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: newsletter-embeddings
-          path: artifacts/embeddings/newsletter_chunks.parquet
+          name: post-embeddings
+          path: artifacts/embeddings/post_chunks.parquet
           if-no-files-found: ignore
 
       - name: Upload participant profiles
