@@ -169,8 +169,10 @@ The Retrieval-Augmented Generation utilities store post embeddings in ChromaDB v
 Launch the MCP server directly:
 
 ```bash
-uv run egregora-mcp --config egregora.toml
+uv run egregora mcp --config egregora.toml
 ```
+
+O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
 
 ## Custom prompts & filters
 

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 from pathlib import Path
 
-from egregora.mcp_server.server import main as run_server
+from egregora.__main__ import launch_mcp_server
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,7 +21,7 @@ def parse_args() -> argparse.Namespace:
 
 def cli() -> None:
     args = parse_args()
-    asyncio.run(run_server(config_path=args.config))
+    launch_mcp_server(config_file=args.config)
 
 
 if __name__ == "__main__":  # pragma: no cover
