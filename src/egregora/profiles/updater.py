@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -17,6 +17,8 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
 
 import polars as pl
 
+from .profile import ParticipantProfile
+from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
@@ -28,9 +30,9 @@ def _extract_summary_from_markdown(markdown: str) -> str:
             if capture and collected:
                 break
             continue
-        if line.startswith('#'):
-            normalized = line.lstrip('#').strip().lower()
-            if normalized.startswith('visão geral'):
+        if line.startswith("#"):
+            normalized = line.lstrip("#").strip().lower()
+            if normalized.startswith("visão geral"):
                 capture = True
                 collected.clear()
                 continue
@@ -40,22 +42,20 @@ def _extract_summary_from_markdown(markdown: str) -> str:
         if capture:
             collected.append(line)
     if collected:
-        return ' '.join(collected).strip()
+        return " ".join(collected).strip()
     for raw_line in markdown.splitlines():
         line = raw_line.strip()
-        if line and not line.startswith('#'):
+        if line and not line.startswith("#"):
             return line
-    return ''
+    return ""
 
 
-
-
-def _ensure_str_list(value: object) -> List[str]:
+def _ensure_str_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
         return [str(item) for item in value]
-    if isinstance(value, (tuple, set)):
+    if isinstance(value, tuple | set):
         return [str(item) for item in value]
     if isinstance(value, str):
         return [value]
@@ -63,10 +63,6 @@ def _ensure_str_list(value: object) -> List[str]:
         return [str(item) for item in value]
     except TypeError:
         return [str(value)]
-
-
-from .profile import ParticipantProfile
-from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
 
 
 @dataclass(slots=True)
@@ -86,7 +82,7 @@ class ProfileUpdater:
         current_profile: ParticipantProfile | None,
         full_conversation: str,
         gemini_client: genai.Client,
-    ) -> Tuple[bool, str, List[str], List[str]]:
+    ) -> tuple[bool, str, list[str], list[str]]:
         """Decide if *member_id* warrants a profile refresh."""
 
         if gemini_client is None:
@@ -124,7 +120,7 @@ class ProfileUpdater:
         try:
             decision = json.loads(raw_text)
         except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-            raise ValueError(f"Resposta inválida do modelo ao decidir atualização: {exc}")
+            raise ValueError(f"Resposta inválida do modelo ao decidir atualização: {exc}") from exc
 
         highlights = _ensure_str_list(decision.get("participation_highlights"))
         insights = _ensure_str_list(decision.get("interaction_insights"))
@@ -136,7 +132,7 @@ class ProfileUpdater:
             insights,
         )
 
-    async def rewrite_profile(
+    async def rewrite_profile(  # noqa: PLR0913
         self,
         member_id: str,
         old_profile: ParticipantProfile | None,
@@ -198,6 +194,7 @@ class ProfileUpdater:
         )
         profile.update_timestamp()
         return profile
+
     async def _generate_with_retry(
         self,
         client: genai.Client,
@@ -246,9 +243,9 @@ class ProfileUpdater:
 
         return None
 
-    def _extract_member_messages(self, member_id: str, conversation: str) -> List[str]:
+    def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
         pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")
-        messages: List[str] = []
+        messages: list[str] = []
         for line in conversation.splitlines():
             match = pattern.search(line)
             if match:
@@ -272,7 +269,7 @@ class ProfileUpdater:
         member_id: str,
         current_profile: ParticipantProfile | None,
         df: pl.DataFrame,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Decide if member warrants profile refresh using DataFrame analysis."""
 
         messages_df = self.extract_member_messages_dataframe(member_id, df)
@@ -344,22 +341,16 @@ class ProfileUpdater:
         activity_span = last_message - first_message
 
         daily_counts = (
-            messages_df.with_columns(
-                pl.col("timestamp").dt.date().alias("day")
-            )
+            messages_df.with_columns(pl.col("timestamp").dt.date().alias("day"))
             .group_by("day")
             .agg(pl.len().alias("message_count"))
             .sort("day")
         )
 
-        avg_messages_per_day = float(
-            daily_counts.get_column("message_count").mean() or 0.0
-        )
+        avg_messages_per_day = float(daily_counts.get_column("message_count").mean() or 0.0)
 
         most_active_day_values = (
-            daily_counts.sort("message_count", descending=True)
-            .get_column("day")
-            .to_list()
+            daily_counts.sort("message_count", descending=True).get_column("day").to_list()
         )
         most_active_day = most_active_day_values[0] if most_active_day_values else None
         max_messages_in_day = (

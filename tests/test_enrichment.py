@@ -9,30 +9,33 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
-from typing import Sequence
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from egregora.config import EnrichmentConfig
 import polars as pl
-
-from egregora.enrichment import ContentEnricher, URL_RE, EnrichmentResult
-from egregora.cache_manager import CacheManager
 from test_framework.helpers import TestDataGenerator
 
+from egregora.cache_manager import CacheManager
+from egregora.config import EnrichmentConfig
+from egregora.enrichment import ContentEnricher, EnrichmentResult
+
+MINIMUM_RELEVANCE_SCORE = 3
+EXPECTED_TIMESTAMP_PARTS = 2
+EXPECTED_ANALYSIS_RELEVANCE = 5
+EXPECTED_ITEMS_PER_TRANSCRIPT = 3
+EXPECTED_RELEVANCE_FILTERED_ITEMS = 2
 
 _LINE_PATTERN = re.compile(
     r"^(?P<date>\d{1,2}/\d{1,2}/\d{2,4})\s+(?P<time>\d{1,2}:\d{2})\s*-\s*(?P<rest>.+)$"
 )
 
 
-def _transcripts_to_frame(
-    transcripts: Sequence[tuple[date, str]]
-) -> pl.DataFrame:
+def _transcripts_to_frame(transcripts: Sequence[tuple[date, str]]) -> pl.DataFrame:
     rows: list[dict[str, object]] = []
 
     for provided_date, transcript in transcripts:
@@ -49,9 +52,7 @@ def _transcripts_to_frame(
                 time_str = match.group("time")
                 rest = match.group("rest")
                 try:
-                    parsed_dt = datetime.strptime(
-                        f"{date_str} {time_str}", "%d/%m/%Y %H:%M"
-                    )
+                    parsed_dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
                 except ValueError:
                     parsed_dt = base_dt + timedelta(minutes=offset)
                 if ": " in rest:
@@ -147,10 +148,8 @@ def test_parse_response_with_valid_json():
 
     assert analysis.summary == payload["summary"]
     assert analysis.topics == payload["topics"]
-    assert [item.description for item in analysis.actions] == [
-        payload["actions"][0]["description"]
-    ]
-    assert analysis.relevance == 5
+    assert [item.description for item in analysis.actions] == [payload["actions"][0]["description"]]
+    assert analysis.relevance == EXPECTED_ANALYSIS_RELEVANCE
     assert analysis.raw_response == mock_response.text
 
 
@@ -176,6 +175,7 @@ def test_parse_response_handles_missing_payload():
     assert analysis.error == "Resposta vazia do modelo."
     assert analysis.relevance == 1
 
+
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
@@ -190,9 +190,7 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     enricher = ContentEnricher(config, cache_manager=cache_manager)
     transcripts = [(date.today(), conversation_with_urls)]
     frame = _transcripts_to_frame(transcripts)
-    result = asyncio.run(
-        enricher.enrich_dataframe(frame, client=mock_client)
-    )
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
 
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) >= 1
@@ -202,6 +200,7 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     assert [item.description for item in result.items[0].analysis.actions] == [
         "Revisar conteúdo compartilhado"
     ]
+
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
@@ -220,6 +219,7 @@ def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
     asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
     assert mock_client.call_count == 1
 
+
 def test_media_placeholder_handling(tmp_path):
     content_with_media = "09:46 - Franklin: <mídia oculta>"
     config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
@@ -233,6 +233,7 @@ def test_media_placeholder_handling(tmp_path):
     assert result.items[0].reference.is_media_placeholder
     assert "Mídia sem descrição" in result.items[0].analysis.summary
 
+
 def test_enrichment_with_disabled_config(tmp_path):
     conversation = TestDataGenerator.create_complex_conversation()
     config = EnrichmentConfig(enabled=False, metrics_csv_path=tmp_path / "metrics.csv")
@@ -241,6 +242,7 @@ def test_enrichment_with_disabled_config(tmp_path):
     result = asyncio.run(enricher.enrich_dataframe(frame, client=None))
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) == 0
+
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
@@ -255,6 +257,7 @@ def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
     assert len(result.errors) == 1
     assert "API Error" in result.errors[0]
 
+
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_concurrent_url_processing(mock_guess_type, tmp_path):
     content = "https://a.com\nhttps://b.com\nhttps://c.com"
@@ -267,18 +270,20 @@ def test_concurrent_url_processing(mock_guess_type, tmp_path):
     enricher = ContentEnricher(config)
     frame = _transcripts_to_frame([(date.today(), content)])
     result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
-    assert len(result.items) == 3
-    assert mock_client.call_count == 3
+    assert len(result.items) == EXPECTED_ITEMS_PER_TRANSCRIPT
+    assert mock_client.call_count == EXPECTED_ITEMS_PER_TRANSCRIPT
+
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_relevance_filtering(mock_guess_type, tmp_path):
-    config = EnrichmentConfig(enabled=True, relevance_threshold=3)
+    config = EnrichmentConfig(enabled=True, relevance_threshold=MINIMUM_RELEVANCE_SCORE)
     content = "https://low.com\nhttps://high.com"
 
     class VarRelevanceClient:
         def __init__(self):
             self.models = self
             self.calls = 0
+
         def generate_content(self, model, contents, config):
             self.calls += 1
             prompt_text = contents[0].parts[0].text
@@ -302,10 +307,10 @@ def test_relevance_filtering(mock_guess_type, tmp_path):
     frame = _transcripts_to_frame([(date.today(), content)])
     result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
 
-    assert len(result.items) == 2
+    assert len(result.items) == EXPECTED_RELEVANCE_FILTERED_ITEMS
     relevant_items = result.relevant_items(config.relevance_threshold)
     assert len(relevant_items) == 1
-    assert relevant_items[0].analysis.relevance >= 3
+    assert relevant_items[0].analysis.relevance >= MINIMUM_RELEVANCE_SCORE
 
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
@@ -316,7 +321,7 @@ def test_enrich_with_real_transcript_and_metrics(mock_guess_type, tmp_path):
     processed_lines: list[str] = []
     for raw_line in raw_text.splitlines():
         parts = raw_line.split(" - ", 1)
-        if len(parts) != 2:
+        if len(parts) != EXPECTED_TIMESTAMP_PARTS:
             continue
         timestamp_block, message = parts
         pieces = timestamp_block.strip().split()
@@ -347,9 +352,7 @@ def test_enrich_with_real_transcript_and_metrics(mock_guess_type, tmp_path):
     assert metrics is not None
     assert metrics.total_references >= 1
     assert metrics.analyzed_items == len(result.items)
-    assert metrics.relevant_items == len(
-        result.relevant_items(config.relevance_threshold)
-    )
+    assert metrics.relevant_items == len(result.relevant_items(config.relevance_threshold))
     assert any("youtu" in domain for domain in metrics.domains)
 
     assert metrics_path.exists()
@@ -379,7 +382,7 @@ def test_example_enrichment_script_runs_with_stub(tmp_path):
                     "owner": "time",
                 }
             ],
-            "relevance": 3,
+            "relevance": MINIMUM_RELEVANCE_SCORE,
         },
         ensure_ascii=False,
     )
@@ -398,49 +401,3 @@ def test_example_enrichment_script_runs_with_stub(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert "✅" in result.stdout
     assert metrics_path.exists()
-
-
-if __name__ == "__main__":
-    # Manual test runner
-    from pathlib import Path
-    import tempfile
-    
-    with tempfile.TemporaryDirectory() as tmp:
-        temp_dir = Path(tmp)
-        
-        print("Running enrichment tests...")
-        
-        try:
-            test_url_extraction_whatsapp_content(temp_dir)
-            print("✓ URL extraction test passed")
-            
-            test_whatsapp_message_parsing(temp_dir)
-            print("✓ Message parsing test passed")
-            
-            test_content_enrichment_with_whatsapp_urls(temp_dir)
-            print("✓ Content enrichment test passed")
-            
-            test_enrichment_caching_functionality(temp_dir)
-            print("✓ Caching test passed")
-            
-            test_media_placeholder_handling(temp_dir)
-            print("✓ Media placeholder test passed")
-            
-            test_enrichment_with_disabled_config(temp_dir)
-            print("✓ Disabled config test passed")
-            
-            test_error_handling_in_enrichment(temp_dir)
-            print("✓ Error handling test passed")
-            
-            test_concurrent_url_processing(temp_dir)
-            print("✓ Concurrent processing test passed")
-            
-            test_relevance_filtering(temp_dir)
-            print("✓ Relevance filtering test passed")
-            
-            print("\n🎉 All enrichment tests passed!")
-            
-        except Exception as e:
-            print(f"❌ Test failed: {e}")
-            import traceback
-            traceback.print_exc()

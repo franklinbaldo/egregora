@@ -7,8 +7,9 @@ conversation health metrics.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import timedelta
-from typing import Any, Dict, Sequence
+from typing import Any
 
 import polars as pl
 
@@ -32,6 +33,7 @@ _EMPTY_INTERACTION_SCHEMA = {
     "interaction_count": pl.Int64,
 }
 
+
 def _ensure_series(values: pl.Series | Sequence[float]) -> pl.Series:
     """Return *values* as a Polars series without nulls."""
 
@@ -46,7 +48,7 @@ def get_conversation_health(
     df: pl.DataFrame,
     *,
     thread_gap_minutes: int = 30,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Calculate comprehensive conversation health metrics."""
 
     if df.is_empty():
@@ -66,9 +68,7 @@ def get_conversation_health(
     gini_coefficient = calculate_gini(messages_per_participant)
 
     df_sorted = df.sort("timestamp")
-    response_times = (
-        df_sorted.get_column("timestamp").diff().dt.total_seconds() / 60
-    )
+    response_times = df_sorted.get_column("timestamp").diff().dt.total_seconds() / 60
     response_times = response_times.drop_nulls()
     median_response_time = float(response_times.median() or 0.0)
 
@@ -79,16 +79,10 @@ def get_conversation_health(
         else 0
     )
 
-    daily_activity = (
-        df.group_by("date").agg(pl.len().alias("message_count")).sort("date")
-    )
-    messages_per_day_avg = float(
-        daily_activity.get_column("message_count").mean() or 0.0
-    )
+    daily_activity = df.group_by("date").agg(pl.len().alias("message_count")).sort("date")
+    messages_per_day_avg = float(daily_activity.get_column("message_count").mean() or 0.0)
     most_active_day = (
-        daily_activity.sort("message_count", descending=True)
-        .get_column("date")
-        .to_list()
+        daily_activity.sort("message_count", descending=True).get_column("date").to_list()
     )
     most_active_day_value = most_active_day[0] if most_active_day else None
     max_messages_in_day = (
@@ -172,9 +166,7 @@ def get_influence_scores(df: pl.DataFrame) -> pl.DataFrame:
     )
 
     thread_counts = (
-        thread_starters.to_frame("author")
-        .group_by("author")
-        .agg(pl.len().alias("threads_started"))
+        thread_starters.to_frame("author").group_by("author").agg(pl.len().alias("threads_started"))
     )
 
     replies_received = (
@@ -182,12 +174,14 @@ def get_influence_scores(df: pl.DataFrame) -> pl.DataFrame:
         .agg(pl.col("interaction_count").sum().alias("replies_received"))
         .rename({"replied_to": "author"})
         if not interaction_matrix.is_empty()
-        else pl.DataFrame({"author": [], "replies_received": []}, schema={"author": pl.String, "replies_received": pl.Int64})
+        else pl.DataFrame(
+            {"author": [], "replies_received": []},
+            schema={"author": pl.String, "replies_received": pl.Int64},
+        )
     )
 
     author_stats = (
-        author_stats
-        .join(thread_counts, on="author", how="left")
+        author_stats.join(thread_counts, on="author", how="left")
         .join(replies_received, on="author", how="left")
         .fill_null(0)
         .with_columns(
@@ -217,9 +211,7 @@ def get_interaction_matrix(df: pl.DataFrame) -> pl.DataFrame:
     if df.is_empty():
         return pl.DataFrame(schema=_EMPTY_INTERACTION_SCHEMA)
 
-    df_sorted = df.sort("timestamp").with_columns(
-        pl.col("author").shift().alias("replied_to")
-    )
+    df_sorted = df.sort("timestamp").with_columns(pl.col("author").shift().alias("replied_to"))
     interactions = df_sorted.filter(pl.col("author") != pl.col("replied_to"))
     if interactions.is_empty():
         return pl.DataFrame(schema=_EMPTY_INTERACTION_SCHEMA)
@@ -242,9 +234,9 @@ def detect_threads(df: pl.DataFrame, *, max_gap_minutes: int = 30) -> pl.DataFra
         (pl.col("timestamp").diff().dt.total_seconds() / 60).alias("gap_minutes")
     )
     df_with_flags = df_with_gaps.with_columns(
-        (
-            (pl.col("gap_minutes") > max_gap_minutes) | pl.col("gap_minutes").is_null()
-        ).alias("new_thread")
+        ((pl.col("gap_minutes") > max_gap_minutes) | pl.col("gap_minutes").is_null()).alias(
+            "new_thread"
+        )
     )
     df_with_threads = df_with_flags.with_columns(
         pl.col("new_thread").cast(pl.Int64).cum_sum().alias("thread_id")
@@ -272,7 +264,9 @@ def analyze_hourly_activity(df: pl.DataFrame) -> pl.DataFrame:
     """Analyze message distribution by hour of day."""
 
     if df.is_empty():
-        return pl.DataFrame({"hour": [], "message_count": []}, schema={"hour": pl.Int64, "message_count": pl.Int64})
+        return pl.DataFrame(
+            {"hour": [], "message_count": []}, schema={"hour": pl.Int64, "message_count": pl.Int64}
+        )
 
     return (
         df.with_columns(pl.col("timestamp").dt.hour().alias("hour"))
@@ -286,13 +280,11 @@ def analyze_daily_activity(df: pl.DataFrame) -> pl.DataFrame:
     """Analyze message distribution by day."""
 
     if df.is_empty():
-        return pl.DataFrame({"date": [], "message_count": []}, schema={"date": pl.Date, "message_count": pl.Int64})
+        return pl.DataFrame(
+            {"date": [], "message_count": []}, schema={"date": pl.Date, "message_count": pl.Int64}
+        )
 
-    return (
-        df.group_by("date")
-        .agg(pl.len().alias("message_count"))
-        .sort("date")
-    )
+    return df.group_by("date").agg(pl.len().alias("message_count")).sort("date")
 
 
 def get_participation_timeline(df: pl.DataFrame) -> pl.DataFrame:
@@ -390,8 +382,10 @@ def detect_emerging_topics(
             except Exception:  # pragma: no cover - defensive fallback
                 source = None
 
-        if source is None and isinstance(value, Sequence) and not isinstance(
-            value, (bytes, bytearray)
+        if (
+            source is None
+            and isinstance(value, Sequence)
+            and not isinstance(value, bytes | bytearray)
         ):
             source = list(value)
 
@@ -421,13 +415,11 @@ def detect_emerging_topics(
         return pl.DataFrame(schema=empty_schema)
 
     def _count_keywords(frame: pl.DataFrame) -> pl.DataFrame:
-        exploded = (
-            frame.select(pl.col("__keywords"))
-            .explode("__keywords")
-            .drop_nulls()
-        )
+        exploded = frame.select(pl.col("__keywords")).explode("__keywords").drop_nulls()
         if exploded.is_empty():
-            return pl.DataFrame({"word": [], "count": []}, schema={"word": pl.String, "count": pl.Int64})
+            return pl.DataFrame(
+                {"word": [], "count": []}, schema={"word": pl.String, "count": pl.Int64}
+            )
         return (
             exploded.group_by("__keywords")
             .agg(pl.len().alias("count"))
@@ -452,10 +444,7 @@ def detect_emerging_topics(
 
     scored = (
         merged.with_columns(
-            (
-                pl.col("recent_count")
-                / (pl.col("historical_count") + 1)
-            ).alias("growth_ratio")
+            (pl.col("recent_count") / (pl.col("historical_count") + 1)).alias("growth_ratio")
         )
         .filter(pl.col("growth_ratio") > growth_ratio_threshold)
         .filter(pl.col("recent_count") >= min_recent_mentions)

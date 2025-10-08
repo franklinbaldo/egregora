@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from pathlib import Path
-from typing import Iterable
-
 import zipfile
+from collections.abc import Iterable
+from pathlib import Path
+
 import gdown
 
 __all__ = ["RemoteSourceError", "sync_remote_zips"]
+
+
 class RemoteSourceError(RuntimeError):
     """Raised when synchronising remote ZIP exports fails."""
 
@@ -44,7 +46,7 @@ def _files_match(path_a: Path, path_b: Path) -> bool:
     return digest_a.digest() == digest_b.digest()
 
 
-def _ensure_archive_path(path: Path) -> Path | None:
+def _ensure_archive_path(path: Path) -> Path | None:  # noqa: PLR0911
     """Return a path to a valid ZIP archive, normalising missing extensions."""
 
     if not path.exists() or not path.is_file():
@@ -112,7 +114,9 @@ def _normalise_downloaded_paths(paths: Iterable[str], *, target_dir: Path) -> li
     return archives
 
 
-def sync_remote_zips(url: str, target_dir: Path, *, logger: logging.Logger | None = None) -> list[Path]:
+def sync_remote_zips(
+    url: str, target_dir: Path, *, logger: logging.Logger | None = None
+) -> list[Path]:
     """Download WhatsApp ZIP exports from a Google Drive share URL."""
 
     target_dir = target_dir.expanduser().resolve()

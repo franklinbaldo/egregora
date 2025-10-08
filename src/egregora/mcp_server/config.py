@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import tomllib
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -14,12 +16,12 @@ from ..rag.config import RAGConfig, sanitize_rag_config_payload
 class MCPServerConfig(BaseModel):
     """Runtime configuration values for the MCP server."""
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True, validate_assignment=True)
+    model_config = ConfigDict(
+        extra="forbid", arbitrary_types_allowed=True, validate_assignment=True
+    )
 
     config_path: Path | None = None
-    posts_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data")
-    )
+    posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
     cache_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("cache/rag"))
     rag: RAGConfig = Field(default_factory=RAGConfig)
 
@@ -38,7 +40,7 @@ class MCPServerConfig(BaseModel):
         raise TypeError("rag configuration must be a mapping")
 
     @classmethod
-    def from_path(cls, path: Path | None) -> "MCPServerConfig":
+    def from_path(cls, path: Path | None) -> MCPServerConfig:
         if not path or not path.exists():
             return cls(config_path=path)
 
@@ -46,8 +48,6 @@ class MCPServerConfig(BaseModel):
             data = path.read_text(encoding="utf-8")
         except OSError as exc:  # pragma: no cover - filesystem failures
             raise ValueError(f"Unable to read MCP configuration: {exc}") from exc
-
-        import tomllib
 
         payload = tomllib.loads(data)
         rag_section = payload.get("rag") if isinstance(payload, Mapping) else None
@@ -63,8 +63,7 @@ class MCPServerConfig(BaseModel):
 
         return cls(
             config_path=path,
-            posts_dir=
-            posts_dir or _ensure_safe_directory("data"),
+            posts_dir=posts_dir or _ensure_safe_directory("data"),
             cache_dir=cache_dir or _ensure_safe_directory("cache/rag"),
             rag=RAGConfig(**rag_data) if rag_data else RAGConfig(),
         )

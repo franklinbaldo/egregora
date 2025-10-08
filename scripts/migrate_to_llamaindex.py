@@ -11,8 +11,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from egregora.rag.config import RAGConfig
-from egregora.rag.index import PostRAG
+from egregora.rag.config import RAGConfig  # noqa: E402
+from egregora.rag.index import PostRAG  # noqa: E402
 
 
 def main() -> None:

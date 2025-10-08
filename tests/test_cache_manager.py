@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.cache_manager import CacheManager, ISO_FORMAT
+from egregora.cache_manager import ISO_FORMAT, CacheManager
+
+EXPECTED_RELEVANCE_SCORE = 4
+EXPECTED_CACHE_HIT_RATE = 0.5
 
 
 def _build_analysis(model: str = "gemini-test") -> dict[str, object]:
-    timestamp = datetime.now(timezone.utc).strftime(ISO_FORMAT)
+    timestamp = datetime.now(UTC).strftime(ISO_FORMAT)
     return {
         "model": model,
         "analyzed_at": timestamp,
@@ -67,12 +69,8 @@ def test_generate_uuid_ignores_default_ports(tmp_path: Path) -> None:
     https_with_port = "https://example.com:443/path"
     https_without_port = "https://example.com/path"
 
-    assert manager.generate_uuid(http_with_port) == manager.generate_uuid(
-        http_without_port
-    )
-    assert manager.generate_uuid(https_with_port) == manager.generate_uuid(
-        https_without_port
-    )
+    assert manager.generate_uuid(http_with_port) == manager.generate_uuid(http_without_port)
+    assert manager.generate_uuid(https_with_port) == manager.generate_uuid(https_without_port)
 
 
 def test_set_and_get_roundtrip(tmp_path: Path) -> None:
@@ -87,12 +85,12 @@ def test_set_and_get_roundtrip(tmp_path: Path) -> None:
 
     cached = manager.get(url)
     assert cached is not None
-    assert cached["enrichment"]["relevance"] == 4
+    assert cached["enrichment"]["relevance"] == EXPECTED_RELEVANCE_SCORE
 
     stats = manager.get_stats()
     assert stats["cache_hits"] == 1
     assert stats["cache_misses"] == 1
-    assert pytest.approx(stats["cache_hit_rate"], rel=1e-3) == 0.5
+    assert pytest.approx(stats["cache_hit_rate"], rel=1e-3) == EXPECTED_CACHE_HIT_RATE
     assert stats["total_entries"] == 1
 
 
@@ -104,9 +102,7 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
     uuid_value = manager.generate_uuid(url)
     entry = manager._cache.get(uuid_value)  # type: ignore[attr-defined]
     assert entry is not None
-    entry["last_used"] = (
-        datetime.now(timezone.utc) - timedelta(days=120)
-    ).strftime(ISO_FORMAT)
+    entry["last_used"] = (datetime.now(UTC) - timedelta(days=120)).strftime(ISO_FORMAT)
     manager._cache.set(uuid_value, entry)  # type: ignore[attr-defined]
 
     removed = manager.cleanup_old_entries(90)

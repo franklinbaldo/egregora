@@ -30,9 +30,7 @@ class QueryGenerator:
         self.config = copy.deepcopy(config) if config else RAGConfig()
         self._keyword_provider = keyword_provider
 
-    def _build_extractor(
-        self, keyword_provider: KeywordProvider | None
-    ) -> KeywordExtractor:
+    def _build_extractor(self, keyword_provider: KeywordProvider | None) -> KeywordExtractor:
         provider = keyword_provider or self._keyword_provider
         return KeywordExtractor(
             max_keywords=self.config.max_keywords,

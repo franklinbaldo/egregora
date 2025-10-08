@@ -4,24 +4,26 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Any, Dict, List
+from typing import Any
 
 from llama_index.core.schema import NodeWithScore
 
 from ..rag.index import PostRAG
 from ..rag.keyword_utils import KeywordProvider, build_llm_keyword_provider
-from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
+
+try:  # pragma: no cover - optional dependency
+    from google import genai  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    genai = None
 from ..types import PostSlug
 from .config import MCPServerConfig
 from .tools import format_post_listing, format_search_hits
 
 try:  # pragma: no cover - optional dependency
-    from mcp.server import Server, NotificationOptions
+    from mcp.server import NotificationOptions, Server
     from mcp.server.models import InitializationOptions
     from mcp.types import (
         EmbeddedResource,
@@ -62,6 +64,7 @@ if MCP_IMPORT_ERROR is None:
     call_tool = app.call_tool
     read_resource = app.read_resource
 else:  # pragma: no cover - fallback when dependency missing
+
     class _PlaceholderServer:
         def list_tools(self):
             return _identity_decorator
@@ -107,12 +110,17 @@ class RAGServer:
         if self._gemini_client is not None:
             return self._gemini_client
 
-        try:  # pragma: no cover - optional dependency
-            from google import genai  # type: ignore
-        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+        if genai is None:  # pragma: no cover - optional dependency
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada. "
                 "Instale-a para habilitar a extração de palavras-chave."
+            ) from None
+
+        try:  # pragma: no cover - optional dependency
+            client_factory = genai.Client
+        except AttributeError as exc:  # pragma: no cover - defensive
+            raise RuntimeError(
+                "A instalação de 'google-genai' não expõe Client como esperado."
             ) from exc
 
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -121,7 +129,7 @@ class RAGServer:
                 "Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente para gerar keywords."
             )
 
-        self._gemini_client = genai.Client(api_key=api_key)
+        self._gemini_client = client_factory(api_key=api_key)
         return self._gemini_client
 
     def _get_keyword_provider(self, model: str | None) -> KeywordProvider:
@@ -160,9 +168,7 @@ class RAGServer:
             exclude_recent_days=exclude_recent_days,
         )
 
-    async def generate_query(
-        self, *, transcripts: str, model: str | None = None
-    ) -> dict[str, Any]:
+    async def generate_query(self, *, transcripts: str, model: str | None = None) -> dict[str, Any]:
         provider = self._get_keyword_provider(model)
         result = await asyncio.to_thread(
             self.query_gen.generate,
@@ -189,9 +195,7 @@ class RAGServer:
         if not directory.exists():
             return []
 
-        files = sorted(
-            self.rag.iter_post_files(), key=lambda path: path.stem, reverse=True
-        )
+        files = sorted(self.rag.iter_post_files(), key=lambda path: path.stem, reverse=True)
         selected = files[offset : offset + limit]
         return [
             {
@@ -222,11 +226,9 @@ rag_server: RAGServer | None = None
 
 
 @list_tools()
-async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
+async def handle_list_tools() -> list[Tool]:  # type: ignore[valid-type]
     if MCP_IMPORT_ERROR is not None:
-        raise RuntimeError(
-            "O pacote 'mcp' não está instalado; instale-o para listar as tools."
-        )
+        raise RuntimeError("O pacote 'mcp' não está instalado; instale-o para listar as tools.")
 
     return [
         Tool(
@@ -351,11 +353,11 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
 
 
 @call_tool()
-async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:  # type: ignore[valid-type]
+async def handle_call_tool(  # noqa: PLR0911
+    name: str, arguments: dict[str, Any]
+) -> list[TextContent]:  # type: ignore[valid-type]
     if MCP_IMPORT_ERROR is not None:
-        raise RuntimeError(
-            "O pacote 'mcp' não está instalado; instale-o para usar as ferramentas."
-        )
+        raise RuntimeError("O pacote 'mcp' não está instalado; instale-o para usar as ferramentas.")
 
     if rag_server is None:
         return [TextContent(type="text", text="Erro: RAG server não inicializado")]
@@ -432,7 +434,7 @@ async def main(config_path: Path | None = None) -> None:
             "O pacote 'mcp' não está instalado. Instale 'mcp' para executar o servidor."
         ) from MCP_IMPORT_ERROR
 
-    global rag_server
+    global rag_server  # noqa: PLW0603
     rag_server = RAGServer(config_path=config_path)
 
     print("[MCP Server] Inicializando RAG...")

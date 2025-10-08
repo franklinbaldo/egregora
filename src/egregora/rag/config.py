@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from pydantic import (
     BaseModel,
@@ -42,11 +43,7 @@ def _default_keyword_stop_words() -> tuple[str, ...]:
 def sanitize_rag_config_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Return ``payload`` without deprecated configuration keys."""
 
-    return {
-        key: value
-        for key, value in payload.items()
-        if key not in _DEPRECATED_RAG_KEYS
-    }
+    return {key: value for key, value in payload.items() if key not in _DEPRECATED_RAG_KEYS}
 
 
 def _default_mcp_args() -> tuple[str, ...]:
@@ -73,9 +70,7 @@ class RAGConfig(BaseModel):
     # Query generation helpers
     max_context_chars: int = 1200
     max_keywords: int = 8
-    keyword_stop_words: tuple[str, ...] | None = Field(
-        default_factory=_default_keyword_stop_words
-    )
+    keyword_stop_words: tuple[str, ...] | None = Field(default_factory=_default_keyword_stop_words)
     classifier_max_llm_calls: int | None = 200
     classifier_token_budget: int | None = 20000
 
@@ -95,7 +90,8 @@ class RAGConfig(BaseModel):
     cache_dir: Path = Field(default_factory=lambda: Path("cache/embeddings"))
     export_embeddings: bool = False
     embedding_export_path: Path = Field(
-        default_factory=lambda: Path("artifacts/embeddings/post_chunks.parquet"))
+        default_factory=lambda: Path("artifacts/embeddings/post_chunks.parquet")
+    )
 
     # Vector store
     vector_store_type: str = "simple"
@@ -104,9 +100,7 @@ class RAGConfig(BaseModel):
 
     @field_validator("top_k", "max_keywords")
     @classmethod
-    def _validate_positive_int(
-        cls, value: Any, info: ValidationInfo
-    ) -> int:
+    def _validate_positive_int(cls, value: Any, info: ValidationInfo) -> int:
         ivalue = int(value)
         if ivalue < 1:
             raise ValueError(f"{info.field_name} must be greater than zero")
@@ -146,9 +140,7 @@ class RAGConfig(BaseModel):
 
     @field_validator("chunk_overlap")
     @classmethod
-    def _validate_overlap(
-        cls, value: Any, _info: ValidationInfo
-    ) -> int:
+    def _validate_overlap(cls, value: Any, _info: ValidationInfo) -> int:
         ivalue = int(value)
         if ivalue < 0:
             raise ValueError("chunk_overlap must be zero or positive")
@@ -174,15 +166,13 @@ class RAGConfig(BaseModel):
 
     @field_validator("keyword_stop_words")
     @classmethod
-    def _coerce_stop_words(
-        cls, value: Sequence[str] | None
-    ) -> tuple[str, ...] | None:
+    def _coerce_stop_words(cls, value: Sequence[str] | None) -> tuple[str, ...] | None:
         if value is None:
             return None
         return tuple(str(item).lower() for item in value if item)
 
     @model_validator(mode="after")
-    def _validate_overlap_bounds(self) -> "RAGConfig":
+    def _validate_overlap_bounds(self) -> RAGConfig:
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be smaller than chunk_size")
         return self

@@ -8,6 +8,8 @@ from typing import Literal
 
 import polars as pl
 
+BRAZIL_MOBILE_WITH_PREFIX_LENGTH = 13
+BRAZIL_COUNTRY_PREFIX = "55"
 
 FormatType = Literal["human", "short", "full"]
 
@@ -40,7 +42,9 @@ class Anonymizer:
         digits_only = re.sub(r"\D", "", normalized)
         if len(digits_only) in {10, 11}:
             return "+55" + digits_only
-        if len(digits_only) == 13 and digits_only.startswith("55"):
+        if len(digits_only) == BRAZIL_MOBILE_WITH_PREFIX_LENGTH and digits_only.startswith(
+            BRAZIL_COUNTRY_PREFIX
+        ):
             return "+" + digits_only
         return digits_only
 
@@ -118,9 +122,7 @@ class Anonymizer:
         return variants
 
     @staticmethod
-    def anonymize_dataframe(
-        df: pl.DataFrame, format: FormatType = "human"
-    ) -> pl.DataFrame:
+    def anonymize_dataframe(df: pl.DataFrame, format: FormatType = "human") -> pl.DataFrame:
         """Return a new DataFrame with the ``author`` column anonymized."""
 
         if "author" not in df.columns:

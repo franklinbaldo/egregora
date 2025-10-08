@@ -1,6 +1,5 @@
-from datetime import date
-from pathlib import Path
 import zipfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -24,8 +23,8 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
     with open(chat_txt_path, "w") as f:
         f.write("03/10/2025 09:46 - Franklin: Check this: https://example.com\n")
 
-    with zipfile.ZipFile(zip_path, 'w') as zf:
-        zf.write(chat_txt_path, arcname='_chat.txt')
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(chat_txt_path, arcname="_chat.txt")
 
     return PipelineConfig.with_defaults(
         zips_dir=zips_dir,
@@ -41,13 +40,17 @@ def test_urls_preserved_in_post(mock_guess_type, config_with_url: PipelineConfig
     class MockLLMClient:
         def __init__(self):
             self.models = self
+
         def generate_content_stream(self, model, contents, config):
             transcript = contents[0].parts[0].text
+
             class MockStream:
                 def __init__(self, text):
                     self.text = text
+
                 def __iter__(self):
                     yield self
+
             return MockStream(f"Post.\n{transcript}")
 
     def mock_create_client():

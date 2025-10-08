@@ -15,4 +15,3 @@ GroupSlug = NewType("GroupSlug", str)
 PostSlug = NewType("PostSlug", str)
 
 __all__ = ["GroupSlug", "PostSlug"]
-

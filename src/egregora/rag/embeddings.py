@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, List
 
 from diskcache import Cache
 from llama_index.core.embeddings import BaseEmbedding
@@ -42,16 +42,22 @@ class _FallbackEmbedding(BaseEmbedding):
             return vector
         return [value / norm for value in vector]
 
-    def _get_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - delegated to sync path
+    def _get_text_embedding(
+        self, text: str
+    ) -> list[float]:  # pragma: no cover - delegated to sync path
         return self._vectorise(text)
 
-    def _get_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - delegated to sync path
+    def _get_query_embedding(
+        self, query: str
+    ) -> list[float]:  # pragma: no cover - delegated to sync path
         return self._vectorise(query)
 
-    async def _aget_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - delegated
+    async def _aget_text_embedding(self, text: str) -> list[float]:  # pragma: no cover - delegated
         return self._vectorise(text)
 
-    async def _aget_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - delegated
+    async def _aget_query_embedding(
+        self, query: str
+    ) -> list[float]:  # pragma: no cover - delegated
         return self._vectorise(query)
 
 
@@ -122,7 +128,7 @@ class CachedGeminiEmbedding(BaseEmbedding):
         record = {
             "vector": vector,
             "namespace": self._cache_namespace,
-            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "cached_at": datetime.now(UTC).isoformat(),
         }
         self._cache.set(self._cache_key(text, kind=kind), record)
 
@@ -139,16 +145,20 @@ class CachedGeminiEmbedding(BaseEmbedding):
         self._store_cache(text, vector, kind=kind)
         return vector
 
-    def _get_text_embedding(self, text: str) -> List[float]:
+    def _get_text_embedding(self, text: str) -> list[float]:
         return self._embed(text, kind="text")
 
-    def _get_query_embedding(self, query: str) -> List[float]:
+    def _get_query_embedding(self, query: str) -> list[float]:
         return self._embed(query, kind="query")
 
-    async def _aget_text_embedding(self, text: str) -> List[float]:  # pragma: no cover - simple passthrough
+    async def _aget_text_embedding(
+        self, text: str
+    ) -> list[float]:  # pragma: no cover - simple passthrough
         return self._get_text_embedding(text)
 
-    async def _aget_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - simple passthrough
+    async def _aget_query_embedding(
+        self, query: str
+    ) -> list[float]:  # pragma: no cover - simple passthrough
         return self._get_query_embedding(query)
 
     @staticmethod
@@ -158,4 +168,3 @@ class CachedGeminiEmbedding(BaseEmbedding):
 
 
 __all__ = ["CachedGeminiEmbedding"]
-

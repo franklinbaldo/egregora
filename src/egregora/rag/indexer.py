@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterable, Iterator, Sequence
 from datetime import date
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
 
 HEADER_RE = re.compile(r"^(?P<level>#+)\s+(?P<title>.+)$")
 DATE_IN_STEM_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -71,11 +71,11 @@ def _chunk_paragraphs(
     current_len = 0
 
     for paragraph in paragraphs:
-        paragraph = paragraph.strip()
-        if not paragraph:
+        stripped = paragraph.strip()
+        if not stripped:
             continue
 
-        if current and current_len + len(paragraph) > chunk_chars:
+        if current and current_len + len(stripped) > chunk_chars:
             yield "\n\n".join(current).strip()
 
             if overlap_chars:
@@ -93,8 +93,8 @@ def _chunk_paragraphs(
                 current = []
                 current_len = 0
 
-        current.append(paragraph)
-        current_len += len(paragraph)
+        current.append(stripped)
+        current_len += len(stripped)
 
     if current:
         yield "\n\n".join(current).strip()

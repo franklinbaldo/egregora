@@ -7,11 +7,12 @@ import csv
 import json
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -45,9 +46,7 @@ CACHE_RECORD_VERSION = "2.0"
 
 SUMMARY_AGENT = Agent(output_type=SummaryResponse)
 
-MEDIA_PLACEHOLDER_SUMMARY = (
-    "Mídia sem descrição compartilhada; peça detalhes se necessário."
-)
+MEDIA_PLACEHOLDER_SUMMARY = "Mídia sem descrição compartilhada; peça detalhes se necessário."
 
 
 COLUMN_SEPARATOR = "; "
@@ -115,7 +114,7 @@ class EnrichmentResult:
     items: list[EnrichedItem] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duration_seconds: float = 0.0
-    metrics: "EnrichmentRunMetrics | None" = None
+    metrics: EnrichmentRunMetrics | None = None
 
     def relevant_items(self, threshold: int) -> list[EnrichedItem]:
         return [item for item in self.items if item.relevance >= threshold]
@@ -138,9 +137,7 @@ class EnrichmentResult:
             if ref.sender or ref.timestamp:
                 sender = ref.sender or "(autor desconhecido)"
                 when = ref.timestamp or "horário desconhecido"
-                lines.append(
-                    f"   Remetente: {sender.strip()} às {when} em {ref.date.isoformat()}"
-                )
+                lines.append(f"   Remetente: {sender.strip()} às {when} em {ref.date.isoformat()}")
             if analysis and analysis.summary:
                 lines.append(f"   Resumo: {analysis.summary}")
             if analysis and analysis.topics:
@@ -201,7 +198,7 @@ class ContentEnricher:
         config: EnrichmentConfig,
         *,
         cache_manager: CacheManager | None = None,
-        gemini_manager: "GeminiManager | None" = None,
+        gemini_manager: GeminiManager | None = None,
     ) -> None:
         self._config = config
         self._cache = cache_manager
@@ -228,7 +225,7 @@ class ContentEnricher:
         """DataFrame-native enrichment pipeline using Polars expressions."""
 
         start = perf_counter()
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         references: list[ContentReference] = []
         if not self._config.enabled:
             result = EnrichmentResult()
@@ -342,9 +339,7 @@ class ContentEnricher:
         self._record_llm_usage(prompt, analysis.raw_response)
         return analysis
 
-    def _store_in_cache(
-        self, reference: ContentReference, analysis: AnalysisResult
-    ) -> None:
+    def _store_in_cache(self, reference: ContentReference, analysis: AnalysisResult) -> None:
         if not self._cache or not reference.url:
             return
 
@@ -355,7 +350,7 @@ class ContentEnricher:
             "relevance": analysis.relevance,
             "raw_response": analysis.raw_response,
         }
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         domain = urlparse(reference.url).netloc if reference.url else None
         context = {
             "message": reference.message,
@@ -576,7 +571,7 @@ class ContentEnricher:
                 asyncio.gather(*(_process(reference) for reference in references)),
                 timeout=self._config.max_total_enrichment_time,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return EnrichmentResult(
                 items=[],
                 errors=[
@@ -605,7 +600,7 @@ class ContentEnricher:
         duration = perf_counter() - start
         result.duration_seconds = duration
 
-        finished_at = datetime.now(timezone.utc)
+        finished_at = datetime.now(UTC)
         metrics = EnrichmentRunMetrics(
             started_at=started_at,
             finished_at=finished_at,
@@ -624,24 +619,16 @@ class ContentEnricher:
 
     def _count_relevant_items(self, items: Sequence[EnrichedItem]) -> int:
         threshold = max(1, self._config.relevance_threshold)
-        return sum(
-            1
-            for item in items
-            if item.analysis and item.analysis.relevance >= threshold
-        )
+        return sum(1 for item in items if item.analysis and item.analysis.relevance >= threshold)
 
     @staticmethod
     def _collect_domains(references: Sequence[ContentReference]) -> tuple[str, ...]:
-        domains = {
-            urlparse(reference.url).netloc
-            for reference in references
-            if reference.url
-        }
+        domains = {urlparse(reference.url).netloc for reference in references if reference.url}
         return tuple(sorted(filter(None, domains)))
 
     def _log_metrics(
         self,
-        metrics: "EnrichmentRunMetrics",
+        metrics: EnrichmentRunMetrics,
         errors: Sequence[str],
     ) -> None:
         domains_display = ", ".join(metrics.domains) if metrics.domains else "-"
@@ -660,7 +647,7 @@ class ContentEnricher:
 
     def _write_metrics_csv(
         self,
-        metrics: "EnrichmentRunMetrics",
+        metrics: EnrichmentRunMetrics,
         errors: Sequence[str],
     ) -> None:
         path_value = self._config.metrics_csv_path
@@ -703,9 +690,7 @@ class ContentEnricher:
             pl.col("author").fill_null("").alias("author"),
         )
 
-        frame = frame.with_columns(
-            pl.col("timestamp").dt.strftime("%H:%M").alias("__time_str")
-        )
+        frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("__time_str"))
 
         fallback = pl.format(
             "{} — {}: {}",
@@ -738,17 +723,11 @@ class ContentEnricher:
                 .otherwise(None),
             )
 
-        frame = frame.with_columns(
-            pl.coalesce(*context_candidates).alias("__context_line")
-        )
+        frame = frame.with_columns(pl.coalesce(*context_candidates).alias("__context_line"))
 
         frame = frame.with_columns(
-            pl.col("message")
-            .str.extract_all(URL_RE.pattern)
-            .alias("__urls"),
-            pl.col("message")
-            .str.contains(MEDIA_TOKEN_RE.pattern)
-            .alias("__media_placeholder"),
+            pl.col("message").str.extract_all(URL_RE.pattern).alias("__urls"),
+            pl.col("message").str.contains(MEDIA_TOKEN_RE.pattern).alias("__media_placeholder"),
         )
 
         window = max(self._config.context_window, 0)
@@ -763,14 +742,10 @@ class ContentEnricher:
             ]
             frame = frame.with_columns(before_cols + after_cols)
             frame = frame.with_columns(
-                pl.concat_list(
-                    [pl.col(f"__before_{i}") for i in range(window, 0, -1)]
-                )
+                pl.concat_list([pl.col(f"__before_{i}") for i in range(window, 0, -1)])
                 .list.drop_nulls()
                 .alias("__context_before"),
-                pl.concat_list(
-                    [pl.col(f"__after_{i}") for i in range(1, window + 1)]
-                )
+                pl.concat_list([pl.col(f"__after_{i}") for i in range(1, window + 1)])
                 .list.drop_nulls()
                 .alias("__context_after"),
             )
@@ -787,9 +762,7 @@ class ContentEnricher:
 
         return frame
 
-    def _extract_references_from_frame(
-        self, frame: pl.DataFrame
-    ) -> list[ContentReference]:
+    def _extract_references_from_frame(self, frame: pl.DataFrame) -> list[ContentReference]:
         references: list[ContentReference] = []
         seen: set[tuple[str | None, str]] = set()
 
@@ -856,7 +829,6 @@ class ContentEnricher:
         return references
 
 
-
 def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """Extract URLs from DataFrame and return DataFrame with ``urls`` column."""
 
@@ -864,16 +836,11 @@ def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
         raise KeyError("DataFrame must have 'message' column")
 
     return df.with_columns(
-        pl.col("message")
-        .fill_null("")
-        .str.extract_all(URL_RE.pattern)
-        .alias("urls")
+        pl.col("message").fill_null("").str.extract_all(URL_RE.pattern).alias("urls")
     )
 
 
-def get_url_contexts_dataframe(
-    df: pl.DataFrame, context_window: int = 3
-) -> pl.DataFrame:
+def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.DataFrame:
     """Extract URLs with surrounding context from a conversation DataFrame."""
 
     if df.is_empty() or "urls" not in df.columns:
@@ -899,8 +866,7 @@ def get_url_contexts_dataframe(
     df_sorted = df.sort("timestamp").with_row_index(name="row_index")
     rows = df_sorted.to_dicts()
     formatted_messages = [
-        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip()
-        for row in rows
+        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip() for row in rows
     ]
 
     results: list[dict[str, object]] = []

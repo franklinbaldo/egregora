@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from egregora import config as config_module
 from egregora.config import PipelineConfig, _ensure_safe_directory, _load_toml_data
 from egregora.group_discovery import _iter_preview_lines, discover_groups
 from egregora.models import WhatsAppExport
@@ -44,7 +45,7 @@ def test_discover_groups_rejects_symlink(tmp_path, caplog):
     with zipfile.ZipFile(real_zip, "w") as zf:
         zf.writestr(
             "WhatsApp Chat with Test.txt",
-            "[01/01/2024, 00:00] Test: message\n".encode("utf-8"),
+            b"[01/01/2024, 00:00] Test: message\n",
         )
 
     zips_dir = tmp_path / "zips"
@@ -88,8 +89,6 @@ def test_parse_export_rejects_invalid_utf8(tmp_path):
 def test_load_toml_data_rejects_large_file(tmp_path, monkeypatch):
     config_path = tmp_path / "config.toml"
     config_path.write_text('value = "123456"\n', encoding="utf-8")
-
-    from egregora import config as config_module
 
     monkeypatch.setattr(config_module, "_MAX_TOML_BYTES", 4)
 

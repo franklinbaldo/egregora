@@ -12,6 +12,9 @@ from egregora.analytics import (
     get_interaction_matrix,
 )
 
+EXPECTED_TOTAL_MESSAGES = 5
+EXPECTED_ACTIVE_PARTICIPANTS = 3
+
 
 def _sample_dataframe() -> pl.DataFrame:
     timestamps = [
@@ -46,8 +49,8 @@ def test_get_conversation_health_basic_metrics() -> None:
 
     metrics = get_conversation_health(df)
 
-    assert metrics["total_messages"] == 5
-    assert metrics["active_participants"] == 3
+    assert metrics["total_messages"] == EXPECTED_TOTAL_MESSAGES
+    assert metrics["active_participants"] == EXPECTED_ACTIVE_PARTICIPANTS
     assert metrics["thread_count"] >= 1
     assert metrics["messages_per_day_avg"] > 0
 

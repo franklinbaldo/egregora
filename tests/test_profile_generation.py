@@ -16,8 +16,8 @@ from egregora.config import (
     ProfilesConfig,
     RAGConfig,
 )
-from egregora.profiles import ParticipantProfile, ProfileUpdater
 from egregora.processor import UnifiedProcessor
+from egregora.profiles import ParticipantProfile, ProfileUpdater
 
 
 def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,10 +64,12 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
         raising=False,
     )
 
-    async def fake_should_update_profile(self, member_id, current_profile, full_conversation, gemini_client):
+    async def fake_should_update_profile(
+        self, member_id, current_profile, full_conversation, gemini_client
+    ):
         return True, "Perfil precisa ser atualizado", ["Destaque"], ["Insight"]
 
-    async def fake_rewrite_profile(
+    async def fake_rewrite_profile(  # noqa: PLR0913
         self,
         member_id,
         old_profile,

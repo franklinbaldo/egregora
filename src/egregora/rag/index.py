@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import copy
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, List, Sequence
+from typing import Any
 
+import polars as pl
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import TokenTextSplitter
 from llama_index.core.retrievers import VectorIndexRetriever
@@ -60,9 +62,7 @@ class PostRAG:
         base_config.persist_dir.mkdir(parents=True, exist_ok=True)
 
         if base_config.export_embeddings:
-            base_config.embedding_export_path = (
-                base_config.embedding_export_path.expanduser()
-            )
+            base_config.embedding_export_path = base_config.embedding_export_path.expanduser()
 
         self.config = base_config
 
@@ -87,8 +87,8 @@ class PostRAG:
         store_type = self.config.vector_store_type.lower()
         if store_type == "chroma":
             try:
-                import chromadb
-                from llama_index.vector_stores.chroma import ChromaVectorStore
+                import chromadb  # noqa: PLC0415
+                from llama_index.vector_stores.chroma import ChromaVectorStore  # noqa: PLC0415
             except ModuleNotFoundError as exc:  # pragma: no cover - chromadb optional
                 raise RuntimeError(
                     "Dependência 'chromadb' não encontrada. Instale 'chromadb' para usar o vector store Chroma."
@@ -187,7 +187,7 @@ class PostRAG:
         top_k: int | None = None,
         min_similarity: float | None = None,
         exclude_recent_days: int | None = None,
-    ) -> List[NodeWithScore]:
+    ) -> list[NodeWithScore]:
         """Execute a semantic similarity search over the indexed chunks."""
 
         if not query.strip():
@@ -240,7 +240,10 @@ class PostRAG:
     # Internal helpers
     # ------------------------------------------------------------------
     def _clear_collection(self) -> None:
-        if self.config.vector_store_type.lower() == "chroma" and self._chroma_collection is not None:
+        if (
+            self.config.vector_store_type.lower() == "chroma"
+            and self._chroma_collection is not None
+        ):
             self._chroma_collection.delete()
             self._chroma_collection = None
             self._chroma_client = None
@@ -248,13 +251,6 @@ class PostRAG:
         self._init_vector_store()
 
     def _export_embeddings(self, nodes: Sequence[TextNode]) -> int:
-        try:
-            import polars as pl
-        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
-            raise RuntimeError(
-                "Exportar embeddings em Parquet requer a dependência opcional 'polars'."
-            ) from exc
-
         embeddings: list[list[float]] = []
         chunk_ids: list[str] = []
         doc_ids: list[str | None] = []
@@ -296,7 +292,7 @@ class PostRAG:
         df.write_parquet(export_path, compression="zstd")
         return df.height
 
-    def _load_post_documents(self) -> List[Document]:
+    def _load_post_documents(self) -> list[Document]:
         documents: list[Document] = []
         for path in self._collect_post_paths():
             text = path.read_text(encoding="utf-8")
@@ -324,11 +320,7 @@ class PostRAG:
         """Return markdown posts, supporting both legacy and nested layouts."""
 
         return sorted(
-            (
-                path
-                for path in self.posts_dir.glob("*/posts/daily/*.md")
-                if path.is_file()
-            ),
+            (path for path in self.posts_dir.glob("*/posts/daily/*.md") if path.is_file()),
             key=lambda path: path.stem,
         )
 
@@ -346,9 +338,7 @@ class PostRAG:
         except ValueError:
             return None
 
-    def _filter_recent_nodes(
-        self, nodes: List[NodeWithScore], cutoff: date
-    ) -> List[NodeWithScore]:
+    def _filter_recent_nodes(self, nodes: list[NodeWithScore], cutoff: date) -> list[NodeWithScore]:
         filtered: list[NodeWithScore] = []
         for node_with_score in nodes:
             metadata = getattr(node_with_score.node, "metadata", {})
