@@ -26,3 +26,43 @@ jobs:
         run: |
           uv run python scripts/process_backlog.py tests/data/zips ./_tmp_posts --force --offline --quiet
           test -d ./_tmp_posts
+      - name: Build RAG embeddings artifact
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          from egregora.config import PipelineConfig
+          from egregora.rag.index import PostRAG
+
+          pipeline_config = PipelineConfig.from_toml(Path("egregora.toml"))
+          rag_config = pipeline_config.rag
+
+          source_posts = Path("tests/data/rag_posts")
+          cache_root = Path("cache/rag_ci")
+          posts_dir = cache_root / "posts"
+
+          if posts_dir.exists():
+              shutil.rmtree(posts_dir)
+
+          for group_dir in source_posts.iterdir():
+              if not group_dir.is_dir():
+                  continue
+              daily_dir = group_dir / "daily"
+              if not daily_dir.is_dir():
+                  continue
+              target_daily = posts_dir / group_dir.name / "posts" / "daily"
+              target_daily.mkdir(parents=True, exist_ok=True)
+              for markdown in daily_dir.glob("*.md"):
+                  shutil.copy2(markdown, target_daily / markdown.name)
+
+          rag = PostRAG(posts_dir=posts_dir, config=rag_config, cache_dir=cache_root)
+          result = rag.update_index(force_rebuild=True)
+          print(f"Generated {result.get('embedding_rows', 0)} embedding rows at {result.get('embedding_export_path')}")
+          PY
+      - name: Upload RAG embeddings artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-post-embeddings
+          path: artifacts/embeddings/post_chunks.parquet
+          if-no-files-found: error

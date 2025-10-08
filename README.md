@@ -174,6 +174,8 @@ Launch the MCP server via the Typer CLI:
 uv run egregora mcp --config egregora.toml
 # Legacy alias retained for automations:
 uv run egregora-mcp --config egregora.toml
+# Direct script entry point (handy for IDE/Desktop integrations):
+uv run python scripts/start_mcp_server.py --config egregora.toml
 ```
 
 O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
