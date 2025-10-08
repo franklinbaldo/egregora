@@ -30,6 +30,8 @@ data/posts/
 data/
 !src/egregora/data/
 !src/egregora/data/**
+!tests/data/
+!tests/data/**
 egregora.toml
 *.zip:Zone.Identifier
 
