@@ -174,6 +174,8 @@ uv run egregora mcp --config egregora.toml
 uv run egregora-mcp --config egregora.toml
 ```
 
+O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
+
 ## Custom prompts & filters
 
 Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
