@@ -45,11 +45,9 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Hand-rolled implementations for solved problems (date parsing, configuration).
 
 **Action Items**:
-- [ ] Replace date parsing with `python-dateutil`
-  - Add `python-dateutil` to dependencies
-  - Refactor `date_utils.py` to use `dateutil.parser.parse`
-  - Add proper error handling and timezone awareness
-  - Update tests
+- [x] Replace date parsing with `python-dateutil`
+  - ✅ `parser.py` e `group_discovery.py` agora usam `dateutil.parser.isoparse/parse` diretamente, mantendo suporte a `dayfirst` e normalização para UTC
+  - ✅ Removido `date_utils.py` em favor de utilitários locais, com testes atualizados para cobrir os novos pontos de integração
 
 - [ ] Migrate configuration to Pydantic
   - Add `pydantic` and `pydantic-settings` to dependencies
