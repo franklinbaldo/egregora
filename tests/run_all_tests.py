@@ -25,7 +25,7 @@ def run_test_file(test_path: Path) -> tuple[bool, str]:
 
 
 def main():
-    """Run all test files and report results."""
+    """Run all test files and post results."""
     tests_dir = Path(__file__).parent
     
     # Define test files in execution order
@@ -33,7 +33,7 @@ def main():
         "test_core_pipeline.py",
         "test_enrichment_simple.py", 
         "test_rag_integration.py",
-        "test_newsletter_simple.py",
+        "test_post_simple.py",
         "test_whatsapp_integration.py",
     ]
     

@@ -1,4 +1,4 @@
-"""Core newsletter generation pipeline."""
+"""Core post generation pipeline."""
 
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ def build_llm_input(
     group_name: str,
     timezone: tzinfo,
     transcripts: Sequence[tuple[date, str]],
-    previous_newsletter: str | None,
+    previous_post: str | None,
     enrichment_section: str | None = None,
     rag_context: str | None = None,
 ) -> str:
@@ -232,15 +232,15 @@ def build_llm_input(
         f"DATA DE HOJE: {today_str}",
     ]
 
-    if previous_newsletter:
+    if previous_post:
         sections.extend([
-            "NEWSLETTER DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-            "<<<NEWSLETTER_ONTEM_INICIO>>>",
-            previous_newsletter.strip(),
-            "<<<NEWSLETTER_ONTEM_FIM>>>",
+            "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+            "<<<POST_ONTEM_INICIO>>>",
+            previous_post.strip(),
+            "<<<POST_ONTEM_FIM>>>",
         ])
     else:
-        sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
+        sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
 
     if enrichment_section:
         sections.extend([
@@ -250,7 +250,7 @@ def build_llm_input(
 
     if rag_context:
         sections.extend([
-            "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
+            "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
             rag_context,
         ])
 
@@ -274,7 +274,7 @@ def _require_google_dependency() -> None:
     if genai is None or types is None:
         raise RuntimeError(
             "A dependência opcional 'google-genai' não está instalada. "
-            "Instale-a para gerar newsletters (ex.: `pip install google-genai`)."
+            "Instale-a para gerar posts (ex.: `pip install google-genai`)."
         )
 
 
@@ -317,7 +317,7 @@ def read_zip_texts_and_media(
     zippath: Path,
     *,
     archive_date: date | None = None,
-    newsletters_dir: Path | None = None,
+    posts_dir: Path | None = None,
     group_slug: str | None = None,
 ) -> tuple[str, dict[str, MediaFile]]:
     """Read texts from *zippath* and optionally extract media files."""
@@ -326,12 +326,12 @@ def read_zip_texts_and_media(
     media_files: dict[str, MediaFile] = {}
 
     if archive_date is not None:
-        if (newsletters_dir is None) != (group_slug is None):
+        if (posts_dir is None) != (group_slug is None):
             raise ValueError(
-                "newsletters_dir and group_slug must both be provided to extract media",
+                "posts_dir and group_slug must both be provided to extract media",
             )
-        if newsletters_dir is not None and group_slug is not None:
-            group_dir = newsletters_dir / group_slug
+        if posts_dir is not None and group_slug is not None:
+            group_dir = posts_dir / group_slug
             extractor = MediaExtractor(group_dir, group_slug=group_slug)
             media_files = extractor.extract_media_from_zip(zippath, archive_date)
 
@@ -353,8 +353,8 @@ def read_zip_texts_and_media(
         transcript = MediaExtractor.replace_media_references(transcript, media_files)
 
     return transcript, media_files
-def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
-    """Load yesterday's newsletter if it exists."""
+def load_previous_post(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
+    """Load yesterday's post if it exists."""
 
     yesterday = reference_date - timedelta(days=1)
     path = news_dir / f"{yesterday.isoformat()}.md"
@@ -366,7 +366,7 @@ def load_previous_newsletter(news_dir: Path, reference_date: date) -> tuple[Path
 def ensure_directories(config: PipelineConfig) -> None:
     """Ensure required directories exist."""
 
-    config.newsletters_dir.mkdir(parents=True, exist_ok=True)
+    config.posts_dir.mkdir(parents=True, exist_ok=True)
     config.zips_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -386,7 +386,7 @@ __all__ = [
     "ensure_directories",
     "find_date_in_name",
     "list_zip_days",
-    "load_previous_newsletter",
+    "load_previous_post",
     "read_zip_texts_and_media",
     "select_recent_archives",
     "_anonymize_transcript_line",

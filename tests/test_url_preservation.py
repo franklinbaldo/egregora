@@ -15,8 +15,8 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
     # Create directories inside the project directory to avoid ValueError
     zips_dir = Path("tests/temp_output/zips")
     zips_dir.mkdir(parents=True, exist_ok=True)
-    newsletters_dir = Path("tests/temp_output/newsletters")
-    newsletters_dir.mkdir(parents=True, exist_ok=True)
+    posts_dir = Path("tests/temp_output/posts")
+    posts_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a dummy zip file with a URL
     zip_path = zips_dir / "Conversa do WhatsApp com URL.zip"
@@ -29,14 +29,14 @@ def config_with_url(tmp_path: Path) -> PipelineConfig:
 
     return PipelineConfig.with_defaults(
         zips_dir=zips_dir,
-        newsletters_dir=newsletters_dir,
+        posts_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
     )
 
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
-def test_urls_preserved_in_newsletter(mock_guess_type, config_with_url: PipelineConfig, monkeypatch):
-    """Verify URLs from WhatsApp are present in the final newsletter."""
+def test_urls_preserved_in_post(mock_guess_type, config_with_url: PipelineConfig, monkeypatch):
+    """Verify URLs from WhatsApp are present in the final post."""
 
     class MockLLMClient:
         def __init__(self):
@@ -48,19 +48,19 @@ def test_urls_preserved_in_newsletter(mock_guess_type, config_with_url: Pipeline
                     self.text = text
                 def __iter__(self):
                     yield self
-            return MockStream(f"Newsletter.\n{transcript}")
+            return MockStream(f"Post.\n{transcript}")
 
     def mock_create_client():
         return MockLLMClient()
 
     monkeypatch.setattr(
-        "egregora.generator.NewsletterGenerator._create_client",
+        "egregora.generator.PostGenerator._create_client",
         lambda self: mock_create_client(),
     )
 
     processor = UnifiedProcessor(config_with_url)
     results = processor.process_all(days=1)
 
-    newsletter_path = results["_chat"][0]
-    newsletter_text = newsletter_path.read_text()
-    assert "https://example.com" in newsletter_text
+    post_path = results["_chat"][0]
+    post_text = post_path.read_text()
+    assert "https://example.com" in post_text

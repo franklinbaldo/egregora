@@ -1,4 +1,4 @@
-"""Helper script to rebuild the newsletter index using LlamaIndex."""
+"""Helper script to rebuild the post index using LlamaIndex."""
 
 from __future__ import annotations
 
@@ -12,17 +12,17 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from egregora.rag.config import RAGConfig
-from egregora.rag.index import NewsletterRAG
+from egregora.rag.index import PostRAG
 
 
 def main() -> None:
-    print("🚀 Migrando índice das newsletters para LlamaIndex...")
+    print("🚀 Migrando índice das posts para LlamaIndex...")
 
-    newsletters_dir = PROJECT_ROOT / "data" / "newsletters"
+    posts_dir = PROJECT_ROOT / "data" / "posts"
     config = RAGConfig(vector_store_type="chroma")
 
-    rag = NewsletterRAG(
-        newsletters_dir=newsletters_dir,
+    rag = PostRAG(
+        posts_dir=posts_dir,
         cache_dir=PROJECT_ROOT / "cache" / "rag",
         config=config,
     )
@@ -31,14 +31,14 @@ def main() -> None:
     result = rag.update_index(force_rebuild=True)
     print(
         "✅ Concluído:",
-        f"{result['newsletters_count']} newsletters",
+        f"{result['posts_count']} posts",
         f"→ {result['chunks_count']} chunks",
     )
 
     print("\n🔍 Testando busca básica...")
     sample_results = rag.search("inteligência artificial", top_k=3)
     if not sample_results:
-        print("Nenhum resultado encontrado. Verifique se existem newsletters indexadas.")
+        print("Nenhum resultado encontrado. Verifique se existem posts indexadas.")
         return
 
     for index, node in enumerate(sample_results, start=1):

@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.generator import NewsletterGenerator
+from egregora.generator import PostGenerator
 
 
 class DummyPart:
@@ -30,7 +30,7 @@ def _install_generator_stubs(monkeypatch):
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
     config = PipelineConfig.with_defaults()
-    generator = NewsletterGenerator(config)
+    generator = PostGenerator(config)
 
     # Test without group tags
     instruction = generator._build_system_instruction(has_group_tags=False)

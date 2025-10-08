@@ -1,4 +1,4 @@
-"""Egregora newsletter automation package."""
+"""Egregora post automation package."""
 
 __all__ = [
     "anonymizer",

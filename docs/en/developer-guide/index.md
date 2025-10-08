@@ -1,6 +1,6 @@
 # Developer Guide
 
-Reference material for engineers evolving the ingestion, enrichment, and reporting pipeline.
+Reference material for engineers evolving the ingestion, enrichment, and posting pipeline.
 
 - [Architecture Philosophy](PHILOSOPHY.md)
 - [Code Analysis Summary](CODE_ANALYSIS.md)

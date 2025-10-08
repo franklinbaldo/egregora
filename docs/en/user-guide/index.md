@@ -1,6 +1,6 @@
 # User Guide
 
-Start here to prepare data exports, understand privacy guarantees, and navigate the generated newsletters.
+Start here to prepare data exports, understand privacy guarantees, and navigate the generated posts.
 
 - [Identifier Self-Discovery](discover.md)
 - [Privacy Overview](privacy.md)

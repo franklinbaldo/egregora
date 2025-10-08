@@ -1,4 +1,4 @@
-"""Unit tests for the LlamaIndex-powered NewsletterRAG implementation."""
+"""Unit tests for the LlamaIndex-powered PostRAG implementation."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from egregora.rag.config import RAGConfig
-from egregora.rag.index import NewsletterRAG
+from egregora.rag.index import PostRAG
 
 
 def _write_markdown(directory: Path, name: str, body: str) -> None:
@@ -18,9 +18,9 @@ def _write_markdown(directory: Path, name: str, body: str) -> None:
 
 
 @pytest.fixture()
-def rag(tmp_path: Path) -> NewsletterRAG:
-    newsletters_root = tmp_path / "newsletters"
-    daily_dir = newsletters_root / "group" / "daily"
+def rag(tmp_path: Path) -> PostRAG:
+    posts_root = tmp_path / "posts"
+    daily_dir = posts_root / "group" / "daily"
     daily_dir.mkdir(parents=True, exist_ok=True)
 
     _write_markdown(
@@ -59,22 +59,22 @@ def rag(tmp_path: Path) -> NewsletterRAG:
         min_similarity=0.0,
     )
 
-    return NewsletterRAG(newsletters_dir=newsletters_root, config=config)
+    return PostRAG(posts_dir=posts_root, config=config)
 
 
-def test_update_index_rebuilds_vector_store(rag: NewsletterRAG) -> None:
+def test_update_index_rebuilds_vector_store(rag: PostRAG) -> None:
     result = rag.update_index(force_rebuild=True)
 
-    assert result["newsletters_count"] == 3
+    assert result["posts_count"] == 3
     assert result["chunks_count"] > 0
 
     stats = rag.get_stats()
-    assert stats.total_newsletters == 3
+    assert stats.total_posts == 3
     assert stats.total_chunks == result["chunks_count"]
     assert stats.persist_dir.exists()
 
 
-def test_search_returns_relevant_chunks(rag: NewsletterRAG) -> None:
+def test_search_returns_relevant_chunks(rag: PostRAG) -> None:
     rag.update_index(force_rebuild=True)
 
     hits = rag.search("inteligência artificial", top_k=2, min_similarity=0.0)
@@ -87,8 +87,8 @@ def test_search_returns_relevant_chunks(rag: NewsletterRAG) -> None:
 
 
 def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
-    newsletters_root = tmp_path / "letters"
-    daily_dir = newsletters_root / "group" / "daily"
+    posts_root = tmp_path / "letters"
+    daily_dir = posts_root / "group" / "daily"
     daily_dir.mkdir(parents=True, exist_ok=True)
 
     today = date.today()
@@ -112,7 +112,7 @@ def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
         min_similarity=0.0,
     )
 
-    rag = NewsletterRAG(newsletters_dir=newsletters_root, config=config)
+    rag = PostRAG(posts_dir=posts_root, config=config)
     rag.update_index(force_rebuild=True)
 
     hits = rag.search("machine learning", top_k=5, min_similarity=0.0, exclude_recent_days=30)
@@ -123,8 +123,8 @@ def test_exclude_recent_days_filters_chunks(tmp_path: Path) -> None:
 
 
 def test_export_embeddings_to_parquet(tmp_path: Path) -> None:
-    newsletters_root = tmp_path / "letters"
-    daily_dir = newsletters_root / "group" / "daily"
+    posts_root = tmp_path / "letters"
+    daily_dir = posts_root / "group" / "daily"
     daily_dir.mkdir(parents=True, exist_ok=True)
 
     _write_markdown(
@@ -148,7 +148,7 @@ def test_export_embeddings_to_parquet(tmp_path: Path) -> None:
         min_similarity=0.0,
     )
 
-    rag = NewsletterRAG(newsletters_dir=newsletters_root, config=config)
+    rag = PostRAG(posts_dir=posts_root, config=config)
     stats = rag.update_index(force_rebuild=True)
 
     assert export_path.exists(), "Expected embeddings parquet to be created"

@@ -1,4 +1,4 @@
-"""LlamaIndex-powered retrieval over the newsletter archive."""
+"""LlamaIndex-powered retrieval over the post archive."""
 
 from __future__ import annotations
 
@@ -23,24 +23,24 @@ from .embeddings import CachedGeminiEmbedding
 class IndexStats:
     """Simple statistics about the current vector index."""
 
-    total_newsletters: int
+    total_posts: int
     total_chunks: int
     persist_dir: Path
     vector_store: str
 
 
-class NewsletterRAG:
-    """Manage the lifecycle of a LlamaIndex vector store for newsletters."""
+class PostRAG:
+    """Manage the lifecycle of a LlamaIndex vector store for posts."""
 
     def __init__(
         self,
         *,
-        newsletters_dir: Path,
+        posts_dir: Path,
         config: RAGConfig | None = None,
         cache_dir: Path | None = None,
     ) -> None:
-        self.newsletters_dir = Path(newsletters_dir).expanduser()
-        self.newsletters_dir.mkdir(parents=True, exist_ok=True)
+        self.posts_dir = Path(posts_dir).expanduser()
+        self.posts_dir.mkdir(parents=True, exist_ok=True)
 
         base_config = copy.deepcopy(config) if config else RAGConfig()
 
@@ -142,9 +142,9 @@ class NewsletterRAG:
         return self._index
 
     def update_index(self, *, force_rebuild: bool = False) -> dict[str, int]:
-        """Recreate the vector index from the Markdown newsletters."""
+        """Recreate the vector index from the Markdown posts."""
 
-        documents = self._load_newsletter_documents()
+        documents = self._load_post_documents()
 
         if force_rebuild:
             self._clear_collection()
@@ -171,7 +171,7 @@ class NewsletterRAG:
             exported_rows = self._export_embeddings(nodes)
 
         result = {
-            "newsletters_count": len(documents),
+            "posts_count": len(documents),
             "chunks_count": len(nodes),
         }
         if self.config.export_embeddings:
@@ -229,7 +229,7 @@ class NewsletterRAG:
                     unique_files.add(path)
 
         return IndexStats(
-            total_newsletters=len(unique_files),
+            total_posts=len(unique_files),
             total_chunks=len(documents),
             persist_dir=self.config.persist_dir,
             vector_store=self.config.vector_store_type,
@@ -295,9 +295,9 @@ class NewsletterRAG:
         df.write_parquet(export_path, compression="zstd")
         return df.height
 
-    def _load_newsletter_documents(self) -> List[Document]:
+    def _load_post_documents(self) -> List[Document]:
         documents: list[Document] = []
-        for path in self._collect_newsletter_paths():
+        for path in self._collect_post_paths():
             text = path.read_text(encoding="utf-8")
             metadata = {
                 "file_path": str(path),
@@ -307,7 +307,7 @@ class NewsletterRAG:
             if extracted:
                 metadata["date"] = extracted.isoformat()
 
-            doc_id = f"newsletter::{path.stem}"
+            doc_id = f"post::{path.stem}"
             documents.append(
                 Document(
                     text=text,
@@ -317,22 +317,22 @@ class NewsletterRAG:
             )
         return documents
 
-    def _collect_newsletter_paths(self) -> list[Path]:
-        """Return markdown newsletters, supporting both legacy and nested layouts."""
+    def _collect_post_paths(self) -> list[Path]:
+        """Return markdown posts, supporting both legacy and nested layouts."""
 
         return sorted(
             (
                 path
-                for path in self.newsletters_dir.glob("*/daily/*.md")
+                for path in self.posts_dir.glob("*/daily/*.md")
                 if path.is_file()
             ),
             key=lambda path: path.stem,
         )
 
-    def iter_newsletter_files(self) -> list[Path]:
-        """Public helper primarily used by tooling to list available newsletters."""
+    def iter_post_files(self) -> list[Path]:
+        """Public helper primarily used by tooling to list available posts."""
 
-        return self._collect_newsletter_paths()
+        return self._collect_post_paths()
 
     def _extract_date(self, path: Path) -> date | None:
         match = re.search(r"(\d{4}-\d{2}-\d{2})", path.stem)
@@ -363,4 +363,4 @@ class NewsletterRAG:
         return filtered
 
 
-__all__ = ["NewsletterRAG", "IndexStats"]
+__all__ = ["PostRAG", "IndexStats"]

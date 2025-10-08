@@ -1,4 +1,4 @@
-"""Expose the local newsletter RAG index through the Model Context Protocol."""
+"""Expose the local post RAG index through the Model Context Protocol."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ from typing import Any, Dict, List
 
 from llama_index.core.schema import NodeWithScore
 
-from ..rag.index import NewsletterRAG
+from ..rag.index import PostRAG
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
-from .tools import format_newsletter_listing, format_search_hits
+from .tools import format_post_listing, format_search_hits
 
 try:  # pragma: no cover - optional dependency
     from mcp.server import Server, NotificationOptions
@@ -84,8 +84,8 @@ class RAGServer:
     def __init__(self, config_path: Path | None = None) -> None:
         config = MCPServerConfig.from_path(config_path)
         self.config = config
-        self.rag = NewsletterRAG(
-            newsletters_dir=config.newsletters_dir,
+        self.rag = PostRAG(
+            posts_dir=config.posts_dir,
             cache_dir=config.cache_dir,
             config=config.rag,
         )
@@ -97,7 +97,7 @@ class RAGServer:
             await asyncio.to_thread(self.rag.load_index)
             self._indexed = True
 
-    async def search_newsletters(
+    async def search_posts(
         self,
         *,
         query: str,
@@ -123,20 +123,20 @@ class RAGServer:
             "context": result.context,
         }
 
-    async def get_newsletter(self, *, date_str: str) -> str | None:
+    async def get_post(self, *, date_str: str) -> str | None:
         await self.ensure_indexed()
-        for path in self.rag.iter_newsletter_files():
+        for path in self.rag.iter_post_files():
             if path.stem == date_str:
                 return path.read_text(encoding="utf-8")
         return None
 
-    async def list_newsletters(self, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
-        directory = self.config.newsletters_dir
+    async def list_posts(self, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        directory = self.config.posts_dir
         if not directory.exists():
             return []
 
         files = sorted(
-            self.rag.iter_newsletter_files(), key=lambda path: path.stem, reverse=True
+            self.rag.iter_post_files(), key=lambda path: path.stem, reverse=True
         )
         selected = files[offset : offset + limit]
         return [
@@ -152,7 +152,7 @@ class RAGServer:
         await self.ensure_indexed()
         stats = await asyncio.to_thread(self.rag.get_stats)
         return {
-            "total_newsletters": stats.total_newsletters,
+            "total_posts": stats.total_posts,
             "total_chunks": stats.total_chunks,
             "persist_dir": str(stats.persist_dir),
             "vector_store": stats.vector_store,
@@ -175,9 +175,9 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
 
     return [
         Tool(
-            name="search_newsletters",
+            name="search_posts",
             description=(
-                "Busca trechos relevantes em newsletters anteriores usando "
+                "Busca trechos relevantes em posts anteriores usando "
                 "busca semântica. Retorna chunks similares à query fornecida."
             ),
             inputSchema={
@@ -203,7 +203,7 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
                     },
                     "exclude_recent_days": {
                         "type": "integer",
-                        "description": "Excluir newsletters dos últimos N dias (padrão: 7)",
+                        "description": "Excluir posts dos últimos N dias (padrão: 7)",
                         "default": 7,
                         "minimum": 0,
                     },
@@ -234,14 +234,14 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
             },
         ),
         Tool(
-            name="get_newsletter",
-            description="Retorna o conteúdo completo de uma newsletter específica por data (YYYY-MM-DD).",
+            name="get_post",
+            description="Retorna o conteúdo completo de uma post específica por data (YYYY-MM-DD).",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "date": {
                         "type": "string",
-                        "description": "Data da newsletter (YYYY-MM-DD)",
+                        "description": "Data da post (YYYY-MM-DD)",
                         "pattern": r"^\d{4}-\d{2}-\d{2}$",
                     }
                 },
@@ -249,8 +249,8 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
             },
         ),
         Tool(
-            name="list_newsletters",
-            description="Lista newsletters disponíveis com paginação.",
+            name="list_posts",
+            description="Lista posts disponíveis com paginação.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -276,9 +276,9 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
             inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
-            name="reindex_newsletters",
+            name="reindex_posts",
             description=(
-                "Atualiza o índice do RAG processando newsletters novas ou modificadas. "
+                "Atualiza o índice do RAG processando posts novas ou modificadas. "
                 "Use force=true para reindexar tudo."
             ),
             inputSchema={
@@ -286,7 +286,7 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
                 "properties": {
                     "force": {
                         "type": "boolean",
-                        "description": "Se true, reprocessa todas as newsletters",
+                        "description": "Se true, reprocessa todas as posts",
                         "default": False,
                     }
                 },
@@ -306,8 +306,8 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
         return [TextContent(type="text", text="Erro: RAG server não inicializado")]
 
     try:
-        if name == "search_newsletters":
-            hits = await rag_server.search_newsletters(**arguments)
+        if name == "search_posts":
+            hits = await rag_server.search_posts(**arguments)
             markdown = format_search_hits(hits)
             return [TextContent(type="text", text=markdown)]
 
@@ -326,15 +326,15 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
             )
             return [TextContent(type="text", text=markdown.strip())]
 
-        if name == "get_newsletter":
-            content = await rag_server.get_newsletter(date_str=arguments["date"])
+        if name == "get_post":
+            content = await rag_server.get_post(date_str=arguments["date"])
             if content:
                 return [TextContent(type="text", text=content)]
-            return [TextContent(type="text", text="Newsletter não encontrada.")]
+            return [TextContent(type="text", text="Post não encontrada.")]
 
-        if name == "list_newsletters":
-            entries = await rag_server.list_newsletters(**arguments)
-            markdown = format_newsletter_listing(entries)
+        if name == "list_posts":
+            entries = await rag_server.list_posts(**arguments)
+            markdown = format_post_listing(entries)
             return [TextContent(type="text", text=markdown)]
 
         if name == "get_rag_stats":
@@ -344,7 +344,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
                 lines.append(f"- **{key}**: {value}")
             return [TextContent(type="text", text="\n".join(lines))]
 
-        if name == "reindex_newsletters":
+        if name == "reindex_posts":
             stats = await rag_server.reindex(**arguments)
             lines = ["# Resultado da Reindexação\n"]
             for key, value in stats.items():
@@ -361,13 +361,13 @@ async def handle_read_resource(uri: str) -> str:
     if rag_server is None:
         raise RuntimeError("RAG server não inicializado")
 
-    if not uri.startswith("newsletter://"):
+    if not uri.startswith("post://"):
         raise ValueError(f"URI inválida: {uri}")
 
-    date_str = uri.replace("newsletter://", "")
-    content = await rag_server.get_newsletter(date_str=date_str)
+    date_str = uri.replace("post://", "")
+    content = await rag_server.get_post(date_str=date_str)
     if content is None:
-        raise ValueError(f"Newsletter não encontrada: {date_str}")
+        raise ValueError(f"Post não encontrada: {date_str}")
     return content
 
 

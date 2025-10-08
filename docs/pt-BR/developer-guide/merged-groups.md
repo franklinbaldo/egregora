@@ -10,7 +10,7 @@ os detalhes abaixo refletem o estado atual do projeto.
 ## 🧭 Visão Geral do Pipeline
 
 ```
-ZIPs do WhatsApp → discover_groups → GroupSource → (opcional) merges virtuais → DataFrame → Transcript → Newsletter
+ZIPs do WhatsApp → discover_groups → GroupSource → (opcional) merges virtuais → DataFrame → Transcript → Post
 ```
 
 1. `group_discovery.discover_groups` (`src/egregora/group_discovery.py`) varre
@@ -25,7 +25,7 @@ ZIPs do WhatsApp → discover_groups → GroupSource → (opcional) merges virtu
    para ler e cachear os dados. Em grupos virtuais, `merge_with_tags` adiciona
    colunas com tags legíveis para diferenciar mensagens de cada origem.
 5. `UnifiedProcessor` (`src/egregora/processor.py`) orquestra discovery, merges,
-   filtros e geração das newsletters finais, expondo também o modo `--dry-run` e
+   filtros e geração das posts finais, expondo também o modo `--dry-run` e
    `--list` no CLI.
 
 
@@ -75,7 +75,7 @@ coluna `original_line` preservada do parser.
 
 - `transcript.load_source_dataframe` mantém um cache em memória (`_DATAFRAME_CACHE`)
   indexado por slug, caminhos de ZIP e opções de merge. Isso evita reprocessar os
-  mesmos arquivos a cada newsletter ou chamada de dry-run.
+  mesmos arquivos a cada post ou chamada de dry-run.
 - Estatísticas por dia (`get_stats_for_date`) e lista de datas disponíveis são
   derivadas direto do DataFrame filtrado, sem reabrir os ZIPs.
 
@@ -88,7 +88,7 @@ virtuais detectados, incluindo quantos exports existem e o intervalo de datas.
 Em `--dry-run`, `UnifiedProcessor.plan_runs` calcula as datas alvo e apresenta um
 resumo antes da execução.
 
-Para gerar newsletters de um merge, basta incluir a configuração correspondente
+Para gerar posts de um merge, basta incluir a configuração correspondente
 no TOML e executar `uv run egregora`. O pipeline ignora automaticamente os grupos
 reais que fazem parte de merges quando `skip_real_if_in_virtual = true`.
 

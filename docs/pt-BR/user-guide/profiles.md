@@ -1,7 +1,7 @@
 # Perfis Analíticos dos Participantes
 
 O Egregora pode gerar perfis incrementais para cada membro dos grupos processados.
-Após cada newsletter diária, o pipeline analisa a participação de cada integrante
+Após cada post diária, o pipeline analisa a participação de cada integrante
 (até onde a anonimização permite) e decide se vale reescrever o perfil.
 
 ## Estrutura de diretórios
@@ -45,7 +45,7 @@ chave não esteja presente, as atualizações de perfis são ignoradas.
 
 ## Fluxo de atualização
 
-1. Depois de gerar a newsletter do dia, o pipeline analisa as mensagens originais
+1. Depois de gerar a post do dia, o pipeline analisa as mensagens originais
    (não anonimizadas) para identificar quem participou e com qual intensidade.
 2. O `ProfileUpdater` decide se merece uma atualização (chamando o modelo de
    decisão) e, em caso afirmativo, reescreve o perfil completo com base nas

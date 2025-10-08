@@ -202,7 +202,7 @@ class RemoteSourceConfig(BaseModel):
 
 
 class PipelineConfig(BaseSettings):
-    """Runtime configuration for the newsletter pipeline."""
+    """Runtime configuration for the post pipeline."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -213,9 +213,11 @@ class PipelineConfig(BaseSettings):
     zips_dir: Path = Field(
         default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips")
     )
-    newsletters_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data/newsletters")
+    posts_dir: Path = Field(
+        default_factory=lambda: _ensure_safe_directory("data/posts")
     )
+    post_language: str = "pt-BR"
+    default_post_author: str = "egregora"
     media_url_prefix: str | None = None
     model: str = DEFAULT_MODEL
     timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
@@ -246,7 +248,7 @@ class PipelineConfig(BaseSettings):
             return ZoneInfo(value)
         raise TypeError("timezone must be an IANA timezone string or ZoneInfo")
 
-    @field_validator("zips_dir", "newsletters_dir", mode="before")
+    @field_validator("zips_dir", "posts_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
@@ -361,7 +363,7 @@ class PipelineConfig(BaseSettings):
         cls,
         *,
         zips_dir: Path | None = None,
-        newsletters_dir: Path | None = None,
+        posts_dir: Path | None = None,
         media_url_prefix: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
@@ -380,8 +382,8 @@ class PipelineConfig(BaseSettings):
         payload: dict[str, Any] = {}
         if zips_dir is not None:
             payload["zips_dir"] = zips_dir
-        if newsletters_dir is not None:
-            payload["newsletters_dir"] = newsletters_dir
+        if posts_dir is not None:
+            payload["posts_dir"] = posts_dir
         if model is not None:
             payload["model"] = model
         if media_url_prefix is not None:
@@ -419,7 +421,7 @@ class PipelineConfig(BaseSettings):
 
         directories = data.get("directories", {})
         if isinstance(directories, dict):
-            for key in ("zips_dir", "newsletters_dir"):
+            for key in ("zips_dir", "posts_dir"):
                 value = directories.get(key)
                 if value is not None:
                     payload[key] = value

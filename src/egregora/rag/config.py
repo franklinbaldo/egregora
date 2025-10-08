@@ -30,7 +30,7 @@ def _default_mcp_args() -> tuple[str, ...]:
 
 @dataclass(slots=True)
 class RAGConfig:
-    """Configuration for newsletter retrieval powered by LlamaIndex."""
+    """Configuration for post retrieval powered by LlamaIndex."""
 
     enabled: bool = False
 
@@ -59,12 +59,12 @@ class RAGConfig:
     cache_dir: Path = field(default_factory=lambda: Path("cache/embeddings"))
     export_embeddings: bool = False
     embedding_export_path: Path = field(
-        default_factory=lambda: Path("artifacts/embeddings/newsletter_chunks.parquet")
+        default_factory=lambda: Path("artifacts/embeddings/post_chunks.parquet")
     )
 
     # Vector store
     vector_store_type: str = "simple"
     persist_dir: Path = field(default_factory=lambda: Path("cache/vector_store"))
-    collection_name: str = "newsletters"
+    collection_name: str = "posts"
 
 __all__ = ["RAGConfig", "sanitize_rag_config_payload"]
