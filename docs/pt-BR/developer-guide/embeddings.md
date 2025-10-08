@@ -76,6 +76,32 @@ rag.update_index(force_rebuild=True)
 results = rag.search("automações discutidas", top_k=3)
 ```
 
+### Via CLI/Python embutido
+
+Execute o rebuild diretamente com `uv run` utilizando o próprio módulo
+`PostRAG`:
+
+```bash
+uv run python - <<'PY'
+from pathlib import Path
+
+from egregora.rag.config import RAGConfig
+from egregora.rag.index import PostRAG
+
+rag = PostRAG(
+    posts_dir=Path("data/posts"),
+    cache_dir=Path("cache/rag"),
+    config=RAGConfig(enabled=True, vector_store_type="chroma"),
+)
+result = rag.update_index(force_rebuild=True)
+print(f"✅ Índice atualizado: {result['posts_count']} posts → {result['chunks_count']} chunks")
+PY
+```
+
+O snippet acima funciona tanto localmente quanto em CI/CD. Ajuste os caminhos
+para combinar com a sua instalação (ex.: `posts_dir` customizado) e remova
+`force_rebuild=True` caso deseje apenas atualizar incrementos.
+
 ---
 
 ## 💾 Cache e Fallback

@@ -180,6 +180,33 @@ uv run python scripts/start_mcp_server.py --config egregora.toml
 
 O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
 
+### Rebuild the RAG index via the current CLI
+
+Rebuild or refresh the embeddings with the existing CLI/runtime surface—no
+dedicated helper script required:
+
+```bash
+# Force a clean rebuild of the post embeddings
+uv run python - <<'PY'
+from pathlib import Path
+
+from egregora.rag.config import RAGConfig
+from egregora.rag.index import PostRAG
+
+rag = PostRAG(
+    posts_dir=Path("data/posts"),
+    cache_dir=Path("cache/rag"),
+    config=RAGConfig(enabled=True, vector_store_type="chroma"),
+)
+result = rag.update_index(force_rebuild=True)
+print("Rebuilt", result["posts_count"], "posts →", result["chunks_count"], "chunks")
+PY
+```
+
+Adjust the directories or `RAGConfig` arguments to match your deployment. The
+same pattern works inside automations or GitHub Actions, eliminating the need
+for bespoke one-off scripts.
+
 ## Custom prompts & filters
 
 Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
