@@ -369,7 +369,7 @@ class ProfileUpdater:
             pl.col("message")
             .cast(pl.Utf8)
             .fill_null("")
-            .str.count_match(r"\S+")
+            .str.count_matches(r"\S+")
             .alias("word_count")
         )
 

@@ -49,6 +49,8 @@ Com a configuração pronta (`enrichment.enabled = true` e `relevance_threshold 
 uv run egregora --config egregora.toml --days 1
 ```
 
+> 💡 O CLI já procura automaticamente por `egregora.toml` no diretório atual via `PipelineConfig.load`; use `--config` apenas quando quiser testar um arquivo alternativo.
+
 Quer apenas validar quais dias seriam processados antes de gastar tokens?
 
 ```bash

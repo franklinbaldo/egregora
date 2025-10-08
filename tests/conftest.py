@@ -1,10 +1,13 @@
-"""Project-wide pytest fixtures re-exported for convenience."""
+"""Project-wide pytest fixtures available to the suite."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+TESTS_DIR = Path(__file__).resolve().parent
 
-from test_framework.conftest import *  # noqa: F401,F403
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+pytest_plugins = ["test_framework.conftest"]
