@@ -88,10 +88,10 @@ This plan addresses the critical architectural and engineering issues identified
 ### 2.1 Standardize Retrieval on txtai + pydanticai (remove TF-IDF)
 **Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com o stack `llama-index` já utilizado em produção, mantendo apenas um mecanismo de busca.
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com o stack `llama-index` já utilizado em produção, mantendo apenas um mecanismo de busca. A remoção foi concluída e o pipeline de RAG agora expõe somente o fluxo baseado em embeddings.
 
 **Action Items**:
-- [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
+- [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings (concluído neste ciclo).
 - [ ] Avaliar migração futura para `txtai` ou `pydanticai.Agent` caso haja ganho comprovado.
 - [x] Validar paridade de resultados com amostras reais de busca.
 
