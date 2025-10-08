@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
+import logging
 import re
 from dataclasses import dataclass, field, asdict
 from datetime import date, datetime, timezone
+from pathlib import Path
 from time import perf_counter
 from typing import Sequence, TYPE_CHECKING
 
@@ -40,6 +43,12 @@ CACHE_RECORD_VERSION = "1.0"
 MEDIA_PLACEHOLDER_SUMMARY = (
     "Mídia sem descrição compartilhada; peça detalhes se necessário."
 )
+
+
+COLUMN_SEPARATOR = "; "
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -101,6 +110,7 @@ class EnrichmentResult:
     items: list[EnrichedItem] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duration_seconds: float = 0.0
+    metrics: "EnrichmentRunMetrics | None" = None
 
     def relevant_items(self, threshold: int) -> list[EnrichedItem]:
         return [item for item in self.items if item.relevance >= threshold]
@@ -142,6 +152,40 @@ class EnrichmentResult:
         return "\n".join(lines)
 
 
+@dataclass(slots=True)
+class EnrichmentRunMetrics:
+    """Metrics captured for a single enrichment execution."""
+
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: float
+    total_references: int
+    analyzed_items: int
+    relevant_items: int
+    error_count: int
+    domains: tuple[str, ...]
+    threshold: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "started_at": self.started_at.isoformat(),
+            "finished_at": self.finished_at.isoformat(),
+            "duration_seconds": round(self.duration_seconds, 4),
+            "total_references": self.total_references,
+            "analyzed_items": self.analyzed_items,
+            "relevant_items": self.relevant_items,
+            "error_count": self.error_count,
+            "domains": list(self.domains),
+            "threshold": self.threshold,
+        }
+
+    def to_csv_row(self, errors: Sequence[str]) -> dict[str, object]:
+        base = self.to_dict()
+        base["domains"] = COLUMN_SEPARATOR.join(self.domains)
+        base["errors"] = COLUMN_SEPARATOR.join(errors)
+        return base
+
+
 class ContentEnricher:
     """High-level orchestrator that extracts and analyzes shared links."""
 
@@ -165,19 +209,38 @@ class ContentEnricher:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
 
         start = perf_counter()
+        started_at = datetime.now(timezone.utc)
+        references: list[ContentReference] = []
         if not self._config.enabled:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
-        return await self._enrich_references(
+        result = await self._enrich_references(
             references,
             client=client,
+        )
+        return self._finalize_result(
+            started_at=started_at,
             start=start,
+            references=references,
+            result=result,
         )
 
     async def enrich_dataframe(
@@ -190,23 +253,48 @@ class ContentEnricher:
         """DataFrame-native enrichment pipeline using Polars expressions."""
 
         start = perf_counter()
+        started_at = datetime.now(timezone.utc)
+        references: list[ContentReference] = []
         if not self._config.enabled:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         frame = self._prepare_enrichment_frame(df, target_dates)
         if frame is None:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         references = self._extract_references_from_frame(frame)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
-        return await self._enrich_references(
+        result = await self._enrich_references(
             references,
             client=client,
+        )
+        return self._finalize_result(
+            started_at=started_at,
             start=start,
+            references=references,
+            result=result,
         )
 
     async def _analyze_reference(
@@ -509,7 +597,6 @@ class ContentEnricher:
         references: Sequence[ContentReference],
         *,
         client: genai.Client | None,
-        start: float,
     ) -> EnrichmentResult:
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
@@ -555,19 +642,15 @@ class ContentEnricher:
                 timeout=self._config.max_total_enrichment_time,
             )
         except asyncio.TimeoutError:
-            duration = perf_counter() - start
             return EnrichmentResult(
                 items=[],
                 errors=[
                     "Tempo limite atingido ao enriquecer conteúdos (max_total_enrichment_time)."
                 ],
-                duration_seconds=duration,
             )
 
-        duration = perf_counter() - start
         result = EnrichmentResult(
             items=list(items),
-            duration_seconds=duration,
         )
         for item in result.items:
             if item.error:
@@ -575,6 +658,96 @@ class ContentEnricher:
                     f"Falha ao processar {item.reference.url or 'mídia'}: {item.error}"
                 )
         return result
+
+    def _finalize_result(
+        self,
+        *,
+        started_at: datetime,
+        start: float,
+        references: Sequence[ContentReference],
+        result: EnrichmentResult,
+    ) -> EnrichmentResult:
+        duration = perf_counter() - start
+        result.duration_seconds = duration
+
+        finished_at = datetime.now(timezone.utc)
+        metrics = EnrichmentRunMetrics(
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration,
+            total_references=len(references),
+            analyzed_items=len(result.items),
+            relevant_items=self._count_relevant_items(result.items),
+            error_count=len(result.errors),
+            domains=self._collect_domains(references),
+            threshold=max(1, self._config.relevance_threshold),
+        )
+        result.metrics = metrics
+        self._log_metrics(metrics, result.errors)
+        self._write_metrics_csv(metrics, result.errors)
+        return result
+
+    def _count_relevant_items(self, items: Sequence[EnrichedItem]) -> int:
+        threshold = max(1, self._config.relevance_threshold)
+        return sum(
+            1
+            for item in items
+            if item.analysis and item.analysis.relevance >= threshold
+        )
+
+    @staticmethod
+    def _collect_domains(references: Sequence[ContentReference]) -> tuple[str, ...]:
+        domains = {
+            urlparse(reference.url).netloc
+            for reference in references
+            if reference.url
+        }
+        return tuple(sorted(filter(None, domains)))
+
+    def _log_metrics(
+        self,
+        metrics: "EnrichmentRunMetrics",
+        errors: Sequence[str],
+    ) -> None:
+        domains_display = ", ".join(metrics.domains) if metrics.domains else "-"
+        payload = metrics.to_dict()
+        payload["errors"] = list(errors)
+        logger.info(
+            "Enrichment: %d/%d relevant items (≥%d) in %.2fs; domains=%s; errors=%d",
+            metrics.relevant_items,
+            metrics.analyzed_items,
+            metrics.threshold,
+            metrics.duration_seconds,
+            domains_display,
+            metrics.error_count,
+            extra={"enrichment_metrics": payload},
+        )
+
+    def _write_metrics_csv(
+        self,
+        metrics: "EnrichmentRunMetrics",
+        errors: Sequence[str],
+    ) -> None:
+        path_value = self._config.metrics_csv_path
+        if path_value is None:
+            return
+
+        path = Path(path_value)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+
+        row = metrics.to_csv_row(errors)
+        write_header = not path.exists()
+        try:
+            with path.open("a", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(row.keys()))
+                if write_header:
+                    writer.writeheader()
+                writer.writerow(row)
+        except OSError:
+            return
 
     def _prepare_enrichment_frame(
         self,
@@ -897,10 +1070,11 @@ def get_url_contexts_dataframe(
 
 __all__ = [
     "AnalysisResult",
-    "ContentEnricher", 
+    "ContentEnricher",
     "ContentReference",
     "EnrichedItem",
     "EnrichmentResult",
+    "EnrichmentRunMetrics",
     "extract_urls_from_dataframe",
     "get_url_contexts_dataframe",
 ]

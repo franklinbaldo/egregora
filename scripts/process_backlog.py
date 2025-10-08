@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Simple backlog processor - does the same job with 95% less code."""
 
+import csv
 import re
 import shutil
 import sys
@@ -54,14 +55,52 @@ def process_backlog(zip_dir: str, output_dir: str, force: bool = False):
     for slug, paths in sorted(results.items()):
         print(f"  • {slug}: {len(paths)} post(s)")
 
+    metrics_path = processor.config.enrichment.metrics_csv_path
+    if metrics_path:
+        latest = _load_latest_metrics(Path(metrics_path))
+        if latest:
+            print("\n📈 Último enriquecimento registrado:")
+            print(
+                "  - Início: {started_at} (duração {duration_seconds}s)".format(
+                    started_at=latest.get("started_at", "?"),
+                    duration_seconds=latest.get("duration_seconds", "?"),
+                )
+            )
+            print(
+                "  - Relevantes/Analisados: {relevant_items}/{analyzed_items} (limiar ≥{threshold})".format(
+                    relevant_items=latest.get("relevant_items", "0"),
+                    analyzed_items=latest.get("analyzed_items", "0"),
+                    threshold=latest.get("threshold", "?"),
+                )
+            )
+            domains = latest.get("domains") or "-"
+            print(f"  - Domínios: {domains}")
+            errors = latest.get("errors") or "-"
+            print(f"  - Erros: {errors}")
+
+
+def _load_latest_metrics(path: Path) -> dict[str, str] | None:
+    if not path.exists() or not path.is_file():
+        return None
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return None
+
+    if not rows:
+        return None
+    return rows[-1]
+
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Simple WhatsApp backlog processor")
     parser.add_argument("zip_dir", help="Directory containing ZIP files")
     parser.add_argument("output_dir", help="Output directory for posts")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files")
-    
+
     args = parser.parse_args()
     process_backlog(args.zip_dir, args.output_dir, args.force)

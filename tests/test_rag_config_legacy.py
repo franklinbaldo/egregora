@@ -6,9 +6,12 @@ from pathlib import Path
 
 import tomllib
 
+import pytest
+from pydantic import ValidationError
+
 from egregora.config import PipelineConfig
 from egregora.mcp_server.config import MCPServerConfig
-from egregora.rag.config import sanitize_rag_config_payload
+from egregora.rag.config import RAGConfig, sanitize_rag_config_payload
 
 
 def test_sanitize_rag_config_payload_strips_legacy_key() -> None:
@@ -58,3 +61,24 @@ use_gemini_embeddings = true
         # Sanity check to ensure file contains the legacy key for future regressions.
         data = tomllib.load(fh)
     assert data["rag"]["use_gemini_embeddings"] is True
+
+
+def test_rag_config_rejects_invalid_similarity() -> None:
+    with pytest.raises(ValidationError) as exc:
+        RAGConfig(min_similarity=1.2)
+
+    assert "min_similarity must be between 0 and 1" in str(exc.value)
+
+
+def test_rag_config_validates_chunk_overlap() -> None:
+    with pytest.raises(ValidationError) as exc:
+        RAGConfig(chunk_size=100, chunk_overlap=100)
+
+    assert "chunk_overlap must be smaller than chunk_size" in str(exc.value)
+
+
+def test_rag_config_rejects_zero_top_k() -> None:
+    with pytest.raises(ValidationError) as exc:
+        RAGConfig(top_k=0)
+
+    assert "top_k must be greater than zero" in str(exc.value)

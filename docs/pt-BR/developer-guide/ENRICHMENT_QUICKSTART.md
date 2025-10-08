@@ -28,7 +28,7 @@ Para confirmar que o módulo funciona isoladamente:
 python example_enrichment.py
 ```
 
-O script usa um mini transcript com dois links e imprime a seção enriquecida que seria enviada ao prompt principal. Certifique-se de usar um modelo com suporte a URLs (`gemini-2.0-flash-exp`). Se a chave Gemini não estiver configurada o script continua e sinaliza que está operando offline.
+O script usa um mini transcript com dois links e imprime a seção enriquecida que seria enviada ao prompt principal. Certifique-se de usar um modelo com suporte a URLs (`gemini-2.0-flash-exp`). Se a chave Gemini não estiver configurada o script continua, informa que está em modo offline determinístico e aponta onde o CSV de métricas foi gravado. Para forçar o modo offline durante revisões automatizadas, defina `EGREGORA_ENRICHMENT_OFFLINE=1` antes de executar o script.
 
 ## 2.1 Capacidades do sistema
 
@@ -63,6 +63,8 @@ Saída esperada do processamento real (resumo):
 [OK] Post criada em posts/2024-05-12.md usando dias 2024-05-12.
 ```
 
+Ao final de cada execução um CSV cumulativo é gravado em `metrics/enrichment_run.csv` com timestamps, contagem de itens relevantes/analisados, domínios envolvidos e erros encontrados. Esse arquivo é reutilizado pelo `UnifiedProcessor` e pelo `scripts/process_backlog.py` para emitir um resumo rápido.
+
 > **Dica:** Para pausar o módulo, defina `enabled = false` na seção `[enrichment]` do TOML.
 
 ## 4. Principais parâmetros (`[enrichment]`)
@@ -87,7 +89,12 @@ Saída esperada do processamento real (resumo):
 - **Tempo limite**: se muitos links falharem por timeout, aumente `max_total_enrichment_time` ou reduza `max_links`.
 - **Aproveite o cache**: mantenha o diretório `cache/` versionado para compartilhar resultados entre execuções e evitar custos repetidos.
 
-## 6. Próximos passos
+## 6. Checklist de revisão
+
+- `uv run pytest tests/test_enrichment.py`
+- `uv run pytest tests/test_rag_config_legacy.py`
+
+## 7. Próximos passos
 
 - Consulte `README.md` para visão geral do pipeline completo.
 - Leia `CONTENT_ENRICHMENT_DESIGN.md` para detalhes de arquitetura, trade-offs e roadmap.

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
+import os
 import re
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -14,7 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import EnrichmentConfig
-from egregora.enrichment import ContentEnricher, URL_RE, MESSAGE_RE, EnrichmentResult
+from egregora.enrichment import (
+    ContentEnricher,
+    URL_RE,
+    MESSAGE_RE,
+    EnrichmentResult,
+)
 from egregora.cache_manager import CacheManager
 from test_framework.helpers import TestDataGenerator
 
@@ -52,10 +60,55 @@ class MockGeminiClient:
     def call_count(self):
         return self.models.call_count
 
+
+def test_parse_response_with_valid_json():
+    payload = {
+        "summary": "Conteúdo estruturado",
+        "key_points": ["a", "b"],
+        "tone": "positivo",
+        "relevance": 4,
+    }
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(payload)
+
+    analysis = ContentEnricher._parse_response(mock_response)
+
+    assert analysis.summary == payload["summary"]
+    assert analysis.key_points == payload["key_points"]
+    assert analysis.tone == payload["tone"]
+    assert analysis.relevance == payload["relevance"]
+    assert analysis.raw_response == mock_response.text
+
+
+def test_parse_response_falls_back_to_plain_text():
+    mock_response = MagicMock()
+    mock_response.text = "Resposta sem JSON estruturado"
+
+    analysis = ContentEnricher._parse_response(mock_response)
+
+    assert analysis.summary == "Resposta sem JSON estruturado"
+    assert analysis.key_points == []
+    assert analysis.relevance == 1
+
+
+def test_parse_response_handles_missing_payload():
+    mock_response = MagicMock()
+    mock_response.text = None
+    mock_response.candidates = []
+
+    analysis = ContentEnricher._parse_response(mock_response)
+
+    assert analysis.error == "Resposta vazia do modelo."
+    assert analysis.relevance == 1
+
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     conversation_with_urls = TestDataGenerator.create_complex_conversation()
-    config = EnrichmentConfig(enabled=True, max_concurrent_analyses=2)
+    config = EnrichmentConfig(
+        enabled=True,
+        max_concurrent_analyses=2,
+        metrics_csv_path=tmp_path / "metrics.csv",
+    )
     cache_manager = CacheManager(tmp_path / "cache", size_limit_mb=10)
     mock_client = MockGeminiClient()
 
@@ -71,7 +124,7 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
 def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
     test_url = "https://example.com/test-article"
     transcript = [(date.today(), f"Check this out: {test_url}")]
-    config = EnrichmentConfig(enabled=True)
+    config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
     cache_manager = CacheManager(tmp_path / "cache", size_limit_mb=10)
     mock_client = MockGeminiClient()
 
@@ -84,7 +137,7 @@ def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
 
 def test_media_placeholder_handling(tmp_path):
     content_with_media = "09:46 - Franklin: <mídia oculta>"
-    config = EnrichmentConfig(enabled=True)
+    config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
     enricher = ContentEnricher(config)
     result = asyncio.run(enricher.enrich([(date.today(), content_with_media)], client=None))
 
@@ -95,7 +148,7 @@ def test_media_placeholder_handling(tmp_path):
 
 def test_enrichment_with_disabled_config(tmp_path):
     conversation = TestDataGenerator.create_complex_conversation()
-    config = EnrichmentConfig(enabled=False)
+    config = EnrichmentConfig(enabled=False, metrics_csv_path=tmp_path / "metrics.csv")
     enricher = ContentEnricher(config)
     result = asyncio.run(enricher.enrich([(date.today(), conversation)], client=None))
     assert isinstance(result, EnrichmentResult)
@@ -103,7 +156,7 @@ def test_enrichment_with_disabled_config(tmp_path):
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
-    config = EnrichmentConfig(enabled=True)
+    config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
     transcript = [(date.today(), "https://example.com/failing-url")]
     mock_client = MockGeminiClient(error=Exception("API Error"))
 
@@ -116,7 +169,11 @@ def test_error_handling_in_enrichment(mock_guess_type, tmp_path):
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_concurrent_url_processing(mock_guess_type, tmp_path):
     content = "https://a.com\nhttps://b.com\nhttps://c.com"
-    config = EnrichmentConfig(enabled=True, max_concurrent_analyses=3)
+    config = EnrichmentConfig(
+        enabled=True,
+        max_concurrent_analyses=3,
+        metrics_csv_path=tmp_path / "metrics.csv",
+    )
     mock_client = MockGeminiClient()
     enricher = ContentEnricher(config)
     result = asyncio.run(enricher.enrich([(date.today(), content)], client=mock_client))
@@ -145,13 +202,102 @@ def test_relevance_filtering(mock_guess_type, tmp_path):
             return mock_response
 
     mock_client = VarRelevanceClient()
-    enricher = ContentEnricher(config)
+    enricher = ContentEnricher(
+        config.model_copy(update={"metrics_csv_path": tmp_path / "metrics.csv"})
+    )
     result = asyncio.run(enricher.enrich([(date.today(), content)], client=mock_client))
-    
+
     assert len(result.items) == 2
     relevant_items = result.relevant_items(config.relevance_threshold)
     assert len(relevant_items) == 1
     assert relevant_items[0].analysis.relevance >= 6
+
+
+@patch("mimetypes.guess_type", return_value=("text/html", None))
+def test_enrich_with_real_transcript_and_metrics(mock_guess_type, tmp_path):
+    transcript_path = Path(__file__).parent / "data" / "Conversa do WhatsApp com Teste.txt"
+    raw_text = transcript_path.read_text(encoding="utf-8")
+
+    processed_lines: list[str] = []
+    for raw_line in raw_text.splitlines():
+        parts = raw_line.split(" - ", 1)
+        if len(parts) != 2:
+            continue
+        timestamp_block, message = parts
+        pieces = timestamp_block.strip().split()
+        if not pieces:
+            continue
+        time_value = pieces[-1]
+        processed_lines.append(f"{time_value} - {message.strip()}")
+
+    transcript = "\n".join(processed_lines)
+    metrics_path = tmp_path / "metrics.csv"
+    config = EnrichmentConfig(
+        enabled=True,
+        max_links=5,
+        metrics_csv_path=metrics_path,
+    )
+    mock_client = MockGeminiClient(relevance=4)
+    enricher = ContentEnricher(config)
+
+    result = asyncio.run(
+        enricher.enrich([(date(2025, 10, 3), transcript)], client=mock_client)
+    )
+
+    assert result.errors == []
+    assert result.duration_seconds >= 0
+    assert result.metrics is not None
+
+    metrics = result.metrics
+    assert metrics is not None
+    assert metrics.total_references >= 1
+    assert metrics.analyzed_items == len(result.items)
+    assert metrics.relevant_items == len(
+        result.relevant_items(config.relevance_threshold)
+    )
+    assert any("youtu" in domain for domain in metrics.domains)
+
+    assert metrics_path.exists()
+    with metrics_path.open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows
+    assert rows[-1]["relevant_items"] == str(metrics.relevant_items)
+
+
+def test_example_enrichment_script_runs_with_stub(tmp_path):
+    metrics_path = tmp_path / "metrics.csv"
+    env = os.environ.copy()
+    pythonpath_parts = [
+        str(Path(__file__).resolve().parents[1] / "src"),
+        str(Path(__file__).resolve().parents[0] / "stubs"),
+        env.get("PYTHONPATH", ""),
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(part for part in pythonpath_parts if part)
+    env["GEMINI_API_KEY"] = "offline-key"
+    env["FAKE_GEMINI_RESPONSE"] = json.dumps(
+        {
+            "summary": "Smoke test response",
+            "key_points": ["Ponto 1"],
+            "tone": "claro",
+            "relevance": 3,
+        },
+        ensure_ascii=False,
+    )
+    env["EGREGORA_METRICS_PATH"] = str(metrics_path)
+    env["EGREGORA_ENRICHMENT_OFFLINE"] = "1"
+
+    result = subprocess.run(
+        [sys.executable, "example_enrichment.py"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "✅" in result.stdout
+    assert metrics_path.exists()
 
 
 if __name__ == "__main__":
