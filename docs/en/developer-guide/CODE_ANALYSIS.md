@@ -16,8 +16,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration end-to-end. With the legacy compatibility layer gone, regressions will immediately impact production runs.
     *   **Recommendation:** Expand coverage for the DataFrame flow and keep observability around enrichment/media transforms to catch issues before they affect published posts.
 
-2.  **Over-engineering ("Not Invented Here" Syndrome):** The project contains two custom-built, complex caching systems (`cache_manager.py`, `rag/embedding_cache.py`) that reinvent the wheel.
-    *   **Recommendation:** These are high-priority, low-risk fixes. **Replace both custom caches with `diskcache`** to improve robustness and simplify the code.
+2.  **Over-engineering ("Not Invented Here" Syndrome):** The enrichment flow still ships a bespoke `cache_manager.py` wrapper around `diskcache`.
+    *   **Recommendation:** Evaluate whether the remaining wrapper adds value now that the embedding cache has been inlined on top of `diskcache`, and consider consolidating on a single caching abstraction.
 
 3.  **Keyword Extraction Simplification:** The RAG stack now relies exclusively on embeddings, with a light-weight keyword extractor providing context snippets for UI hints.
     *   **Recommendation:** Continue validating the heuristic tokenisation to guarantee high-quality suggestions and evolve it alongside transcript formats.
@@ -76,8 +76,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 
 ### `src/egregora/media_extractor.py`
 *   **Verdict:** Good.
-*   **Analysis:** Attachment discovery and media replacement now accept Polars frames, enabling vectorised extraction and Markdown substitution before rendering transcripts.
-*   **Recommendation:** Profile large attachments datasets to ensure the regex-heavy operations remain bounded.
+*   **Analysis:** Attachment discovery and media replacement now rely on deterministic string parsing and Polars transforms, avoiding bespoke regex pipelines while still supporting DataFrame inputs.
+*   **Recommendation:** Profile large attachments datasets to ensure the new string-based logic scales with long transcripts.
 
 ### `src/egregora/merger.py`
 *   **Verdict:** Excellent.
@@ -88,9 +88,9 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** A simple, clean, and effective use of `dataclasses` to define the application's core data models.
 
 ### `src/egregora/parser.py`
-*   **Verdict:** Good, but with a minor missed opportunity.
-*   **Analysis:** An essential module that correctly parses raw text into a clean `polars` DataFrame. Its only minor weakness is the hardcoded list of system message phrases.
-*   **Recommendation:** Externalize the system message filter list to a configuration file.
+*   **Verdict:** Good.
+*   **Analysis:** An essential module that correctly parses raw text into a clean `polars` DataFrame. Manual system-message phrase lists have been removed in favour of the dedicated classifier.
+*   **Recommendation:** Continue validating parsing accuracy against new WhatsApp export formats.
 
 ### `src/egregora/pipeline.py`
 *   **Verdict:** Utility helper.
@@ -125,6 +125,6 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** The best-designed component in the project. The prompts are well-written, detailed, and correctly externalized, following prompt engineering best practices.
 
 ### Sub-directory: `src/egregora/rag/`
-*   **Verdict:** **Improving, with remaining cleanup opportunities.**
-*   **Analysis:** The module now ships a single retrieval path powered by `llama-index` embeddings. Query generation depends on a small, configurable keyword extractor which keeps UI affordances without reintroducing TF-IDF. The lingering concern is the bespoke `embedding_cache.py`, which still reinvents disk persistence.
-*   **Recommendation:** Replace the custom `embedding_cache.py` with `diskcache` to finish the simplification. Keep expanding fixtures that exercise the keyword extractor to avoid regressions in multilingual transcripts.
+*   **Verdict:** **Improving.**
+*   **Analysis:** The module now ships a single retrieval path powered by `llama-index` embeddings. Query generation depends on a small, configurable keyword extractor which keeps UI affordances without reintroducing TF-IDF. Embedding persistence now relies directly on `diskcache`, eliminating the bespoke helper module.
+*   **Recommendation:** Keep expanding fixtures that exercise the keyword extractor to avoid regressions in multilingual transcripts and monitor cache growth under real workloads.

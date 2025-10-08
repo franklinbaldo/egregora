@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List
 
+from diskcache import Cache
 from llama_index.core.embeddings import BaseEmbedding
 
 try:  # pragma: no cover - optional dependency
     from llama_index.embeddings.gemini import GeminiEmbedding
 except ModuleNotFoundError:  # pragma: no cover - handled in fallback
     GeminiEmbedding = None  # type: ignore[misc]
-
-from .embedding_cache import EmbeddingCache
 
 
 class _FallbackEmbedding(BaseEmbedding):
@@ -75,17 +75,18 @@ class CachedGeminiEmbedding(BaseEmbedding):
         using_fallback = not resolved_api_key or GeminiEmbedding is None
         object.__setattr__(self, "_using_fallback", using_fallback)
 
-        cache_extra = {"mode": "fallback" if using_fallback else "online"}
-        cache = (
-            EmbeddingCache(
-                cache_dir,
-                model=model_name,
-                dimension=dimension,
-                extra=cache_extra,
-            )
-            if cache_dir
-            else None
+        cache_namespace = self._build_cache_namespace(
+            model_name=model_name,
+            dimension=dimension,
+            using_fallback=using_fallback,
         )
+        object.__setattr__(self, "_cache_namespace", cache_namespace)
+
+        cache: Cache | None = None
+        if cache_dir:
+            resolved_dir = Path(cache_dir).expanduser()
+            resolved_dir.mkdir(parents=True, exist_ok=True)
+            cache = Cache(directory=str(resolved_dir))
         object.__setattr__(self, "_cache", cache)
 
         if not using_fallback and GeminiEmbedding is not None:
@@ -98,17 +99,32 @@ class CachedGeminiEmbedding(BaseEmbedding):
         object.__setattr__(self, "_embed_model", embed_model)
 
     def _cache_key(self, text: str, *, kind: str) -> str:
-        return f"{kind}::{text}"
+        base = f"{self._cache_namespace}|{kind}|{text}"
+        return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
     def _lookup_cache(self, text: str, *, kind: str) -> list[float] | None:
         if not self._cache:
             return None
-        return self._cache.get(self._cache_key(text, kind=kind))
+        record = self._cache.get(self._cache_key(text, kind=kind))
+        if not isinstance(record, dict):
+            return None
+        if record.get("namespace") != self._cache_namespace:
+            return None
+        vector = record.get("vector")
+        if not isinstance(vector, list):
+            return None
+        return [float(value) for value in vector]
 
     def _store_cache(self, text: str, values: Iterable[float], *, kind: str) -> None:
         if not self._cache:
             return
-        self._cache.set(self._cache_key(text, kind=kind), values)
+        vector = [float(value) for value in values]
+        record = {
+            "vector": vector,
+            "namespace": self._cache_namespace,
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._cache.set(self._cache_key(text, kind=kind), record)
 
     def _embed(self, text: str, *, kind: str) -> list[float]:
         cached = self._lookup_cache(text, kind=kind)
@@ -134,6 +150,11 @@ class CachedGeminiEmbedding(BaseEmbedding):
 
     async def _aget_query_embedding(self, query: str) -> List[float]:  # pragma: no cover - simple passthrough
         return self._get_query_embedding(query)
+
+    @staticmethod
+    def _build_cache_namespace(*, model_name: str, dimension: int, using_fallback: bool) -> str:
+        mode = "fallback" if using_fallback else "online"
+        return f"model={model_name}|dimension={dimension}|mode={mode}"
 
 
 __all__ = ["CachedGeminiEmbedding"]

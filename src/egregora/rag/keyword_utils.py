@@ -1,82 +1,156 @@
-"""Keyword extraction helpers used by :mod:`egregora.rag`."""
+"""Keyword extraction helpers that delegate semantic work to LLM providers."""
 
 from __future__ import annotations
 
-import re
-from collections import Counter
-from dataclasses import dataclass, field
-from typing import Collection, Iterable
+import json
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Protocol
 
-_TOKEN_RE = re.compile(r"[\wÀ-ÿ]+", re.UNICODE)
+__all__ = [
+    "KeywordExtractor",
+    "KeywordProvider",
+    "build_llm_keyword_provider",
+]
 
 
-def _normalise(token: str) -> str:
-    return token.lower()
+class KeywordProvider(Protocol):
+    """Callable responsible for producing semantic keywords from text."""
+
+    def __call__(self, text: str, *, max_keywords: int) -> Sequence[str]:
+        ...
 
 
-def tokenize_text(text: str, *, stop_words: Collection[str] | None = None) -> list[str]:
-    """Return a list of lowercase tokens extracted from *text*.
+def _normalise_keywords(values: Sequence[str], limit: int) -> list[str]:
+    """Return a deduplicated, cleaned keyword list limited to ``limit`` items."""
 
-    Parameters
-    ----------
-    text:
-        Raw text that should be tokenised.
-    stop_words:
-        Optional collection of tokens that should be filtered out after
-        normalisation. Comparison is always case-insensitive.
-    """
-
-    if not text:
-        return []
-
-    blocked = {word.lower() for word in stop_words} if stop_words else set()
-    tokens = []
-    for match in _TOKEN_RE.finditer(text):
-        token = _normalise(match.group(0))
-        if blocked and token in blocked:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
             continue
-        tokens.append(token)
-    return tokens
+        cleaned = value.strip()
+        if not cleaned:
+            continue
+        lowered = cleaned.casefold()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        result.append(cleaned)
+        if len(result) >= limit:
+            break
+    return result
 
 
 @dataclass(slots=True)
 class KeywordExtractor:
-    """Light-weight keyword extractor based on token frequency."""
+    """High-level keyword extractor that delegates to a :class:`KeywordProvider`."""
 
     max_keywords: int
-    stop_words: Collection[str] | None = None
-    min_token_length: int = 3
-    _blocked: set[str] = field(init=False, repr=False, default_factory=set)
+    keyword_provider: KeywordProvider | None = None
 
     def __post_init__(self) -> None:
         if self.max_keywords < 1:
             raise ValueError("max_keywords must be at least 1")
-        self._blocked = {word.lower() for word in self.stop_words} if self.stop_words else set()
 
-    def tokenize(self, text: str) -> list[str]:
-        return tokenize_text(text, stop_words=self._blocked)
+    def extract(
+        self,
+        text: str,
+        *,
+        keyword_provider: KeywordProvider | None = None,
+    ) -> list[str]:
+        """Return semantic keywords for ``text`` using the configured provider."""
 
-    def select_keywords(self, tokens: Iterable[str]) -> list[str]:
-        counter = Counter(
-            token for token in tokens if token and len(token) >= self.min_token_length
+        provider = keyword_provider or self.keyword_provider
+        if provider is None:
+            raise RuntimeError(
+                "KeywordExtractor requires a keyword_provider callable to operate"
+            )
+
+        if not text or not text.strip():
+            return []
+
+        raw_keywords = provider(text, max_keywords=self.max_keywords)
+        return _normalise_keywords(raw_keywords, self.max_keywords)
+
+
+def build_llm_keyword_provider(
+    client: object,
+    *,
+    model: str,
+    system_instruction: str | None = None,
+) -> KeywordProvider:
+    """Return a provider that asks a Gemini model to extract keywords."""
+
+    try:
+        from google.genai import types as genai_types  # type: ignore
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            "google-genai must be installed to build an LLM keyword provider"
+        ) from exc
+
+    base_instruction = system_instruction or (
+        "Você é um assistente que identifica até N palavras-chave únicas em uma "
+        "conversa do WhatsApp. Responda sempre em JSON com o formato "
+        "{\"keywords\": [\"palavra\", ...]} e nunca inclua comentários adicionais."
+    )
+
+    def _provider(text: str, *, max_keywords: int) -> list[str]:
+        if max_keywords < 1:
+            return []
+
+        prompt = (
+            "Considere a conversa abaixo e retorne até "
+            f"{max_keywords} palavras-chave distintas ordenadas por relevância.\n"
+            "Texto:\n"
+            f"{text.strip()}"
         )
-        keywords = [token for token, _ in counter.most_common(self.max_keywords)]
-        if keywords:
-            return keywords
-        # Fallback: preserve insertion order of first distinct tokens
-        seen: list[str] = []
-        for token in tokens:
-            if not token:
+
+        contents = [
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text=prompt)],
+            )
+        ]
+
+        config = genai_types.GenerateContentConfig(
+            system_instruction=[genai_types.Part.from_text(text=base_instruction)],
+            response_mime_type="application/json",
+        )
+
+        response = client.models.generate_content(  # type: ignore[call-arg]
+            model=model,
+            contents=contents,
+            config=config,
+        )
+
+        payload_text = ""
+        for candidate in getattr(response, "candidates", []) or []:
+            content = getattr(candidate, "content", None)
+            if not content:
                 continue
-            if token in seen:
-                continue
-            seen.append(token)
-            if len(seen) >= self.max_keywords:
-                break
-        return seen
+            for part in getattr(content, "parts", []) or []:
+                if getattr(part, "text", None):
+                    payload_text += part.text
 
-    def extract(self, text: str) -> list[str]:
-        return self.select_keywords(self.tokenize(text))
+        if not payload_text and getattr(response, "text", None):
+            payload_text = str(response.text)
 
+        if not payload_text:
+            return []
 
-__all__ = ["KeywordExtractor", "tokenize_text"]
+        try:
+            decoded = json.loads(payload_text)
+        except json.JSONDecodeError:
+            return []
+
+        keywords = decoded.get("keywords", []) if isinstance(decoded, dict) else []
+        if not isinstance(keywords, Sequence):
+            return []
+
+        return _normalise_keywords(
+            [value if isinstance(value, str) else str(value) for value in keywords],
+            max_keywords,
+        )
+
+    return _provider

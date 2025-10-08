@@ -7,9 +7,8 @@ conversation health metrics.
 
 from __future__ import annotations
 
-from collections import Counter
 from datetime import timedelta
-from typing import Any, Dict, Iterable, Sequence
+from typing import Any, Dict, Sequence
 
 import polars as pl
 
@@ -354,73 +353,120 @@ def detect_emerging_topics(
     recent_days: int = 7,
     growth_ratio_threshold: float = 2.0,
     min_recent_mentions: int = 3,
-    stopwords: Iterable[str] | None = None,
+    keyword_column: str = "keywords",
 ) -> pl.DataFrame:
-    """Detect topics that have grown in importance recently."""
+    """Detect topics that have grown in importance recently using structured keywords."""
+
+    empty_schema = {
+        "word": pl.String,
+        "recent_count": pl.Int64,
+        "historical_count": pl.Int64,
+        "growth_ratio": pl.Float64,
+    }
 
     if df.is_empty():
-        return pl.DataFrame({"word": [], "recent_count": [], "historical_count": [], "growth_ratio": []}, schema={"word": pl.String, "recent_count": pl.Int64, "historical_count": pl.Int64, "growth_ratio": pl.Float64})
+        return pl.DataFrame(schema=empty_schema)
+
+    if keyword_column not in df.columns:
+        raise KeyError(
+            f"Column '{keyword_column}' not found; provide structured keywords to detect topics"
+        )
 
     recent_threshold = df.get_column("date").max() - timedelta(days=recent_days)
-    recent_df = df.filter(pl.col("date") > recent_threshold)
-    historical_df = df.filter(pl.col("date") <= recent_threshold)
+
+    def _ensure_keyword_list(value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return [cleaned] if cleaned else []
+
+        source: Sequence[object] | None = None
+
+        to_list = getattr(value, "to_list", None)
+        if callable(to_list):
+            try:
+                source = list(to_list())
+            except Exception:  # pragma: no cover - defensive fallback
+                source = None
+
+        if source is None and isinstance(value, Sequence) and not isinstance(
+            value, (bytes, bytearray)
+        ):
+            source = list(value)
+
+        if source is None:
+            text = str(value).strip()
+            return [text] if text else []
+
+        collected: list[str] = []
+        for item in source:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                collected.append(text)
+        return collected
+
+    prepared = df.with_columns(
+        pl.col(keyword_column)
+        .map_elements(_ensure_keyword_list, return_dtype=pl.List(pl.String))
+        .alias("__keywords")
+    )
+
+    recent_df = prepared.filter(pl.col("date") > recent_threshold)
+    historical_df = prepared.filter(pl.col("date") <= recent_threshold)
 
     if recent_df.is_empty() or historical_df.is_empty():
-        return pl.DataFrame({"word": [], "recent_count": [], "historical_count": [], "growth_ratio": []}, schema={"word": pl.String, "recent_count": pl.Int64, "historical_count": pl.Int64, "growth_ratio": pl.Float64})
+        return pl.DataFrame(schema=empty_schema)
 
-    words_recent = _tokenize_messages(recent_df.get_column("message"), stopwords)
-    words_historical = _tokenize_messages(
-        historical_df.get_column("message"), stopwords
+    def _count_keywords(frame: pl.DataFrame) -> pl.DataFrame:
+        exploded = (
+            frame.select(pl.col("__keywords"))
+            .explode("__keywords")
+            .drop_nulls()
+        )
+        if exploded.is_empty():
+            return pl.DataFrame({"word": [], "count": []}, schema={"word": pl.String, "count": pl.Int64})
+        return (
+            exploded.group_by("__keywords")
+            .agg(pl.len().alias("count"))
+            .rename({"__keywords": "word"})
+        )
+
+    recent_counts = _count_keywords(recent_df)
+    historical_counts = _count_keywords(historical_df)
+
+    if recent_counts.is_empty():
+        return pl.DataFrame(schema=empty_schema)
+
+    merged = recent_counts.join(
+        historical_counts,
+        on="word",
+        how="left",
+        suffix="_historical",
+    ).with_columns(
+        pl.col("count").alias("recent_count"),
+        pl.col("count_historical").fill_null(0).alias("historical_count"),
     )
 
-    recent_counter = Counter(words_recent)
-    historical_counter = Counter(words_historical)
-
-    emerging: list[dict[str, Any]] = []
-    for word, recent_count in recent_counter.most_common(50):
-        historical_count = historical_counter.get(word, 0)
-        growth_ratio = recent_count / (historical_count + 1)
-        if growth_ratio > growth_ratio_threshold and recent_count >= min_recent_mentions:
-            emerging.append(
-                {
-                    "word": word,
-                    "recent_count": recent_count,
-                    "historical_count": historical_count,
-                    "growth_ratio": float(growth_ratio),
-                }
-            )
-
-    if not emerging:
-        return pl.DataFrame({"word": [], "recent_count": [], "historical_count": [], "growth_ratio": []}, schema={"word": pl.String, "recent_count": pl.Int64, "historical_count": pl.Int64, "growth_ratio": pl.Float64})
-
-    return pl.DataFrame(emerging).sort("growth_ratio", descending=True)
-
-
-def _tokenize_messages(
-    messages: Sequence[str] | pl.Series, stopwords: Iterable[str] | None
-) -> list[str]:
-    """Tokenize messages, optionally excluding custom stopwords."""
-
-    stopwords_set = (
-        {word.casefold() for word in stopwords}
-        if stopwords is not None
-        else set()
+    scored = (
+        merged.with_columns(
+            (
+                pl.col("recent_count")
+                / (pl.col("historical_count") + 1)
+            ).alias("growth_ratio")
+        )
+        .filter(pl.col("growth_ratio") > growth_ratio_threshold)
+        .filter(pl.col("recent_count") >= min_recent_mentions)
     )
 
-    if isinstance(messages, pl.Series):
-        iterable: Iterable[str] = messages.to_list()
-    else:
-        iterable = messages
+    if scored.is_empty():
+        return pl.DataFrame(schema=empty_schema)
 
-    result: list[str] = []
-    for message in iterable:
-        if not message:
-            continue
-        for word in message.split():
-            lowered = word.strip().casefold()
-            if not lowered or len(lowered) <= 2:
-                continue
-            if lowered in stopwords_set:
-                continue
-            result.append(lowered)
-    return result
+    return scored.select(
+        "word",
+        "recent_count",
+        "historical_count",
+        "growth_ratio",
+    ).sort("growth_ratio", descending=True)

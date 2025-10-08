@@ -27,10 +27,10 @@ This plan addresses the critical architectural and engineering issues identified
   - Update all imports and usages across the codebase
   - Test cache hit/miss behavior matches original
   - Remove `cache_manager.py` once verified
-- [ ] Replace `rag/embedding_cache.py` with `diskcache`
-  - Update RAG components to use new cache
-  - Verify embedding retrieval performance
-  - Remove `rag/embedding_cache.py` once verified
+- [x] Replace `rag/embedding_cache.py` with `diskcache`
+  - ✅ Cache de embeddings agora usa `diskcache` diretamente em `CachedGeminiEmbedding`
+  - ✅ Removido o módulo customizado `rag/embedding_cache.py`
+  - 🔄 Monitorar a performance e ajustar limites de cache se necessário
 
 **Success Criteria**:
 - All caching functionality works identically
@@ -71,8 +71,8 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Stoplists, TF-IDF e filtros manuais aumentam manutenção e quebram com variações linguísticas.
 
 **Action Items**:
-- [ ] Remover dependência de stopwords e n-grams em `analytics.py`; substituir por resumos/contagens estruturadas via LLM (JSON: `{summary, topics[], actions[]}`).
-- [ ] Substituir “system message filters” manuais em `parser.py` por uma classificação leve via LLM (campos `{is_system, is_noise, reason}`) aplicada linha-a-linha com budget controlado.
+- [x] Remover dependência de stopwords e n-grams em `analytics.py`; substituir por contagens estruturadas derivadas de campos enriquecidos.
+- [x] Substituir “system message filters” manuais em `parser.py` por uma classificação assistida por LLM com cache de hashes.
 - [ ] Documentar limites de custo (p.ex. máx. 0.5k chamadas/dia) e cachear respostas por hash do conteúdo.
 - [ ] Introduzir o agente tipado do `pydanticai` como orquestrador das respostas estruturadas do Gemini.
 

@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Dict, List
 
 from llama_index.core.schema import NodeWithScore
 
 from ..rag.index import PostRAG
+from ..rag.keyword_utils import KeywordProvider, build_llm_keyword_provider
+from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
 from .tools import format_post_listing, format_search_hits
@@ -78,6 +83,9 @@ else:  # pragma: no cover - fallback when dependency missing
     read_resource = app.read_resource
 
 
+DEFAULT_KEYWORD_MODEL = "gemini-2.0-flash-exp"
+
+
 class RAGServer:
     """Wrapper que expõe o RAG através do MCP."""
 
@@ -90,7 +98,44 @@ class RAGServer:
             config=config.rag,
         )
         self.query_gen = QueryGenerator(config.rag)
+        self._gemini_client: Any | None = None
+        self._keyword_providers: dict[str, KeywordProvider] = {}
         self._indexed = False
+
+    def _ensure_gemini_client(self) -> Any:
+        if self._gemini_client is not None:
+            return self._gemini_client
+
+        try:  # pragma: no cover - optional dependency
+            from google import genai  # type: ignore
+        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError(
+                "A dependência opcional 'google-genai' não está instalada. "
+                "Instale-a para habilitar a extração de palavras-chave."
+            ) from exc
+
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente para gerar keywords."
+            )
+
+        self._gemini_client = genai.Client(api_key=api_key)
+        return self._gemini_client
+
+    def _get_keyword_provider(self, model: str | None) -> KeywordProvider:
+        model_name = (model or DEFAULT_KEYWORD_MODEL).strip()
+        if not model_name:
+            model_name = DEFAULT_KEYWORD_MODEL
+
+        cached = self._keyword_providers.get(model_name)
+        if cached is not None:
+            return cached
+
+        client = self._ensure_gemini_client()
+        provider = build_llm_keyword_provider(client, model=model_name)
+        self._keyword_providers[model_name] = provider
+        return provider
 
     async def ensure_indexed(self) -> None:
         if not self._indexed:
@@ -114,8 +159,15 @@ class RAGServer:
             exclude_recent_days=exclude_recent_days,
         )
 
-    async def generate_query(self, *, transcripts: str, model: str | None = None) -> dict[str, Any]:
-        result = await asyncio.to_thread(self.query_gen.generate, transcripts, model=model)
+    async def generate_query(
+        self, *, transcripts: str, model: str | None = None
+    ) -> dict[str, Any]:
+        provider = self._get_keyword_provider(model)
+        result = await asyncio.to_thread(
+            self.query_gen.generate,
+            transcripts,
+            keyword_provider=provider,
+        )
         return {
             "search_query": result.search_query,
             "keywords": result.keywords,
@@ -227,7 +279,7 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
                     "model": {
                         "type": "string",
                         "description": "Modelo LLM a usar (compatível com futuras integrações)",
-                        "default": "gemini-2.0-flash-exp",
+                        "default": DEFAULT_KEYWORD_MODEL,
                     },
                 },
                 "required": ["transcripts"],
