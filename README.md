@@ -194,7 +194,7 @@ The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` 
 
 ### CI workflows
 
-- `Request Codex Review`: Comments `@codex code review` on newly opened pull requests via the account associated with the personal access token stored in the `CODEX_REVIEW_TOKEN` repository secret. Set this secret with a classic PAT that has `public_repo` (or `repo` for private repos) scope so the comment is posted from a human-owned account instead of `github-actions`.
+- `Request Codex Review`: Comments `@codex code review` on newly opened pull requests via the account associated with the personal access token stored in the `CODEX_REVIEW_TOKEN` repository secret. The workflow authenticates the GitHub CLI with this token (via `GH_TOKEN`) before issuing the comment so it originates from a human-owned account rather than `github-actions`. Use a classic PAT with `public_repo` (or `repo` for private repos) scope.
 
 ## License
 
