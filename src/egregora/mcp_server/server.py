@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any, Dict, List
 from llama_index.core.schema import NodeWithScore
 
 from ..rag.index import PostRAG
+from ..rag.keyword_utils import KeywordProvider, build_llm_keyword_provider
 from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
@@ -81,112 +83,7 @@ else:  # pragma: no cover - fallback when dependency missing
     read_resource = app.read_resource
 
 
-_WORD_RE = re.compile(r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]+", re.UNICODE)
-_STOPWORDS = {
-    "a",
-    "agora",
-    "ai",
-    "as",
-    "assim",
-    "ate",
-    "até",
-    "com",
-    "como",
-    "da",
-    "das",
-    "de",
-    "do",
-    "dos",
-    "e",
-    "ela",
-    "ele",
-    "eles",
-    "em",
-    "era",
-    "essa",
-    "esse",
-    "esta",
-    "este",
-    "eu",
-    "foi",
-    "ja",
-    "já",
-    "la",
-    "lá",
-    "mais",
-    "mas",
-    "na",
-    "nas",
-    "não",
-    "nao",
-    "no",
-    "nos",
-    "nós",
-    "o",
-    "os",
-    "para",
-    "por",
-    "pra",
-    "que",
-    "se",
-    "sem",
-    "ser",
-    "sim",
-    "só",
-    "so",
-    "sua",
-    "são",
-    "sao",
-    "ta",
-    "tá",
-    "tem",
-    "têm",
-    "uma",
-    "umas",
-    "vai",
-    "você",
-    "vocês",
-    "voce",
-    "voces",
-}  # Basic Portuguese stopwords for heuristic keyword extraction
-
-
-def _heuristic_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
-    """Return a lightweight keyword list when no LLM provider is available."""
-
-    if max_keywords < 1:
-        return []
-
-    lowered = text.casefold()
-    tokens = [
-        match.group(0)
-        for match in _WORD_RE.finditer(lowered)
-        if len(match.group(0)) >= 3
-    ]
-    filtered: list[str] = []
-    first_seen: dict[str, int] = {}
-    for index, token in enumerate(tokens):
-        if token in _STOPWORDS:
-            continue
-        if token not in first_seen:
-            first_seen[token] = index
-        filtered.append(token)
-
-    if not filtered:
-        return []
-
-    counts = Counter(filtered)
-    ranked = sorted(
-        counts.items(),
-        key=lambda item: (-item[1], first_seen[item[0]]),
-    )
-
-    keywords: list[str] = []
-    for token, _ in ranked:
-        keywords.append(token)
-        if len(keywords) >= max_keywords:
-            break
-    return keywords
+DEFAULT_KEYWORD_MODEL = "gemini-2.0-flash-exp"
 
 
 class RAGServer:
@@ -200,12 +97,45 @@ class RAGServer:
             cache_dir=config.cache_dir,
             config=config.rag,
         )
-        self._keyword_provider: KeywordProvider = _heuristic_keyword_provider
-        self.query_gen = QueryGenerator(
-            config.rag,
-            keyword_provider=self._keyword_provider,
-        )
+        self.query_gen = QueryGenerator(config.rag)
+        self._gemini_client: Any | None = None
+        self._keyword_providers: dict[str, KeywordProvider] = {}
         self._indexed = False
+
+    def _ensure_gemini_client(self) -> Any:
+        if self._gemini_client is not None:
+            return self._gemini_client
+
+        try:  # pragma: no cover - optional dependency
+            from google import genai  # type: ignore
+        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError(
+                "A dependência opcional 'google-genai' não está instalada. "
+                "Instale-a para habilitar a extração de palavras-chave."
+            ) from exc
+
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente para gerar keywords."
+            )
+
+        self._gemini_client = genai.Client(api_key=api_key)
+        return self._gemini_client
+
+    def _get_keyword_provider(self, model: str | None) -> KeywordProvider:
+        model_name = (model or DEFAULT_KEYWORD_MODEL).strip()
+        if not model_name:
+            model_name = DEFAULT_KEYWORD_MODEL
+
+        cached = self._keyword_providers.get(model_name)
+        if cached is not None:
+            return cached
+
+        client = self._ensure_gemini_client()
+        provider = build_llm_keyword_provider(client, model=model_name)
+        self._keyword_providers[model_name] = provider
+        return provider
 
     async def ensure_indexed(self) -> None:
         if not self._indexed:
@@ -232,8 +162,12 @@ class RAGServer:
     async def generate_query(
         self, *, transcripts: str, model: str | None = None
     ) -> dict[str, Any]:
-        # ``model`` is accepted for forward compatibility but currently unused.
-        result = await asyncio.to_thread(self.query_gen.generate, transcripts)
+        provider = self._get_keyword_provider(model)
+        result = await asyncio.to_thread(
+            self.query_gen.generate,
+            transcripts,
+            keyword_provider=provider,
+        )
         return {
             "search_query": result.search_query,
             "keywords": result.keywords,
@@ -345,7 +279,7 @@ async def handle_list_tools() -> List[Tool]:  # type: ignore[valid-type]
                     "model": {
                         "type": "string",
                         "description": "Modelo LLM a usar (compatível com futuras integrações)",
-                        "default": "gemini-2.0-flash-exp",
+                        "default": DEFAULT_KEYWORD_MODEL,
                     },
                 },
                 "required": ["transcripts"],
