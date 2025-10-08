@@ -396,6 +396,8 @@ def read_zip_texts_and_media(
             chunks.append(f"\n# Arquivo: {name}\n{text.strip()}\n")
 
     transcript = "\n".join(chunks).strip()
+    if extractor is not None and media_files:
+        transcript = MediaExtractor.replace_media_references(transcript, media_files)
     return transcript, media_files
 
 

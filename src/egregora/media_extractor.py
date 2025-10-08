@@ -236,6 +236,34 @@ class MediaExtractor:
         )
 
     @classmethod
+    def replace_media_references(
+        cls,
+        text: str,
+        media_files: Dict[str, MediaFile],
+        *,
+        public_paths: Dict[str, str] | None = None,
+    ) -> str:
+        """Return ``text`` with attachment markers replaced by Markdown links."""
+
+        if not text or not media_files:
+            return text
+
+        paths = public_paths or cls.build_public_paths(media_files)
+        pattern = cls._attachment_pattern
+
+        def replacement(match: re.Match[str]) -> str:
+            raw_name = match.group(1).strip()
+            key, media = cls._lookup_media(raw_name, media_files)
+            if media is None:
+                return match.group(0)
+
+            path = paths.get(key) if key and key in paths else media.relative_path
+            markdown = cls._format_markdown_reference(media, path)
+            return f"{markdown} _(arquivo anexado)_"
+
+        return pattern.sub(replacement, text)
+
+    @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
         """Return attachment names referenced inside a Polars ``DataFrame``."""
 

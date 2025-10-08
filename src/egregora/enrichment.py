@@ -36,6 +36,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
 
 URL_RE = re.compile(r"(https?://[^\s>\)]+)", re.IGNORECASE)
+MESSAGE_RE = re.compile(
+    r"^(?P<time>\d{1,2}(?:[:hH]\d{2}))\s*[\-–—]\s*(?P<sender>.+?):\s*(?P<message>.*)$"
+)
 MEDIA_TOKEN_RE = re.compile(r"<m[íi]dia oculta>", re.IGNORECASE)
 
 CACHE_RECORD_VERSION = "2.0"
