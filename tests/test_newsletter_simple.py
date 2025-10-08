@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
     _prepare_transcripts,
-    load_previous_newsletter,
+    load_previous_post,
     list_zip_days,
     find_date_in_name,
     _format_transcript_section_header
@@ -24,7 +24,7 @@ def test_whatsapp_transcript_preparation(temp_dir):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Real WhatsApp conversation
@@ -87,7 +87,7 @@ def test_previous_newsletter_context_loading(temp_dir):
     previous_path.write_text(previous_content)
     
     # Test loading
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
     
     # Validate loading
     assert loaded_path == previous_path
@@ -102,7 +102,7 @@ def test_newsletter_without_previous_context(temp_dir):
     newsletters_dir.mkdir()
     
     # Test with empty directory
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
     
     assert loaded_content is None
     assert not loaded_path.exists()
@@ -111,7 +111,7 @@ def test_newsletter_without_previous_context(temp_dir):
     wrong_date = newsletters_dir / "2020-01-01.md"
     wrong_date.write_text("Old newsletter")
     
-    loaded_path, loaded_content = load_previous_newsletter(newsletters_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
     assert loaded_content is None
 
 
@@ -159,7 +159,7 @@ def test_multi_day_transcript_processing(temp_dir):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Create multi-day transcripts
@@ -208,7 +208,7 @@ def test_whatsapp_content_with_special_characters(temp_dir):
     """Test processing WhatsApp content with special characters and media."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # WhatsApp content with various special elements
@@ -243,7 +243,7 @@ def test_anonymization_consistency_across_days(temp_dir):
     """Test that anonymization is consistent across multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Same person across multiple days

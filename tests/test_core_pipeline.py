@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
-    read_zip_texts,
+    read_zip_texts_and_media,
     _prepare_transcripts,
     list_zip_days,
     find_date_in_name,
@@ -39,7 +39,7 @@ def test_zip_processing_whatsapp_format(temp_dir, whatsapp_zip_path):
         zip_path = whatsapp_zip_path
     
     # Test zip reading
-    content = read_zip_texts(zip_path)
+    content, _ = read_zip_texts_and_media(zip_path)
     
     # Validate content
     assert len(content) > 0
@@ -68,7 +68,7 @@ def test_whatsapp_anonymization_comprehensive(temp_dir):
     """Comprehensive test of WhatsApp format anonymization."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Test various WhatsApp message formats
@@ -105,7 +105,7 @@ def test_message_type_preservation(temp_dir):
     """Test that different message types are preserved during processing."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     complex_conversation = TestDataGenerator.create_complex_conversation()
@@ -131,7 +131,7 @@ def test_multi_day_processing(temp_dir):
     """Test processing conversations across multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     multi_day_content = TestDataGenerator.create_multi_day_content()
@@ -153,7 +153,7 @@ def test_anonymization_consistency(temp_dir):
     """Test that the same author gets the same anonymized name consistently."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Multiple messages from the same author
@@ -182,7 +182,7 @@ def test_edge_cases_handling(temp_dir):
     """Test handling of edge cases in WhatsApp conversations."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
-        newsletters_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     edge_cases = TestDataGenerator.create_edge_cases()

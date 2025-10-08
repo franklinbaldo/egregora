@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.query_gen import QueryGenerator, QueryResult
-from egregora.rag.indexer import detect_newsletter_date, hash_text
-from egregora.rag.search import tokenize, STOP_WORDS
+from egregora.rag.indexer import detect_post_date, hash_text
+
 from test_framework.helpers import create_test_zip
 
 
@@ -21,23 +21,21 @@ def test_query_generation_whatsapp_content(temp_dir):
     whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
 03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
 03/10/2025 09:47 - Franklin: Legal esse vídeo sobre programação"""
-    
-    # Test tokenization functionality
-    tokens = tokenize(whatsapp_content)
-    
-    # Validate tokenization
-    assert len(tokens) > 0
-    assert 'tecnologia' in tokens or 'tecnologia' in whatsapp_content.lower()
-    assert 'machine' in tokens or 'learning' in tokens
-    
-    # Test stop words filtering
-    meaningful_tokens = [token for token in tokens if token not in STOP_WORDS]
-    assert len(meaningful_tokens) > 0
-    
+
+    def mock_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+        return ["tecnologia", "IA", "machine learning", "programação"]
+
     # Test query generator initialization
-    query_gen = QueryGenerator()
+    query_gen = QueryGenerator(keyword_provider=mock_keyword_provider)
     assert hasattr(query_gen, 'config')
     assert isinstance(query_gen.config, RAGConfig)
+
+    result = query_gen.generate(whatsapp_content)
+    assert isinstance(result, QueryResult)
+    assert "tecnologia" in result.keywords
+    assert "IA" in result.keywords
+    assert "machine learning" in result.keywords
+    assert "programação" in result.keywords
 
 
 def test_newsletter_date_detection(temp_dir):
@@ -58,7 +56,7 @@ def test_newsletter_date_detection(temp_dir):
     ]
     
     for filename, expected in zip(test_files, expected_dates):
-        result = detect_newsletter_date(Path(filename))
+        result = detect_post_date(Path(filename))
         assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
 
 
@@ -74,7 +72,7 @@ def test_rag_config_validation(temp_dir):
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
             zips_dir=temp_dir,
-            newsletters_dir=temp_dir,
+            posts_dir=temp_dir,
         )
         config.rag = rag_config
         

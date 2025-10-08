@@ -23,7 +23,7 @@ from egregora.pipeline import (
 EXPECTED_MULTI_DAY_RESULTS = 3
 
 
-def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
+def test_whatsapp_transcript_preparation(temp_dir, whatsapp_test_data):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -31,7 +31,7 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     )
 
     # Real WhatsApp conversation
-    whatsapp_transcripts = [(date(2025, 10, 3), whatsapp_real_content)]
+    whatsapp_transcripts = [(date(2025, 10, 3), whatsapp_test_data)]
 
     # Process transcripts
     result = _prepare_transcripts(whatsapp_transcripts, config)
@@ -154,7 +154,7 @@ def test_zip_file_date_detection_and_listing(temp_dir):
     assert actual_dates == expected_valid_dates
 
 
-def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
+def test_multi_day_transcript_processing(temp_dir, whatsapp_test_data):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -165,7 +165,7 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
     multi_day_transcripts = [
         (date(2025, 10, 1), "01/10/2025 10:00 - Alice: Primeiro dia de conversas"),
         (date(2025, 10, 2), "02/10/2025 14:30 - Bob: Segundo dia, continuando discussão"),
-        (date(2025, 10, 3), whatsapp_real_content),
+        (date(2025, 10, 3), whatsapp_test_data),
     ]
 
     # Process all transcripts
