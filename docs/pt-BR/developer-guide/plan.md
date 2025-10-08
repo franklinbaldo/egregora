@@ -23,10 +23,10 @@ This plan addresses the critical architectural and engineering issues identified
 
 **Action Items**:
 - [ ] Add `diskcache` to project dependencies
-- [ ] Replace `cache_manager.py` with `diskcache`
-  - Update all imports and usages across the codebase
-  - Test cache hit/miss behavior matches original
-  - Remove `cache_manager.py` once verified
+- [x] Replace `cache_manager.py` with `diskcache`
+  - ✅ Atualizados todos os imports e chamadas para usar `diskcache.Cache`
+  - ✅ Testado comportamento de cache hit/miss via suíte de testes
+  - ✅ `cache_manager.py` removido após verificação
 - [x] Replace `rag/embedding_cache.py` with `diskcache`
   - ✅ Cache de embeddings agora usa `diskcache` diretamente em `CachedGeminiEmbedding`
   - ✅ Removido o módulo customizado `rag/embedding_cache.py`

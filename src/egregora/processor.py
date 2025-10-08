@@ -3,15 +3,15 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import polars as pl
 import yaml
+from diskcache import Cache
 
 from .anonymizer import Anonymizer
-from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
@@ -36,6 +36,52 @@ if TYPE_CHECKING:
     from .media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
+
+
+def _cleanup_cache(cache: Cache, days: int) -> int:
+    """Remove cache entries older than the provided *days* threshold."""
+
+    threshold = datetime.now(UTC) - timedelta(days=days)
+    removed = 0
+
+    for key in list(cache.iterkeys()):
+        entry = cache.get(key)
+        if not isinstance(entry, dict):
+            cache.delete(key)
+            continue
+
+        last_used_raw = entry.get("last_used")
+        if isinstance(last_used_raw, datetime):
+            last_used_dt = (
+                last_used_raw.astimezone(UTC)
+                if last_used_raw.tzinfo
+                else last_used_raw.replace(tzinfo=UTC)
+            )
+        elif isinstance(last_used_raw, str):
+            try:
+                parsed = datetime.fromisoformat(last_used_raw)
+            except ValueError:
+                last_used_dt = None
+            else:
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=UTC)
+                last_used_dt = parsed.astimezone(UTC)
+        else:
+            last_used_dt = None
+
+        if last_used_dt is None:
+            continue
+
+        if last_used_dt < threshold:
+            cache.delete(key)
+            removed += 1
+            continue
+
+        if not isinstance(entry.get("last_used"), str):
+            entry["last_used"] = last_used_dt.isoformat()
+            cache.set(key, entry)
+
+    return removed
 
 
 def _build_post_metadata(
@@ -431,25 +477,32 @@ class UnifiedProcessor:
             # Enrichment
             enrichment_section = None
             if self.config.enrichment.enabled:
-                cache_manager = None
-                if self.config.cache.enabled:
-                    cache_manager = CacheManager(
-                        self.config.cache.cache_dir,
-                        size_limit_mb=self.config.cache.max_disk_mb,
+                cache: Cache | None = None
+                try:
+                    if self.config.cache.enabled:
+                        cache_dir = self.config.cache.cache_dir
+                        cache_dir.mkdir(parents=True, exist_ok=True)
+                        size_limit = self.config.cache.max_disk_mb
+                        size_in_bytes = (
+                            0 if size_limit is None else max(0, int(size_limit)) * 1024 * 1024
+                        )
+                        cache = Cache(directory=str(cache_dir), size_limit=size_in_bytes)
+                        if self.config.cache.auto_cleanup_days:
+                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
+                    enricher = ContentEnricher(
+                        self.config.enrichment,
+                        cache=cache,
                     )
-                    if self.config.cache.auto_cleanup_days:
-                        cache_manager.cleanup_old_entries(self.config.cache.auto_cleanup_days)
-                enricher = ContentEnricher(
-                    self.config.enrichment,
-                    cache_manager=cache_manager,
-                )
-                enrichment_result = asyncio.run(
-                    enricher.enrich_dataframe(
-                        df_day,
-                        client=self.generator.client,
-                        target_dates=[target_date],
+                    enrichment_result = asyncio.run(
+                        enricher.enrich_dataframe(
+                            df_day,
+                            client=self.generator.client,
+                            target_dates=[target_date],
+                        )
                     )
-                )
+                finally:
+                    if cache is not None:
+                        cache.close()
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )

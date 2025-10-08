@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from diskcache import Cache
 from pydantic import ValidationError
 
 try:  # pragma: no cover - optional at runtime
@@ -14,7 +15,6 @@ except Exception:  # pragma: no cover - keep runtime lean without optional deps
     Agent = None  # type: ignore[assignment]
     GeminiModel = None  # type: ignore[assignment]
 
-from .cache_manager import CacheManager
 from .llm_models import SystemMessageLabel
 
 EXPECTED_AUTHOR_PAYLOAD_PARTS = 2
@@ -48,13 +48,13 @@ class SystemMessageClassifier:
     def __init__(
         self,
         *,
-        cache_manager: CacheManager | None = None,
+        cache: Cache | None = None,
         model_name: str | None = None,
         max_llm_calls: int | None = None,
         token_budget: int | None = None,
         retry_attempts: int = 1,
     ) -> None:
-        self._cache = cache_manager
+        self._cache = cache
         self._max_llm_calls = max_llm_calls if max_llm_calls is None else max(0, int(max_llm_calls))
         self._token_budget = token_budget if token_budget is None else max(0, int(token_budget))
         self._metrics = ClassificationMetrics()

@@ -16,8 +16,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration end-to-end. With the legacy compatibility layer gone, regressions will immediately impact production runs.
     *   **Recommendation:** Expand coverage for the DataFrame flow and keep observability around enrichment/media transforms to catch issues before they affect published posts.
 
-2.  **Over-engineering ("Not Invented Here" Syndrome):** The enrichment flow still ships a bespoke `cache_manager.py` wrapper around `diskcache`.
-    *   **Recommendation:** Evaluate whether the remaining wrapper adds value now that the embedding cache has been inlined on top of `diskcache`, and consider consolidating on a single caching abstraction.
+2.  **Caching Simplification Complete:** The enrichment flow now talks to `diskcache.Cache` directly with no bespoke wrapper.
+    *   **Recommendation:** Monitor cache growth and adjust cleanup policies to keep disk usage bounded.
 
 3.  **Keyword Extraction Simplification:** The RAG stack now relies exclusively on embeddings, with a light-weight keyword extractor providing context snippets for UI hints.
     *   **Recommendation:** Continue validating the heuristic tokenisation to guarantee high-quality suggestions and evolve it alongside transcript formats.
@@ -46,10 +46,10 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Verdict:** Excellent.
 *   **Analysis:** A model of clarity and simplicity. It uses UUIDv5 for deterministic anonymization, which is the correct approach.
 
-### `src/egregora/cache_manager.py`
-*   **Verdict:** **Critical Flaw (Over-engineered).**
-*   **Analysis:** A textbook example of over-engineering. This is a complex, hand-rolled caching system that reinvents a solved problem.
-*   **Recommendation:** Replace the entire module with the `diskcache` library. This is a high-impact, low-risk change.
+### `diskcache` integration
+*   **Verdict:** ✅ Addressed.
+*   **Analysis:** The custom cache wrapper has been removed; enrichment and classification components now rely on `diskcache.Cache` instances directly.
+*   **Recommendation:** Keep automated tests covering cache hit/miss behaviour and validate cleanup routines on long-running deployments.
 
 ### `src/egregora/config.py`
 *   **Verdict:** Okay, but a major missed opportunity.

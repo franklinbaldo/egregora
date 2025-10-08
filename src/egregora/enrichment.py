@@ -24,10 +24,10 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 from urllib.parse import urlparse
 
 import polars as pl
+from diskcache import Cache
 from pydantic import ValidationError
 from pydantic_ai import Agent
 
-from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
 from .llm_models import ActionItem, SummaryResponse
@@ -197,11 +197,11 @@ class ContentEnricher:
         self,
         config: EnrichmentConfig,
         *,
-        cache_manager: CacheManager | None = None,
+        cache: Cache | None = None,
         gemini_manager: GeminiManager | None = None,
     ) -> None:
         self._config = config
-        self._cache = cache_manager
+        self._cache = cache
         self._gemini_manager = gemini_manager
         self._metrics: dict[str, int] = {
             "llm_calls": 0,
@@ -343,6 +343,18 @@ class ContentEnricher:
         if not self._cache or not reference.url:
             return
 
+        now = datetime.now(UTC)
+        existing = self._cache.get(reference.url)
+        hit_count = 0
+        first_seen = now
+        if isinstance(existing, dict):
+            stored_hits = existing.get("hit_count")
+            if isinstance(stored_hits, int):
+                hit_count = max(0, stored_hits)
+            stored_first_seen = self._coerce_timestamp(existing.get("first_seen"))
+            if stored_first_seen is not None:
+                first_seen = stored_first_seen
+
         enrichment_payload = {
             "summary": analysis.summary,
             "topics": list(analysis.topics),
@@ -350,7 +362,7 @@ class ContentEnricher:
             "relevance": analysis.relevance,
             "raw_response": analysis.raw_response,
         }
-        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        timestamp = now.isoformat()
         domain = urlparse(reference.url).netloc if reference.url else None
         context = {
             "message": reference.message,
@@ -373,10 +385,48 @@ class ContentEnricher:
             "version": CACHE_RECORD_VERSION,
         }
         try:
-            self._cache.set(reference.url, payload)
+            entry = {
+                "payload": payload,
+                "first_seen": first_seen.isoformat(),
+                "last_used": timestamp,
+                "hit_count": hit_count,
+                "version": CACHE_RECORD_VERSION,
+            }
+            self._cache.set(reference.url, entry)
         except Exception:
             # Cache failures must not break the enrichment flow.
             return
+
+    def _get_cached_payload(self, url: str) -> dict[str, object] | None:
+        if not self._cache:
+            return None
+
+        entry = self._cache.get(url)
+        if not isinstance(entry, dict):
+            if entry is not None:
+                try:
+                    self._cache.delete(url)
+                except Exception:
+                    pass
+            return None
+
+        if entry.get("version") != CACHE_RECORD_VERSION:
+            return None
+
+        payload = entry.get("payload")
+        if not isinstance(payload, dict):
+            return None
+
+        updated_entry = dict(entry)
+        updated_entry["last_used"] = datetime.now(UTC).isoformat()
+        updated_entry["hit_count"] = int(entry.get("hit_count", 0)) + 1
+
+        try:
+            self._cache.set(url, updated_entry)
+        except Exception:
+            pass
+
+        return payload
 
     def _analysis_from_cache(self, payload: dict[str, object]) -> AnalysisResult | None:
         enrichment = payload.get("enrichment")
@@ -499,6 +549,26 @@ class ContentEnricher:
             return stripped or None
         return None
 
+    @staticmethod
+    def _coerce_timestamp(value: object) -> datetime | None:
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=UTC)
+            return value.astimezone(UTC)
+
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                return None
+
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+
+            return parsed.astimezone(UTC)
+
+        return None
+
     def _record_llm_usage(self, prompt: str, response_text: str | None) -> None:
         self._metrics["llm_calls"] = self._metrics.get("llm_calls", 0) + 1
         estimated = max(1, (len(prompt) + len(response_text or "")) // 4)
@@ -542,9 +612,9 @@ class ContentEnricher:
                 return EnrichedItem(reference=reference, analysis=analysis)
 
             cached_item: AnalysisResult | None = None
-            if self._cache:
-                cached_payload = self._cache.get(reference.url)
-                if cached_payload:
+            if reference.url:
+                cached_payload = self._get_cached_payload(reference.url)
+                if cached_payload is not None:
                     cached_item = self._analysis_from_cache(cached_payload)
             if cached_item:
                 self._metrics["cache_hits"] = self._metrics.get("cache_hits", 0) + 1

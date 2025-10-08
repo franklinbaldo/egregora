@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import zipfile
 from collections.abc import Sequence
@@ -19,9 +18,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     types = None  # type: ignore[assignment]
 
 import polars as pl
+from diskcache import Cache
 
 from .anonymizer import Anonymizer
-from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
 from .system_classifier import SystemMessageClassifier
@@ -98,17 +97,17 @@ def _build_system_classifier(
     if not config.system_classifier.enabled:
         return None
 
-    cache_manager: CacheManager | None = None
+    cache_instance: Cache | None = None
     if config.cache.enabled:
         cache_dir = config.cache.cache_dir / "system_labels"
-        cache_manager = CacheManager(
-            cache_dir,
-            size_limit_mb=config.cache.max_disk_mb,
-        )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        size_limit = config.cache.max_disk_mb
+        size_in_bytes = 0 if size_limit is None else max(0, int(size_limit)) * 1024 * 1024
+        cache_instance = Cache(directory=str(cache_dir), size_limit=size_in_bytes)
 
     try:
         return SystemMessageClassifier(
-            cache_manager=cache_manager,
+            cache=cache_instance,
             model_name=config.system_classifier.model,
             max_llm_calls=config.system_classifier.max_llm_calls,
             token_budget=config.system_classifier.token_budget,
@@ -225,35 +224,6 @@ def _format_transcript_section_header(transcript_count: int) -> str:
     return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
 
 
-def _prepare_transcripts_sample(
-    transcripts: Sequence[tuple[date, str]],
-    *,
-    max_chars: int,
-) -> str:
-    """Concatenate recent transcripts limited to ``max_chars`` characters."""
-
-    if max_chars <= 0:
-        return ""
-
-    ordered = sorted(transcripts, key=lambda item: item[0], reverse=True)
-    collected: list[str] = []
-    remaining = max_chars
-
-    for _, text in ordered:
-        snippet = text.strip()
-        if not snippet:
-            continue
-
-        if len(snippet) > remaining:
-            snippet = snippet[:remaining]
-        collected.append(snippet)
-        remaining -= len(snippet)
-        if remaining <= 0:
-            break
-
-    return "\n\n".join(collected).strip()
-
-
 def build_llm_input(  # noqa: PLR0913
     *,
     group_name: str,
@@ -323,16 +293,6 @@ def _require_google_dependency() -> None:
             "A dependência opcional 'google-genai' não está instalada. "
             "Instale-a para gerar posts (ex.: `pip install google-genai`)."
         )
-
-
-def create_client(api_key: str | None = None):  # pragma: no cover - thin wrapper
-    """Create a Gemini client using the provided or environment API key."""
-
-    _require_google_dependency()
-    key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not key:
-        raise RuntimeError("Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente.")
-    return genai.Client(api_key=key)
 
 
 def find_date_in_name(path: Path) -> date | None:
@@ -413,35 +373,14 @@ def load_previous_post(news_dir: Path, reference_date: date) -> tuple[Path, str 
     return path, None
 
 
-def ensure_directories(config: PipelineConfig) -> None:
-    """Ensure required directories exist."""
-
-    config.posts_dir.mkdir(parents=True, exist_ok=True)
-    config.zips_dir.mkdir(parents=True, exist_ok=True)
-
-
-def select_recent_archives(
-    archives: Sequence[tuple[date, Path]], *, days: int
-) -> list[tuple[date, Path]]:
-    """Select the most recent archives respecting *days*."""
-
-    if days <= 0:
-        raise ValueError("days must be positive")
-    return list(archives[-days:]) if len(archives) >= days else list(archives)
-
-
 __all__ = [
     "build_llm_input",
-    "create_client",
-    "ensure_directories",
     "find_date_in_name",
     "list_zip_days",
     "load_previous_post",
     "read_zip_texts_and_media",
-    "select_recent_archives",
     "_anonymize_transcript_line",
     "_format_transcript_section_header",
     "_load_prompt",
     "_prepare_transcripts",
-    "_prepare_transcripts_sample",
 ]

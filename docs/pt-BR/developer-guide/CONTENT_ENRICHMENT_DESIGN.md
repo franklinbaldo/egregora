@@ -110,7 +110,8 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 
 ### ✅ Implementado
 
-1. **Caching de URLs** — armazenamento persistente em `cache_manager.py` evita downloads repetidos.
+1. **Caching de URLs** — armazenamento persistente direto em `diskcache.Cache`
+   evita reprocessar links.
 2. **Suporte nativo a PDFs** — via `types.Part.from_uri` do Gemini, sem dependências extras.
 3. **Suporte nativo a YouTube** — processa vídeos diretamente com o Gemini.
 4. **Visão computacional** — análise multimodal habilitada pelos modelos Gemini.

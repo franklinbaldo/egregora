@@ -17,7 +17,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
 2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
-3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L146-L290】【F:src/egregora/cache_manager.py†L16-L142】
+3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L146-L314】【F:src/egregora/processor.py†L440-L520】
 4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
 5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for MkDocs publishing or further automation.【F:src/egregora/processor.py†L209-L487】
 
@@ -158,7 +158,7 @@ During processing the pipeline materialises a predictable directory tree:
 - `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for MkDocs or email distribution.【F:src/egregora/processor.py†L344-L515】
 - `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L188】
 - `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
-- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
+- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/enrichment.py†L332-L410】
 - `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
 - `docs/` – MkDocs site that publishes posts via the Material blog plugin alongside the broader knowledge base (`uv run --extra docs --with ./ mkdocs serve`).
 
