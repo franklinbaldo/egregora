@@ -27,10 +27,10 @@ This plan addresses the critical architectural and engineering issues identified
   - Update all imports and usages across the codebase
   - Test cache hit/miss behavior matches original
   - Remove `cache_manager.py` once verified
-- [ ] Replace `rag/embedding_cache.py` with `diskcache`
-  - Update RAG components to use new cache
-  - Verify embedding retrieval performance
-  - Remove `rag/embedding_cache.py` once verified
+- [x] Replace `rag/embedding_cache.py` with `diskcache`
+  - ✅ Cache de embeddings agora usa `diskcache` diretamente em `CachedGeminiEmbedding`
+  - ✅ Removido o módulo customizado `rag/embedding_cache.py`
+  - 🔄 Monitorar a performance e ajustar limites de cache se necessário
 
 **Success Criteria**:
 - All caching functionality works identically
