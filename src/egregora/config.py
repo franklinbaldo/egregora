@@ -25,7 +25,7 @@ from pydantic_settings import BaseSettings
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import RAGConfig, sanitize_rag_config_payload
+from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
@@ -316,7 +316,7 @@ class PipelineConfig(BaseSettings):
         if isinstance(value, RAGConfig):
             return value
         if isinstance(value, dict):
-            return RAGConfig(**sanitize_rag_config_payload(value))
+            return RAGConfig(**value)
         raise TypeError("rag configuration must be a mapping")
 
     @field_validator("profiles", mode="before")
@@ -454,10 +454,7 @@ class PipelineConfig(BaseSettings):
         for section in ("llm", "enrichment", "cache", "anonymization", "rag", "profiles"):
             if section in data:
                 section_value = data[section]
-                if section == "rag" and isinstance(section_value, dict):
-                    payload[section] = sanitize_rag_config_payload(section_value)
-                else:
-                    payload[section] = section_value
+                payload[section] = section_value
 
         if "merges" in data:
             payload["merges"] = data["merges"]

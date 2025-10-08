@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +14,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-
-_DEPRECATED_RAG_KEYS = {"use_gemini_embeddings"}
-
 
 def _default_keyword_stop_words() -> tuple[str, ...]:
     return (
@@ -38,12 +35,6 @@ def _default_keyword_stop_words() -> tuple[str, ...]:
         "with",
         "you",
     )
-
-
-def sanitize_rag_config_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Return ``payload`` without deprecated configuration keys."""
-
-    return {key: value for key, value in payload.items() if key not in _DEPRECATED_RAG_KEYS}
 
 
 def _default_mcp_args() -> tuple[str, ...]:
@@ -178,4 +169,4 @@ class RAGConfig(BaseModel):
         return self
 
 
-__all__ = ["RAGConfig", "sanitize_rag_config_payload"]
+__all__ = ["RAGConfig"]
