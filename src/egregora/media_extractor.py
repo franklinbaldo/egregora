@@ -355,7 +355,7 @@ class MediaExtractor:
         public_paths: Dict[str, str] | None = None,
     ) -> pl.DataFrame:
         """Replace WhatsApp attachment markers with Markdown references in a DataFrame."""
-        if not media_files or "message" not in df.columns:
+        if not media_files:
             return df
 
         def replace_func(text: str) -> str:
@@ -365,6 +365,22 @@ class MediaExtractor:
                 text, media_files, public_paths=public_paths
             )
 
-        return df.with_columns(
-            pl.col("message").map_elements(replace_func, return_dtype=pl.String)
-        )
+        cols_to_update = []
+        if "message" in df.columns:
+            cols_to_update.append(
+                pl.col("message").map_elements(replace_func, return_dtype=pl.String)
+            )
+        if "original_line" in df.columns:
+            cols_to_update.append(
+                pl.col("original_line").map_elements(
+                    replace_func, return_dtype=pl.String
+                )
+            )
+        if "tagged_line" in df.columns:
+            cols_to_update.append(
+                pl.col("tagged_line").map_elements(
+                    replace_func, return_dtype=pl.String
+                )
+            )
+
+        return df.with_columns(*cols_to_update) if cols_to_update else df
