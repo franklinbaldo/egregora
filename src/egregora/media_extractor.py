@@ -218,7 +218,15 @@ class MediaExtractor:
         target_column = column
         if target_column is None:
             if "tagged_line" in df.columns:
-                target_column = "tagged_line"
+                tagged_has_content = bool(
+                    df.select(pl.col("tagged_line").is_not_null().any()).item()
+                )
+                if tagged_has_content:
+                    target_column = "tagged_line"
+                elif "original_line" in df.columns:
+                    target_column = "original_line"
+                else:
+                    target_column = "tagged_line"
             elif "original_line" in df.columns:
                 target_column = "original_line"
             else:
