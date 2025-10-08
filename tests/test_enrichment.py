@@ -329,9 +329,8 @@ def test_enrich_with_real_transcript_and_metrics(mock_guess_type, tmp_path):
     enricher = ContentEnricher(config)
 
     frame = _transcripts_to_frame([(date(2025, 10, 3), transcript)])
-    result = asyncio.run(
-        enricher.enrich_dataframe(frame, client=mock_client)
-    )
+    enrichment_task = enricher.enrich_dataframe(frame, client=mock_client)
+    result = asyncio.run(enrichment_task)
 
     assert result.errors == []
     assert result.duration_seconds >= 0

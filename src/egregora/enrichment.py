@@ -978,6 +978,7 @@ __all__ = [
     "EnrichedItem",
     "EnrichmentResult",
     "EnrichmentRunMetrics",
+    "MESSAGE_RE",
     "extract_urls_from_dataframe",
     "get_url_contexts_dataframe",
 ]
