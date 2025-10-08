@@ -7,6 +7,7 @@ import os
 import tomllib
 from datetime import tzinfo
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -16,6 +17,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationError,
     SecretStr,
     field_validator,
 )
@@ -28,9 +30,6 @@ from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
-
-_VALID_TAG_STYLES = {"emoji", "brackets", "prefix"}
-
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -345,39 +344,27 @@ class PipelineConfig(BaseSettings):
     def _validate_merges(cls, value: Any) -> dict[GroupSlug, MergeConfig]:
         if value is None:
             return {}
-        if not isinstance(value, dict):
+        if not isinstance(value, Mapping):
             raise TypeError("merges must be a mapping")
 
         merges: dict[GroupSlug, MergeConfig] = {}
         for raw_slug, payload in value.items():
             slug = GroupSlug(str(raw_slug))
-            if not isinstance(payload, dict):
+            if isinstance(payload, MergeConfig):
+                merges[slug] = payload
+                continue
+            if not isinstance(payload, Mapping):
                 raise TypeError(f"Merge '{slug}' must be a mapping")
 
-            tag_style = payload.get("tag_style", "emoji")
-            if tag_style not in _VALID_TAG_STYLES:
-                raise ValueError(f"Invalid tag_style '{tag_style}' for merge '{slug}'")
-
-            groups = payload.get("groups", [])
-            if not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
-                raise ValueError(f"Merge '{slug}' groups must be a list of strings")
-            if not groups:
-                raise ValueError(f"Merge '{slug}' must include at least one source group")
-
-            source_groups = [GroupSlug(group) for group in groups]
-
-            raw_emojis = payload.get("emojis", {})
-            if not isinstance(raw_emojis, dict):
-                raise TypeError(f"Merge '{slug}' emojis must be a mapping of slug to emoji")
-            group_emojis = {GroupSlug(str(key)): str(value) for key, value in raw_emojis.items()}
-
-            merges[slug] = MergeConfig(
-                name=payload["name"],
-                source_groups=source_groups,
-                tag_style=tag_style,  # type: ignore[arg-type]
-                group_emojis=group_emojis,
-                model_override=payload.get("model"),
-            )
+            try:
+                merges[slug] = MergeConfig.model_validate(dict(payload))
+            except ValidationError as exc:  # pragma: no cover - formatting only
+                details = ", ".join(
+                    f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+                    for error in exc.errors()
+                )
+                message = details or str(exc)
+                raise ValueError(f"Invalid merge configuration for '{slug}': {message}") from exc
         return merges
 
     @classmethod
