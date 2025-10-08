@@ -65,26 +65,7 @@ class AnalysisResult:
     actions: list[ActionItem]
     relevance: int
     raw_response: str | None
-    tone: str | None = None
     error: str | None = None
-
-    @property
-    def key_points(self) -> list[str]:
-        return list(self.topics)
-
-    @key_points.setter
-    def key_points(self, value: Sequence[str] | None) -> None:
-        if not value:
-            self.topics = []
-            return
-        cleaned: list[str] = []
-        for item in value:
-            if not isinstance(item, str):
-                continue
-            stripped = item.strip()
-            if stripped:
-                cleaned.append(stripped)
-        self.topics = cleaned
 
     @property
     def is_successful(self) -> bool:
@@ -413,11 +394,9 @@ class ContentEnricher:
         enrichment_payload = {
             "summary": analysis.summary,
             "topics": list(analysis.topics),
-            "key_points": list(analysis.topics),
             "actions": [item.model_dump() for item in analysis.actions],
             "relevance": analysis.relevance,
             "raw_response": analysis.raw_response,
-            "tone": analysis.tone,
         }
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         domain = urlparse(reference.url).netloc if reference.url else None
@@ -453,16 +432,11 @@ class ContentEnricher:
             return None
 
         summary = self._coerce_string(enrichment.get("summary"))
-        raw_topics = enrichment.get("topics")
-        if not isinstance(raw_topics, list):
-            raw_topics = enrichment.get("key_points") or []
         topics = [
             point.strip()
-            for point in raw_topics
+            for point in enrichment.get("topics", [])
             if isinstance(point, str) and point.strip()
         ]
-        tone = self._coerce_string(enrichment.get("tone"))
-
         actions: list[ActionItem] = []
         for action_payload in enrichment.get("actions", []) or []:
             try:
@@ -487,7 +461,6 @@ class ContentEnricher:
             actions=actions,
             relevance=relevance,
             raw_response=raw_response,
-            tone=tone,
         )
 
     @staticmethod
@@ -530,17 +503,13 @@ class ContentEnricher:
                 actions=[],
                 relevance=1,
                 raw_response=raw_text,
-                tone=None,
                 error="Resposta fora do formato esperado; usando fallback seguro.",
             )
 
         summary = ContentEnricher._coerce_string(payload.summary)
         topics = payload.sanitized_topics()
         actions = payload.sanitized_actions()
-        tone = payload.sanitized_tone()
-        relevance = payload.sanitized_relevance()
-        if relevance is None:
-            relevance = ContentEnricher._estimate_relevance(summary, topics, actions)
+        relevance = ContentEnricher._estimate_relevance(summary, topics, actions)
 
         return AnalysisResult(
             summary=summary,
@@ -548,7 +517,6 @@ class ContentEnricher:
             actions=actions,
             relevance=relevance,
             raw_response=raw_text,
-            tone=tone,
         )
 
     def _build_prompt(self, reference: ContentReference) -> str:
@@ -989,8 +957,7 @@ class ContentEnricher:
             )
 
         placeholder_rows = frame.filter(
-            pl.col("__media_placeholder")
-            & (pl.col("__urls").list.len() == 0)
+            pl.col("__media_placeholder") & (pl.col("__urls").list.len() == 0)
         )
 
         for row in placeholder_rows.iter_rows(named=True):

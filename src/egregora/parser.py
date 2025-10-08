@@ -8,8 +8,6 @@ import re
 import unicodedata
 import zipfile
 from datetime import datetime
-from functools import lru_cache
-from importlib import resources
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -23,11 +21,7 @@ from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip
 logger = logging.getLogger(__name__)
 
 
-def parse_export(
-    export: WhatsAppExport,
-    *,
-    system_message_filters: Iterable[str] | None = None,
-) -> pl.DataFrame:
+def parse_export(export: WhatsAppExport) -> pl.DataFrame:
     """Parse an individual export into a Polars ``DataFrame``."""
 
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -37,9 +31,7 @@ def parse_export(
         try:
             with zf.open(export.chat_file) as raw:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                rows = _parse_messages(
-                    text_stream, export, filters=system_message_filters
-                )
+                rows = _parse_messages(text_stream, export)
         except UnicodeDecodeError as exc:
             raise ZipValidationError(
                 f"Failed to decode chat file '{export.chat_file}': {exc}"
@@ -53,18 +45,14 @@ def parse_export(
     return ensure_message_schema(df)
 
 
-def parse_multiple(
-    exports: Sequence[WhatsAppExport],
-    *,
-    system_message_filters: Iterable[str] | None = None,
-) -> pl.DataFrame:
+def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
     """Parse multiple exports and concatenate them ordered by timestamp."""
 
     frames: list[pl.DataFrame] = []
 
     for export in exports:
         try:
-            df = parse_export(export, system_message_filters=system_message_filters)
+            df = parse_export(export)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
@@ -97,18 +85,11 @@ def _normalize_text(value: str) -> str:
     return normalized
 
 
-def _parse_messages(
-    lines: Iterable[str],
-    export: WhatsAppExport,
-    *,
-    filters: Iterable[str] | None,
-) -> list[dict]:
+def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     """Parse messages from an iterable of strings."""
 
     rows: list[dict] = []
     current_date = export.export_date
-
-    _ = filters
 
     for raw_line in lines:
         normalized_line = _normalize_text(raw_line)
@@ -163,56 +144,5 @@ def _parse_messages(
 
     return rows
 
-def configure_system_message_filters(filters: Iterable[str] | None) -> None:
-    """Override the default system message filters at runtime."""
-
-    global _SYSTEM_FILTERS_OVERRIDE
-    if filters is None:
-        _SYSTEM_FILTERS_OVERRIDE = None
-        return
-
-    processed = tuple({phrase.casefold() for phrase in filters if phrase.strip()})
-    _SYSTEM_FILTERS_OVERRIDE = processed or None
-
-
-def load_system_filters_from_file(path: Path) -> tuple[str, ...]:
-    """Load custom system message filters from ``path``."""
-
-    content = path.read_text(encoding="utf-8")
-    phrases = [
-        line.strip()
-        for line in content.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    return tuple(phrase.casefold() for phrase in phrases)
-
-
-def _resolve_system_filters(filters: Iterable[str] | None) -> tuple[str, ...]:
-    if filters is not None:
-        return tuple({phrase.casefold() for phrase in filters if phrase.strip()})
-    if _SYSTEM_FILTERS_OVERRIDE is not None:
-        return _SYSTEM_FILTERS_OVERRIDE
-    return _load_default_system_filters()
-
-
-@lru_cache(maxsize=1)
-def _load_default_system_filters() -> tuple[str, ...]:
-    try:
-        data = resources.files("egregora.data").joinpath(
-            "system_message_filters.txt"
-        )
-        content = data.read_text(encoding="utf-8")
-    except (FileNotFoundError, ModuleNotFoundError):
-        return tuple()
-
-    phrases = [
-        line.strip()
-        for line in content.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    return tuple(phrase.casefold() for phrase in phrases)
-
-
-_SYSTEM_FILTERS_OVERRIDE: tuple[str, ...] | None = None
 _INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 

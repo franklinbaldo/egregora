@@ -97,12 +97,6 @@ def _build_system_classifier(
     if not config.system_classifier.enabled:
         return None
 
-    filters: tuple[str, ...] | None = None
-    filters_path = config.system_message_filters_file
-    if filters_path is not None and filters_path.exists():
-        content = filters_path.read_text(encoding="utf-8")
-        filters = tuple(line.strip() for line in content.splitlines() if line.strip())
-
     cache_manager: CacheManager | None = None
     if config.cache.enabled:
         cache_dir = config.cache.cache_dir / "system_labels"
@@ -113,7 +107,6 @@ def _build_system_classifier(
 
     try:
         return SystemMessageClassifier(
-            filters=filters,
             cache_manager=cache_manager,
             model_name=config.system_classifier.model,
             max_llm_calls=config.system_classifier.max_llm_calls,

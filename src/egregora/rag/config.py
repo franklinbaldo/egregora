@@ -17,6 +17,28 @@ from pydantic import (
 _DEPRECATED_RAG_KEYS = {"use_gemini_embeddings"}
 
 
+def _default_keyword_stop_words() -> tuple[str, ...]:
+    return (
+        "about",
+        "and",
+        "are",
+        "but",
+        "com",
+        "for",
+        "from",
+        "http",
+        "https",
+        "not",
+        "that",
+        "the",
+        "this",
+        "was",
+        "were",
+        "with",
+        "you",
+    )
+
+
 def sanitize_rag_config_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Return ``payload`` without deprecated configuration keys."""
 
@@ -51,7 +73,9 @@ class RAGConfig(BaseModel):
     # Query generation helpers
     max_context_chars: int = 1200
     max_keywords: int = 8
-    keyword_stop_words: tuple[str, ...] = Field(default_factory=tuple)
+    keyword_stop_words: tuple[str, ...] | None = Field(
+        default_factory=_default_keyword_stop_words
+    )
     classifier_max_llm_calls: int | None = 200
     classifier_token_budget: int | None = 20000
 
@@ -104,25 +128,6 @@ class RAGConfig(BaseModel):
             raise ValueError("max_context_chars must be greater than zero")
         return ivalue
 
-    @field_validator("keyword_stop_words", mode="before")
-    @classmethod
-    def _coerce_stop_words(cls, value: Any) -> tuple[str, ...]:
-        if value is None or value == "":
-            return tuple()
-        if isinstance(value, str):
-            candidate = value.strip()
-            return (candidate,) if candidate else tuple()
-        try:
-            items = list(value)
-        except TypeError:
-            return tuple()
-        cleaned: list[str] = []
-        for item in items:
-            text = str(item).strip()
-            if text:
-                cleaned.append(text)
-        return tuple(cleaned)
-
     @field_validator("min_similarity")
     @classmethod
     def _validate_similarity(cls, value: Any) -> float:
@@ -166,6 +171,15 @@ class RAGConfig(BaseModel):
     @classmethod
     def _coerce_mcp_args(cls, value: Sequence[str]) -> tuple[str, ...]:
         return tuple(str(item) for item in value)
+
+    @field_validator("keyword_stop_words")
+    @classmethod
+    def _coerce_stop_words(
+        cls, value: Sequence[str] | None
+    ) -> tuple[str, ...] | None:
+        if value is None:
+            return None
+        return tuple(str(item).lower() for item in value if item)
 
     @model_validator(mode="after")
     def _validate_overlap_bounds(self) -> "RAGConfig":

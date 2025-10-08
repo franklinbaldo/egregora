@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel, Field
 
 
 class ActionItem(BaseModel):
@@ -36,16 +36,8 @@ class SummaryResponse(BaseModel):
     """Structured analytics block summarising a conversation."""
 
     summary: str = Field(..., min_length=1)
-    topics: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("topics", "key_points"),
-    )
+    topics: List[str] = Field(default_factory=list)
     actions: List[ActionItem] = Field(default_factory=list)
-    tone: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("tone", "sentiment"),
-    )
-    relevance: int | None = Field(default=None)
 
     model_config = {
         "extra": "ignore",
@@ -62,27 +54,6 @@ class SummaryResponse(BaseModel):
             if cleaned:
                 topics.append(cleaned)
         return topics
-
-    def sanitized_tone(self) -> str | None:
-        """Return a trimmed tone value or ``None`` when missing."""
-
-        if not isinstance(self.tone, str):
-            return None
-        cleaned = self.tone.strip()
-        return cleaned or None
-
-    def sanitized_relevance(self) -> int | None:
-        """Return relevance when within the expected range."""
-
-        if self.relevance is None:
-            return None
-        try:
-            value = int(self.relevance)
-        except (TypeError, ValueError):
-            return None
-        if 1 <= value <= 5:
-            return value
-        return None
 
     def sanitized_actions(self) -> list[ActionItem]:
         """Return actions filtered for valid descriptions."""

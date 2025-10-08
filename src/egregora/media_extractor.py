@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import re
 import shutil
 import uuid
 import zipfile
@@ -63,11 +62,8 @@ class MediaFile:
 class MediaExtractor:
     """Extracts WhatsApp media files and rewrites transcript references."""
 
-    _attachment_pattern = re.compile(
-        r"\u200e?([\w\-()\s]+?\.[a-z0-9]{1,6})\s*\(arquivo anexado\)",
-        re.IGNORECASE,
-    )
-    _directional_marks = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+    _ATTACHMENT_MARKER = "(arquivo anexado)"
+    _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
 
     def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
         self.group_dir = group_dir
@@ -184,11 +180,25 @@ class MediaExtractor:
         if not media_files:
             return text
 
-        def replacement(match: re.Match[str]) -> str:
-            raw_name = match.group(1).strip()
-            key, media = MediaExtractor._lookup_media(raw_name, media_files)
+        lines: list[str] = []
+        for raw_line in text.splitlines(keepends=True):
+            if raw_line.endswith("\n"):
+                line = raw_line[:-1]
+                newline = "\n"
+            else:
+                line = raw_line
+                newline = ""
+
+            extracted = MediaExtractor._extract_attachment_segment(line)
+            if extracted is None:
+                lines.append(raw_line)
+                continue
+
+            sanitized_name, original_segment = extracted
+            key, media = MediaExtractor._lookup_media(sanitized_name, media_files)
             if media is None:
-                return match.group(0)
+                lines.append(raw_line)
+                continue
 
             path = (
                 public_paths.get(key)
@@ -197,9 +207,13 @@ class MediaExtractor:
             )
 
             markdown = MediaExtractor._format_markdown_reference(media, path)
-            return f"{markdown} _(arquivo anexado)_"
+            replaced = line.replace(
+                original_segment,
+                f"{markdown} _(arquivo anexado)_",
+            )
+            lines.append(replaced + newline)
 
-        return MediaExtractor._attachment_pattern.sub(replacement, text)
+        return "".join(lines)
 
     @classmethod
     def replace_media_references_dataframe(
@@ -255,10 +269,15 @@ class MediaExtractor:
     def find_attachment_names(cls, text: str) -> set[str]:
         """Return sanitized attachment filenames referenced in *text*."""
 
-        return {
-            cls._clean_attachment_name(match.group(1).strip())
-            for match in cls._attachment_pattern.finditer(text)
-        }
+        attachments: set[str] = set()
+        for line in text.splitlines():
+            extracted = cls._extract_attachment_segment(line)
+            if extracted is None:
+                continue
+            sanitized_name, _ = extracted
+            if sanitized_name:
+                attachments.add(sanitized_name)
+        return attachments
 
     @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
@@ -307,31 +326,18 @@ class MediaExtractor:
 
         lines = frame.with_columns(pl.coalesce(*candidates).alias("__line"))
 
-        matches = lines.select(
-            pl.col("__line")
-            .fill_null("")
-            .str.replace_all(cls._directional_marks.pattern, "")
-            .str.extract_all(cls._attachment_pattern.pattern)
-            .alias("__matches")
-        )
-
-        cleaned = matches.select(
-            pl.col("__matches")
-            .list.eval(
-                pl.element()
-                .str.replace_all(cls._attachment_pattern.pattern, r"$1")
-                .str.strip_chars()
-            )
-            .alias("__clean")
-        )
-
-        series = cleaned.get_column("__clean")
-        values = series.explode().drop_nulls().to_list()
-        return {
-            cls._clean_attachment_name(value)
-            for value in values
-            if value and value.strip()
-        }
+        attachments: set[str] = set()
+        for value in lines.get_column("__line").to_list():
+            if not isinstance(value, str):
+                continue
+            for part in value.splitlines():
+                extracted = cls._extract_attachment_segment(part)
+                if extracted is None:
+                    continue
+                sanitized_name, _ = extracted
+                if sanitized_name:
+                    attachments.add(sanitized_name)
+        return attachments
 
     @staticmethod
     def format_media_section(
@@ -440,5 +446,32 @@ class MediaExtractor:
 
     @classmethod
     def _clean_attachment_name(cls, filename: str) -> str:
-        cleaned = cls._directional_marks.sub("", filename)
+        cleaned = filename.translate(cls._DIRECTIONAL_TRANSLATION)
         return cleaned.strip()
+
+    @classmethod
+    def _extract_attachment_segment(cls, line: str) -> tuple[str, str] | None:
+        lowered = line.casefold()
+        marker = cls._ATTACHMENT_MARKER
+        marker_lower = marker.casefold()
+        idx = lowered.find(marker_lower)
+        if idx == -1:
+            return None
+
+        suffix = line[idx : idx + len(marker)]
+        prefix = line[:idx].rstrip()
+
+        if ": " in prefix:
+            _, candidate = prefix.rsplit(": ", 1)
+        elif ":" in prefix:
+            _, candidate = prefix.rsplit(":", 1)
+        else:
+            candidate = prefix
+
+        raw_name = candidate.strip()
+        sanitized = cls._clean_attachment_name(raw_name)
+        if not sanitized:
+            return None
+
+        original_segment = f"{raw_name} {suffix}" if raw_name else suffix
+        return sanitized, original_segment

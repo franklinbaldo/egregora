@@ -253,7 +253,6 @@ class PipelineConfig(BaseSettings):
     remote_source: RemoteSourceConfig = Field(default_factory=RemoteSourceConfig)
     merges: dict[str, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
-    system_message_filters_file: Path | None = None
     use_dataframe_pipeline: bool = Field(
         default=True,
         validation_alias=AliasChoices(
@@ -383,13 +382,6 @@ class PipelineConfig(BaseSettings):
             )
         return merges
 
-    @field_validator("system_message_filters_file", mode="before")
-    @classmethod
-    def _validate_filters_path(cls, value: Any) -> Path | None:
-        if value is None:
-            return None
-        return _ensure_safe_directory(value)
-
     @classmethod
     def with_defaults(
         cls,
@@ -409,7 +401,6 @@ class PipelineConfig(BaseSettings):
         remote_source: RemoteSourceConfig | dict[str, Any] | None = None,
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
-        system_message_filters_file: Path | None = None,
         use_dataframe_pipeline: bool | None = None,
     ) -> "PipelineConfig":
         payload: dict[str, Any] = {}
@@ -443,8 +434,6 @@ class PipelineConfig(BaseSettings):
             payload["merges"] = merges
         if skip_real_if_in_virtual is not None:
             payload["skip_real_if_in_virtual"] = skip_real_if_in_virtual
-        if system_message_filters_file is not None:
-            payload["system_message_filters_file"] = system_message_filters_file
         if use_dataframe_pipeline is not None:
             payload["use_dataframe_pipeline"] = use_dataframe_pipeline
         return cls(**payload)
@@ -470,10 +459,6 @@ class PipelineConfig(BaseSettings):
             timezone_value = pipeline.get("timezone")
             if timezone_value is not None:
                 payload["timezone"] = timezone_value
-            filters_file = pipeline.get("system_message_filters_file")
-            if filters_file is not None:
-                payload["system_message_filters_file"] = filters_file
-
             remote_source = pipeline.get("remote_source")
             if remote_source is not None:
                 payload["remote_source"] = remote_source

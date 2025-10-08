@@ -158,6 +158,7 @@ During processing the pipeline materialises a predictable directory tree:
 - `data/posts/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/processor.py†L209-L313】
 - `data/posts/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L315-L422】
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
+- `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
 - `docs/` – MkDocs site that publishes posts via the Material blog plugin alongside the broader knowledge base (`uv run --extra docs --with ./ mkdocs serve`).
 
 Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_build_posts_plugin` regenerates the daily/weekly/monthly archives whenever you run `mkdocs build` or `mkdocs serve`, the language-scoped `blog` plugins from Material surface post feeds/archives, and `tools.mkdocs_media_plugin` exposes media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L56-L74】
@@ -180,7 +181,7 @@ O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
 
 Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
 
-Optionally supply `system_message_filters_file` in the configuration to strip templated notifications or bot spam before summarisation.【F:src/egregora/config.py†L222-L229】【F:src/egregora/processor.py†L51-L70】
+Keyword extraction and system-message filtering now rely on LLM adapters instead of brittle phrase lists. Configure model credentials through the regular pipeline settings and provide custom keyword providers when embedding the library in other tooling.【F:src/egregora/rag/query_gen.py†L17-L60】【F:src/egregora/system_classifier.py†L39-L196】
 
 ## Development
 
@@ -190,6 +191,10 @@ Optionally supply `system_message_filters_file` in the configuration to strip te
 - Build docs locally: `uv run --extra docs --with ./ mkdocs serve`
 
 The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
+
+### CI workflows
+
+- `Request Codex Review`: Comments `@codex code review` on newly opened pull requests via the account associated with the personal access token stored in the `CODEX_REVIEW_TOKEN` repository secret. The workflow authenticates the GitHub CLI with this token (via `GH_TOKEN`) before issuing the comment so it originates from a human-owned account rather than `github-actions`. Use a classic PAT with `public_repo` (or `repo` for private repos) scope.
 
 ## License
 

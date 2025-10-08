@@ -19,9 +19,9 @@ from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
 from .pipeline import load_previous_post
-from .parser import configure_system_message_filters, load_system_filters_from_file
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
+from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
 from .remote_sync import sync_remote_source_config
 from .transcript import (
@@ -95,11 +95,6 @@ class UnifiedProcessor:
     def __init__(self, config: PipelineConfig):
         self.config = config
         self.generator = PostGenerator(config)
-        if config.system_message_filters_file:
-            filters = load_system_filters_from_file(config.system_message_filters_file)
-            configure_system_message_filters(filters)
-        else:
-            configure_system_message_filters(None)
 
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
@@ -412,18 +407,34 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = PostRAG(
-                    posts_dir=self.config.posts_dir,
-                    config=self.config.rag,
-                )
-                query_gen = QueryGenerator(self.config.rag)
-                query = query_gen.generate(transcript)
-                search_results = rag.search(query.search_query)
-                if search_results:
-                    rag_context = "\n\n".join(
-                        f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
-                        for i, node in enumerate(search_results, 1)
+                keyword_provider = None
+                try:
+                    keyword_provider = build_llm_keyword_provider(
+                        self.generator.client,
+                        model=self.config.model,
                     )
+                except Exception as exc:  # pragma: no cover - optional dependency
+                    logger.warning(
+                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
+                        exc,
+                    )
+
+                if keyword_provider is not None:
+                    rag = PostRAG(
+                        posts_dir=self.config.posts_dir,
+                        config=self.config.rag,
+                    )
+                    query_gen = QueryGenerator(
+                        self.config.rag,
+                        keyword_provider=keyword_provider,
+                    )
+                    query = query_gen.generate(transcript)
+                    search_results = rag.search(query.search_query)
+                    if search_results:
+                        rag_context = "\n\n".join(
+                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
+                            for i, node in enumerate(search_results, 1)
+                        )
 
             context = PostContext(
                 group_name=source.name,
