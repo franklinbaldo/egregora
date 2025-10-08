@@ -23,11 +23,16 @@ class _OfflineModel:
             json.dumps(
                 {
                     "summary": "Resumo offline de exemplo para https://example.com.",
-                    "key_points": [
+                    "topics": [
                         "Demonstra fluxo sem depender da API.",
                         "Resultados são determinísticos para testes.",
                     ],
-                    "tone": "informativo",
+                    "actions": [
+                        {
+                            "description": "Compartilhar insights com o time",
+                            "owner": "time",
+                        }
+                    ],
                     "relevance": 3,
                 },
                 ensure_ascii=False,
