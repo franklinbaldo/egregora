@@ -15,6 +15,8 @@ from typing import Dict, Iterable
 
 import polars as pl
 
+from .types import GroupSlug
+
 MEDIA_TYPE_BY_EXTENSION = {
     # Images
     ".jpg": "image",
@@ -69,12 +71,13 @@ class MediaExtractor:
         rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE
     )
 
-    def __init__(self, group_dir: Path, *, group_slug: str | None = None) -> None:
+    def __init__(self, group_dir: Path, *, group_slug: GroupSlug | None = None) -> None:
         self.group_dir = group_dir
         self.group_dir.mkdir(parents=True, exist_ok=True)
 
-        slug = (group_slug or "shared").strip() or "shared"
-        self.group_slug = slug
+        raw_slug = group_slug or "shared"
+        slug = str(raw_slug).strip() or "shared"
+        self.group_slug: GroupSlug = GroupSlug(slug)
 
         self.media_base_dir = self.group_dir / "media"
         self.media_base_dir.mkdir(parents=True, exist_ok=True)

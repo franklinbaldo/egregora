@@ -13,12 +13,13 @@ from typing import Iterable
 
 from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
+from .types import GroupSlug
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 logger = logging.getLogger(__name__)
 
 
-def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
+def discover_groups(zips_dir: Path) -> dict[GroupSlug, list[WhatsAppExport]]:
     """
     Scan ZIP files and return discovered groups.
     
@@ -26,7 +27,7 @@ def discover_groups(zips_dir: Path) -> dict[str, list[WhatsAppExport]]:
         {slug: [exports]} ordered by date
     """
     
-    groups = defaultdict(list)
+    groups: defaultdict[GroupSlug, list[WhatsAppExport]] = defaultdict(list)
     
     for zip_path in sorted(zips_dir.rglob("*.zip")):
         if zip_path.is_symlink():
@@ -113,7 +114,7 @@ def _extract_group_name(filename: str) -> str:
     return filename.replace('.txt', '').strip()
 
 
-def _slugify(text: str) -> str:
+def _slugify(text: str) -> GroupSlug:
     """Convert to filesystem-safe slug."""
     
     # Remove accents
@@ -125,7 +126,7 @@ def _slugify(text: str) -> str:
     text = re.sub(r'[^\w\s-]', '', text)
     text = re.sub(r'[-\s]+', '-', text)
     
-    return text.strip('-')
+    return GroupSlug(text.strip('-'))
 
 
 def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:

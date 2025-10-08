@@ -6,19 +6,20 @@ import logging
 
 import polars as pl
 
-from .models import WhatsAppExport, MergeConfig, GroupSource
+from .models import GroupSource, MergeConfig, WhatsAppExport
 from .parser import parse_multiple
+from .types import GroupSlug
 
 logger = logging.getLogger(__name__)
 
 
 def create_virtual_groups(
-    real_groups: dict[str, list[WhatsAppExport]],
-    merge_configs: dict[str, MergeConfig],
-) -> dict[str, GroupSource]:
+    real_groups: dict[GroupSlug, list[WhatsAppExport]],
+    merge_configs: dict[GroupSlug, MergeConfig],
+) -> dict[GroupSlug, GroupSource]:
     """Create virtual groups from merge configurations."""
 
-    virtual: dict[str, GroupSource] = {}
+    virtual: dict[GroupSlug, GroupSource] = {}
 
     for slug, config in merge_configs.items():
         merged_exports: list[WhatsAppExport] = []

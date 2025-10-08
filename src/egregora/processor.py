@@ -17,7 +17,7 @@ from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
-from .models import GroupSource
+from .models import GroupSource, WhatsAppExport
 from .pipeline import load_previous_post
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
@@ -29,6 +29,7 @@ from .transcript import (
     load_source_dataframe,
     render_transcript,
 )
+from .types import GroupSlug
 
 if TYPE_CHECKING:
     from .media_extractor import MediaFile
@@ -80,13 +81,13 @@ def _ensure_blog_front_matter(
 class DryRunPlan:
     """Summary of what would be processed during a dry run."""
 
-    slug: str
+    slug: GroupSlug
     name: str
     is_virtual: bool
     export_count: int
     available_dates: list[date]
     target_dates: list[date]
-    merges: list[str] | None = None
+    merges: list[GroupSlug] | None = None
 
 
 class UnifiedProcessor:
@@ -110,12 +111,12 @@ class UnifiedProcessor:
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
-    def process_all(self, days: int | None = None) -> dict[str, list[Path]]:
+    def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
 
         sources_to_process, _, _ = self._collect_sources()
 
-        results = {}
+        results: dict[GroupSlug, list[Path]] = {}
         for slug, source in sources_to_process.items():
             logger.info(f"\n{'📺' if source.is_virtual else '📝'} Processing: {source.name}")
 
@@ -185,7 +186,11 @@ class UnifiedProcessor:
 
     def _collect_sources(
         self,
-    ) -> tuple[dict[str, GroupSource], dict, dict[str, GroupSource]]:
+    ) -> tuple[
+        dict[GroupSlug, GroupSource],
+        dict[GroupSlug, list[WhatsAppExport]],
+        dict[GroupSlug, GroupSource],
+    ]:
         """Discover and prepare sources for processing."""
 
         self._sync_remote_source()
@@ -206,7 +211,7 @@ class UnifiedProcessor:
                     f"  • {source.name} ({slug}): merges {len(source.exports)} exports"
                 )
 
-        real_sources = {
+        real_sources: dict[GroupSlug, GroupSource] = {
             slug: GroupSource(
                 slug=slug,
                 name=exports[0].group_name,
@@ -216,7 +221,10 @@ class UnifiedProcessor:
             for slug, exports in real_groups.items()
         }
 
-        all_sources = {**real_sources, **virtual_groups}
+        all_sources: dict[GroupSlug, GroupSource] = {
+            **real_sources,
+            **virtual_groups,
+        }
         sources_to_process = self._filter_sources(all_sources)
 
         return sources_to_process, real_groups, virtual_groups
@@ -242,18 +250,18 @@ class UnifiedProcessor:
             )
 
     def _filter_sources(
-        self, all_sources: dict[str, GroupSource]
-    ) -> dict[str, GroupSource]:
+        self, all_sources: dict[GroupSlug, GroupSource]
+    ) -> dict[GroupSlug, GroupSource]:
         """Filter sources to process."""
 
         if not self.config.skip_real_if_in_virtual:
             return all_sources
 
-        groups_in_merges = set()
+        groups_in_merges: set[GroupSlug] = set()
         for merge_config in self.config.merges.values():
             groups_in_merges.update(merge_config.source_groups)
 
-        filtered = {}
+        filtered: dict[GroupSlug, GroupSource] = {}
         for slug, source in all_sources.items():
             if source.is_virtual or slug not in groups_in_merges:
                 filtered[slug] = source
@@ -724,13 +732,13 @@ class UnifiedProcessor:
             logger.warning("    ⚠️ Perfis desativados: %s", exc)
             return None
 
-    def list_groups(self) -> dict[str, dict]:
+    def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
         real_groups = discover_groups(self.config.zips_dir)
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
-        all_info = {}
+        all_info: dict[GroupSlug, dict[str, object]] = {}
 
         for slug, exports in real_groups.items():
             dates = [e.export_date for e in exports]

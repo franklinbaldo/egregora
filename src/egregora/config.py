@@ -21,6 +21,7 @@ from pydantic_settings import BaseSettings
 
 from .anonymizer import FormatType
 from .models import MergeConfig
+from .types import GroupSlug
 from .rag.config import RAGConfig, sanitize_rag_config_payload
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
@@ -251,7 +252,7 @@ class PipelineConfig(BaseSettings):
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     remote_source: RemoteSourceConfig = Field(default_factory=RemoteSourceConfig)
-    merges: dict[str, MergeConfig] = Field(default_factory=dict)
+    merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
     use_dataframe_pipeline: bool = Field(
@@ -352,21 +353,24 @@ class PipelineConfig(BaseSettings):
 
     @field_validator("merges", mode="before")
     @classmethod
-    def _validate_merges(cls, value: Any) -> dict[str, MergeConfig]:
+    def _validate_merges(cls, value: Any) -> dict[GroupSlug, MergeConfig]:
         if value is None:
             return {}
         if not isinstance(value, dict):
             raise TypeError("merges must be a mapping")
 
-        merges: dict[str, MergeConfig] = {}
-        for slug, payload in value.items():
+        merges: dict[GroupSlug, MergeConfig] = {}
+        for raw_slug, payload in value.items():
+            slug = GroupSlug(str(raw_slug))
             if not isinstance(payload, dict):
                 raise TypeError(f"Merge '{slug}' must be a mapping")
+
             tag_style = payload.get("tag_style", "emoji")
             if tag_style not in _VALID_TAG_STYLES:
                 raise ValueError(
                     f"Invalid tag_style '{tag_style}' for merge '{slug}'"
                 )
+
             groups = payload.get("groups", [])
             if not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
                 raise ValueError(f"Merge '{slug}' groups must be a list of strings")
@@ -374,11 +378,24 @@ class PipelineConfig(BaseSettings):
                 raise ValueError(
                     f"Merge '{slug}' must include at least one source group"
                 )
+
+            source_groups = [GroupSlug(group) for group in groups]
+
+            raw_emojis = payload.get("emojis", {})
+            if not isinstance(raw_emojis, dict):
+                raise TypeError(
+                    f"Merge '{slug}' emojis must be a mapping of slug to emoji"
+                )
+            group_emojis = {
+                GroupSlug(str(key)): str(value)
+                for key, value in raw_emojis.items()
+            }
+
             merges[slug] = MergeConfig(
                 name=payload["name"],
-                source_groups=list(groups),
+                source_groups=source_groups,
                 tag_style=tag_style,  # type: ignore[arg-type]
-                group_emojis=payload.get("emojis", {}),
+                group_emojis=group_emojis,
                 model_override=payload.get("model"),
             )
         return merges
