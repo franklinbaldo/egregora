@@ -231,6 +231,13 @@ class PipelineConfig(BaseSettings):
     merges: dict[str, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
+    use_dataframe_pipeline: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "use_dataframe_pipeline",
+            "EGREGORA_USE_DF_PIPELINE",
+        ),
+    )
 
     @field_validator("timezone", mode="before")
     @classmethod
@@ -370,6 +377,7 @@ class PipelineConfig(BaseSettings):
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
         system_message_filters_file: Path | None = None,
+        use_dataframe_pipeline: bool | None = None,
     ) -> "PipelineConfig":
         payload: dict[str, Any] = {}
         if zips_dir is not None:
@@ -402,6 +410,8 @@ class PipelineConfig(BaseSettings):
             payload["skip_real_if_in_virtual"] = skip_real_if_in_virtual
         if system_message_filters_file is not None:
             payload["system_message_filters_file"] = system_message_filters_file
+        if use_dataframe_pipeline is not None:
+            payload["use_dataframe_pipeline"] = use_dataframe_pipeline
         return cls(**payload)
 
     @classmethod

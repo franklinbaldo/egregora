@@ -4,7 +4,7 @@ This post provides a file-by-file analysis of the Egregora codebase, focusing on
 
 ## Executive Summary
 
-The Egregora codebase is a mix of highly sophisticated, modern components and legacy, inefficient, or over-engineered modules. The project suffers from a central architectural flaw: a "schizophrenic" design split between modern, DataFrame-native data processing and an older, inefficient, text-based pipeline. This creates significant friction, redundancy, and a lack of synergy between components.
+The Egregora codebase is a mix of highly sophisticated, modern components and a few legacy modules that are being sunset. The previous architectural split between a DataFrame-native flow and a text-only fallback has now been resolved—the hot path is fully Polars-driven, removing most redundant conversions and simplifying orchestration.
 
 **Key Strengths:**
 *   **Modern Tooling:** Excellent use of `polars` for data manipulation, `typer` for the CLI, and `llama-index` for the RAG system.
@@ -13,8 +13,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 *   **Security:** The `zip_utils.py` module provides robust, necessary security for handling user-uploaded files.
 
 **Critical Weaknesses & Recommendations:**
-1.  **Architectural Schizophrenia:** The primary issue is the conflict between the modern DataFrame pipeline and the legacy text-based pipeline. Modules like `processor.py` and `pipeline.py` bridge this gap in the worst way possible, converting structured DataFrames back into raw text.
-    *   **Recommendation:** Begin a **gradual refactoring** to create a single, unified, DataFrame-native pipeline. The goal should be to make `processor.py` the central orchestrator that passes DataFrames between components, reducing the role of `pipeline.py` over time and eventually phasing it out.
+1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration. A slim compatibility layer remains for legacy text consumers, so regression tests must ensure the DataFrame pipeline stays the default.
+    *   **Recommendation:** Keep the feature flag only as an escape hatch, expand coverage for the DataFrame flow, and plan a future removal of the legacy wrapper once downstream tooling migrates.
 
 2.  **Over-engineering ("Not Invented Here" Syndrome):** The project contains two custom-built, complex caching systems (`cache_manager.py`, `rag/embedding_cache.py`) that reinvent the wheel.
     *   **Recommendation:** These are high-priority, low-risk fixes. **Replace both custom caches with `diskcache`** to improve robustness and simplify the code.
@@ -66,18 +66,18 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 *   **Analysis:** A lean, focused utility module that correctly reuses the `Anonymizer` logic.
 
 ### `src/egregora/enrichment.py`
-*   **Verdict:** **Critical Flaw (Architectural Mismatch).**
-*   **Analysis:** This module suffers from the project's core architectural flaw, converting structured DataFrames back into raw text for processing. This is grossly inefficient.
-*   **Recommendation:** This module should be a key target in the **gradual refactoring** to a DataFrame-native pipeline. The URL and context extraction should be rewritten to use `polars` operations.
+*   **Verdict:** Excellent.
+*   **Analysis:** The module now exposes a DataFrame-native enrichment path, using Polars expressions to extract URLs, context windows, and media placeholders without round-tripping through plain text.
+*   **Recommendation:** Continue expanding automated coverage (property-based tests for Unicode edge cases) to guard the vectorised logic.
 
 ### `src/egregora/group_discovery.py`
 *   **Verdict:** Excellent.
 *   **Analysis:** A robust, defensive, and well-designed module for handling the messy task of parsing user-provided ZIP files.
 
 ### `src/egregora/media_extractor.py`
-*   **Verdict:** Okay, but with a critical flaw.
-*   **Analysis:** The logic is sound, but it operates on raw text, making it incompatible with a DataFrame-native pipeline.
-*   **Recommendation:** Refactor this module to work with `polars` DataFrames as part of the larger architectural migration.
+*   **Verdict:** Good.
+*   **Analysis:** Attachment discovery and media replacement now accept Polars frames, enabling vectorised extraction and Markdown substitution before rendering transcripts.
+*   **Recommendation:** Profile large attachments datasets to ensure the regex-heavy operations remain bounded.
 
 ### `src/egregora/merger.py`
 *   **Verdict:** Excellent.
@@ -93,19 +93,19 @@ The Egregora codebase is a mix of highly sophisticated, modern components and le
 *   **Recommendation:** Externalize the system message filter list to a configuration file.
 
 ### `src/egregora/pipeline.py`
-*   **Verdict:** **Critical Flaw (Legacy & Redundant).**
-*   **Analysis:** This module represents the legacy, text-based pipeline and is the architectural bottleneck of the application.
-*   **Recommendation:** This module should be **phased out**. Its functionality should be gradually migrated to a more robust, DataFrame-native `processor` module. A direct deletion is risky; instead, its responsibilities should be moved piece by piece.
+*   **Verdict:** Legacy shim.
+*   **Analysis:** The module now acts as a compatibility wrapper around the new orchestration. It is still present for prompt-loading helpers and tests that target the old API surface.
+*   **Recommendation:** Deprecate the remaining helpers in favour of the Processor/Generator stack and schedule removal once no downstream code imports the module directly.
 
 ### `src/egregora/processor.py`
-*   **Verdict:** **Critical Flaw (Architectural Mismatch).**
-*   **Analysis:** This module sits at the fault line of the architectural split, converting structured DataFrames back to raw text to feed the legacy pipeline.
-*   **Recommendation:** This module should be **incrementally rewritten to become the central orchestrator** of a fully DataFrame-native pipeline, taking over logic from `pipeline.py` one step at a time to minimize risk.
+*   **Verdict:** Excellent.
+*   **Analysis:** The processor now orchestrates the entire run in Polars, handling enrichment, media extraction, and rendering directly from DataFrames while retaining a feature flag for legacy compatibility.
+*   **Recommendation:** Remove the fallback once downstream consumers stop relying on the text-only path and keep instrumentation around the new metrics outputs.
 
 ### `src/egregora/transcript.py`
-*   **Verdict:** **Symptom of a Critical Flaw.**
-*   **Analysis:** This module's `extract_transcript` function is a major anti-pattern that exists only to bridge the gap to the legacy pipeline.
-*   **Recommendation:** In a refactored application, the `extract_transcript` function would be deleted, and consumers would use the DataFrame provided by `load_source_dataframe` directly.
+*   **Verdict:** Good.
+*   **Analysis:** The module enforces the Polars schema contract, caches frames, and renders transcripts without loss of structure. The previous `extract_transcript` shim has been replaced with a DataFrame-aware renderer.
+*   **Recommendation:** Consider exposing lazy-frame helpers for very large datasets once profiling indicates a benefit.
 
 ### `src/egregora/zip_utils.py`
 *   **Verdict:** Excellent.

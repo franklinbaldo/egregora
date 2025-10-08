@@ -25,10 +25,9 @@ from .rag.index import PostRAG
 from .rag.query_gen import QueryGenerator
 from .remote_sync import sync_remote_source_config
 from .transcript import (
-    extract_transcript,
     get_available_dates,
-    get_stats_for_date,
     load_source_dataframe,
+    render_transcript,
 )
 
 if TYPE_CHECKING:
@@ -289,13 +288,17 @@ class UnifiedProcessor:
                 docs_dir=profiles_base,
             )
 
-        # Get available dates
-        available_dates = list(get_available_dates(source))
+        try:
+            full_df = load_source_dataframe(source)
+        except ValueError as exc:
+            logger.warning("  Unable to load messages for %s: %s", source.slug, exc)
+            return []
 
-        if not available_dates:
+        if full_df.is_empty():
             logger.warning(f"  No messages found")
             return []
 
+        available_dates = sorted({d for d in full_df.get_column("date").to_list()})
         target_dates = available_dates[-days:] if days else available_dates
 
         results = []
@@ -308,13 +311,13 @@ class UnifiedProcessor:
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
 
-            transcript = extract_transcript(source, target_date)
+            df_day = full_df.filter(pl.col("date") == target_date).sort("timestamp")
 
-            if not transcript:
-                logger.warning(f"    Empty transcript")
+            if df_day.is_empty():
+                logger.warning("    Empty transcript")
                 continue
 
-            attachment_names = MediaExtractor.find_attachment_names(transcript)
+            attachment_names = MediaExtractor.find_attachment_names_dataframe(df_day)
             all_media: dict[str, "MediaFile"] = {}
             if attachment_names:
                 remaining = set(attachment_names)
@@ -336,15 +339,19 @@ class UnifiedProcessor:
                 relative_to=(daily_dir if self.config.media_url_prefix is None else None),
             )
 
-            transcript = MediaExtractor.replace_media_references(
-                transcript,
+            df_render = MediaExtractor.replace_media_references_dataframe(
+                df_day,
                 all_media,
                 public_paths=public_paths,
             )
-            stats = get_stats_for_date(source, target_date)
-            if not stats:
-                logger.warning("    Unable to compute statistics for %s", target_date)
-                continue
+            transcript = render_transcript(df_render, use_tagged=source.is_virtual)
+
+            stats = {
+                "message_count": df_day.height,
+                "participant_count": df_day.get_column("author").n_unique(),
+                "first_message": df_day.get_column("timestamp").min(),
+                "last_message": df_day.get_column("timestamp").max(),
+            }
 
             logger.info(
                 "    %d messages from %d participants",
@@ -367,8 +374,25 @@ class UnifiedProcessor:
                         cache_manager.cleanup_old_entries(
                             self.config.cache.auto_cleanup_days
                         )
-                enricher = ContentEnricher(self.config.enrichment, cache_manager=cache_manager)
-                enrichment_result = asyncio.run(enricher.enrich([(target_date, transcript)], client=self.generator.client))
+                enricher = ContentEnricher(
+                    self.config.enrichment,
+                    cache_manager=cache_manager,
+                )
+                if self.config.use_dataframe_pipeline:
+                    enrichment_result = asyncio.run(
+                        enricher.enrich_dataframe(
+                            df_day,
+                            client=self.generator.client,
+                            target_dates=[target_date],
+                        )
+                    )
+                else:
+                    enrichment_result = asyncio.run(
+                        enricher.enrich(
+                            [(target_date, transcript)],
+                            client=self.generator.client,
+                        )
+                    )
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )
