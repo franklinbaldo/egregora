@@ -11,7 +11,7 @@ from egregora.media_extractor import MediaExtractor, MediaFile
 
 
 def test_extract_media_from_zip_creates_files(tmp_path) -> None:
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     group_dir = tmp_path / "posts" / "grupo-teste"
     extractor = MediaExtractor(group_dir, group_slug="grupo-teste")
 
@@ -53,7 +53,7 @@ def test_replace_media_references_converts_to_markdown() -> None:
 
 
 def test_build_public_paths_relative(tmp_path) -> None:
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     extractor = MediaExtractor(tmp_path / "posts" / "grupo", group_slug="grupo")
 
     media_files = extractor.extract_media_from_zip(
@@ -72,7 +72,7 @@ def test_build_public_paths_relative(tmp_path) -> None:
 
 
 def test_build_public_paths_with_prefix(tmp_path) -> None:
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     extractor = MediaExtractor(tmp_path / "posts" / "grupo", group_slug="grupo")
 
     media_files = extractor.extract_media_from_zip(
@@ -94,7 +94,7 @@ def test_extract_media_renames_to_uuid_and_updates_reference(tmp_path) -> None:
     Tests that media files are renamed to a stable UUID and that references
     in the text are updated to use the new UUID filename.
     """
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     extractor = MediaExtractor(
         tmp_path / "posts" / "grupo-uuid-teste", group_slug="grupo-uuid-teste"
     )

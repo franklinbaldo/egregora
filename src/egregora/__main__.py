@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Annotated, Optional
 from zoneinfo import ZoneInfo
@@ -15,6 +16,7 @@ from .config import PipelineConfig
 from .discover import discover_identifier
 from .processor import UnifiedProcessor
 from .remote_sync import sync_remote_source_config
+from .mcp_server.server import MCP_IMPORT_ERROR, main as run_mcp_server
 
 app = typer.Typer(
     name="egregora",
@@ -189,6 +191,17 @@ def _process_command(
     _process_and_display(processor, days)
 
 
+def launch_mcp_server(*, config_file: Optional[Path] = None) -> None:
+    """Start the MCP RAG server, validating optional dependencies."""
+
+    if MCP_IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "O pacote 'mcp' não está instalado. Execute 'pip install mcp' para habilitar o servidor."
+        ) from MCP_IMPORT_ERROR
+
+    asyncio.run(run_mcp_server(config_path=config_file))
+
+
 @app.command("sync")
 def sync_command(
     config_file: ConfigFileOption = None,
@@ -300,6 +313,23 @@ def process(
         list_groups=list_groups,
         dry_run=dry_run,
     )
+
+
+@app.command()
+def mcp(config_file: ConfigFileOption = None) -> None:
+    """Inicia o servidor MCP do RAG."""
+
+    try:
+        launch_mcp_server(config_file=config_file)
+    except RuntimeError as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="❌ Erro ao iniciar o servidor MCP",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(code=1) from exc
 
 
 @app.callback(invoke_without_command=True)

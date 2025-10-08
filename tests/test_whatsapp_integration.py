@@ -16,7 +16,7 @@ from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
 
 def test_whatsapp_zip_processing(tmp_path) -> None:
     """Test that WhatsApp zip files are properly processed."""
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
 
     # Test zip reading
     posts_dir = tmp_path / "posts"
@@ -86,7 +86,7 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
 
 def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     """End-to-end test with real WhatsApp zip file."""
-    zip_path = Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
     
     # Read the zip
     workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"

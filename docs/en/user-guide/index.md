@@ -2,7 +2,4 @@
 
 Start here to prepare data exports, understand privacy guarantees, and navigate the generated posts.
 
-- [Identifier Self-Discovery](discover.md)
-- [Privacy Overview](privacy.md)
-- [Profiles Directory](profiles.md)
-- [WhatsApp ZIP Naming Guide](zip-naming.md)
+Detailed guides are currently available in Portuguese while the English translations are prepared. Visit the [Portuguese User Guide](/pt-BR/user-guide/) for end-to-end instructions.

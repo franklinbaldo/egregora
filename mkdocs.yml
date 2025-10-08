@@ -37,26 +37,15 @@ nav:
   - Home: en/index.md
   - User Guide:
       - Overview: en/user-guide/index.md
-      - Identifier Self-Discovery: en/user-guide/discover.md
-      - Privacy Overview: en/user-guide/privacy.md
-      - Profiles Directory: en/user-guide/profiles.md
-      - WhatsApp ZIP Naming Guide: en/user-guide/zip-naming.md
   - Posts:
       - Daily: en/posts/daily/index.md
       - Weekly: en/posts/weekly/index.md
       - Monthly: en/posts/monthly/index.md
   - Developer Guide:
       - Overview: en/developer-guide/index.md
-      - Architecture Philosophy: en/developer-guide/PHILOSOPHY.md
       - Code Analysis: en/developer-guide/CODE_ANALYSIS.md
-      - Enrichment Quickstart: en/developer-guide/ENRICHMENT_QUICKSTART.md
       - Backlog Processing: en/developer-guide/backlog_processing.md
-      - Content Enrichment Design: en/developer-guide/CONTENT_ENRICHMENT_DESIGN.md
-      - Embedding Strategy: en/developer-guide/embeddings.md
-      - Merged Groups Workflow: en/developer-guide/merged-groups.md
-      - MCP RAG Integration: en/developer-guide/mcp-rag.md
-      - Privacy Implementation Plan: en/developer-guide/privacy-implementation.md
-      - Refactoring Plan: en/developer-guide/plan.md
+      - ADR-006: en/developer-guide/ADR-006-dataframe-pipeline.md
   - Design Review: en/design_review.md
 
 markdown_extensions:

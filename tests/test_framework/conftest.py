@@ -28,7 +28,7 @@ def temp_dir() -> Generator[Path, None, None]:
 @pytest.fixture
 def whatsapp_zip_path() -> Path:
     """Path to the WhatsApp test zip file."""
-    return Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    return Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
 
 
 @pytest.fixture

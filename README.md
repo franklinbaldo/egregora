@@ -25,7 +25,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ### Requirements
 
-- Python 3.10+
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) with access to the Gemini models used by the pipeline
 
@@ -167,11 +167,15 @@ Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_bu
 
 The Retrieval-Augmented Generation utilities store post embeddings in ChromaDB via `PostRAG` and expose search/list/index maintenance commands through the MCP server. Use them to power chat assistants or IDE integrations.【F:src/egregora/rag/index.py†L12-L189】【F:src/egregora/mcp_server/server.py†L87-L355】
 
-Launch the MCP server directly:
+Launch the MCP server via the Typer CLI:
 
 ```bash
-uv run python -m egregora.mcp_server.server --config egregora.toml
+uv run egregora mcp --config egregora.toml
+# Legacy alias retained for automations:
+uv run egregora-mcp --config egregora.toml
 ```
+
+O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
 
 ## Custom prompts & filters
 
@@ -186,7 +190,7 @@ Keyword extraction and system-message filtering now rely on LLM adapters instead
 - Type-check or explore datasets with `polars` and the utilities under `scripts/`
 - Build docs locally: `uv run --extra docs --with ./ mkdocs serve`
 
-The codebase targets Python 3.10+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
+The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 
 ### CI workflows
 

@@ -10,7 +10,10 @@ como executá-lo.
 ## 📦 Onde fica o servidor?
 
 - **Arquivo principal**: `src/egregora/mcp_server/server.py`
-- **Script de conveniência**: `scripts/start_mcp_server.py`
+- **Comando principal**: subcomando `egregora mcp` (mapeia para `egregora.__main__.launch_mcp_server`)
+- **Alias legado**: console script `egregora-mcp` (`scripts/start_mcp_server.py`)
+- **Script de conveniência**: subcomando Typer `egregora mcp`
+  (alias antigo `egregora-mcp`, que ainda mapeia para `scripts/start_mcp_server.py`)
 - **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML.
 
 A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
@@ -26,10 +29,14 @@ A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 3. Execute o servidor:
 
 ```bash
-uv run python scripts/start_mcp_server.py --config egregora.toml
+uv run egregora mcp --config egregora.toml
+# Alias antigo (ainda suportado):
+uv run egregora-mcp --config egregora.toml
 ```
 
-O script parseia `--config` e chama `asyncio.run(main(...))`.
+O comando reutiliza o subcomando Typer do `egregora`, exibindo erros amigáveis
+caso a dependência `mcp` não esteja instalada. O alias `uv run egregora-mcp`
+continua funcionando para automações existentes.
 
 A inicialização imprime logs indicando o carregamento do índice:
 
