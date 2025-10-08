@@ -166,10 +166,12 @@ Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_bu
 
 The Retrieval-Augmented Generation utilities store post embeddings in ChromaDB via `PostRAG` and expose search/list/index maintenance commands through the MCP server. Use them to power chat assistants or IDE integrations.【F:src/egregora/rag/index.py†L12-L189】【F:src/egregora/mcp_server/server.py†L87-L355】
 
-Launch the MCP server directly:
+Launch the MCP server via the Typer CLI:
 
 ```bash
 uv run egregora mcp --config egregora.toml
+# Legacy alias retained for automations:
+uv run egregora-mcp --config egregora.toml
 ```
 
 O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.

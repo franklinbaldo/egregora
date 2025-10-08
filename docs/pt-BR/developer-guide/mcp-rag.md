@@ -12,6 +12,8 @@ como executá-lo.
 - **Arquivo principal**: `src/egregora/mcp_server/server.py`
 - **Comando principal**: subcomando `egregora mcp` (mapeia para `egregora.__main__.launch_mcp_server`)
 - **Alias legado**: console script `egregora-mcp` (`scripts/start_mcp_server.py`)
+- **Script de conveniência**: subcomando Typer `egregora mcp`
+  (alias antigo `egregora-mcp`, que ainda mapeia para `scripts/start_mcp_server.py`)
 - **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML.
 
 A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
@@ -28,6 +30,8 @@ A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 
 ```bash
 uv run egregora mcp --config egregora.toml
+# Alias antigo (ainda suportado):
+uv run egregora-mcp --config egregora.toml
 ```
 
 O comando reutiliza o subcomando Typer do `egregora`, exibindo erros amigáveis
