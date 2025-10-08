@@ -1,0 +1,80 @@
+{
+  "query_generation": {
+    "whatsapp_transcript": {
+      "keywords": [
+        "2025",
+        "franklin",
+        "mensagens",
+        "conversa",
+        "você",
+        "ponta",
+        "esse",
+        "grupo"
+      ],
+      "main_topics": [
+        "2025",
+        "franklin",
+        "mensagens"
+      ],
+      "search_query": "2025, franklin, mensagens, conversa, você, ponta"
+    }
+  },
+  "post_search_queries": {
+    "ia_governo": "estratégia de inteligência artificial no governo",
+    "dados_publicos": "governança de dados e pipelines analíticos",
+    "trabalho_remoto": "produtividade equipes remotas"
+  },
+  "post_search": {
+    "ia_governo": [
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.6024136278787967
+      },
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.4869699063139524
+      },
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.46970161282340195
+      }
+    ],
+    "dados_publicos": [
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.7113466296482078
+      },
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.5419796906241935
+      },
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.4769411588093792
+      }
+    ],
+    "trabalho_remoto": [
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.3850461702104919
+      },
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.2769464996287111
+      },
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.27548640203572533
+      }
+    ]
+  }
+}
