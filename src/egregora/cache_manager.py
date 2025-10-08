@@ -111,10 +111,18 @@ class CacheManager:
                 self._cache.delete(key)
                 continue
 
-            last_used = entry.get("last_used")
-            if isinstance(last_used, datetime) and last_used < threshold:
+            last_used = self._coerce_timestamp(entry.get("last_used"))
+            if last_used is None:
+                continue
+
+            if last_used < threshold:
                 self._cache.delete(key)
                 removed += 1
+                continue
+
+            if not isinstance(entry.get("last_used"), datetime):
+                entry["last_used"] = last_used
+                self._cache.set(key, entry)
 
         return removed
 
@@ -168,6 +176,24 @@ class CacheManager:
         query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)), doseq=True)
 
         return urlunparse((scheme, netloc, path, parts.params, query, ""))
+
+    @staticmethod
+    def _coerce_timestamp(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                return None
+
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+
+            return parsed.astimezone(UTC)
+
+        return None
 
 
 __all__ = ["CacheManager"]

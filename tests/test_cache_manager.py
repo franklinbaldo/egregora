@@ -110,6 +110,37 @@ def test_cleanup_removes_old_entries(tmp_path: Path) -> None:
     assert not manager.exists(url)
 
 
+def test_cleanup_handles_string_timestamps(tmp_path: Path) -> None:
+    manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
+    url_old = "https://example.com/velho"
+    url_recent = "https://example.com/recente"
+
+    manager.set(url_old, _build_analysis())
+    manager.set(url_recent, _build_analysis())
+
+    old_uuid = manager.generate_uuid(url_old)
+    recent_uuid = manager.generate_uuid(url_recent)
+
+    old_entry = manager._cache.get(old_uuid)  # type: ignore[attr-defined]
+    recent_entry = manager._cache.get(recent_uuid)  # type: ignore[attr-defined]
+
+    assert old_entry is not None and recent_entry is not None
+
+    old_entry["last_used"] = (datetime.now(UTC) - timedelta(days=120)).isoformat()
+    recent_entry["last_used"] = datetime.now(UTC).isoformat()
+
+    manager._cache.set(old_uuid, old_entry)  # type: ignore[attr-defined]
+    manager._cache.set(recent_uuid, recent_entry)  # type: ignore[attr-defined]
+
+    removed = manager.cleanup_old_entries(90)
+
+    assert removed == 1
+    assert not manager.exists(url_old)
+
+    updated_recent = manager._cache.get(recent_uuid)  # type: ignore[attr-defined]
+    assert isinstance(updated_recent["last_used"], datetime)
+
+
 def test_missing_entry_counts_as_miss(tmp_path: Path) -> None:
     manager = CacheManager(tmp_path / "cache", size_limit_mb=1)
     assert manager.get("https://example.com/absent") is None
