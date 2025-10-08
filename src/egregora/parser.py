@@ -108,6 +108,8 @@ def _parse_messages(
     rows: list[dict] = []
     current_date = export.export_date
 
+    _ = filters
+
     for raw_line in lines:
         normalized_line = _normalize_text(raw_line)
         line = normalized_line.strip()
@@ -145,9 +147,6 @@ def _parse_messages(
             logger.debug("Failed to parse time '%s' in line: %s", time_str, line)
             continue
 
-        if _is_system_message(author.strip(), message.strip(), filters=filters):
-            continue
-
         rows.append(
             {
                 "timestamp": datetime.combine(msg_date, msg_time),
@@ -163,23 +162,6 @@ def _parse_messages(
         )
 
     return rows
-
-
-def _is_system_message(
-    author: str,
-    message: str,
-    *,
-    filters: Iterable[str] | None,
-) -> bool:
-    """Check if this is a WhatsApp system message to skip."""
-
-    phrases = _resolve_system_filters(filters)
-    if not phrases:
-        return False
-
-    combined_text = f"{author} {message}".casefold()
-    return any(phrase in combined_text for phrase in phrases)
-
 
 def configure_system_message_filters(filters: Iterable[str] | None) -> None:
     """Override the default system message filters at runtime."""

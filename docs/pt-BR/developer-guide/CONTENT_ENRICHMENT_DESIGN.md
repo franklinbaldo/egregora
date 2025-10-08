@@ -12,18 +12,19 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 
 1. Detectar URLs e marcadores `<Mídia oculta>` nos transcritos.
 2. Delegar ao Gemini a leitura das URLs via `Part.from_uri`, evitando parsing manual.
-3. Analisar cada referência com um LLM rápido (Gemini Flash/2.0) retornando:
+3. Analisar cada referência com um LLM rápido (Gemini Flash/2.0) retornando um
+   `SummaryResponse` tipado (via `pydanticai`) contendo:
    - resumo curto;
-   - até três pontos-chave acionáveis;
-   - descrição do tom;
-   - nota de relevância (1–5).
+   - até três tópicos principais (`topics`);
+   - lista opcional de ações (`actions` com `description/owner/priority`);
+   - nota de relevância inferida (1–5) para ordenação.
 4. Incluir somente itens acima do limiar configurado na entrada do modelo principal.
 5. Registrar erros de busca/análise sem interromper a geração da post.
 
 ### Não funcionais
 
 - **Tempo**: concluir em até 120 s (configurável) para ~50 links/dia.
-- **Custo**: limitar-se a ~US$0.0002 por análise individual.
+- **Custo**: limitar-se a ~US$0.0002 por análise individual, com orçamentos de tokens/chamadas expostos em `ContentEnricher.metrics` e configuráveis via `PipelineConfig.system_classifier`/`enrichment`.
 - **Resiliência**: falhas de rede ou do LLM não devem impedir a publicação.
 - **Extensibilidade**: permitir inclusão futura de caching, parsing de PDFs e batch de LLM.
 
@@ -47,7 +48,7 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 ### 3.1 Principais estruturas
 
 - **ContentReference**: representa uma menção a conteúdo no chat (URL, remetente, hora, contexto antes/depois).
-- **AnalysisResult**: resumo estruturado pelo LLM (summary, key_points, tone, relevance, raw_response, error).
+- **AnalysisResult**: resumo estruturado pelo LLM (summary, topics, actions, relevance, raw_response, error) validado com `SummaryResponse`.
 - **EnrichedItem**: combina referência + resultado da análise (ou erro).
 - **EnrichmentResult**: agrega lista de itens, erros e duração.
 
@@ -62,8 +63,8 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 2. `ContentEnricher._analyze_reference`
    - Monta prompt JSON contendo contexto do chat.
    - Invoca `client.models.generate_content` anexando a URL via `types.Part.from_uri`.
-   - Configura `response_mime_type="application/json"` e faz parse seguro com fallback para texto cru.
-   - Converte em `AnalysisResult` com relevância padrão 1 em caso de erro.
+   - Configura `response_mime_type="application/json"` e valida a resposta com `SummaryResponse` (`pydanticai`), gerando fallback seguro quando necessário.
+   - Registra métricas (`llm_calls`, `estimated_tokens`, `cache_hits`) para inspeção e tuning.
 
 3. `ContentEnricher.enrich`
    - Orquestra as etapas, respeitando `max_links` e `max_total_enrichment_time`.
@@ -115,6 +116,7 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 4. **Visão computacional** — análise multimodal habilitada pelos modelos Gemini.
 5. **Banco de conhecimento (RAG)** — integração completa em `src/egregora/rag/` e MCP server dedicado.
 6. **MCP Server** — servidor disponível em `src/egregora/mcp_server/` para Claude e outras ferramentas.
+7. **Respostas tipadas + métricas** — `SummaryResponse/ActionItem` validados com `pydanticai`, métricas (`llm_calls`, `estimated_tokens`, `cache_hits`) expostas em `ContentEnricher.metrics`.
 
 ### 🔄 Em desenvolvimento
 

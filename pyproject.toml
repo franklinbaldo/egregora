@@ -20,6 +20,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "pydantic>=2.6",
     "pydantic-settings>=2.1",
+    "pydantic-ai>=0.0.14",
 ]
 
 [project.optional-dependencies]

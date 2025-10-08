@@ -51,42 +51,8 @@ class RAGConfig(BaseModel):
     # Query generation helpers
     max_context_chars: int = 1200
     max_keywords: int = 8
-    keyword_stop_words: tuple[str, ...] = (
-        "a",
-        "as",
-        "ao",
-        "aos",
-        "com",
-        "da",
-        "das",
-        "de",
-        "do",
-        "dos",
-        "e",
-        "em",
-        "no",
-        "na",
-        "nas",
-        "nos",
-        "o",
-        "os",
-        "para",
-        "por",
-        "que",
-        "um",
-        "uma",
-        "uns",
-        "umas",
-        "se",
-        "ser",
-        "será",
-        "é",
-        "são",
-        "foi",
-        "daqui",
-        "dali",
-        "sobre",
-    )
+    classifier_max_llm_calls: int | None = 200
+    classifier_token_budget: int | None = 20000
 
     # MCP integration
     use_mcp: bool = True
