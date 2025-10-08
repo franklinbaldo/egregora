@@ -32,7 +32,7 @@ data/
 !src/egregora/data/**
 !tests/data/
 !tests/data/**
-egregora.toml
+!egregora.toml
 *.zip:Zone.Identifier
 
 # Test output
