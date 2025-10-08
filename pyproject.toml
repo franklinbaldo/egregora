@@ -35,6 +35,7 @@ docs = [
     "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
+    "codespell>=2.3.0",
 ]
 
 [project.scripts]
@@ -42,7 +43,8 @@ egregora = "egregora.__main__:run"
 egregora-mcp = "scripts.start_mcp_server:cli"
 
 [project.entry-points."mkdocs.plugins"]
-media-files = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+"media-files" = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+"tools.mkdocs_build_posts_plugin" = "tools.mkdocs_build_posts_plugin:BuildPostsPlugin"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]

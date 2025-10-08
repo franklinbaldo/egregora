@@ -1,4 +1,3 @@
-# Embedding Strategy
+# Moved
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/embeddings) and is pending translation.
+Embedding docs were merged into the Portuguese [RAG guide](../../pt-BR/developer-guide/rag.md).

@@ -7,7 +7,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  language: en
+  language: pt-BR
   features:
     - navigation.tracking
     - navigation.indexes
@@ -26,27 +26,30 @@ theme:
 
 extra:
   alternate:
-    - name: English
-      link: /
-      lang: en
     - name: Português (Brasil)
-      link: /pt-BR/
+      link: /
       lang: pt-BR
+    - name: English
+      link: /en/
+      lang: en
 
 nav:
-  - Home: en/index.md
-  - User Guide:
-      - Overview: en/user-guide/index.md
+  - Início: pt-BR/index.md
+  - Guia do Usuário:
+      - Comece Aqui (Quickstart): pt-BR/user-guide/index.md
+      - Privacidade: pt-BR/user-guide/privacy.md
+      - Posts — Como ler: pt-BR/user-guide/discover.md
+      - FAQ: pt-BR/user-guide/faq.md
+  - Guia do Dev:
+      - Dev Setup: pt-BR/developer-guide/index.md
+      - Configuração: pt-BR/developer-guide/config.md
+      - Pipeline DataFrame-native: pt-BR/developer-guide/epic-dataframe-native.md
+      - RAG: pt-BR/developer-guide/rag.md
+      - ADRs (índice): pt-BR/developer-guide/adr-index.md
   - Posts:
-      - Daily: en/posts/daily/index.md
-      - Weekly: en/posts/weekly/index.md
-      - Monthly: en/posts/monthly/index.md
-  - Developer Guide:
-      - Overview: en/developer-guide/index.md
-      - Code Analysis: en/developer-guide/CODE_ANALYSIS.md
-      - Backlog Processing: en/developer-guide/backlog_processing.md
-      - ADR-006: en/developer-guide/ADR-006-dataframe-pipeline.md
-  - Design Review: en/design_review.md
+      - Diários: pt-BR/posts/daily/index.md
+      - Semanais: pt-BR/posts/weekly/index.md
+      - Mensais: pt-BR/posts/monthly/index.md
 
 markdown_extensions:
   - toc:
@@ -60,14 +63,6 @@ docs_dir: docs
 
 plugins:
   - tools.mkdocs_build_posts_plugin
-  - blog:
-      blog_dir: en
-      post_dir: "{blog}/posts"
-      authors_file: "{blog}/.authors.yml"
-  - blog:
-      blog_dir: pt-BR
-      post_dir: "{blog}/posts"
-      authors_file: "{blog}/.authors.yml"
   - search
   - media-files:
       source_dir: data
@@ -77,34 +72,27 @@ plugins:
       reconfigure_material: true
       fallback_to_default: true
       languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
         - locale: pt-BR
           name: Português (Brasil)
+          default: true
+          build: true
+        - locale: en
+          name: English
           build: true
           nav_translations:
-            Home: Início
-            User Guide: Guia de Usuário
-            Overview: Visão Geral
-            Identifier Self-Discovery: Autodescoberta de Identificadores
-            Privacy Overview: Privacidade
-            Profiles Directory: Índice de Perfis
-            WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
-            Posts: Publicações
-            Daily: Diários
-            Weekly: Semanais
-            Monthly: Mensais
-            Developer Guide: Guia de Desenvolvimento
-            Architecture Philosophy: Filosofia de Arquitetura
-            Code Analysis: Análise de Código
-            Enrichment Quickstart: Guia Rápido de Enriquecimento
-            Backlog Processing: Processamento de Backlog
-            Content Enrichment Design: Design de Enriquecimento de Conteúdo
-            Embedding Strategy: Estratégia de Embeddings
-            Merged Groups Workflow: Fluxo de Grupos Mesclados
-            MCP RAG Integration: Integração MCP RAG
-            Privacy Implementation Plan: Plano de Implementação de Privacidade
-            Refactoring Plan: Plano de Refatoração
-            Design Review: Revisão de Design
+            Início: Home
+            Guia do Usuário: User Guide
+            Comece Aqui (Quickstart): Start Here (Quickstart)
+            Privacidade: Privacy
+            Posts — Como ler: Reading the Posts
+            FAQ: FAQ
+            Guia do Dev: Developer Guide
+            Dev Setup: Dev Setup
+            Configuração: Configuration
+            Pipeline DataFrame-native: DataFrame-native Pipeline
+            RAG: RAG
+            ADRs (índice): ADR Index
+            Posts: Posts
+            Diários: Daily
+            Semanais: Weekly
+            Mensais: Monthly

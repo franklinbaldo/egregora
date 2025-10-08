@@ -1,52 +1,52 @@
-# 🛡️ Sistema de Privacidade
+# Privacidade e Anonimização
 
-O Egregora segue uma abordagem enxuta para proteger informações pessoais. O
-processo combina anonimização determinística com instruções claras ao modelo de
-linguagem, reduzindo a chance de informações sensíveis aparecerem no resultado.
+A Egrégora trata todo export do WhatsApp como dado sensível.
+Antes de qualquer resumo, o pipeline anonimiza autores e reforça a política de
+privacidade no prompt do modelo.
+Assim garantimos posts legíveis sem expor nomes, telefones ou mensagens
+privadas.
 
-## 1. Anonimização determinística
+## Como protegemos os dados
 
-- Telefones e apelidos são convertidos em identificadores como `Member-ABCD`
-  usando UUIDv5.
-- Nenhum mapeamento é persistido; o algoritmo é puro e repetível.
-- O formato `User-ABCD`/`Member-EFGH` é o padrão fixo para garantir leitura
-  simples e consistência.
-- Para desativar temporariamente, ajuste `enabled = false` na seção `[anonymization]` do TOML.
+1. **Anonimização determinística** — Cada telefone ou apelido vira um
+   identificador estável, como `Member-3F1A`.
+   O algoritmo usa UUIDv5, roda localmente e não grava nenhum mapeamento em
+   disco.
+2. **Prompt seguro** — As instruções enviadas ao Gemini reforçam que o modelo
+   não deve citar nomes próprios, contatos diretos nem metadados
+   identificáveis.
+3. **Revisão opcional** — O CLI aceita `--disable-enrichment` para rodar só a
+   extração e permite revisar o Markdown final antes de publicar.
 
-## 2. Instruções explícitas ao LLM
+### Exemplo visual
 
-- O prompt do Gemini instrui o modelo a **não mencionar nomes próprios, números
-  de telefone ou contatos diretos**.
-- Mensagens que mencionam dados pessoais continuam no transcript, mas são
-  processadas pelo LLM com esse contexto claro.
-- A efetividade típica observada com modelos modernos (como Gemini 2.0) fica na
-  casa de 80–90% sem nenhuma filtragem adicional.
+| Entrada original                     | Saída anonimizada           |
+|--------------------------------------|-----------------------------|
+| `João Silva: Enviou o PDF do evento` | `Member-3F1A: Enviou o PDF do evento` |
 
-## Revisão recomendada
+O identificador se repete em todas as mensagens dessa pessoa, preservando o
+contexto para quem lê o post.
 
-- Para posts sensíveis, mantenha uma leitura humana antes do envio.
-- Ajuste o prompt principal conforme necessário para reforçar políticas internas.
+## Descobrir o próprio identificador
 
-## Autodescoberta segura
-
-Cada pessoa pode descobrir o próprio identificador anônimo executando:
+Qualquer participante pode descobrir seu ID localmente:
 
 ```bash
-uv run egregora discover "<telefone ou apelido>"
+uv run egregora discover "+55 11 91234-5678"
 ```
 
-Consulte [🔍 Autodescoberta de Identificadores Anônimos](discover.md) para ver
-exemplos e fluxos sugeridos.
+Use `--quiet` para imprimir apenas o identificador.
+O comando aceita telefones normalizados ou apelidos.
 
-## Configuração rápida
+## Para quem desenvolve
 
-```python
-from egregora.config import PipelineConfig
+- Ajuste os campos em `[anonymization]` no `egregora.toml` para trocar o
+  formato (`human`, `short`, `full`).
+- Ative a revisão dupla configurando `privacy.double_check_post = true` via
+  `PipelineConfig`.
+- Erros de rede no enrichment não expõem dados: o pipeline pode ser reexecutado
+  sem reaplicar a anonimização.
 
-config = PipelineConfig.with_defaults()
-config.privacy.double_check_post = True
-config.privacy.review_model = "gemini-1.5-flash"
-config.anonymization.output_format = "short"
-```
-
-Essas opções afetam tanto a execução via CLI quanto o uso como biblioteca.
+Para mais detalhes técnicos, consulte
+[Configuração](../developer-guide/config.md) e
+[RAG](../developer-guide/rag.md).

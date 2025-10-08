@@ -1,5 +1,5 @@
-# User Guide
+# PT-BR is the source of truth
 
-Start here to prepare data exports, understand privacy guarantees, and navigate the generated posts.
-
-Detailed guides are currently available in Portuguese while the English translations are prepared. Visit the [Portuguese User Guide](/pt-BR/user-guide/) for end-to-end instructions.
+The user guide lives in Portuguese for now.
+Check the [Quickstart](../../pt-BR/user-guide/index.md) and follow the
+PT-BR instructions.

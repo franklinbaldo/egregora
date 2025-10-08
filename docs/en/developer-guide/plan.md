@@ -1,4 +1,3 @@
-# Refactoring Plan
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/plan) and is pending translation.
+Roadmap notes are tracked in Portuguese: [Plano de refatoração](../../pt-BR/developer-guide/plan.md).
