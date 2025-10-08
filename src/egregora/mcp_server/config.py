@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import _ensure_safe_directory
-from ..rag.config import RAGConfig, sanitize_rag_config_payload
+from ..rag.config import RAGConfig
 
 
 class MCPServerConfig(BaseModel):
@@ -36,7 +36,7 @@ class MCPServerConfig(BaseModel):
         if isinstance(value, RAGConfig):
             return value
         if isinstance(value, Mapping):
-            return RAGConfig(**sanitize_rag_config_payload(dict(value)))
+            return RAGConfig(**dict(value))
         raise TypeError("rag configuration must be a mapping")
 
     @classmethod
@@ -56,10 +56,9 @@ class MCPServerConfig(BaseModel):
         cache_dir = None
 
         if isinstance(rag_section, Mapping):
-            sanitized_rag = sanitize_rag_config_payload(dict(rag_section))
-            posts_dir = sanitized_rag.pop("posts_dir", None)
-            cache_dir = sanitized_rag.pop("cache_dir", None)
-            rag_data = sanitized_rag
+            rag_data = dict(rag_section)
+            posts_dir = rag_data.pop("posts_dir", None)
+            cache_dir = rag_data.pop("cache_dir", None)
 
         return cls(
             config_path=path,

@@ -148,6 +148,8 @@ model = "gemini-flash-lite-latest"
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
 - The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
 
+> **Migration note:** The legacy `rag.use_gemini_embeddings` toggle has been removed. Drop the field from existing TOML files and rely on `rag.embedding_model` and related parameters when changing embedding behaviour.
+
 All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 
 ## Outputs & publishing
