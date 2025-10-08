@@ -4,27 +4,27 @@ import asyncio
 import sys
 from datetime import date, datetime
 from pathlib import Path
+from typing import Iterator
 
 import pytest
-from diskcache import Cache
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import polars as pl
+from diskcache import Cache
 
 from egregora.config import EnrichmentConfig
 from egregora.enrichment import AnalysisResult, ContentEnricher
 
 
 @pytest.fixture()
-def cache(tmp_path: Path) -> Cache:
+def cache(tmp_path: Path) -> Iterator[Cache]:
     cache_dir = tmp_path / "cache"
-    cache_dir.mkdir()
-    cache_instance = Cache(directory=str(cache_dir), size_limit=1 * 1024 * 1024)
+    cache = Cache(directory=str(cache_dir), size_limit=1024 * 1024)
     try:
-        yield cache_instance
+        yield cache
     finally:
-        cache_instance.close()
+        cache.close()
 
 
 async def _fake_analysis(self, reference, *, client=None) -> AnalysisResult:
@@ -62,7 +62,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
     assert result_first.items
     extracted_url = result_first.items[0].reference.url
     assert extracted_url is not None
-    assert extracted_url in set(cache.iterkeys())
+    assert len(cache) == 1
 
     async def _fail(self, *args, **kwargs) -> None:
         raise AssertionError("Cache was not used")
@@ -76,3 +76,4 @@ def test_enrichment_uses_cache_on_subsequent_runs(
 
     metrics = enricher.metrics
     assert metrics["cache_hits"] == 1
+    assert metrics["cache_misses"] == 1

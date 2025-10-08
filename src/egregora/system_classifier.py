@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
-from diskcache import Cache
 from pydantic import ValidationError
 
 try:  # pragma: no cover - optional at runtime
@@ -15,9 +16,30 @@ except Exception:  # pragma: no cover - keep runtime lean without optional deps
     Agent = None  # type: ignore[assignment]
     GeminiModel = None  # type: ignore[assignment]
 
+from diskcache import Cache
+
 from .llm_models import SystemMessageLabel
 
 EXPECTED_AUTHOR_PAYLOAD_PARTS = 2
+
+
+def _coerce_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    return None
 
 
 @dataclass(slots=True)
@@ -139,26 +161,54 @@ class SystemMessageClassifier:
     def _from_cache(self, line: str) -> SystemMessageLabel | None:
         if not self._cache:
             return None
-        record = self._cache.get(self._cache_key(line))
-        if not record or record.get("version") != self._CACHE_VERSION:
+        cache_key = self._cache_key(line)
+        record = self._cache.get(cache_key)
+        if not isinstance(record, dict) or record.get("version") != self._CACHE_VERSION:
+            if isinstance(record, dict):
+                try:
+                    self._cache.delete(cache_key)
+                except Exception:  # pragma: no cover - cache failures should be safe
+                    pass
             return None
         data = record.get("label")
         if not isinstance(data, dict):
+            try:
+                self._cache.delete(cache_key)
+            except Exception:  # pragma: no cover - cache failures should be safe
+                pass
             return None
         try:
-            return SystemMessageLabel.model_validate(data)
+            label = SystemMessageLabel.model_validate(data)
         except ValidationError:
             return None
+
+        record["last_used"] = datetime.now(UTC)
+        record["hit_count"] = int(record.get("hit_count", 0)) + 1
+        try:
+            self._cache.set(cache_key, record)
+        except Exception:  # pragma: no cover - cache failures should be safe
+            pass
+
+        return label
 
     def _store_cache(self, line: str, label: SystemMessageLabel) -> None:
         if not self._cache:
             return
+        cache_key = self._cache_key(line)
+        existing = self._cache.get(cache_key)
+        now = datetime.now(UTC)
+        first_seen = _coerce_timestamp(existing.get("first_seen")) if isinstance(existing, dict) else None
+        hit_count = int(existing.get("hit_count", 0)) if isinstance(existing, dict) else 0
+
         payload = {
             "version": self._CACHE_VERSION,
             "label": label.model_dump(),
+            "first_seen": first_seen or now,
+            "last_used": now,
+            "hit_count": hit_count,
         }
         try:
-            self._cache.set(self._cache_key(line), payload)
+            self._cache.set(cache_key, payload)
         except Exception:  # pragma: no cover - cache failures should be safe
             return
 

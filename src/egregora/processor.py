@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 import yaml
@@ -38,10 +38,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _cleanup_cache(cache: Cache, days: int) -> int:
-    """Remove cache entries older than the provided *days* threshold."""
+def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
+    directory.mkdir(parents=True, exist_ok=True)
+    size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
+    return Cache(directory=str(directory), size_limit=size_limit_bytes)
 
-    threshold = datetime.now(UTC) - timedelta(days=days)
+
+def _coerce_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    return None
+
+
+def _cleanup_cache(cache: Cache, days: int) -> int:
+    threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
     removed = 0
 
     for key in list(cache.iterkeys()):
@@ -50,35 +73,17 @@ def _cleanup_cache(cache: Cache, days: int) -> int:
             cache.delete(key)
             continue
 
-        last_used_raw = entry.get("last_used")
-        if isinstance(last_used_raw, datetime):
-            last_used_dt = (
-                last_used_raw.astimezone(UTC)
-                if last_used_raw.tzinfo
-                else last_used_raw.replace(tzinfo=UTC)
-            )
-        elif isinstance(last_used_raw, str):
-            try:
-                parsed = datetime.fromisoformat(last_used_raw)
-            except ValueError:
-                last_used_dt = None
-            else:
-                if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=UTC)
-                last_used_dt = parsed.astimezone(UTC)
-        else:
-            last_used_dt = None
-
-        if last_used_dt is None:
+        last_used = _coerce_timestamp(entry.get("last_used"))
+        if last_used is None:
             continue
 
-        if last_used_dt < threshold:
+        if last_used < threshold:
             cache.delete(key)
             removed += 1
             continue
 
-        if not isinstance(entry.get("last_used"), str):
-            entry["last_used"] = last_used_dt.isoformat()
+        if not isinstance(entry.get("last_used"), datetime):
+            entry["last_used"] = last_used
             cache.set(key, entry)
 
     return removed
@@ -478,31 +483,27 @@ class UnifiedProcessor:
             enrichment_section = None
             if self.config.enrichment.enabled:
                 cache: Cache | None = None
-                try:
-                    if self.config.cache.enabled:
-                        cache_dir = self.config.cache.cache_dir
-                        cache_dir.mkdir(parents=True, exist_ok=True)
-                        size_limit = self.config.cache.max_disk_mb
-                        size_in_bytes = (
-                            0 if size_limit is None else max(0, int(size_limit)) * 1024 * 1024
+                if self.config.cache.enabled:
+                    try:
+                        cache = _create_cache(
+                            self.config.cache.cache_dir,
+                            self.config.cache.max_disk_mb,
                         )
-                        cache = Cache(directory=str(cache_dir), size_limit=size_in_bytes)
                         if self.config.cache.auto_cleanup_days:
                             _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
-                    enricher = ContentEnricher(
-                        self.config.enrichment,
-                        cache=cache,
+                    except Exception:
+                        cache = None
+                enricher = ContentEnricher(
+                    self.config.enrichment,
+                    cache=cache,
+                )
+                enrichment_result = asyncio.run(
+                    enricher.enrich_dataframe(
+                        df_day,
+                        client=self.generator.client,
+                        target_dates=[target_date],
                     )
-                    enrichment_result = asyncio.run(
-                        enricher.enrich_dataframe(
-                            df_day,
-                            client=self.generator.client,
-                            target_dates=[target_date],
-                        )
-                    )
-                finally:
-                    if cache is not None:
-                        cache.close()
+                )
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )
