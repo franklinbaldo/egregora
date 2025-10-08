@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Iterable
@@ -14,6 +15,35 @@ __all__ = ["RemoteSourceError", "sync_remote_zips"]
 
 class RemoteSourceError(RuntimeError):
     """Raised when synchronising remote ZIP exports fails."""
+
+
+def _files_match(path_a: Path, path_b: Path) -> bool:
+    """Return ``True`` when *path_a* and *path_b* store identical bytes."""
+
+    try:
+        if path_a.stat().st_size != path_b.stat().st_size:
+            return False
+    except OSError:
+        return False
+
+    digest_a = hashlib.sha256()
+    digest_b = hashlib.sha256()
+
+    try:
+        with path_a.open("rb") as handle_a, path_b.open("rb") as handle_b:
+            while True:
+                chunk_a = handle_a.read(131_072)
+                chunk_b = handle_b.read(131_072)
+                if not chunk_a and not chunk_b:
+                    break
+                if chunk_a != chunk_b:
+                    return False
+                digest_a.update(chunk_a)
+                digest_b.update(chunk_b)
+    except OSError:
+        return False
+
+    return digest_a.digest() == digest_b.digest()
 
 
 def _ensure_archive_path(path: Path) -> Path | None:
@@ -36,10 +66,20 @@ def _ensure_archive_path(path: Path) -> Path | None:
 
     base_name = path.name
     candidate = path.with_name(base_name + ".zip")
-    counter = 1
-    while candidate.exists():
-        candidate = path.with_name(f"{base_name}.{counter}.zip")
-        counter += 1
+
+    if candidate.exists():
+        if _files_match(candidate, path):
+            path.unlink(missing_ok=True)
+            return candidate.resolve()
+
+        counter = 1
+        while candidate.exists():
+            if _files_match(candidate, path):
+                path.unlink(missing_ok=True)
+                return candidate.resolve()
+            candidate = path.with_name(f"{base_name}.{counter}.zip")
+            counter += 1
+
     path.rename(candidate)
     return candidate.resolve()
 

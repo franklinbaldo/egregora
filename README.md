@@ -100,7 +100,7 @@ Calculate deterministic pseudonyms for phone numbers or nicknames so participant
 
 [directories]
 zips_dir = "data/whatsapp_zips"
-posts_dir = "data/posts"
+posts_dir = "data"
 media_url_prefix = "/media"           # Optional public URL when hosting output
 
 [llm]
@@ -154,9 +154,10 @@ All options accept environment variable overrides thanks to `pydantic-settings`,
 
 During processing the pipeline materialises a predictable directory tree:
 
-- `data/posts/<slug>/daily/YYYY-MM-DD.md` – Generated posts ready for MkDocs or email distribution.
-- `data/posts/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/processor.py†L209-L313】
-- `data/posts/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L315-L422】
+- `data/<slug>/index.md` – Overview page linking recent daily posts and acting as the MkDocs entrypoint.
+- `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for MkDocs or email distribution.【F:src/egregora/processor.py†L307-L402】
+- `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L179】
+- `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L463-L617】
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
 - `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
 - `docs/` – MkDocs site that publishes posts via the Material blog plugin alongside the broader knowledge base (`uv run --extra docs --with ./ mkdocs serve`).

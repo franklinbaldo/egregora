@@ -16,6 +16,7 @@ from ..rag.index import PostRAG
 from ..rag.keyword_utils import KeywordProvider, build_llm_keyword_provider
 from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
+from ..types import PostSlug
 from .config import MCPServerConfig
 from .tools import format_post_listing, format_search_hits
 
@@ -177,8 +178,9 @@ class RAGServer:
 
     async def get_post(self, *, date_str: str) -> str | None:
         await self.ensure_indexed()
+        target_slug = PostSlug(date_str)
         for path in self.rag.iter_post_files():
-            if path.stem == date_str:
+            if PostSlug(path.stem) == target_slug:
                 return path.read_text(encoding="utf-8")
         return None
 
@@ -194,6 +196,7 @@ class RAGServer:
         return [
             {
                 "date": path.stem,
+                "slug": PostSlug(path.stem),
                 "path": str(path),
                 "size_kb": max(1, path.stat().st_size // 1024),
             }

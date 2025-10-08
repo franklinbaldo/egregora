@@ -24,6 +24,7 @@ from .anonymizer import Anonymizer
 from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
+from .types import GroupSlug
 from .system_classifier import SystemMessageClassifier
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -359,7 +360,7 @@ def read_zip_texts_and_media(
     *,
     archive_date: date | None = None,
     posts_dir: Path | None = None,
-    group_slug: str | None = None,
+    group_slug: GroupSlug | None = None,
 ) -> tuple[str, dict[str, MediaFile]]:
     """Read texts from *zippath* and optionally extract media files."""
 

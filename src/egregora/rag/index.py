@@ -15,6 +15,7 @@ from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.schema import NodeWithScore, TextNode
 from llama_index.core.vector_stores import SimpleVectorStore
 
+from ..types import PostSlug
 from .config import RAGConfig
 from .embeddings import CachedGeminiEmbedding
 
@@ -307,7 +308,9 @@ class PostRAG:
             if extracted:
                 metadata["date"] = extracted.isoformat()
 
-            doc_id = f"post::{path.stem}"
+            post_slug = PostSlug(path.stem)
+            metadata["post_slug"] = post_slug
+            doc_id = f"post::{post_slug}"
             documents.append(
                 Document(
                     text=text,
@@ -323,7 +326,7 @@ class PostRAG:
         return sorted(
             (
                 path
-                for path in self.posts_dir.glob("*/daily/*.md")
+                for path in self.posts_dir.glob("*/posts/daily/*.md")
                 if path.is_file()
             ),
             key=lambda path: path.stem,
