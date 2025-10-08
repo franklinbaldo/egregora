@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 import sys
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import polars as pl
 
 from egregora.cache_manager import CacheManager
 from egregora.config import EnrichmentConfig
@@ -29,9 +31,15 @@ async def _fake_analysis(self, reference, *, client=None) -> AnalysisResult:
     )
 
 
-def _build_transcripts() -> list[tuple[date, str]]:
-    transcript = "12:00 - Alice: Confira https://example.com/artigo incrivel"
-    return [(date(2024, 1, 1), transcript)]
+def _build_frame() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "date": [date(2024, 1, 1)],
+            "timestamp": [datetime(2024, 1, 1, 12, 0)],
+            "author": ["Alice"],
+            "message": ["Confira https://example.com/artigo incrivel"],
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -44,7 +52,8 @@ async def test_enrichment_uses_cache_on_subsequent_runs(
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", _fake_analysis, raising=True)
 
-    result_first = await enricher.enrich(_build_transcripts(), client=None)
+    frame = _build_frame()
+    result_first = await enricher.enrich_dataframe(frame, client=None)
     assert result_first.items
     extracted_url = result_first.items[0].reference.url
     assert extracted_url is not None
@@ -55,7 +64,7 @@ async def test_enrichment_uses_cache_on_subsequent_runs(
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", _fail, raising=True)
 
-    result_second = await enricher.enrich(_build_transcripts(), client=None)
+    result_second = await enricher.enrich_dataframe(frame, client=None)
     assert result_second.items
     assert result_second.items[0].analysis is not None
     assert result_second.items[0].analysis.summary == "Conteúdo resumido"

@@ -40,7 +40,7 @@ Isto foi mapeado em `CODE_ANALYSIS.md` como “esquizofrenia arquitetural”.
 - Contrato de schema (timezone, tipos de data/horário, colunas obrigatórias).
 - Boundary LLM: só converter linhas (ou refs) para objetos Python no ponto de chamada ao cliente (minimiza overhead).
 - Renderer único de transcrição (texto só no final).
-- Feature flag: TOML + ENV `EGREGORA_USE_DF_PIPELINE=1`.
+- Pipeline único: remover `use_dataframe_pipeline` e documentar que o fluxo Polars é obrigatório.
 - Sem `asyncio.run` em funções internas (apenas no entrypoint/CLI).
 
 ## 🧩 Alterações API (breaking)
@@ -80,9 +80,9 @@ Validação em runtime em pontos críticos (parser e pré-render).
   - [ ] Extração de URLs: `str.extract_all(URL_RE)` + `list.eval(pl.element().str.rstrip(...))`
   - [ ] Contexto (k): `shift()` (±1) ou `join` por range para janelas maiores.
   - [ ] Boundary: converter `urls_exploded` em `ContentReference` apenas na chamada LLM.
-- [ ] `EnrichmentConfig.use_dataframe_pipeline` + override por ENV.
+- [x] Remover `use_dataframe_pipeline` (config + ENV) e manter apenas o fluxo DataFrame-native.
 - [ ] Testes 1:1 (resultado e relevância) entre DF-path e texto (legado).
-- [ ] `enrich()` marcado deprecated com docstring orientando migração.
+- [x] `enrich()` removido em favor de `enrich_dataframe()`.
 
 ### M2 — Media DataFrame-native
 
@@ -140,7 +140,7 @@ Atualizar e/ou criar:
 
 - [ ] `README.md`:
   - [ ] Nova arquitetura (diagrama simples): Parser (Lazy) → Enrichment/Media (exprs) → Child tables → Renderer.
-  - [ ] Como habilitar `use_dataframe_pipeline` via TOML e `EGREGORA_USE_DF_PIPELINE`.
+  - [x] Documentar remoção da flag `use_dataframe_pipeline`.
   - [ ] Guia rápido de migração do legado (exemplos antes/depois).
 - [ ] `CODE_ANALYSIS.md`:
   - [ ] Remover referência à “esquizofrenia” e registrar o estado unificado.
@@ -150,9 +150,9 @@ Atualizar e/ou criar:
 - [ ] `CONTRIBUTING.md`:
   - [ ] Padrões de schema, normalização Unicode, política de benchmarks, boundary LLM.
 - [ ] `CHANGELOG.md`:
-  - [ ] Deprecações (`enrich(text)`, `extract_transcript()`), remoção na v0.4.0.
-- [ ] `egregora.toml.example`:
-  - [ ] `use_dataframe_pipeline = true` + comentário sobre ENV override.
+  - [x] Registrar remoção de `enrich(text)` e `extract_transcript()`.
+- [x] `egregora.toml.example`:
+  - [x] Remover `use_dataframe_pipeline` e instruções de override.
 - [ ] Docstrings nos métodos novos com exemplos mínimos (copy-paste-ables).
 
 ## 📚 Guia de migração (snippet)
@@ -198,11 +198,11 @@ Atualizar e/ou criar:
 - Todos os testes (incluindo property-based e snapshots) passam.
 - `pipeline.py` não é usado na orquestração; `processor` é fonte de verdade.
 - Docs atualizadas e publicadas na árvore do repositório.
-- `enrich(text)` marcado deprecated e coberto no `CHANGELOG`; `extract_transcript()` removido.
+- `enrich(text)` removido; `extract_transcript()` removido.
 
 ## 🔄 Rollout
 
-- Habilitar por feature flag em canário (ex.: 1–2 grupos) via `EGREGORA_USE_DF_PIPELINE=1`.
-- Monitorar métricas (`duration_ms`, `rss_delta_mb`, `n_urls`, `n_media`).
-- Expandir a 100% após validação dos benchmarks e snapshots.
+- Rollout único (sem feature flag):
+  - Monitorar métricas (`duration_ms`, `rss_delta_mb`, `n_urls`, `n_media`).
+  - Expandir a 100% após validação dos benchmarks e snapshots.
 

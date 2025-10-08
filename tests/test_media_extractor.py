@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import polars as pl
 
 from egregora.media_extractor import MediaExtractor, MediaFile
 
@@ -24,32 +26,6 @@ def test_extract_media_from_zip_creates_files(tmp_path) -> None:
     assert media.dest_path.exists()
     expected_path = PurePosixPath("grupo-teste", "media", media.dest_path.name)
     assert media.relative_path == expected_path.as_posix()
-
-
-def test_replace_media_references_converts_to_markdown() -> None:
-    media = MediaFile(
-        filename="IMG-20251002-WA0004.jpg",
-        media_type="image",
-        source_path="IMG-20251002-WA0004.jpg",
-        dest_path=Path(
-            "data/posts/grupo-teste/media/IMG-20251002-WA0004.jpg"
-        ),
-        relative_path="grupo-teste/media/IMG-20251002-WA0004.jpg",
-    )
-    text = (
-        "03/10/2025 09:46 - Franklin: \u200eIMG-20251002-WA0004.jpg (arquivo anexado)"
-    )
-
-    updated = MediaExtractor.replace_media_references(
-        text,
-        {"IMG-20251002-WA0004.jpg": media},
-    )
-
-    assert (
-        "![IMG-20251002-WA0004.jpg](grupo-teste/media/IMG-20251002-WA0004.jpg)"
-        in updated
-    )
-    assert "_(arquivo anexado)_" in updated
 
 
 def test_build_public_paths_relative(tmp_path) -> None:
@@ -121,16 +97,26 @@ def test_extract_media_renames_to_uuid_and_updates_reference(tmp_path) -> None:
     assert media.dest_path.name == media.filename
 
     # 3. Verify the text reference is updated correctly
-    text = f"03/10/2025 09:46 - Franklin: \u200e{original_filename} (arquivo anexado)"
-    updated_text = MediaExtractor.replace_media_references(
-        text,
+    df = pl.DataFrame(
+        {
+            "date": [date(2025, 10, 3)],
+            "timestamp": [datetime(2025, 10, 3, 9, 46)],
+            "author": ["Franklin"],
+            "message": [
+                f"03/10/2025 09:46 - Franklin: \u200e{original_filename} (arquivo anexado)"
+            ],
+        }
+    )
+
+    updated_df = MediaExtractor.replace_media_references_dataframe(
+        df,
         media_files,
     )
 
-    # The markdown reference should use the new UUID-based filename
+    rendered = updated_df.get_column("message")[0]
     expected_markdown_link = f"![{media.filename}]({media.relative_path})"
 
-    assert original_filename not in updated_text
-    assert media.filename in updated_text
-    assert expected_markdown_link in updated_text
-    assert "_(arquivo anexado)_" in updated_text
+    assert original_filename not in rendered
+    assert media.filename in rendered
+    assert expected_markdown_link in rendered
+    assert "_(arquivo anexado)_" in rendered

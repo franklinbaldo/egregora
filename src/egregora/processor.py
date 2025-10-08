@@ -378,21 +378,13 @@ class UnifiedProcessor:
                     self.config.enrichment,
                     cache_manager=cache_manager,
                 )
-                if self.config.use_dataframe_pipeline:
-                    enrichment_result = asyncio.run(
-                        enricher.enrich_dataframe(
-                            df_day,
-                            client=self.generator.client,
-                            target_dates=[target_date],
-                        )
+                enrichment_result = asyncio.run(
+                    enricher.enrich_dataframe(
+                        df_day,
+                        client=self.generator.client,
+                        target_dates=[target_date],
                     )
-                else:
-                    enrichment_result = asyncio.run(
-                        enricher.enrich(
-                            [(target_date, transcript)],
-                            client=self.generator.client,
-                        )
-                    )
+                )
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )

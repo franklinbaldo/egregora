@@ -146,7 +146,7 @@ model = "gemini-flash-lite-latest"
 - `profiles` controls when participant dossiers are generated and stored.
 - `remote_source.gdrive_url` keeps a Google Drive folder in sync before each run.
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
-- `pipeline.use_dataframe_pipeline` toggles the Polars-first hot path and can be overridden with `EGREGORA_USE_DF_PIPELINE` when you need to fall back to the legacy text flow.【F:src/egregora/config.py†L210-L342】
+- The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
 
 All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 

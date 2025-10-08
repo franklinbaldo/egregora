@@ -19,8 +19,6 @@ post_language = "pt-BR"
 default_post_author = "egregora"
 # Evita processar grupos reais que já fazem parte de um grupo virtual.
 skip_real_if_in_virtual = true
-# Pipeline DataFrame-native (alterar para false ou usar EGREGORA_USE_DF_PIPELINE=0 para o fluxo legado).
-use_dataframe_pipeline = true
 # Configuração opcional para buscar ZIPs em fonte remota (ex.: Google Drive).
 # Recomenda-se definir `PIPELINE__REMOTE_SOURCE__GDRIVE_URL` via ambiente para manter sigilo.
 # [pipeline.remote_source]

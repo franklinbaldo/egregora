@@ -35,9 +35,6 @@ from .schema import ensure_message_schema
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
 
-MESSAGE_RE = re.compile(
-    r"^(?P<time>\d{1,2}:\d{2})\s+[—\-–]\s+(?P<sender>[^:]+):\s*(?P<message>.*)$"
-)
 URL_RE = re.compile(r"(https?://[^\s>\)]+)", re.IGNORECASE)
 MEDIA_TOKEN_RE = re.compile(r"<m[íi]dia oculta>", re.IGNORECASE)
 
@@ -217,49 +214,6 @@ class ContentEnricher:
         """Return LLM usage metrics for observability."""
 
         return dict(self._metrics)
-
-    async def enrich(
-        self,
-        transcripts: Sequence[tuple[date, str]],
-        *,
-        client: genai.Client | None,
-    ) -> EnrichmentResult:
-        """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
-
-        start = perf_counter()
-        started_at = datetime.now(timezone.utc)
-        references: list[ContentReference] = []
-        if not self._config.enabled:
-            result = EnrichmentResult()
-            return self._finalize_result(
-                started_at=started_at,
-                start=start,
-                references=references,
-                result=result,
-            )
-
-        references = self._extract_references(transcripts)
-        references = references[: self._config.max_links]
-
-        if not references:
-            result = EnrichmentResult()
-            return self._finalize_result(
-                started_at=started_at,
-                start=start,
-                references=references,
-                result=result,
-            )
-
-        result = await self._enrich_references(
-            references,
-            client=client,
-        )
-        return self._finalize_result(
-            started_at=started_at,
-            start=start,
-            references=references,
-            result=result,
-        )
 
     async def enrich_dataframe(
         self,
@@ -568,95 +522,6 @@ class ContentEnricher:
         if actions:
             score = max(score, 5)
         return score
-
-    def _extract_references(
-        self, transcripts: Sequence[tuple[date, str]]
-    ) -> list[ContentReference]:
-        references: list[ContentReference] = []
-        seen: set[tuple[str | None, str]] = set()
-        window = max(self._config.context_window, 0)
-
-        for transcript_date, transcript in transcripts:
-            lines = transcript.splitlines()
-            for index, raw_line in enumerate(lines):
-                line = raw_line.strip()
-                if not line:
-                    continue
-
-                media_match = MEDIA_TOKEN_RE.search(line)
-                urls = URL_RE.findall(line)
-                message = line
-                sender = None
-                timestamp = None
-                match = MESSAGE_RE.match(line)
-                if match:
-                    timestamp = match.group("time")
-                    sender = match.group("sender").strip()
-                    message = match.group("message").strip()
-
-                context_before = [
-                    lines[pos].strip()
-                    for pos in range(max(0, index - window), index)
-                    if lines[pos].strip()
-                ]
-                context_after = [
-                    lines[pos].strip()
-                    for pos in range(index + 1, min(len(lines), index + window + 1))
-                    if lines[pos].strip()
-                ]
-
-                if media_match and not urls:
-                    key = (None, line)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    references.append(
-                        ContentReference(
-                            date=transcript_date,
-                            url=None,
-                            sender=sender,
-                            timestamp=timestamp,
-                            message=message,
-                            context_before=context_before,
-                            context_after=context_after,
-                            is_media_placeholder=True,
-                        )
-                    )
-                    continue
-
-                for url in urls:
-                    key = (url, sender or "")
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    references.append(
-                        ContentReference(
-                            date=transcript_date,
-                            url=url,
-                            sender=sender,
-                            timestamp=timestamp,
-                            message=message,
-                            context_before=context_before,
-                            context_after=context_after,
-                        )
-                    )
-
-        return references
-
-    async def enrich_from_dataframe(
-        self,
-        df: pl.DataFrame,
-        *,
-        client: genai.Client | None,
-        target_dates: list[date] | None = None,
-    ) -> EnrichmentResult:
-        """Backward compatible wrapper around :meth:`enrich_dataframe`."""
-
-        return await self.enrich_dataframe(
-            df,
-            client=client,
-            target_dates=target_dates,
-        )
 
     async def _enrich_references(
         self,
@@ -987,37 +852,6 @@ class ContentEnricher:
 
         return references
 
-    def _dataframe_to_transcripts(
-        self,
-        df: pl.DataFrame,
-        target_dates: list[date] | None = None,
-    ) -> list[tuple[date, str]]:
-        """Convert DataFrame to transcript format for compatibility."""
-
-        if target_dates:
-            df = df.filter(pl.col("date").is_in(target_dates))
-
-        if df.is_empty():
-            return []
-
-        df_sorted = df.sort("timestamp")
-        transcripts: list[tuple[date, str]] = []
-
-        for day_df in df_sorted.partition_by("date", maintain_order=True):
-            date_value = day_df.get_column("date")[0]
-            if "original_line" in day_df.columns:
-                lines = [line or "" for line in day_df.get_column("original_line").to_list()]
-            else:
-                times = day_df.get_column("time").to_list()
-                authors = day_df.get_column("author").to_list()
-                messages = day_df.get_column("message").to_list()
-                lines = [
-                    f"{time} — {author}: {message}"
-                    for time, author, message in zip(times, authors, messages)
-                ]
-            transcripts.append((date_value, "\n".join(lines)))
-
-        return transcripts
 
 
 def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:

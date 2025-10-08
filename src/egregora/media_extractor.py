@@ -172,35 +172,6 @@ class MediaExtractor:
         extension = Path(filename).suffix.lower()
         return MEDIA_TYPE_BY_EXTENSION.get(extension)
 
-    @staticmethod
-    def replace_media_references(
-        text: str,
-        media_files: Dict[str, MediaFile],
-        *,
-        public_paths: Dict[str, str] | None = None,
-    ) -> str:
-        """Replace WhatsApp attachment markers with Markdown references."""
-
-        if not media_files:
-            return text
-
-        def replacement(match: re.Match[str]) -> str:
-            raw_name = match.group(1).strip()
-            key, media = MediaExtractor._lookup_media(raw_name, media_files)
-            if media is None:
-                return match.group(0)
-
-            path = (
-                public_paths.get(key)
-                if public_paths and key in public_paths
-                else media.relative_path
-            )
-
-            markdown = MediaExtractor._format_markdown_reference(media, path)
-            return f"{markdown} _(arquivo anexado)_"
-
-        return MediaExtractor._attachment_pattern.sub(replacement, text)
-
     @classmethod
     def replace_media_references_dataframe(
         cls,
@@ -236,13 +207,26 @@ class MediaExtractor:
             raise KeyError(f"Column '{target_column}' not found in DataFrame")
 
         paths = public_paths or cls.build_public_paths(media_files)
+        pattern = cls._attachment_pattern
 
         def _replace(text: str | None) -> str:
-            return cls.replace_media_references(
-                text or "",
-                media_files,
-                public_paths=paths,
-            )
+            if not text:
+                return ""
+
+            def replacement(match: re.Match[str]) -> str:
+                raw_name = match.group(1).strip()
+                key, media = cls._lookup_media(raw_name, media_files)
+                if media is None:
+                    return match.group(0)
+
+                path = paths.get(key) if key and key in paths else None
+                if path is None:
+                    path = media.relative_path
+
+                markdown = cls._format_markdown_reference(media, path)
+                return f"{markdown} _(arquivo anexado)_"
+
+            return pattern.sub(replacement, text)
 
         return df.with_columns(
             pl.col(target_column)
@@ -250,15 +234,6 @@ class MediaExtractor:
             .map_elements(_replace, return_dtype=pl.String)
             .alias(target_column)
         )
-
-    @classmethod
-    def find_attachment_names(cls, text: str) -> set[str]:
-        """Return sanitized attachment filenames referenced in *text*."""
-
-        return {
-            cls._clean_attachment_name(match.group(1).strip())
-            for match in cls._attachment_pattern.finditer(text)
-        }
 
     @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:

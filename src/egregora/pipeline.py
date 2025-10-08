@@ -396,10 +396,9 @@ def read_zip_texts_and_media(
             chunks.append(f"\n# Arquivo: {name}\n{text.strip()}\n")
 
     transcript = "\n".join(chunks).strip()
-    if extractor is not None and transcript:
-        transcript = MediaExtractor.replace_media_references(transcript, media_files)
-
     return transcript, media_files
+
+
 def load_previous_post(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
     """Load yesterday's post if it exists."""
 
