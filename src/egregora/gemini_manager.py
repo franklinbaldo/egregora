@@ -6,8 +6,9 @@ import asyncio
 import os
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Optional
+from typing import Any
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -27,8 +28,8 @@ class GeminiQuotaError(RuntimeError):
 class GeminiUsageLimit:
     """Simple structure to hold per-subsystem limits."""
 
-    max_calls: Optional[int] = None
-    budget_remaining: Optional[int] = None
+    max_calls: int | None = None
+    budget_remaining: int | None = None
 
     def allows(self, current: int) -> bool:
         return self.max_calls is None or current < self.max_calls
@@ -46,7 +47,7 @@ class GeminiManager:
         *,
         retry_attempts: int = 3,
         minimum_retry_seconds: float = 30.0,
-        usage_limits: Dict[str, GeminiUsageLimit] | None = None,
+        usage_limits: dict[str, GeminiUsageLimit] | None = None,
         client: Any | None = None,
     ) -> None:
         if genai is None or types is None:
@@ -58,7 +59,7 @@ class GeminiManager:
         self._retry_attempts = max(int(retry_attempts), 1)
         self._minimum_retry_seconds = max(float(minimum_retry_seconds), 0.0)
         self._usage_limits = usage_limits or {}
-        self._usage_counts: Dict[str, int] = defaultdict(int)
+        self._usage_counts: dict[str, int] = defaultdict(int)
 
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if client is not None:
@@ -72,13 +73,13 @@ class GeminiManager:
     def client(self):  # pragma: no cover - simple property
         return self._client
 
-    def register_limit(self, subsystem: str, max_calls: Optional[int]) -> None:
+    def register_limit(self, subsystem: str, max_calls: int | None) -> None:
         self._usage_limits[subsystem] = GeminiUsageLimit(max_calls=max_calls)
 
     def usage(self, subsystem: str) -> int:
         return self._usage_counts.get(subsystem, 0)
 
-    def remaining(self, subsystem: str) -> Optional[int]:
+    def remaining(self, subsystem: str) -> int | None:
         limit = self._usage_limits.get(subsystem)
         if limit is None or limit.max_calls is None:
             return None
@@ -138,7 +139,7 @@ class GeminiManager:
             )
 
     @staticmethod
-    def _parse_retry_delay(exc: Exception) -> Optional[float]:
+    def _parse_retry_delay(exc: Exception) -> float | None:
         message = str(exc)
         match = re.search(r"retryDelay['\"]?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
         if match:

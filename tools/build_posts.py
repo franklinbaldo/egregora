@@ -5,12 +5,13 @@ import calendar
 import re
 import shutil
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
-from dateutil import tz
 import yaml
+from dateutil import tz
 
 # --- Config ---
 TZ = tz.gettz("America/Porto_Velho")
@@ -50,9 +51,9 @@ PT_WEEKDAY_SHORT = {
     6: "Dom",
 }
 
-LanguageConfig = Dict[str, object]
+LanguageConfig = dict[str, object]
 
-LANGUAGES: Dict[str, LanguageConfig] = {
+LANGUAGES: dict[str, LanguageConfig] = {
     "en": {
         "code": "en",
         "docs_dir": DOCS_DIR / "en",
@@ -183,7 +184,7 @@ def first_paragraph(text: str) -> str | None:
     return None
 
 
-def parse_front_matter(text: str) -> tuple[Dict[str, Any], str]:
+def parse_front_matter(text: str) -> tuple[dict[str, Any], str]:
     """Return metadata dict and remaining body for a Markdown file."""
 
     stripped = text.lstrip()
@@ -233,7 +234,7 @@ def clean_post_directories(config: LanguageConfig, section: str) -> None:
             item.unlink()
 
 
-def replace_block(path: Path, marker: str, lines: List[str]) -> None:
+def replace_block(path: Path, marker: str, lines: list[str]) -> None:
     start = f"<!-- posts:{marker}:start -->"
     end = f"<!-- posts:{marker}:end -->"
     text = path.read_text(encoding="utf-8")
@@ -248,30 +249,28 @@ def replace_block(path: Path, marker: str, lines: List[str]) -> None:
     path.write_text(new_text, encoding="utf-8")
 
 
-def collect_daily_entries() -> List[Dict[str, object]]:
-    entries: List[Dict[str, object]] = []
+def collect_daily_entries() -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
     for src in iter_daily_files():
         dt = parse_date_from_path(src)
         text = read_text(src)
         metadata, body = parse_front_matter(text)
         title = metadata.get("title") or first_h1(body) or f"Daily {dt:%Y-%m-%d}"
-        summary = (
-            metadata.get("summary")
-            or metadata.get("description")
-            or first_paragraph(body)
+        summary = metadata.get("summary") or metadata.get("description") or first_paragraph(body)
+        entries.append(
+            {
+                "path": src,
+                "dt": dt,
+                "title": title,
+                "summary": summary,
+                "lang": metadata.get("lang", "pt-BR"),
+            }
         )
-        entries.append({
-            "path": src,
-            "dt": dt,
-            "title": title,
-            "summary": summary,
-            "lang": metadata.get("lang", "pt-BR"),
-        })
     entries.sort(key=lambda item: item["dt"])
     return entries
 
 
-def copy_daily_posts(config: LanguageConfig, entries: List[Dict[str, object]]) -> None:
+def copy_daily_posts(config: LanguageConfig, entries: list[dict[str, object]]) -> None:
     section_cfg = config["daily"]
     dst_root = section_cfg["index_path"].parent
     for entry in entries:
@@ -283,9 +282,13 @@ def copy_daily_posts(config: LanguageConfig, entries: List[Dict[str, object]]) -
     print(f"[{config['code']}] Copied {len(entries)} daily posts.")
 
 
-def build_weekly_and_monthly_groups(entries: List[Dict[str, object]]) -> Tuple[Dict[Tuple[int, int], List[Dict[str, object]]], Dict[Tuple[int, int], List[Dict[str, object]]]]:
-    by_week: Dict[Tuple[int, int], List[Dict[str, object]]] = defaultdict(list)
-    by_month: Dict[Tuple[int, int], List[Dict[str, object]]] = defaultdict(list)
+def build_weekly_and_monthly_groups(
+    entries: list[dict[str, object]],
+) -> tuple[
+    dict[tuple[int, int], list[dict[str, object]]], dict[tuple[int, int], list[dict[str, object]]]
+]:
+    by_week: dict[tuple[int, int], list[dict[str, object]]] = defaultdict(list)
+    by_month: dict[tuple[int, int], list[dict[str, object]]] = defaultdict(list)
     for entry in entries:
         dt: datetime = entry["dt"]  # type: ignore[assignment]
         iso_year, iso_week, _ = dt.isocalendar()
@@ -294,14 +297,21 @@ def build_weekly_and_monthly_groups(entries: List[Dict[str, object]]) -> Tuple[D
     return by_week, by_month
 
 
-def build_weekly_posts(config: LanguageConfig, weekly_groups: Dict[Tuple[int, int], List[Dict[str, object]]]) -> None:
+def build_weekly_posts(
+    config: LanguageConfig, weekly_groups: dict[tuple[int, int], list[dict[str, object]]]
+) -> None:
     section_cfg = config["weekly"]
     dst_root = section_cfg["index_path"].parent
     for (year, week), entries in sorted(weekly_groups.items()):
         out_dir = dst_root / f"{year}"
         out_dir.mkdir(parents=True, exist_ok=True)
         out = out_dir / f"{year}-W{week:02d}.md"
-        lines: List[str] = [section_cfg["page_title"](year, week), "", section_cfg["days_heading"], ""]
+        lines: list[str] = [
+            section_cfg["page_title"](year, week),
+            "",
+            section_cfg["days_heading"],
+            "",
+        ]
         for entry in entries:
             dt: datetime = entry["dt"]  # type: ignore[assignment]
             rel = f"../../daily/{dt:%Y}/{dt:%m}/{dt:%d}.md"
@@ -309,19 +319,28 @@ def build_weekly_posts(config: LanguageConfig, weekly_groups: Dict[Tuple[int, in
             summary = entry.get("summary")
             lines.append(f"- **{section_cfg['entry_label'](dt)}** — [{title}]({rel})")
             if summary:
-                lines.append(f"  <details><summary>{config['labels']['summary']}</summary>\n\n{summary}\n\n</details>")
+                lines.append(
+                    f"  <details><summary>{config['labels']['summary']}</summary>\n\n{summary}\n\n</details>"
+                )
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[{config['code']}] Generated {len(weekly_groups)} weekly posts.")
 
 
-def build_monthly_posts(config: LanguageConfig, monthly_groups: Dict[Tuple[int, int], List[Dict[str, object]]]) -> None:
+def build_monthly_posts(
+    config: LanguageConfig, monthly_groups: dict[tuple[int, int], list[dict[str, object]]]
+) -> None:
     section_cfg = config["monthly"]
     dst_root = section_cfg["index_path"].parent
     for (year, month), entries in sorted(monthly_groups.items()):
         out_dir = dst_root / f"{year}"
         out_dir.mkdir(parents=True, exist_ok=True)
         out = out_dir / f"{year}-{month:02d}.md"
-        lines: List[str] = [section_cfg["page_title"](year, month), "", section_cfg["days_heading"], ""]
+        lines: list[str] = [
+            section_cfg["page_title"](year, month),
+            "",
+            section_cfg["days_heading"],
+            "",
+        ]
         for entry in entries:
             dt: datetime = entry["dt"]  # type: ignore[assignment]
             rel = f"../../daily/{dt:%Y}/{dt:%m}/{dt:%d}.md"
@@ -329,18 +348,22 @@ def build_monthly_posts(config: LanguageConfig, monthly_groups: Dict[Tuple[int, 
             summary = entry.get("summary")
             lines.append(f"- **{section_cfg['entry_label'](dt)}** — [{title}]({rel})")
             if summary:
-                lines.append(f"  <details><summary>{config['labels']['summary']}</summary>\n\n{summary}\n\n</details>")
+                lines.append(
+                    f"  <details><summary>{config['labels']['summary']}</summary>\n\n{summary}\n\n</details>"
+                )
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[{config['code']}] Generated {len(monthly_groups)} monthly posts.")
 
 
-def build_daily_index(config: LanguageConfig, entries: List[Dict[str, object]]) -> None:
+def build_daily_index(config: LanguageConfig, entries: list[dict[str, object]]) -> None:
     section_cfg = config["daily"]
     ensure_index_file(config, "daily")
     index_path: Path = section_cfg["index_path"]
-    lines: List[str] = []
+    lines: list[str] = []
     if entries:
-        grouped: Dict[int, Dict[int, List[Dict[str, object]]]] = defaultdict(lambda: defaultdict(list))
+        grouped: dict[int, dict[int, list[dict[str, object]]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         for entry in entries:
             dt: datetime = entry["dt"]  # type: ignore[assignment]
             grouped[dt.year][dt.month].append(entry)
@@ -356,19 +379,23 @@ def build_daily_index(config: LanguageConfig, entries: List[Dict[str, object]]) 
                     rel = f"{dt:%Y}/{dt:%m}/{dt:%d}.md"
                     label = section_cfg["link_label"](dt)
                     link_parts.append(f"[{label}]({rel})")
-                lines.append(f"- **{section_cfg['month_label'](year, month)}**: " + " • ".join(link_parts))
+                lines.append(
+                    f"- **{section_cfg['month_label'](year, month)}**: " + " • ".join(link_parts)
+                )
     else:
         lines.append(section_cfg["empty"])
     replace_block(index_path, section_cfg["marker"], lines)
 
 
-def build_weekly_index(config: LanguageConfig, weekly_groups: Dict[Tuple[int, int], List[Dict[str, object]]]) -> None:
+def build_weekly_index(
+    config: LanguageConfig, weekly_groups: dict[tuple[int, int], list[dict[str, object]]]
+) -> None:
     section_cfg = config["weekly"]
     ensure_index_file(config, "weekly")
     index_path: Path = section_cfg["index_path"]
-    lines: List[str] = []
+    lines: list[str] = []
     if weekly_groups:
-        grouped: Dict[int, List[Tuple[int, Path]]] = defaultdict(list)
+        grouped: dict[int, list[tuple[int, Path]]] = defaultdict(list)
         for (year, week), _entries in weekly_groups.items():
             file_name = Path(f"{year}-W{week:02d}.md")
             grouped[year].append((week, file_name))
@@ -377,20 +404,25 @@ def build_weekly_index(config: LanguageConfig, weekly_groups: Dict[Tuple[int, in
                 lines.append("")
             lines.append(section_cfg["year_heading"](year))
             weeks = sorted(grouped[year])
-            links = [f"[{section_cfg['link_label'](year, week)}]({year}/{file.name})" for week, file in weeks]
+            links = [
+                f"[{section_cfg['link_label'](year, week)}]({year}/{file.name})"
+                for week, file in weeks
+            ]
             lines.append("- " + " • ".join(links))
     else:
         lines.append(section_cfg["empty"])
     replace_block(index_path, section_cfg["marker"], lines)
 
 
-def build_monthly_index(config: LanguageConfig, monthly_groups: Dict[Tuple[int, int], List[Dict[str, object]]]) -> None:
+def build_monthly_index(
+    config: LanguageConfig, monthly_groups: dict[tuple[int, int], list[dict[str, object]]]
+) -> None:
     section_cfg = config["monthly"]
     ensure_index_file(config, "monthly")
     index_path: Path = section_cfg["index_path"]
-    lines: List[str] = []
+    lines: list[str] = []
     if monthly_groups:
-        grouped: Dict[int, List[Tuple[int, Path]]] = defaultdict(list)
+        grouped: dict[int, list[tuple[int, Path]]] = defaultdict(list)
         for (year, month), _entries in monthly_groups.items():
             file_name = Path(f"{year}-{month:02d}.md")
             grouped[year].append((month, file_name))
@@ -399,29 +431,48 @@ def build_monthly_index(config: LanguageConfig, monthly_groups: Dict[Tuple[int, 
                 lines.append("")
             lines.append(section_cfg["year_heading"](year))
             months = sorted(grouped[year])
-            links = [f"[{section_cfg['link_label'](year, month)}]({year}/{file.name})" for month, file in months]
+            links = [
+                f"[{section_cfg['link_label'](year, month)}]({year}/{file.name})"
+                for month, file in months
+            ]
             lines.append("- " + " • ".join(links))
     else:
         lines.append(section_cfg["empty"])
     replace_block(index_path, section_cfg["marker"], lines)
 
 
-def update_home_latest(config: LanguageConfig, entries: List[Dict[str, object]], weekly_groups: Dict[Tuple[int, int], List[Dict[str, object]]], monthly_groups: Dict[Tuple[int, int], List[Dict[str, object]]]) -> None:
+def update_home_latest(
+    config: LanguageConfig,
+    entries: list[dict[str, object]],
+    weekly_groups: dict[tuple[int, int], list[dict[str, object]]],
+    monthly_groups: dict[tuple[int, int], list[dict[str, object]]],
+) -> None:
     path: Path = config["home_path"]
     if not path.exists():
         return
-    lines: List[str] = []
+    lines: list[str] = []
     if entries:
         latest_daily = entries[-1]
         dt: datetime = latest_daily["dt"]  # type: ignore[assignment]
         link = f"posts/daily/{dt:%Y}/{dt:%m}/{dt:%d}.md"
         title: str = latest_daily["title"]  # type: ignore[assignment]
-        lines.append(config["home_line"].format(label=config["labels"]["daily"], title=title, link=link, date=dt.strftime("%Y-%m-%d")))
+        lines.append(
+            config["home_line"].format(
+                label=config["labels"]["daily"],
+                title=title,
+                link=link,
+                date=dt.strftime("%Y-%m-%d"),
+            )
+        )
     if weekly_groups:
         year, week = max(weekly_groups.keys())
         link = f"posts/weekly/{year}/{year}-W{week:02d}.md"
         title = config["weekly"]["page_title"](year, week)
-        lines.append(config["home_line"].format(label=config["labels"]["weekly"], title=title, link=link, date=f"{year}-W{week:02d}"))
+        lines.append(
+            config["home_line"].format(
+                label=config["labels"]["weekly"], title=title, link=link, date=f"{year}-W{week:02d}"
+            )
+        )
     if monthly_groups:
         year, month = max(monthly_groups.keys())
         link = f"posts/monthly/{year}/{year}-{month:02d}.md"
@@ -430,7 +481,11 @@ def update_home_latest(config: LanguageConfig, entries: List[Dict[str, object]],
             date_label = f"{PT_MONTH_NAMES[month]} de {year}"
         else:
             date_label = f"{calendar.month_name[month]} {year}"
-        lines.append(config["home_line"].format(label=config["labels"]["monthly"], title=title, link=link, date=date_label))
+        lines.append(
+            config["home_line"].format(
+                label=config["labels"]["monthly"], title=title, link=link, date=date_label
+            )
+        )
     if not lines:
         lines = [config["home_empty"]]
     replace_block(path, "latest", lines)
@@ -438,7 +493,7 @@ def update_home_latest(config: LanguageConfig, entries: List[Dict[str, object]],
 
 def build_posts() -> None:
     entries = collect_daily_entries()
-    entries_by_lang: Dict[str, List[Dict[str, object]]] = defaultdict(list)
+    entries_by_lang: dict[str, list[dict[str, object]]] = defaultdict(list)
     for entry in entries:
         entries_by_lang[entry.get("lang", "pt-BR")].append(entry)
 

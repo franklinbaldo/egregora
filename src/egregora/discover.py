@@ -54,6 +54,8 @@ def discover_identifier(value: str) -> DiscoveryResult:
         detected_type=detected,
         variants=variants,
     )
+
+
 __all__ = [
     "DiscoveryResult",
     "discover_identifier",

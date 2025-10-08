@@ -12,7 +12,6 @@ from typer.testing import CliRunner
 
 from egregora.__main__ import app
 
-
 runner = CliRunner()
 
 

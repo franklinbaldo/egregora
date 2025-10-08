@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date
 import logging
+from datetime import date
 
 import polars as pl
 
+from .merger import merge_with_tags
 from .models import GroupSource
 from .parser import parse_multiple
-from .merger import merge_with_tags
 from .schema import ensure_message_schema
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,7 @@ def render_transcript(
     frame = frame.sort("timestamp")
 
     if "time" not in frame.columns:
-        frame = frame.with_columns(
-            pl.col("timestamp").dt.strftime("%H:%M").alias("time")
-        )
+        frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("time"))
 
     time_expr = (
         pl.when(pl.col("time").is_not_null())
@@ -47,8 +45,7 @@ def render_transcript(
     if use_tagged and "tagged_line" in frame.columns:
         candidates.append(
             pl.when(
-                pl.col("tagged_line").is_not_null()
-                & (pl.col("tagged_line").str.len_chars() > 0)
+                pl.col("tagged_line").is_not_null() & (pl.col("tagged_line").str.len_chars() > 0)
             )
             .then(pl.col("tagged_line"))
             .otherwise(None)

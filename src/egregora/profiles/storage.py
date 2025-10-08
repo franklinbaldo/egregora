@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Iterator, Tuple
 
 from .profile import ParticipantProfile
 
@@ -36,7 +36,6 @@ class ProfileRepository:
             return None
         return ParticipantProfile.from_dict(payload)
 
-
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
         """Persist *profile* to JSON outputs and generated Markdown."""
 
@@ -50,8 +49,7 @@ class ProfileRepository:
         markdown = profile.to_markdown().strip()
         if not markdown:
             markdown = (
-                f"# Perfil Analítico: {profile.member_id}\n\n"
-                "(Conteúdo indisponível no momento.)"
+                f"# Perfil Analítico: {profile.member_id}\n\n(Conteúdo indisponível no momento.)"
             )
         disclaimer = (
             "> [!NOTE]\n"
@@ -66,7 +64,7 @@ class ProfileRepository:
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(markdown_content, encoding="utf-8")
 
-    def iter_profiles(self) -> Iterator[Tuple[str, ParticipantProfile]]:
+    def iter_profiles(self) -> Iterator[tuple[str, ParticipantProfile]]:
         """Yield ``(identifier, profile)`` pairs for stored profiles."""
 
         for path in sorted(self.data_dir.glob("*.json")):
@@ -98,7 +96,6 @@ class ProfileRepository:
         index_path = self.docs_dir / "index.md"
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
-
         total_profiles = len(entries)
         latest_update = max((entry[0] for entry in entries), default=None)
         highest_version = max((entry[3] for entry in entries), default=0)
@@ -113,9 +110,7 @@ class ProfileRepository:
         lines.append(f"- Maior versão gerada: {highest_version}")
         lines.append("")
         lines.append("## Onde encontrar os dados")
-        lines.append(
-            "- JSON anonimizado: `data/profiles/` (uso interno e integrações)."
-        )
+        lines.append("- JSON anonimizado: `data/profiles/` (uso interno e integrações).")
         lines.append(
             "- Relatórios em Markdown: `docs/profiles/generated/` para revisão antes da publicação."
         )
@@ -127,9 +122,13 @@ class ProfileRepository:
         lines.append("1. Revise os arquivos em `docs/profiles/generated/`.")
         lines.append("2. Copie os perfis aprovados para uma seção pública da documentação.")
         lines.append("3. Atualize este índice com links curados, se necessário.")
-        lines.append("4. Remova arquivos antigos de `data/profiles/` quando quiser reiniciar as análises.")
+        lines.append(
+            "4. Remova arquivos antigos de `data/profiles/` quando quiser reiniciar as análises."
+        )
         lines.append("")
-        lines.append("> Dica: utilize `uv run egregora --config egregora.toml --dry-run` para validar quais perfis seriam afetados antes de consumir cota do modelo.")
+        lines.append(
+            "> Dica: utilize `uv run egregora --config egregora.toml --dry-run` para validar quais perfis seriam afetados antes de consumir cota do modelo."
+        )
 
         index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

@@ -7,9 +7,8 @@ import logging
 import re
 import unicodedata
 import zipfile
+from collections.abc import Iterable, Sequence
 from datetime import datetime
-from pathlib import Path
-from typing import Iterable, Sequence
 
 import polars as pl
 
@@ -119,9 +118,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
 
         try:
             if am_pm:
-                msg_time = datetime.strptime(
-                    f"{time_str} {am_pm.upper()}", "%I:%M %p"
-                ).time()
+                msg_time = datetime.strptime(f"{time_str} {am_pm.upper()}", "%I:%M %p").time()
             else:
                 msg_time = datetime.strptime(time_str, "%H:%M").time()
         except ValueError:
@@ -144,5 +141,5 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
 
     return rows
 
-_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 
+_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")

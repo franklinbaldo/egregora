@@ -13,18 +13,20 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from egregora.config import PipelineConfig, RAGConfig
-from egregora.rag.index import PostRAG
-from egregora.rag.indexer import detect_post_date, hash_text
-from egregora.rag.keyword_utils import KeywordExtractor, KeywordProvider
-from egregora.rag.query_gen import QueryGenerator
 from test_framework.helpers import (
     load_real_whatsapp_transcript,
     summarize_whatsapp_content,
 )
 
+from egregora.config import PipelineConfig, RAGConfig
+from egregora.rag.index import PostRAG
+from egregora.rag.keyword_utils import KeywordExtractor, KeywordProvider
+from egregora.rag.query_gen import QueryGenerator
+
 BASELINE_PATH = Path(__file__).parent / "data" / "rag_query_baseline.json"
 POSTS_FIXTURE = Path(__file__).parent / "data" / "rag_posts"
+MAX_KEYWORDS_DEFAULT = 5
+STRICT_KEYWORD_LIMIT = 3
 
 
 @pytest.fixture(scope="module")
@@ -60,17 +62,15 @@ def stub_keyword_provider() -> KeywordProvider:
     return _provider
 
 
-def test_keyword_extractor_uses_provider(
-    whatsapp_real_content: str, stub_keyword_provider
-) -> None:
+def test_keyword_extractor_uses_provider(whatsapp_real_content: str, stub_keyword_provider) -> None:
     extractor = KeywordExtractor(
-        max_keywords=5,
+        max_keywords=MAX_KEYWORDS_DEFAULT,
         keyword_provider=stub_keyword_provider,
     )
     keywords = extractor.extract(whatsapp_real_content)
 
     assert keywords
-    assert len(keywords) <= 5
+    assert len(keywords) <= MAX_KEYWORDS_DEFAULT
     assert keywords[0] == keywords[0].lower()
 
 
@@ -92,11 +92,11 @@ def test_query_generator_matches_baseline(
 def test_query_generator_respects_max_keywords(
     whatsapp_real_content: str, stub_keyword_provider
 ) -> None:
-    config = RAGConfig(max_keywords=3)
+    config = RAGConfig(max_keywords=STRICT_KEYWORD_LIMIT)
     generator = QueryGenerator(config, keyword_provider=stub_keyword_provider)
     result = generator.generate(whatsapp_real_content)
 
-    assert len(result.keywords) <= 3
+    assert len(result.keywords) <= STRICT_KEYWORD_LIMIT
 
 
 def test_post_rag_search_matches_baseline(

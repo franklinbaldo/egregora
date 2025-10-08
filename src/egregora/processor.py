@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import polars as pl
 import yaml
@@ -16,6 +16,7 @@ from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
 from .group_discovery import discover_groups
+from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .pipeline import load_previous_post
@@ -42,9 +43,7 @@ def _build_post_metadata(
 ) -> dict[str, object]:
     """Return front matter metadata compatible with the Material blog plugin."""
 
-    created = datetime.combine(target_date, time.min).replace(
-        tzinfo=config.timezone
-    )
+    created = datetime.combine(target_date, time.min).replace(tzinfo=config.timezone)
     categories = ["daily", source.slug]
     tags = [source.name, "whatsapp"]
 
@@ -68,9 +67,7 @@ def _ensure_blog_front_matter(
         return text
 
     metadata = _build_post_metadata(source, target_date, config)
-    front_matter = yaml.safe_dump(
-        metadata, sort_keys=False, allow_unicode=True
-    ).strip()
+    front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
 
     prefix_len = len(text) - len(stripped)
     prefix = text[:prefix_len]
@@ -137,9 +134,7 @@ class UnifiedProcessor:
         for slug, source in sources_to_process.items():
             available_dates = list(get_available_dates(source))
             target_dates = (
-                list(available_dates[-days:])
-                if days and available_dates
-                else list(available_dates)
+                list(available_dates[-days:]) if days and available_dates else list(available_dates)
             )
 
             plans.append(
@@ -183,7 +178,6 @@ class UnifiedProcessor:
         else:
             logger.info("  Nenhum arquivo novo encontrado.")
 
-
     def _collect_sources(
         self,
     ) -> tuple[
@@ -207,9 +201,7 @@ class UnifiedProcessor:
         if virtual_groups:
             logger.info(f"🔀 Created {len(virtual_groups)} virtual group(s):")
             for slug, source in virtual_groups.items():
-                logger.info(
-                    f"  • {source.name} ({slug}): merges {len(source.exports)} exports"
-                )
+                logger.info(f"  • {source.name} ({slug}): merges {len(source.exports)} exports")
 
         real_sources: dict[GroupSlug, GroupSource] = {
             slug: GroupSource(
@@ -245,9 +237,7 @@ class UnifiedProcessor:
 
         logger.info("  Merging %d groups:", stats.height)
         for row in stats.iter_rows(named=True):
-            logger.info(
-                "    • %s: %d messages", row["group_name"], row["message_count"]
-            )
+            logger.info("    • %s: %d messages", row["group_name"], row["message_count"])
 
     def _filter_sources(
         self, all_sources: dict[GroupSlug, GroupSource]
@@ -277,11 +267,7 @@ class UnifiedProcessor:
         if not daily_dir.exists():
             return []
 
-        return [
-            path
-            for path in daily_dir.glob("*.md")
-            if path.is_file()
-        ]
+        return [path for path in daily_dir.glob("*.md") if path.is_file()]
 
     def _write_group_index(
         self,
@@ -344,10 +330,10 @@ class UnifiedProcessor:
 
         index_path.write_text(content, encoding="utf-8")
 
-    def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
+    def _process_source(  # noqa: PLR0912, PLR0915
+        self, source: GroupSource, days: int | None
+    ) -> list[Path]:
         """Process a single source."""
-
-        from .media_extractor import MediaExtractor
 
         group_dir = self.config.posts_dir / source.slug
         group_dir.mkdir(parents=True, exist_ok=True)
@@ -376,7 +362,7 @@ class UnifiedProcessor:
             return []
 
         if full_df.is_empty():
-            logger.warning(f"  No messages found")
+            logger.warning("  No messages found")
             return []
 
         available_dates = sorted({d for d in full_df.get_column("date").to_list()})
@@ -399,7 +385,7 @@ class UnifiedProcessor:
                 continue
 
             attachment_names = MediaExtractor.find_attachment_names_dataframe(df_day)
-            all_media: dict[str, "MediaFile"] = {}
+            all_media: dict[str, MediaFile] = {}
             if attachment_names:
                 remaining = set(attachment_names)
                 for export in exports_by_date.get(target_date, []):
@@ -452,9 +438,7 @@ class UnifiedProcessor:
                         size_limit_mb=self.config.cache.max_disk_mb,
                     )
                     if self.config.cache.auto_cleanup_days:
-                        cache_manager.cleanup_old_entries(
-                            self.config.cache.auto_cleanup_days
-                        )
+                        cache_manager.cleanup_old_entries(self.config.cache.auto_cleanup_days)
                 enricher = ContentEnricher(
                     self.config.enrichment,
                     cache_manager=cache_manager,
@@ -529,9 +513,7 @@ class UnifiedProcessor:
                 public_paths=public_paths,
             )
             if media_section:
-                post = (
-                    f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
-                )
+                post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
@@ -564,7 +546,7 @@ class UnifiedProcessor:
         self._write_group_index(source, group_dir, results)
         return results
 
-    def _update_profiles_for_day(
+    def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
         *,
         repository: ProfileRepository,
@@ -698,7 +680,7 @@ class UnifiedProcessor:
         if updates_made:
             repository.write_index()
 
-    async def _async_update_profile(
+    async def _async_update_profile(  # noqa: PLR0913
         self,
         *,
         updater: ProfileUpdater,
@@ -709,7 +691,7 @@ class UnifiedProcessor:
         conversation: str,
         context_block: str,
         client,
-    ) -> Optional[ParticipantProfile]:
+    ) -> ParticipantProfile | None:
         profile = await updater.rewrite_profile(
             member_id=member_label,
             old_profile=current_profile,
@@ -744,9 +726,7 @@ class UnifiedProcessor:
     ) -> str:
         blocks = [f"### {target_date.isoformat()}\n{conversation.strip()}".strip()]
         if post_text.strip():
-            blocks.append(
-                "### Post do dia\n" + post_text.strip()
-            )
+            blocks.append("### Post do dia\n" + post_text.strip())
         return "\n\n".join(blocks)
 
     def _get_profiles_client(self):
@@ -773,11 +753,7 @@ class UnifiedProcessor:
                 "type": "real",
                 "export_count": len(exports),
                 "date_range": (min(dates), max(dates)),
-                "in_virtual": [
-                    s
-                    for s, c in self.config.merges.items()
-                    if slug in c.source_groups
-                ],
+                "in_virtual": [s for s, c in self.config.merges.items() if slug in c.source_groups],
             }
 
         for slug, source in virtual_groups.items():

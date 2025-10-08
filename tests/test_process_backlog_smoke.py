@@ -10,7 +10,6 @@ from uuid import uuid4
 from egregora.config import PipelineConfig
 from scripts.process_backlog import process_backlog
 
-
 _ORIGINAL_WITH_DEFAULTS = PipelineConfig.with_defaults
 
 

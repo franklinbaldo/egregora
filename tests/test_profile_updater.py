@@ -1,7 +1,7 @@
 import asyncio
+import sys
 from datetime import date, datetime
 from pathlib import Path
-import sys
 
 import polars as pl
 
@@ -146,9 +146,13 @@ def test_participation_stats_dataframe_computes_metrics() -> None:
 
     stats = updater.get_participation_stats_dataframe("Member-AAAA", df)
 
-    assert stats["total_messages"] == 3
-    assert stats["active_days"] == 2
-    assert stats["most_active_day"] == date(2024, 1, 1)
+    expected_total_messages = 3
+    expected_active_days = 2
+    reference_day = date(2024, 1, 1)
+
+    assert stats["total_messages"] == expected_total_messages
+    assert stats["active_days"] == expected_active_days
+    assert stats["most_active_day"] == reference_day
 
 
 def test_extract_summary_from_markdown() -> None:
@@ -162,4 +166,3 @@ Contribui com análises estratégicas e provoca debates aprofundados.
 """
     summary = _extract_summary_from_markdown(markdown)
     assert "análises estratégicas" in summary.lower()
-

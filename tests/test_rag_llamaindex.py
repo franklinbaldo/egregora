@@ -11,6 +11,8 @@ import pytest
 from egregora.rag.config import RAGConfig
 from egregora.rag.index import PostRAG
 
+EXPECTED_POST_COUNT = 3
+
 
 def _write_markdown(directory: Path, name: str, body: str) -> None:
     path = directory / name
@@ -65,11 +67,11 @@ def rag(tmp_path: Path) -> PostRAG:
 def test_update_index_rebuilds_vector_store(rag: PostRAG) -> None:
     result = rag.update_index(force_rebuild=True)
 
-    assert result["posts_count"] == 3
+    assert result["posts_count"] == EXPECTED_POST_COUNT
     assert result["chunks_count"] > 0
 
     stats = rag.get_stats()
-    assert stats.total_posts == 3
+    assert stats.total_posts == EXPECTED_POST_COUNT
     assert stats.total_chunks == result["chunks_count"]
     assert stats.persist_dir.exists()
 

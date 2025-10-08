@@ -1,9 +1,9 @@
 import asyncio
 
+from egregora.mcp_server import server
+
 
 def test_mcp_server_main_runs(monkeypatch):
-    from egregora.mcp_server import server
-
     events: dict[str, bool] = {}
 
     class DummyApp:

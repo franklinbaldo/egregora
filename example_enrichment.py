@@ -12,8 +12,15 @@ from types import SimpleNamespace
 from typing import Any
 
 import polars as pl
+
+import egregora.enrichment as enrichment_module
 from egregora.config import EnrichmentConfig
 from egregora.enrichment import ContentEnricher
+
+try:
+    from google import genai  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    genai = None
 
 
 class _OfflineModel:
@@ -53,8 +60,6 @@ class _OfflineClient:
 
 
 def _ensure_types_stub() -> None:
-    import egregora.enrichment as enrichment_module
-
     if enrichment_module.types is not None:
         return
 
@@ -64,11 +69,11 @@ def _ensure_types_stub() -> None:
             self.file_uri = file_uri
 
         @classmethod
-        def from_text(cls, text: str) -> "_Part":
+        def from_text(cls, text: str) -> _Part:
             return cls(text=text)
 
         @classmethod
-        def from_uri(cls, file_uri: str) -> "_Part":
+        def from_uri(cls, file_uri: str) -> _Part:
             return cls(file_uri=file_uri)
 
     class _Content:
@@ -97,9 +102,7 @@ def _build_client() -> Any:
         print("⚠️ GEMINI_API_KEY ausente — executando em modo offline determinístico.")
         return _OfflineClient()
 
-    try:
-        from google import genai  # type: ignore
-    except ModuleNotFoundError:
+    if genai is None:
         print("⚠️ Pacote google-genai indisponível — executando em modo offline determinístico.")
         return _OfflineClient()
 
@@ -139,11 +142,7 @@ async def _run_enrichment(client: Any, metrics_path: Path | None) -> int:
         return 1
 
     print(
-        "✅ {relevant}/{total} item(s) relevantes com duração de {duration:.2f}s.".format(
-            relevant=len(relevant),
-            total=len(result.items),
-            duration=result.duration_seconds,
-        )
+        f"✅ {len(relevant)}/{len(result.items)} item(s) relevantes com duração de {result.duration_seconds:.2f}s."
     )
     prompt_section = result.format_for_prompt(config.relevance_threshold)
     if prompt_section:
@@ -159,7 +158,9 @@ async def _run_enrichment(client: Any, metrics_path: Path | None) -> int:
 def main() -> int:
     _ensure_types_stub()
     metrics_override = os.getenv("EGREGORA_METRICS_PATH")
-    metrics_path = Path(metrics_override) if metrics_override else Path("metrics/enrichment_run.csv")
+    metrics_path = (
+        Path(metrics_override) if metrics_override else Path("metrics/enrichment_run.csv")
+    )
 
     try:
         client = _build_client()

@@ -21,7 +21,7 @@ MESSAGE_SCHEMA: dict[str, pl.DataType] = {
 }
 
 
-def ensure_message_schema(
+def ensure_message_schema(  # noqa: PLR0912
     df: pl.DataFrame,
     *,
     timezone: str | ZoneInfo | None = None,
@@ -65,19 +65,16 @@ def ensure_message_schema(
     elif isinstance(timestamp_dtype, DateTimeType):
         if timestamp_dtype.time_zone is None:
             timestamp_expr = (
-                pl.col("timestamp")
-                .cast(pl.Datetime(time_unit="ns"))
-                .dt.replace_time_zone(tz_name)
+                pl.col("timestamp").cast(pl.Datetime(time_unit="ns")).dt.replace_time_zone(tz_name)
             )
         else:
             timestamp_expr = (
-                pl.col("timestamp")
-                .dt.cast_time_unit("ns")
-                .dt.convert_time_zone(tz_name)
+                pl.col("timestamp").dt.cast_time_unit("ns").dt.convert_time_zone(tz_name)
             )
     else:
         timestamp_expr = (
-            pl.col("timestamp").str.strptime(pl.Datetime(time_unit="ns"))
+            pl.col("timestamp")
+            .str.strptime(pl.Datetime(time_unit="ns"))
             .dt.replace_time_zone(tz_name)
         )
 

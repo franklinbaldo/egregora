@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -14,9 +14,10 @@ from rich.table import Table
 
 from .config import PipelineConfig
 from .discover import discover_identifier
+from .mcp_server.server import MCP_IMPORT_ERROR
+from .mcp_server.server import main as run_mcp_server
 from .processor import UnifiedProcessor
 from .remote_sync import sync_remote_source_config
-from .mcp_server.server import MCP_IMPORT_ERROR, main as run_mcp_server
 
 app = typer.Typer(
     name="egregora",
@@ -27,7 +28,7 @@ app = typer.Typer(
 console = Console()
 
 
-def _validate_config_file(value: Optional[Path]) -> Optional[Path]:
+def _validate_config_file(value: Path | None) -> Path | None:
     """Ensure the provided configuration file exists."""
 
     if value and not value.exists():
@@ -35,7 +36,7 @@ def _validate_config_file(value: Optional[Path]) -> Optional[Path]:
     return value
 
 
-def _parse_timezone(value: Optional[str]) -> Optional[ZoneInfo]:
+def _parse_timezone(value: str | None) -> ZoneInfo | None:
     """Parse timezone strings into :class:`ZoneInfo` objects."""
 
     if not value:
@@ -48,30 +49,34 @@ def _parse_timezone(value: Optional[str]) -> Optional[ZoneInfo]:
 
 
 ConfigFileOption = Annotated[
-    Optional[Path],
-    typer.Option("--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."),
+    Path | None,
+    typer.Option(
+        "--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."
+    ),
 ]
 ZipsDirOption = Annotated[
-    Optional[Path],
-    typer.Option(help="Diretório com exports .zip do WhatsApp (nomes naturais ou com prefixo YYYY-MM-DD)."),
+    Path | None,
+    typer.Option(
+        help="Diretório com exports .zip do WhatsApp (nomes naturais ou com prefixo YYYY-MM-DD)."
+    ),
 ]
 PostsDirOption = Annotated[
-    Optional[Path],
+    Path | None,
     typer.Option(help="Diretório onde as posts serão escritas."),
 ]
 ModelOption = Annotated[
-    Optional[str],
+    str | None,
     typer.Option(help="Nome do modelo Gemini a ser usado."),
 ]
 RemoteUrlOption = Annotated[
-    Optional[str],
+    str | None,
     typer.Option(
         "--remote-url",
         help="URL do Google Drive com exports .zip para sincronizar automaticamente.",
     ),
 ]
 TimezoneOption = Annotated[
-    Optional[str],
+    str | None,
     typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
 ]
 DaysOption = Annotated[
@@ -100,14 +105,14 @@ DryRunOption = Annotated[
 ]
 
 
-def _build_pipeline_config(
+def _build_pipeline_config(  # noqa: PLR0913
     *,
-    config_file: Optional[Path] = None,
-    zips_dir: Optional[Path] = None,
-    posts_dir: Optional[Path] = None,
-    model: Optional[str] = None,
-    remote_url: Optional[str] = None,
-    timezone: Optional[str] = None,
+    config_file: Path | None = None,
+    zips_dir: Path | None = None,
+    posts_dir: Path | None = None,
+    model: str | None = None,
+    remote_url: str | None = None,
+    timezone: str | None = None,
     disable_enrichment: bool = False,
     disable_cache: bool = False,
 ) -> PipelineConfig:
@@ -151,14 +156,14 @@ def _build_pipeline_config(
     return config
 
 
-def _process_command(
+def _process_command(  # noqa: PLR0913
     *,
-    config_file: Optional[Path] = None,
-    zips_dir: Optional[Path] = None,
-    posts_dir: Optional[Path] = None,
-    model: Optional[str] = None,
-    remote_url: Optional[str] = None,
-    timezone: Optional[str] = None,
+    config_file: Path | None = None,
+    zips_dir: Path | None = None,
+    posts_dir: Path | None = None,
+    model: str | None = None,
+    remote_url: str | None = None,
+    timezone: str | None = None,
     days: int = 2,
     disable_enrichment: bool = False,
     disable_cache: bool = False,
@@ -191,7 +196,7 @@ def _process_command(
     _process_and_display(processor, days)
 
 
-def launch_mcp_server(*, config_file: Optional[Path] = None) -> None:
+def launch_mcp_server(*, config_file: Path | None = None) -> None:
     """Start the MCP RAG server, validating optional dependencies."""
 
     if MCP_IMPORT_ERROR is not None:
@@ -203,7 +208,7 @@ def launch_mcp_server(*, config_file: Optional[Path] = None) -> None:
 
 
 @app.command("sync")
-def sync_command(
+def sync_command(  # noqa: PLR0913
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
     posts_dir: PostsDirOption = None,
@@ -285,7 +290,7 @@ def sync_command(
 
 
 @app.command()
-def process(
+def process(  # noqa: PLR0913
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
     posts_dir: PostsDirOption = None,
@@ -333,7 +338,7 @@ def mcp(config_file: ConfigFileOption = None) -> None:
 
 
 @app.callback(invoke_without_command=True)
-def main(
+def main(  # noqa: PLR0913
     ctx: typer.Context,
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
