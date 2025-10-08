@@ -10,10 +10,10 @@ from mkdocs.plugins import BasePlugin
 
 
 class MediaFilesPlugin(BasePlugin):
-    """Collect group media folders under ``data/<slug>`` for publication."""
+    """Collect group media folders under ``data/posts`` for publication."""
 
     config_scheme = (
-        ("source_dir", config_options.Type(str, default="data")),
+        ("source_dir", config_options.Type(str, default="data/posts")),
         ("target_dir", config_options.Type(str, default="media")),
     )
 

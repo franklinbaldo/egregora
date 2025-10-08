@@ -70,7 +70,7 @@ plugins:
       authors_file: "{blog}/.authors.yml"
   - search
   - media-files:
-      source_dir: data
+      source_dir: data/posts
       target_dir: media
   - i18n:
       docs_structure: folder

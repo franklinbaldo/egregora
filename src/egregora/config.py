@@ -236,7 +236,7 @@ class PipelineConfig(BaseSettings):
         default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips")
     )
     posts_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data")
+        default_factory=lambda: _ensure_safe_directory("data/posts")
     )
     post_language: str = "pt-BR"
     default_post_author: str = "egregora"

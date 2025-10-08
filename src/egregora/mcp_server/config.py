@@ -18,7 +18,7 @@ class MCPServerConfig(BaseModel):
 
     config_path: Path | None = None
     posts_dir: Path = Field(
-        default_factory=lambda: _ensure_safe_directory("data")
+        default_factory=lambda: _ensure_safe_directory("data/posts")
     )
     cache_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("cache/rag"))
     rag: RAGConfig = Field(default_factory=RAGConfig)
@@ -64,7 +64,7 @@ class MCPServerConfig(BaseModel):
         return cls(
             config_path=path,
             posts_dir=
-            posts_dir or _ensure_safe_directory("data"),
+            posts_dir or _ensure_safe_directory("data/posts"),
             cache_dir=cache_dir or _ensure_safe_directory("cache/rag"),
             rag=RAGConfig(**rag_data) if rag_data else RAGConfig(),
         )

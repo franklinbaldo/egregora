@@ -323,7 +323,7 @@ class PostRAG:
         return sorted(
             (
                 path
-                for path in self.posts_dir.glob("*/posts/daily/*.md")
+                for path in self.posts_dir.glob("*/daily/*.md")
                 if path.is_file()
             ),
             key=lambda path: path.stem,

@@ -26,11 +26,8 @@ project/
 │       ├── 2024-10-01.zip
 │       └── 2024-10-02.zip
 └── data/
-    └── grupo-exemplo/
-        ├── index.md
-        ├── media/
-        ├── profiles/
-        └── posts/
+    └── posts/
+        └── grupo-exemplo/
             └── daily/
                 ├── 2024-10-01.md
                 └── 2024-10-02.md
@@ -43,7 +40,7 @@ project/
 Process all ZIP files in a directory:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data
+python scripts/process_backlog.py data/whatsapp_zips data/posts
 ```
 
 ### Skip Existing Files
@@ -51,12 +48,12 @@ python scripts/process_backlog.py data/whatsapp_zips data
 By default, the script skips files that already have corresponding posts:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data
+python scripts/process_backlog.py data/whatsapp_zips data/posts
 # Output:
 # 📊 Found 5 ZIP files
 # ⏭️  2024-10-01 (already exists)
-# ✅ 2024-10-02 -> data/grupo/posts/daily/2024-10-02.md (linked from data/grupo/index.md)
-# ✅ 2024-10-03 -> data/grupo/posts/daily/2024-10-03.md (linked from data/grupo/index.md)
+# ✅ 2024-10-02 -> data/posts/grupo/daily/2024-10-02.md
+# ✅ 2024-10-03 -> data/posts/grupo/daily/2024-10-03.md
 # 📈 Summary: 2 processed, 1 skipped, 0 failed
 ```
 
@@ -65,7 +62,7 @@ python scripts/process_backlog.py data/whatsapp_zips data
 To regenerate existing posts:
 
 ```bash
-python scripts/process_backlog.py data/whatsapp_zips data --force
+python scripts/process_backlog.py data/whatsapp_zips data/posts --force
 ```
 
 ## What was simplified?

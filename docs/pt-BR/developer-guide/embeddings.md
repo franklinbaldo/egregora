@@ -68,7 +68,7 @@ from egregora.rag.config import RAGConfig
 
 config = RAGConfig(enabled=True, embedding_dimension=768)
 rag = PostRAG(
-    posts_dir=Path("data"),
+    posts_dir=Path("data/posts"),
     cache_dir=Path("cache"),
     config=config,
 )

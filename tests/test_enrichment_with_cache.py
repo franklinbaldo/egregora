@@ -42,7 +42,8 @@ def _build_frame() -> pl.DataFrame:
     )
 
 
-def test_enrichment_uses_cache_on_subsequent_runs(
+@pytest.mark.asyncio
+async def test_enrichment_uses_cache_on_subsequent_runs(
     cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = EnrichmentConfig()
@@ -52,7 +53,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", _fake_analysis, raising=True)
 
     frame = _build_frame()
-    result_first = asyncio.run(enricher.enrich_dataframe(frame, client=None))
+    result_first = await enricher.enrich_dataframe(frame, client=None)
     assert result_first.items
     extracted_url = result_first.items[0].reference.url
     assert extracted_url is not None
@@ -63,7 +64,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", _fail, raising=True)
 
-    result_second = asyncio.run(enricher.enrich_dataframe(frame, client=None))
+    result_second = await enricher.enrich_dataframe(frame, client=None)
     assert result_second.items
     assert result_second.items[0].analysis is not None
     assert result_second.items[0].analysis.summary == "Conteúdo resumido"

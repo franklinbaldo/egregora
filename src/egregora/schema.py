@@ -48,13 +48,9 @@ def ensure_message_schema(
     if df.is_empty():
         return pl.DataFrame(schema=target_schema)
 
-    casts = {
-        name: dtype
-        for name, dtype in target_schema.items()
-        if name != "timestamp" and name in df.columns
-    }
+    casts = {name: dtype for name, dtype in target_schema.items() if name != "timestamp"}
 
-    frame = df.cast(casts, strict=False) if casts else df.clone()
+    frame = df.cast(casts, strict=False)
 
     timestamp_dtype = frame.schema.get("timestamp")
     if timestamp_dtype is None:

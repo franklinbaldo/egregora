@@ -262,71 +262,19 @@ class UnifiedProcessor:
 
         return filtered
 
-    def _write_group_index(
-        self,
-        source: "GroupSource",
-        group_dir: Path,
-        post_paths: list[Path],
-    ) -> None:
-        """Ensure an index page summarising generated posts for *source*."""
-
-        index_path = group_dir / "index.md"
-        metadata = {
-            "title": f"{source.name} — Sumário",
-            "lang": self.config.post_language,
-            "authors": [self.config.default_post_author],
-            "categories": [source.slug, "summary"],
-        }
-        front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-
-        items: list[str] = []
-        for path in sorted(post_paths, key=lambda p: p.stem, reverse=True):
-            try:
-                relative = path.relative_to(group_dir)
-            except ValueError:
-                relative = path
-            items.append(f"- [{path.stem}]({relative.as_posix()})")
-
-        if not items:
-            items.append("_Nenhuma edição gerada ainda._")
-
-        body = "\n".join(items)
-        content_lines = [
-            "---",
-            front_matter,
-            "---",
-            "",
-            f"# {source.name}",
-            "",
-            body,
-            "",
-        ]
-        content = "\n".join(content_lines)
-
-        if index_path.exists():
-            existing = index_path.read_text(encoding="utf-8")
-            if existing == content:
-                return
-
-        index_path.write_text(content, encoding="utf-8")
-
     def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
         """Process a single source."""
 
         from .media_extractor import MediaExtractor
 
         group_dir = self.config.posts_dir / source.slug
-        group_dir.mkdir(parents=True, exist_ok=True)
-
-        posts_base = group_dir / "posts"
-        daily_dir = posts_base / "daily"
+        daily_dir = group_dir / "daily"
         daily_dir.mkdir(parents=True, exist_ok=True)
-
-        media_dir = group_dir / "media"
-        media_dir.mkdir(parents=True, exist_ok=True)
 
         profiles_base = group_dir / "profiles"
         profiles_base.mkdir(parents=True, exist_ok=True)
+
+        (group_dir / "media").mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
         if self.config.profiles.enabled and self._profile_updater:
@@ -527,7 +475,6 @@ class UnifiedProcessor:
             except ValueError:
                 logger.info(f"    ✅ {output_path}")
 
-        self._write_group_index(source, group_dir, results)
         return results
 
     def _update_profiles_for_day(

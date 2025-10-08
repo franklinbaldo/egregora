@@ -16,7 +16,7 @@ import yaml
 TZ = tz.gettz("America/Porto_Velho")
 
 # fonte dos diários (produzidos pelo seu pipeline)
-DAILY_SRC = Path("data")
+DAILY_SRC = Path("data/posts")
 
 # destino publicado no MkDocs
 DOCS_DIR = Path("docs")
@@ -153,7 +153,7 @@ LANGUAGES: Dict[str, LanguageConfig] = {
 def iter_daily_files() -> Iterable[Path]:
     """Yield daily posts stored under the group-aware layout."""
 
-    for md in sorted(DAILY_SRC.glob("*/posts/daily/*.md")):
+    for md in sorted(DAILY_SRC.glob("*/daily/*.md")):
         if md.is_file():
             yield md
 
