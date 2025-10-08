@@ -7,12 +7,13 @@ import csv
 import json
 import logging
 import re
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -21,13 +22,14 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import polars as pl
 from pydantic import ValidationError
 from pydantic_ai import Agent
 
-from .cache_manager import CacheManager
+from diskcache import Cache
+
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
 from .llm_models import ActionItem, SummaryResponse
@@ -53,6 +55,93 @@ COLUMN_SEPARATOR = "; "
 
 
 logger = logging.getLogger(__name__)
+
+
+def _normalise_url(url: str) -> str:
+    parts = urlparse(url)
+
+    scheme = parts.scheme.lower()
+
+    hostname = (parts.hostname or "").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+
+    if hostname and ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+
+    default_port: int | None
+    if scheme == "http":
+        default_port = 80
+    elif scheme == "https":
+        default_port = 443
+    else:
+        default_port = None
+
+    port = parts.port
+    if default_port is not None and port == default_port:
+        port = None
+
+    userinfo = ""
+    if parts.username:
+        userinfo = parts.username
+        if parts.password:
+            userinfo += f":{parts.password}"
+        userinfo += "@"
+
+    netloc = hostname
+    if port is not None and hostname:
+        netloc = f"{hostname}:{port}"
+    elif port is not None:
+        netloc = f":{port}"
+
+    netloc = f"{userinfo}{netloc}" if userinfo or netloc else userinfo
+
+    path = parts.path
+    if len(path) > 1:
+        path = path.rstrip("/")
+
+    query = urlencode(sorted(parse_qsl(parts.query, keep_blank_values=True)), doseq=True)
+
+    return urlunparse((scheme, netloc, path, parts.params, query, ""))
+
+
+def _cache_key_for_url(url: str) -> str:
+    normalised = _normalise_url(url)
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, normalised))
+
+
+def _coerce_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+
+        return parsed.astimezone(UTC)
+
+    return None
+
+
+def _extract_cache_entry(entry: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if not isinstance(entry, dict):
+        return None, None
+
+    payload = entry.get("payload")
+    if isinstance(payload, dict):
+        return payload, entry
+
+    if any(key in entry for key in ("enrichment", "context", "metadata")):
+        return entry, {"payload": entry}
+
+    return None, None
 
 
 @dataclass(slots=True)
@@ -197,16 +286,17 @@ class ContentEnricher:
         self,
         config: EnrichmentConfig,
         *,
-        cache_manager: CacheManager | None = None,
+        cache: Cache | None = None,
         gemini_manager: GeminiManager | None = None,
     ) -> None:
         self._config = config
-        self._cache = cache_manager
+        self._cache = cache
         self._gemini_manager = gemini_manager
         self._metrics: dict[str, int] = {
             "llm_calls": 0,
             "estimated_tokens": 0,
             "cache_hits": 0,
+            "cache_misses": 0,
         }
 
     @property
@@ -364,7 +454,7 @@ class ContentEnricher:
             "domain": domain,
             "extracted_at": timestamp,
         }
-        payload = {
+        payload: dict[str, Any] = {
             "model": self._config.enrichment_model,
             "analyzed_at": timestamp,
             "enrichment": enrichment_payload,
@@ -372,8 +462,23 @@ class ContentEnricher:
             "metadata": {k: v for k, v in metadata.items() if v is not None},
             "version": CACHE_RECORD_VERSION,
         }
+
+        cache_key = _cache_key_for_url(reference.url)
+        _, existing_record = _extract_cache_entry(self._cache.get(cache_key))
+
+        now = datetime.now(UTC)
+        first_seen = _coerce_timestamp((existing_record or {}).get("first_seen")) or now
+        hit_count = int((existing_record or {}).get("hit_count", 0))
+
+        entry = {
+            "payload": payload,
+            "first_seen": first_seen,
+            "last_used": now,
+            "hit_count": hit_count,
+        }
+
         try:
-            self._cache.set(reference.url, payload)
+            self._cache.set(cache_key, entry)
         except Exception:
             # Cache failures must not break the enrichment flow.
             return
@@ -504,6 +609,46 @@ class ContentEnricher:
         estimated = max(1, (len(prompt) + len(response_text or "")) // 4)
         self._metrics["estimated_tokens"] = self._metrics.get("estimated_tokens", 0) + estimated
 
+    def _fetch_cache_entry(
+        self, url: str | None
+    ) -> tuple[str | None, dict[str, Any] | None, dict[str, Any] | None]:
+        if not url or not self._cache:
+            return None, None, None
+
+        cache_key = _cache_key_for_url(url)
+        entry = self._cache.get(cache_key)
+        if entry is None:
+            return cache_key, None, None
+
+        payload, record = _extract_cache_entry(entry)
+        if payload is None:
+            try:
+                self._cache.delete(cache_key)
+            except Exception:
+                pass
+            return cache_key, None, None
+
+        return cache_key, payload, record
+
+    def _register_cache_hit(
+        self, cache_key: str, payload: dict[str, Any], record: dict[str, Any] | None
+    ) -> None:
+        if not self._cache:
+            return
+
+        entry = record or {"payload": payload}
+        entry["payload"] = payload
+
+        now = datetime.now(UTC)
+        entry["last_used"] = now
+        entry["hit_count"] = int(entry.get("hit_count", 0)) + 1
+        entry["first_seen"] = _coerce_timestamp(entry.get("first_seen")) or now
+
+        try:
+            self._cache.set(cache_key, entry)
+        except Exception:
+            return
+
     @staticmethod
     def _estimate_relevance(
         summary: str | None,
@@ -541,14 +686,23 @@ class ContentEnricher:
                 )
                 return EnrichedItem(reference=reference, analysis=analysis)
 
-            cached_item: AnalysisResult | None = None
-            if self._cache:
-                cached_payload = self._cache.get(reference.url)
-                if cached_payload:
-                    cached_item = self._analysis_from_cache(cached_payload)
-            if cached_item:
-                self._metrics["cache_hits"] = self._metrics.get("cache_hits", 0) + 1
-                return EnrichedItem(reference=reference, analysis=cached_item)
+            cache_key, cached_payload, cache_record = self._fetch_cache_entry(reference.url)
+            if cache_key is not None and cached_payload is None:
+                self._metrics["cache_misses"] = self._metrics.get("cache_misses", 0) + 1
+
+            if cache_key is not None and cached_payload is not None:
+                cached_item = self._analysis_from_cache(cached_payload)
+                if cached_item:
+                    self._metrics["cache_hits"] = self._metrics.get("cache_hits", 0) + 1
+                    self._register_cache_hit(cache_key, cached_payload, cache_record)
+                    return EnrichedItem(reference=reference, analysis=cached_item)
+
+                self._metrics["cache_misses"] = self._metrics.get("cache_misses", 0) + 1
+                if self._cache:
+                    try:
+                        self._cache.delete(cache_key)
+                    except Exception:
+                        pass
 
             async with semaphore_analysis:
                 analysis = await self._analyze_reference(

@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
+from functools import lru_cache
+from types import ModuleType
 from typing import Any
 
 import polars as pl
@@ -20,6 +22,21 @@ from llama_index.core.vector_stores import SimpleVectorStore
 from ..types import PostSlug
 from .config import RAGConfig
 from .embeddings import CachedGeminiEmbedding
+
+
+@lru_cache(maxsize=1)
+def _load_chroma_dependencies() -> tuple[ModuleType, type[Any]]:
+    """Import optional Chroma dependencies only when needed."""
+
+    try:
+        import chromadb
+        from llama_index.vector_stores.chroma import ChromaVectorStore
+    except ModuleNotFoundError as exc:  # pragma: no cover - chromadb optional
+        raise RuntimeError(
+            "Dependência 'chromadb' não encontrada. Instale 'chromadb' para usar o vector store Chroma."
+        ) from exc
+
+    return chromadb, ChromaVectorStore
 
 
 @dataclass(slots=True)
@@ -86,19 +103,13 @@ class PostRAG:
     def _init_vector_store(self) -> None:
         store_type = self.config.vector_store_type.lower()
         if store_type == "chroma":
-            try:
-                import chromadb  # noqa: PLC0415
-                from llama_index.vector_stores.chroma import ChromaVectorStore  # noqa: PLC0415
-            except ModuleNotFoundError as exc:  # pragma: no cover - chromadb optional
-                raise RuntimeError(
-                    "Dependência 'chromadb' não encontrada. Instale 'chromadb' para usar o vector store Chroma."
-                ) from exc
+            chromadb_module, chroma_vector_store_cls = _load_chroma_dependencies()
 
-            self._chroma_client = chromadb.PersistentClient(path=str(self.config.persist_dir))
+            self._chroma_client = chromadb_module.PersistentClient(path=str(self.config.persist_dir))
             self._chroma_collection = self._chroma_client.get_or_create_collection(
                 name=self.config.collection_name
             )
-            self._vector_store = ChromaVectorStore(chroma_collection=self._chroma_collection)
+            self._vector_store = chroma_vector_store_cls(chroma_collection=self._chroma_collection)
         elif store_type == "simple":
             self._vector_store = SimpleVectorStore()
         else:  # pragma: no cover - defensive branch

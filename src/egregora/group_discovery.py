@@ -8,10 +8,11 @@ import unicodedata
 import zipfile
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
-from .date_utils import parse_flexible_date
+from dateutil import parser as date_parser
+
 from .models import WhatsAppExport
 from .types import GroupSlug
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -144,7 +145,7 @@ def _extract_date(zip_path: Path, zf: zipfile.ZipFile, chat_file: str) -> date:
                     if not match:
                         continue
 
-                    parsed_date = parse_flexible_date(match.group(1))
+                    parsed_date = _parse_preview_date(match.group(1))
                     if parsed_date:
                         logger.debug(
                             "ZIP '%s': Date extracted from content (%s)", zip_path.name, parsed_date
@@ -181,3 +182,38 @@ def _iter_preview_lines(raw_file, *, limit: int) -> Iterable[str]:
         if len(chunk) > max_line_bytes:
             raise ZipValidationError("Line length exceeds safety threshold")
         yield chunk.decode("utf-8")
+
+
+_DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
+    {"dayfirst": True},
+    {"dayfirst": False},
+)
+
+
+def _parse_preview_date(token: str) -> date | None:
+    normalized = token.strip()
+    if not normalized:
+        return None
+
+    def _normalize(parsed: datetime) -> date:
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return parsed.date()
+
+    try:
+        parsed_iso = date_parser.isoparse(normalized)
+    except (TypeError, ValueError, OverflowError):
+        parsed_iso = None
+    else:
+        return _normalize(parsed_iso)
+
+    for options in _DATE_PARSE_PREFERENCES:
+        try:
+            parsed = date_parser.parse(normalized, **options)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        return _normalize(parsed)
+
+    return None

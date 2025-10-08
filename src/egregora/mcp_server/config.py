@@ -17,7 +17,7 @@ from pydantic_settings.sources import (
 )
 
 from ..config import _ensure_safe_directory
-from ..rag.config import RAGConfig, sanitize_rag_config_payload
+from ..rag.config import RAGConfig
 
 
 class MCPServerTomlSettingsSource(TomlConfigSettingsSource):
@@ -70,7 +70,7 @@ class MCPServerConfig(BaseSettings):
         if isinstance(value, RAGConfig):
             return value
         if isinstance(value, Mapping):
-            return RAGConfig(**sanitize_rag_config_payload(dict(value)))
+            return RAGConfig(**dict(value))
         raise TypeError("rag configuration must be a mapping")
 
     @classmethod

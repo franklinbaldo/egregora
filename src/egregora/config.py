@@ -31,7 +31,7 @@ from pydantic_settings.sources import (
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import RAGConfig, sanitize_rag_config_payload
+from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
@@ -398,7 +398,7 @@ class PipelineConfig(BaseSettings):
         if isinstance(value, RAGConfig):
             return value
         if isinstance(value, dict):
-            return RAGConfig(**sanitize_rag_config_payload(value))
+            return RAGConfig(**value)
         raise TypeError("rag configuration must be a mapping")
 
     @field_validator("profiles", mode="before")
