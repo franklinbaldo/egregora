@@ -7,7 +7,9 @@ Bem-vinda(o) à base de conhecimento da Egrégora. Aqui você encontra guias ope
 Boletins diários, semanais e mensais são publicados a cada execução do pipeline. Use os atalhos abaixo ou a barra lateral de navegação para explorá-los por período.
 
 <!-- reports:latest:start -->
-*Nenhum relatório foi publicado ainda.*
+- **Diário** — [📩 Rationality Club LatAm 🐀 — Diário de 2025-10-03](reports/daily/2025/10/03.md) (2025-10-03)
+- **Semanal** — [Semana 2025-W40](reports/weekly/2025/2025-W40.md) (2025-W40)
+- **Mensal** — [Outubro de 2025](reports/monthly/2025/2025-10.md) (Outubro de 2025)
 <!-- reports:latest:end -->
 
 ## Explore os Guias
