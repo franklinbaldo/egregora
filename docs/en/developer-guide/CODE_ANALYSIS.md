@@ -76,8 +76,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 
 ### `src/egregora/media_extractor.py`
 *   **Verdict:** Good.
-*   **Analysis:** Attachment discovery and media replacement now accept Polars frames, enabling vectorised extraction and Markdown substitution before rendering transcripts.
-*   **Recommendation:** Profile large attachments datasets to ensure the regex-heavy operations remain bounded.
+*   **Analysis:** Attachment discovery and media replacement now rely on deterministic string parsing and Polars transforms, avoiding bespoke regex pipelines while still supporting DataFrame inputs.
+*   **Recommendation:** Profile large attachments datasets to ensure the new string-based logic scales with long transcripts.
 
 ### `src/egregora/merger.py`
 *   **Verdict:** Excellent.
@@ -88,9 +88,9 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** A simple, clean, and effective use of `dataclasses` to define the application's core data models.
 
 ### `src/egregora/parser.py`
-*   **Verdict:** Good, but with a minor missed opportunity.
-*   **Analysis:** An essential module that correctly parses raw text into a clean `polars` DataFrame. Its only minor weakness is the hardcoded list of system message phrases.
-*   **Recommendation:** Externalize the system message filter list to a configuration file.
+*   **Verdict:** Good.
+*   **Analysis:** An essential module that correctly parses raw text into a clean `polars` DataFrame. Manual system-message phrase lists have been removed in favour of the dedicated classifier.
+*   **Recommendation:** Continue validating parsing accuracy against new WhatsApp export formats.
 
 ### `src/egregora/pipeline.py`
 *   **Verdict:** Legacy shim.

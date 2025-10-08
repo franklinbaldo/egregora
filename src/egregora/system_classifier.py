@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from importlib import resources
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from pydantic import ValidationError
 
@@ -48,7 +47,6 @@ class SystemMessageClassifier:
     def __init__(
         self,
         *,
-        filters: Sequence[str] | None = None,
         cache_manager: CacheManager | None = None,
         model_name: str | None = None,
         max_llm_calls: int | None = None,
@@ -56,7 +54,6 @@ class SystemMessageClassifier:
         retry_attempts: int = 1,
     ) -> None:
         self._cache = cache_manager
-        self._filters = tuple({phrase.casefold() for phrase in (filters or self._load_default_filters())})
         self._max_llm_calls = max_llm_calls if max_llm_calls is None else max(0, int(max_llm_calls))
         self._token_budget = token_budget if token_budget is None else max(0, int(token_budget))
         self._metrics = ClassificationMetrics()
@@ -98,11 +95,6 @@ class SystemMessageClassifier:
             self._metrics.cache_hits += 1
             return cached
 
-        heuristics = self._heuristic_label(stripped)
-        if heuristics is not None:
-            self._store_cache(line, heuristics)
-            return heuristics
-
         if not self._can_call_llm():
             neutral = SystemMessageLabel(
                 is_system=False,
@@ -142,23 +134,6 @@ class SystemMessageClassifier:
 
         self._store_cache(line, label)
         return label
-
-    def _heuristic_label(self, text: str) -> SystemMessageLabel | None:
-        lowered = text.casefold()
-        for phrase in self._filters:
-            if phrase and phrase in lowered:
-                return SystemMessageLabel(
-                    is_system=True,
-                    is_noise=False,
-                    reason="Correspondência com filtro conhecido.",
-                )
-        if "<mídia oculta>" in lowered or "media omitted" in lowered:
-            return SystemMessageLabel(
-                is_system=False,
-                is_noise=True,
-                reason="Placeholder de mídia oculta.",
-            )
-        return None
 
     def _from_cache(self, line: str) -> SystemMessageLabel | None:
         if not self._cache:
@@ -232,29 +207,12 @@ class SystemMessageClassifier:
             retries=max(1, int(retries)),
         )
 
-    @staticmethod
-    def _load_default_filters() -> Iterable[str]:
-        try:
-            resource = resources.files("egregora.data").joinpath("system_message_filters.txt")
-            content = resource.read_text(encoding="utf-8")
-        except (FileNotFoundError, ModuleNotFoundError):  # pragma: no cover - packaging
-            return ()
-        return [line.strip() for line in content.splitlines() if line.strip()]
-
     def _looks_like_user_message(self, line: str) -> bool:
-        lowered = line.casefold()
-        if any(phrase and phrase in lowered for phrase in self._filters):
-            return False
-
         parts = line.split(":", 1)
-        payload = parts[1].strip() if len(parts) == 2 else lowered
-        if not payload:
+        if len(parts) != 2:
             return False
-
-        if payload.startswith("<mídia oculta>"):
-            return False
-
-        return True
+        author, payload = parts
+        return bool(author.strip() and payload.strip())
 
 
 __all__ = ["SystemMessageClassifier", "ClassificationMetrics"]

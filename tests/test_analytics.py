@@ -116,10 +116,22 @@ def test_detect_emerging_topics_highlight_growth() -> None:
                 "delta delta alpha",
                 "delta cresce delta",
             ],
+            "keywords": [
+                ["alpha", "beta"],
+                ["alpha"],
+                ["beta", "gamma"],
+                ["delta"],
+                ["delta", "cresce"],
+            ],
         }
     )
 
-    topics = detect_emerging_topics(df, recent_days=3, growth_ratio_threshold=1.5, min_recent_mentions=2)
+    topics = detect_emerging_topics(
+        df,
+        recent_days=3,
+        growth_ratio_threshold=1.5,
+        min_recent_mentions=2,
+    )
     assert "delta" in topics.get_column("word").to_list()
 
 
