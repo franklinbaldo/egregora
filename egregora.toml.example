@@ -1,62 +1,72 @@
-# Exemplo de configuração para o pipeline do Egregora.
-# Faça uma cópia (`cp egregora.toml.example egregora.toml`) e ajuste conforme seu ambiente.
+# Exemplo de configuração para o Egregora.
+# Copie este arquivo para `egregora.toml` e ajuste conforme seu ambiente.
 
 [directories]
-# Onde os exports .zip do WhatsApp serão procurados.
+# Diretório com os exports .zip do WhatsApp.
 zips_dir = "data/whatsapp_zips"
-# Pasta onde os dados dos grupos serão armazenados. As posts ficam em
-# "posts/<grupo>/daily" dentro dessa raiz.
+# Raiz onde as postagens (daily) serão salvas.
 posts_dir = "data/posts"
 
 [pipeline]
-# Modelo padrão usado para gerar as posts.
 model = "gemini-flash-lite-latest"
-# Fuso horário utilizado para determinar a data das posts.
 timezone = "America/Porto_Velho"
-# Idioma registrado no front matter para o plugin de blog.
 post_language = "pt-BR"
-# Autor padrão referenciado em `docs/<lang>/.authors.yml`.
 default_post_author = "egregora"
-# Evita processar grupos reais que já fazem parte de um grupo virtual.
+# media_url_prefix = "https://exemplo.com/media"
 skip_real_if_in_virtual = true
-# Configuração opcional para buscar ZIPs em fonte remota (ex.: Google Drive).
-# Recomenda-se definir `PIPELINE__REMOTE_SOURCE__GDRIVE_URL` via ambiente para manter sigilo.
+
+# Configure via ambiente para evitar expor segredos:
+#   export PIPELINE__REMOTE_SOURCE__GDRIVE_URL="https://drive.google.com/uc?id=EXEMPLO"
 # [pipeline.remote_source]
 # gdrive_url = "https://drive.google.com/uc?id=EXEMPLO"
 
-[enrichment]
-# Define se o módulo de enriquecimento está ativo.
+[llm]
+safety_threshold = "BLOCK_NONE"
+thinking_budget = -1
+
+[system_classifier]
 enabled = true
-# Modelo dedicado para analisar links compartilhados.
-enrichment_model = "gemini-2.0-flash-exp"
-# Quantidade máxima de links analisados por execução.
+model = "gemini-flash-lite-latest"
+max_llm_calls = 200
+token_budget = 20000
+retry_attempts = 2
+
+[enrichment]
+enabled = true
+enrichment_model = "gemini-flash-latest"
 max_links = 50
-# Nota mínima (1–5) para um link ser incluído no prompt final.
 relevance_threshold = 3
-# Mensagens vizinhas consideradas como contexto (antes/depois).
 context_window = 3
-# Chamadas simultâneas permitidas ao modelo de enriquecimento.
 max_concurrent_analyses = 5
-# Limite de tempo, em segundos, para o enriquecimento.
 max_total_enrichment_time = 120.0
+metrics_csv_path = "metrics/enrichment_run.csv"
 
 [cache]
-# Controle do cache persistente das análises de links.
 enabled = true
 cache_dir = "cache"
 auto_cleanup_days = 90
 max_disk_mb = 100
 
 [anonymization]
-# Converte nomes/telefones em identificadores anônimos antes de qualquer prompt.
 enabled = true
-# Formatos disponíveis: "human", "short", "full".
 output_format = "human"
 
+[profiles]
+enabled = true
+profiles_dir = "data/profiles"
+docs_dir = "docs/profiles"
+min_messages = 2
+min_words_per_message = 15
+history_days = 5
+max_profiles_per_run = 3
+decision_model = "models/gemini-flash-latest"
+rewrite_model = "models/gemini-flash-latest"
+
 [rag]
-# Habilite para usar o módulo de recuperação de posts anteriores.
 enabled = false
-# Consulte docs/embeddings.md para ajustar parâmetros adicionais se necessário.
+# top_k = 5
+# min_similarity = 0.65
+# keyword_stop_words = ["2025", "franklin"]
 
 # --- EXEMPLOS DE GRUPOS VIRTUAIS ---
 [merges.rc-americas]
@@ -64,13 +74,11 @@ name = "RC Americas"
 groups = ["rc-latam", "rc-brasil", "rc-mexico"]
 tag_style = "emoji"
 emojis = { rc-latam = "🌎", rc-brasil = "🇧🇷", rc-mexico = "🇲🇽" }
-# model = "gemini-2.0-flash-exp"  # Opcional: sobrescreve o modelo apenas para este grupo virtual.
 
 [merges.tech-all]
 name = "Tech Ecosystem"
 groups = ["tech-discussion", "tech-jobs", "programming"]
 tag_style = "brackets"
-# model = "gemini-1.5-flash"
 
 [merges.family-extended]
 name = "Extended Family"
