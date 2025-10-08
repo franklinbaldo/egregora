@@ -19,8 +19,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 2.  **Over-engineering ("Not Invented Here" Syndrome):** The project contains two custom-built, complex caching systems (`cache_manager.py`, `rag/embedding_cache.py`) that reinvent the wheel.
     *   **Recommendation:** These are high-priority, low-risk fixes. **Replace both custom caches with `diskcache`** to improve robustness and simplify the code.
 
-3.  **Redundant/Legacy Code:** The `rag` directory contains a complete, hand-rolled TF-IDF search system (`rag/search.py`) that is separate from the main `llama-index` RAG implementation.
-    *   **Recommendation:** **Audit the usage of the legacy TF-IDF system**. If it provides no unique value over the modern `llama-index` stack, it should be deprecated and removed to reduce complexity.
+3.  **Keyword Extraction Simplification:** The RAG stack now relies exclusively on embeddings, with a light-weight keyword extractor providing context snippets for UI hints.
+    *   **Recommendation:** Continue validating the heuristic tokenisation to guarantee high-quality suggestions and evolve it alongside transcript formats.
 
 4.  **Inconsistent Implementations:** Several modules solve common problems (date parsing, configuration) by hand.
     *   **Recommendation:** Adopt industry-standard libraries like **`python-dateutil`** for date parsing and **`Pydantic`** for configuration to improve robustness and reduce boilerplate code.
@@ -125,6 +125,6 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** The best-designed component in the project. The prompts are well-written, detailed, and correctly externalized, following prompt engineering best practices.
 
 ### Sub-directory: `src/egregora/rag/`
-*   **Verdict:** **Critical Flaw (Architectural Schizophrenia).**
-*   **Analysis:** This directory contains two entirely different search systems: a modern `llama-index` RAG system and a legacy, hand-rolled TF-IDF system (`search.py`). Furthermore, `embedding_cache.py` is another over-engineered custom cache.
-*   **Recommendation:** **Audit the legacy TF-IDF system (`search.py`)** to understand its current usage. If redundant, it should be deprecated and removed. **Replace the custom `embedding_cache.py` with `diskcache`**. The core `llama-index` implementation in `index.py` is strong and should be the foundation of the refactored module.
+*   **Verdict:** **Improving, with remaining cleanup opportunities.**
+*   **Analysis:** The module now ships a single retrieval path powered by `llama-index` embeddings. Query generation depends on a small, configurable keyword extractor which keeps UI affordances without reintroducing TF-IDF. The lingering concern is the bespoke `embedding_cache.py`, which still reinvents disk persistence.
+*   **Recommendation:** Replace the custom `embedding_cache.py` with `diskcache` to finish the simplification. Keep expanding fixtures that exercise the keyword extractor to avoid regressions in multilingual transcripts.

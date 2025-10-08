@@ -17,8 +17,9 @@ O módulo de enriquecimento lê URLs e marcadores de mídia com o suporte nativo
 e calcula relevância antes de o prompt principal ser montado. O cache persistente evita custos repetidos.
 
 ### Busca com RAG
-O histórico de posts fica indexado para consulta rápida. O modo padrão usa TF-IDF, e é possível ativar embeddings do Gemini
-para buscas semânticas quando a API estiver disponível. O servidor MCP expõe o RAG para Claude e outros clientes.
+O histórico de posts fica indexado para consulta rápida usando embeddings (`llama-index`) com cache local opcional. Isso elimina
+a camada TF-IDF antiga e mantém uma experiência consistente entre CLI, MCP e integrações externas. O servidor MCP expõe o RAG
+para Claude e outros clientes.
 
 ### Privacidade por padrão
 Identificadores pessoais são substituídos antes de qualquer chamada ao LLM. Os prompts reforçam que o modelo não deve revelar

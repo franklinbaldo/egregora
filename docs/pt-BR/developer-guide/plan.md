@@ -88,17 +88,16 @@ This plan addresses the critical architectural and engineering issues identified
 ### 2.1 Standardize Retrieval on txtai + pydanticai (remove TF-IDF)
 **Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com `txtai.Embeddings` + agentes `pydanticai` alimentados pelo Gemini.
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com o stack `llama-index` já utilizado em produção, mantendo apenas um mecanismo de busca.
 
 **Action Items**:
-- [ ] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
-- [ ] Introduzir `txtai` como índice vetorial primário (ingestão `(id, texto, meta)` e busca `search`).
-- [ ] Reorquestrar respostas com `pydanticai.Agent`, mantendo cache e limites de custo.
-- [ ] Validar paridade de resultados com amostras reais de busca.
+- [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
+- [ ] Avaliar migração futura para `txtai` ou `pydanticai.Agent` caso haja ganho comprovado.
+- [x] Validar paridade de resultados com amostras reais de busca.
 
 **Success Criteria**:
-- Único sistema de busca/RAG (txtai + Gemini via pydanticai).
-- Nenhuma implementação redundante baseada em TF-IDF ou LlamaIndex.
+- Único sistema de busca/RAG baseado em embeddings (`llama-index`).
+- Nenhuma implementação redundante baseada em TF-IDF.
 - Documentação e testes alinhados ao fluxo LLM/embeddings.
 
 ---
