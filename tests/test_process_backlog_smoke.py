@@ -41,6 +41,10 @@ def test_process_backlog_generates_posts() -> None:
             side_effect=_offline_defaults,
         ),
         patch(
+            "egregora.generator.PostGenerator._create_client",
+            side_effect=AssertionError("Smoke test should not create an LLM client"),
+        ),
+        patch(
             "egregora.generator.PostGenerator.generate",
             return_value="## Post de teste\nConteúdo sintético.",
         ),
