@@ -1,4 +1,3 @@
-# Privacy Implementation Plan
+# Moved
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/privacy-implementation) and is pending translation.
+Privacy implementation notes now live in Portuguese: [Privacidade e Anonimização](../../pt-BR/user-guide/privacy.md).

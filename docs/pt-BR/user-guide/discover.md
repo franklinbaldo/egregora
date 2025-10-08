@@ -1,48 +1,39 @@
-# 🔍 Autodescoberta de Identificadores Anônimos
+# Posts — Como ler
 
-Cada pessoa pode descobrir seu próprio identificador a partir do telefone ou apelido usado
-nas conversas, sem consultar nenhum arquivo sensível. O identificador é derivado
-com UUIDv5 determinístico, portanto o mesmo input sempre gera o mesmo resultado.
+Os posts automatizados são gerados em três cadências.
+Cada uma resume o mesmo conjunto de mensagens com um foco diferente.
+Use as seções abaixo para saber o que esperar em cada formato e onde encontrar
+links úteis.
 
-## Como usar
+## Diários
 
-```bash
-uv run egregora discover "+55 11 91234-5678"
-```
+- Destacamos movimentações de 24 horas, com links para o transcript e anexos
+  relevantes.
+- Os títulos seguem `📩 <nome do grupo> — Diário de AAAA-MM-DD`.
+- Arquivos ficam em `posts/daily/<ano>/<data>.md`.
+  Use a busca do site para encontrar dias específicos.
 
-Saída típica:
+## Semanais
 
-```
-📛 Autodescoberta de identificador anônimo
-• Entrada original: +55 11 91234-5678
-• Tipo detectado: phone
-• Forma normalizada: +5511912345678
-• Identificadores disponíveis:
-  → human: Member-1A2B
-  · short: 1a2b3c4d
-  · full: 1a2b3c4d-e5f6-7890-ab12-cdef34567890
-• Formato preferido (human): Member-1A2B
-```
+- Resumem tendências, decisões e pendências abertas, agrupando temas
+  recorrentes.
+- Incluem uma seção “Radar da semana” com próximos passos que devem aparecer no
+  post mensal.
+- Localização: `posts/weekly/<ano>/<ano>-W<semana>.md`.
 
-### Somente o identificador
+## Mensais
 
-Use `--quiet` para imprimir apenas o identificador anonimizado:
+- Servem como newsletter para públicos externos.
+  Expectativa de leitura em 5 minutos.
+- Estrutura fixa: Destaques, Métricas (volume de mensagens/links), Próximas
+  ações.
+- Caminho: `posts/monthly/<ano>/<ano>-MM.md`.
 
-```bash
-uv run egregora discover "+55 11 91234-5678" --quiet
-```
+## Dicas rápidas de navegação
 
-Também é possível descobrir identificadores a partir de apelidos:
-
-```bash
-uv run egregora discover "João Silva"
-```
-
-O sistema detecta automaticamente se a entrada é um telefone ou um apelido e aplica a
-normalização apropriada.
-
-## Segurança
-
-- Nenhum mapeamento é salvo em disco ou no repositório.
-- Todo o cálculo é feito localmente, evitando vazamentos de dados pessoais.
-- Como o algoritmo é determinístico, qualquer pessoa pode repetir o processo e obter o mesmo resultado.
+- A página inicial sempre mostra os três últimos posts (diário, semanal e
+  mensal).
+- Para acompanhar uma pauta específica, use o MCP `egregora mcp` e a ferramenta
+  `search_posts` com palavras-chave.
+- Mantemos arquivos Markdown puros; você pode abrir direto no GitHub ou clonar o
+  repositório e ler localmente.

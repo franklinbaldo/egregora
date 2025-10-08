@@ -1,4 +1,3 @@
-# Architecture Philosophy
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/PHILOSOPHY) and is pending translation.
+Architecture principles live in Portuguese: [Filosofia de arquitetura](../../pt-BR/developer-guide/PHILOSOPHY.md).
