@@ -56,10 +56,10 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** The use of `dataclasses` is good, but the module contains verbose, manual code for parsing TOML files.
 *   **Recommendation:** Refactor the entire module using `Pydantic` to simplify the code and add more powerful validation.
 
-### `src/egregora/date_utils.py`
-*   **Verdict:** Okay, but a missed opportunity.
-*   **Analysis:** A simple function that manually tries to parse a few date formats, which is fragile.
-*   **Recommendation:** Replace the implementation with `dateutil.parser.parse` from the `python-dateutil` library.
+### Date parsing helpers
+*   **Verdict:** ✅ Addressed.
+*   **Analysis:** The former `src/egregora/date_utils.py` has been removed. Date parsing now happens directly inside `parser.py` and `group_discovery.py`, both powered by `dateutil.parser.isoparse/parse` with UTC normalization.
+*   **Recommendation:** Keep the logic close to the consumers to avoid another round of "god" utility modules.
 
 ### `src/egregora/discover.py`
 *   **Verdict:** Excellent.
