@@ -14,13 +14,17 @@ linguagem para seguir instruções claras.
 ## 🧭 Novo Fluxo
 
 ```
-WhatsApp ZIP → [Anonimização de autores] → Prompt com instruções de privacidade → Post
+WhatsApp ZIP → [Anonimização de autores] → Classificador (Sistema/Ruído) → Prompt com instruções de privacidade → Post
 ```
 
 - Telefones e apelidos são convertidos em pseudônimos determinísticos (`Member-XXXX`)
   antes de qualquer processamento.
+- Em seguida, um classificador tipado (baseado em `pydanticai`) etiqueta e remove
+  mensagens de sistema, placeholders de mídia e ruídos sem tocar no conteúdo
+  produzido pelos participantes.
 - O prompt enviado ao Gemini reforça que a post **não deve** expor nomes,
-  telefones ou contatos diretos.
+  telefones ou contatos diretos. A resposta é validada contra o modelo tipado
+  `SummaryResponse` e gera métricas de consumo (tokens/chamadas).
 - Para posts sensíveis, mantenha uma revisão humana antes do envio.
 
 Esse arranjo cobre 80–90% das necessidades de privacidade sem depender de
@@ -51,7 +55,17 @@ heurísticas frágeis, listas manuais de nomes ou regex complexas.
 
 - Aplica a anonimização linha a linha usando uma regex leve apenas para detectar
   o autor do transcript.
-- O prompt principal já contém instruções rígidas de privacidade.
+- Executa o `SystemMessageClassifier` após a anonimização para filtrar mensagens
+  automáticas e ruído com cache em disco e orçamento configurável.
+- O prompt principal já contém instruções rígidas de privacidade e agora opera
+  sobre um transcript limpo e tipado.
+
+### `src/egregora/system_classifier.py`
+
+- Implementa o classificador assíncrono baseado em `pydanticai` para rotular
+  `{is_system, is_noise, reason}`.
+- Usa cache (`CacheManager`) e limites de chamadas/tokens definidos em
+  `PipelineConfig.system_classifier`.
 
 ### `src/egregora/__main__.py`
 
@@ -67,8 +81,10 @@ heurísticas frágeis, listas manuais de nomes ou regex complexas.
 ## 🧪 Testes
 
 - `tests/test_anonymizer.py` cobre normalização e geração de pseudônimos.
-- `tests/test_privacy_e2e.py` garante que os autores são anonimizados e que a
-  configuração pode desativar a etapa quando desejado.
+- `tests/test_privacy_e2e.py` garante que os autores são anonimizados, que o
+  classificador opera apenas sobre dados anonimizados e remove ruídos.
+- `tests/test_mcp_server.py` valida a inicialização segura do servidor MCP com
+  dependências simuladas.
 
 ---
 
