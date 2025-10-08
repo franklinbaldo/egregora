@@ -11,8 +11,6 @@ import zipfile
 import gdown
 
 __all__ = ["RemoteSourceError", "sync_remote_zips"]
-
-
 class RemoteSourceError(RuntimeError):
     """Raised when synchronising remote ZIP exports fails."""
 
