@@ -20,8 +20,10 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     types = None  # type: ignore[assignment]
 
 from .anonymizer import Anonymizer
+from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
+from .system_classifier import SystemMessageClassifier
 
 DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -86,6 +88,41 @@ TRANSCRIPT_PATTERNS = [
     ),
 ]
 
+def _build_system_classifier(
+    config: PipelineConfig,
+    classifier: SystemMessageClassifier | None = None,
+) -> SystemMessageClassifier | None:
+    if classifier is not None:
+        return classifier
+    if not config.system_classifier.enabled:
+        return None
+
+    filters: tuple[str, ...] | None = None
+    filters_path = config.system_message_filters_file
+    if filters_path is not None and filters_path.exists():
+        content = filters_path.read_text(encoding="utf-8")
+        filters = tuple(line.strip() for line in content.splitlines() if line.strip())
+
+    cache_manager: CacheManager | None = None
+    if config.cache.enabled:
+        cache_dir = config.cache.cache_dir / "system_labels"
+        cache_manager = CacheManager(
+            cache_dir,
+            size_limit_mb=config.cache.max_disk_mb,
+        )
+
+    try:
+        return SystemMessageClassifier(
+            filters=filters,
+            cache_manager=cache_manager,
+            model_name=config.system_classifier.model,
+            max_llm_calls=config.system_classifier.max_llm_calls,
+            token_budget=config.system_classifier.token_budget,
+            retry_attempts=config.system_classifier.retry_attempts,
+        )
+    except Exception:
+        return None
+
 def _anonymize_transcript_line(
     line: str,
     *,
@@ -123,6 +160,7 @@ def _prepare_transcripts(
     *,
     logger: logging.Logger | None = None,
     batch_mode: bool = False,
+    classifier: SystemMessageClassifier | None = None,
 ) -> list[tuple[date, str]]:
     """Return transcripts with authors anonymized when enabled."""
 
@@ -171,6 +209,15 @@ def _prepare_transcripts(
             logger=logger,
             batch_mode=batch_mode,
         )
+
+    classifier_instance = _build_system_classifier(config, classifier)
+    if classifier_instance is not None:
+        filtered: list[tuple[date, str]] = []
+        for transcript_date, sanitized_text in sanitized:
+            text = sanitized_text or ""
+            cleaned_text, _ = classifier_instance.filter_transcript(text)
+            filtered.append((transcript_date, cleaned_text))
+        sanitized = filtered
 
     return sanitized
 

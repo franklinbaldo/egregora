@@ -33,12 +33,14 @@ def render_transcript(
             pl.col("timestamp").dt.strftime("%H:%M").alias("time")
         )
 
-    fallback = pl.format(
-        "{time} — {author}: {message}",
-        time=pl.col("time"),
-        author=pl.col("author").fill_null(""),
-        message=pl.col("message").fill_null(""),
+    time_expr = (
+        pl.when(pl.col("time").is_not_null())
+        .then(pl.col("time"))
+        .otherwise(pl.col("timestamp").dt.strftime("%H:%M"))
     )
+    author_expr = pl.col("author").fill_null("")
+    message_expr = pl.col("message").fill_null("")
+    fallback = pl.format("{} — {}: {}", time_expr, author_expr, message_expr)
 
     candidates: list[pl.Expr] = []
 

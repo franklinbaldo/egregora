@@ -32,9 +32,13 @@ class MockGeminiModel:
 
         response_data = {
             "summary": "Mocked summary",
-            "key_points": ["Point 1", "Point 2"],
-            "tone": "neutral",
-            "relevance": self.relevance,
+            "topics": ["Point 1", "Point 2"],
+            "actions": [
+                {
+                    "description": "Revisar conteúdo compartilhado",
+                    "owner": "time",
+                }
+            ],
         }
         mock_response = MagicMock()
         mock_part = MagicMock()
@@ -66,6 +70,10 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
     assert len(result.items) >= 1
     assert result.items[0].analysis is not None
     assert result.items[0].analysis.summary == "Mocked summary"
+    assert result.items[0].analysis.topics == ["Point 1", "Point 2"]
+    assert [item.description for item in result.items[0].analysis.actions] == [
+        "Revisar conteúdo compartilhado"
+    ]
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
@@ -125,7 +133,7 @@ def test_concurrent_url_processing(mock_guess_type, tmp_path):
 
 @patch("mimetypes.guess_type", return_value=("text/html", None))
 def test_relevance_filtering(mock_guess_type, tmp_path):
-    config = EnrichmentConfig(enabled=True, relevance_threshold=6)
+    config = EnrichmentConfig(enabled=True, relevance_threshold=3)
     content = "https://low.com\nhttps://high.com"
 
     class VarRelevanceClient:
@@ -135,8 +143,12 @@ def test_relevance_filtering(mock_guess_type, tmp_path):
         def generate_content(self, model, contents, config):
             self.calls += 1
             prompt_text = contents[0].parts[0].text
-            relevance = 5 if '"url": "https://low.com"' in prompt_text else 8
-            response_data = {"summary": "s", "key_points": [], "tone": "t", "relevance": relevance}
+            is_low = '"url": "https://low.com"' in prompt_text
+            response_data = {
+                "summary": "Resumo",
+                "topics": [] if is_low else ["Tema"],
+                "actions": [],
+            }
             mock_response = MagicMock()
             mock_part = MagicMock()
             mock_part.text = json.dumps(response_data)
@@ -147,11 +159,11 @@ def test_relevance_filtering(mock_guess_type, tmp_path):
     mock_client = VarRelevanceClient()
     enricher = ContentEnricher(config)
     result = asyncio.run(enricher.enrich([(date.today(), content)], client=mock_client))
-    
+
     assert len(result.items) == 2
     relevant_items = result.relevant_items(config.relevance_threshold)
     assert len(relevant_items) == 1
-    assert relevant_items[0].analysis.relevance >= 6
+    assert relevant_items[0].analysis.relevance >= 3
 
 
 if __name__ == "__main__":

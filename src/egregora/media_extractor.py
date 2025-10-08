@@ -272,14 +272,14 @@ class MediaExtractor:
             frame = frame.with_columns(
                 pl.col("timestamp").dt.strftime("%H:%M").alias("time")
             )
-        fallback = pl.format(
-            "{time} — {author}: {message}",
-            time=pl.when(pl.col("time").is_not_null())
+        time_expr = (
+            pl.when(pl.col("time").is_not_null())
             .then(pl.col("time"))
-            .otherwise(pl.col("timestamp").dt.strftime("%H:%M")),
-            author=pl.col("author").fill_null(""),
-            message=pl.col("message").fill_null(""),
+            .otherwise(pl.col("timestamp").dt.strftime("%H:%M"))
         )
+        author_expr = pl.col("author").fill_null("")
+        message_expr = pl.col("message").fill_null("")
+        fallback = pl.format("{} — {}: {}", time_expr, author_expr, message_expr)
 
         candidates: list[pl.Expr] = [fallback]
 
@@ -310,7 +310,7 @@ class MediaExtractor:
         matches = lines.select(
             pl.col("__line")
             .fill_null("")
-            .str.replace_all(cls._directional_marks, "")
+            .str.replace_all(cls._directional_marks.pattern, "")
             .str.extract_all(cls._attachment_pattern.pattern)
             .alias("__matches")
         )
@@ -319,8 +319,8 @@ class MediaExtractor:
             pl.col("__matches")
             .list.eval(
                 pl.element()
-                .str.replace_all(cls._attachment_pattern.pattern, r"\1")
-                .str.strip()
+                .str.replace_all(r"(?i)\s*\(arquivo anexado\)", "")
+                .str.strip_chars()
             )
             .alias("__clean")
         )

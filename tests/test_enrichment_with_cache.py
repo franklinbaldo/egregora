@@ -22,8 +22,8 @@ def cache_manager(tmp_path: Path) -> CacheManager:
 async def _fake_analysis(self, reference, *, client=None) -> AnalysisResult:
     return AnalysisResult(
         summary="Conteúdo resumido",
-        key_points=["a", "b"],
-        tone="informativo",
+        topics=["a", "b"],
+        actions=[],
         relevance=5,
         raw_response="{}",
     )
