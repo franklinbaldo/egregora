@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import csv
 import re
 import shutil
 import sys
@@ -97,7 +98,45 @@ def process_backlog(
         for slug, count in summary.per_group.items():
             print(f"  • {slug}: {count} post(s)")
 
+        metrics_path = processor.config.enrichment.metrics_csv_path
+        if metrics_path:
+            latest = _load_latest_metrics(Path(metrics_path))
+            if latest:
+                print("\n📈 Último enriquecimento registrado:")
+                print(
+                    "  - Início: {started_at} (duração {duration_seconds}s)".format(
+                        started_at=latest.get("started_at", "?"),
+                        duration_seconds=latest.get("duration_seconds", "?"),
+                    )
+                )
+                print(
+                    "  - Relevantes/Analisados: {relevant_items}/{analyzed_items} (limiar ≥{threshold})".format(
+                        relevant_items=latest.get("relevant_items", "0"),
+                        analyzed_items=latest.get("analyzed_items", "0"),
+                        threshold=latest.get("threshold", "?"),
+                    )
+                )
+                domains = latest.get("domains") or "-"
+                print(f"  - Domínios: {domains}")
+                errors = latest.get("errors") or "-"
+                print(f"  - Erros: {errors}")
+
     return summary
+
+
+def _load_latest_metrics(path: Path) -> dict[str, str] | None:
+    if not path.exists() or not path.is_file():
+        return None
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return None
+
+    if not rows:
+        return None
+    return rows[-1]
 
 
 def main() -> None:

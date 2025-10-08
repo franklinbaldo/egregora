@@ -35,6 +35,7 @@ This review captures the current state of the documentation site and highlights 
 ### 5. Contributor Experience
 - Document the build process, preview commands, and translation guidelines in a dedicated contributor page.
 - Encourage small, frequent documentation pull requests to keep both languages in sync.
+- Surface the new enrichment metrics CSV (`metrics/enrichment_run.csv`) in contributor tooling so reviewers can confirm relevance counts and errors without scraping logs.
 
 ## Next Steps
 

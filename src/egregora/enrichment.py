@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
+import logging
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+from pathlib import Path
 from time import perf_counter
 from typing import Sequence, TYPE_CHECKING
 
@@ -20,10 +23,13 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 from urllib.parse import urlparse
 
 import polars as pl
+from pydantic import ValidationError
+from pydantic_ai import Agent
 
 from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
+from .llm_models import ActionItem, SummaryResponse
 from .schema import ensure_message_schema
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -35,11 +41,19 @@ MESSAGE_RE = re.compile(
 URL_RE = re.compile(r"(https?://[^\s>\)]+)", re.IGNORECASE)
 MEDIA_TOKEN_RE = re.compile(r"<m[íi]dia oculta>", re.IGNORECASE)
 
-CACHE_RECORD_VERSION = "1.0"
+CACHE_RECORD_VERSION = "2.0"
+
+SUMMARY_AGENT = Agent(output_type=SummaryResponse)
 
 MEDIA_PLACEHOLDER_SUMMARY = (
     "Mídia sem descrição compartilhada; peça detalhes se necessário."
 )
+
+
+COLUMN_SEPARATOR = "; "
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -47,11 +61,30 @@ class AnalysisResult:
     """Structured information returned by Gemini."""
 
     summary: str | None
-    key_points: list[str]
-    tone: str | None
+    topics: list[str]
+    actions: list[ActionItem]
     relevance: int
     raw_response: str | None
+    tone: str | None = None
     error: str | None = None
+
+    @property
+    def key_points(self) -> list[str]:
+        return list(self.topics)
+
+    @key_points.setter
+    def key_points(self, value: Sequence[str] | None) -> None:
+        if not value:
+            self.topics = []
+            return
+        cleaned: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            stripped = item.strip()
+            if stripped:
+                cleaned.append(stripped)
+        self.topics = cleaned
 
     @property
     def is_successful(self) -> bool:
@@ -101,6 +134,7 @@ class EnrichmentResult:
     items: list[EnrichedItem] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duration_seconds: float = 0.0
+    metrics: "EnrichmentRunMetrics | None" = None
 
     def relevant_items(self, threshold: int) -> list[EnrichedItem]:
         return [item for item in self.items if item.relevance >= threshold]
@@ -128,18 +162,54 @@ class EnrichmentResult:
                 )
             if analysis and analysis.summary:
                 lines.append(f"   Resumo: {analysis.summary}")
-            if analysis and analysis.key_points:
-                lines.append("   Pontos-chave:")
-                for point in analysis.key_points:
+            if analysis and analysis.topics:
+                lines.append("   Tópicos principais:")
+                for point in analysis.topics:
                     lines.append(f"     - {point}")
-            if analysis and analysis.tone:
-                lines.append(f"   Tom: {analysis.tone}")
+            if analysis and analysis.actions:
+                lines.append("   Ações sugeridas:")
+                for action in analysis.actions:
+                    lines.append(f"     - {action.format_bullet()}")
             if analysis:
                 lines.append(f"   Relevância estimada: {analysis.relevance}/5")
             if ref.context_before or ref.context_after:
                 lines.append(f"   Contexto: {ref.context_block()}")
         lines.append("<<<ENRIQUECIMENTO_FIM>>>")
         return "\n".join(lines)
+
+
+@dataclass(slots=True)
+class EnrichmentRunMetrics:
+    """Metrics captured for a single enrichment execution."""
+
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: float
+    total_references: int
+    analyzed_items: int
+    relevant_items: int
+    error_count: int
+    domains: tuple[str, ...]
+    threshold: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "started_at": self.started_at.isoformat(),
+            "finished_at": self.finished_at.isoformat(),
+            "duration_seconds": round(self.duration_seconds, 4),
+            "total_references": self.total_references,
+            "analyzed_items": self.analyzed_items,
+            "relevant_items": self.relevant_items,
+            "error_count": self.error_count,
+            "domains": list(self.domains),
+            "threshold": self.threshold,
+        }
+
+    def to_csv_row(self, errors: Sequence[str]) -> dict[str, object]:
+        base = self.to_dict()
+        base["domains"] = COLUMN_SEPARATOR.join(self.domains)
+        base["errors"] = COLUMN_SEPARATOR.join(errors)
+        return base
 
 
 class ContentEnricher:
@@ -155,6 +225,17 @@ class ContentEnricher:
         self._config = config
         self._cache = cache_manager
         self._gemini_manager = gemini_manager
+        self._metrics: dict[str, int] = {
+            "llm_calls": 0,
+            "estimated_tokens": 0,
+            "cache_hits": 0,
+        }
+
+    @property
+    def metrics(self) -> dict[str, int]:
+        """Return LLM usage metrics for observability."""
+
+        return dict(self._metrics)
 
     async def enrich(
         self,
@@ -165,19 +246,38 @@ class ContentEnricher:
         """Run the enrichment pipeline leveraging Gemini's URL ingestion."""
 
         start = perf_counter()
+        started_at = datetime.now(timezone.utc)
+        references: list[ContentReference] = []
         if not self._config.enabled:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         references = self._extract_references(transcripts)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
-        return await self._enrich_references(
+        result = await self._enrich_references(
             references,
             client=client,
+        )
+        return self._finalize_result(
+            started_at=started_at,
             start=start,
+            references=references,
+            result=result,
         )
 
     async def enrich_dataframe(
@@ -190,23 +290,48 @@ class ContentEnricher:
         """DataFrame-native enrichment pipeline using Polars expressions."""
 
         start = perf_counter()
+        started_at = datetime.now(timezone.utc)
+        references: list[ContentReference] = []
         if not self._config.enabled:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         frame = self._prepare_enrichment_frame(df, target_dates)
         if frame is None:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
         references = self._extract_references_from_frame(frame)
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            result = EnrichmentResult()
+            return self._finalize_result(
+                started_at=started_at,
+                start=start,
+                references=references,
+                result=result,
+            )
 
-        return await self._enrich_references(
+        result = await self._enrich_references(
             references,
             client=client,
+        )
+        return self._finalize_result(
+            started_at=started_at,
             start=start,
+            references=references,
+            result=result,
         )
 
     async def _analyze_reference(
@@ -219,8 +344,8 @@ class ContentEnricher:
         if manager is None and (types is None or client is None):
             return AnalysisResult(
                 summary=None,
-                key_points=[],
-                tone=None,
+                topics=[],
+                actions=[],
                 relevance=1,
                 raw_response=None,
                 error="Cliente Gemini indisponível para análise.",
@@ -259,8 +384,8 @@ class ContentEnricher:
         except GeminiQuotaError as exc:
             return AnalysisResult(
                 summary=None,
-                key_points=[],
-                tone=None,
+                topics=[],
+                actions=[],
                 relevance=1,
                 raw_response=None,
                 error=str(exc),
@@ -268,14 +393,16 @@ class ContentEnricher:
         except Exception as exc:  # pragma: no cover - depends on network/model
             return AnalysisResult(
                 summary=None,
-                key_points=[],
-                tone=None,
+                topics=[],
+                actions=[],
                 relevance=1,
                 raw_response=None,
                 error=str(exc),
             )
 
-        return self._parse_response(response)
+        analysis = self._parse_response(response)
+        self._record_llm_usage(prompt, analysis.raw_response)
+        return analysis
 
     def _store_in_cache(
         self, reference: ContentReference, analysis: AnalysisResult
@@ -283,8 +410,15 @@ class ContentEnricher:
         if not self._cache or not reference.url:
             return
 
-        enrichment_payload = asdict(analysis)
-        enrichment_payload.pop("error", None)
+        enrichment_payload = {
+            "summary": analysis.summary,
+            "topics": list(analysis.topics),
+            "key_points": list(analysis.topics),
+            "actions": [item.model_dump() for item in analysis.actions],
+            "relevance": analysis.relevance,
+            "raw_response": analysis.raw_response,
+            "tone": analysis.tone,
+        }
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         domain = urlparse(reference.url).netloc if reference.url else None
         context = {
@@ -319,12 +453,26 @@ class ContentEnricher:
             return None
 
         summary = self._coerce_string(enrichment.get("summary"))
-        key_points = [
+        raw_topics = enrichment.get("topics")
+        if not isinstance(raw_topics, list):
+            raw_topics = enrichment.get("key_points") or []
+        topics = [
             point.strip()
-            for point in enrichment.get("key_points", [])
-            if isinstance(point, str)
+            for point in raw_topics
+            if isinstance(point, str) and point.strip()
         ]
         tone = self._coerce_string(enrichment.get("tone"))
+
+        actions: list[ActionItem] = []
+        for action_payload in enrichment.get("actions", []) or []:
+            try:
+                action = ActionItem.model_validate(action_payload)
+            except ValidationError:
+                continue
+            cleaned = action.description.strip()
+            if not cleaned:
+                continue
+            actions.append(action.model_copy(update={"description": cleaned}))
         relevance = enrichment.get("relevance")
         if not isinstance(relevance, int):
             relevance = 1
@@ -335,10 +483,11 @@ class ContentEnricher:
 
         return AnalysisResult(
             summary=summary,
-            key_points=key_points,
-            tone=tone,
+            topics=topics,
+            actions=actions,
             relevance=relevance,
             raw_response=raw_response,
+            tone=tone,
         )
 
     @staticmethod
@@ -351,41 +500,55 @@ class ContentEnricher:
         if raw_text is None:
             return AnalysisResult(
                 summary=None,
-                key_points=[],
-                tone=None,
+                topics=[],
+                actions=[],
                 relevance=1,
                 raw_response=None,
                 error="Resposta vazia do modelo.",
             )
 
         raw_text = raw_text.strip()
+        payload: SummaryResponse | None = None
         try:
-            payload = json.loads(raw_text)
-        except json.JSONDecodeError:
-            payload = {
-                "summary": raw_text,
-                "key_points": [],
-                "tone": None,
-                "relevance": 1,
-            }
+            payload = SUMMARY_AGENT.output_type.model_validate_json(raw_text)
+        except ValidationError:
+            try:
+                data = json.loads(raw_text)
+            except json.JSONDecodeError:
+                data = None
+            if isinstance(data, dict):
+                try:
+                    payload = SUMMARY_AGENT.output_type.model_validate(data)
+                except ValidationError:
+                    payload = None
 
-        summary = ContentEnricher._coerce_string(payload.get("summary"))
-        key_points = [
-            point.strip()
-            for point in payload.get("key_points", [])
-            if isinstance(point, str)
-        ]
-        tone = ContentEnricher._coerce_string(payload.get("tone"))
-        relevance = payload.get("relevance")
-        if not isinstance(relevance, int):
-            relevance = 1
+        if payload is None:
+            summary = ContentEnricher._coerce_string(raw_text)
+            return AnalysisResult(
+                summary=summary,
+                topics=[],
+                actions=[],
+                relevance=1,
+                raw_response=raw_text,
+                tone=None,
+                error="Resposta fora do formato esperado; usando fallback seguro.",
+            )
+
+        summary = ContentEnricher._coerce_string(payload.summary)
+        topics = payload.sanitized_topics()
+        actions = payload.sanitized_actions()
+        tone = payload.sanitized_tone()
+        relevance = payload.sanitized_relevance()
+        if relevance is None:
+            relevance = ContentEnricher._estimate_relevance(summary, topics, actions)
 
         return AnalysisResult(
             summary=summary,
-            key_points=key_points,
-            tone=tone,
+            topics=topics,
+            actions=actions,
             relevance=relevance,
             raw_response=raw_text,
+            tone=tone,
         )
 
     def _build_prompt(self, reference: ContentReference) -> str:
@@ -401,10 +564,11 @@ class ContentEnricher:
         return (
             "Você analisa conteúdos compartilhados em um grupo de WhatsApp. "
             "Considere o contexto das mensagens e o link anexado. Responda em JSON "
-            "com as chaves: summary (string), key_points (lista com até 3 itens), "
-            "tone (string curta) e relevance (inteiro de 1 a 5 indicando utilidade "
-            "para o grupo). Se não houver dados suficientes, defina relevance = 1 e "
-            "explique o motivo no summary. Dados do chat:\n"
+            "com as chaves: summary (string em pt-BR), topics (lista com até 3 temas "
+            "relevantes em string) e actions (lista com até 3 objetos contendo os "
+            "campos description, owner opcional e priority opcional). Mantenha as "
+            "listas vazias quando não houver informações úteis e explique incertezas "
+            "no summary. Dados do chat:\n"
             f"{json.dumps(context, ensure_ascii=False, indent=2)}"
         )
 
@@ -414,6 +578,28 @@ class ContentEnricher:
             stripped = value.strip()
             return stripped or None
         return None
+
+    def _record_llm_usage(self, prompt: str, response_text: str | None) -> None:
+        self._metrics["llm_calls"] = self._metrics.get("llm_calls", 0) + 1
+        estimated = max(1, (len(prompt) + len(response_text or "")) // 4)
+        self._metrics["estimated_tokens"] = self._metrics.get("estimated_tokens", 0) + estimated
+
+    @staticmethod
+    def _estimate_relevance(
+        summary: str | None,
+        topics: Sequence[str],
+        actions: Sequence[ActionItem],
+    ) -> int:
+        """Derive a lightweight relevance score from structured data."""
+
+        score = 1
+        if summary:
+            score = max(score, 2)
+        if topics:
+            score = max(score, 3)
+        if actions:
+            score = max(score, 5)
+        return score
 
     def _extract_references(
         self, transcripts: Sequence[tuple[date, str]]
@@ -509,7 +695,6 @@ class ContentEnricher:
         references: Sequence[ContentReference],
         *,
         client: genai.Client | None,
-        start: float,
     ) -> EnrichmentResult:
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
@@ -518,8 +703,8 @@ class ContentEnricher:
             if reference.is_media_placeholder or not reference.url:
                 analysis = AnalysisResult(
                     summary=MEDIA_PLACEHOLDER_SUMMARY,
-                    key_points=["Mensagem sugere conteúdo multimídia sem transcrição."],
-                    tone="indeterminado",
+                    topics=["Conteúdo multimídia sem transcrição"],
+                    actions=[],
                     relevance=max(1, self._config.relevance_threshold - 1),
                     raw_response=None,
                 )
@@ -531,6 +716,7 @@ class ContentEnricher:
                 if cached_payload:
                     cached_item = self._analysis_from_cache(cached_payload)
             if cached_item:
+                self._metrics["cache_hits"] = self._metrics.get("cache_hits", 0) + 1
                 return EnrichedItem(reference=reference, analysis=cached_item)
 
             async with semaphore_analysis:
@@ -555,19 +741,15 @@ class ContentEnricher:
                 timeout=self._config.max_total_enrichment_time,
             )
         except asyncio.TimeoutError:
-            duration = perf_counter() - start
             return EnrichmentResult(
                 items=[],
                 errors=[
                     "Tempo limite atingido ao enriquecer conteúdos (max_total_enrichment_time)."
                 ],
-                duration_seconds=duration,
             )
 
-        duration = perf_counter() - start
         result = EnrichmentResult(
             items=list(items),
-            duration_seconds=duration,
         )
         for item in result.items:
             if item.error:
@@ -575,6 +757,96 @@ class ContentEnricher:
                     f"Falha ao processar {item.reference.url or 'mídia'}: {item.error}"
                 )
         return result
+
+    def _finalize_result(
+        self,
+        *,
+        started_at: datetime,
+        start: float,
+        references: Sequence[ContentReference],
+        result: EnrichmentResult,
+    ) -> EnrichmentResult:
+        duration = perf_counter() - start
+        result.duration_seconds = duration
+
+        finished_at = datetime.now(timezone.utc)
+        metrics = EnrichmentRunMetrics(
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration,
+            total_references=len(references),
+            analyzed_items=len(result.items),
+            relevant_items=self._count_relevant_items(result.items),
+            error_count=len(result.errors),
+            domains=self._collect_domains(references),
+            threshold=max(1, self._config.relevance_threshold),
+        )
+        result.metrics = metrics
+        self._log_metrics(metrics, result.errors)
+        self._write_metrics_csv(metrics, result.errors)
+        return result
+
+    def _count_relevant_items(self, items: Sequence[EnrichedItem]) -> int:
+        threshold = max(1, self._config.relevance_threshold)
+        return sum(
+            1
+            for item in items
+            if item.analysis and item.analysis.relevance >= threshold
+        )
+
+    @staticmethod
+    def _collect_domains(references: Sequence[ContentReference]) -> tuple[str, ...]:
+        domains = {
+            urlparse(reference.url).netloc
+            for reference in references
+            if reference.url
+        }
+        return tuple(sorted(filter(None, domains)))
+
+    def _log_metrics(
+        self,
+        metrics: "EnrichmentRunMetrics",
+        errors: Sequence[str],
+    ) -> None:
+        domains_display = ", ".join(metrics.domains) if metrics.domains else "-"
+        payload = metrics.to_dict()
+        payload["errors"] = list(errors)
+        logger.info(
+            "Enrichment: %d/%d relevant items (≥%d) in %.2fs; domains=%s; errors=%d",
+            metrics.relevant_items,
+            metrics.analyzed_items,
+            metrics.threshold,
+            metrics.duration_seconds,
+            domains_display,
+            metrics.error_count,
+            extra={"enrichment_metrics": payload},
+        )
+
+    def _write_metrics_csv(
+        self,
+        metrics: "EnrichmentRunMetrics",
+        errors: Sequence[str],
+    ) -> None:
+        path_value = self._config.metrics_csv_path
+        if path_value is None:
+            return
+
+        path = Path(path_value)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+
+        row = metrics.to_csv_row(errors)
+        write_header = not path.exists()
+        try:
+            with path.open("a", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(row.keys()))
+                if write_header:
+                    writer.writeheader()
+                writer.writerow(row)
+        except OSError:
+            return
 
     def _prepare_enrichment_frame(
         self,
@@ -601,7 +873,7 @@ class ContentEnricher:
 
         fallback = pl.format(
             "{} — {}: {}",
-            pl.col("__time_str"),
+            pl.col("__time_str").fill_null(""),
             pl.col("author"),
             pl.col("message"),
         )
@@ -897,10 +1169,11 @@ def get_url_contexts_dataframe(
 
 __all__ = [
     "AnalysisResult",
-    "ContentEnricher", 
+    "ContentEnricher",
     "ContentReference",
     "EnrichedItem",
     "EnrichmentResult",
+    "EnrichmentRunMetrics",
     "extract_urls_from_dataframe",
     "get_url_contexts_dataframe",
 ]

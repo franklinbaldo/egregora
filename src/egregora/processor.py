@@ -396,6 +396,18 @@ class UnifiedProcessor:
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )
+                metrics = enrichment_result.metrics
+                if metrics:
+                    domains = ", ".join(metrics.domains) if metrics.domains else "-"
+                    logger.info(
+                        "    [Enriquecimento] %d/%d itens relevantes (≥%d) em %.2fs; domínios=%s; erros=%d",
+                        metrics.relevant_items,
+                        metrics.analyzed_items,
+                        metrics.threshold,
+                        metrics.duration_seconds,
+                        domains,
+                        metrics.error_count,
+                    )
 
             # RAG
             rag_context = None

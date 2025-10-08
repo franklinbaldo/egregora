@@ -72,6 +72,16 @@ class EnrichmentConfig(BaseModel):
         ),
     )
     max_total_enrichment_time: float = 120.0
+    metrics_csv_path: Path | None = Field(
+        default_factory=lambda: Path("metrics/enrichment_run.csv")
+    )
+
+    @field_validator("metrics_csv_path", mode="before")
+    @classmethod
+    def _validate_metrics_path(cls, value: Any) -> Path | None:
+        if value is None or value == "":
+            return None
+        return Path(value)
 
 
 class AnonymizationConfig(BaseModel):
