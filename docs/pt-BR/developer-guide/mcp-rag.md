@@ -32,6 +32,8 @@ A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 uv run egregora mcp --config egregora.toml
 # Alias antigo (ainda suportado):
 uv run egregora-mcp --config egregora.toml
+# Execução direta do script (útil para Claude Desktop/IDEs):
+uv run python scripts/start_mcp_server.py --config egregora.toml
 ```
 
 O comando reutiliza o subcomando Typer do `egregora`, exibindo erros amigáveis
