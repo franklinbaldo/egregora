@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Dict, List
 
 from llama_index.core.schema import NodeWithScore
 
 from ..rag.index import PostRAG
 from ..rag.keyword_utils import KeywordProvider, build_llm_keyword_provider
+from ..rag.keyword_utils import KeywordProvider
 from ..rag.query_gen import QueryGenerator
 from .config import MCPServerConfig
 from .tools import format_post_listing, format_search_hits
