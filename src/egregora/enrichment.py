@@ -24,6 +24,7 @@ import polars as pl
 from .cache_manager import CacheManager
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
+from .schema import ensure_message_schema
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
@@ -173,70 +174,40 @@ class ContentEnricher:
         if not references:
             return EnrichmentResult(duration_seconds=perf_counter() - start)
 
-        concurrency = max(1, self._config.max_concurrent_analyses)
-        semaphore_analysis = asyncio.Semaphore(concurrency)
-
-        async def _process(reference: ContentReference) -> EnrichedItem:
-            if reference.is_media_placeholder or not reference.url:
-                analysis = AnalysisResult(
-                    summary=MEDIA_PLACEHOLDER_SUMMARY,
-                    key_points=["Mensagem sugere conteúdo multimídia sem transcrição."],
-                    tone="indeterminado",
-                    relevance=max(1, self._config.relevance_threshold - 1),
-                    raw_response=None,
-                )
-                return EnrichedItem(reference=reference, analysis=analysis)
-
-            cached_item: AnalysisResult | None = None
-            if self._cache:
-                cached_payload = self._cache.get(reference.url)
-                if cached_payload:
-                    cached_item = self._analysis_from_cache(cached_payload)
-            if cached_item:
-                return EnrichedItem(reference=reference, analysis=cached_item)
-
-            async with semaphore_analysis:
-                analysis = await self._analyze_reference(
-                    reference,
-                    client=client,
-                )
-            if analysis.error:
-                return EnrichedItem(
-                    reference=reference,
-                    analysis=None,
-                    error=analysis.error,
-                )
-
-            if self._cache:
-                self._store_in_cache(reference, analysis)
-            return EnrichedItem(reference=reference, analysis=analysis)
-
-        try:
-            items = await asyncio.wait_for(
-                asyncio.gather(*(_process(reference) for reference in references)),
-                timeout=self._config.max_total_enrichment_time,
-            )
-        except asyncio.TimeoutError:
-            duration = perf_counter() - start
-            return EnrichmentResult(
-                items=[],
-                errors=[
-                    "Tempo limite atingido ao enriquecer conteúdos (max_total_enrichment_time)."
-                ],
-                duration_seconds=duration,
-            )
-
-        duration = perf_counter() - start
-        result = EnrichmentResult(
-            items=list(items),
-            duration_seconds=duration,
+        return await self._enrich_references(
+            references,
+            client=client,
+            start=start,
         )
-        for item in result.items:
-            if item.error:
-                result.errors.append(
-                    f"Falha ao processar {item.reference.url or 'mídia'}: {item.error}"
-                )
-        return result
+
+    async def enrich_dataframe(
+        self,
+        df: pl.DataFrame,
+        *,
+        client: genai.Client | None,
+        target_dates: Sequence[date] | None = None,
+    ) -> EnrichmentResult:
+        """DataFrame-native enrichment pipeline using Polars expressions."""
+
+        start = perf_counter()
+        if not self._config.enabled:
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
+        frame = self._prepare_enrichment_frame(df, target_dates)
+        if frame is None:
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
+        references = self._extract_references_from_frame(frame)
+        references = references[: self._config.max_links]
+
+        if not references:
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
+        return await self._enrich_references(
+            references,
+            client=client,
+            start=start,
+        )
 
     async def _analyze_reference(
         self,
@@ -525,10 +496,257 @@ class ContentEnricher:
         client: genai.Client | None,
         target_dates: list[date] | None = None,
     ) -> EnrichmentResult:
-        """Enhanced DataFrame-native enrichment pipeline."""
+        """Backward compatible wrapper around :meth:`enrich_dataframe`."""
 
-        transcripts = self._dataframe_to_transcripts(df, target_dates)
-        return await self.enrich(transcripts, client=client)
+        return await self.enrich_dataframe(
+            df,
+            client=client,
+            target_dates=target_dates,
+        )
+
+    async def _enrich_references(
+        self,
+        references: Sequence[ContentReference],
+        *,
+        client: genai.Client | None,
+        start: float,
+    ) -> EnrichmentResult:
+        concurrency = max(1, self._config.max_concurrent_analyses)
+        semaphore_analysis = asyncio.Semaphore(concurrency)
+
+        async def _process(reference: ContentReference) -> EnrichedItem:
+            if reference.is_media_placeholder or not reference.url:
+                analysis = AnalysisResult(
+                    summary=MEDIA_PLACEHOLDER_SUMMARY,
+                    key_points=["Mensagem sugere conteúdo multimídia sem transcrição."],
+                    tone="indeterminado",
+                    relevance=max(1, self._config.relevance_threshold - 1),
+                    raw_response=None,
+                )
+                return EnrichedItem(reference=reference, analysis=analysis)
+
+            cached_item: AnalysisResult | None = None
+            if self._cache:
+                cached_payload = self._cache.get(reference.url)
+                if cached_payload:
+                    cached_item = self._analysis_from_cache(cached_payload)
+            if cached_item:
+                return EnrichedItem(reference=reference, analysis=cached_item)
+
+            async with semaphore_analysis:
+                analysis = await self._analyze_reference(
+                    reference,
+                    client=client,
+                )
+            if analysis.error:
+                return EnrichedItem(
+                    reference=reference,
+                    analysis=None,
+                    error=analysis.error,
+                )
+
+            if self._cache:
+                self._store_in_cache(reference, analysis)
+            return EnrichedItem(reference=reference, analysis=analysis)
+
+        try:
+            items = await asyncio.wait_for(
+                asyncio.gather(*(_process(reference) for reference in references)),
+                timeout=self._config.max_total_enrichment_time,
+            )
+        except asyncio.TimeoutError:
+            duration = perf_counter() - start
+            return EnrichmentResult(
+                items=[],
+                errors=[
+                    "Tempo limite atingido ao enriquecer conteúdos (max_total_enrichment_time)."
+                ],
+                duration_seconds=duration,
+            )
+
+        duration = perf_counter() - start
+        result = EnrichmentResult(
+            items=list(items),
+            duration_seconds=duration,
+        )
+        for item in result.items:
+            if item.error:
+                result.errors.append(
+                    f"Falha ao processar {item.reference.url or 'mídia'}: {item.error}"
+                )
+        return result
+
+    def _prepare_enrichment_frame(
+        self,
+        df: pl.DataFrame,
+        target_dates: Sequence[date] | None,
+    ) -> pl.DataFrame | None:
+        frame = ensure_message_schema(df)
+        if target_dates:
+            frame = frame.filter(pl.col("date").is_in(list(target_dates)))
+
+        if frame.is_empty():
+            return None
+
+        frame = frame.sort(["date", "timestamp"])
+
+        frame = frame.with_columns(
+            pl.col("message").fill_null("").alias("message"),
+            pl.col("author").fill_null("").alias("author"),
+        )
+
+        frame = frame.with_columns(
+            pl.col("timestamp").dt.strftime("%H:%M").alias("__time_str")
+        )
+
+        fallback = pl.format(
+            "{time} — {author}: {message}",
+            time=pl.col("__time_str"),
+            author=pl.col("author"),
+            message=pl.col("message"),
+        )
+
+        context_candidates: list[pl.Expr] = [fallback]
+
+        if "original_line" in frame.columns:
+            context_candidates.insert(
+                0,
+                pl.when(
+                    pl.col("original_line").is_not_null()
+                    & (pl.col("original_line").str.len_chars() > 0)
+                )
+                .then(pl.col("original_line"))
+                .otherwise(None),
+            )
+
+        if "tagged_line" in frame.columns:
+            context_candidates.insert(
+                0,
+                pl.when(
+                    pl.col("tagged_line").is_not_null()
+                    & (pl.col("tagged_line").str.len_chars() > 0)
+                )
+                .then(pl.col("tagged_line"))
+                .otherwise(None),
+            )
+
+        frame = frame.with_columns(
+            pl.coalesce(*context_candidates).alias("__context_line")
+        )
+
+        frame = frame.with_columns(
+            pl.col("message")
+            .str.extract_all(URL_RE.pattern)
+            .alias("__urls"),
+            pl.col("message")
+            .str.contains(MEDIA_TOKEN_RE.pattern)
+            .alias("__media_placeholder"),
+        )
+
+        window = max(self._config.context_window, 0)
+        if window > 0:
+            before_cols = [
+                pl.col("__context_line").shift(i).over("date").alias(f"__before_{i}")
+                for i in range(window, 0, -1)
+            ]
+            after_cols = [
+                pl.col("__context_line").shift(-i).over("date").alias(f"__after_{i}")
+                for i in range(1, window + 1)
+            ]
+            frame = frame.with_columns(before_cols + after_cols)
+            frame = frame.with_columns(
+                pl.concat_list(
+                    [pl.col(f"__before_{i}") for i in range(window, 0, -1)]
+                )
+                .list.drop_nulls()
+                .alias("__context_before"),
+                pl.concat_list(
+                    [pl.col(f"__after_{i}") for i in range(1, window + 1)]
+                )
+                .list.drop_nulls()
+                .alias("__context_after"),
+            )
+            drop_cols = [
+                *(f"__before_{i}" for i in range(window, 0, -1)),
+                *(f"__after_{i}" for i in range(1, window + 1)),
+            ]
+            frame = frame.drop(drop_cols)
+        else:
+            frame = frame.with_columns(
+                pl.lit([], dtype=pl.List(pl.String)).alias("__context_before"),
+                pl.lit([], dtype=pl.List(pl.String)).alias("__context_after"),
+            )
+
+        return frame
+
+    def _extract_references_from_frame(
+        self, frame: pl.DataFrame
+    ) -> list[ContentReference]:
+        references: list[ContentReference] = []
+        seen: set[tuple[str | None, str]] = set()
+
+        url_rows = (
+            frame.filter(pl.col("__urls").list.lengths() > 0)
+            .explode("__urls")
+            .filter(pl.col("__urls").str.len_chars() > 0)
+        )
+
+        for row in url_rows.iter_rows(named=True):
+            url = row["__urls"]
+            sender = row.get("author") or None
+            key = (url, sender or "")
+            if key in seen:
+                continue
+            seen.add(key)
+
+            before_values = row.get("__context_before") or []
+            after_values = row.get("__context_after") or []
+            before = [item for item in before_values if item]
+            after = [item for item in after_values if item]
+
+            references.append(
+                ContentReference(
+                    date=row["date"],
+                    url=url,
+                    sender=sender,
+                    timestamp=row.get("__time_str"),
+                    message=row.get("message", ""),
+                    context_before=before,
+                    context_after=after,
+                )
+            )
+
+        placeholder_rows = frame.filter(
+            pl.col("__media_placeholder")
+            & (pl.col("__urls").list.lengths() == 0)
+        )
+
+        for row in placeholder_rows.iter_rows(named=True):
+            context_line = row.get("__context_line", "") or ""
+            key = (None, context_line)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            before_values = row.get("__context_before") or []
+            after_values = row.get("__context_after") or []
+            before = [item for item in before_values if item]
+            after = [item for item in after_values if item]
+
+            references.append(
+                ContentReference(
+                    date=row["date"],
+                    url=None,
+                    sender=row.get("author") or None,
+                    timestamp=row.get("__time_str"),
+                    message=row.get("message", ""),
+                    context_before=before,
+                    context_after=after,
+                    is_media_placeholder=True,
+                )
+            )
+
+        return references
 
     def _dataframe_to_transcripts(
         self,

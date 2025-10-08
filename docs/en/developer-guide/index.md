@@ -12,3 +12,4 @@ Reference material for engineers evolving the ingestion, enrichment, and reporti
 - [MCP RAG Integration](mcp-rag.md)
 - [Privacy Implementation Plan](privacy-implementation.md)
 - [Refactoring Plan](plan.md)
+- [ADR-006: DataFrame-native pipeline](ADR-006-dataframe-pipeline.md)

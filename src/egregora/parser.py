@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+import unicodedata
 import zipfile
 from datetime import datetime
 from functools import lru_cache
@@ -16,6 +17,7 @@ import polars as pl
 
 from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
+from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,8 @@ def parse_export(
         logger.warning("No messages found in %s", export.zip_path)
         return pl.DataFrame()
 
-    return pl.DataFrame(rows).sort("timestamp")
+    df = pl.DataFrame(rows).sort("timestamp")
+    return ensure_message_schema(df)
 
 
 def parse_multiple(
@@ -69,9 +72,9 @@ def parse_multiple(
             frames.append(df)
 
     if not frames:
-        return pl.DataFrame()
+        return ensure_message_schema(pl.DataFrame())
 
-    return pl.concat(frames).sort("timestamp")
+    return ensure_message_schema(pl.concat(frames).sort("timestamp"))
 
 
 _LINE_PATTERN = re.compile(
@@ -87,6 +90,13 @@ _LINE_PATTERN = re.compile(
 )
 
 
+def _normalize_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    normalized = normalized.replace("\u202f", " ")
+    normalized = _INVISIBLE_MARKS.sub("", normalized)
+    return normalized
+
+
 def _parse_messages(
     lines: Iterable[str],
     export: WhatsAppExport,
@@ -99,7 +109,8 @@ def _parse_messages(
     current_date = export.export_date
 
     for raw_line in lines:
-        line = raw_line.strip().replace("\u202f", " ")
+        normalized_line = _normalize_text(raw_line)
+        line = normalized_line.strip()
         if not line:
             continue
 
@@ -142,11 +153,12 @@ def _parse_messages(
                 "timestamp": datetime.combine(msg_date, msg_time),
                 "date": msg_date,
                 "time": msg_time.strftime("%H:%M"),
-                "author": author.strip(),
-                "message": message.strip(),
+                "author": _normalize_text(author.strip()),
+                "message": _normalize_text(message.strip()),
                 "group_slug": export.group_slug,
                 "group_name": export.group_name,
                 "original_line": line,
+                "tagged_line": None,
             }
         )
 
@@ -212,3 +224,5 @@ def _load_default_system_filters() -> tuple[str, ...]:
 
 
 _SYSTEM_FILTERS_OVERRIDE: tuple[str, ...] | None = None
+_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+

@@ -13,6 +13,8 @@ from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable
 
+import polars as pl
+
 MEDIA_TYPE_BY_EXTENSION = {
     # Images
     ".jpg": "image",
@@ -200,12 +202,127 @@ class MediaExtractor:
         return MediaExtractor._attachment_pattern.sub(replacement, text)
 
     @classmethod
+    def replace_media_references_dataframe(
+        cls,
+        df: pl.DataFrame,
+        media_files: Dict[str, MediaFile],
+        *,
+        public_paths: Dict[str, str] | None = None,
+        column: str | None = None,
+    ) -> pl.DataFrame:
+        """Return a DataFrame with attachment markers expanded in ``column``."""
+
+        if not media_files or df.is_empty():
+            return df.clone()
+
+        target_column = column
+        if target_column is None:
+            if "tagged_line" in df.columns:
+                target_column = "tagged_line"
+            elif "original_line" in df.columns:
+                target_column = "original_line"
+            else:
+                target_column = "message"
+
+        if target_column not in df.columns:
+            raise KeyError(f"Column '{target_column}' not found in DataFrame")
+
+        paths = public_paths or cls.build_public_paths(media_files)
+
+        def _replace(text: str | None) -> str:
+            return cls.replace_media_references(
+                text or "",
+                media_files,
+                public_paths=paths,
+            )
+
+        return df.with_columns(
+            pl.col(target_column)
+            .cast(pl.String)
+            .map_elements(_replace, return_dtype=pl.String)
+            .alias(target_column)
+        )
+
+    @classmethod
     def find_attachment_names(cls, text: str) -> set[str]:
         """Return sanitized attachment filenames referenced in *text*."""
 
         return {
             cls._clean_attachment_name(match.group(1).strip())
             for match in cls._attachment_pattern.finditer(text)
+        }
+
+    @classmethod
+    def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
+        """Return attachment names referenced inside a Polars ``DataFrame``."""
+
+        if df.is_empty():
+            return set()
+
+        frame = df
+        if "time" not in frame.columns:
+            frame = frame.with_columns(
+                pl.col("timestamp").dt.strftime("%H:%M").alias("time")
+            )
+        fallback = pl.format(
+            "{time} — {author}: {message}",
+            time=pl.when(pl.col("time").is_not_null())
+            .then(pl.col("time"))
+            .otherwise(pl.col("timestamp").dt.strftime("%H:%M")),
+            author=pl.col("author").fill_null(""),
+            message=pl.col("message").fill_null(""),
+        )
+
+        candidates: list[pl.Expr] = [fallback]
+
+        if "original_line" in frame.columns:
+            candidates.insert(
+                0,
+                pl.when(
+                    pl.col("original_line").is_not_null()
+                    & (pl.col("original_line").str.len_chars() > 0)
+                )
+                .then(pl.col("original_line"))
+                .otherwise(None),
+            )
+
+        if "tagged_line" in frame.columns:
+            candidates.insert(
+                0,
+                pl.when(
+                    pl.col("tagged_line").is_not_null()
+                    & (pl.col("tagged_line").str.len_chars() > 0)
+                )
+                .then(pl.col("tagged_line"))
+                .otherwise(None),
+            )
+
+        lines = frame.with_columns(pl.coalesce(*candidates).alias("__line"))
+
+        matches = lines.select(
+            pl.col("__line")
+            .fill_null("")
+            .str.replace_all(cls._directional_marks, "")
+            .str.extract_all(cls._attachment_pattern.pattern)
+            .alias("__matches")
+        )
+
+        cleaned = matches.select(
+            pl.col("__matches")
+            .list.eval(
+                pl.element()
+                .str.replace_all(cls._attachment_pattern.pattern, r"\1")
+                .str.strip()
+            )
+            .alias("__clean")
+        )
+
+        series = cleaned.get_column("__clean")
+        values = series.explode().drop_nulls().to_list()
+        return {
+            cls._clean_attachment_name(value)
+            for value in values
+            if value and value.strip()
         }
 
     @staticmethod

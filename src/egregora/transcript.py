@@ -10,24 +10,64 @@ import polars as pl
 from .models import GroupSource
 from .parser import parse_multiple
 from .merger import merge_with_tags
+from .schema import ensure_message_schema
 
 logger = logging.getLogger(__name__)
 
 
-def extract_transcript(source: GroupSource, target_date: date) -> str:
-    """Extract transcript for a specific date."""
+def render_transcript(
+    df: pl.DataFrame,
+    *,
+    use_tagged: bool = False,
+) -> str:
+    """Render a Polars frame into the canonical transcript text."""
 
-    df = load_source_dataframe(source)
-    if df.is_empty():
+    frame = ensure_message_schema(df)
+    if frame.is_empty():
         return ""
 
-    df_day = df.filter(pl.col("date") == target_date)
-    if df_day.is_empty():
-        return ""
+    frame = frame.sort("timestamp")
 
-    if source.is_virtual:
-        return "\n".join(df_day.get_column("tagged_line").to_list())
-    return "\n".join(df_day.get_column("original_line").to_list())
+    if "time" not in frame.columns:
+        frame = frame.with_columns(
+            pl.col("timestamp").dt.strftime("%H:%M").alias("time")
+        )
+
+    fallback = pl.format(
+        "{time} — {author}: {message}",
+        time=pl.col("time"),
+        author=pl.col("author").fill_null(""),
+        message=pl.col("message").fill_null(""),
+    )
+
+    candidates: list[pl.Expr] = []
+
+    if use_tagged and "tagged_line" in frame.columns:
+        candidates.append(
+            pl.when(
+                pl.col("tagged_line").is_not_null()
+                & (pl.col("tagged_line").str.len_chars() > 0)
+            )
+            .then(pl.col("tagged_line"))
+            .otherwise(None)
+        )
+
+    if "original_line" in frame.columns:
+        candidates.append(
+            pl.when(
+                pl.col("original_line").is_not_null()
+                & (pl.col("original_line").str.len_chars() > 0)
+            )
+            .then(pl.col("original_line"))
+            .otherwise(None)
+        )
+
+    candidates.append(fallback)
+
+    frame = frame.with_columns(pl.coalesce(*candidates).alias("__render_line"))
+
+    lines = [line or "" for line in frame.get_column("__render_line").to_list()]
+    return "\n".join(lines)
 
 
 def get_stats_for_date(source: GroupSource, target_date: date) -> dict:
@@ -74,6 +114,8 @@ def load_source_dataframe(source: GroupSource) -> pl.DataFrame:
     else:
         df = parse_multiple(source.exports)
 
+    df = ensure_message_schema(df)
+
     if not df.is_empty():
         _DATAFRAME_CACHE[key] = df
     return df.clone()
@@ -108,7 +150,7 @@ _DATAFRAME_CACHE: dict[tuple, pl.DataFrame] = {}
 
 
 __all__ = [
-    "extract_transcript",
+    "render_transcript",
     "get_stats_for_date",
     "get_available_dates",
     "load_source_dataframe",

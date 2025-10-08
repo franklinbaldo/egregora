@@ -7,7 +7,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 ## Highlights
 
 - **Zero-touch ingestion** – Discover exports locally or sync them from Google Drive before processing, build virtual groups, and skip duplicates automatically via `UnifiedProcessor` and the remote source helper.【F:src/egregora/processor.py†L72-L168】【F:src/egregora/remote_source.py†L55-L113】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior newsletters, and RAG search hits to create high-signal Markdown reports using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
+- **Context-aware summaries** – Combine DataFrame-native transcripts, enrichment snippets, prior newsletters, and RAG search hits to create high-signal Markdown reports using the Gemini-based generator.【F:src/egregora/processor.py†L209-L351】【F:src/egregora/generator.py†L24-L115】
 - **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so newsletters embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
 - **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
 - **Searchable archive & MCP tooling** – Index generated newsletters with Gemini embeddings and expose retrieval/search helpers through the RAG utilities and MCP server for downstream tools.【F:src/egregora/rag/index.py†L12-L189】【F:src/egregora/mcp_server/server.py†L87-L355】
@@ -16,7 +16,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 ## Pipeline at a glance
 
 1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
-2. **Extract daily transcripts** – Parse, anonymise, and consolidate daily conversations while tracking per-day activity stats.【F:src/egregora/pipeline.py†L125-L220】【F:src/egregora/transcript.py†L12-L205】
+2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
 3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L146-L290】【F:src/egregora/cache_manager.py†L16-L142】
 4. **Assemble newsletters** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown report per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
 5. **Publish artefacts** – Persist newsletters, media, and profile dossiers in predictable folders ready for MkDocs publishing or further automation.【F:src/egregora/processor.py†L209-L487】
@@ -146,6 +146,7 @@ model = "gemini-flash-lite-latest"
 - `profiles` controls when participant dossiers are generated and stored.
 - `remote_source.gdrive_url` keeps a Google Drive folder in sync before each run.
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
+- `pipeline.use_dataframe_pipeline` toggles the Polars-first hot path and can be overridden with `EGREGORA_USE_DF_PIPELINE` when you need to fall back to the legacy text flow.【F:src/egregora/config.py†L210-L342】
 
 All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 
