@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime
+from importlib import resources
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
 try:
@@ -11,8 +13,6 @@ try:
 except ModuleNotFoundError:
     genai = None
     types = None
-
-from .pipeline import _prepare_transcripts, _load_prompt, build_llm_input
 
 if TYPE_CHECKING:
     from .config import PipelineConfig
@@ -27,13 +27,14 @@ class NewsletterContext:
     """All data required to generate a newsletter."""
 
     group_name: str
-    transcript: str
-    target_date: date
+    transcripts: Sequence[tuple[date, str]]
+    target_date: date  # The primary date for which the newsletter is generated
     previous_newsletter: str | None = None
     enrichment_section: str | None = None
     rag_context: str | None = None
 
 
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 
@@ -72,44 +73,105 @@ class NewsletterGenerator:
             self._client = self._create_client()
         return self._client
 
+    def _load_prompt(self, filename: str) -> str:
+        """Load a prompt from the filesystem or package resources."""
+        local_prompt_path = _PROMPTS_DIR / filename
+        if local_prompt_path.exists():
+            text = local_prompt_path.read_text(encoding="utf-8")
+            stripped = text.strip()
+            if not stripped:
+                raise ValueError(f"Prompt file '{local_prompt_path}' is empty")
+            return stripped
+
+        try:
+            # Assumes prompts are installed in `egregora/prompts`
+            package_path = f"prompts/{filename}"
+            package_text = (
+                resources.files("egregora")
+                .joinpath(package_path)
+                .read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, ModuleNotFoundError) as exc:
+            raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
+
+        stripped = package_text.strip()
+        if not stripped:
+            raise ValueError(f"Prompt resource '{filename}' is empty")
+        return stripped
+
     def _build_system_instruction(
         self, has_group_tags: bool = False
     ) -> list["types.Part"]:
         """Return the validated system prompt."""
         self._require_google_dependency()
-        base_prompt = _load_prompt(_BASE_PROMPT_NAME)
+        base_prompt = self._load_prompt(_BASE_PROMPT_NAME)
         if has_group_tags:
-            multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
+            multigroup_prompt = self._load_prompt(_MULTIGROUP_PROMPT_NAME)
             prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
         else:
             prompt_text = base_prompt
         return [types.Part.from_text(text=prompt_text)]
 
-    def _build_llm_input(
-        self,
-        context: NewsletterContext,
-        anonymized_transcripts: Sequence[tuple[date, str]],
-    ) -> str:
-        """Compose the user prompt sent to Gemini."""
-
-        return build_llm_input(
-            group_name=context.group_name,
-            timezone=self.config.timezone,
-            transcripts=anonymized_transcripts,
-            previous_newsletter=context.previous_newsletter,
-            enrichment_section=context.enrichment_section,
-            rag_context=context.rag_context,
+    def _format_transcript_section_header(self, transcript_count: int) -> str:
+        """Return a localized header describing the transcript coverage."""
+        if transcript_count <= 1:
+            return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
+        return (
+            f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS "
+            "(NA ORDEM CRONOLÓGICA POR DIA):"
         )
+
+    def _build_llm_input(self, context: NewsletterContext) -> str:
+        """Compose the user prompt sent to Gemini."""
+        today_str = datetime.now(self.config.timezone).date().isoformat()
+        sections: list[str] = [
+            f"NOME DO GRUPO: {context.group_name}",
+            f"DATA DE HOJE: {today_str}",
+        ]
+
+        if context.previous_newsletter:
+            sections.extend(
+                [
+                    "NEWSLETTER DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+                    "<<<NEWSLETTER_ONTEM_INICIO>>>",
+                    context.previous_newsletter.strip(),
+                    "<<<NEWSLETTER_ONTEM_FIM>>>",
+                ]
+            )
+        else:
+            sections.append("NEWSLETTER DO DIA ANTERIOR: NÃO ENCONTRADA")
+
+        if context.enrichment_section:
+            sections.append(context.enrichment_section)
+
+        if context.rag_context:
+            sections.extend(
+                [
+                    "CONTEXTOS HISTÓRICOS DE NEWSLETTERS RELEVANTES:",
+                    context.rag_context,
+                ]
+            )
+
+        header = self._format_transcript_section_header(len(context.transcripts))
+        sections.append(header)
+
+        for transcript_date, transcript_text in context.transcripts:
+            content = transcript_text.strip()
+            sections.extend(
+                [
+                    f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
+                    content if content else "(vazio)",
+                    f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
+                ]
+            )
+
+        return "\n\n".join(sections)
 
     def generate(self, source: "GroupSource", context: NewsletterContext) -> str:
         """Generate newsletter for a specific date."""
         self._require_google_dependency()
 
-        transcripts = [(context.target_date, context.transcript)]
-        anonymized_transcripts = _prepare_transcripts(transcripts, self.config)
-
-        llm_input = self._build_llm_input(context, anonymized_transcripts)
-
+        llm_input = self._build_llm_input(context)
         system_instruction = self._build_system_instruction(
             has_group_tags=source.is_virtual
         )
@@ -130,7 +192,9 @@ class NewsletterGenerator:
         ]
 
         safety_settings = [
-            types.SafetySetting(category=category, threshold=self.config.llm.safety_threshold)
+            types.SafetySetting(
+                category=category, threshold=self.config.llm.safety_threshold
+            )
             for category in (
                 "HARM_CATEGORY_HARASSMENT",
                 "HARM_CATEGORY_HATE_SPEECH",

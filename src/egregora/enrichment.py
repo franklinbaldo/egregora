@@ -167,11 +167,24 @@ class ContentEnricher:
         if not self._config.enabled:
             return EnrichmentResult(duration_seconds=perf_counter() - start)
 
+        # This method will be deprecated in the future. For now, it's the text-based path.
+        # The dataframe-based path is handled by `enrich_from_dataframe`.
+        # The processor should decide which one to call based on the config.
+
         references = self._extract_references(transcripts)
+        return await self._process_references(references, client, start)
+
+    async def _process_references(
+        self,
+        references: list[ContentReference],
+        client: genai.Client | None,
+        start_time: float,
+    ) -> EnrichmentResult:
+        """Core logic to analyze a list of ContentReference objects."""
         references = references[: self._config.max_links]
 
         if not references:
-            return EnrichmentResult(duration_seconds=perf_counter() - start)
+            return EnrichmentResult(duration_seconds=perf_counter() - start_time)
 
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
@@ -188,7 +201,7 @@ class ContentEnricher:
                 return EnrichedItem(reference=reference, analysis=analysis)
 
             cached_item: AnalysisResult | None = None
-            if self._cache:
+            if self._cache and reference.url:
                 cached_payload = self._cache.get(reference.url)
                 if cached_payload:
                     cached_item = self._analysis_from_cache(cached_payload)
@@ -213,11 +226,11 @@ class ContentEnricher:
 
         try:
             items = await asyncio.wait_for(
-                asyncio.gather(*(_process(reference) for reference in references)),
+                asyncio.gather(*(_process(ref) for ref in references)),
                 timeout=self._config.max_total_enrichment_time,
             )
         except asyncio.TimeoutError:
-            duration = perf_counter() - start
+            duration = perf_counter() - start_time
             return EnrichmentResult(
                 items=[],
                 errors=[
@@ -226,7 +239,7 @@ class ContentEnricher:
                 duration_seconds=duration,
             )
 
-        duration = perf_counter() - start
+        duration = perf_counter() - start_time
         result = EnrichmentResult(
             items=list(items),
             duration_seconds=duration,
@@ -525,155 +538,138 @@ class ContentEnricher:
         client: genai.Client | None,
         target_dates: list[date] | None = None,
     ) -> EnrichmentResult:
-        """Enhanced DataFrame-native enrichment pipeline."""
-
-        transcripts = self._dataframe_to_transcripts(df, target_dates)
-        return await self.enrich(transcripts, client=client)
-
-    def _dataframe_to_transcripts(
-        self,
-        df: pl.DataFrame,
-        target_dates: list[date] | None = None,
-    ) -> list[tuple[date, str]]:
-        """Convert DataFrame to transcript format for compatibility."""
+        """Run the DataFrame-native enrichment pipeline."""
+        start = perf_counter()
+        if not self._config.enabled:
+            return EnrichmentResult(duration_seconds=start)
 
         if target_dates:
             df = df.filter(pl.col("date").is_in(target_dates))
 
         if df.is_empty():
+            return EnrichmentResult(duration_seconds=perf_counter() - start)
+
+        # 1. Extract URLs and their context using vectorized operations
+        df_with_urls = extract_urls_from_dataframe(df)
+        df_contexts = get_url_contexts_dataframe(
+            df_with_urls, context_window=self._config.context_window
+        )
+
+        # 2. Convert to ContentReference objects for the analysis stage
+        references = self._dataframe_to_references(df_contexts)
+
+        # 3. Process the references
+        return await self._process_references(references, client, start)
+
+    def _dataframe_to_references(
+        self, df_contexts: pl.DataFrame
+    ) -> list[ContentReference]:
+        """Convert a DataFrame of URL contexts to a list of ContentReference objects."""
+        if df_contexts.is_empty():
             return []
 
-        df_sorted = df.sort("timestamp")
-        transcripts: list[tuple[date, str]] = []
+        references: list[ContentReference] = []
+        # Use a set to track unique (url, author) pairs to avoid duplicates
+        seen: set[tuple[str, str]] = set()
 
-        for day_df in df_sorted.partition_by("date", maintain_order=True):
-            date_value = day_df.get_column("date")[0]
-            if "original_line" in day_df.columns:
-                lines = [line or "" for line in day_df.get_column("original_line").to_list()]
-            else:
-                times = day_df.get_column("time").to_list()
-                authors = day_df.get_column("author").to_list()
-                messages = day_df.get_column("message").to_list()
-                lines = [
-                    f"{time} — {author}: {message}"
-                    for time, author, message in zip(times, authors, messages)
-                ]
-            transcripts.append((date_value, "\n".join(lines)))
+        for row in df_contexts.iter_rows(named=True):
+            url = row.get("url")
+            author = row.get("author") or ""
+            if not url:
+                continue
 
-        return transcripts
+            key = (url, author)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            timestamp = row.get("timestamp")
+            message_time = timestamp.strftime("%H:%M") if timestamp else None
+
+            references.append(
+                ContentReference(
+                    date=row["date"],
+                    url=url,
+                    sender=author,
+                    timestamp=message_time,
+                    message=row["message"],
+                    context_before=row.get("context_before", "").splitlines(),
+                    context_after=row.get("context_after", "").splitlines(),
+                )
+            )
+        return references
 
 
 def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """Extract URLs from DataFrame and return DataFrame with ``urls`` column."""
-
     if "message" not in df.columns:
         raise KeyError("DataFrame must have 'message' column")
 
     return df.with_columns(
-        pl.col("message")
-        .fill_null("")
-        .str.extract_all(URL_RE.pattern)
-        .alias("urls")
+        pl.col("message").fill_null("").str.extract_all(URL_RE.pattern).alias("urls")
     )
 
 
 def get_url_contexts_dataframe(
     df: pl.DataFrame, context_window: int = 3
 ) -> pl.DataFrame:
-    """Extract URLs with surrounding context from a conversation DataFrame."""
+    """
+    Extract URLs with surrounding context from a conversation DataFrame using
+    vectorized Polars expressions.
+    """
+    if "urls" not in df.columns or df.is_empty():
+        return pl.DataFrame()
 
-    if df.is_empty() or "urls" not in df.columns:
-        return pl.DataFrame(
-            {
-                "url": [],
-                "timestamp": [],
-                "author": [],
-                "message": [],
-                "context_before": [],
-                "context_after": [],
-            },
-            schema={
-                "url": pl.String,
-                "timestamp": pl.Datetime,
-                "author": pl.String,
-                "message": pl.String,
-                "context_before": pl.String,
-                "context_after": pl.String,
-            },
-        )
+    # Filter for rows that contain at least one URL
+    df_with_urls = df.filter(pl.col("urls").list.len() > 0)
+    if df_with_urls.is_empty():
+        return pl.DataFrame()
 
-    df_sorted = df.sort("timestamp").with_row_index(name="row_index")
-    rows = df_sorted.to_dicts()
-    formatted_messages = [
-        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip()
-        for row in rows
-    ]
+    # Create a formatted message column for context
+    df_formatted = df.with_columns(
+        pl.concat_str(
+            [pl.col("time"), pl.col("author"), pl.col("message")], separator=" — "
+        ).alias("formatted_line")
+    )
 
-    results: list[dict[str, object]] = []
-    row_count = len(rows)
-
-    for row in rows:
-        urls = row.get("urls") or []
-        if not urls:
-            continue
-
-        idx = int(row.get("row_index", 0))
-        start_before = max(0, idx - context_window)
-        end_after = min(row_count, idx + context_window + 1)
-
-        context_before = "\n".join(formatted_messages[start_before:idx])
-        context_after = "\n".join(formatted_messages[idx + 1 : end_after])
-
-        for url in urls:
-            results.append(
-                {
-                    "url": url,
-                    "timestamp": row.get("timestamp"),
-                    "author": row.get("author"),
-                    "message": row.get("message"),
-                    "context_before": context_before,
-                    "context_after": context_after,
-                }
-            )
-
-    if not results:
-        return pl.DataFrame(
-            {
-                "url": [],
-                "timestamp": [],
-                "author": [],
-                "message": [],
-                "context_before": [],
-                "context_after": [],
-            },
-            schema={
-                "url": pl.String,
-                "timestamp": pl.Datetime,
-                "author": pl.String,
-                "message": pl.String,
-                "context_before": pl.String,
-                "context_after": pl.String,
-            },
-        )
-
-    schema = {
-        "url": pl.String,
-        "timestamp": pl.Datetime,
-        "author": pl.String,
-        "message": pl.String,
-        "context_before": pl.String,
-        "context_after": pl.String,
-    }
-
-    return pl.DataFrame(results, schema=schema).select(
+    # Use window functions to create context strings
+    context_before_expr = pl.concat_str(
         [
+            pl.col("formatted_line").shift(i)
+            for i in range(context_window, 0, -1)
+        ],
+        separator="\n",
+        ignore_nulls=True,
+    ).alias("context_before")
+
+    context_after_expr = pl.concat_str(
+        [
+            pl.col("formatted_line").shift(-i)
+            for i in range(1, context_window + 1)
+        ],
+        separator="\n",
+        ignore_nulls=True,
+    ).alias("context_after")
+
+    # Apply context expressions to the full dataframe
+    df_with_context = df_formatted.with_columns(
+        context_before_expr, context_after_expr
+    )
+
+    # Select only the rows with URLs and explode them
+    return (
+        df_with_context.filter(pl.col("urls").list.len() > 0)
+        .explode("urls")
+        .rename({"urls": "url"})
+        .select(
             "url",
             "timestamp",
+            "date",
             "author",
             "message",
             "context_before",
             "context_after",
-        ]
+        )
     )
 
 

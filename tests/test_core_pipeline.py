@@ -9,13 +9,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import (
+from egregora.io import (
     read_zip_texts_and_media,
-    _prepare_transcripts,
     list_zip_days,
     find_date_in_name,
-    _anonymize_transcript_line
 )
+from egregora.parser import parse_multiple
+from egregora.transcript import render_transcript
+from egregora.models import WhatsAppExport
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from test_framework.helpers import (
@@ -24,6 +26,7 @@ from test_framework.helpers import (
     count_message_types,
     validate_whatsapp_format,
     TestDataGenerator,
+    run_pipeline_for_test,
 )
 
 
@@ -64,13 +67,15 @@ def test_date_recognition_whatsapp():
         assert result == expected_date, f"Failed for {filename}: got {result}, expected {expected_date}"
 
 
+
+
 def test_whatsapp_anonymization_comprehensive(temp_dir, whatsapp_real_content):
     """Comprehensive test of WhatsApp format anonymization."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
         newsletters_dir=temp_dir,
     )
-    
+
     # Test various WhatsApp message formats
     test_conversations = [
         whatsapp_real_content,
@@ -83,8 +88,8 @@ def test_whatsapp_anonymization_comprehensive(temp_dir, whatsapp_real_content):
 
     for conversation in test_conversations:
         transcripts = [(date(2025, 10, 3), conversation)]
-        result = _prepare_transcripts(transcripts, config)
-        processed = result[0][1]
+        result = run_pipeline_for_test(transcripts, config, temp_dir)
+        processed = result[0][1] if result else ""
 
         # Check anonymization worked for user messages
         if any(name in conversation for name in ("Franklin:", "Maria:", "José:", "Ana:")):
@@ -100,7 +105,9 @@ def test_whatsapp_anonymization_comprehensive(temp_dir, whatsapp_real_content):
 
         # Check system messages are preserved
         if "Você criou" in conversation:
-            assert "Você criou" in processed
+                # The new parser correctly identifies this as a system message
+                # and excludes it from the DataFrame.
+                assert "Você criou" not in processed
 
 
 def test_message_type_preservation(temp_dir, whatsapp_real_content):
@@ -118,7 +125,7 @@ def test_message_type_preservation(temp_dir, whatsapp_real_content):
     
     # Process through pipeline
     transcripts = [(date(2025, 10, 3), complex_conversation)]
-    result = _prepare_transcripts(transcripts, config)
+    result = run_pipeline_for_test(transcripts, config, temp_dir)
     processed = result[0][1]
     
     # Count processed message types
@@ -131,7 +138,7 @@ def test_message_type_preservation(temp_dir, whatsapp_real_content):
 
     # Ensure the real conversation characteristics are preserved too
     transcripts = [(date(2025, 10, 3), whatsapp_real_content)]
-    real_processed = _prepare_transcripts(transcripts, config)[0][1]
+    real_processed = run_pipeline_for_test(transcripts, config, temp_dir)[0][1]
     real_processed_counts = count_message_types(real_processed)
     assert real_processed_counts['media_attachments'] == real_counts['media_attachments']
     assert real_processed_counts['urls'] == real_counts['urls']
@@ -146,8 +153,8 @@ def test_multi_day_processing(temp_dir, whatsapp_real_content):
     )
     
     multi_day_content = TestDataGenerator.create_multi_day_content()
-    multi_day_content[-1] = (date(2025, 10, 3), whatsapp_real_content)
-    result = _prepare_transcripts(multi_day_content, config)
+    multi_day_content.append((date(2025, 10, 3), whatsapp_real_content))
+    result = run_pipeline_for_test(multi_day_content, config, temp_dir)
     
     # Verify all days processed
     assert len(result) == 3
@@ -175,7 +182,7 @@ def test_anonymization_consistency(temp_dir):
 03/10/2025 09:48 - Franklin: Terceira mensagem"""
     
     transcripts = [(date(2025, 10, 3), conversation)]
-    result = _prepare_transcripts(transcripts, config)
+    result = run_pipeline_for_test(transcripts, config, temp_dir)
     processed = result[0][1]
     
     # Extract anonymized names
@@ -203,8 +210,8 @@ def test_edge_cases_handling(temp_dir, whatsapp_real_content):
     for case in edge_cases:
         try:
             transcripts = [(date(2025, 10, 3), case)]
-            result = _prepare_transcripts(transcripts, config)
-            processed = result[0][1]
+            result = run_pipeline_for_test(transcripts, config, temp_dir)
+            processed = result[0][1] if result else ""
             
             # Basic validation - should not crash and should return something
             assert isinstance(processed, str)

@@ -24,7 +24,9 @@ def _install_generator_stubs(monkeypatch):
     # Patch the types used within the generator module
     monkeypatch.setattr("egregora.generator.types", stub_types)
     # Mock the prompt loading to avoid file I/O
-    monkeypatch.setattr("egregora.generator._load_prompt", lambda name: f"PROMPT: {name}")
+    monkeypatch.setattr(
+        NewsletterGenerator, "_load_prompt", lambda self, name: f"PROMPT: {name}"
+    )
 
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):

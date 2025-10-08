@@ -11,7 +11,9 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Set
+
+import polars as pl
 
 MEDIA_TYPE_BY_EXTENSION = {
     # Images
@@ -317,3 +319,52 @@ class MediaExtractor:
     def _clean_attachment_name(cls, filename: str) -> str:
         cleaned = cls._directional_marks.sub("", filename)
         return cleaned.strip()
+
+    @classmethod
+    def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> Set[str]:
+        """Return sanitized attachment filenames referenced in the DataFrame."""
+        if "message" not in df.columns or df.is_empty():
+            return set()
+
+        attachment_series = (
+            df.lazy()
+            .select(
+                pl.col("message")
+                .str.extract_all(cls._attachment_pattern.pattern)
+                .alias("matches")
+            )
+            .collect()
+            .get_column("matches")
+        )
+
+        names: set[str] = set()
+        for s in attachment_series:
+            if s is None:
+                continue
+            for match in s:
+                # The regex captures the filename, so we clean and add it
+                cleaned_name = cls._clean_attachment_name(match.strip())
+                names.add(cleaned_name)
+        return names
+
+    @staticmethod
+    def replace_media_references_dataframe(
+        df: pl.DataFrame,
+        media_files: Dict[str, MediaFile],
+        *,
+        public_paths: Dict[str, str] | None = None,
+    ) -> pl.DataFrame:
+        """Replace WhatsApp attachment markers with Markdown references in a DataFrame."""
+        if not media_files or "message" not in df.columns:
+            return df
+
+        def replace_func(text: str) -> str:
+            if not isinstance(text, str):
+                return text
+            return MediaExtractor.replace_media_references(
+                text, media_files, public_paths=public_paths
+            )
+
+        return df.with_columns(
+            pl.col("message").map_elements(replace_func, return_dtype=pl.String)
+        )

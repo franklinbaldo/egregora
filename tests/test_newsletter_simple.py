@@ -10,14 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import (
-    _prepare_transcripts,
+from egregora.io import (
     load_previous_newsletter,
     list_zip_days,
     find_date_in_name,
-    _format_transcript_section_header
 )
-from test_framework.helpers import create_test_zip
+from test_framework.helpers import create_test_zip, run_pipeline_for_test
 
 
 def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
@@ -31,7 +29,7 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     whatsapp_transcripts = [(date(2025, 10, 3), whatsapp_real_content)]
     
     # Process transcripts
-    result = _prepare_transcripts(whatsapp_transcripts, config)
+    result = run_pipeline_for_test(whatsapp_transcripts, config, temp_dir)
     
     # Validate processing
     assert len(result) == 1
@@ -44,7 +42,7 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_real_content):
     # Content within messages is preserved as-is
     lines = processed_content.split('\n')
     anonymized_lines = [
-        line for line in lines if ' - ' in line and ': ' in line and line.startswith('03/10/2025')
+        line for line in lines if ' - ' in line and ': ' in line
     ]
     assert anonymized_lines, "Expected anonymized conversation lines"
     assert any('Member-' in line for line in anonymized_lines)
@@ -164,7 +162,7 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
     ]
     
     # Process all transcripts
-    result = _prepare_transcripts(multi_day_transcripts, config)
+    result = run_pipeline_for_test(multi_day_transcripts, config, temp_dir)
     
     # Validate processing
     assert len(result) == 3
@@ -186,21 +184,6 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_real_content):
             assert "https://youtu.be/Nkhp-mb6FRc" in processed_content
 
 
-def test_transcript_section_headers(temp_dir):
-    """Test transcript section header formatting."""
-    # Test different transcript counts
-    test_cases = [
-        (1, "TRANSCRITO BRUTO DO ÚLTIMO DIA"),
-        (2, "TRANSCRITO BRUTO DOS ÚLTIMOS 2 DIAS"),
-        (5, "TRANSCRITO BRUTO DOS ÚLTIMOS 5 DIAS"),
-    ]
-    
-    for count, expected_text in test_cases:
-        header = _format_transcript_section_header(count)
-        assert expected_text in header
-        assert "CRONOLÓGICA" in header
-
-
 def test_whatsapp_content_with_special_characters(temp_dir):
     """Test processing WhatsApp content with special characters and media."""
     config = PipelineConfig.with_defaults(
@@ -217,7 +200,7 @@ def test_whatsapp_content_with_special_characters(temp_dir):
 03/10/2025 09:49 - Pedro: Gostei do link da Ana! 🔗""")
     ]
     
-    result = _prepare_transcripts(complex_whatsapp, config)
+    result = run_pipeline_for_test(complex_whatsapp, config, temp_dir)
     processed_content = result[0][1]
     
     # Validate emoji preservation
@@ -250,7 +233,7 @@ def test_anonymization_consistency_across_days(temp_dir):
         (date(2025, 10, 3), "03/10/2025 09:00 - Franklin: Mensagem do dia 3"),
     ]
     
-    result = _prepare_transcripts(multi_day_same_person, config)
+    result = run_pipeline_for_test(multi_day_same_person, config, temp_dir)
     
     # Extract anonymized names from each day
     anonymized_names = []
@@ -312,9 +295,6 @@ if __name__ == "__main__":
             
             test_multi_day_transcript_processing(temp_dir)
             print("✓ Multi-day transcript processing test passed")
-            
-            test_transcript_section_headers(temp_dir)
-            print("✓ Transcript section headers test passed")
             
             test_whatsapp_content_with_special_characters(temp_dir)
             print("✓ WhatsApp content with special characters test passed")

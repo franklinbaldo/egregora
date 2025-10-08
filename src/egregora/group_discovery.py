@@ -97,11 +97,12 @@ def _extract_group_name(filename: str) -> str:
     Supports PT, EN, ES.
     """
     
+    # More robust pattern to handle variations
     patterns = [
-        r'Conversa do WhatsApp com (.+?)\.txt',      # PT
-        r'WhatsApp Chat with (.+?)\.txt',            # EN
-        r'Chat de WhatsApp con (.+?)\.txt',          # ES
-        r'Conversación de WhatsApp con (.+?)\.txt',  # ES alt
+        r'Conversa do WhatsApp com (.+?)(?:\.txt)?$',      # PT
+        r'WhatsApp Chat with (.+?)(?:\.txt)?$',            # EN
+        r'Chat de WhatsApp con (.+?)(?:\.txt)?$',          # ES
+        r'Conversación de WhatsApp con (.+?)(?:\.txt)?$',  # ES alt
     ]
     
     for pattern in patterns:
@@ -109,8 +110,8 @@ def _extract_group_name(filename: str) -> str:
         if match:
             return match.group(1).strip()
     
-    # Fallback
-    return filename.replace('.txt', '').strip()
+    # Fallback, ensuring .txt is removed if present
+    return filename.removesuffix('.txt').strip()
 
 
 def _slugify(text: str) -> str:

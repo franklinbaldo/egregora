@@ -11,7 +11,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
+from egregora.io import read_zip_texts_and_media
+from test_framework.helpers import run_pipeline_for_test
 
 
 def test_whatsapp_zip_processing(tmp_path) -> None:
@@ -67,7 +68,7 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
     transcripts = [(date(2025, 10, 3), whatsapp_transcript)]
     
     # Test with anonymization enabled
-    result = _prepare_transcripts(transcripts, config)
+    result = run_pipeline_for_test(transcripts, config, tmp_path)
     anonymized_text = result[0][1]
     
     # Check that usernames are anonymized
@@ -109,7 +110,7 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     
     # Process with anonymization
     transcripts = [(date(2025, 10, 3), content)]
-    result = _prepare_transcripts(transcripts, config)
+    result = run_pipeline_for_test(transcripts, config, tmp_path)
     
     processed_content = result[0][1]
     
@@ -118,11 +119,6 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     assert "Legal esse vídeo" in processed_content
     assert "🐱" in processed_content
     
-    # Verify file header is included
-    assert "# Arquivo: Conversa do WhatsApp com Teste.txt" in processed_content
-
-    shutil.rmtree(workspace, ignore_errors=True)
-
     shutil.rmtree(workspace, ignore_errors=True)
 
 

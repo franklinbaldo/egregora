@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+import unicodedata
 import zipfile
 from datetime import datetime
 from functools import lru_cache
@@ -99,7 +100,7 @@ def _parse_messages(
     current_date = export.export_date
 
     for raw_line in lines:
-        line = raw_line.strip().replace("\u202f", " ")
+        line = unicodedata.normalize("NFKC", raw_line).strip()
         if not line:
             continue
 

@@ -8,8 +8,13 @@ from pathlib import Path
 import re
 from typing import Any, Dict, List, Tuple
 
+import polars as pl
+from egregora.anonymizer import Anonymizer, FormatType
 from egregora.config import PipelineConfig
-from egregora.pipeline import read_zip_texts_and_media, _prepare_transcripts
+from egregora.io import read_zip_texts_and_media
+from egregora.models import WhatsAppExport
+from egregora.parser import parse_multiple
+from egregora.transcript import render_transcript
 
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
@@ -85,30 +90,6 @@ def validate_whatsapp_format(content: str) -> List[str]:
     return issues
 
 
-def simulate_pipeline_run(
-    config: PipelineConfig,
-    content: str,
-    test_date: date = None
-) -> Tuple[str, Dict[str, Any]]:
-    """Simulate a complete pipeline run with test data."""
-    if test_date is None:
-        test_date = date(2025, 10, 3)
-    
-    # Simulate transcript preparation
-    transcripts = [(test_date, content)]
-    result = _prepare_transcripts(transcripts, config)
-    
-    # Collect metrics
-    metrics = {
-        'processed_lines': len(content.split('\n')),
-        'anonymized_content': result[0][1],
-        'content_length': len(result[0][1]),
-        'date': result[0][0]
-    }
-    
-    return result[0][1], metrics
-
-
 def load_real_whatsapp_transcript(zip_path: Path) -> str:
     """Load the transcript from a WhatsApp export zip file."""
 
@@ -158,7 +139,6 @@ class TestDataGenerator:
         return [
             (date(2025, 10, 1), "01/10/2025 10:00 - Alice: Bom dia pessoal!"),
             (date(2025, 10, 2), "02/10/2025 15:30 - Bob: Como foi o dia?"),
-            (date(2025, 10, 3), "03/10/2025 09:45 - Franklin: Teste de grupo"),
         ]
     
     @staticmethod
@@ -186,3 +166,50 @@ class TestDataGenerator:
             # Multiple URLs
             "03/10/2025 09:45 - Pedro: https://site1.com e https://site2.com",
         ]
+
+
+def run_pipeline_for_test(
+    conversation_tuples: list[tuple[date, str]], config: PipelineConfig, temp_dir: Path
+) -> list[tuple[date, str]]:
+    """Helper to run the new DataFrame-based pipeline for testing."""
+    exports = []
+    for i, (day, content) in enumerate(conversation_tuples):
+        zip_path = temp_dir / f"test_{i}.zip"
+        create_test_zip(content, zip_path, filename="_chat.txt")
+        exports.append(
+            WhatsAppExport(
+                zip_path=zip_path,
+                chat_file="_chat.txt",
+                group_slug=f"test_{i}",
+                group_name=f"Test Group {i}",
+                export_date=day,
+                media_files=[],
+            )
+        )
+
+    df = parse_multiple(exports)
+
+    if config.anonymization.enabled:
+        df = Anonymizer.anonymize_transcript_dataframe(
+            df, format=config.anonymization.output_format
+        )
+
+    processed_transcripts = []
+    if not df.is_empty():
+        for day_df in df.partition_by("date", maintain_order=True):
+            text = render_transcript(day_df, use_tagged=False)
+            processed_transcripts.append((day_df.get_column("date")[0], text))
+
+    return processed_transcripts
+
+
+__all__ = [
+    "create_test_zip",
+    "extract_anonymized_authors",
+    "count_message_types",
+    "validate_whatsapp_format",
+    "load_real_whatsapp_transcript",
+    "summarize_whatsapp_content",
+    "TestDataGenerator",
+    "run_pipeline_for_test",
+]

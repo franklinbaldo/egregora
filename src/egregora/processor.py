@@ -17,17 +17,16 @@ from .generator import NewsletterContext, NewsletterGenerator
 from .group_discovery import discover_groups
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource
-from .pipeline import load_previous_newsletter
+from .io import load_previous_newsletter
 from .parser import configure_system_message_filters, load_system_filters_from_file
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import NewsletterRAG
 from .rag.query_gen import QueryGenerator
 from .remote_sync import sync_remote_source_config
 from .transcript import (
-    extract_transcript,
     get_available_dates,
-    get_stats_for_date,
     load_source_dataframe,
+    render_transcript,
 )
 
 if TYPE_CHECKING:
@@ -228,8 +227,7 @@ class UnifiedProcessor:
         return filtered
 
     def _process_source(self, source: GroupSource, days: int | None) -> list[Path]:
-        """Process a single source."""
-
+        """Process a single source using a DataFrame-native pipeline."""
         from .media_extractor import MediaExtractor
 
         group_dir = self.config.newsletters_dir / source.slug
@@ -244,67 +242,71 @@ class UnifiedProcessor:
         profile_repository = None
         if self.config.profiles.enabled and self._profile_updater:
             profile_repository = ProfileRepository(
-                data_dir=profiles_base / "json",
-                docs_dir=profiles_base,
+                data_dir=profiles_base / "json", docs_dir=profiles_base
             )
 
-        # Get available dates
-        available_dates = list(get_available_dates(source))
+        # Load the full source DataFrame once to avoid repeated parsing
+        df_source = load_source_dataframe(source)
+        if df_source.is_empty():
+            logger.warning("  No messages found for source %s", source.slug)
+            return []
 
+        available_dates = df_source.get_column("date").unique().sort().to_list()
         if not available_dates:
-            logger.warning(f"  No messages found")
+            logger.warning("  No messages found")
             return []
 
         target_dates = available_dates[-days:] if days else available_dates
-
         results = []
         extractor = MediaExtractor(group_dir, group_slug=source.slug)
-
         exports_by_date: dict[date, list] = {}
         for export in source.exports:
             exports_by_date.setdefault(export.export_date, []).append(export)
 
         for target_date in target_dates:
-            logger.info(f"  Processing {target_date}...")
+            logger.info("  Processing %s...", target_date)
+            df_day = df_source.filter(pl.col("date") == target_date)
 
-            transcript = extract_transcript(source, target_date)
-
-            if not transcript:
-                logger.warning(f"    Empty transcript")
+            if df_day.is_empty():
+                logger.warning("    Empty transcript for %s", target_date)
                 continue
 
-            attachment_names = MediaExtractor.find_attachment_names(transcript)
+            if self.config.anonymization.enabled:
+                df_day = Anonymizer.anonymize_transcript_dataframe(
+                    df_day, format=self.config.anonymization.output_format
+                )
+
+            # --- DataFrame-native media extraction ---
+            attachment_names = MediaExtractor.find_attachment_names_dataframe(df_day)
             all_media: dict[str, "MediaFile"] = {}
             if attachment_names:
                 remaining = set(attachment_names)
                 for export in exports_by_date.get(target_date, []):
+                    if not remaining:
+                        break
                     extracted = extractor.extract_specific_media_from_zip(
-                        export.zip_path,
-                        target_date,
-                        remaining,
+                        export.zip_path, target_date, remaining
                     )
                     if extracted:
                         all_media.update(extracted)
                         remaining.difference_update(extracted.keys())
-                    if not remaining:
-                        break
 
             public_paths = MediaExtractor.build_public_paths(
                 all_media,
                 url_prefix=self.config.media_url_prefix,
-                relative_to=(daily_dir if self.config.media_url_prefix is None else None),
+                relative_to=(
+                    daily_dir if self.config.media_url_prefix is None else None
+                ),
+            )
+            df_day = MediaExtractor.replace_media_references_dataframe(
+                df_day, all_media, public_paths=public_paths
             )
 
-            transcript = MediaExtractor.replace_media_references(
-                transcript,
-                all_media,
-                public_paths=public_paths,
-            )
-            stats = get_stats_for_date(source, target_date)
-            if not stats:
-                logger.warning("    Unable to compute statistics for %s", target_date)
-                continue
-
+            # --- Direct stats calculation ---
+            stats = {
+                "message_count": df_day.height,
+                "participant_count": df_day.get_column("author").n_unique(),
+            }
             logger.info(
                 "    %d messages from %d participants",
                 stats["message_count"],
@@ -313,31 +315,48 @@ class UnifiedProcessor:
 
             _, previous_newsletter = load_previous_newsletter(daily_dir, target_date)
 
-            # Enrichment
+            # --- Conditional Enrichment ---
             enrichment_section = None
             if self.config.enrichment.enabled:
-                cache_manager = None
-                if self.config.cache.enabled:
-                    cache_manager = CacheManager(
-                        self.config.cache.cache_dir,
-                        size_limit_mb=self.config.cache.max_disk_mb,
+                cache_manager = CacheManager(
+                    self.config.cache.cache_dir,
+                    size_limit_mb=self.config.cache.max_disk_mb,
+                ) if self.config.cache.enabled else None
+                if cache_manager and self.config.cache.auto_cleanup_days:
+                    cache_manager.cleanup_old_entries(
+                        self.config.cache.auto_cleanup_days
                     )
-                    if self.config.cache.auto_cleanup_days:
-                        cache_manager.cleanup_old_entries(
-                            self.config.cache.auto_cleanup_days
+                enricher = ContentEnricher(
+                    self.config.enrichment, cache_manager=cache_manager
+                )
+
+                if self.config.enrichment.use_dataframe_pipeline:
+                    enrichment_result = asyncio.run(
+                        enricher.enrich_from_dataframe(
+                            df_day, client=self.generator.client
                         )
-                enricher = ContentEnricher(self.config.enrichment, cache_manager=cache_manager)
-                enrichment_result = asyncio.run(enricher.enrich([(target_date, transcript)], client=self.generator.client))
+                    )
+                else:
+                    transcript = render_transcript(
+                        df_day, use_tagged=source.is_virtual
+                    )
+                    enrichment_result = asyncio.run(
+                        enricher.enrich(
+                            [(target_date, transcript)], client=self.generator.client
+                        )
+                    )
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )
+
+            # --- Transcript Rendering for RAG and Newsletter ---
+            transcript = render_transcript(df_day, use_tagged=source.is_virtual)
 
             # RAG
             rag_context = None
             if self.config.rag.enabled:
                 rag = NewsletterRAG(
-                    newsletters_dir=self.config.newsletters_dir,
-                    config=self.config.rag,
+                    newsletters_dir=self.config.newsletters_dir, config=self.config.rag
                 )
                 query_gen = QueryGenerator(self.config.rag)
                 query = query_gen.generate(transcript)
@@ -350,7 +369,7 @@ class UnifiedProcessor:
 
             context = NewsletterContext(
                 group_name=source.name,
-                transcript=transcript,
+                transcripts=[(target_date, transcript)],
                 target_date=target_date,
                 previous_newsletter=previous_newsletter,
                 enrichment_section=enrichment_section,
@@ -359,13 +378,10 @@ class UnifiedProcessor:
             newsletter = self.generator.generate(source, context)
 
             media_section = MediaExtractor.format_media_section(
-                all_media,
-                public_paths=public_paths,
+                all_media, public_paths=public_paths
             )
             if media_section:
-                newsletter = (
-                    f"{newsletter.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
-                )
+                newsletter = f"{newsletter.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
             output_path = daily_dir / f"{target_date}.md"
             output_path.write_text(newsletter, encoding="utf-8")
@@ -380,9 +396,7 @@ class UnifiedProcessor:
                     )
                 except Exception as exc:
                     logger.warning(
-                        "    ⚠️ Falha ao atualizar perfis para %s: %s",
-                        target_date,
-                        exc,
+                        "    ⚠️ Falha ao atualizar perfis para %s: %s", target_date, exc
                     )
 
             results.append(output_path)

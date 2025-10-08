@@ -14,40 +14,30 @@ from .merger import merge_with_tags
 logger = logging.getLogger(__name__)
 
 
-def extract_transcript(source: GroupSource, target_date: date) -> str:
-    """Extract transcript for a specific date."""
-
-    df = load_source_dataframe(source)
-    if df.is_empty():
-        return ""
-
-    df_day = df.filter(pl.col("date") == target_date)
+def render_transcript(df_day: pl.DataFrame, *, use_tagged: bool) -> str:
+    """Render a text transcript from a daily DataFrame."""
     if df_day.is_empty():
         return ""
 
-    if source.is_virtual:
-        return "\n".join(df_day.get_column("tagged_line").to_list())
-    return "\n".join(df_day.get_column("original_line").to_list())
+    column = (
+        "tagged_line"
+        if use_tagged and "tagged_line" in df_day.columns
+        else "original_line"
+    )
+    if column not in df_day.columns:
+        # Fallback for older dataframes that might not have original_line
+        return "\n".join(
+            df_day.select(
+                pl.concat_str(
+                    [pl.col("time"), pl.col("author"), pl.col("message")],
+                    separator=" - ",
+                )
+            )
+            .to_series()
+            .to_list()
+        )
 
-
-def get_stats_for_date(source: GroupSource, target_date: date) -> dict:
-    """Statistics for a specific day."""
-
-    df = load_source_dataframe(source)
-    df_day = df.filter(pl.col("date") == target_date)
-
-    if df_day.is_empty():
-        return {}
-
-    author_series = df_day.get_column("author")
-    timestamp_series = df_day.get_column("timestamp")
-
-    return {
-        "message_count": df_day.height,
-        "participant_count": author_series.n_unique(),
-        "first_message": timestamp_series.min(),
-        "last_message": timestamp_series.max(),
-    }
+    return "\n".join(df_day.get_column(column).to_list())
 
 
 def get_available_dates(source: GroupSource) -> list[date]:
@@ -108,8 +98,7 @@ _DATAFRAME_CACHE: dict[tuple, pl.DataFrame] = {}
 
 
 __all__ = [
-    "extract_transcript",
-    "get_stats_for_date",
+    "render_transcript",
     "get_available_dates",
     "load_source_dataframe",
 ]

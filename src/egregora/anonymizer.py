@@ -142,5 +142,41 @@ class Anonymizer:
             return_dtype=pl.String,
         )
 
+    @staticmethod
+    def anonymize_transcript_dataframe(
+        df: pl.DataFrame, format: FormatType = "human"
+    ) -> pl.DataFrame:
+        """Return a new DataFrame with the author in 'original_line' anonymized."""
+        if "original_line" not in df.columns:
+            return df
+
+        # This regex is more robust to handle different timestamp formats
+        line_pattern = re.compile(
+            r"^(?P<prefix>(?:(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4})?[\s,]*?)?\d{1,2}:\d{2}(?:\s*[APap][Mm])?\s*[-–—]\s*)(?P<author>[^:]+?)(?P<suffix>:.*)$"
+        )
+
+        def _anonymize_line(line: str) -> str:
+            if not isinstance(line, str):
+                return line
+
+            match = line_pattern.match(line)
+            if not match:
+                return line
+
+            prefix = match.group("prefix")
+            author = match.group("author").strip()
+            suffix = match.group("suffix")
+
+            if author:
+                anonymized_author = Anonymizer.anonymize_author(author, format)
+                return f"{prefix}{anonymized_author}{suffix}"
+            return line
+
+        return df.with_columns(
+            pl.col("original_line")
+            .map_elements(_anonymize_line, return_dtype=pl.String)
+            .alias("original_line")
+        )
+
 
 __all__ = ["Anonymizer", "FormatType"]

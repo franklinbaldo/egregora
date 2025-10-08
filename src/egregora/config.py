@@ -60,6 +60,7 @@ class EnrichmentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
+    use_dataframe_pipeline: bool = False
     enrichment_model: str = "gemini-2.0-flash-exp"
     max_links: int = 50
     context_window: int = 3

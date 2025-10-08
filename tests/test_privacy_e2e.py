@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import _prepare_transcripts
+from test_framework.helpers import run_pipeline_for_test
 
 
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
@@ -28,7 +28,7 @@ def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
         )
     ]
 
-    sanitized = _prepare_transcripts(transcripts, config)
+    sanitized = run_pipeline_for_test(transcripts, config, temp_dir)
     sanitized_text = sanitized[0][1]
 
     assert "João Silva" not in sanitized_text
@@ -46,6 +46,9 @@ def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
     original_text = "12:00 - João Silva: Mensagem com telefone 11 91234-5678"
     transcripts = [(date(2024, 1, 1), original_text)]
 
-    sanitized = _prepare_transcripts(transcripts, config)
+    sanitized = run_pipeline_for_test(transcripts, config, temp_dir)
+    sanitized_text = sanitized[0][1]
 
-    assert sanitized[0][1] == original_text
+    assert sanitized_text == original_text
+    assert "João Silva" in sanitized_text
+    assert "Member-" not in sanitized_text
