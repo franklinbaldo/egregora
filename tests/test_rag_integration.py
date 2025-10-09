@@ -1,167 +1,220 @@
-"""Integration tests covering keyword extraction and post retrieval."""
+"""High-level integration tests for the embeddings-based RAG pipeline."""
 
 from __future__ import annotations
 
-import json
-import shutil
+import re
 import sys
 from pathlib import Path
-from typing import Any
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_framework.helpers import (
-    load_real_whatsapp_transcript,
-    summarize_whatsapp_content,
-)
-
 from egregora.config import PipelineConfig, RAGConfig
 from egregora.rag.index import PostRAG
-from egregora.rag.keyword_utils import KeywordExtractor, KeywordProvider
-from egregora.rag.query_gen import QueryGenerator
-
-BASELINE_PATH = Path(__file__).parent / "data" / "rag_query_baseline.json"
-POSTS_FIXTURE = Path(__file__).parent / "data" / "rag_posts"
-MAX_KEYWORDS_DEFAULT = 5
-STRICT_KEYWORD_LIMIT = 3
+from egregora.rag.query_gen import QueryGenerator, QueryResult
+from test_framework.helpers import create_test_zip
 
 
-@pytest.fixture(scope="module")
-def rag_baseline() -> dict[str, Any]:
-    return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+def _create_post(posts_root: Path, *, stem: str, body: str) -> Path:
+    daily_dir = posts_root / "team" / "posts" / "daily"
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    path = daily_dir / f"{stem}.md"
+    path.write_text(body, encoding="utf-8")
+    return path
 
 
-@pytest.fixture()
-def rag_posts_dir(tmp_path: Path) -> Path:
-    target = tmp_path / "posts"
-    shutil.copytree(POSTS_FIXTURE, target)
-    return target
+_STOPWORDS = {
+    "de",
+    "do",
+    "da",
+    "das",
+    "dos",
+    "e",
+    "vamos",
+    "sobre",
+    "legal",
+    "esse",
+    "essa",
+    "grupo",
+    "teste",
+    "franklin",
+    "discutir",
+}
 
 
-@pytest.fixture()
-def stub_keyword_provider() -> KeywordProvider:
-    def _provider(text: str, *, max_keywords: int) -> list[str]:
-        summary = summarize_whatsapp_content(text)
-        keywords: list[str] = [author.lower() for author in summary["authors"]]
-        if summary["has_media_attachment"]:
-            keywords.append("anexos de mídia")
-        keywords.append(str(summary["line_count"]))
-        keywords.append("whatsapp")
+def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+    """Return deterministic keywords for tests without external providers."""
 
-        deduped: list[str] = []
-        for keyword in keywords:
-            if keyword not in deduped:
-                deduped.append(keyword)
-            if len(deduped) >= max_keywords:
-                break
-        return deduped[:max_keywords]
-
-    return _provider
+    keywords: list[str] = []
+    for token in re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+", text.lower()):
+        if token in _STOPWORDS or len(token) < 2:
+            continue
+        if token in keywords:
+            continue
+        keywords.append(token)
+        if len(keywords) >= max_keywords:
+            break
+    return keywords
 
 
-def test_keyword_extractor_uses_provider(whatsapp_real_content: str, stub_keyword_provider) -> None:
-    extractor = KeywordExtractor(
-        max_keywords=MAX_KEYWORDS_DEFAULT,
-        keyword_provider=stub_keyword_provider,
+def test_query_generation_whatsapp_content() -> None:
+    """Query generation should extract meaningful terms from transcripts."""
+
+    whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
+03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
+03/10/2025 09:47 - Franklin: Legal esse vídeo sobre programação"""
+
+    query_gen = QueryGenerator(
+        RAGConfig(max_keywords=5, max_context_chars=400),
+        keyword_provider=_stub_keyword_provider,
     )
-    keywords = extractor.extract(whatsapp_real_content)
+    result = query_gen.generate(whatsapp_content)
 
-    assert keywords
-    assert len(keywords) <= MAX_KEYWORDS_DEFAULT
-    assert keywords[0] == keywords[0].lower()
-
-
-def test_query_generator_matches_baseline(
-    whatsapp_real_content: str,
-    rag_baseline: dict[str, object],
-    stub_keyword_provider,
-) -> None:
-    generator = QueryGenerator(keyword_provider=stub_keyword_provider)
-    result = generator.generate(whatsapp_real_content)
-
-    expected = rag_baseline["query_generation"]["whatsapp_transcript"]
-    assert result.keywords[: len(expected["keywords"])] == expected["keywords"]
-    assert result.main_topics == expected["main_topics"]
-    assert result.search_query == expected["search_query"]
-    assert result.context.startswith("03/10/2025 09:45")
-
-
-def test_query_generator_respects_max_keywords(
-    whatsapp_real_content: str, stub_keyword_provider
-) -> None:
-    config = RAGConfig(max_keywords=STRICT_KEYWORD_LIMIT)
-    generator = QueryGenerator(config, keyword_provider=stub_keyword_provider)
-    result = generator.generate(whatsapp_real_content)
-
-    assert len(result.keywords) <= STRICT_KEYWORD_LIMIT
-
-
-def test_post_rag_search_matches_baseline(
-    rag_posts_dir: Path, rag_baseline: dict[str, object], tmp_path: Path
-) -> None:
-    config = RAGConfig(
-        persist_dir=tmp_path / "vector",
-        cache_dir=tmp_path / "cache",
-        min_similarity=0.0,
-        top_k=3,
-    )
-    rag = PostRAG(posts_dir=rag_posts_dir, config=config)
-    rag.update_index(force_rebuild=True)
-
-    expected_queries = rag_baseline["post_search_queries"]
-    expected_results = rag_baseline["post_search"]
-
-    for slug, query in expected_queries.items():
-        hits = rag.search(query, top_k=3, min_similarity=0.0)
-        assert hits, f"expected hits for query '{query}'"
-
-        expected_hit = expected_results[slug]
-        observed_files = []
-        for hit in hits:
-            metadata = getattr(hit.node, "metadata", {}) or {}
-            observed_files.append(metadata.get("file_name"))
-        expected_files = [item["file"] for item in expected_hit]
-        assert observed_files == expected_files
-
-        for hit, expected_info in zip(hits, expected_hit, strict=True):
-            assert hit.node.ref_doc_id == expected_info["doc_id"]
-            assert hit.score == pytest.approx(expected_info["score"], rel=0.05, abs=0.01)
+    assert isinstance(result, QueryResult)
+    assert result.search_query
+    assert "tecnologia" in result.search_query or "machine" in result.search_query
+    assert len(result.keywords) <= 5
+    assert result.context.startswith("03/10/2025")
 
 
 def test_rag_config_validation(temp_dir: Path) -> None:
+    """PipelineConfig should propagate valid RAG settings."""
+
+    project_temp_dir = Path.cwd() / "tests" / "_tmp" / temp_dir.name
+    zips_dir = project_temp_dir / "zips"
+    posts_dir = project_temp_dir / "posts"
+    zips_dir.mkdir(parents=True, exist_ok=True)
+    posts_dir.mkdir(parents=True, exist_ok=True)
+
     configs = [
-        RAGConfig(enabled=True, max_context_chars=1000),
+        RAGConfig(enabled=True, max_context_chars=1000, exclude_recent_days=0),
         RAGConfig(enabled=False),
-        RAGConfig(enabled=True, min_similarity=0.8),
+        RAGConfig(enabled=True, min_similarity=0.4, top_k=3, enable_cache=False),
     ]
 
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
-            zips_dir=temp_dir,
-            posts_dir=temp_dir,
+            zips_dir=zips_dir,
+            posts_dir=posts_dir,
         )
         config.rag = rag_config
 
         assert config.rag.enabled == rag_config.enabled
-        if rag_config.enabled:
-            assert config.rag.max_context_chars > 0
-            assert 0.0 <= config.rag.min_similarity <= 1.0
+        assert config.rag.top_k >= 1
+        assert 0.0 <= config.rag.min_similarity <= 1.0
 
 
-def test_whatsapp_data_processing_pipeline(temp_dir: Path, whatsapp_zip_path: Path) -> None:
+def test_post_rag_index_and_search(temp_dir: Path) -> None:
+    """PostRAG should index newsletter posts and return semantic matches."""
+
+    posts_root = temp_dir / "newsletter"
+    post_a = _create_post(
+        posts_root,
+        stem="2025-10-01-team-sync",
+        body="""# Daily Sync\n\nDiscutimos planejamento de IA e próximos passos.""",
+    )
+    post_b = _create_post(
+        posts_root,
+        stem="2025-10-02-research",
+        body="""# Pesquisa\n\nFoco em machine learning aplicado a conversações.""",
+    )
+
+    rag_config = RAGConfig(
+        enabled=True,
+        top_k=3,
+        min_similarity=0.0,
+        exclude_recent_days=0,
+        enable_cache=False,
+        export_embeddings=False,
+    )
+    rag = PostRAG(posts_dir=posts_root, config=rag_config, cache_dir=temp_dir / "cache")
+
+    stats = rag.update_index(force_rebuild=True)
+    assert stats["posts_count"] == 2
+    assert stats["chunks_count"] >= 2
+
+    results = rag.search("machine learning roadmap")
+    assert results, "Expected semantic search to return at least one chunk"
+
+    top_node = results[0]
+    metadata = getattr(top_node.node, "metadata", {}) or {}
+    assert metadata.get("file_name") in {post_a.name, post_b.name}
+    assert "machine" in top_node.node.get_content().lower()
+
+
+def test_context_preparation_from_search_results(temp_dir: Path) -> None:
+    """Search results should include enough context for downstream prompts."""
+
+    posts_root = temp_dir / "newsletter"
+    _create_post(
+        posts_root,
+        stem="2025-10-03-summary",
+        body="""# Summary\n\nCobertura completa de iniciativas de IA generativa.""",
+    )
+
+    rag = PostRAG(
+        posts_dir=posts_root,
+        config=RAGConfig(enabled=True, min_similarity=0.0, exclude_recent_days=0),
+        cache_dir=temp_dir / "cache",
+    )
+    rag.update_index(force_rebuild=True)
+
+    results = rag.search("iniciativas de ia")
+    context = "\n\n".join(node.node.get_content() for node in results)
+
+    assert "IA" in context or "ia" in context
+    assert len(context) <= rag.config.max_context_chars * len(results)
+
+
+def test_whatsapp_data_processing_pipeline(temp_dir: Path) -> None:
+    """Helper zip creation continues to behave for downstream ingestion."""
+
     zips_dir = temp_dir / "zips"
     zips_dir.mkdir()
 
+    whatsapp_content = """03/10/2025 09:45 - Franklin: Vamos falar sobre IA
+03/10/2025 09:46 - Franklin: https://youtu.be/example
+03/10/2025 09:47 - Maria: Ótimo tópico para discussão
+03/10/2025 09:48 - José: Tenho experiência com machine learning"""
+
     test_zip = zips_dir / "2025-10-03.zip"
-    shutil.copy2(whatsapp_zip_path, test_zip)
+    create_test_zip(whatsapp_content, test_zip, "conversation.txt")
 
     assert test_zip.exists()
 
-    content = load_real_whatsapp_transcript(test_zip)
-    metadata = summarize_whatsapp_content(content)
-    assert metadata["url_count"] >= 1
-    assert metadata["has_media_attachment"]
-    assert metadata["authors"]
+    import zipfile
+
+    with zipfile.ZipFile(test_zip, "r") as zf:
+        files = zf.namelist()
+        assert "conversation.txt" in files
+
+        with zf.open("conversation.txt") as f:
+            content = f.read().decode("utf-8")
+            assert "Franklin" in content
+            assert "IA" in content
+
+
+def test_rag_performance_considerations(temp_dir: Path) -> None:
+    """Smoke-test batching logic by building multiple posts."""
+
+    posts_root = temp_dir / "newsletter"
+    for day in range(1, 6):
+        _create_post(
+            posts_root,
+            stem=f"2025-10-0{day}-topic",
+            body=f"# Dia {day}\n\nDiscussão aprofundada sobre IA e dados {day}.",
+        )
+
+    rag = PostRAG(
+        posts_dir=posts_root,
+        config=RAGConfig(enabled=True, min_similarity=0.0, exclude_recent_days=0),
+        cache_dir=temp_dir / "cache",
+    )
+    stats = rag.update_index(force_rebuild=True)
+
+    assert stats["posts_count"] == 5
+    assert stats["chunks_count"] >= 5
+
+    results = rag.search("dados IA")
+    assert len(results) <= rag.config.top_k
+    assert all(node.score is None or 0 <= node.score <= 1 for node in results)

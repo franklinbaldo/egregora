@@ -64,8 +64,8 @@ heurísticas frágeis, listas manuais de nomes ou regex complexas.
 
 - Implementa o classificador assíncrono baseado em `pydanticai` para rotular
   `{is_system, is_noise, reason}`.
-- Usa cache (`CacheManager`) e limites de chamadas/tokens definidos em
-  `PipelineConfig.system_classifier`.
+- Usa `diskcache.Cache` diretamente e aplica limites de chamadas/tokens
+  definidos em `PipelineConfig.system_classifier`.
 
 ### `src/egregora/__main__.py`
 

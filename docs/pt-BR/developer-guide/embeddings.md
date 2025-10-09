@@ -1,7 +1,7 @@
 # Recuperação Semântica com Gemini Embeddings
 
 O módulo de RAG (Retrieval-Augmented Generation) do Egrégora indexa as
-posts em um vetor store usando embeddings do Gemini fornecidos pelo
+newsletters em um vetor store usando embeddings do Gemini fornecidos pelo
 [LlamaIndex](https://www.llamaindex.ai/). Este documento resume o fluxo atual,
 os pontos de configuração disponíveis e como habilitar a funcionalidade quando
 ela for necessária.
@@ -10,9 +10,9 @@ ela for necessária.
 
 ## 🧠 Visão Geral do Fluxo
 
-1. `PostRAG` (`src/egregora/rag/index.py`) carrega ou cria um índice
+1. `NewsletterRAG` (`src/egregora/rag/index.py`) carrega ou cria um índice
    vetorial persistente em `cache/vector_store/`.
-2. As posts (`*.md`) são quebradas em chunks com `TokenTextSplitter` e
+2. As newsletters (`*.md`) são quebradas em chunks com `TokenTextSplitter` e
    inseridas no índice.
 3. As buscas executam similaridade semântica via `VectorIndexRetriever`, com
    filtros para ignorar dias muito recentes conforme configuração.
@@ -35,7 +35,7 @@ são:
 | `embedding_dimension`   | `768`                     | Dimensão dos vetores retornados. |
 | `enable_cache`          | `True`                    | Persiste vetores em `cache/embeddings/`. |
 | `export_embeddings`     | `False`                   | Gera um arquivo Parquet com todos os chunks indexados. |
-| `embedding_export_path` | `artifacts/embeddings/post_chunks.parquet` | Caminho padrão do Parquet exportado (respeita caminhos relativos). |
+| `embedding_export_path` | `artifacts/embeddings/newsletter_chunks.parquet` | Caminho padrão do Parquet exportado (respeita caminhos relativos). |
 | `vector_store_type`     | `"simple"`               | Usa `SimpleVectorStore` (in-memory + persistência local). |
 | `chunk_size` / `chunk_overlap` | `1800` / `360`     | Tamanho e overlap dos trechos gerados pelo splitter. |
 | `top_k` / `min_similarity`     | `5` / `0.65`        | Ajustes padrão para consultas semânticas. |
@@ -53,7 +53,7 @@ embedding_model = "models/gemini-embedding-001"
 embedding_dimension = 768
 # Exporta embeddings em Parquet para publicar em artefatos
 export_embeddings = true
-embedding_export_path = "artifacts/embeddings/post_chunks.parquet"
+embedding_export_path = "artifacts/embeddings/newsletter_chunks.parquet"
 ```
 
 Qualquer campo omitido usa os defaults acima. Quando `enabled = true`, o módulo
@@ -63,12 +63,12 @@ passa a ser carregado pelo MCP server automaticamente.
 
 ```python
 from pathlib import Path
-from egregora.rag import PostRAG
+from egregora.rag import NewsletterRAG
 from egregora.rag.config import RAGConfig
 
 config = RAGConfig(enabled=True, embedding_dimension=768)
-rag = PostRAG(
-    posts_dir=Path("data"),
+rag = NewsletterRAG(
+    newsletters_dir=Path("data/meu-grupo"),
     cache_dir=Path("cache"),
     config=config,
 )
@@ -80,9 +80,10 @@ results = rag.search("automações discutidas", top_k=3)
 
 ## 💾 Cache e Fallback
 
-- Os vetores ficam em `cache/embeddings/` juntamente com metadados do modelo.
-- `CachedGeminiEmbedding` grava cada embedding identificado por hash, evitando
-  custos repetidos de API.
+- Os vetores ficam em `cache/embeddings/` juntamente com metadados do modelo,
+  graças aos utilitários de `egregora.cache`.
+- `CachedGeminiEmbedding` grava cada embedding identificado pelo hash do
+  namespace + texto, evitando custos repetidos de API.
 - Se a API não estiver disponível, o fallback interno usa hashing determinístico
   para produzir vetores estáveis, garantindo que o MCP server continue
   respondendo mesmo offline.
@@ -95,7 +96,7 @@ results = rag.search("automações discutidas", top_k=3)
   Parquet em `embedding_export_path` contendo, por chunk, o texto, metadados e o
   vetor (como coluna de listas). O arquivo é sobrescrito em toda atualização.
 - O caminho aceita valores relativos; por padrão salvamos em
-  `artifacts/embeddings/post_chunks.parquet`, facilitando o upload como
+  `artifacts/embeddings/newsletter_chunks.parquet`, facilitando o upload como
   artefato de GitHub Actions.
 - Em workflows CI/CD, basta adicionar um passo de upload, por exemplo:
 
@@ -103,8 +104,8 @@ results = rag.search("automações discutidas", top_k=3)
   - name: Publicar embeddings
     uses: actions/upload-artifact@v4
     with:
-      name: post-embeddings
-      path: artifacts/embeddings/post_chunks.parquet
+      name: newsletter-embeddings
+      path: artifacts/embeddings/newsletter_chunks.parquet
   ```
 
 - Para enviar ao Internet Archive, reutilize o mesmo arquivo exportado; apenas
@@ -115,18 +116,18 @@ results = rag.search("automações discutidas", top_k=3)
 
 ## 🔍 Consultas e Integração
 
-- `PostRAG.search(...)` retorna `NodeWithScore`, contendo o texto do chunk,
+- `NewsletterRAG.search(...)` retorna `NodeWithScore`, contendo o texto do chunk,
   a similaridade e metadados (data, seção) prontos para formatação.
-- O MCP server expõe as ferramentas `search_posts`, `list_posts` e
-  `get_post`, reutilizando o índice carregado uma única vez por execução.
-
+- O MCP server expõe as ferramentas `search_newsletters`, `list_newsletters` e
+  `get_newsletter`, reutilizando o índice carregado uma única vez por execução.
+  
 
 ---
 
 ## ✅ Boas Práticas
 
 - Execute `update_index(force_rebuild=True)` sempre que uma grande quantidade de
-  posts for adicionada de uma vez.
+  newsletters for adicionada de uma vez.
 - Mantenha a variável `GOOGLE_API_KEY` configurada para obter embeddings reais;
   sem ela o fallback funciona, mas os resultados são menos precisos.
 - Utilize `cache_dir` dedicado em ambientes com múltiplos usuários para evitar
