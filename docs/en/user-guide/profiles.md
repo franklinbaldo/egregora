@@ -1,4 +1,5 @@
-# Profiles Directory
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/user-guide/profiles) and is pending translation.
+Profile generation docs are in Portuguese.
+Read [Privacidade e Anonimização](../../pt-BR/user-guide/privacy.md) and future
+updates will split the content when translated.

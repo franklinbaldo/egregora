@@ -1,4 +1,5 @@
-# Privacy Overview
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/user-guide/privacy) and is pending translation.
+This page is maintained in Portuguese.
+Read [Privacidade e Anonimização](../../pt-BR/user-guide/privacy.md) for the
+latest information.

@@ -16,7 +16,7 @@ from pydantic_settings.sources import (
     TomlConfigSettingsSource,
 )
 
-from ..config import _ensure_safe_directory
+from ..config import _ensure_safe_directory, sanitize_rag_config_payload
 from ..rag.config import RAGConfig
 
 

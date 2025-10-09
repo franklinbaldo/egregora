@@ -1,10 +1,8 @@
 """DEPRECATED: Legacy TF-IDF search utilities.
 
-The classic ``egregora.rag.search`` entrypoint has been superseded by the
-unified retrieval pipeline. This module remains as a compatibility layer for
-older integrations and test helpers that still import ``tokenize`` and
-``STOP_WORDS``. A small tokenization helper is provided so downstream code can
-continue to function while callers migrate to the new stack.
+The classic :mod:`egregora.rag.search` entrypoint has been superseded by the
+unified retrieval pipeline. This module remains as a thin compatibility
+layer for older integrations and will be removed in a future release.
 """
 
 from __future__ import annotations
@@ -12,7 +10,57 @@ from __future__ import annotations
 import re
 from typing import Iterable, Any
 
-_TOKEN_RE = re.compile(r"[\wÀ-ÖØ-öø-ÿ]+", re.UNICODE)
+import re
+
+STOP_WORDS = frozenset(
+    {
+        "a",
+        "as",
+        "e",
+        "o",
+        "os",
+        "de",
+        "da",
+        "do",
+        "das",
+        "dos",
+        "que",
+        "para",
+        "por",
+        "com",
+        "uma",
+        "um",
+        "na",
+        "no",
+        "nas",
+        "nos",
+        "em",
+        "sobre",
+        "and",
+        "the",
+        "to",
+        "of",
+        "in",
+        "on",
+    }
+)
+
+WORD_RE = re.compile(r"[\w'-]+", re.UNICODE)
+
+__all__ = ["search", "tokenize", "STOP_WORDS"]
+
+
+def tokenize(text: str, *, lowercase: bool = True) -> list[str]:
+    """Return simple whitespace-and-punctuation tokenization for *text*."""
+
+    if not text:
+        return []
+
+    tokens = WORD_RE.findall(text)
+    if lowercase:
+        tokens = [token.lower() for token in tokens]
+
+    return [token for token in tokens if any(char.isalnum() for char in token)]
 
 STOP_WORDS: frozenset[str] = frozenset(
     {

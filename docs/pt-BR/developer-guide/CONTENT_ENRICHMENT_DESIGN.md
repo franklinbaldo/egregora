@@ -117,10 +117,11 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 5. **Banco de conhecimento (RAG)** — integração completa em `src/egregora/rag/` e MCP server dedicado.
 6. **MCP Server** — servidor disponível em `src/egregora/mcp_server/` para Claude e outras ferramentas.
 7. **Respostas tipadas + métricas** — `SummaryResponse/ActionItem` validados com `pydanticai`, métricas (`llm_calls`, `estimated_tokens`, `cache_hits`, `cache_misses`) expostas em `ContentEnricher.metrics`.
+8. **Embeddings do Gemini para RAG** — migração do índice TF-IDF para o modelo `gemini-embedding-001` com cache de embeddings.
 
 ### 🔄 Em desenvolvimento
 
-1. **Embeddings do Gemini para RAG** — migração do índice TF-IDF para o modelo `gemini-embedding-001` com cache de embeddings.
+Nenhum item no momento.
 
 ### ❌ Não planejado
 

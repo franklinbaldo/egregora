@@ -1,0 +1,3 @@
+[codespell]
+skip = .git,.venv,cache,artifacts,media,site
+ignore-words-list = Itens,itens,Limite,limite,classe,atual,Atual,datas,Datas,Instale,comando,Comando,inicial,nome,Nome,nomes,Nomes,erro,Erro,erros,Erros,Ative,ser,Ser,repete

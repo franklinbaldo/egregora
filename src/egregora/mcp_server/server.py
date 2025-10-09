@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,6 +89,9 @@ else:  # pragma: no cover - fallback when dependency missing
 
 
 DEFAULT_KEYWORD_MODEL = "gemini-2.0-flash-exp"
+
+
+logger = logging.getLogger(__name__)
 
 
 class RAGServer:
@@ -409,8 +413,17 @@ async def handle_call_tool(  # noqa: PLR0911
             return [TextContent(type="text", text="\n".join(lines))]
 
         return [TextContent(type="text", text=f"Tool desconhecida: {name}")]
-    except Exception as exc:  # pragma: no cover - defensive logging
-        return [TextContent(type="text", text=f"Erro ao executar tool: {exc}")]
+    except Exception:  # pragma: no cover - defensive logging
+        logger.exception("Erro interno ao executar a tool %s", name)
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    "Erro interno ao executar a ferramenta. "
+                    "Verifique os logs do servidor para mais detalhes."
+                ),
+            )
+        ]
 
 
 @read_resource()
