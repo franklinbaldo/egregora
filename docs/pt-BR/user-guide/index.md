@@ -1,8 +1,28 @@
-# Guia de Usuário
+# Quickstart (5 minutos)
 
-Comece por aqui para preparar exports de dados, entender as garantias de privacidade e navegar pelos boletins gerados.
+## 1) Instalar
 
-- [Descoberta de Identificadores](../../en/user-guide/discover.md)
-- [Visão Geral de Privacidade](../../en/user-guide/privacy.md)
-- [Diretório de Perfis](../../en/user-guide/profiles.md)
-- [Guia de Nomeação de ZIP do WhatsApp](../../en/user-guide/zip-naming.md)
+```bash
+uv sync
+```
+
+## 2) Preparar export do WhatsApp
+
+Exporte o grupo sem mídia (ZIP).
+Coloque em `data/whatsapp_zips/`.
+
+## 3) Rodar
+
+```bash
+uv run egregora --config egregora.toml --days 1
+```
+
+## 4) Ver os posts
+
+Abra `site/` (ou GitHub Pages).
+Veja Diários/Semanais/Mensais.
+
+### Problemas comuns
+
+- ZIP com nome fora do padrão → veja “FAQ: Nomeação de ZIP”.
+- Falha de rede no enrichment → rode com `--disable-enrichment` e tente depois.

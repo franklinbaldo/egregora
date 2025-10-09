@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/markdownlint/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
+  "globs": [
+    "docs/pt-BR/index.md",
+    "docs/pt-BR/user-guide/index.md",
+    "docs/pt-BR/user-guide/privacy.md",
+    "docs/pt-BR/user-guide/discover.md",
+    "docs/pt-BR/user-guide/faq.md",
+    "docs/pt-BR/developer-guide/index.md",
+    "docs/pt-BR/developer-guide/config.md",
+    "docs/pt-BR/developer-guide/epic-dataframe-native.md",
+    "docs/pt-BR/developer-guide/rag.md",
+    "docs/pt-BR/developer-guide/adr-index.md",
+    "docs/pt-BR/developer-guide/ADR-006-dataframe-pipeline.md",
+    "docs/pt-BR/posts/daily/index.md",
+    "docs/pt-BR/posts/weekly/index.md",
+    "docs/pt-BR/posts/monthly/index.md",
+    "docs/en/index.md",
+    "docs/en/user-guide/**/*.md",
+    "docs/en/developer-guide/index.md",
+    "docs/en/developer-guide/config.md",
+    "docs/en/developer-guide/rag.md",
+    "docs/en/developer-guide/adr-index.md",
+    "docs/en/developer-guide/epic-dataframe-native.md",
+    "docs/en/posts/**/*.md"
+  ]
+}

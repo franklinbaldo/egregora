@@ -7,7 +7,31 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from ..config import _ensure_safe_directory, sanitize_rag_config_payload
+from ..rag.config import RAGConfig
+
+
+class MCPServerTomlSettingsSource(TomlConfigSettingsSource):
+    """Normalise ``egregora.toml`` payloads for :class:`MCPServerConfig`."""
+
+    def __call__(self) -> dict[str, Any]:
+        raw = super().__call__()
+        if not raw:
+            return {}
+
+        payload: dict[str, Any] = {}
+        rag_section = raw.get("rag")
+        if isinstance(rag_section, Mapping):
+            sanitized = sanitize_rag_config_payload(dict(rag_section))
+            posts_dir = sanitized.pop("posts_dir", None)
+            cache_dir = sanitized.pop("cache_dir", None)
+            if posts_dir is not None:
+                payload["posts_dir"] = posts_dir
+            if cache_dir is not None:
+                payload["cache_dir"] = cache_dir
+            payload["rag"] = sanitized
+        elif rag_section is not None:
+            payload["rag"] = rag_section
 
 from ..config import _ensure_safe_directory
 from ..rag.config import RAGConfig, sanitize_rag_config_payload

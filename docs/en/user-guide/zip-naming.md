@@ -1,4 +1,6 @@
-# WhatsApp ZIP Naming Guide
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/user-guide/zip-naming) and is pending translation.
+ZIP naming rules are documented in Portuguese.
+Follow the PT-BR FAQ while we translate this page:
+
+- <https://github.com/franklinbaldo/egregora/blob/main/docs/pt-BR/user-guide/faq.md>

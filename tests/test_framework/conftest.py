@@ -15,12 +15,9 @@ from egregora.config import PipelineConfig
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
-    """Create a temporary directory within the project tree for tests."""
-
-    base = Path.cwd() / "tmp-tests"
-    base.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.TemporaryDirectory(dir=base) as tmp:
+    """Create a temporary directory for tests."""
+    base_dir = Path.cwd()
+    with tempfile.TemporaryDirectory(dir=base_dir) as tmp:
         yield Path(tmp)
 
 
@@ -58,6 +55,7 @@ def sample_config(temp_dir: Path) -> PipelineConfig:
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
         posts_dir=temp_dir / "posts",
+        group_name="Test Group",
     )
 
 
@@ -92,7 +90,7 @@ def mock_gemini_client():
     class MockResponse:
         def __init__(self):
             self.text = "Mock post content generated from conversation."
-
+    
     return MockClient()
 
 
@@ -103,3 +101,11 @@ def setup_test_env():
     os.environ.setdefault("GEMINI_API_KEY", "test-key-12345")
     yield
     # Cleanup if needed
+
+
+@pytest.fixture
+def whatsapp_real_content() -> str:
+    """Return a longer WhatsApp conversation sample used in integration tests."""
+
+    sample_path = Path("tests/data/Conversa do WhatsApp com Teste.txt")
+    return sample_path.read_text(encoding="utf-8")
