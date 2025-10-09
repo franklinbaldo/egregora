@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import tzinfo
 from pathlib import Path
 from typing import Any, ClassVar
@@ -36,6 +36,22 @@ from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+
+LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
+    "vector_store_path": "persist_dir",
+    "vector_store_dir": "persist_dir",
+    "chunkSize": "chunk_size",
+    "chunkOverlap": "chunk_overlap",
+    "topK": "top_k",
+    "minSimilarity": "min_similarity",
+    "useMCP": "use_mcp",
+    "mcpCommand": "mcp_command",
+    "mcpArgs": "mcp_args",
+    "keywordStopWords": "keyword_stop_words",
+    "embeddingExportPath": "embedding_export_path",
+    "cacheDir": "cache_dir",
+    "postsDir": "posts_dir",
+}
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -222,6 +238,84 @@ class RemoteSourceConfig(BaseModel):
         return str(self.gdrive_url)
 
 
+def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
+
+    payload: dict[str, Any] = {str(key): value for key, value in raw.items()}
+
+    for legacy_key, canonical_key in LEGACY_RAG_KEY_ALIASES.items():
+        if legacy_key in payload and canonical_key not in payload:
+            payload[canonical_key] = payload.pop(legacy_key)
+        elif legacy_key in payload:
+            payload.pop(legacy_key)
+
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on"}:
+                return True
+            if lowered in {"false", "0", "no", "off"}:
+                return False
+        return bool(value)
+
+    def _coerce_int(value: Any) -> int:
+        return int(value) if value is not None else value
+
+    def _coerce_float(value: Any) -> float:
+        return float(value) if value is not None else value
+
+    bool_fields = {
+        "enabled",
+        "use_mcp",
+        "enable_cache",
+        "export_embeddings",
+    }
+    int_fields = {
+        "top_k",
+        "max_keywords",
+        "exclude_recent_days",
+        "max_context_chars",
+        "classifier_max_llm_calls",
+        "classifier_token_budget",
+        "chunk_size",
+        "chunk_overlap",
+        "embedding_dimension",
+    }
+
+    for field in bool_fields:
+        if field in payload:
+            payload[field] = _coerce_bool(payload[field])
+    for field in int_fields:
+        if field in payload and payload[field] is not None:
+            payload[field] = _coerce_int(payload[field])
+    if "min_similarity" in payload and payload["min_similarity"] is not None:
+        payload["min_similarity"] = _coerce_float(payload["min_similarity"])
+
+    if "keyword_stop_words" in payload:
+        value = payload["keyword_stop_words"]
+        if isinstance(value, str):
+            items = [part.strip().lower() for part in value.split(",") if part.strip()]
+            payload["keyword_stop_words"] = tuple(items)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            payload["keyword_stop_words"] = tuple(
+                str(item).strip().lower() for item in value if str(item).strip()
+            )
+    if "mcp_args" in payload:
+        value = payload["mcp_args"]
+        if isinstance(value, str):
+            payload["mcp_args"] = tuple(part for part in value.split() if part)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            payload["mcp_args"] = tuple(str(item) for item in value)
+
+    for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
+        if path_field in payload and payload[path_field] is not None:
+            payload[path_field] = Path(payload[path_field])
+
+    return payload
+
+
 class PipelineTomlSettingsSource(TomlConfigSettingsSource):
     """Normalise ``egregora.toml`` payloads for :class:`PipelineConfig`."""
 
@@ -288,6 +382,8 @@ class PipelineConfig(BaseSettings):
 
     zips_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips"))
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
+    group_name: str | None = None
+    group_slug: GroupSlug | None = None
     post_language: str = "pt-BR"
     default_post_author: str = "egregora"
     media_url_prefix: str | None = None
@@ -346,6 +442,22 @@ class PipelineConfig(BaseSettings):
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
+
+    @field_validator("group_name", mode="before")
+    @classmethod
+    def _validate_group_name(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        candidate = str(value).strip()
+        return candidate or None
+
+    @field_validator("group_slug", mode="before")
+    @classmethod
+    def _validate_group_slug(cls, value: Any) -> GroupSlug | None:
+        if value is None:
+            return None
+        candidate = str(value).strip()
+        return GroupSlug(candidate) if candidate else None
 
     @field_validator("llm", mode="before")
     @classmethod
@@ -458,6 +570,8 @@ class PipelineConfig(BaseSettings):
         media_url_prefix: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
+        group_name: str | None = None,
+        group_slug: GroupSlug | str | None = None,
         llm: LLMConfig | dict[str, Any] | None = None,
         enrichment: EnrichmentConfig | dict[str, Any] | None = None,
         cache: CacheConfig | dict[str, Any] | None = None,
@@ -476,6 +590,10 @@ class PipelineConfig(BaseSettings):
             payload["zips_dir"] = zips_dir
         if posts_dir is not None:
             payload["posts_dir"] = posts_dir
+        if group_name is not None:
+            payload["group_name"] = group_name
+        if group_slug is not None:
+            payload["group_slug"] = group_slug
         if model is not None:
             payload["model"] = model
         if media_url_prefix is not None:
@@ -558,15 +676,14 @@ def _ensure_safe_directory(path_value: Any) -> Path:
         raise ValueError(f"Directory path '{candidate}' must not contain '..'")
 
     base_dir = Path.cwd().resolve()
-    resolved = (
-        (base_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
-    )
+    resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
 
     try:
         resolved.relative_to(base_dir)
     except ValueError as exc:
         raise ValueError(
-            f"Directory path '{candidate}' must reside within the project directory"
+            "Directory paths must stay within the project root. "
+            f"'{candidate}' resolves to '{resolved}', which is outside '{base_dir}'."
         ) from exc
 
     return resolved
