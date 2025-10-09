@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,40 @@ def _create_post(posts_root: Path, *, stem: str, body: str) -> Path:
     return path
 
 
+_STOPWORDS = {
+    "de",
+    "do",
+    "da",
+    "das",
+    "dos",
+    "e",
+    "vamos",
+    "sobre",
+    "legal",
+    "esse",
+    "essa",
+    "grupo",
+    "teste",
+    "franklin",
+    "discutir",
+}
+
+
+def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+    """Return deterministic keywords for tests without external providers."""
+
+    keywords: list[str] = []
+    for token in re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+", text.lower()):
+        if token in _STOPWORDS or len(token) < 2:
+            continue
+        if token in keywords:
+            continue
+        keywords.append(token)
+        if len(keywords) >= max_keywords:
+            break
+    return keywords
+
+
 def test_query_generation_whatsapp_content() -> None:
     """Query generation should extract meaningful terms from transcripts."""
 
@@ -29,7 +64,10 @@ def test_query_generation_whatsapp_content() -> None:
 03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
 03/10/2025 09:47 - Franklin: Legal esse vídeo sobre programação"""
 
-    query_gen = QueryGenerator(RAGConfig(max_keywords=5, max_context_chars=400))
+    query_gen = QueryGenerator(
+        RAGConfig(max_keywords=5, max_context_chars=400),
+        keyword_provider=_stub_keyword_provider,
+    )
     result = query_gen.generate(whatsapp_content)
 
     assert isinstance(result, QueryResult)
@@ -42,6 +80,12 @@ def test_query_generation_whatsapp_content() -> None:
 def test_rag_config_validation(temp_dir: Path) -> None:
     """PipelineConfig should propagate valid RAG settings."""
 
+    project_temp_dir = Path.cwd() / "tests" / "_tmp" / temp_dir.name
+    zips_dir = project_temp_dir / "zips"
+    posts_dir = project_temp_dir / "posts"
+    zips_dir.mkdir(parents=True, exist_ok=True)
+    posts_dir.mkdir(parents=True, exist_ok=True)
+
     configs = [
         RAGConfig(enabled=True, max_context_chars=1000, exclude_recent_days=0),
         RAGConfig(enabled=False),
@@ -50,8 +94,8 @@ def test_rag_config_validation(temp_dir: Path) -> None:
 
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
-            zips_dir=temp_dir,
-            newsletters_dir=temp_dir,
+            zips_dir=zips_dir,
+            posts_dir=posts_dir,
         )
         config.rag = rag_config
 
