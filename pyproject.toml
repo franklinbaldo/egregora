@@ -16,8 +16,7 @@ dependencies = [
     "polars>=0.20",
     "typer>=0.12.0",
     "rich>=13.7.0",
-<<<<<<< HEAD
-    "diskcache>=5.6",
+    "diskcache>=5.6.0",
     "python-dateutil>=2.9",
     "pydantic>=2.6",
     "pydantic-settings>=2.1",
@@ -36,9 +35,6 @@ docs = [
     "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
-=======
-    "diskcache>=5.6.0",
->>>>>>> refactor/phase1-foundation
 ]
 
 [project.scripts]
