@@ -1,39 +1,4 @@
-*__pycache__*
+# Python cache
+__pycache__/
 *.py[cod]
-.venv/
-.uv/
-
-# uv build artifacts
-/dist/
-
-# Extracted WhatsApp media
-/media/
-
-# Environments
-.env
-.idea/
-.vscode/
-
-# Cache
-cache/
-!src/egregora/cache/
-!src/egregora/cache/**
-docs/reports/
-site/
-mkdocs-dev.yml
-
-# OS generated files
-.DS_Store
-*.swo
-*.swp
-*.swn
-
-# Data and config
-data/
-!src/egregora/data/
-!src/egregora/data/**
-egregora.toml
-*.zip:Zone.Identifier
-
-# Test output
-tests/temp_output/
+*$py.class
