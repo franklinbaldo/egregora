@@ -175,7 +175,7 @@ uv run egregora --zips-dir temp --list
 ## 📚 Referências Técnicas
 
 - **Implementação**: `src/egregora/group_discovery.py:_extract_date()`
-- **Parsing de datas**: `src/egregora/parser.py:_parse_message_date()` e `src/egregora/group_discovery.py:_parse_preview_date()`
+- **Parsing de datas**: `src/egregora/date_utils.py`
 - **Mesclagem**: `src/egregora/transcript.py:load_source_dataframe()`
 - **Slugs**: `src/egregora/group_discovery.py:_slugify()`
 

@@ -8,12 +8,11 @@ import re
 import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from datetime import datetime
 
 import polars as pl
 
-from dateutil import parser as date_parser
-
+from .date_utils import parse_flexible_date
 from .models import WhatsAppExport
 from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -78,41 +77,6 @@ _LINE_PATTERN = re.compile(
 )
 
 
-_DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
-    {"dayfirst": True},
-    {"dayfirst": False},
-)
-
-
-def _parse_message_date(token: str) -> date | None:
-    normalized = token.strip()
-    if not normalized:
-        return None
-
-    def _normalize(parsed: datetime) -> date:
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        else:
-            parsed = parsed.astimezone(UTC)
-        return parsed.date()
-
-    try:
-        parsed_iso = date_parser.isoparse(normalized)
-    except (TypeError, ValueError, OverflowError):
-        parsed_iso = None
-    else:
-        return _normalize(parsed_iso)
-
-    for options in _DATE_PARSE_PREFERENCES:
-        try:
-            parsed = date_parser.parse(normalized, **options)
-        except (TypeError, ValueError, OverflowError):
-            continue
-        return _normalize(parsed)
-
-    return None
-
-
 def _normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value)
     normalized = normalized.replace("\u202f", " ")
@@ -143,7 +107,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
         message = match.group("message")
 
         if date_str:
-            parsed_date = _parse_message_date(date_str)
+            parsed_date = parse_flexible_date(date_str)
             if parsed_date:
                 msg_date = parsed_date
                 current_date = parsed_date

@@ -4,27 +4,21 @@ import asyncio
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import polars as pl
-from diskcache import Cache
 
+from egregora.cache_manager import CacheManager
 from egregora.config import EnrichmentConfig
 from egregora.enrichment import AnalysisResult, ContentEnricher
 
 
 @pytest.fixture()
-def cache(tmp_path: Path) -> Iterator[Cache]:
-    cache_dir = tmp_path / "cache"
-    cache = Cache(directory=str(cache_dir), size_limit=1024 * 1024)
-    try:
-        yield cache
-    finally:
-        cache.close()
+def cache_manager(tmp_path: Path) -> CacheManager:
+    return CacheManager(tmp_path / "cache", size_limit_mb=1)
 
 
 async def _fake_analysis(self, reference, *, client=None) -> AnalysisResult:
@@ -49,11 +43,11 @@ def _build_frame() -> pl.DataFrame:
 
 
 def test_enrichment_uses_cache_on_subsequent_runs(
-    cache: Cache, monkeypatch: pytest.MonkeyPatch
+    cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = EnrichmentConfig()
     config.max_links = 5
-    enricher = ContentEnricher(config, cache=cache)
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
 
     monkeypatch.setattr(ContentEnricher, "_analyze_reference", _fake_analysis, raising=True)
 
@@ -62,7 +56,7 @@ def test_enrichment_uses_cache_on_subsequent_runs(
     assert result_first.items
     extracted_url = result_first.items[0].reference.url
     assert extracted_url is not None
-    assert len(cache) == 1
+    assert cache_manager.exists(extracted_url)
 
     async def _fail(self, *args, **kwargs) -> None:
         raise AssertionError("Cache was not used")
@@ -74,6 +68,6 @@ def test_enrichment_uses_cache_on_subsequent_runs(
     assert result_second.items[0].analysis is not None
     assert result_second.items[0].analysis.summary == "Conteúdo resumido"
 
-    metrics = enricher.metrics
-    assert metrics["cache_hits"] == 1
-    assert metrics["cache_misses"] == 1
+    stats = cache_manager.get_stats()
+    assert stats["cache_hits"] == 1
+    assert stats["cache_misses"] == 1
