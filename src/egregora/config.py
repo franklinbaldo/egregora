@@ -676,9 +676,17 @@ def _ensure_safe_directory(path_value: Any) -> Path:
         raise ValueError(f"Directory path '{candidate}' must not contain '..'")
 
     base_dir = Path.cwd().resolve()
-    if candidate.is_absolute():
-        return candidate.resolve()
-    return (base_dir / candidate).resolve()
+    resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
+
+    try:
+        resolved.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError(
+            "Directory paths must stay within the project root. "
+            f"'{candidate}' resolves to '{resolved}', which is outside '{base_dir}'."
+        ) from exc
+
+    return resolved
 
 
 __all__ = [

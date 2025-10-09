@@ -17,7 +17,8 @@ from egregora.config import PipelineConfig
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Create a temporary directory for tests."""
-    with tempfile.TemporaryDirectory() as tmp:
+    base_dir = Path.cwd()
+    with tempfile.TemporaryDirectory(dir=base_dir) as tmp:
         yield Path(tmp)
 
 
