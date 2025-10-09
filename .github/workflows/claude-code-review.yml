@@ -1,0 +1,116 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    branches:
+      - main  # Only run automatically for PRs to main
+    types: [opened, synchronize, reopened]
+  
+  # Allow manual trigger for other branches
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # For manual trigger, checkout the PR branch
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', github.event.inputs.pr_number) || github.head_ref }}
+          fetch-depth: 0
+
+      - name: Get PR information
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - get PR info by number
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            
+            # Get PR details
+            PR_INFO=$(gh pr view $PR_NUMBER --json baseRefName,headRefName,title,body)
+            echo "base_branch=$(echo $PR_INFO | jq -r '.baseRefName')" >> $GITHUB_OUTPUT
+            echo "head_branch=$(echo $PR_INFO | jq -r '.headRefName')" >> $GITHUB_OUTPUT
+            echo "pr_title=$(echo $PR_INFO | jq -r '.title')" >> $GITHUB_OUTPUT
+          else
+            # Automatic trigger - use event data
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "base_branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+            echo "head_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "pr_title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if review needed
+        id: check-review
+        run: |
+          BASE_BRANCH="${{ steps.pr-info.outputs.base_branch }}"
+          
+          if [ "$BASE_BRANCH" = "main" ]; then
+            echo "review_needed=true" >> $GITHUB_OUTPUT
+            echo "review_type=automatic" >> $GITHUB_OUTPUT
+            echo "📋 Automatic review for PR to main branch"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "review_needed=true" >> $GITHUB_OUTPUT
+            echo "review_type=manual" >> $GITHUB_OUTPUT
+            echo "📋 Manual review requested for PR #${{ steps.pr-info.outputs.pr_number }}"
+          else
+            echo "review_needed=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping review - not targeting main branch"
+          fi
+
+      - name: Setup Python and dependencies
+        if: steps.check-review.outputs.review_needed == 'true'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Claude Code
+        if: steps.check-review.outputs.review_needed == 'true'
+        run: |
+          pip install anthropic
+          # Install any other dependencies needed for code review
+
+      - name: Run Claude Code Review
+        if: steps.check-review.outputs.review_needed == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+          BASE_BRANCH: ${{ steps.pr-info.outputs.base_branch }}
+          HEAD_BRANCH: ${{ steps.pr-info.outputs.head_branch }}
+          PR_TITLE: ${{ steps.pr-info.outputs.pr_title }}
+          REVIEW_TYPE: ${{ steps.check-review.outputs.review_type }}
+        run: |
+          python .github/scripts/claude-review.py
+
+      - name: Post skip comment
+        if: steps.check-review.outputs.review_needed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "
+          🤖 **Claude Code Review**
+          
+          Skipping automatic review - this PR is not targeting the \`main\` branch.
+          
+          To request a manual review, run:
+          \`\`\`
+          gh workflow run claude-code-review.yml -f pr_number=${{ github.event.pull_request.number }}
+          \`\`\`
+          
+          Or trigger it from the [Actions tab](../../actions/workflows/claude-code-review.yml).
+          "

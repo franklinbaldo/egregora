@@ -1,0 +1,68 @@
+name: Manual Claude Review
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  trigger-review:
+    # Only run if comment is on a PR and contains the trigger phrase
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '@claude review')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check if user can trigger review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if commenter has write access to the repo
+          USER="${{ github.event.comment.user.login }}"
+          REPO="${{ github.repository }}"
+          
+          # Get user permission level
+          PERMISSION=$(gh api repos/$REPO/collaborators/$USER/permission --jq '.permission')
+          
+          if [[ "$PERMISSION" == "admin" || "$PERMISSION" == "write" ]]; then
+            echo "✅ User $USER has permission to trigger reviews"
+          else
+            echo "❌ User $USER does not have permission to trigger reviews"
+            gh pr comment ${{ github.event.issue.number }} --body "
+            🚫 **Access Denied**
+            
+            Only users with write access can trigger manual Claude reviews.
+            Current permission: \`$PERMISSION\`
+            "
+            exit 1
+          fi
+
+      - name: React to comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add 👀 reaction to indicate we're processing
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions \
+            --method POST \
+            --field content='eyes'
+
+      - name: Trigger Claude review workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.issue.number }}"
+          
+          # Trigger the main review workflow
+          gh workflow run claude-code-review.yml -f pr_number=$PR_NUMBER
+          
+          # Post confirmation comment
+          gh pr comment $PR_NUMBER --body "
+          🤖 **Manual Claude Review Requested**
+          
+          Review workflow has been triggered by @${{ github.event.comment.user.login }}.
+          
+          Check the [Actions tab](../../actions/workflows/claude-code-review.yml) for progress.
+          "

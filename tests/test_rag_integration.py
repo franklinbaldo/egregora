@@ -1,16 +1,3 @@
-"""RAG system integration tests using WhatsApp test data."""
-
-from __future__ import annotations
-
-import sys
-from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from egregora.config import PipelineConfig, RAGConfig
-from egregora.rag.query_gen import QueryGenerator, QueryResult
 from egregora.rag.indexer import detect_post_date, hash_text
 
 from test_framework.helpers import create_test_zip
