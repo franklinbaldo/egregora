@@ -17,7 +17,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
 2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
-3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L146-L290】【F:src/egregora/cache_manager.py†L16-L142】
+3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
 4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
 5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for MkDocs publishing or further automation.【F:src/egregora/processor.py†L209-L487】
 
@@ -92,7 +92,7 @@ Calculate deterministic pseudonyms for phone numbers or nicknames so participant
 
 ## Configuration (`egregora.toml`)
 
-`PipelineConfig` is powered by Pydantic settings and supports granular tuning of each subsystem.【F:src/egregora/config.py†L210-L371】 Key sections include:
+`PipelineConfig` is powered by Pydantic settings and automatically reads `egregora.toml` from the project root, falling back to the class defaults when the file is missing. Environment variables take precedence over TOML values, so CI pipelines can override sensitive fields without editing the repository copy. Use :py:meth:`PipelineConfig.load`/ :py:meth:`MCPServerConfig.load` to materialise validated instances from alternative files when needed.【F:src/egregora/config.py†L210-L371】【F:src/egregora/mcp_server/config.py†L55-L139】 Key sections include:
 
 ```toml
 [zips]
@@ -148,6 +148,8 @@ model = "gemini-flash-lite-latest"
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
 - The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
 
+> **Migration note:** The legacy `rag.use_gemini_embeddings` toggle has been removed. Drop the field from existing TOML files and rely on `rag.embedding_model` and related parameters when changing embedding behaviour.
+
 All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 
 ## Outputs & publishing
@@ -158,7 +160,7 @@ During processing the pipeline materialises a predictable directory tree:
 - `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for MkDocs or email distribution.【F:src/egregora/processor.py†L344-L515】
 - `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L188】
 - `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
-- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/cache_manager.py†L16-L142】
+- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/processor.py†L41-L116】【F:src/egregora/enrichment.py†L432-L720】
 - `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
 - `docs/` – MkDocs site that publishes posts via the Material blog plugin alongside the broader knowledge base (`uv run --extra docs --with ./ mkdocs serve`).
 
@@ -174,9 +176,38 @@ Launch the MCP server via the Typer CLI:
 uv run egregora mcp --config egregora.toml
 # Legacy alias retained for automations:
 uv run egregora-mcp --config egregora.toml
+# Direct script entry point (handy for IDE/Desktop integrations):
+uv run python scripts/start_mcp_server.py --config egregora.toml
 ```
 
 O alias legado `uv run egregora-mcp` continua disponível para compatibilidade.
+
+### Rebuild the RAG index via the current CLI
+
+Rebuild or refresh the embeddings with the existing CLI/runtime surface—no
+dedicated helper script required:
+
+```bash
+# Force a clean rebuild of the post embeddings
+uv run python - <<'PY'
+from pathlib import Path
+
+from egregora.rag.config import RAGConfig
+from egregora.rag.index import PostRAG
+
+rag = PostRAG(
+    posts_dir=Path("data/posts"),
+    cache_dir=Path("cache/rag"),
+    config=RAGConfig(enabled=True, vector_store_type="chroma"),
+)
+result = rag.update_index(force_rebuild=True)
+print("Rebuilt", result["posts_count"], "posts →", result["chunks_count"], "chunks")
+PY
+```
+
+Adjust the directories or `RAGConfig` arguments to match your deployment. The
+same pattern works inside automations or GitHub Actions, eliminating the need
+for bespoke one-off scripts.
 
 ## Custom prompts & filters
 

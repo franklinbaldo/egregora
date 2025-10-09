@@ -110,13 +110,13 @@ Adicionar ao Egregora uma etapa opcional de **enriquecimento de conteúdos** que
 
 ### ✅ Implementado
 
-1. **Caching de URLs** — armazenamento persistente em `cache_manager.py` evita downloads repetidos.
+1. **Caching de URLs** — armazenamento persistente com `diskcache.Cache` evita downloads repetidos.
 2. **Suporte nativo a PDFs** — via `types.Part.from_uri` do Gemini, sem dependências extras.
 3. **Suporte nativo a YouTube** — processa vídeos diretamente com o Gemini.
 4. **Visão computacional** — análise multimodal habilitada pelos modelos Gemini.
 5. **Banco de conhecimento (RAG)** — integração completa em `src/egregora/rag/` e MCP server dedicado.
 6. **MCP Server** — servidor disponível em `src/egregora/mcp_server/` para Claude e outras ferramentas.
-7. **Respostas tipadas + métricas** — `SummaryResponse/ActionItem` validados com `pydanticai`, métricas (`llm_calls`, `estimated_tokens`, `cache_hits`) expostas em `ContentEnricher.metrics`.
+7. **Respostas tipadas + métricas** — `SummaryResponse/ActionItem` validados com `pydanticai`, métricas (`llm_calls`, `estimated_tokens`, `cache_hits`, `cache_misses`) expostas em `ContentEnricher.metrics`.
 
 ### 🔄 Em desenvolvimento
 

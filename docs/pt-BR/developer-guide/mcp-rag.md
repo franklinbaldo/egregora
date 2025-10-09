@@ -14,7 +14,7 @@ como executá-lo.
 - **Alias legado**: console script `egregora-mcp` (`scripts/start_mcp_server.py`)
 - **Script de conveniência**: subcomando Typer `egregora mcp`
   (alias antigo `egregora-mcp`, que ainda mapeia para `scripts/start_mcp_server.py`)
-- **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML.
+- **Configuração**: reutiliza `RAGConfig` via `PipelineConfig` ou TOML carregado por `MCPServerConfig.load`.
 
 A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 `PostRAG`) e inicia o loop MCP com `app.run_stdio()`.
@@ -24,14 +24,17 @@ A função `main()` instancia `RAGServer`, carrega o índice vetorial (via
 ## ⚙️ Como executar
 
 1. Garanta que o pacote `mcp` esteja instalado (`uv add mcp`).
-2. Habilite o RAG no `egregora.toml` (`[rag] enabled = true`) ou passe um TOML
-   customizado com `--config`.
+2. Habilite o RAG no `egregora.toml` (`[rag] enabled = true`) — carregado
+   automaticamente do diretório raiz — ou passe um TOML customizado com
+   `--config` (ambos aceitos por `MCPServerConfig.load`).
 3. Execute o servidor:
 
 ```bash
 uv run egregora mcp --config egregora.toml
 # Alias antigo (ainda suportado):
 uv run egregora-mcp --config egregora.toml
+# Execução direta do script (útil para Claude Desktop/IDEs):
+uv run python scripts/start_mcp_server.py --config egregora.toml
 ```
 
 O comando reutiliza o subcomando Typer do `egregora`, exibindo erros amigáveis
