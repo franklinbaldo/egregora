@@ -417,15 +417,20 @@ class PipelineConfig(BaseSettings):
         dotenv_settings: DotEnvSettingsSource,
         file_secret_settings: SecretsSettingsSource,
     ) -> tuple[InitSettingsSource, ...]:
-        toml_source = PipelineTomlSettingsSource(
-            settings_cls,
-            getattr(settings_cls, "default_toml_path", None),
-        )
+        default_toml_path = getattr(settings_cls, "default_toml_path", None)
+        toml_sources: tuple[InitSettingsSource, ...] = ()
+        if default_toml_path is not None:
+            candidate_path = Path(default_toml_path)
+            if candidate_path.is_file():
+                toml_sources = (
+                    PipelineTomlSettingsSource(settings_cls, candidate_path),
+                )
+
         return (
             init_settings,
             env_settings,
             dotenv_settings,
-            toml_source,
+            *toml_sources,
             file_secret_settings,
         )
 
