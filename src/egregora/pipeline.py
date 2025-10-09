@@ -19,9 +19,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     types = None  # type: ignore[assignment]
 
 import polars as pl
+from diskcache import Cache
 
 from .anonymizer import Anonymizer
-from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
 from .system_classifier import SystemMessageClassifier
@@ -31,6 +31,12 @@ DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
+
+
+def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
+    directory.mkdir(parents=True, exist_ok=True)
+    size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
+    return Cache(directory=str(directory), size_limit=size_limit_bytes)
 
 
 def _emit(
@@ -98,17 +104,17 @@ def _build_system_classifier(
     if not config.system_classifier.enabled:
         return None
 
-    cache_manager: CacheManager | None = None
+    cache: Cache | None = None
     if config.cache.enabled:
         cache_dir = config.cache.cache_dir / "system_labels"
-        cache_manager = CacheManager(
-            cache_dir,
-            size_limit_mb=config.cache.max_disk_mb,
-        )
+        try:
+            cache = _create_cache(cache_dir, config.cache.max_disk_mb)
+        except Exception:
+            cache = None
 
     try:
         return SystemMessageClassifier(
-            cache_manager=cache_manager,
+            cache=cache,
             model_name=config.system_classifier.model,
             max_llm_calls=config.system_classifier.max_llm_calls,
             token_budget=config.system_classifier.token_budget,
@@ -403,14 +409,37 @@ def read_zip_texts_and_media(
     return transcript, media_files
 
 
-def load_previous_post(news_dir: Path, reference_date: date) -> tuple[Path, str | None]:
-    """Load yesterday's post if it exists."""
+def load_previous_post(
+    posts_dir: Path,
+    reference_date: date,
+    *,
+    search_window_days: int = 7,
+) -> tuple[Path, str | None]:
+    """Return the most recent post prior to ``reference_date``.
 
-    yesterday = reference_date - timedelta(days=1)
-    path = news_dir / f"{yesterday.isoformat()}.md"
-    if path.exists():
-        return path, path.read_text(encoding="utf-8")
-    return path, None
+    The previous implementation only considered "yesterday" and silently ignored
+    gaps in the archive. During the migration from newsletters to posts we found
+    several groups that published twice a week, leaving holes in the
+    day-to-day timeline. The pipeline expects to reuse the latest available
+    context regardless of that cadence, so we now look backwards up to
+    ``search_window_days`` and return the first file that exists. The returned
+    path always points to the file that satisfied the search; if no file is
+    found we fall back to the expected location for the immediate previous day
+    so callers can still write a brand-new document there.
+    """
+
+    if search_window_days < 1:
+        raise ValueError("search_window_days must be at least 1 day")
+
+    target_path = posts_dir / f"{(reference_date - timedelta(days=1)).isoformat()}.md"
+
+    for delta in range(1, search_window_days + 1):
+        candidate_date = reference_date - timedelta(days=delta)
+        candidate_path = posts_dir / f"{candidate_date.isoformat()}.md"
+        if candidate_path.exists():
+            return candidate_path, candidate_path.read_text(encoding="utf-8")
+
+    return target_path, None
 
 
 def ensure_directories(config: PipelineConfig) -> None:
@@ -430,6 +459,13 @@ def select_recent_archives(
     return list(archives[-days:]) if len(archives) >= days else list(archives)
 
 
+def read_zip_texts(zippath: Path) -> str:
+    """Backward-compatible wrapper returning only text transcripts."""
+
+    transcript, _ = read_zip_texts_and_media(zippath)
+    return transcript
+
+
 __all__ = [
     "build_llm_input",
     "create_client",
@@ -437,6 +473,7 @@ __all__ = [
     "find_date_in_name",
     "list_zip_days",
     "load_previous_post",
+    "read_zip_texts",
     "read_zip_texts_and_media",
     "select_recent_archives",
     "_anonymize_transcript_line",

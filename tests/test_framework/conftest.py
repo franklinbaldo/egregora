@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from collections.abc import Generator
+from datetime import date
 from pathlib import Path
+from typing import Generator
 
 import pytest
 
@@ -15,12 +16,9 @@ from egregora.config import PipelineConfig
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
-    """Create a temporary directory within the project tree for tests."""
-
-    base = Path.cwd() / "tmp-tests"
-    base.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.TemporaryDirectory(dir=base) as tmp:
+    """Create a temporary directory for tests."""
+    base_dir = Path.cwd()
+    with tempfile.TemporaryDirectory(dir=base_dir) as tmp:
         yield Path(tmp)
 
 
@@ -46,18 +44,12 @@ def whatsapp_test_data() -> str:
 
 
 @pytest.fixture
-def whatsapp_real_content(whatsapp_test_data: str) -> str:
-    """Provide WhatsApp conversation content for tests expecting a real transcript."""
-
-    return whatsapp_test_data
-
-
-@pytest.fixture
 def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
         posts_dir=temp_dir / "posts",
+        group_name="Test Group",
     )
 
 
@@ -68,31 +60,30 @@ def setup_test_environment(temp_dir: Path, whatsapp_zip_path: Path) -> Path:
     zips_dir = temp_dir / "zips"
     posts_dir = temp_dir / "posts"
     cache_dir = temp_dir / "cache"
-
+    
     zips_dir.mkdir(parents=True)
     posts_dir.mkdir(parents=True)
     cache_dir.mkdir(parents=True)
-
+    
     # Copy WhatsApp test file
     test_zip = zips_dir / "2025-10-03.zip"
     if whatsapp_zip_path.exists():
         shutil.copy2(whatsapp_zip_path, test_zip)
-
+    
     return temp_dir
 
 
 @pytest.fixture
 def mock_gemini_client():
     """Mock Gemini client for testing without API calls."""
-
     class MockClient:
         def generate_content(self, prompt: str, **kwargs):
             return MockResponse()
-
+    
     class MockResponse:
         def __init__(self):
             self.text = "Mock post content generated from conversation."
-
+    
     return MockClient()
 
 
@@ -103,3 +94,11 @@ def setup_test_env():
     os.environ.setdefault("GEMINI_API_KEY", "test-key-12345")
     yield
     # Cleanup if needed
+
+
+@pytest.fixture
+def whatsapp_real_content() -> str:
+    """Return a longer WhatsApp conversation sample used in integration tests."""
+
+    sample_path = Path("tests/data/Conversa do WhatsApp com Teste.txt")
+    return sample_path.read_text(encoding="utf-8")

@@ -23,10 +23,10 @@ This plan addresses the critical architectural and engineering issues identified
 
 **Action Items**:
 - [ ] Add `diskcache` to project dependencies
-- [ ] Replace `cache_manager.py` with `diskcache`
-  - Update all imports and usages across the codebase
-  - Test cache hit/miss behavior matches original
-  - Remove `cache_manager.py` once verified
+- [x] Replace `cache_manager.py` with `diskcache`
+  - ✅ Update all imports and usages across the codebase
+  - ✅ Test cache hit/miss behavior matches original
+  - ✅ Remove `cache_manager.py` once verified
 - [x] Replace `rag/embedding_cache.py` with `diskcache`
   - ✅ Cache de embeddings agora usa `diskcache` diretamente em `CachedGeminiEmbedding`
   - ✅ Removido o módulo customizado `rag/embedding_cache.py`
@@ -45,11 +45,9 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Hand-rolled implementations for solved problems (date parsing, configuration).
 
 **Action Items**:
-- [ ] Replace date parsing with `python-dateutil`
-  - Add `python-dateutil` to dependencies
-  - Refactor `date_utils.py` to use `dateutil.parser.parse`
-  - Add proper error handling and timezone awareness
-  - Update tests
+- [x] Replace date parsing with `python-dateutil`
+  - ✅ `parser.py` e `group_discovery.py` agora usam `dateutil.parser.isoparse/parse` diretamente, mantendo suporte a `dayfirst` e normalização para UTC
+  - ✅ Removido `date_utils.py` em favor de utilitários locais, com testes atualizados para cobrir os novos pontos de integração
 
 - [ ] Migrate configuration to Pydantic
   - Add `pydantic` and `pydantic-settings` to dependencies

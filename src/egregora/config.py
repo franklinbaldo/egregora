@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import copy
 import os
-import tomllib
+from collections.abc import Mapping, Sequence
 from datetime import tzinfo
 from pathlib import Path
-from collections.abc import Mapping
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
@@ -21,15 +20,38 @@ from pydantic import (
     SecretStr,
     field_validator,
 )
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import (
+    DotEnvSettingsSource,
+    EnvSettingsSource,
+    InitSettingsSource,
+    SecretsSettingsSource,
+    TomlConfigSettingsSource,
+)
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import RAGConfig, sanitize_rag_config_payload
+from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+
+LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
+    "vector_store_path": "persist_dir",
+    "vector_store_dir": "persist_dir",
+    "chunkSize": "chunk_size",
+    "chunkOverlap": "chunk_overlap",
+    "topK": "top_k",
+    "minSimilarity": "min_similarity",
+    "useMCP": "use_mcp",
+    "mcpCommand": "mcp_command",
+    "mcpArgs": "mcp_args",
+    "keywordStopWords": "keyword_stop_words",
+    "embeddingExportPath": "embedding_export_path",
+    "cacheDir": "cache_dir",
+    "postsDir": "posts_dir",
+}
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -216,17 +238,152 @@ class RemoteSourceConfig(BaseModel):
         return str(self.gdrive_url)
 
 
+def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
+
+    payload: dict[str, Any] = {str(key): value for key, value in raw.items()}
+
+    for legacy_key, canonical_key in LEGACY_RAG_KEY_ALIASES.items():
+        if legacy_key in payload and canonical_key not in payload:
+            payload[canonical_key] = payload.pop(legacy_key)
+        elif legacy_key in payload:
+            payload.pop(legacy_key)
+
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on"}:
+                return True
+            if lowered in {"false", "0", "no", "off"}:
+                return False
+        return bool(value)
+
+    def _coerce_int(value: Any) -> int:
+        return int(value) if value is not None else value
+
+    def _coerce_float(value: Any) -> float:
+        return float(value) if value is not None else value
+
+    bool_fields = {
+        "enabled",
+        "use_mcp",
+        "enable_cache",
+        "export_embeddings",
+    }
+    int_fields = {
+        "top_k",
+        "max_keywords",
+        "exclude_recent_days",
+        "max_context_chars",
+        "classifier_max_llm_calls",
+        "classifier_token_budget",
+        "chunk_size",
+        "chunk_overlap",
+        "embedding_dimension",
+    }
+
+    for field in bool_fields:
+        if field in payload:
+            payload[field] = _coerce_bool(payload[field])
+    for field in int_fields:
+        if field in payload and payload[field] is not None:
+            payload[field] = _coerce_int(payload[field])
+    if "min_similarity" in payload and payload["min_similarity"] is not None:
+        payload["min_similarity"] = _coerce_float(payload["min_similarity"])
+
+    if "keyword_stop_words" in payload:
+        value = payload["keyword_stop_words"]
+        if isinstance(value, str):
+            items = [part.strip().lower() for part in value.split(",") if part.strip()]
+            payload["keyword_stop_words"] = tuple(items)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            payload["keyword_stop_words"] = tuple(
+                str(item).strip().lower() for item in value if str(item).strip()
+            )
+    if "mcp_args" in payload:
+        value = payload["mcp_args"]
+        if isinstance(value, str):
+            payload["mcp_args"] = tuple(part for part in value.split() if part)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            payload["mcp_args"] = tuple(str(item) for item in value)
+
+    for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
+        if path_field in payload and payload[path_field] is not None:
+            payload[path_field] = Path(payload[path_field])
+
+    return payload
+
+
+class PipelineTomlSettingsSource(TomlConfigSettingsSource):
+    """Normalise ``egregora.toml`` payloads for :class:`PipelineConfig`."""
+
+    def __call__(self) -> dict[str, Any]:
+        raw = super().__call__()
+        if not raw:
+            return {}
+
+        payload: dict[str, Any] = {}
+
+        directories = raw.get("directories")
+        if isinstance(directories, Mapping):
+            for key in ("zips_dir", "posts_dir"):
+                value = directories.get(key)
+                if value is not None:
+                    payload[key] = value
+
+        pipeline_section = raw.get("pipeline")
+        if isinstance(pipeline_section, Mapping):
+            for key, value in pipeline_section.items():
+                if value is None:
+                    continue
+                if key == "remote_source":
+                    payload[key] = value
+                else:
+                    payload[key] = value
+
+        for section in (
+            "llm",
+            "enrichment",
+            "cache",
+            "anonymization",
+            "profiles",
+            "system_classifier",
+        ):
+            section_value = raw.get(section)
+            if section_value is not None:
+                payload[section] = section_value
+
+        rag_section = raw.get("rag")
+        if isinstance(rag_section, Mapping):
+            payload["rag"] = sanitize_rag_config_payload(dict(rag_section))
+        elif rag_section is not None:
+            payload["rag"] = rag_section
+
+        merges = raw.get("merges")
+        if merges is not None:
+            payload["merges"] = merges
+
+        return payload
+
+
 class PipelineConfig(BaseSettings):
     """Runtime configuration for the post pipeline."""
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         extra="forbid",
         arbitrary_types_allowed=True,
         validate_assignment=True,
+        env_nested_delimiter="__",
     )
+
+    default_toml_path: ClassVar[Path | None] = Path("egregora.toml")
 
     zips_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips"))
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
+    group_name: str | None = None
+    group_slug: GroupSlug | None = None
     post_language: str = "pt-BR"
     default_post_author: str = "egregora"
     media_url_prefix: str | None = None
@@ -251,6 +408,32 @@ class PipelineConfig(BaseSettings):
         ),
     )
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: InitSettingsSource,
+        env_settings: EnvSettingsSource,
+        dotenv_settings: DotEnvSettingsSource,
+        file_secret_settings: SecretsSettingsSource,
+    ) -> tuple[InitSettingsSource, ...]:
+        default_toml_path = getattr(settings_cls, "default_toml_path", None)
+        toml_sources: tuple[InitSettingsSource, ...] = ()
+        if default_toml_path is not None:
+            candidate_path = Path(default_toml_path)
+            if candidate_path.is_file():
+                toml_sources = (
+                    PipelineTomlSettingsSource(settings_cls, candidate_path),
+                )
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            *toml_sources,
+            file_secret_settings,
+        )
+
     @field_validator("timezone", mode="before")
     @classmethod
     def _coerce_timezone(cls, value: Any) -> ZoneInfo:
@@ -264,6 +447,22 @@ class PipelineConfig(BaseSettings):
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
+
+    @field_validator("group_name", mode="before")
+    @classmethod
+    def _validate_group_name(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        candidate = str(value).strip()
+        return candidate or None
+
+    @field_validator("group_slug", mode="before")
+    @classmethod
+    def _validate_group_slug(cls, value: Any) -> GroupSlug | None:
+        if value is None:
+            return None
+        candidate = str(value).strip()
+        return GroupSlug(candidate) if candidate else None
 
     @field_validator("llm", mode="before")
     @classmethod
@@ -316,7 +515,7 @@ class PipelineConfig(BaseSettings):
         if isinstance(value, RAGConfig):
             return value
         if isinstance(value, dict):
-            return RAGConfig(**sanitize_rag_config_payload(value))
+            return RAGConfig(**value)
         raise TypeError("rag configuration must be a mapping")
 
     @field_validator("profiles", mode="before")
@@ -376,6 +575,8 @@ class PipelineConfig(BaseSettings):
         media_url_prefix: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
+        group_name: str | None = None,
+        group_slug: GroupSlug | str | None = None,
         llm: LLMConfig | dict[str, Any] | None = None,
         enrichment: EnrichmentConfig | dict[str, Any] | None = None,
         cache: CacheConfig | dict[str, Any] | None = None,
@@ -394,6 +595,10 @@ class PipelineConfig(BaseSettings):
             payload["zips_dir"] = zips_dir
         if posts_dir is not None:
             payload["posts_dir"] = posts_dir
+        if group_name is not None:
+            payload["group_name"] = group_name
+        if group_slug is not None:
+            payload["group_slug"] = group_slug
         if model is not None:
             payload["model"] = model
         if media_url_prefix is not None:
@@ -424,45 +629,38 @@ class PipelineConfig(BaseSettings):
             payload["system_message_filters_file"] = system_message_filters_file
         if use_dataframe_pipeline is not None:
             payload["use_dataframe_pipeline"] = use_dataframe_pipeline
-        return cls(**payload)
+        return cls.load(overrides=payload, use_default_toml=False)
 
     @classmethod
-    def from_toml(cls, toml_path: Path) -> PipelineConfig:  # noqa: PLR0912
-        data = _load_toml_data(toml_path)
-        payload: dict[str, Any] = {}
+    def load(
+        cls,
+        *,
+        toml_path: Path | None = None,
+        overrides: Mapping[str, Any] | None = None,
+        use_default_toml: bool = True,
+    ) -> PipelineConfig:
+        if toml_path is not None:
+            if not toml_path.exists():
+                raise FileNotFoundError(toml_path)
+            if not toml_path.is_file():
+                raise ValueError(f"Configuration path '{toml_path}' must be a file")
 
-        directories = data.get("directories", {})
-        if isinstance(directories, dict):
-            for key in ("zips_dir", "posts_dir"):
-                value = directories.get(key)
-                if value is not None:
-                    payload[key] = value
+        original_path = cls.default_toml_path
+        if toml_path is not None:
+            cls.default_toml_path = toml_path
+        elif not use_default_toml:
+            cls.default_toml_path = None
 
-        pipeline = data.get("pipeline", {})
-        if isinstance(pipeline, dict):
-            for key in ("model", "skip_real_if_in_virtual", "media_url_prefix"):
-                value = pipeline.get(key)
-                if value is not None:
-                    payload[key] = value
-            timezone_value = pipeline.get("timezone")
-            if timezone_value is not None:
-                payload["timezone"] = timezone_value
-            remote_source = pipeline.get("remote_source")
-            if remote_source is not None:
-                payload["remote_source"] = remote_source
+        try:
+            return cls(**dict(overrides or {}))
+        finally:
+            cls.default_toml_path = original_path
 
-        for section in ("llm", "enrichment", "cache", "anonymization", "rag", "profiles"):
-            if section in data:
-                section_value = data[section]
-                if section == "rag" and isinstance(section_value, dict):
-                    payload[section] = sanitize_rag_config_payload(section_value)
-                else:
-                    payload[section] = section_value
+    @classmethod
+    def from_toml(cls, toml_path: Path) -> PipelineConfig:
+        """Backwards compatible helper that loads settings from ``toml_path``."""
 
-        if "merges" in data:
-            payload["merges"] = data["merges"]
-
-        return cls(**payload)
+        return cls.load(toml_path=toml_path)
 
     def safe_dict(self) -> dict[str, Any]:
         """Return a dictionary representation with sensitive values redacted."""
@@ -483,50 +681,17 @@ def _ensure_safe_directory(path_value: Any) -> Path:
         raise ValueError(f"Directory path '{candidate}' must not contain '..'")
 
     base_dir = Path.cwd().resolve()
-    resolved = (
-        (base_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
-    )
+    resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
 
     try:
         resolved.relative_to(base_dir)
     except ValueError as exc:
         raise ValueError(
-            f"Directory path '{candidate}' must reside within the project directory"
+            "Directory paths must stay within the project root. "
+            f"'{candidate}' resolves to '{resolved}', which is outside '{base_dir}'."
         ) from exc
 
     return resolved
-
-
-_MAX_TOML_BYTES = 512 * 1024
-
-
-def _load_toml_data(toml_path: Path) -> dict[str, Any]:
-    """Load TOML data from ``toml_path`` with strict validation."""
-
-    if not toml_path.exists():
-        raise FileNotFoundError(toml_path)
-    if not toml_path.is_file():
-        raise ValueError(f"Configuration path '{toml_path}' must be a file")
-
-    with toml_path.open("rb") as fh:
-        content = fh.read(_MAX_TOML_BYTES + 1)
-
-    if len(content) > _MAX_TOML_BYTES:
-        raise ValueError(
-            f"Configuration file '{toml_path}' exceeds maximum size of {_MAX_TOML_BYTES} bytes"
-        )
-
-    try:
-        decoded = content.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ValueError(f"Configuration file '{toml_path}' must be UTF-8 encoded") from exc
-
-    data = tomllib.loads(decoded)
-
-    if not isinstance(data, dict):
-        raise ValueError("Top-level TOML structure must be a table")
-
-    return data
 
 
 __all__ = [
