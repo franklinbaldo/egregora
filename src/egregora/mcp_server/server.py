@@ -94,7 +94,7 @@ class RAGServer:
     """Wrapper que expõe o RAG através do MCP."""
 
     def __init__(self, config_path: Path | None = None) -> None:
-        config = MCPServerConfig.load(toml_path=config_path)
+        config = MCPServerConfig.from_path(config_path)
         self.config = config
         self.rag = PostRAG(
             posts_dir=config.posts_dir,

@@ -16,8 +16,8 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 1.  **Monitor the unified pipeline:** The Polars-first hot path now owns orchestration end-to-end. With the legacy compatibility layer gone, regressions will immediately impact production runs.
     *   **Recommendation:** Expand coverage for the DataFrame flow and keep observability around enrichment/media transforms to catch issues before they affect published posts.
 
-2.  **Cache maintenance:** Enrichment and classification now talk to `diskcache.Cache` directly; size limits and expiry policies should stay under review.
-    *   **Recommendation:** Keep the automated cleanup windows tuned and observe hit/miss metrics to ensure cache growth stays bounded.
+2.  **Over-engineering ("Not Invented Here" Syndrome):** The enrichment flow still ships a bespoke `cache_manager.py` wrapper around `diskcache`.
+    *   **Recommendation:** Evaluate whether the remaining wrapper adds value now that the embedding cache has been inlined on top of `diskcache`, and consider consolidating on a single caching abstraction.
 
 3.  **Keyword Extraction Simplification:** The RAG stack now relies exclusively on embeddings, with a light-weight keyword extractor providing context snippets for UI hints.
     *   **Recommendation:** Continue validating the heuristic tokenisation to guarantee high-quality suggestions and evolve it alongside transcript formats.
@@ -47,19 +47,19 @@ The Egregora codebase is a mix of highly sophisticated, modern components and a 
 *   **Analysis:** A model of clarity and simplicity. It uses UUIDv5 for deterministic anonymization, which is the correct approach.
 
 ### `src/egregora/cache_manager.py`
-*   **Verdict:** ✅ **Resolved.**
-*   **Analysis:** The bespoke wrapper has been removed. Caching flows now instantiate `diskcache.Cache` directly, keeping hit/miss metrics and cleanup logic within the consumers.
-*   **Recommendation:** Monitor the direct `Cache` usage to ensure size limits and expiry policies remain tuned for production workloads.
+*   **Verdict:** **Critical Flaw (Over-engineered).**
+*   **Analysis:** A textbook example of over-engineering. This is a complex, hand-rolled caching system that reinvents a solved problem.
+*   **Recommendation:** Replace the entire module with the `diskcache` library. This is a high-impact, low-risk change.
 
 ### `src/egregora/config.py`
 *   **Verdict:** Okay, but a major missed opportunity.
 *   **Analysis:** The use of `dataclasses` is good, but the module contains verbose, manual code for parsing TOML files.
 *   **Recommendation:** Refactor the entire module using `Pydantic` to simplify the code and add more powerful validation.
 
-### Date parsing helpers
-*   **Verdict:** ✅ Addressed.
-*   **Analysis:** The former `src/egregora/date_utils.py` has been removed. Date parsing now happens directly inside `parser.py` and `group_discovery.py`, both powered by `dateutil.parser.isoparse/parse` with UTC normalization.
-*   **Recommendation:** Keep the logic close to the consumers to avoid another round of "god" utility modules.
+### `src/egregora/date_utils.py`
+*   **Verdict:** Okay, but a missed opportunity.
+*   **Analysis:** A simple function that manually tries to parse a few date formats, which is fragile.
+*   **Recommendation:** Replace the implementation with `dateutil.parser.parse` from the `python-dateutil` library.
 
 ### `src/egregora/discover.py`
 *   **Verdict:** Excellent.

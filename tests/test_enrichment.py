@@ -20,8 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import polars as pl
 from test_framework.helpers import TestDataGenerator
 
-from diskcache import Cache
-
+from egregora.cache_manager import CacheManager
 from egregora.config import EnrichmentConfig
 from egregora.enrichment import ContentEnricher, EnrichmentResult
 
@@ -185,16 +184,13 @@ def test_content_enrichment_with_whatsapp_urls(mock_guess_type, tmp_path):
         max_concurrent_analyses=2,
         metrics_csv_path=tmp_path / "metrics.csv",
     )
-    cache = Cache(directory=str(tmp_path / "cache"), size_limit=10 * 1024 * 1024)
+    cache_manager = CacheManager(tmp_path / "cache", size_limit_mb=10)
     mock_client = MockGeminiClient()
 
-    try:
-        enricher = ContentEnricher(config, cache=cache)
-        transcripts = [(date.today(), conversation_with_urls)]
-        frame = _transcripts_to_frame(transcripts)
-        result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
-    finally:
-        cache.close()
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
+    transcripts = [(date.today(), conversation_with_urls)]
+    frame = _transcripts_to_frame(transcripts)
+    result = asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
 
     assert isinstance(result, EnrichmentResult)
     assert len(result.items) >= 1
@@ -211,20 +207,17 @@ def test_enrichment_caching_functionality(mock_guess_type, tmp_path):
     test_url = "https://example.com/test-article"
     transcript = [(date.today(), f"Check this out: {test_url}")]
     config = EnrichmentConfig(enabled=True, metrics_csv_path=tmp_path / "metrics.csv")
-    cache = Cache(directory=str(tmp_path / "cache"), size_limit=10 * 1024 * 1024)
+    cache_manager = CacheManager(tmp_path / "cache", size_limit_mb=10)
     mock_client = MockGeminiClient()
 
-    try:
-        enricher = ContentEnricher(config, cache=cache)
-        frame = _transcripts_to_frame(transcript)
-        asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
-        assert mock_client.call_count == 1
+    enricher = ContentEnricher(config, cache_manager=cache_manager)
+    frame = _transcripts_to_frame(transcript)
+    asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
+    assert mock_client.call_count == 1
 
-        frame = _transcripts_to_frame(transcript)
-        asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
-        assert mock_client.call_count == 1
-    finally:
-        cache.close()
+    frame = _transcripts_to_frame(transcript)
+    asyncio.run(enricher.enrich_dataframe(frame, client=mock_client))
+    assert mock_client.call_count == 1
 
 
 def test_media_placeholder_handling(tmp_path):

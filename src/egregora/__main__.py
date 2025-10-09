@@ -124,7 +124,7 @@ def _build_pipeline_config(  # noqa: PLR0913
 
     if config_file:
         try:
-            config = PipelineConfig.load(toml_path=config_file)
+            config = PipelineConfig.from_toml(config_file)
         except Exception as exc:  # pragma: no cover - configuration validation
             console.print(f"[red]❌ Não foi possível carregar o arquivo TOML:[/red] {exc}")
             raise typer.Exit(code=1) from exc

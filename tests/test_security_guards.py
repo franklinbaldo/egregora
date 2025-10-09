@@ -4,7 +4,8 @@ from datetime import date
 
 import pytest
 
-from egregora.config import PipelineConfig, _ensure_safe_directory
+from egregora import config as config_module
+from egregora.config import PipelineConfig, _ensure_safe_directory, _load_toml_data
 from egregora.group_discovery import _iter_preview_lines, discover_groups
 from egregora.models import WhatsAppExport
 from egregora.zip_utils import ZipValidationError, validate_zip_contents
@@ -85,6 +86,24 @@ def test_parse_export_rejects_invalid_utf8(tmp_path):
         parse_export(export)
 
 
+def test_load_toml_data_rejects_large_file(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('value = "123456"\n', encoding="utf-8")
+
+    monkeypatch.setattr(config_module, "_MAX_TOML_BYTES", 4)
+
+    with pytest.raises(ValueError):
+        _load_toml_data(config_path)
+
+
+def test_load_toml_data_requires_top_level_table(tmp_path):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("42\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        _load_toml_data(config_path)
+
+
 def test_pipeline_config_from_toml_validates_merges(tmp_path):
     config_path = tmp_path / "config.toml"
     config_path.write_text(
@@ -97,22 +116,7 @@ def test_pipeline_config_from_toml_validates_merges(tmp_path):
     )
 
     with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=config_path)
-
-
-def test_pipeline_config_load_rejects_missing_file(tmp_path):
-    config_path = tmp_path / "missing.toml"
-
-    with pytest.raises(FileNotFoundError):
-        PipelineConfig.load(toml_path=config_path)
-
-
-def test_pipeline_config_load_rejects_directory(tmp_path):
-    directory = tmp_path / "config_dir"
-    directory.mkdir()
-
-    with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=directory)
+        PipelineConfig.from_toml(config_path)
 
 
 def test_ensure_safe_directory_rejects_parent_escape():
