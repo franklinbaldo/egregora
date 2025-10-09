@@ -1,110 +1,71 @@
-site_name: Egrégora Documentation
-site_description: >-
-  Multi-language knowledge base for the Egrégora WhatsApp posting pipeline, including user guides, developer notes, and automated posts.
-site_url: https://franklinbaldo.github.io/egregora/
+site_name: Egrégora Reports
+site_url: https://franklinbaldo.github.io/egregora
 repo_url: https://github.com/franklinbaldo/egregora
-edit_uri: edit/main/docs/
 
 theme:
   name: material
-  language: en
+  language: pt
+  font:
+    text: Inter
+    code: "JetBrains Mono"
   features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
     - navigation.tracking
-    - navigation.indexes
+    - toc.integrate
+    - search.highlight
+    - search.share
     - content.code.copy
+    - content.action.edit
   palette:
     - scheme: default
       primary: indigo
+      accent: amber
       toggle:
         icon: material/weather-night
-        name: Switch to dark mode
+        name: Alternar para modo escuro
     - scheme: slate
       primary: indigo
+      accent: amber
       toggle:
         icon: material/weather-sunny
-        name: Switch to light mode
+        name: Alternar para modo claro
 
 extra:
-  alternate:
-    - name: English
-      link: /
-      lang: en
-    - name: Português (Brasil)
-      link: /pt-BR/
-      lang: pt-BR
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/franklinbaldo/egregora
+      name: Código-fonte
 
 nav:
-  - Home: en/index.md
-  - User Guide:
-      - Overview: en/user-guide/index.md
-  - Posts:
-      - Daily: en/posts/daily/index.md
-      - Weekly: en/posts/weekly/index.md
-      - Monthly: en/posts/monthly/index.md
-  - Developer Guide:
-      - Overview: en/developer-guide/index.md
-      - Code Analysis: en/developer-guide/CODE_ANALYSIS.md
-      - Backlog Processing: en/developer-guide/backlog_processing.md
-      - ADR-006: en/developer-guide/ADR-006-dataframe-pipeline.md
-  - Design Review: en/design_review.md
+  - Início: index.md
+  - Guia Rápido:
+      - Configuração do pipeline: quickstart.md
+      - Processamento de backlog: backlog_processing.md
+      - Embeddings & RAG: embeddings.md
+  - Relatórios:
+      - Diários: reports/daily/index.md
+      - Semanais: reports/weekly/index.md
+      - Mensais: reports/monthly/index.md
+  - Privacidade:
+      - Sistema de privacidade: privacy.md
+      - Autodescoberta: discover.md
+  - Perfis:
+      - Guia: profiles.md
 
 markdown_extensions:
   - toc:
       permalink: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.details
-  - pymdownx.superfences
+  - admonition
+  - attr_list
+  - md_in_html
+  - footnotes
+
+extra_css:
+  - assets/custom.css
 
 docs_dir: docs
 
 plugins:
-  - tools.mkdocs_build_posts_plugin
-  - blog:
-      blog_dir: en
-      post_dir: "{blog}/posts"
-      authors_file: "{blog}/.authors.yml"
-  - blog:
-      blog_dir: pt-BR
-      post_dir: "{blog}/posts"
-      authors_file: "{blog}/.authors.yml"
   - search
-  - media-files:
-      source_dir: data
-      target_dir: media
-  - i18n:
-      docs_structure: folder
-      reconfigure_material: true
-      fallback_to_default: true
-      languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
-        - locale: pt-BR
-          name: Português (Brasil)
-          build: true
-          nav_translations:
-            Home: Início
-            User Guide: Guia de Usuário
-            Overview: Visão Geral
-            Identifier Self-Discovery: Autodescoberta de Identificadores
-            Privacy Overview: Privacidade
-            Profiles Directory: Índice de Perfis
-            WhatsApp ZIP Naming Guide: Guia de Nomes ZIP do WhatsApp
-            Posts: Publicações
-            Daily: Diários
-            Weekly: Semanais
-            Monthly: Mensais
-            Developer Guide: Guia de Desenvolvimento
-            Architecture Philosophy: Filosofia de Arquitetura
-            Code Analysis: Análise de Código
-            Enrichment Quickstart: Guia Rápido de Enriquecimento
-            Backlog Processing: Processamento de Backlog
-            Content Enrichment Design: Design de Enriquecimento de Conteúdo
-            Embedding Strategy: Estratégia de Embeddings
-            Merged Groups Workflow: Fluxo de Grupos Mesclados
-            MCP RAG Integration: Integração MCP RAG
-            Privacy Implementation Plan: Plano de Implementação de Privacidade
-            Refactoring Plan: Plano de Refatoração
-            Design Review: Revisão de Design
