@@ -16,6 +16,18 @@ from egregora.rag.search import tokenize, STOP_WORDS
 from test_framework.helpers import create_test_zip
 
 
+def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+    """Return deterministic keywords for testing the query generator."""
+
+    base_keywords = [
+        "tecnologia",
+        "machine",
+        "learning",
+        "programacao",
+    ]
+    return base_keywords[:max_keywords]
+
+
 def test_query_generation_whatsapp_content(temp_dir):
     """Test query generation components with WhatsApp conversation content."""
     whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
@@ -34,10 +46,15 @@ def test_query_generation_whatsapp_content(temp_dir):
     meaningful_tokens = [token for token in tokens if token not in STOP_WORDS]
     assert len(meaningful_tokens) > 0
     
-    # Test query generator initialization
-    query_gen = QueryGenerator()
+    # Test query generator initialization with deterministic keywords
+    query_gen = QueryGenerator(keyword_provider=_stub_keyword_provider)
     assert hasattr(query_gen, 'config')
     assert isinstance(query_gen.config, RAGConfig)
+
+    result = query_gen.generate(whatsapp_content)
+    assert isinstance(result, QueryResult)
+    assert result.keywords[:3] == ["tecnologia", "machine", "learning"]
+    assert result.search_query.startswith("tecnologia, machine, learning")
 
 
 def test_post_date_detection(temp_dir):

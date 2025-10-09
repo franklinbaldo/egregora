@@ -7,8 +7,8 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
