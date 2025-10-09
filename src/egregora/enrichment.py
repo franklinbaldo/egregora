@@ -430,7 +430,8 @@ class ContentEnricher:
         return analysis
 
     def _store_in_cache(self, reference: ContentReference, analysis: AnalysisResult) -> None:
-        if not self._cache or not reference.url:
+        cache = self._cache
+        if cache is None or not reference.url:
             return
 
         enrichment_payload = {
@@ -464,7 +465,7 @@ class ContentEnricher:
         }
 
         cache_key = _cache_key_for_url(reference.url)
-        _, existing_record = _extract_cache_entry(self._cache.get(cache_key))
+        _, existing_record = _extract_cache_entry(cache.get(cache_key))
 
         now = datetime.now(UTC)
         first_seen = _coerce_timestamp((existing_record or {}).get("first_seen")) or now
@@ -478,7 +479,7 @@ class ContentEnricher:
         }
 
         try:
-            self._cache.set(cache_key, entry)
+            cache.set(cache_key, entry)
         except Exception:
             # Cache failures must not break the enrichment flow.
             return
@@ -612,18 +613,19 @@ class ContentEnricher:
     def _fetch_cache_entry(
         self, url: str | None
     ) -> tuple[str | None, dict[str, Any] | None, dict[str, Any] | None]:
-        if not url or not self._cache:
+        cache = self._cache
+        if not url or cache is None:
             return None, None, None
 
         cache_key = _cache_key_for_url(url)
-        entry = self._cache.get(cache_key)
+        entry = cache.get(cache_key)
         if entry is None:
             return cache_key, None, None
 
         payload, record = _extract_cache_entry(entry)
         if payload is None:
             try:
-                self._cache.delete(cache_key)
+                cache.delete(cache_key)
             except Exception:
                 pass
             return cache_key, None, None
@@ -633,7 +635,8 @@ class ContentEnricher:
     def _register_cache_hit(
         self, cache_key: str, payload: dict[str, Any], record: dict[str, Any] | None
     ) -> None:
-        if not self._cache:
+        cache = self._cache
+        if cache is None:
             return
 
         entry = record or {"payload": payload}
@@ -645,7 +648,7 @@ class ContentEnricher:
         entry["first_seen"] = _coerce_timestamp(entry.get("first_seen")) or now
 
         try:
-            self._cache.set(cache_key, entry)
+            cache.set(cache_key, entry)
         except Exception:
             return
 
@@ -698,9 +701,10 @@ class ContentEnricher:
                     return EnrichedItem(reference=reference, analysis=cached_item)
 
                 self._metrics["cache_misses"] = self._metrics.get("cache_misses", 0) + 1
-                if self._cache:
+                cache = self._cache
+                if cache is not None:
                     try:
-                        self._cache.delete(cache_key)
+                        cache.delete(cache_key)
                     except Exception:
                         pass
 
@@ -716,7 +720,8 @@ class ContentEnricher:
                     error=analysis.error,
                 )
 
-            if self._cache:
+            cache = self._cache
+            if cache is not None:
                 self._store_in_cache(reference, analysis)
             return EnrichedItem(reference=reference, analysis=analysis)
 

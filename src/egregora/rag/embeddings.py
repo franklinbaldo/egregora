@@ -109,9 +109,10 @@ class CachedGeminiEmbedding(BaseEmbedding):
         return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
     def _lookup_cache(self, text: str, *, kind: str) -> list[float] | None:
-        if not self._cache:
+        cache = self._cache
+        if cache is None:
             return None
-        record = self._cache.get(self._cache_key(text, kind=kind))
+        record = cache.get(self._cache_key(text, kind=kind))
         if not isinstance(record, dict):
             return None
         if record.get("namespace") != self._cache_namespace:
@@ -122,7 +123,8 @@ class CachedGeminiEmbedding(BaseEmbedding):
         return [float(value) for value in vector]
 
     def _store_cache(self, text: str, values: Iterable[float], *, kind: str) -> None:
-        if not self._cache:
+        cache = self._cache
+        if cache is None:
             return
         vector = [float(value) for value in values]
         record = {
@@ -130,7 +132,7 @@ class CachedGeminiEmbedding(BaseEmbedding):
             "namespace": self._cache_namespace,
             "cached_at": datetime.now(UTC).isoformat(),
         }
-        self._cache.set(self._cache_key(text, kind=kind), record)
+        cache.set(self._cache_key(text, kind=kind), record)
 
     def _embed(self, text: str, *, kind: str) -> list[float]:
         cached = self._lookup_cache(text, kind=kind)
