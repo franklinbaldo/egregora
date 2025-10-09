@@ -19,9 +19,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     types = None  # type: ignore[assignment]
 
 import polars as pl
-from diskcache import Cache
 
 from .anonymizer import Anonymizer
+from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .media_extractor import MediaExtractor, MediaFile
 from .system_classifier import SystemMessageClassifier
@@ -31,12 +31,6 @@ DATE_IN_NAME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
-
-
-def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
-    directory.mkdir(parents=True, exist_ok=True)
-    size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
-    return Cache(directory=str(directory), size_limit=size_limit_bytes)
 
 
 def _emit(
@@ -104,17 +98,17 @@ def _build_system_classifier(
     if not config.system_classifier.enabled:
         return None
 
-    cache: Cache | None = None
+    cache_manager: CacheManager | None = None
     if config.cache.enabled:
         cache_dir = config.cache.cache_dir / "system_labels"
-        try:
-            cache = _create_cache(cache_dir, config.cache.max_disk_mb)
-        except Exception:
-            cache = None
+        cache_manager = CacheManager(
+            cache_dir,
+            size_limit_mb=config.cache.max_disk_mb,
+        )
 
     try:
         return SystemMessageClassifier(
-            cache=cache,
+            cache_manager=cache_manager,
             model_name=config.system_classifier.model,
             max_llm_calls=config.system_classifier.max_llm_calls,
             token_budget=config.system_classifier.token_budget,

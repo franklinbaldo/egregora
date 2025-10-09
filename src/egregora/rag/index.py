@@ -8,8 +8,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from functools import lru_cache
-from types import ModuleType
 from typing import Any
 
 import polars as pl
@@ -22,21 +20,6 @@ from llama_index.core.vector_stores import SimpleVectorStore
 from ..types import PostSlug
 from .config import RAGConfig
 from .embeddings import CachedGeminiEmbedding
-
-
-@lru_cache(maxsize=1)
-def _load_chroma_dependencies() -> tuple[ModuleType, type[Any]]:
-    """Import optional Chroma dependencies only when needed."""
-
-    try:
-        import chromadb
-        from llama_index.vector_stores.chroma import ChromaVectorStore
-    except ModuleNotFoundError as exc:  # pragma: no cover - chromadb optional
-        raise RuntimeError(
-            "Dependência 'chromadb' não encontrada. Instale 'chromadb' para usar o vector store Chroma."
-        ) from exc
-
-    return chromadb, ChromaVectorStore
 
 
 @dataclass(slots=True)
@@ -103,13 +86,19 @@ class PostRAG:
     def _init_vector_store(self) -> None:
         store_type = self.config.vector_store_type.lower()
         if store_type == "chroma":
-            chromadb_module, chroma_vector_store_cls = _load_chroma_dependencies()
+            try:
+                import chromadb  # noqa: PLC0415
+                from llama_index.vector_stores.chroma import ChromaVectorStore  # noqa: PLC0415
+            except ModuleNotFoundError as exc:  # pragma: no cover - chromadb optional
+                raise RuntimeError(
+                    "Dependência 'chromadb' não encontrada. Instale 'chromadb' para usar o vector store Chroma."
+                ) from exc
 
-            self._chroma_client = chromadb_module.PersistentClient(path=str(self.config.persist_dir))
+            self._chroma_client = chromadb.PersistentClient(path=str(self.config.persist_dir))
             self._chroma_collection = self._chroma_client.get_or_create_collection(
                 name=self.config.collection_name
             )
-            self._vector_store = chroma_vector_store_cls(chroma_collection=self._chroma_collection)
+            self._vector_store = ChromaVectorStore(chroma_collection=self._chroma_collection)
         elif store_type == "simple":
             self._vector_store = SimpleVectorStore()
         else:  # pragma: no cover - defensive branch
@@ -213,18 +202,6 @@ class PostRAG:
 
         nodes = retriever.retrieve(query)
 
-        def _sort_key(item: NodeWithScore) -> tuple[float, int]:
-            score_bucket = round(item.score or 0.0, 1)
-            metadata = getattr(item.node, "metadata", {}) or {}
-            raw_date = metadata.get("date")
-            try:
-                ordinal = date.fromisoformat(str(raw_date)).toordinal()
-            except Exception:
-                ordinal = date.min.toordinal()
-            return (-score_bucket, -ordinal)
-
-        nodes = sorted(nodes, key=_sort_key)
-
         exclude_days = (
             exclude_recent_days
             if exclude_recent_days is not None
@@ -237,10 +214,6 @@ class PostRAG:
         threshold = min_similarity if min_similarity is not None else self.config.min_similarity
         if threshold > 0:
             nodes = [node for node in nodes if node.score is None or node.score >= threshold]
-
-        for node in nodes:
-            if node.score is not None:
-                node.score = round(node.score, 3)
 
         return nodes
 
@@ -346,13 +319,10 @@ class PostRAG:
     def _collect_post_paths(self) -> list[Path]:
         """Return markdown posts stored in the nested directory layout."""
 
-        candidates: set[Path] = set()
-        for pattern in ("*/posts/daily/*.md", "*/daily/*.md"):
-            for path in self.posts_dir.glob(pattern):
-                if path.is_file():
-                    candidates.add(path)
-
-        return sorted(candidates, key=lambda path: path.stem)
+        return sorted(
+            (path for path in self.posts_dir.glob("*/posts/daily/*.md") if path.is_file()),
+            key=lambda path: path.stem,
+        )
 
     def iter_post_files(self) -> list[Path]:
         """Public helper primarily used by tooling to list available posts."""
