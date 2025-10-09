@@ -1,71 +1,98 @@
-site_name: Egrégora Reports
-site_url: https://franklinbaldo.github.io/egregora
+site_name: Egrégora Documentation
+site_description: >-
+  Multi-language knowledge base for the Egrégora WhatsApp posting pipeline, including user guides, developer notes, and automated posts.
+site_url: https://franklinbaldo.github.io/egregora/
 repo_url: https://github.com/franklinbaldo/egregora
+edit_uri: edit/main/docs/
 
 theme:
   name: material
-  language: pt
-  font:
-    text: Inter
-    code: "JetBrains Mono"
+  language: pt-BR
   features:
-    - navigation.instant
-    - navigation.sections
-    - navigation.top
     - navigation.tracking
-    - toc.integrate
-    - search.highlight
-    - search.share
+    - navigation.indexes
     - content.code.copy
-    - content.action.edit
   palette:
     - scheme: default
       primary: indigo
-      accent: amber
       toggle:
         icon: material/weather-night
-        name: Alternar para modo escuro
+        name: Switch to dark mode
     - scheme: slate
       primary: indigo
-      accent: amber
       toggle:
         icon: material/weather-sunny
-        name: Alternar para modo claro
+        name: Switch to light mode
 
 extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/franklinbaldo/egregora
-      name: Código-fonte
+  alternate:
+    - name: Português (Brasil)
+      link: /
+      lang: pt-BR
+    - name: English
+      link: /en/
+      lang: en
 
 nav:
-  - Início: index.md
-  - Guia Rápido:
-      - Configuração do pipeline: quickstart.md
-      - Processamento de backlog: backlog_processing.md
-      - Embeddings & RAG: embeddings.md
-  - Relatórios:
-      - Diários: reports/daily/index.md
-      - Semanais: reports/weekly/index.md
-      - Mensais: reports/monthly/index.md
-  - Privacidade:
-      - Sistema de privacidade: privacy.md
-      - Autodescoberta: discover.md
-  - Perfis:
-      - Guia: profiles.md
+  - Início: pt-BR/index.md
+  - Guia do Usuário:
+      - Comece Aqui (Quickstart): pt-BR/user-guide/index.md
+      - Privacidade: pt-BR/user-guide/privacy.md
+      - Posts — Como ler: pt-BR/user-guide/discover.md
+      - FAQ: pt-BR/user-guide/faq.md
+  - Guia do Dev:
+      - Dev Setup: pt-BR/developer-guide/index.md
+      - Configuração: pt-BR/developer-guide/config.md
+      - Pipeline DataFrame-native: pt-BR/developer-guide/epic-dataframe-native.md
+      - RAG: pt-BR/developer-guide/rag.md
+      - ADRs (índice): pt-BR/developer-guide/adr-index.md
+  - Posts:
+      - Diários: pt-BR/posts/daily/index.md
+      - Semanais: pt-BR/posts/weekly/index.md
+      - Mensais: pt-BR/posts/monthly/index.md
 
 markdown_extensions:
   - toc:
       permalink: true
-  - admonition
-  - attr_list
-  - md_in_html
-  - footnotes
-
-extra_css:
-  - assets/custom.css
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.details
+  - pymdownx.superfences
 
 docs_dir: docs
 
 plugins:
+  - tools.mkdocs_build_posts_plugin
   - search
+  - media-files:
+      source_dir: data
+      target_dir: media
+  - i18n:
+      docs_structure: folder
+      reconfigure_material: true
+      fallback_to_default: true
+      languages:
+        - locale: pt-BR
+          name: Português (Brasil)
+          default: true
+          build: true
+        - locale: en
+          name: English
+          build: true
+          nav_translations:
+            Início: Home
+            Guia do Usuário: User Guide
+            Comece Aqui (Quickstart): Start Here (Quickstart)
+            Privacidade: Privacy
+            Posts — Como ler: Reading the Posts
+            FAQ: FAQ
+            Guia do Dev: Developer Guide
+            Dev Setup: Dev Setup
+            Configuração: Configuration
+            Pipeline DataFrame-native: DataFrame-native Pipeline
+            RAG: RAG
+            ADRs (índice): ADR Index
+            Posts: Posts
+            Diários: Daily
+            Semanais: Weekly
+            Mensais: Monthly

@@ -18,7 +18,7 @@ dependencies = [
     "rich>=13.7.0",
     "diskcache>=5.6.0",
     "python-dateutil>=2.9",
-    "pydantic>=2.6",
+    "pydantic>=2.7",
     "pydantic-settings>=2.1",
     "pydantic-ai>=0.0.14",
 ]
@@ -27,7 +27,7 @@ dependencies = [
 test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23.0",
-    "pydantic>=2.6",
+    "pydantic>=2.7",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -35,6 +35,7 @@ docs = [
     "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
+    "codespell>=2.3.0",
 ]
 
 [project.scripts]
@@ -42,7 +43,8 @@ egregora = "egregora.__main__:run"
 egregora-mcp = "scripts.start_mcp_server:cli"
 
 [project.entry-points."mkdocs.plugins"]
-media-files = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+"media-files" = "tools.mkdocs_media_plugin:MediaFilesPlugin"
+"tools.mkdocs_build_posts_plugin" = "tools.mkdocs_build_posts_plugin:BuildPostsPlugin"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]

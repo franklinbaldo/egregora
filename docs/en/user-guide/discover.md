@@ -1,4 +1,4 @@
-# Identifier Self-Discovery
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/user-guide/discover) and is pending translation.
+The guidance on how to read the posts is currently in Portuguese.
+See [Posts — Como ler](../../pt-BR/user-guide/discover.md).
