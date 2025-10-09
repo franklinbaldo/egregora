@@ -10,4 +10,4 @@ TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-from test_framework.conftest import *  # noqa: F401,F403
+pytest_plugins = ["test_framework.fixtures"]
