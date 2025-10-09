@@ -90,8 +90,6 @@ This plan addresses the critical architectural and engineering issues identified
 
 **Action Items**:
 - [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
-- [x] Remover utilitários legados de indexação (`rag/indexer.py`) substituídos pelo `PostRAG` baseado em embeddings.
-- [x] Atualizar a suíte de testes para cobrir o fluxo atual (`tests/test_rag_integration.py`) e remover o guard de regressão do módulo legado.
 - [ ] Avaliar migração futura para `txtai` ou `pydanticai.Agent` caso haja ganho comprovado.
 - [x] Validar paridade de resultados com amostras reais de busca.
 
