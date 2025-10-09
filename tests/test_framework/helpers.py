@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import _prepare_transcripts
+from egregora.pipeline import read_zip_texts, _prepare_transcripts
 
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
