@@ -1,19 +1,18 @@
-"""RAG system integration tests using WhatsApp test data."""
-
-from __future__ import annotations
-
-import sys
-from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from egregora.config import PipelineConfig, RAGConfig
-from egregora.rag.query_gen import QueryGenerator, QueryResult
 from egregora.rag.indexer import detect_post_date, hash_text
 
 from test_framework.helpers import create_test_zip
+
+
+def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+    """Return deterministic keywords for testing the query generator."""
+
+    base_keywords = [
+        "tecnologia",
+        "machine",
+        "learning",
+        "programacao",
+    ]
+    return base_keywords[:max_keywords]
 
 
 def test_query_generation_whatsapp_content(temp_dir):
@@ -38,12 +37,13 @@ def test_query_generation_whatsapp_content(temp_dir):
     assert "programação" in result.keywords
 
 
-def test_newsletter_date_detection(temp_dir):
-    """Test newsletter date detection functionality."""
+
+def test_post_date_detection(temp_dir):
+    """Test post date detection functionality."""
     # Test date detection in file paths
     test_files = [
         "2025-10-03.md",
-        "newsletter-2025-10-03.md", 
+        "post-2025-10-03.md",
         "daily-2025-12-25.txt",
         "no-date-file.md",
     ]
@@ -257,8 +257,8 @@ if __name__ == "__main__":
             test_query_generation_whatsapp_content(temp_dir)
             print("✓ Query generation test passed")
             
-            test_newsletter_date_detection(temp_dir)
-            print("✓ Newsletter date detection test passed")
+            test_post_date_detection(temp_dir)
+            print("✓ Post date detection test passed")
             
             test_rag_config_validation(temp_dir)
             print("✓ RAG config validation test passed")

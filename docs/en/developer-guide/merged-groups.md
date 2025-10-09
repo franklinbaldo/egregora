@@ -1,4 +1,3 @@
-# Merged Groups Workflow
+# Translation pending
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/merged-groups) and is pending translation.
+Group merge workflows are described in Portuguese: [Fluxo de grupos mesclados](../../pt-BR/developer-guide/merged-groups.md).

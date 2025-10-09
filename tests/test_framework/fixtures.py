@@ -17,14 +17,15 @@ from egregora.config import PipelineConfig
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Create a temporary directory for tests."""
-    with tempfile.TemporaryDirectory() as tmp:
+    base_dir = Path.cwd()
+    with tempfile.TemporaryDirectory(dir=base_dir) as tmp:
         yield Path(tmp)
 
 
 @pytest.fixture
 def whatsapp_zip_path() -> Path:
     """Path to the WhatsApp test zip file."""
-    return Path("tests/data/Conversa do WhatsApp com Teste.zip")
+    return Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
     return PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
-        newsletters_dir=temp_dir / "newsletters",
+        posts_dir=temp_dir / "posts",
         group_name="Test Group",
     )
 
@@ -57,11 +58,11 @@ def setup_test_environment(temp_dir: Path, whatsapp_zip_path: Path) -> Path:
     """Set up a complete test environment with WhatsApp data."""
     # Create necessary directories
     zips_dir = temp_dir / "zips"
-    newsletters_dir = temp_dir / "newsletters"
+    posts_dir = temp_dir / "posts"
     cache_dir = temp_dir / "cache"
     
     zips_dir.mkdir(parents=True)
-    newsletters_dir.mkdir(parents=True)
+    posts_dir.mkdir(parents=True)
     cache_dir.mkdir(parents=True)
     
     # Copy WhatsApp test file
@@ -81,7 +82,7 @@ def mock_gemini_client():
     
     class MockResponse:
         def __init__(self):
-            self.text = "Mock newsletter content generated from conversation."
+            self.text = "Mock post content generated from conversation."
     
     return MockClient()
 
@@ -93,3 +94,11 @@ def setup_test_env():
     os.environ.setdefault("GEMINI_API_KEY", "test-key-12345")
     yield
     # Cleanup if needed
+
+
+@pytest.fixture
+def whatsapp_real_content() -> str:
+    """Return a longer WhatsApp conversation sample used in integration tests."""
+
+    sample_path = Path("tests/data/Conversa do WhatsApp com Teste.txt")
+    return sample_path.read_text(encoding="utf-8")

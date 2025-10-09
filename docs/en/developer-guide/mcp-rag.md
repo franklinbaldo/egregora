@@ -1,4 +1,3 @@
-# MCP RAG Integration
+# Moved
 
-> [!WARNING]
-> This document is a placeholder. The content has been moved to the [Portuguese documentation](/pt-BR/developer-guide/mcp-rag) and is pending translation.
+See the Portuguese [RAG guide](../../pt-BR/developer-guide/rag.md) for MCP usage and index maintenance.
