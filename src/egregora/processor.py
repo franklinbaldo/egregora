@@ -545,11 +545,11 @@ class UnifiedProcessor:
                         keyword_provider=keyword_provider,
                     )
                     query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query)
-                    if search_results:
+                    hits = rag.search(query.search_query)
+                    if hits:
                         rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
-                            for i, node in enumerate(search_results, 1)
+                            f"<<<CONTEXTO_{i}>>>\n{hit.node.get_content()}"
+                            for i, hit in enumerate(hits, 1)
                         )
 
             context = PostContext(

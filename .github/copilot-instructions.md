@@ -77,12 +77,12 @@ If anything below is unclear or you need access to private config (CI, external 
 - ✅ Sistema RAG completo (`src/egregora/rag/`) com ferramentas MCP.
 - ✅ Servidor MCP (`src/egregora/mcp_server/`) pronto para Claude Desktop.
 - ✅ Anonimização determinística e ferramentas de autodescoberta.
-- 🔄 Migração para embeddings do Gemini (opcional, em validação).
+- ✅ Migração definitiva para embeddings do Gemini como mecanismo único de busca.
 
 ## Roadmap atualizado
 
 ### Em andamento
-- Migrar índice TF-IDF para `gemini-embedding-001` com cache dedicado.
+- Monitorar desempenho do índice baseado em embeddings e ajustar parâmetros conforme necessário.
 - Adicionar suíte de testes automatizados para o servidor MCP.
 - Benchmark de performance comparando TF-IDF x embeddings.
 
