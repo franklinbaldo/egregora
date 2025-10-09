@@ -1,4 +1,22 @@
+
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment variables
+.env
+
+# Cache files
+cache/
+
+# Data files
+data/
+
+# Media files
+media/
+
+# Test data
+tests/data/temp_chat.txt
+tests/data/temp_chat.zip
+tests/temp_output/
