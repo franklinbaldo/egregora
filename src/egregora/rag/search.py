@@ -10,58 +10,6 @@ from __future__ import annotations
 import re
 from typing import Iterable, Any
 
-import re
-
-STOP_WORDS = frozenset(
-    {
-        "a",
-        "as",
-        "e",
-        "o",
-        "os",
-        "de",
-        "da",
-        "do",
-        "das",
-        "dos",
-        "que",
-        "para",
-        "por",
-        "com",
-        "uma",
-        "um",
-        "na",
-        "no",
-        "nas",
-        "nos",
-        "em",
-        "sobre",
-        "and",
-        "the",
-        "to",
-        "of",
-        "in",
-        "on",
-    }
-)
-
-WORD_RE = re.compile(r"[\w'-]+", re.UNICODE)
-
-__all__ = ["search", "tokenize", "STOP_WORDS"]
-
-
-def tokenize(text: str, *, lowercase: bool = True) -> list[str]:
-    """Return simple whitespace-and-punctuation tokenization for *text*."""
-
-    if not text:
-        return []
-
-    tokens = WORD_RE.findall(text)
-    if lowercase:
-        tokens = [token.lower() for token in tokens]
-
-    return [token for token in tokens if any(char.isalnum() for char in token)]
-
 STOP_WORDS: frozenset[str] = frozenset(
     {
         "a",
@@ -84,6 +32,8 @@ STOP_WORDS: frozenset[str] = frozenset(
         "vamos",
     }
 )
+
+_TOKEN_RE = re.compile(r"[\w'-]+", re.UNICODE)
 
 __all__ = ["search", "tokenize", "STOP_WORDS"]
 
