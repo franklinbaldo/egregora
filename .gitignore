@@ -1,5 +1,4 @@
 *__pycache__*
-**/__pycache__/
 *.py[cod]
 .venv/
 .uv/
@@ -17,12 +16,9 @@
 
 # Cache
 cache/
-!src/egregora/cache/
-!src/egregora/cache/**
-src/egregora/cache/__pycache__/
-docs/reports/
-site/
-mkdocs-dev.yml
+runtime/cache/
+artifacts/
+data/posts/
 
 # OS generated files
 .DS_Store
@@ -34,6 +30,8 @@ mkdocs-dev.yml
 data/
 !src/egregora/data/
 !src/egregora/data/**
+!tests/data/
+!tests/data/**
 egregora.toml
 *.zip:Zone.Identifier
 

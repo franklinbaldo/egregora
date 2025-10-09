@@ -3,15 +3,15 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 import yaml
-from diskcache import Cache
 
 from .anonymizer import Anonymizer
+from .cache_manager import CacheManager
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
@@ -36,57 +36,6 @@ if TYPE_CHECKING:
     from .media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
-
-
-def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
-    directory.mkdir(parents=True, exist_ok=True)
-    size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
-    return Cache(directory=str(directory), size_limit=size_limit_bytes)
-
-
-def _coerce_timestamp(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
-
-    if isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value)
-        except ValueError:
-            return None
-
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        return parsed.astimezone(UTC)
-
-    return None
-
-
-def _cleanup_cache(cache: Cache, days: int) -> int:
-    threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
-    removed = 0
-
-    for key in list(cache.iterkeys()):
-        entry = cache.get(key)
-        if not isinstance(entry, dict):
-            cache.delete(key)
-            continue
-
-        last_used = _coerce_timestamp(entry.get("last_used"))
-        if last_used is None:
-            continue
-
-        if last_used < threshold:
-            cache.delete(key)
-            removed += 1
-            continue
-
-        if not isinstance(entry.get("last_used"), datetime):
-            entry["last_used"] = last_used
-            cache.set(key, entry)
-
-    return removed
 
 
 def _build_post_metadata(
@@ -482,20 +431,17 @@ class UnifiedProcessor:
             # Enrichment
             enrichment_section = None
             if self.config.enrichment.enabled:
-                cache: Cache | None = None
+                cache_manager = None
                 if self.config.cache.enabled:
-                    try:
-                        cache = _create_cache(
-                            self.config.cache.cache_dir,
-                            self.config.cache.max_disk_mb,
-                        )
-                        if self.config.cache.auto_cleanup_days:
-                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
-                    except Exception:
-                        cache = None
+                    cache_manager = CacheManager(
+                        self.config.cache.cache_dir,
+                        size_limit_mb=self.config.cache.max_disk_mb,
+                    )
+                    if self.config.cache.auto_cleanup_days:
+                        cache_manager.cleanup_old_entries(self.config.cache.auto_cleanup_days)
                 enricher = ContentEnricher(
                     self.config.enrichment,
-                    cache=cache,
+                    cache_manager=cache_manager,
                 )
                 enrichment_result = asyncio.run(
                     enricher.enrich_dataframe(
@@ -545,11 +491,11 @@ class UnifiedProcessor:
                         keyword_provider=keyword_provider,
                     )
                     query = query_gen.generate(transcript)
-                    hits = rag.search(query.search_query)
-                    if hits:
+                    search_results = rag.search(query.search_query)
+                    if search_results:
                         rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{hit.node.get_content()}"
-                            for i, hit in enumerate(hits, 1)
+                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
+                            for i, node in enumerate(search_results, 1)
                         )
 
             context = PostContext(

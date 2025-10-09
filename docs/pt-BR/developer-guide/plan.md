@@ -23,10 +23,10 @@ This plan addresses the critical architectural and engineering issues identified
 
 **Action Items**:
 - [ ] Add `diskcache` to project dependencies
-- [x] Replace `cache_manager.py` with `diskcache`
-  - ✅ Update all imports and usages across the codebase
-  - ✅ Test cache hit/miss behavior matches original
-  - ✅ Remove `cache_manager.py` once verified
+- [ ] Replace `cache_manager.py` with `diskcache`
+  - Update all imports and usages across the codebase
+  - Test cache hit/miss behavior matches original
+  - Remove `cache_manager.py` once verified
 - [x] Replace `rag/embedding_cache.py` with `diskcache`
   - ✅ Cache de embeddings agora usa `diskcache` diretamente em `CachedGeminiEmbedding`
   - ✅ Removido o módulo customizado `rag/embedding_cache.py`
@@ -45,9 +45,11 @@ This plan addresses the critical architectural and engineering issues identified
 **Problem**: Hand-rolled implementations for solved problems (date parsing, configuration).
 
 **Action Items**:
-- [x] Replace date parsing with `python-dateutil`
-  - ✅ `parser.py` e `group_discovery.py` agora usam `dateutil.parser.isoparse/parse` diretamente, mantendo suporte a `dayfirst` e normalização para UTC
-  - ✅ Removido `date_utils.py` em favor de utilitários locais, com testes atualizados para cobrir os novos pontos de integração
+- [ ] Replace date parsing with `python-dateutil`
+  - Add `python-dateutil` to dependencies
+  - Refactor `date_utils.py` to use `dateutil.parser.parse`
+  - Add proper error handling and timezone awareness
+  - Update tests
 
 - [ ] Migrate configuration to Pydantic
   - Add `pydantic` and `pydantic-settings` to dependencies
@@ -86,10 +88,10 @@ This plan addresses the critical architectural and engineering issues identified
 ### 2.1 Standardize Retrieval on txtai + pydanticai (remove TF-IDF)
 **Priority: HIGH | Risk: LOW | Effort: LOW**
 
-**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com o stack `llama-index` já utilizado em produção, mantendo apenas um mecanismo de busca. A remoção foi concluída e o pipeline de RAG agora expõe somente o fluxo baseado em embeddings.
+**Decision**: Remover `rag/search.py` (TF-IDF) e padronizar em embeddings com o stack `llama-index` já utilizado em produção, mantendo apenas um mecanismo de busca.
 
 **Action Items**:
-- [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings (concluído neste ciclo).
+- [x] Apagar `rag/search.py` e chamadas associadas; atualizar docs e testes para o fluxo único de embeddings.
 - [ ] Avaliar migração futura para `txtai` ou `pydanticai.Agent` caso haja ganho comprovado.
 - [x] Validar paridade de resultados com amostras reais de busca.
 

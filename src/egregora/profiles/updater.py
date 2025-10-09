@@ -257,7 +257,7 @@ class ProfileUpdater:
         member_id: str,
         df: pl.DataFrame,
     ) -> pl.DataFrame:
-        """Extract messages from a specific member using Polars operations."""
+        """Extract messages from a specific member using DataFrame operations."""
 
         if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
@@ -280,7 +280,13 @@ class ProfileUpdater:
         if messages_df.is_empty():
             return False, "Nenhuma mensagem encontrada"
 
-        messages_with_counts = messages_df.with_columns(self._word_count_expression())
+        word_counts = [
+            len([chunk for chunk in (message or "").split() if chunk])
+            for message in messages_df.get_column("message").to_list()
+        ]
+        messages_with_counts = messages_df.with_columns(
+            pl.Series("word_count", word_counts, dtype=pl.Int64)
+        )
 
         meaningful_messages = messages_with_counts.filter(
             pl.col("word_count") >= self.min_words_per_message
@@ -317,12 +323,18 @@ class ProfileUpdater:
         if messages_df.is_empty():
             return {}
 
-        messages_df = messages_df.with_columns(self._word_count_expression())
+        word_counts = pl.Series(
+            "word_count",
+            [
+                len([chunk for chunk in (message or "").split() if chunk])
+                for message in messages_df.get_column("message").to_list()
+            ],
+            dtype=pl.Int64,
+        )
+        messages_df = messages_df.with_columns(word_counts)
 
         total_messages = messages_df.height
-        avg_words_per_message = float(
-            messages_df.get_column("word_count").mean() or 0.0
-        )
+        avg_words_per_message = float(word_counts.mean() or 0.0)
 
         first_message = messages_df.get_column("timestamp").min()
         last_message = messages_df.get_column("timestamp").max()
@@ -335,19 +347,15 @@ class ProfileUpdater:
             .sort("day")
         )
 
-        avg_messages_per_day = float(
-            daily_counts.get_column("message_count").mean() or 0.0
-        )
+        avg_messages_per_day = float(daily_counts.get_column("message_count").mean() or 0.0)
 
-        if daily_counts.is_empty():
-            most_active_day = None
-            max_messages_in_day = 0
-        else:
-            top_day = (
-                daily_counts.sort("message_count", descending=True).row(0, named=True)
-            )
-            most_active_day = top_day.get("day") if isinstance(top_day, dict) else top_day[0]
-            max_messages_in_day = daily_counts.get_column("message_count").max()
+        most_active_day_values = (
+            daily_counts.sort("message_count", descending=True).get_column("day").to_list()
+        )
+        most_active_day = most_active_day_values[0] if most_active_day_values else None
+        max_messages_in_day = (
+            daily_counts.get_column("message_count").max() if not daily_counts.is_empty() else 0
+        )
 
         return {
             "total_messages": total_messages,
@@ -360,18 +368,6 @@ class ProfileUpdater:
             "most_active_day": most_active_day,
             "max_messages_in_day": max_messages_in_day,
         }
-
-    @staticmethod
-    def _word_count_expression() -> pl.Expr:
-        """Return a Polars expression that counts non-empty tokens in ``message``."""
-
-        return (
-            pl.col("message")
-            .cast(pl.Utf8)
-            .fill_null("")
-            .str.count_matches(r"\S+")
-            .alias("word_count")
-        )
 
     def _is_meaningful(self, message: str) -> bool:
         words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
