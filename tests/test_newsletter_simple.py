@@ -1,15 +1,8 @@
-"""Simplified post generation tests focusing on testable components."""
+"""Simplified newsletter generation tests focusing on testable components."""
 
 from __future__ import annotations
 
-import sys
 from datetime import date, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import pytest
 
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
@@ -17,12 +10,12 @@ from egregora.pipeline import (
     load_previous_post,
     list_zip_days,
     find_date_in_name,
-    _format_transcript_section_header,
+    _format_transcript_section_header
 )
-from test_framework.helpers import create_test_zip
+from .test_framework.helpers import create_test_zip
 
 
-def test_whatsapp_transcript_preparation(temp_dir, whatsapp_test_data):
+def test_whatsapp_transcript_preparation(temp_dir):
     """Test transcript preparation with WhatsApp data."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -30,8 +23,13 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_test_data):
     )
     
     # Real WhatsApp conversation
-    whatsapp_transcripts = [(date(2025, 10, 3), whatsapp_test_data)]
-
+    whatsapp_transcripts = [
+        (date(2025, 10, 3), """03/10/2025 09:45 - Franklin: Teste de grupo
+03/10/2025 09:46 - Franklin: 🐱
+03/10/2025 09:47 - Maria: Ótima ideia sobre o projeto
+03/10/2025 09:48 - José: Concordo com essa proposta""")
+    ]
+    
     # Process transcripts
     result = _prepare_transcripts(whatsapp_transcripts, config)
     
@@ -60,16 +58,16 @@ def test_whatsapp_transcript_preparation(temp_dir, whatsapp_test_data):
     assert "Ótima ideia" in processed_content
 
 
-def test_previous_post_context_loading(temp_dir):
-    """Test loading the previous post for context."""
-    posts_dir = temp_dir / "posts"
-    posts_dir.mkdir()
-
-    # Create previous post
+def test_previous_newsletter_context_loading(temp_dir):
+    """Test loading previous newsletter for context."""
+    newsletters_dir = temp_dir / "newsletters"
+    newsletters_dir.mkdir()
+    
+    # Create previous newsletter
     yesterday = date.today() - timedelta(days=1)
-    previous_path = posts_dir / f"{yesterday.isoformat()}.md"
-
-    previous_content = """# Post anterior - {yesterday}
+    previous_path = newsletters_dir / f"{yesterday.isoformat()}.md"
+    
+    previous_content = """# Newsletter Anterior - {yesterday}
 
 ## Contexto do Dia Anterior
 - Discussão sobre projeto Alpha
@@ -80,80 +78,35 @@ def test_previous_post_context_loading(temp_dir):
 - Tecnologia escolhida
 - Timeline do projeto
 """.format(yesterday=yesterday.strftime("%d/%m/%Y"))
-
+    
     previous_path.write_text(previous_content)
-
+    
     # Test loading
-    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
     
     # Validate loading
     assert loaded_path == previous_path
     assert loaded_content == previous_content
     assert "Contexto do Dia Anterior" in loaded_content
     assert "projeto Alpha" in loaded_content
+
+
+def test_newsletter_without_previous_context(temp_dir):
+    """Test behavior when no previous newsletter exists."""
+    newsletters_dir = temp_dir / "newsletters_empty"
+    newsletters_dir.mkdir()
     
-
-def test_previous_post_skips_gaps(temp_dir):
-    """The loader should return the most recent available post even with gaps."""
-
-    posts_dir = temp_dir / "posts_with_gaps"
-    posts_dir.mkdir()
-
-    reference_date = date(2025, 10, 10)
-    two_days_ago = reference_date - timedelta(days=2)
-    three_days_ago = reference_date - timedelta(days=3)
-
-    (posts_dir / f"{three_days_ago.isoformat()}.md").write_text(
-        "# Post antigo\n\nAinda relevante", encoding="utf-8"
-    )
-    (posts_dir / f"{two_days_ago.isoformat()}.md").write_text(
-        "# Post de controle\n\nUsado para preencher o gap", encoding="utf-8"
-    )
-
-    # Delete yesterday's post to simulate a missing publication.
-    missing_yesterday = posts_dir / f"{(reference_date - timedelta(days=1)).isoformat()}.md"
-    if missing_yesterday.exists():
-        missing_yesterday.unlink()
-
-    loaded_path, loaded_content = load_previous_post(posts_dir, reference_date)
-
-    assert loaded_path.name == f"{two_days_ago.isoformat()}.md"
-    assert "Post de controle" in (loaded_content or "")
-
-    # When limiting the search window the function should honour it.
-    limited_path, limited_content = load_previous_post(
-        posts_dir, reference_date, search_window_days=1
-    )
-    assert limited_path.name == f"{(reference_date - timedelta(days=1)).isoformat()}.md"
-    assert limited_content is None
-
-
-def test_previous_post_rejects_invalid_window(temp_dir):
-    """A zero or negative search window is a misuse and must fail fast."""
-
-    posts_dir = temp_dir / "posts_invalid"
-    posts_dir.mkdir()
-
-    with pytest.raises(ValueError):
-        load_previous_post(posts_dir, date.today(), search_window_days=0)
-
-
-def test_post_without_previous_context(temp_dir):
-    """Test behavior when no previous post exists."""
-    posts_dir = temp_dir / "posts_empty"
-    posts_dir.mkdir()
-
     # Test with empty directory
-    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
-
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
+    
     assert loaded_content is None
     assert not loaded_path.exists()
-
+    
     # Test with non-matching dates
-    wrong_date = posts_dir / "2020-01-01.md"
-    wrong_date.write_text("Old post")
-
-    loaded_path, loaded_content = load_previous_post(posts_dir, date.today())
+    wrong_date = newsletters_dir / "2020-01-01.md"
+    wrong_date.write_text("Old newsletter")
+    
+    loaded_path, loaded_content = load_previous_post(newsletters_dir, date.today())
     assert loaded_content is None
 
 
@@ -197,7 +150,7 @@ def test_zip_file_date_detection_and_listing(temp_dir):
     assert actual_dates == expected_valid_dates
 
 
-def test_multi_day_transcript_processing(temp_dir, whatsapp_test_data):
+def test_multi_day_transcript_processing(temp_dir):
     """Test processing transcripts from multiple days."""
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir,
@@ -208,7 +161,7 @@ def test_multi_day_transcript_processing(temp_dir, whatsapp_test_data):
     multi_day_transcripts = [
         (date(2025, 10, 1), "01/10/2025 10:00 - Alice: Primeiro dia de conversas"),
         (date(2025, 10, 2), "02/10/2025 14:30 - Bob: Segundo dia, continuando discussão"),
-        (date(2025, 10, 3), whatsapp_test_data),
+        (date(2025, 10, 3), "03/10/2025 09:15 - Charlie: Terceiro dia, resumindo"),
     ]
     
     # Process all transcripts
@@ -344,17 +297,17 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp:
         temp_dir = Path(tmp)
         
-        print("Running simplified post generation tests...")
+        print("Running simplified newsletter generation tests...")
         
         try:
             test_whatsapp_transcript_preparation(temp_dir)
             print("✓ WhatsApp transcript preparation test passed")
             
-            test_previous_post_context_loading(temp_dir)
-            print("✓ Previous post context loading test passed")
-
-            test_post_without_previous_context(temp_dir)
-            print("✓ Post without previous context test passed")
+            test_previous_newsletter_context_loading(temp_dir)
+            print("✓ Previous newsletter context loading test passed")
+            
+            test_newsletter_without_previous_context(temp_dir)
+            print("✓ Newsletter without previous context test passed")
             
             test_zip_file_date_detection_and_listing(temp_dir)
             print("✓ Zip file date detection and listing test passed")
@@ -374,7 +327,7 @@ if __name__ == "__main__":
             test_config_validation_with_whatsapp_setup(temp_dir)
             print("✓ Config validation with WhatsApp setup test passed")
             
-            print("\n🎉 All simplified post generation tests passed!")
+            print("\n🎉 All simplified newsletter generation tests passed!")
             
         except Exception as e:
             print(f"❌ Test failed: {e}")

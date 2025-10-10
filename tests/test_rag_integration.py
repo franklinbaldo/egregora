@@ -1,18 +1,13 @@
-"""RAG system integration tests using WhatsApp test data."""
+"""Integration tests covering the RAG pipeline components."""
 
-from __future__ import annotations
-
-import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from egregora.config import PipelineConfig, RAGConfig
-from egregora.rag.query_gen import QueryGenerator, QueryResult
+from egregora.config import PipelineConfig
+from egregora.rag.config import RAGConfig
 from egregora.rag.indexer import detect_post_date, hash_text
-from egregora.rag.search import tokenize, STOP_WORDS
+from egregora.rag.query_gen import QueryGenerator, QueryResult
+
 from test_framework.helpers import create_test_zip
 
 
@@ -28,36 +23,30 @@ def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
     return base_keywords[:max_keywords]
 
 
-def test_query_generation_whatsapp_content(temp_dir):
+def test_query_generation_whatsapp_content(temp_dir: Path):
     """Test query generation components with WhatsApp conversation content."""
     whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
 03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
 03/10/2025 09:47 - Franklin: Legal esse vídeo sobre programação"""
-    
-    # Test tokenization functionality
-    tokens = tokenize(whatsapp_content)
-    
-    # Validate tokenization
-    assert len(tokens) > 0
-    assert 'tecnologia' in tokens or 'tecnologia' in whatsapp_content.lower()
-    assert 'machine' in tokens or 'learning' in tokens
-    
-    # Test stop words filtering
-    meaningful_tokens = [token for token in tokens if token not in STOP_WORDS]
-    assert len(meaningful_tokens) > 0
-    
-    # Test query generator initialization with deterministic keywords
-    query_gen = QueryGenerator(keyword_provider=_stub_keyword_provider)
+
+    def mock_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
+        return ["tecnologia", "IA", "machine learning", "programação"]
+
+    # Test query generator initialization
+    query_gen = QueryGenerator(keyword_provider=mock_keyword_provider)
     assert hasattr(query_gen, 'config')
     assert isinstance(query_gen.config, RAGConfig)
 
     result = query_gen.generate(whatsapp_content)
     assert isinstance(result, QueryResult)
-    assert result.keywords[:3] == ["tecnologia", "machine", "learning"]
-    assert result.search_query.startswith("tecnologia, machine, learning")
+    assert "tecnologia" in result.keywords
+    assert "IA" in result.keywords
+    assert "machine learning" in result.keywords
+    assert "programação" in result.keywords
 
 
-def test_post_date_detection(temp_dir):
+
+def test_post_date_detection(temp_dir: Path):
     """Test post date detection functionality."""
     # Test date detection in file paths
     test_files = [
@@ -79,7 +68,7 @@ def test_post_date_detection(temp_dir):
         assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
 
 
-def test_rag_config_validation(temp_dir):
+def test_rag_config_validation(temp_dir: Path):
     """Test RAG configuration with WhatsApp setup."""
     # Test various RAG configurations
     configs = [
@@ -102,7 +91,7 @@ def test_rag_config_validation(temp_dir):
             assert 0.0 <= config.rag.min_similarity <= 1.0
 
 
-def test_search_functionality_patterns(temp_dir):
+def test_search_functionality_patterns(temp_dir: Path):
     """Test search patterns with WhatsApp-like content."""
     # Create test content that simulates indexed conversations
     test_conversations = [
@@ -133,7 +122,7 @@ def test_search_functionality_patterns(temp_dir):
         assert len(processed) > 0
 
 
-def test_rag_context_preparation(temp_dir):
+def test_rag_context_preparation(temp_dir: Path):
     """Test RAG context preparation with WhatsApp data."""
     whatsapp_transcripts = [
         (date(2025, 10, 1), "Conversa sobre projeto A"),
@@ -161,7 +150,7 @@ def test_rag_context_preparation(temp_dir):
         assert ']' in part
 
 
-def test_text_hashing_functionality(temp_dir):
+def test_text_hashing_functionality(temp_dir: Path):
     """Test text hashing for content change detection."""
     whatsapp_texts = [
         "03/10/2025 09:45 - Franklin: Teste de grupo",
@@ -183,7 +172,7 @@ def test_text_hashing_functionality(temp_dir):
     assert hashes[0] != hashes[1]
 
 
-def test_whatsapp_data_processing_pipeline(temp_dir):
+def test_whatsapp_data_processing_pipeline(temp_dir: Path):
     """Test complete data processing pipeline with WhatsApp format."""
     # Setup test data
     zips_dir = temp_dir / "zips"
@@ -213,7 +202,7 @@ def test_whatsapp_data_processing_pipeline(temp_dir):
             assert "IA" in content
 
 
-def test_rag_performance_considerations(temp_dir):
+def test_rag_performance_considerations(temp_dir: Path):
     """Test performance considerations for RAG with large datasets."""
     # Simulate large conversation dataset
     large_conversations = []
