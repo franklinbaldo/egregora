@@ -1,4 +1,4 @@
-# Issue #013: UnifiedProcessor Missing Core Features
+# UnifiedProcessor Missing Core Features
 
 ## Priority: High
 ## Effort: High

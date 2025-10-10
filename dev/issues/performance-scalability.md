@@ -1,4 +1,4 @@
-# Issue #005: Performance & Scalability
+# Performance & Scalability
 
 ## Priority: Medium
 ## Effort: Medium  

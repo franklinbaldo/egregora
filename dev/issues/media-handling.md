@@ -1,4 +1,4 @@
-# Issue #007: Media Handling Enhancement
+# Media Handling Enhancement
 
 ## Priority: Medium
 ## Effort: Medium
