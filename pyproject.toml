@@ -37,6 +37,9 @@ docs = [
     "pymdown-extensions>=10.0",
     "codespell>=2.3.0",
 ]
+lint = [
+    "pre-commit>=3.8",
+]
 
 [project.scripts]
 egregora = "egregora.__main__:run"
