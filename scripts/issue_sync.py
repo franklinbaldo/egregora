@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -51,9 +52,15 @@ from urllib import error, request
 ISSUES_DIR_DEFAULT = Path("dev/issues")
 METADATA_ORDER = ("github_issue", "github_state", "last_synced", "sync_hash")
 
+LOGGER = logging.getLogger("egregora.issue_sync")
 
-def _debug(msg: str) -> None:
-    print(msg)
+
+def _log_info(message: str) -> None:
+    LOGGER.info(message)
+
+
+def _log_warning(message: str) -> None:
+    LOGGER.warning(message)
 
 
 def _now_utc() -> datetime:
@@ -356,13 +363,23 @@ def write_issue_file(issue: LocalIssue) -> None:
 
 
 def ensure_unique_path(base_dir: Path, filename: str) -> Path:
-    path = base_dir / filename
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        raise ValueError(f"Unsafe filename with path components: {filename}")
+
+    base_dir_resolved = base_dir.resolve()
+    path = base_dir / safe_name
+    if not path.resolve().is_relative_to(base_dir_resolved):
+        raise ValueError(f"Resolved path escapes base directory: {path}")
     if not path.exists():
         return path
-    stem, suffix = os.path.splitext(filename)
+
+    stem, suffix = os.path.splitext(safe_name)
     counter = 2
     while True:
         candidate = base_dir / f"{stem}-{counter}{suffix}"
+        if not candidate.resolve().is_relative_to(base_dir_resolved):
+            raise ValueError(f"Resolved path escapes base directory: {candidate}")
         if not candidate.exists():
             return candidate
         counter += 1
@@ -374,7 +391,15 @@ def create_local_issue_from_remote(
 ) -> LocalIssue:
     slug = slugify(remote.get("title", "issue"))
     filename = f"github-{int(remote['number']):05d}-{slug}.md"
-    path = ensure_unique_path(directory, filename)
+    try:
+        path = ensure_unique_path(directory, filename)
+    except ValueError as exc:
+        _log_warning(
+            f"Unsafe path '{filename}' for GitHub issue #{remote['number']}: {exc}."
+            " Using sanitized fallback filename."
+        )
+        fallback_filename = f"github-{int(remote['number']):05d}.md"
+        path = ensure_unique_path(directory, fallback_filename)
     content = parse_remote_content(remote)
     issue = LocalIssue(
         path=path,
@@ -391,7 +416,7 @@ def create_local_issue_from_remote(
         commit_time=None,
     )
     write_issue_file(issue)
-    _debug(f"📝 Created local issue for GitHub #{remote['number']} -> {path}")
+    _log_info(f"📝 Created local issue for GitHub #{remote['number']} -> {path}")
     return issue
 
 
@@ -465,7 +490,7 @@ def sync_existing_issue(
         local.last_synced = remote_updated or _now_utc()
         local.sync_hash = remote_hash
         write_issue_file(local)
-        _debug(
+        _log_info(
             f"⬇️  Updated local file from GitHub issue #{local.issue_number} ({local.path.name})"
         )
         return
@@ -484,7 +509,7 @@ def sync_existing_issue(
         local.desired_state = response.get("state", local.desired_state)
         local.sync_hash = compute_hash(local.content)
         write_issue_file(local)
-        _debug(
+        _log_info(
             f"⬆️  Updated GitHub issue #{local.issue_number} from local file ({local.path.name})"
         )
         return
@@ -516,7 +541,7 @@ def sync_local_without_remote(
     local.last_synced = remote_updated
     local.sync_hash = compute_hash(local.content)
     write_issue_file(local)
-    _debug(f"🚀 Created GitHub issue #{issue_number} from {local.path.name}")
+    _log_info(f"🚀 Created GitHub issue #{issue_number} from {local.path.name}")
 
     if local.stored_state == "closed" and remote_state != "closed":
         response = update_remote_issue(
@@ -534,6 +559,15 @@ def sync_local_without_remote(
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(
+        level=getattr(
+            logging,
+            os.environ.get("ISSUE_SYNC_LOG_LEVEL", "INFO").upper(),
+            logging.INFO,
+        ),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repo",
@@ -570,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if issue.issue_number in issues_by_number:
             existing = issues_by_number[issue.issue_number]
-            _debug(
+            _log_warning(
                 f"⚠️  Duplicate mapping for GitHub issue #{issue.issue_number}:"
                 f" {existing.path} and {issue.path}."
             )
@@ -591,12 +625,12 @@ def main(argv: list[str] | None = None) -> int:
             sync_local_without_remote(args.repo, args.token, issue)
         elif issue.issue_number not in matched_numbers:
             # The associated GitHub issue no longer exists; recreate it.
-            _debug(
+            _log_info(
                 f"♻️  Recreating missing GitHub issue for {issue.path.name}"
             )
             sync_local_without_remote(args.repo, args.token, issue)
 
-    _debug("✅ Synchronization complete.")
+    _log_info("✅ Synchronization complete.")
     return 0
 
 
