@@ -8,8 +8,14 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -21,7 +27,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Sync dependencies
-        run: uv sync --extra docs
+        run: uv sync --extra docs --extra lint
       - name: Lint Markdown
         run: |
           set -o errexit
@@ -33,8 +39,36 @@ jobs:
           uv run --with codespell codespell --quiet-level=2 $(cat codespell_targets.txt)
       - name: Build docs
         run: uv run mkdocs build --strict
-      - name: Run pre-commit
-        run: uv run --with pre-commit pre-commit run --all-files
+      - name: Run pre-commit (auto-fix)
+        run: |
+          set +e
+          uv run pre-commit run --all-files --show-diff-on-failure
+          status=$?
+          if [ "$status" -ne 0 ] && [ -z "$(git status --porcelain)" ]; then
+            exit $status
+          fi
+
+      - name: Commit and push lint fixes
+        if: ${{ always() }}
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "Automatic lint fixes require write access to the source branch." >&2
+            echo "Re-run pre-commit locally and push the changes manually." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: apply automatic lint fixes"
+          git push origin HEAD:${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Verify pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure
       - name: Run tests
         run: uv run --with pytest pytest
       - name: Backlog smoke test

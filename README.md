@@ -51,6 +51,18 @@ uv run egregora --config egregora.toml --days 2
 
 Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
 
+## Linting & formatting
+
+Run the automated formatters locally before pushing to mirror the CI behaviour:
+
+```bash
+uv sync --extra lint
+uv run pre-commit install
+uv run pre-commit run --all-files
+```
+
+The CI pipeline re-executes the same hooks, commits any auto-fixable updates back to the source branch, and only fails when an issue requires manual intervention. Installing the hook locally keeps your branches clean and avoids round-trips with the automated fixer.
+
 ## Command line interface
 
 ### `egregora` (default command)
