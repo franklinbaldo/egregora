@@ -62,8 +62,8 @@ def test_get_uuid_variants_returns_human_identifier() -> None:
 # From test_privacy_e2e.py
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        posts_dir=temp_dir,
+        zip_files=[],
+        output_dir=temp_dir,
     )
 
     class RecordingClassifier:
@@ -112,8 +112,8 @@ def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
 
 def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
     config = PipelineConfig.with_defaults(
-        zips_dir=temp_dir,
-        posts_dir=temp_dir,
+        zip_files=[],
+        output_dir=temp_dir,
     )
     config.anonymization.enabled = False
 
@@ -202,8 +202,8 @@ def test_unified_processor_anonymizes_transcripts(tmp_path: Path) -> None:
         zf.write(chat_txt_path, arcname="_chat.txt")
 
     config = PipelineConfig.with_defaults(
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_files=[],
+        output_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
         timezone=ZoneInfo("America/Sao_Paulo"),
     )
@@ -246,8 +246,8 @@ def test_unified_processor_anonymizes_transcripts_no_gemini(tmp_path: Path) -> N
         zf.write(chat_txt_path, arcname="_chat.txt")
 
     config = PipelineConfig.with_defaults(
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_files=[],
+        output_dir=posts_dir,
         model="none",  # Disable Gemini for this test
         timezone=ZoneInfo("America/Sao_Paulo"),
     )

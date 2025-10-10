@@ -36,8 +36,8 @@ def test_pipeline_generates_post_with_live_gemini() -> None:
         zf.writestr("Conversa do WhatsApp com Grupo Teste.txt", conversation)
 
     config = PipelineConfig.with_defaults(
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_files=[],
+        output_dir=posts_dir,
     )
 
     processor = UnifiedProcessor(config)

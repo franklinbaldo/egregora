@@ -14,6 +14,7 @@ from diskcache import Cache
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
+from .gemini_manager import GeminiManager, GeminiQuotaError
 from .generator import PostContext, PostGenerator
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
@@ -143,7 +144,12 @@ class UnifiedProcessor:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        self.generator = PostGenerator(config)
+        # Shared GeminiManager for rate limiting across all components
+        self.gemini_manager = GeminiManager(
+            retry_attempts=3,
+            minimum_retry_seconds=30.0,
+        )
+        self.generator = PostGenerator(config, gemini_manager=self.gemini_manager)
 
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
@@ -158,6 +164,56 @@ class UnifiedProcessor:
                 minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
+
+    def estimate_api_usage(self, days: int | None = None) -> dict[str, Any]:
+        """Estimate API quota usage for the planned processing."""
+        sources_to_process, _, _ = self._collect_sources()
+        
+        total_posts = 0
+        total_enrichment_calls = 0
+        group_estimates = {}
+        
+        for slug, source in sources_to_process.items():
+            target_dates = get_available_dates(
+                source,
+                days=days,
+                timezone=self.config.timezone,
+            )
+            
+            group_posts = len(target_dates)
+            total_posts += group_posts
+            
+            # Estimate enrichment calls (rough estimate)
+            enrichment_calls = 0
+            if self.config.enrichment.enabled:
+                # Rough estimate: 1-3 enrichment calls per day on average
+                enrichment_calls = group_posts * 2  # Conservative estimate
+                
+            total_enrichment_calls += enrichment_calls
+            
+            group_estimates[slug] = {
+                "posts": group_posts,
+                "enrichment_calls": enrichment_calls,
+                "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
+            }
+        
+        # Free tier limits (based on the issue description)
+        free_tier_limit = 15  # requests per minute
+        estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
+        
+        return {
+            "total_api_calls": total_posts + total_enrichment_calls,
+            "post_generation_calls": total_posts,
+            "enrichment_calls": total_enrichment_calls,
+            "estimated_time_minutes": estimated_minutes,
+            "free_tier_minutes_needed": estimated_minutes,
+            "groups": group_estimates,
+            "warning": (
+                "⚠️ Esta operação pode exceder a quota gratuita do Gemini" 
+                if total_posts + total_enrichment_calls > 15 
+                else None
+            )
+        }
 
     def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -206,6 +262,50 @@ class UnifiedProcessor:
 
         return sorted(plans, key=lambda plan: plan.slug)
 
+    def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
+        """Extract group name from WhatsApp chat filename."""
+        # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
+        import re
+        
+        # Remove file extension
+        base_name = chat_filename.replace('.txt', '')
+        
+        # Common patterns in WhatsApp exports
+        patterns = [
+            r"Conversa do WhatsApp com (.+)",  # Portuguese
+            r"WhatsApp Chat with (.+)",       # English
+            r"Chat de WhatsApp con (.+)",     # Spanish
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, base_name, re.IGNORECASE)
+            if match:
+                group_name = match.group(1).strip()
+                # Remove common suffixes like dates, emojis at the end
+                group_name = re.sub(r'\s*[🀀-🟿]+\s*$', '', group_name).strip()
+                return group_name
+        
+        # Fallback: use the whole filename without extension
+        return base_name
+
+    def _generate_group_slug(self, group_name: str) -> str:
+        """Generate a URL-friendly slug from group name."""
+        import re
+        import unicodedata
+        
+        # Normalize unicode characters
+        slug = unicodedata.normalize('NFKD', group_name)
+        slug = slug.encode('ascii', 'ignore').decode('ascii')
+        
+        # Convert to lowercase and replace spaces/special chars with hyphens
+        slug = re.sub(r'[^\w\s-]', '', slug.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        
+        # Remove leading/trailing hyphens
+        slug = slug.strip('-')
+        
+        return slug or 'whatsapp-group'
+
     def _collect_sources(
         self,
     ) -> tuple[
@@ -213,15 +313,26 @@ class UnifiedProcessor:
         dict[GroupSlug, list[WhatsAppExport]],
         dict[GroupSlug, GroupSource],
     ]:
-        """Discover and prepare sources for processing."""
+        """Process the specified ZIP files."""
 
-        logger.info(f"🔍 Scanning {self.config.zips_dir}... (Discovery disabled)")
+        if not self.config.zip_files:
+            raise ValueError("No ZIP files specified. Use the zip_files parameter.")
+
+        num_files = len(self.config.zip_files)
+        if num_files == 1:
+            logger.info(f"🔍 Processing ZIP file: {self.config.zip_files[0]}")
+        else:
+            logger.info(f"🔍 Processing {num_files} ZIP files for merging:")
         
-        zip_path = Path(self.config.zips_dir) / "real-whatsapp-export.zip"
-        if zip_path.exists():
-            group_name = "Rationality Club LatAm"
-            group_slug = "rationality-club-latam"
-            export_date = date.today()
+        real_groups: dict[GroupSlug, list[WhatsAppExport]] = {}
+        
+        for zip_path in self.config.zip_files:
+            zip_path = Path(zip_path)
+            if not zip_path.exists():
+                raise FileNotFoundError(f"ZIP file not found: {zip_path}")
+
+            if num_files > 1:
+                logger.info(f"  📦 {zip_path}")
             
             import zipfile
             with zipfile.ZipFile(zip_path, 'r') as zf:
@@ -232,6 +343,29 @@ class UnifiedProcessor:
                 chat_file = txt_files[0]  # Use the first (and likely only) .txt file
                 media_files = [f for f in zf.namelist() if f != chat_file]
 
+            # Auto-detect or use provided group information
+            if self.config.group_name:
+                group_name = self.config.group_name
+            else:
+                group_name = self._extract_group_name_from_chat_file(chat_file)
+                if num_files == 1:
+                    logger.info(f"📝 Auto-detected group name: {group_name}")
+                else:
+                    logger.info(f"    📝 Auto-detected group name: {group_name}")
+
+            if self.config.group_slug:
+                group_slug = self.config.group_slug
+            else:
+                group_slug = self._generate_group_slug(group_name)
+                if num_files == 1:
+                    logger.info(f"🔗 Auto-generated slug: {group_slug}")
+                else:
+                    logger.info(f"    🔗 Auto-generated slug: {group_slug}")
+
+            # Use current date as export creation date
+            # Note: Media extraction no longer depends on this matching message dates
+            export_date = date.today()
+
             export = WhatsAppExport(
                 zip_path=zip_path,
                 group_name=group_name,
@@ -240,9 +374,17 @@ class UnifiedProcessor:
                 chat_file=chat_file,
                 media_files=media_files,
             )
-            real_groups = {group_slug: [export]}
-        else:
-            real_groups = {}
+            
+            # Add export to the group (allowing multiple exports per group for merging)
+            if group_slug not in real_groups:
+                real_groups[group_slug] = []
+            real_groups[group_slug].append(export)
+            
+        # Log merging info if multiple files resulted in same groups
+        if num_files > 1:
+            for group_slug, exports in real_groups.items():
+                if len(exports) > 1:
+                    logger.info(f"🔀 Merging {len(exports)} exports into group '{group_slug}'")
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
@@ -422,9 +564,9 @@ class UnifiedProcessor:
         results = []
         extractor = MediaExtractor(group_dir, group_slug=source.slug)
 
-        exports_by_date: dict[date, list] = {}
-        for export in source.exports:
-            exports_by_date.setdefault(export.export_date, []).append(export)
+        # Simplified approach: since we only have one export per group in the new CLI,
+        # we can extract media from all exports for any target date
+        available_exports = source.exports
 
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
@@ -439,7 +581,8 @@ class UnifiedProcessor:
             all_media: dict[str, MediaFile] = {}
             if attachment_names:
                 remaining = set(attachment_names)
-                for export in exports_by_date.get(target_date, []):
+                # Try to extract from all available exports (typically just one)
+                for export in available_exports:
                     extracted = extractor.extract_specific_media_from_zip(
                         export.zip_path,
                         target_date,
@@ -560,14 +703,29 @@ class UnifiedProcessor:
                 enrichment_section=enrichment_section,
                 rag_context=rag_context,
             )
-            post = self.generator.generate(source, context)
-
+            # Progressive processing: handle quota errors gracefully
             try:
-                validate_newsletter_privacy(post)
-            except PrivacyViolationError as exc:
-                raise PrivacyViolationError(
-                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
-                ) from exc
+                post = self.generator.generate(source, context)
+                
+                try:
+                    validate_newsletter_privacy(post)
+                except PrivacyViolationError as exc:
+                    raise PrivacyViolationError(
+                        f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
+                    ) from exc
+                    
+            except RuntimeError as exc:
+                if "Quota de API do Gemini esgotada" in str(exc):
+                    logger.warning(
+                        f"    ⚠️ Quota esgotada ao processar {target_date}. "
+                        f"Posts salvos: {len(post_paths)}. "
+                        f"Para continuar, tente novamente mais tarde."
+                    )
+                    # Return partial results - what we've processed so far
+                    break
+                else:
+                    # Re-raise other RuntimeErrors
+                    raise
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
