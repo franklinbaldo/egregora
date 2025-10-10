@@ -18,7 +18,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
 3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
 4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
-5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for MkDocs publishing or further automation.【F:src/egregora/processor.py†L209-L487】
+5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for downstream automation or manual review.【F:src/egregora/processor.py†L209-L487】
 
 ## Quick start
 
@@ -155,16 +155,12 @@ All options accept environment variable overrides thanks to `pydantic-settings`,
 
 During processing the pipeline materialises a predictable directory tree:
 
-- `data/<slug>/index.md` – Overview page linking recent daily posts and acting as the MkDocs entrypoint.
-- `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for MkDocs or email distribution.【F:src/egregora/processor.py†L344-L515】
+- `data/<slug>/index.md` – Overview page linking recent daily posts and acting as the group landing page.
+- `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for publication or email distribution.【F:src/egregora/processor.py†L344-L515】
 - `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L188】
 - `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/processor.py†L41-L116】【F:src/egregora/enrichment.py†L432-L720】
 - `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
-- `docs/` – MkDocs site that publishes posts via the Material blog plugin alongside the broader knowledge base (`uv run --extra docs --with ./ mkdocs serve`).
-
-Enable the bundled MkDocs plugins to automate publishing tasks: `tools.mkdocs_build_posts_plugin` regenerates the daily/weekly/monthly archives whenever you run `mkdocs build` or `mkdocs serve`, the language-scoped `blog` plugins from Material surface post feeds/archives, and `tools.mkdocs_media_plugin` exposes media under `/media/<slug>/` when deploying the static site.【F:mkdocs.yml†L56-L74】
-
 ## Retrieval utilities
 
 The Retrieval-Augmented Generation helpers store post embeddings in ChromaDB via `PostRAG` for use in bespoke automations or exploratory notebooks.【F:src/egregora/rag/index.py†L12-L189】 Use the runtime API directly to refresh or inspect the index whenever new posts are generated.
@@ -206,8 +202,7 @@ Keyword extraction and system-message filtering now rely on LLM adapters instead
 
 - Sync dependencies: `uv sync`
 - Run tests: `uv run --with pytest pytest`
-- Type-check or explore datasets with `polars` and the utilities under `scripts/`
-- Build docs locally: `uv run --extra docs --with ./ mkdocs serve`
+- Type-check or explore datasets with Polars or a notebook of your choice.
 
 The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
 
