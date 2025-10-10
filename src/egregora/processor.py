@@ -216,13 +216,33 @@ class UnifiedProcessor:
         """Discover and prepare sources for processing."""
 
         logger.info(f"🔍 Scanning {self.config.zips_dir}... (Discovery disabled)")
-        real_groups = {}
+        
+        zip_path = Path(self.config.zips_dir) / "real-whatsapp-export.zip"
+        if zip_path.exists():
+            group_name = "Rationality Club LatAm"
+            group_slug = "rationality-club-latam"
+            export_date = date.today()
+            
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                # Find the chat file (should be the .txt file)
+                txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
+                if not txt_files:
+                    raise ValueError(f"No .txt file found in {zip_path}")
+                chat_file = txt_files[0]  # Use the first (and likely only) .txt file
+                media_files = [f for f in zf.namelist() if f != chat_file]
 
-        # real_groups = discover_groups(self.config.zips_dir)
-
-        # logger.info(f"📦 Found {len(real_groups)} real group(s):")
-        # for slug, exports in real_groups.items():
-        #     logger.info(f"  • {exports[0].group_name} ({slug}): {len(exports)} exports")
+            export = WhatsAppExport(
+                zip_path=zip_path,
+                group_name=group_name,
+                group_slug=group_slug,
+                export_date=export_date,
+                chat_file=chat_file,
+                media_files=media_files,
+            )
+            real_groups = {group_slug: [export]}
+        else:
+            real_groups = {}
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
@@ -268,7 +288,8 @@ class UnifiedProcessor:
             logger.info("    • %s: %d messages", row["group_name"], row["message_count"])
 
     def _filter_sources(
-        self, all_sources: dict[GroupSlug, GroupSource]
+        self,
+        all_sources: dict[GroupSlug, GroupSource],
     ) -> dict[GroupSlug, GroupSource]:
         """Filter sources to process."""
 
@@ -303,7 +324,7 @@ class UnifiedProcessor:
         group_dir: Path,
         post_paths: list[Path],
     ) -> None:
-        """Ensure an index page summarising generated posts for *source*."""
+        """Ensure an index page summarising generated posts for *source*. """
 
         index_path = group_dir / "index.md"
         metadata = {
@@ -359,7 +380,9 @@ class UnifiedProcessor:
         index_path.write_text(content, encoding="utf-8")
 
     def _process_source(  # noqa: PLR0912, PLR0915
-        self, source: GroupSource, days: int | None
+        self,
+        source: GroupSource,
+        days: int | None,
     ) -> list[Path]:
         """Process a single source."""
 
@@ -599,7 +622,7 @@ class UnifiedProcessor:
         try:
             df = load_source_dataframe(source)
         except Exception as exc:
-            logger.debug("    Unable to load dataframe for profiles: %s", exc)
+            logger.info("    Unable to load dataframe for profiles: %s", exc)
             return
 
         df_day = df.filter(pl.col("date") == target_date)
