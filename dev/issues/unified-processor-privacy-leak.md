@@ -1,4 +1,4 @@
-# Issue #012: Critical Privacy Leak in UnifiedProcessor
+# Critical Privacy Leak in UnifiedProcessor
 
 ## Priority: Critical
 ## Effort: Medium

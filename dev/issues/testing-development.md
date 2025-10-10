@@ -1,4 +1,4 @@
-# Issue #006: Testing & Development
+# Testing & Development
 
 ## Priority: Medium
 ## Effort: Medium

@@ -1,4 +1,4 @@
-# Issue #008: Output Formats
+# Output Formats
 
 ## Priority: Low
 ## Effort: Medium

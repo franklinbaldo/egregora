@@ -1,4 +1,4 @@
-# Issue #010: Architectural Separation - Generator vs Generated Site
+# Architectural Separation - Generator vs Generated Site
 
 ## Priority: High
 ## Effort: High

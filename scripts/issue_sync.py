@@ -153,19 +153,18 @@ def format_metadata(metadata: dict[str, str]) -> str:
 
 
 def extract_local_identifier(header_line: str) -> str | None:
-    match = re.match(r"#\s*Issue\s*#([^:]+)", header_line, flags=re.IGNORECASE)
+    match = re.match(r"^#\s*(\d+)", header_line)
     if match:
         return match.group(1).strip()
     return None
 
 
-def extract_title(header_line: str) -> str:
-    header = header_line.lstrip("#").strip()
-    if not header:
-        return "Untitled issue"
-    if ":" in header:
-        return header.split(":", 1)[1].strip() or header
-    return header
+def extract_title(filename: str) -> str:
+    # Extract title from filename (e.g., "001-My-Issue-Title.md" -> "My-Issue-Title")
+    match = re.match(r"^\d+-(.*)\.md$", filename)
+    if match:
+        return match.group(1).replace("-", " ").strip()
+    return "Untitled issue"
 
 
 def ensure_trailing_newline(text: str) -> str:
@@ -210,7 +209,8 @@ class LocalIssue:
     content: str
     content_hash: str
     header_line: str
-    title: str
+    title: str # This is the title from the filename
+    full_title: str # This is the full title from the GitHub issue
     desired_state: str
     synced_state: str
     issue_number: int | None
@@ -245,7 +245,8 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
                 break
         if not header_line:
             header_line = "# Untitled issue"
-        title = extract_title(header_line)
+        title = extract_title(path.name)
+        full_title = title
         identifier = extract_local_identifier(header_line)
         desired_state = normalize_state(metadata.get("github_state"))
         synced_state = normalize_state(
@@ -368,10 +369,12 @@ def parse_remote_content(
         content = body
     else:
         identifier = local_identifier or f"{remote['number']:03d}"
-        header = f"# Issue #{identifier}: {remote['title']}"
-        content = header
+        header = f"# {remote['title']}"
+        github_url = f"GitHub Issue: [#{remote['number']}](https://github.com/franklinbaldo/egregora/issues/{remote['number']})"
+        content = f"{header}\n\n{github_url}"
         if body.strip():
             content += "\n\n" + body.strip("\n")
+")
     return ensure_trailing_newline(content)
 
 
@@ -423,7 +426,7 @@ def create_local_issue_from_remote(
     token: str,
 ) -> LocalIssue:
     slug = slugify(remote.get("title", "issue"))
-    filename = f"github-{int(remote['number']):05d}-{slug}.md"
+    filename = f"{int(remote['number']):03d}-{slug}.md"
     try:
         path = ensure_unique_path(directory, filename)
     except ValueError as exc:
@@ -434,6 +437,7 @@ def create_local_issue_from_remote(
         fallback_filename = f"github-{int(remote['number']):05d}.md"
         path = ensure_unique_path(directory, fallback_filename)
     content = parse_remote_content(remote)
+    content = f"# {int(remote['number'])}\n\n" + content
     remote_body_updated = get_remote_body_update_time(remote, token=token)
 
     remote_state = normalize_state(remote.get("state"))
