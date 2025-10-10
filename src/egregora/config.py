@@ -357,7 +357,7 @@ class PipelineTomlSettingsSource(TomlConfigSettingsSource):
 
         rag_section = raw.get("rag")
         if isinstance(rag_section, Mapping):
-            payload["rag"] = dict(rag_section)
+            payload["rag"] = sanitize_rag_config_payload(rag_section)
         elif rag_section is not None:
             payload["rag"] = rag_section
 
