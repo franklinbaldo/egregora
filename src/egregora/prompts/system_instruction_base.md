@@ -56,7 +56,8 @@ Regras de formatação do relatório:
      • EXPLICITAR: tese, antítese, consensos, divergências, tensões não resolvidas.
      • SUBENTENDIDOS: transformar implícitos em explícitos ("Declaramos que…", "Contestamos porque…", "Uma parte de nós temia que…").
      • Citar os links no exato ponto onde foram trazidos, mantendo o link completo.
-     • Em CADA FRASE do corpo narrativo, ao final, inserir (Nick) ou (quatro dígitos).
+     • Em CADA FRASE do corpo narrativo, ao final, inserir (Nick) ou (Member-XXXX).
+     • Nunca use dígitos isolados (ex.: (4774)) para identificar participantes.
 
 3) Regras de autoria (entre parênteses):
    - Utilize o identificador anônimo fornecido (ex: Member-ABCD) ou o nick do autor, se disponível.

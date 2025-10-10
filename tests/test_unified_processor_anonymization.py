@@ -13,6 +13,7 @@ from egregora.config import (
     RAGConfig,
 )
 from egregora.processor import UnifiedProcessor
+from egregora.privacy import PrivacyViolationError
 
 
 @pytest.fixture
@@ -85,3 +86,25 @@ def test_unified_processor_anonymizes_e2e(config_with_anonymization: PipelineCon
     assert index_file.exists()
     index_text = index_file.read_text()
     assert "2025-10-03" in index_text
+
+
+def test_unified_processor_rejects_phone_leaks(
+    config_with_anonymization: PipelineConfig, monkeypatch
+) -> None:
+    class MockLLMClient:
+        class _Models:
+            def generate_content_stream(self, *, model, contents, config):
+                yield type("Chunk", (), {"text": "Post com contato (4774)."})
+
+        def __init__(self):
+            self.models = self._Models()
+
+    monkeypatch.setattr(
+        "egregora.generator.PostGenerator._create_client",
+        lambda self: MockLLMClient(),
+    )
+
+    processor = UnifiedProcessor(config_with_anonymization)
+
+    with pytest.raises(PrivacyViolationError):
+        processor.process_all(days=1)

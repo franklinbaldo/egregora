@@ -5,11 +5,11 @@ Analyzes PR changes and posts review comments using Claude.
 """
 
 import os
-import json
+import re
 import subprocess
 import sys
-from typing import List, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, List, Sequence
 
 import anthropic
 
@@ -19,29 +19,47 @@ MAX_FILE_SIZE = 10000  # characters
 IGNORED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.pdf', '.zip', '.lock'}
 IGNORED_PATHS = {'node_modules/', '.git/', '__pycache__/', '.pytest_cache/'}
 
-def run_command(cmd: str) -> str:
-    """Run shell command and return output."""
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+def run_command(cmd: Sequence[str]) -> str:
+    """Run a subprocess command safely and return its output."""
+
+    if not cmd or not all(isinstance(part, str) for part in cmd):
+        raise ValueError("Command must be a non-empty sequence of strings")
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Command failed: {cmd}")
+        printable = " ".join(cmd)
+        print(f"Command failed: {printable}")
         print(f"Error: {result.stderr}")
         sys.exit(1)
     return result.stdout.strip()
 
-def get_pr_diff() -> str:
+_VALID_REF_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+
+
+def _validate_git_ref(ref: str) -> str:
+    if not _VALID_REF_RE.fullmatch(ref):
+        raise ValueError(f"Unsafe git ref: {ref!r}")
+    return ref
+
+
+def _validate_pr_number(value: str) -> str:
+    if not value.isdigit():
+        raise ValueError(f"Invalid PR number: {value!r}")
+    return value
+
+
+def get_pr_diff(base_branch: str) -> str:
     """Get the full diff for the PR."""
-    base_branch = os.environ['BASE_BRANCH']
-    
+
     # Get diff between base and head
-    diff = run_command(f"git diff origin/{base_branch}...HEAD")
+    diff = run_command(["git", "diff", f"origin/{base_branch}...HEAD"])
     return diff
 
-def get_changed_files() -> List[str]:
+def get_changed_files(base_branch: str) -> List[str]:
     """Get list of changed files in the PR."""
-    base_branch = os.environ['BASE_BRANCH']
-    
+
     # Get list of changed files
-    files = run_command(f"git diff --name-only origin/{base_branch}...HEAD")
+    files = run_command(["git", "diff", "--name-only", f"origin/{base_branch}...HEAD"])
     return [f.strip() for f in files.split('\n') if f.strip()]
 
 def should_review_file(file_path: str) -> bool:
@@ -184,12 +202,9 @@ def call_claude(prompt: str) -> str:
         print(f"Error calling Claude API: {e}")
         sys.exit(1)
 
-def post_review_comment(review: str) -> None:
+def post_review_comment(review: str, *, pr_number: str, review_type: str) -> None:
     """Post the review as a PR comment."""
-    
-    pr_number = os.environ['PR_NUMBER']
-    review_type = os.environ['REVIEW_TYPE']
-    
+
     # Format the comment
     comment = f"""
 ## 🤖 Claude Code Review ({review_type})
@@ -200,12 +215,8 @@ def post_review_comment(review: str) -> None:
 *Automated review by Claude 3.5 Sonnet* • [Workflow](../../actions/workflows/claude-code-review.yml)
 """
     
-    # Post comment using GitHub CLI
-    # Escape the comment for shell
-    import shlex
-    escaped_comment = shlex.quote(comment)
-    
-    run_command(f"gh pr comment {pr_number} --body {escaped_comment}")
+    # Post comment using GitHub CLI without shell interpolation
+    run_command(["gh", "pr", "comment", pr_number, "--body", comment])
     print(f"✅ Posted review comment to PR #{pr_number}")
 
 def main():
@@ -219,12 +230,20 @@ def main():
         if not os.environ.get(var):
             print(f"Error: {var} environment variable not set")
             sys.exit(1)
-    
+
+    try:
+        pr_number = _validate_pr_number(os.environ['PR_NUMBER'])
+        base_branch = _validate_git_ref(os.environ['BASE_BRANCH'])
+        head_branch = _validate_git_ref(os.environ['HEAD_BRANCH'])
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
+
     # Gather PR information
     pr_info = {
-        'number': os.environ['PR_NUMBER'],
-        'base_branch': os.environ['BASE_BRANCH'],
-        'head_branch': os.environ['HEAD_BRANCH'],
+        'number': pr_number,
+        'base_branch': base_branch,
+        'head_branch': head_branch,
         'title': os.environ['PR_TITLE'],
         'review_type': os.environ['REVIEW_TYPE']
     }
@@ -233,7 +252,7 @@ def main():
     print(f"🎯 Target: {pr_info['base_branch']} ← {pr_info['head_branch']}")
     
     # Get changed files and diff
-    changed_files = get_changed_files()
+    changed_files = get_changed_files(base_branch)
     reviewable_files = [f for f in changed_files if should_review_file(f)]
     
     print(f"📁 Changed files: {len(changed_files)} total, {len(reviewable_files)} reviewable")
@@ -248,7 +267,7 @@ def main():
     
     # Get diff
     print("📝 Getting PR diff...")
-    diff = get_pr_diff()
+    diff = get_pr_diff(base_branch)
     
     # Create review prompt
     print("🧠 Preparing Claude prompt...")
@@ -260,7 +279,7 @@ def main():
     
     # Post review
     print("💬 Posting review comment...")
-    post_review_comment(review)
+    post_review_comment(review, pr_number=pr_number, review_type=os.environ['REVIEW_TYPE'])
     
     print("✅ Code review completed!")
 

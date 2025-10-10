@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-import sys
 from datetime import date, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from egregora.config import PipelineConfig
 from egregora.pipeline import (
@@ -17,7 +12,7 @@ from egregora.pipeline import (
     find_date_in_name,
     _format_transcript_section_header
 )
-from test_framework.helpers import create_test_zip
+from tests.test_framework.helpers import create_test_zip
 
 
 def test_whatsapp_transcript_preparation(temp_dir):

@@ -20,6 +20,7 @@ from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .pipeline import load_previous_post
+from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
 from .rag.keyword_utils import build_llm_keyword_provider
@@ -561,6 +562,13 @@ class UnifiedProcessor:
                 rag_context=rag_context,
             )
             post = self.generator.generate(source, context)
+
+            try:
+                validate_newsletter_privacy(post)
+            except PrivacyViolationError as exc:
+                raise PrivacyViolationError(
+                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
+                ) from exc
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
