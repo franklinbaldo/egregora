@@ -17,9 +17,6 @@ def test_rag_config_accepts_supported_fields(tmp_path: Path) -> None:
         keyword_stop_words=["Alpha", "Beta", ""],
         classifier_max_llm_calls="30",
         classifier_token_budget="4000",
-        use_mcp=False,
-        mcp_command="python",
-        mcp_args=["-m", "egregora.tests"],
         chunk_size="2048",
         chunk_overlap="256",
         embedding_model="custom/embedding",
@@ -36,7 +33,6 @@ def test_rag_config_accepts_supported_fields(tmp_path: Path) -> None:
     assert config.top_k == 10
     assert config.min_similarity == 0.5
     assert config.keyword_stop_words == ("alpha", "beta")
-    assert config.mcp_args == ("-m", "egregora.tests")
     assert config.cache_dir == tmp_path / "cache"
     assert config.embedding_export_path == tmp_path / "embeddings.parquet"
     assert config.persist_dir == tmp_path / "vector_store"

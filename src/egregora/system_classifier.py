@@ -11,10 +11,10 @@ from pydantic import ValidationError
 
 try:  # pragma: no cover - optional at runtime
     from pydantic_ai import Agent
-    from pydantic_ai.models.gemini import GeminiModel
+    from pydantic_ai.models.google import GoogleModel
 except Exception:  # pragma: no cover - keep runtime lean without optional deps
     Agent = None  # type: ignore[assignment]
-    GeminiModel = None  # type: ignore[assignment]
+    GoogleModel = None  # type: ignore[assignment]
 
 from diskcache import Cache
 
@@ -241,10 +241,10 @@ class SystemMessageClassifier:
 
     @staticmethod
     def _create_agent(model_name: str | None, retries: int) -> Agent | None:
-        if Agent is None or GeminiModel is None or not model_name:
+        if Agent is None or GoogleModel is None or not model_name:
             return None
         try:
-            gemini_model = GeminiModel(model_name)
+            gemini_model = GoogleModel(model_name)
         except Exception:  # pragma: no cover - provider/runtime specific
             return None
         return Agent(

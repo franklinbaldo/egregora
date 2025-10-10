@@ -15,11 +15,6 @@ default_post_author = "egregora"
 # media_url_prefix = "https://exemplo.com/media"
 skip_real_if_in_virtual = true
 
-# Configure via ambiente para evitar expor segredos:
-#   export PIPELINE__REMOTE_SOURCE__GDRIVE_URL="https://drive.google.com/uc?id=EXEMPLO"
-# [pipeline.remote_source]
-# gdrive_url = "https://drive.google.com/uc?id=EXEMPLO"
-
 [llm]
 safety_threshold = "BLOCK_NONE"
 thinking_budget = -1
@@ -54,7 +49,7 @@ output_format = "human"
 [profiles]
 enabled = true
 profiles_dir = "data/profiles"
-docs_dir = "docs/profiles"
+docs_dir = "data/profiles/docs"
 min_messages = 2
 min_words_per_message = 15
 history_days = 5
