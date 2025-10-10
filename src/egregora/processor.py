@@ -174,10 +174,9 @@ class UnifiedProcessor:
         group_estimates = {}
         
         for slug, source in sources_to_process.items():
-            target_dates = get_available_dates(
-                source,
-                days=days,
-                timezone=self.config.timezone,
+            available_dates = list(get_available_dates(source))
+            target_dates = (
+                list(available_dates[-days:]) if days and available_dates else list(available_dates)
             )
             
             group_posts = len(target_dates)
