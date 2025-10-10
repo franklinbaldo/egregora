@@ -122,8 +122,9 @@ jobs:
           if git apply --binary --3way "$RUNNER_TEMP/lint_fixes.patch"; then
             echo "applied=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Failed to apply lint fixes patch cleanly. Re-run lint locally or update your branch to resolve conflicts." >&2
+            echo "::error::Failed to apply lint fixes patch cleanly. Re-run lint locally or update your branch to resolve conflicts." >&2
             echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
       - name: Commit and push lint fixes (pull request)
         if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' && steps.apply_lint_patch.outputs.applied != 'false' }}
