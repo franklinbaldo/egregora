@@ -23,7 +23,7 @@ def test_whatsapp_zip_processing(tmp_path) -> None:
     result, media_files = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
-        posts_dir=posts_dir,
+        output_dir=posts_dir,
         group_slug="grupo-teste",
     )
 
@@ -53,8 +53,8 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
     posts_root = workspace / "posts"
     posts_root.mkdir(parents=True, exist_ok=True)
     config = PipelineConfig.with_defaults(
-        zips_dir=workspace,
-        posts_dir=posts_root,
+        zip_files=[],
+        output_dir=posts_root,
     )
 
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message
@@ -97,14 +97,14 @@ def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     content, _ = read_zip_texts_and_media(
         zip_path,
         archive_date=date(2025, 10, 3),
-        posts_dir=posts_root,
+        output_dir=posts_root,
         group_slug="grupo",
     )
 
     # Create config
     config = PipelineConfig.with_defaults(
-        zips_dir=workspace,
-        posts_dir=posts_root,
+        zip_files=[],
+        output_dir=posts_root,
     )
 
     # Process with anonymization

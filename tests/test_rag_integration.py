@@ -79,8 +79,8 @@ def test_rag_config_validation(temp_dir: Path):
     
     for rag_config in configs:
         config = PipelineConfig.with_defaults(
-            zips_dir=temp_dir,
-            posts_dir=temp_dir,
+            zip_files=[],
+            output_dir=temp_dir,
         )
         config.rag = rag_config
         

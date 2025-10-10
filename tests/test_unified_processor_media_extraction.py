@@ -39,8 +39,8 @@ def test_unified_processor_extracts_media(tmp_path: Path) -> None:
         zf.write(media_path, arcname="IMG-20251002-WA0004.jpg")
 
     config = PipelineConfig.with_defaults(
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_files=[],
+        output_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
     )
 
