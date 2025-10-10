@@ -42,7 +42,7 @@ jobs:
           set +e
           uv run pre-commit run --all-files --show-diff-on-failure
           status=$?
-          if [ "$status" -ne 0 ] && [ -z "$(git status --porcelain)" ]; then
+          if [ "$status" -ne 0 ] && [ -z "$(git status --porcelain --untracked-files=no)" ]; then
             exit $status
           fi
       - name: Verify pre-commit
@@ -97,13 +97,13 @@ jobs:
         id: lint_patch
         if: ${{ always() && github.event_name == 'pull_request' }}
         run: |
-          if [[ -z "$(git status --porcelain)" ]]; then
+          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
             echo "changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "changes=true" >> "$GITHUB_OUTPUT"
-          git add -A
+          git add -u
           git diff --binary --cached > "$RUNNER_TEMP/lint_fixes.patch"
           git reset --quiet
       - name: Checkout PR head for lint fixes
@@ -130,18 +130,18 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add -u
           git commit -m "chore: apply automatic lint fixes"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
       - name: Commit and push lint fixes (push)
         if: ${{ always() && github.event_name != 'pull_request' }}
         run: |
-          if [[ -z "$(git status --porcelain)" ]]; then
+          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add -u
           git commit -m "chore: apply automatic lint fixes"
           git push origin HEAD:${{ github.ref_name }}
