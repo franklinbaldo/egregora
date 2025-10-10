@@ -1,5 +1,5 @@
 *__pycache__*
-**/__pycache__/
+__pycache__/
 *.py[cod]
 .venv/
 .uv/
@@ -19,7 +19,6 @@
 cache/
 !src/egregora/cache/
 !src/egregora/cache/**
-src/egregora/cache/__pycache__/
 docs/reports/
 site/
 mkdocs-dev.yml

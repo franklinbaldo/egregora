@@ -31,14 +31,14 @@ class MCPServerTomlSettingsSource(TomlConfigSettingsSource):
         payload: dict[str, Any] = {}
         rag_section = raw.get("rag")
         if isinstance(rag_section, Mapping):
-            sanitized = sanitize_rag_config_payload(dict(rag_section))
-            posts_dir = sanitized.pop("posts_dir", None)
-            cache_dir = sanitized.pop("cache_dir", None)
+            rag_data = dict(rag_section)
+            posts_dir = rag_data.pop("posts_dir", None)
+            cache_dir = rag_data.pop("cache_dir", None)
             if posts_dir is not None:
                 payload["posts_dir"] = posts_dir
             if cache_dir is not None:
                 payload["cache_dir"] = cache_dir
-            payload["rag"] = sanitized
+            payload["rag"] = rag_data
         elif rag_section is not None:
             payload["rag"] = rag_section
 

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import sys
 from datetime import date
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import pytest
 
 from egregora.config import PipelineConfig
 from egregora.llm_models import SystemMessageLabel
 from egregora.pipeline import _prepare_transcripts
+from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
 
 
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
@@ -74,3 +73,16 @@ def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
     sanitized = _prepare_transcripts(transcripts, config)
 
     assert sanitized[0][1] == original_text
+
+
+def test_validate_newsletter_privacy_detects_phone_numbers() -> None:
+    with pytest.raises(PrivacyViolationError):
+        validate_newsletter_privacy("Contato: +55 11 94529-4774")
+
+    with pytest.raises(PrivacyViolationError):
+        validate_newsletter_privacy("Mensagem (4774) capturada")
+
+
+def test_validate_newsletter_privacy_allows_safe_content() -> None:
+    text = "Estamos alinhados com Member-ABCD e (Nick) para 2024."
+    assert validate_newsletter_privacy(text) is True
