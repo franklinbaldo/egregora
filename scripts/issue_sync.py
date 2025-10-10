@@ -20,8 +20,10 @@ Synchronization strategy
   Markdown heading.
 
 * When both the local file and the GitHub issue have diverged since the last
-  sync, the newer change wins based on the file's last commit timestamp versus
-  the issue's ``updated_at`` timestamp.
+  sync, the newer change wins based on the file's last modification timestamp
+  versus the GitHub issue body's last edit timestamp reported by the timeline
+  API.  This avoids unrelated activity (e.g. comments) from overwriting fresher
+  local edits.
 
 * New Markdown files that do not reference a GitHub issue result in new issues
   being created.  Conversely, GitHub issues without a local file generate new
@@ -89,6 +91,8 @@ def slugify(text: str, *, fallback: str = "issue") -> str:
     text = re.sub(r"[^a-z0-9\-\s]+", "", text)
     text = re.sub(r"\s+", "-", text)
     text = text.strip("-")
+    if ".." in text:
+        text = text.replace("..", "-")
     return text or fallback
 
 
@@ -181,6 +185,13 @@ def get_git_commit_time(path: Path) -> datetime | None:
         return None
 
 
+def get_file_modification_time(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        return None
+
+
 @dataclass(slots=True)
 class LocalIssue:
     path: Path
@@ -195,6 +206,7 @@ class LocalIssue:
     last_synced: datetime | None
     sync_hash: str | None
     commit_time: datetime | None
+    modified_time: datetime | None
 
     @property
     def body_for_github(self) -> str:
@@ -235,6 +247,7 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
         last_synced = parse_iso8601(metadata.get("last_synced"))
         sync_hash = metadata.get("sync_hash")
         commit_time = get_git_commit_time(path)
+        modified_time = get_file_modification_time(path)
         issues.append(
             LocalIssue(
                 path=path,
@@ -249,6 +262,7 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
                 last_synced=last_synced,
                 sync_hash=sync_hash,
                 commit_time=commit_time,
+                modified_time=modified_time,
             )
         )
     return issues
@@ -360,6 +374,7 @@ def write_issue_file(issue: LocalIssue) -> None:
     content = metadata_block + "\n\n" + issue.content
     issue.path.write_text(content, encoding="utf-8")
     issue.metadata = metadata
+    issue.modified_time = get_file_modification_time(issue.path)
 
 
 def ensure_unique_path(base_dir: Path, filename: str) -> Path:
@@ -388,6 +403,8 @@ def ensure_unique_path(base_dir: Path, filename: str) -> Path:
 def create_local_issue_from_remote(
     directory: Path,
     remote: dict,
+    *,
+    token: str,
 ) -> LocalIssue:
     slug = slugify(remote.get("title", "issue"))
     filename = f"github-{int(remote['number']):05d}-{slug}.md"
@@ -401,6 +418,8 @@ def create_local_issue_from_remote(
         fallback_filename = f"github-{int(remote['number']):05d}.md"
         path = ensure_unique_path(directory, fallback_filename)
     content = parse_remote_content(remote)
+    remote_body_updated = get_remote_body_update_time(remote, token=token)
+
     issue = LocalIssue(
         path=path,
         metadata={"github_issue": str(remote["number"]), "github_state": remote["state"]},
@@ -411,13 +430,45 @@ def create_local_issue_from_remote(
         desired_state=remote["state"],
         issue_number=int(remote["number"]),
         local_identifier=extract_local_identifier(content.splitlines()[0]),
-        last_synced=parse_iso8601(remote.get("updated_at")),
+        last_synced=remote_body_updated,
         sync_hash=compute_hash(content),
         commit_time=None,
+        modified_time=None,
     )
     write_issue_file(issue)
     _log_info(f"📝 Created local issue for GitHub #{remote['number']} -> {path}")
     return issue
+
+
+def get_remote_body_update_time(remote: dict, *, token: str) -> datetime | None:
+    timeline_url = remote.get("timeline_url")
+    fallback = parse_iso8601(remote.get("updated_at") or remote.get("created_at"))
+    if not timeline_url:
+        return fallback
+
+    latest: datetime | None = None
+    query_sep = "&" if "?" in timeline_url else "?"
+    timeline_request_url = f"{timeline_url}{query_sep}per_page=100"
+
+    try:
+        for event in github_paginated(timeline_request_url, token=token):
+            if not isinstance(event, dict):
+                continue
+            if event.get("event") != "edited":
+                continue
+            changes = event.get("changes")
+            if not isinstance(changes, dict) or "body" not in changes:
+                continue
+            edited_at = parse_iso8601(event.get("created_at"))
+            if edited_at and (latest is None or edited_at > latest):
+                latest = edited_at
+    except RuntimeError as exc:  # pragma: no cover - network failure fallback
+        _log_warning(
+            f"Unable to fetch issue timeline for body edit timestamp: {exc}"
+        )
+        return fallback
+
+    return latest or fallback
 
 
 def update_remote_issue(
@@ -457,7 +508,6 @@ def sync_existing_issue(
     remote: dict,
 ) -> None:
     remote_state = remote.get("state", "open")
-    remote_updated = parse_iso8601(remote.get("updated_at"))
     remote_content = parse_remote_content(remote, local_identifier=local.local_identifier)
     remote_hash = compute_hash(remote_content)
 
@@ -465,19 +515,34 @@ def sync_existing_issue(
     local_changed = stored_hash is None or local.content_hash != stored_hash
     remote_changed = stored_hash is None or remote_hash != stored_hash
 
+    remote_body_updated: datetime | None = None
+
+    def ensure_remote_body_time() -> datetime | None:
+        nonlocal remote_body_updated
+        if remote_body_updated is None:
+            remote_body_updated = get_remote_body_update_time(remote, token=token)
+        return remote_body_updated
+
     chosen_source: str
     if remote_changed and not local_changed:
         chosen_source = "remote"
     elif local_changed and not remote_changed:
         chosen_source = "local"
     elif remote_changed and local_changed:
-        if local.commit_time and remote_updated:
-            if remote_updated > local.commit_time:
-                chosen_source = "remote"
-            else:
-                chosen_source = "local"
-        elif remote_updated:
+        local_time = (
+            get_file_modification_time(local.path)
+            or local.modified_time
+            or local.commit_time
+        )
+        if local_time:
+            local.modified_time = local_time
+        remote_time = ensure_remote_body_time()
+        if remote_time and local_time:
+            chosen_source = "remote" if remote_time > local_time else "local"
+        elif remote_time:
             chosen_source = "remote"
+        elif local_time:
+            chosen_source = "local"
         else:
             chosen_source = "local"
     else:
@@ -487,7 +552,7 @@ def sync_existing_issue(
         local.content = remote_content
         local.content_hash = remote_hash
         local.desired_state = remote_state
-        local.last_synced = remote_updated or _now_utc()
+        local.last_synced = ensure_remote_body_time() or _now_utc()
         local.sync_hash = remote_hash
         write_issue_file(local)
         _log_info(
@@ -517,7 +582,8 @@ def sync_existing_issue(
     if chosen_source == "none":
         # Ensure metadata is up-to-date even when no content changed.
         local.desired_state = remote_state
-        local.last_synced = remote_updated or local.last_synced
+        if remote_changed:
+            local.last_synced = ensure_remote_body_time() or local.last_synced
         local.sync_hash = remote_hash
         write_issue_file(local)
 
@@ -618,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             matched_numbers.add(number)
             sync_existing_issue(args.repo, args.token, local, remote)
         else:
-            create_local_issue_from_remote(issues_dir, remote)
+            create_local_issue_from_remote(issues_dir, remote, token=args.token)
 
     for issue in local_issues:
         if issue.issue_number is None:
