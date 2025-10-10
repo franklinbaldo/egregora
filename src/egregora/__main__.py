@@ -1,9 +1,8 @@
-"""Rich Typer-based command line interface for Egregora."""
+"""Simplified command line interface for Egregora."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -12,115 +11,46 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .config import PipelineConfig
-
 from .processor import UnifiedProcessor
 
-app = typer.Typer(
-    name="egregora",
-    help="🗣️ Gera posts diárias a partir de exports do WhatsApp.",
-    add_completion=True,
-    rich_markup_mode="rich",
-)
 console = Console()
 
 
-def _validate_config_file(value: Path | None) -> Path | None:
-    """Ensure the provided configuration file exists."""
+def main(  # noqa: PLR0913
+    zip_files: list[Path] = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
+    config_file: Path = typer.Option(None, "--config", "-c", help="Arquivo TOML de configuração"),
+    output_dir: Path = typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
+    group_name: str = typer.Option(None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
+    group_slug: str = typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
+    model: str = typer.Option(None, "--model", help="Nome do modelo Gemini a ser usado"),
+    timezone: str = typer.Option(None, "--timezone", help="Timezone IANA (ex.: America/Porto_Velho)"),
+    days: int = typer.Option(2, "--days", min=1, help="Quantidade de dias mais recentes a incluir no prompt"),
+    disable_enrichment: bool = typer.Option(False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"),
+    disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
+    list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"),
+) -> None:
+    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
+    
+    # Validate config file
+    if config_file and not config_file.exists():
+        console.print(f"[red]❌ Arquivo de configuração não encontrado: {config_file}[/red]")
+        raise typer.Exit(code=1)
+    
+    # Parse timezone
+    timezone_override = None
+    if timezone:
+        try:
+            timezone_override = ZoneInfo(timezone)
+        except Exception as exc:
+            console.print(f"[red]❌ Timezone '{timezone}' não é válido: {exc}[/red]")
+            raise typer.Exit(code=1)
 
-    if value and not value.exists():
-        raise typer.BadParameter(f"Arquivo de configuração não encontrado: {value}")
-    return value
-
-
-def _parse_timezone(value: str | None) -> ZoneInfo | None:
-    """Parse timezone strings into :class:`ZoneInfo` objects."""
-
-    if not value:
-        return None
-
-    try:
-        return ZoneInfo(value)
-    except Exception as exc:  # pragma: no cover - defensive on ZoneInfo
-        raise typer.BadParameter(f"Timezone '{value}' não é válido: {exc}") from exc
-
-
-ConfigFileOption = Annotated[
-    Path | None,
-    typer.Option(
-        "--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."
-    ),
-]
-ZipFilesArgument = Annotated[
-    list[Path],
-    typer.Argument(help="Um ou mais arquivos .zip do WhatsApp para processar"),
-]
-OutputDirOption = Annotated[
-    Path | None,
-    typer.Option("--output", "-o", help="Diretório onde as posts serão escritas."),
-]
-GroupNameOption = Annotated[
-    str | None,
-    typer.Option("--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
-]
-GroupSlugOption = Annotated[
-    str | None,
-    typer.Option("--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
-]
-# Removed MergeGroupsOption - auto-merge when multiple ZIPs provided
-ModelOption = Annotated[
-    str | None,
-    typer.Option(help="Nome do modelo Gemini a ser usado."),
-]
-TimezoneOption = Annotated[
-    str | None,
-    typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
-]
-DaysOption = Annotated[
-    int,
-    typer.Option(min=1, help="Quantidade de dias mais recentes a incluir no prompt."),
-]
-DisableEnrichmentOption = Annotated[
-    bool,
-    typer.Option(
-        "--disable-enrichment",
-        "--no-enrich",
-        help="Desativa o enriquecimento de conteúdos compartilhados.",
-    ),
-]
-DisableCacheOption = Annotated[
-    bool,
-    typer.Option("--no-cache", help="Desativa o cache persistente de enriquecimento."),
-]
-ListGroupsOption = Annotated[
-    bool,
-    typer.Option("--list", "-l", help="Lista grupos descobertos e sai."),
-]
-DryRunOption = Annotated[
-    bool,
-    typer.Option("--dry-run", help="Simula a execução e mostra quais posts seriam geradas."),
-]
-
-
-def _build_pipeline_config(  # noqa: PLR0913
-    *,
-    config_file: Path | None = None,
-    zip_files: list[Path],
-    output_dir: Path | None = None,
-    group_name: str | None = None,
-    group_slug: str | None = None,
-    model: str | None = None,
-    timezone: str | None = None,
-    disable_enrichment: bool = False,
-    disable_cache: bool = False,
-) -> PipelineConfig:
-    """Carrega ou monta um :class:`PipelineConfig` a partir das opções da CLI."""
-
-    timezone_override = _parse_timezone(timezone)
-
+    # Build configuration
     if config_file:
         try:
             config = PipelineConfig.load(toml_path=config_file)
-        except Exception as exc:  # pragma: no cover - configuration validation
+        except Exception as exc:
             console.print(f"[red]❌ Não foi possível carregar o arquivo TOML:[/red] {exc}")
             raise typer.Exit(code=1) from exc
     else:
@@ -151,40 +81,10 @@ def _build_pipeline_config(  # noqa: PLR0913
     if disable_cache:
         config.cache.enabled = False
 
-    return config
-
-
-def _process_command(  # noqa: PLR0913
-    *,
-    config_file: Path | None = None,
-    zip_files: list[Path],
-    output_dir: Path | None = None,
-    group_name: str | None = None,
-    group_slug: str | None = None,
-    model: str | None = None,
-    timezone: str | None = None,
-    days: int = 2,
-    disable_enrichment: bool = False,
-    disable_cache: bool = False,
-    list_groups: bool = False,
-    dry_run: bool = False,
-) -> None:
-    """Executa o fluxo de processamento com as opções fornecidas."""
-
-    config = _build_pipeline_config(
-        config_file=config_file,
-        zip_files=zip_files,
-        output_dir=output_dir,
-        group_name=group_name,
-        group_slug=group_slug,
-        model=model,
-        timezone=timezone,
-        disable_enrichment=disable_enrichment,
-        disable_cache=disable_cache,
-    )
-
+    # Create processor
     processor = UnifiedProcessor(config)
 
+    # Handle special modes
     if list_groups:
         _show_groups_table(processor)
         raise typer.Exit()
@@ -193,43 +93,10 @@ def _process_command(  # noqa: PLR0913
         _show_dry_run(processor, days)
         raise typer.Exit()
 
+    # Process normally
     _process_and_display(processor, days)
 
 
-@app.command()
-def process(  # noqa: PLR0913
-    zip_files: ZipFilesArgument,
-    config_file: ConfigFileOption = None,
-    output_dir: OutputDirOption = None,
-    group_name: GroupNameOption = None,
-    group_slug: GroupSlugOption = None,
-    model: ModelOption = None,
-    timezone: TimezoneOption = None,
-    days: DaysOption = 2,
-    disable_enrichment: DisableEnrichmentOption = False,
-    disable_cache: DisableCacheOption = False,
-    list_groups: ListGroupsOption = False,
-    dry_run: DryRunOption = False,
-) -> None:
-    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
-
-    _process_command(
-        config_file=config_file,
-        zip_files=zip_files,
-        output_dir=output_dir,
-        group_name=group_name,
-        group_slug=group_slug,
-        model=model,
-        timezone=timezone,
-        days=days,
-        disable_enrichment=disable_enrichment,
-        disable_cache=disable_cache,
-        list_groups=list_groups,
-        dry_run=dry_run,
-    )
-
-
-# Removed callback to simplify CLI - now only explicit 'process' command is supported
 
 
 
@@ -355,8 +222,7 @@ def _process_and_display(processor: UnifiedProcessor, days: int) -> None:
 
 def run() -> None:
     """Entry point used by the console script."""
-
-    app()
+    typer.run(main)
 
 
 if __name__ == "__main__":

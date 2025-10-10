@@ -257,7 +257,7 @@ class PipelineTomlSettingsSource(TomlConfigSettingsSource):
 
         directories = raw.get("directories")
         if isinstance(directories, Mapping):
-            for key in ("zips_dir", "posts_dir"):
+            for key in ("posts_dir",):
                 value = directories.get(key)
                 if value is not None:
                     payload[key] = value
