@@ -10,7 +10,6 @@ from egregora.config import (
     CacheConfig,
     EnrichmentConfig,
     PipelineConfig,
-    RAGConfig,
 )
 from egregora.processor import UnifiedProcessor
 from egregora.privacy import PrivacyViolationError
@@ -41,7 +40,6 @@ def config_with_anonymization(tmp_path: Path) -> PipelineConfig:
         anonymization=AnonymizationConfig(enabled=True),
         model="gemini/gemini-1.5-flash-latest",
         timezone=ZoneInfo("America/Sao_Paulo"),
-        rag=RAGConfig(enabled=False),
         enrichment=EnrichmentConfig(enabled=False),
         cache=CacheConfig(enabled=False),
     )

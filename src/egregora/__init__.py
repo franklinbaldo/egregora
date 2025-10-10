@@ -6,5 +6,4 @@ __all__ = [
     "discover",
     "enrichment",
     "pipeline",
-    "rag",
 ]

@@ -57,11 +57,7 @@ max_profiles_per_run = 3
 decision_model = "models/gemini-flash-latest"
 rewrite_model = "models/gemini-flash-latest"
 
-[rag]
-enabled = false
-# top_k = 5
-# min_similarity = 0.65
-# keyword_stop_words = ["2025", "franklin"]
+
 
 # --- EXEMPLOS DE GRUPOS VIRTUAIS ---
 [merges.rc-americas]
