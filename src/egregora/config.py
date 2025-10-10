@@ -306,7 +306,7 @@ class PipelineConfig(BaseSettings):
 
     default_toml_path: ClassVar[Path | None] = Path("egregora.toml")
 
-    zips_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips"))
+    zip_file: Path | None = None  # The specific ZIP file to process
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
     group_name: str | None = None
     group_slug: GroupSlug | None = None
@@ -368,7 +368,7 @@ class PipelineConfig(BaseSettings):
             return ZoneInfo(value)
         raise TypeError("timezone must be an IANA timezone string or ZoneInfo")
 
-    @field_validator("zips_dir", "posts_dir", mode="before")
+    @field_validator("posts_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
@@ -484,8 +484,8 @@ class PipelineConfig(BaseSettings):
     def with_defaults(  # noqa: PLR0912, PLR0913
         cls,
         *,
-        zips_dir: Path | None = None,
-        posts_dir: Path | None = None,
+        zip_file: Path | None = None,
+        output_dir: Path | None = None,
         media_url_prefix: str | None = None,
         model: str | None = None,
         timezone: tzinfo | None = None,
@@ -504,10 +504,10 @@ class PipelineConfig(BaseSettings):
         use_dataframe_pipeline: bool | None = None,
     ) -> PipelineConfig:
         payload: dict[str, Any] = {}
-        if zips_dir is not None:
-            payload["zips_dir"] = zips_dir
-        if posts_dir is not None:
-            payload["posts_dir"] = posts_dir
+        if zip_file is not None:
+            payload["zip_file"] = zip_file
+        if output_dir is not None:
+            payload["posts_dir"] = output_dir
         if group_name is not None:
             payload["group_name"] = group_name
         if group_slug is not None:

@@ -50,15 +50,21 @@ ConfigFileOption = Annotated[
         "--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."
     ),
 ]
-ZipsDirOption = Annotated[
-    Path | None,
-    typer.Option(
-        help="Diretório com exports .zip do WhatsApp (nomes naturais ou com prefixo YYYY-MM-DD)."
-    ),
+ZipFileArgument = Annotated[
+    Path,
+    typer.Argument(help="Arquivo .zip do WhatsApp para processar"),
 ]
-PostsDirOption = Annotated[
+OutputDirOption = Annotated[
     Path | None,
-    typer.Option(help="Diretório onde as posts serão escritas."),
+    typer.Option("--output", "-o", help="Diretório onde as posts serão escritas."),
+]
+GroupNameOption = Annotated[
+    str | None,
+    typer.Option("--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
+]
+GroupSlugOption = Annotated[
+    str | None,
+    typer.Option("--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
 ]
 ModelOption = Annotated[
     str | None,
@@ -97,8 +103,10 @@ DryRunOption = Annotated[
 def _build_pipeline_config(  # noqa: PLR0913
     *,
     config_file: Path | None = None,
-    zips_dir: Path | None = None,
-    posts_dir: Path | None = None,
+    zip_file: Path,
+    output_dir: Path | None = None,
+    group_name: str | None = None,
+    group_slug: str | None = None,
     model: str | None = None,
     timezone: str | None = None,
     disable_enrichment: bool = False,
@@ -116,16 +124,22 @@ def _build_pipeline_config(  # noqa: PLR0913
             raise typer.Exit(code=1) from exc
     else:
         config = PipelineConfig.with_defaults(
-            zips_dir=zips_dir,
-            posts_dir=posts_dir,
+            zip_file=zip_file,
+            output_dir=output_dir,
+            group_name=group_name,
+            group_slug=group_slug,
             model=model,
             timezone=timezone_override,
         )
 
-    if zips_dir:
-        config.zips_dir = zips_dir
-    if posts_dir:
-        config.posts_dir = posts_dir
+    # Override with CLI parameters
+    config.zip_file = zip_file
+    if output_dir:
+        config.posts_dir = output_dir
+    if group_name:
+        config.group_name = group_name
+    if group_slug:
+        config.group_slug = group_slug
     if model:
         config.model = model
     if timezone_override:
@@ -142,8 +156,10 @@ def _build_pipeline_config(  # noqa: PLR0913
 def _process_command(  # noqa: PLR0913
     *,
     config_file: Path | None = None,
-    zips_dir: Path | None = None,
-    posts_dir: Path | None = None,
+    zip_file: Path,
+    output_dir: Path | None = None,
+    group_name: str | None = None,
+    group_slug: str | None = None,
     model: str | None = None,
     timezone: str | None = None,
     days: int = 2,
@@ -156,8 +172,10 @@ def _process_command(  # noqa: PLR0913
 
     config = _build_pipeline_config(
         config_file=config_file,
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_file=zip_file,
+        output_dir=output_dir,
+        group_name=group_name,
+        group_slug=group_slug,
         model=model,
         timezone=timezone,
         disable_enrichment=disable_enrichment,
@@ -179,9 +197,11 @@ def _process_command(  # noqa: PLR0913
 
 @app.command()
 def process(  # noqa: PLR0913
+    zip_file: ZipFileArgument,
     config_file: ConfigFileOption = None,
-    zips_dir: ZipsDirOption = None,
-    posts_dir: PostsDirOption = None,
+    output_dir: OutputDirOption = None,
+    group_name: GroupNameOption = None,
+    group_slug: GroupSlugOption = None,
     model: ModelOption = None,
     timezone: TimezoneOption = None,
     days: DaysOption = 2,
@@ -190,12 +210,14 @@ def process(  # noqa: PLR0913
     list_groups: ListGroupsOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Processa grupos do WhatsApp e gera posts diárias."""
+    """Processa um arquivo .zip do WhatsApp e gera posts diárias."""
 
     _process_command(
         config_file=config_file,
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
+        zip_file=zip_file,
+        output_dir=output_dir,
+        group_name=group_name,
+        group_slug=group_slug,
         model=model,
         timezone=timezone,
         days=days,
@@ -206,37 +228,7 @@ def process(  # noqa: PLR0913
     )
 
 
-@app.callback(invoke_without_command=True)
-def main(  # noqa: PLR0913
-    ctx: typer.Context,
-    config_file: ConfigFileOption = None,
-    zips_dir: ZipsDirOption = None,
-    posts_dir: PostsDirOption = None,
-    model: ModelOption = None,
-    timezone: TimezoneOption = None,
-    days: DaysOption = 2,
-    disable_enrichment: DisableEnrichmentOption = False,
-    disable_cache: DisableCacheOption = False,
-    list_groups: ListGroupsOption = False,
-    dry_run: DryRunOption = False,
-) -> None:
-    """Permite que o comando padrão execute o processamento sem subcomando explícito."""
-
-    if ctx.invoked_subcommand is not None:
-        return
-
-    _process_command(
-        config_file=config_file,
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
-        model=model,
-        timezone=timezone,
-        days=days,
-        disable_enrichment=disable_enrichment,
-        disable_cache=disable_cache,
-        list_groups=list_groups,
-        dry_run=dry_run,
-    )
+# Removed callback to simplify CLI - now only explicit 'process' command is supported
 
 
 

@@ -206,6 +206,50 @@ class UnifiedProcessor:
 
         return sorted(plans, key=lambda plan: plan.slug)
 
+    def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
+        """Extract group name from WhatsApp chat filename."""
+        # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
+        import re
+        
+        # Remove file extension
+        base_name = chat_filename.replace('.txt', '')
+        
+        # Common patterns in WhatsApp exports
+        patterns = [
+            r"Conversa do WhatsApp com (.+)",  # Portuguese
+            r"WhatsApp Chat with (.+)",       # English
+            r"Chat de WhatsApp con (.+)",     # Spanish
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, base_name, re.IGNORECASE)
+            if match:
+                group_name = match.group(1).strip()
+                # Remove common suffixes like dates, emojis at the end
+                group_name = re.sub(r'\s*[🀀-🟿]+\s*$', '', group_name).strip()
+                return group_name
+        
+        # Fallback: use the whole filename without extension
+        return base_name
+
+    def _generate_group_slug(self, group_name: str) -> str:
+        """Generate a URL-friendly slug from group name."""
+        import re
+        import unicodedata
+        
+        # Normalize unicode characters
+        slug = unicodedata.normalize('NFKD', group_name)
+        slug = slug.encode('ascii', 'ignore').decode('ascii')
+        
+        # Convert to lowercase and replace spaces/special chars with hyphens
+        slug = re.sub(r'[^\w\s-]', '', slug.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        
+        # Remove leading/trailing hyphens
+        slug = slug.strip('-')
+        
+        return slug or 'whatsapp-group'
+
     def _collect_sources(
         self,
     ) -> tuple[
@@ -213,36 +257,50 @@ class UnifiedProcessor:
         dict[GroupSlug, list[WhatsAppExport]],
         dict[GroupSlug, GroupSource],
     ]:
-        """Discover and prepare sources for processing."""
+        """Process the specified ZIP file."""
 
-        logger.info(f"🔍 Scanning {self.config.zips_dir}... (Discovery disabled)")
+        if not self.config.zip_file:
+            raise ValueError("No ZIP file specified. Use the zip_file parameter.")
         
-        zip_path = Path(self.config.zips_dir) / "real-whatsapp-export.zip"
-        if zip_path.exists():
-            group_name = "Rationality Club LatAm"
-            group_slug = "rationality-club-latam"
-            export_date = date.today()
-            
-            import zipfile
-            with zipfile.ZipFile(zip_path, 'r') as zf:
-                # Find the chat file (should be the .txt file)
-                txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
-                if not txt_files:
-                    raise ValueError(f"No .txt file found in {zip_path}")
-                chat_file = txt_files[0]  # Use the first (and likely only) .txt file
-                media_files = [f for f in zf.namelist() if f != chat_file]
+        zip_path = Path(self.config.zip_file)
+        if not zip_path.exists():
+            raise FileNotFoundError(f"ZIP file not found: {zip_path}")
 
-            export = WhatsAppExport(
-                zip_path=zip_path,
-                group_name=group_name,
-                group_slug=group_slug,
-                export_date=export_date,
-                chat_file=chat_file,
-                media_files=media_files,
-            )
-            real_groups = {group_slug: [export]}
+        logger.info(f"🔍 Processing ZIP file: {zip_path}")
+        
+        import zipfile
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            # Find the chat file (should be the .txt file)
+            txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
+            if not txt_files:
+                raise ValueError(f"No .txt file found in {zip_path}")
+            chat_file = txt_files[0]  # Use the first (and likely only) .txt file
+            media_files = [f for f in zf.namelist() if f != chat_file]
+
+        # Auto-detect or use provided group information
+        if self.config.group_name:
+            group_name = self.config.group_name
         else:
-            real_groups = {}
+            group_name = self._extract_group_name_from_chat_file(chat_file)
+            logger.info(f"📝 Auto-detected group name: {group_name}")
+
+        if self.config.group_slug:
+            group_slug = self.config.group_slug
+        else:
+            group_slug = self._generate_group_slug(group_name)
+            logger.info(f"🔗 Auto-generated slug: {group_slug}")
+
+        export_date = date.today()
+
+        export = WhatsAppExport(
+            zip_path=zip_path,
+            group_name=group_name,
+            group_slug=group_slug,
+            export_date=export_date,
+            chat_file=chat_file,
+            media_files=media_files,
+        )
+        real_groups = {group_slug: [export]}
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
