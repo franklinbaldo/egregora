@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 from datetime import date
@@ -73,27 +72,7 @@ def setup_test_environment(temp_dir: Path, whatsapp_zip_path: Path) -> Path:
     return temp_dir
 
 
-@pytest.fixture
-def mock_gemini_client():
-    """Mock Gemini client for testing without API calls."""
-    class MockClient:
-        def generate_content(self, prompt: str, **kwargs):
-            return MockResponse()
-    
-    class MockResponse:
-        def __init__(self):
-            self.text = "Mock post content generated from conversation."
-    
-    return MockClient()
 
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_env():
-    """Set up test environment variables."""
-    # Set mock API key to prevent actual API calls during tests
-    os.environ.setdefault("GEMINI_API_KEY", "test-key-12345")
-    yield
-    # Cleanup if needed
 
 
 @pytest.fixture
