@@ -40,7 +40,6 @@ docs = [
 
 [project.scripts]
 egregora = "egregora.__main__:run"
-egregora-mcp = "scripts.start_mcp_server:cli"
 
 [project.entry-points."mkdocs.plugins"]
 "media-files" = "tools.mkdocs_media_plugin:MediaFilesPlugin"

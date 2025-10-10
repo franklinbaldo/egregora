@@ -44,9 +44,6 @@ LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
     "chunkOverlap": "chunk_overlap",
     "topK": "top_k",
     "minSimilarity": "min_similarity",
-    "useMCP": "use_mcp",
-    "mcpCommand": "mcp_command",
-    "mcpArgs": "mcp_args",
     "keywordStopWords": "keyword_stop_words",
     "embeddingExportPath": "embedding_export_path",
     "cacheDir": "cache_dir",
@@ -268,7 +265,6 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
 
     bool_fields = {
         "enabled",
-        "use_mcp",
         "enable_cache",
         "export_embeddings",
     }
@@ -302,13 +298,6 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
             payload["keyword_stop_words"] = tuple(
                 str(item).strip().lower() for item in value if str(item).strip()
             )
-    if "mcp_args" in payload:
-        value = payload["mcp_args"]
-        if isinstance(value, str):
-            payload["mcp_args"] = tuple(part for part in value.split() if part)
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            payload["mcp_args"] = tuple(str(item) for item in value)
-
     for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
         if path_field in payload and payload[path_field] is not None:
             payload[path_field] = Path(payload[path_field])
