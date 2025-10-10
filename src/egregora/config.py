@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import copy
-import os
 from collections.abc import Mapping, Sequence
 from datetime import tzinfo
 from pathlib import Path
 from typing import Any, ClassVar
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from pydantic import (
@@ -17,7 +15,6 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
-    SecretStr,
     field_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -141,7 +138,7 @@ class ProfilesConfig(BaseModel):
 
     enabled: bool = True
     profiles_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles"))
-    docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("docs/profiles"))
+    docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles/docs"))
     min_messages: int = 2
     min_words_per_message: int = 15
     history_days: int = 5
@@ -177,63 +174,6 @@ class ProfilesConfig(BaseModel):
         if fvalue < 0:
             raise ValueError("minimum_retry_seconds must be non-negative")
         return fvalue
-
-
-def _default_remote_gdrive_url() -> SecretStr | None:
-    for key in ("PIPELINE__REMOTE_SOURCE__GDRIVE_URL", "REMOTE_SOURCE__GDRIVE_URL"):
-        value = os.getenv(key)
-        if value is None:
-            continue
-        stripped = value.strip()
-        if stripped:
-            return SecretStr(stripped)
-    return None
-
-
-class RemoteSourceConfig(BaseModel):
-    """Configuration for remote ZIP sources such as Google Drive."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    gdrive_url: SecretStr | None = Field(
-        default_factory=_default_remote_gdrive_url,
-        validation_alias=AliasChoices(
-            "gdrive_url",
-            "REMOTE_SOURCE__GDRIVE_URL",
-            "PIPELINE__REMOTE_SOURCE__GDRIVE_URL",
-        ),
-    )
-
-    @field_validator("gdrive_url", mode="before")
-    @classmethod
-    def _validate_gdrive_url(cls, value: Any) -> SecretStr | None | str:
-        if value is None:
-            return None
-
-        raw = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
-        raw = raw.strip()
-        if not raw:
-            return None
-
-        parsed = urlparse(raw)
-        if parsed.scheme not in {"https"} or not parsed.netloc:
-            raise ValueError("gdrive_url must be a valid HTTPS URL")
-        return value
-
-    def get_gdrive_url(self) -> str | None:
-        """Return the raw Google Drive URL, if configured."""
-
-        if self.gdrive_url is None:
-            return None
-        return self.gdrive_url.get_secret_value()
-
-    def masked_gdrive_url(self) -> str | None:
-        """Return a masked value suitable for logs and diagnostics."""
-
-        if self.gdrive_url is None:
-            return None
-        return str(self.gdrive_url)
-
 
 def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
@@ -327,10 +267,7 @@ class PipelineTomlSettingsSource(TomlConfigSettingsSource):
             for key, value in pipeline_section.items():
                 if value is None:
                     continue
-                if key == "remote_source":
-                    payload[key] = value
-                else:
-                    payload[key] = value
+                payload[key] = value
 
         for section in (
             "llm",
@@ -385,7 +322,6 @@ class PipelineConfig(BaseSettings):
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
-    remote_source: RemoteSourceConfig = Field(default_factory=RemoteSourceConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
@@ -516,17 +452,6 @@ class PipelineConfig(BaseSettings):
             return ProfilesConfig(**value)
         raise TypeError("profiles configuration must be a mapping")
 
-    @field_validator("remote_source", mode="before")
-    @classmethod
-    def _validate_remote_source(cls, value: Any) -> RemoteSourceConfig:
-        if value is None:
-            return RemoteSourceConfig()
-        if isinstance(value, RemoteSourceConfig):
-            return value
-        if isinstance(value, dict):
-            return RemoteSourceConfig(**value)
-        raise TypeError("remote_source configuration must be a mapping or RemoteSourceConfig")
-
     @field_validator("merges", mode="before")
     @classmethod
     def _validate_merges(cls, value: Any) -> dict[GroupSlug, MergeConfig]:
@@ -573,7 +498,6 @@ class PipelineConfig(BaseSettings):
         anonymization: AnonymizationConfig | dict[str, Any] | None = None,
         rag: RAGConfig | dict[str, Any] | None = None,
         profiles: ProfilesConfig | dict[str, Any] | None = None,
-        remote_source: RemoteSourceConfig | dict[str, Any] | None = None,
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
         system_message_filters_file: Path | None = None,
@@ -608,8 +532,6 @@ class PipelineConfig(BaseSettings):
             payload["rag"] = rag
         if profiles is not None:
             payload["profiles"] = profiles
-        if remote_source is not None:
-            payload["remote_source"] = remote_source
         if merges is not None:
             payload["merges"] = merges
         if skip_real_if_in_virtual is not None:
@@ -655,9 +577,6 @@ class PipelineConfig(BaseSettings):
         """Return a dictionary representation with sensitive values redacted."""
 
         data = copy.deepcopy(self.model_dump(mode="python", exclude_none=True, round_trip=True))
-        remote = data.get("remote_source")
-        if isinstance(remote, dict) and "gdrive_url" in remote:
-            remote["gdrive_url"] = self.remote_source.masked_gdrive_url()
         return data
 
 
@@ -692,6 +611,5 @@ __all__ = [
     "LLMConfig",
     "PipelineConfig",
     "ProfilesConfig",
-    "RemoteSourceConfig",
     "RAGConfig",
 ]

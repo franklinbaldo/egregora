@@ -25,7 +25,6 @@ from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
 from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
-from .remote_sync import sync_remote_source_config
 from .transcript import (
     get_available_dates,
     load_source_dataframe,
@@ -207,29 +206,6 @@ class UnifiedProcessor:
 
         return sorted(plans, key=lambda plan: plan.slug)
 
-    def _sync_remote_source(self) -> None:
-        """Download WhatsApp exports from the configured remote source."""
-
-        outcome = sync_remote_source_config(self.config, logger=logger)
-        if not outcome.attempted:
-            return
-
-        if outcome.error:
-            logger.warning("  ⚠️ Falha ao sincronizar fonte remota: %s", outcome.error)
-            return
-
-        if outcome.new_archives:
-            base = self.config.zips_dir.resolve()
-            logger.info("  %d arquivo(s) novo(s) sincronizado(s):", len(outcome.new_archives))
-            for path in outcome.new_archives:
-                try:
-                    rel = path.relative_to(base)
-                except ValueError:
-                    rel = path
-                logger.info("    • %s", rel)
-        else:
-            logger.info("  Nenhum arquivo novo encontrado.")
-
     def _collect_sources(
         self,
     ) -> tuple[
@@ -238,8 +214,6 @@ class UnifiedProcessor:
         dict[GroupSlug, GroupSource],
     ]:
         """Discover and prepare sources for processing."""
-
-        self._sync_remote_source()
 
         logger.info(f"🔍 Scanning {self.config.zips_dir}...")
         real_groups = discover_groups(self.config.zips_dir)

@@ -14,7 +14,6 @@ from rich.table import Table
 from .config import PipelineConfig
 from .discover import discover_identifier
 from .processor import UnifiedProcessor
-from .remote_sync import sync_remote_source_config
 
 app = typer.Typer(
     name="egregora",
@@ -65,13 +64,6 @@ ModelOption = Annotated[
     str | None,
     typer.Option(help="Nome do modelo Gemini a ser usado."),
 ]
-RemoteUrlOption = Annotated[
-    str | None,
-    typer.Option(
-        "--remote-url",
-        help="URL do Google Drive com exports .zip para sincronizar automaticamente.",
-    ),
-]
 TimezoneOption = Annotated[
     str | None,
     typer.Option(help="Timezone IANA (ex.: America/Porto_Velho) usado para marcar a data de hoje."),
@@ -108,7 +100,6 @@ def _build_pipeline_config(  # noqa: PLR0913
     zips_dir: Path | None = None,
     posts_dir: Path | None = None,
     model: str | None = None,
-    remote_url: str | None = None,
     timezone: str | None = None,
     disable_enrichment: bool = False,
     disable_cache: bool = False,
@@ -117,23 +108,18 @@ def _build_pipeline_config(  # noqa: PLR0913
 
     timezone_override = _parse_timezone(timezone)
 
-    remote_url_value = remote_url.strip() if remote_url else None
-
     if config_file:
         try:
             config = PipelineConfig.load(toml_path=config_file)
         except Exception as exc:  # pragma: no cover - configuration validation
             console.print(f"[red]❌ Não foi possível carregar o arquivo TOML:[/red] {exc}")
             raise typer.Exit(code=1) from exc
-        if remote_url_value:
-            config.remote_source.gdrive_url = remote_url_value
     else:
         config = PipelineConfig.with_defaults(
             zips_dir=zips_dir,
             posts_dir=posts_dir,
             model=model,
             timezone=timezone_override,
-            remote_source={"gdrive_url": remote_url_value} if remote_url_value else None,
         )
 
     if zips_dir:
@@ -159,7 +145,6 @@ def _process_command(  # noqa: PLR0913
     zips_dir: Path | None = None,
     posts_dir: Path | None = None,
     model: str | None = None,
-    remote_url: str | None = None,
     timezone: str | None = None,
     days: int = 2,
     disable_enrichment: bool = False,
@@ -174,7 +159,6 @@ def _process_command(  # noqa: PLR0913
         zips_dir=zips_dir,
         posts_dir=posts_dir,
         model=model,
-        remote_url=remote_url,
         timezone=timezone,
         disable_enrichment=disable_enrichment,
         disable_cache=disable_cache,
@@ -193,95 +177,12 @@ def _process_command(  # noqa: PLR0913
     _process_and_display(processor, days)
 
 
-@app.command("sync")
-def sync_command(  # noqa: PLR0913
-    config_file: ConfigFileOption = None,
-    zips_dir: ZipsDirOption = None,
-    posts_dir: PostsDirOption = None,
-    model: ModelOption = None,
-    timezone: TimezoneOption = None,
-    disable_enrichment: DisableEnrichmentOption = False,
-    disable_cache: DisableCacheOption = False,
-) -> None:
-    """Baixa exports do WhatsApp da fonte remota configurada."""
-
-    config = _build_pipeline_config(
-        config_file=config_file,
-        zips_dir=zips_dir,
-        posts_dir=posts_dir,
-        model=model,
-        timezone=timezone,
-        disable_enrichment=disable_enrichment,
-        disable_cache=disable_cache,
-    )
-
-    console.print(
-        Panel(
-            f"[bold]Diretório de destino:[/bold] {config.zips_dir.resolve()}",
-            title="☁️ Sincronização Remota",
-            border_style="cyan",
-        )
-    )
-
-    outcome = sync_remote_source_config(config)
-
-    if not outcome.attempted:
-        console.print(
-            Panel(
-                "Nenhuma URL remota configurada. Atualize o TOML ou variáveis de ambiente.",
-                border_style="yellow",
-            )
-        )
-        raise typer.Exit(code=1)
-
-    if outcome.error:
-        console.print(
-            Panel(
-                f"[red]Falha ao sincronizar exports:[/red] {outcome.error}",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(code=1)
-
-    summary_panel = Panel(
-        f"Foram sincronizados [bold]{len(outcome.new_archives)}[/bold] arquivo(s) novo(s).",
-        border_style="green" if outcome.new_archives else "blue",
-    )
-    console.print(summary_panel)
-
-    if outcome.new_archives:
-        table = Table(
-            title="📦 Arquivos novos",
-            show_header=True,
-            header_style="bold magenta",
-        )
-        table.add_column("Arquivo", style="green")
-
-        base = config.zips_dir.resolve()
-        for path in outcome.new_archives:
-            try:
-                rel = path.relative_to(base)
-            except ValueError:
-                rel = path
-            table.add_row(str(rel))
-
-        console.print(table)
-
-    console.print(
-        Panel(
-            f"Total de arquivos disponíveis: [bold]{len(outcome.all_archives)}[/bold]",
-            border_style="magenta",
-        )
-    )
-
-
 @app.command()
 def process(  # noqa: PLR0913
     config_file: ConfigFileOption = None,
     zips_dir: ZipsDirOption = None,
     posts_dir: PostsDirOption = None,
     model: ModelOption = None,
-    remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
     days: DaysOption = 2,
     disable_enrichment: DisableEnrichmentOption = False,
@@ -296,7 +197,6 @@ def process(  # noqa: PLR0913
         zips_dir=zips_dir,
         posts_dir=posts_dir,
         model=model,
-        remote_url=remote_url,
         timezone=timezone,
         days=days,
         disable_enrichment=disable_enrichment,
@@ -313,7 +213,6 @@ def main(  # noqa: PLR0913
     zips_dir: ZipsDirOption = None,
     posts_dir: PostsDirOption = None,
     model: ModelOption = None,
-    remote_url: RemoteUrlOption = None,
     timezone: TimezoneOption = None,
     days: DaysOption = 2,
     disable_enrichment: DisableEnrichmentOption = False,
@@ -331,7 +230,6 @@ def main(  # noqa: PLR0913
         zips_dir=zips_dir,
         posts_dir=posts_dir,
         model=model,
-        remote_url=remote_url,
         timezone=timezone,
         days=days,
         disable_enrichment=disable_enrichment,

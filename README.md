@@ -6,7 +6,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ## Highlights
 
-- **Zero-touch ingestion** – Discover exports locally or sync them from Google Drive before processing, build virtual groups, and skip duplicates automatically via `UnifiedProcessor` and the remote source helper.【F:src/egregora/processor.py†L72-L168】【F:src/egregora/remote_source.py†L55-L113】
+- **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
 - **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
 - **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
 - **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
@@ -49,7 +49,7 @@ uv run egregora --config egregora.toml --dry-run
 uv run egregora --config egregora.toml --days 2
 ```
 
-Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, `--remote-url` to fetch ZIP exports from a shared Google Drive link, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
+Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
 
 ## Command line interface
 
@@ -59,7 +59,6 @@ The root command is equivalent to `egregora process` and accepts the same option
 
 - `--config / -c` – Load a specific TOML configuration file.
 - `--zips-dir` / `--posts-dir` – Override directories at runtime.
-- `--remote-url` – Sincroniza exports .zip do Google Drive antes de processar, sem editar o TOML.
 - `--days` – Number of recent days to include in each prompt.
 - `--disable-enrichment`, `--no-cache`, `--dry-run`, `--list` – Control enrichment, caching, and planning flows.
 - `--timezone` – Run the pipeline as if executed in another IANA timezone.
@@ -69,21 +68,6 @@ These switches map directly to the Typer options defined in `egregora.__main__`.
 ### `egregora process`
 
 Explicit subcommand wrapper around the same options, useful when scripting multiple CLI calls or when future subcommands are added.【F:src/egregora/__main__.py†L99-L136】
-
-### `egregora sync`
-
-Synchronise WhatsApp exports from the configured Google Drive folder without running the full pipeline. The command reuses the same configuration loaders as `process`, so `--config`, `--zips-dir`, and related overrides behave identically. Use it in cron jobs to stage new archives ahead of scheduled processing runs or to validate that sharing permissions are correct before generating posts.【F:src/egregora/__main__.py†L138-L213】【F:src/egregora/remote_sync.py†L1-L46】
-
-```bash
-# Download archives into the configured directory
-uv run egregora sync --config egregora.toml
-
-# Combine with process to stage then render posts
-uv run egregora sync --config egregora.toml && \
-  uv run egregora process --config egregora.toml --days 2
-```
-
-The command posts how many new ZIP archives were discovered and lists their relative paths, making it easy to detect permission or naming issues before invoking `process`.
 
 ### `egregora discover`
 
@@ -124,10 +108,6 @@ enabled = true
 max_profiles_per_run = 3
 min_messages = 2
 
-[remote_source]
-# Provide a Google Drive share/folder URL to sync exports automatically
-#gdrive_url = "https://drive.google.com/drive/folders/..."
-
 [merges.virtual_daily]
 name = "Community Digest"
 groups = ["core-group", "side-group"]
@@ -143,7 +123,6 @@ model = "gemini-flash-lite-latest"
 - `llm`, `enrichment`, and `cache` tune Gemini usage, enrichment thresholds, and persistent caches.
 - `rag` enables post indexing for retrieval-augmented prompts.
 - `profiles` controls when participant dossiers are generated and stored.
-- `remote_source.gdrive_url` keeps a Google Drive folder in sync before each run.
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
 - The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
 
