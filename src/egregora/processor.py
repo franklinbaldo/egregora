@@ -14,6 +14,7 @@ from diskcache import Cache
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
+from .gemini_manager import GeminiManager, GeminiQuotaError
 from .generator import PostContext, PostGenerator
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
@@ -143,7 +144,12 @@ class UnifiedProcessor:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        self.generator = PostGenerator(config)
+        # Shared GeminiManager for rate limiting across all components
+        self.gemini_manager = GeminiManager(
+            retry_attempts=3,
+            minimum_retry_seconds=30.0,
+        )
+        self.generator = PostGenerator(config, gemini_manager=self.gemini_manager)
 
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
@@ -158,6 +164,56 @@ class UnifiedProcessor:
                 minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
+
+    def estimate_api_usage(self, days: int | None = None) -> dict[str, Any]:
+        """Estimate API quota usage for the planned processing."""
+        sources_to_process, _, _ = self._collect_sources()
+        
+        total_posts = 0
+        total_enrichment_calls = 0
+        group_estimates = {}
+        
+        for slug, source in sources_to_process.items():
+            target_dates = get_available_dates(
+                source,
+                days=days,
+                timezone=self.config.timezone,
+            )
+            
+            group_posts = len(target_dates)
+            total_posts += group_posts
+            
+            # Estimate enrichment calls (rough estimate)
+            enrichment_calls = 0
+            if self.config.enrichment.enabled:
+                # Rough estimate: 1-3 enrichment calls per day on average
+                enrichment_calls = group_posts * 2  # Conservative estimate
+                
+            total_enrichment_calls += enrichment_calls
+            
+            group_estimates[slug] = {
+                "posts": group_posts,
+                "enrichment_calls": enrichment_calls,
+                "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
+            }
+        
+        # Free tier limits (based on the issue description)
+        free_tier_limit = 15  # requests per minute
+        estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
+        
+        return {
+            "total_api_calls": total_posts + total_enrichment_calls,
+            "post_generation_calls": total_posts,
+            "enrichment_calls": total_enrichment_calls,
+            "estimated_time_minutes": estimated_minutes,
+            "free_tier_minutes_needed": estimated_minutes,
+            "groups": group_estimates,
+            "warning": (
+                "⚠️ Esta operação pode exceder a quota gratuita do Gemini" 
+                if total_posts + total_enrichment_calls > 15 
+                else None
+            )
+        }
 
     def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
@@ -647,14 +703,29 @@ class UnifiedProcessor:
                 enrichment_section=enrichment_section,
                 rag_context=rag_context,
             )
-            post = self.generator.generate(source, context)
-
+            # Progressive processing: handle quota errors gracefully
             try:
-                validate_newsletter_privacy(post)
-            except PrivacyViolationError as exc:
-                raise PrivacyViolationError(
-                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
-                ) from exc
+                post = self.generator.generate(source, context)
+                
+                try:
+                    validate_newsletter_privacy(post)
+                except PrivacyViolationError as exc:
+                    raise PrivacyViolationError(
+                        f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
+                    ) from exc
+                    
+            except RuntimeError as exc:
+                if "Quota de API do Gemini esgotada" in str(exc):
+                    logger.warning(
+                        f"    ⚠️ Quota esgotada ao processar {target_date}. "
+                        f"Posts salvos: {len(post_paths)}. "
+                        f"Para continuar, tente novamente mais tarde."
+                    )
+                    # Return partial results - what we've processed so far
+                    break
+                else:
+                    # Re-raise other RuntimeErrors
+                    raise
 
             media_section = MediaExtractor.format_media_section(
                 all_media,

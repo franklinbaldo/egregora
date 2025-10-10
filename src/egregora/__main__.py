@@ -192,12 +192,46 @@ def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
             console.print("   Nenhuma post seria gerada (sem dados recentes)")
 
     console.print(
-        f"\n[bold]Resumo:[/bold] {len(plans)} grupo(s) gerariam até {total_posts} post(s).\n"
+        f"\n[bold]Resumo:[/bold] {len(plans)} grupo(s) gerariam até {total_posts} post(s)."
     )
+    
+    # Show API quota estimation
+    try:
+        quota_info = processor.estimate_api_usage(days=days)
+        console.print("\n[bold cyan]📊 Estimativa de Uso da API:[/bold cyan]")
+        console.print(f"   Chamadas para posts: {quota_info['post_generation_calls']}")
+        if quota_info['enrichment_calls'] > 0:
+            console.print(f"   Chamadas para enriquecimento: {quota_info['enrichment_calls']}")
+        console.print(f"   [bold]Total de chamadas: {quota_info['total_api_calls']}[/bold]")
+        console.print(f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos")
+        
+        if quota_info['warning']:
+            console.print(f"\n[yellow]{quota_info['warning']}[/yellow]")
+            console.print("[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]")
+    except Exception as exc:
+        console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
+    
+    console.print()
 
 
 def _process_and_display(processor: UnifiedProcessor, days: int) -> None:
     """Processa grupos e mostra resultado formatado."""
+
+    # Show quota estimation before processing
+    try:
+        quota_info = processor.estimate_api_usage(days=days)
+        if quota_info['total_api_calls'] > 15:
+            console.print(
+                Panel(
+                    f"[yellow]⚠️ Esta operação fará {quota_info['total_api_calls']} chamadas à API[/yellow]\n"
+                    f"Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos\n"
+                    f"[dim]O processamento pode ser interrompido por limites de quota.[/dim]",
+                    border_style="yellow",
+                    title="Estimativa de Quota"
+                )
+            )
+    except Exception:
+        pass  # Continue processing even if estimation fails
 
     console.print(Panel("[bold green]🚀 Processando Grupos[/bold green]", border_style="green"))
 
