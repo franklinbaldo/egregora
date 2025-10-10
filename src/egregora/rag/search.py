@@ -79,6 +79,11 @@ def search(*_: Any, **__: Any) -> None:
     """Placeholder search function that raises a helpful error."""
 
     raise RuntimeError(
-        "The TF-IDF search module has been removed. Use the new RAG pipeline "
-        "under `egregora.rag` instead."
+        "The TF-IDF search module has been removed. Migrate to the RAG pipeline "
+        "under `egregora.rag`. For example:\n\n"
+        "    from pathlib import Path\n"
+        "    from egregora.rag import PostRAG, RAGConfig\n\n"
+        "    rag = PostRAG(posts_dir=Path('posts'), config=RAGConfig())\n"
+        "    rag.update_index()\n"
+        "    results = rag.search('term')\n"
     )
