@@ -569,7 +569,7 @@ def sync_existing_issue(
     elif local_changed and not remote_changed:
         chosen_source = "local"
     elif remote_changed and local_changed:
-        remote_time = ensure_remote_body_time()
+        remote_time = ensure_remote_body_time() if remote_body_changed else None
         if remote_time and local_time:
             chosen_source = "remote" if remote_time > local_time else "local"
         elif remote_time:
