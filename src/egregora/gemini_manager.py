@@ -92,7 +92,6 @@ class GeminiManager:
         model: str,
         contents: Iterable[types.Content],
         config: types.GenerateContentConfig,
-        safety_settings: Iterable[types.SafetySetting] | None = None,
     ):
         self._ensure_quota(subsystem)
 
@@ -109,7 +108,6 @@ class GeminiManager:
                     model=model,
                     contents=contents,
                     config=config,
-                    safety_settings=safety_settings or None,
                 )
                 self._usage_counts[subsystem] += 1
                 limit = self._usage_limits.get(subsystem)

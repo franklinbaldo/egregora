@@ -144,12 +144,8 @@ class UnifiedProcessor:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        # Shared GeminiManager for rate limiting across all components
-        self.gemini_manager = GeminiManager(
-            retry_attempts=3,
-            minimum_retry_seconds=30.0,
-        )
-        self.generator = PostGenerator(config, gemini_manager=self.gemini_manager)
+        self._gemini_manager: GeminiManager | None = None
+        self._generator: PostGenerator | None = None
 
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
@@ -165,6 +161,25 @@ class UnifiedProcessor:
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
+    @property
+    def gemini_manager(self) -> GeminiManager:
+        """Lazily instantiate the optional Gemini manager."""
+
+        if self._gemini_manager is None:
+            self._gemini_manager = GeminiManager(
+                retry_attempts=3,
+                minimum_retry_seconds=30.0,
+            )
+        return self._gemini_manager
+
+    @property
+    def generator(self) -> PostGenerator:
+        """Lazily instantiate the post generator to defer Gemini requirements."""
+
+        if self._generator is None:
+            self._generator = PostGenerator(self.config, gemini_manager=self.gemini_manager)
+        return self._generator
+
     def estimate_api_usage(self, days: int | None = None) -> dict[str, Any]:
         """Estimate API quota usage for the planned processing."""
         sources_to_process, _, _ = self._collect_sources()
@@ -174,10 +189,9 @@ class UnifiedProcessor:
         group_estimates = {}
         
         for slug, source in sources_to_process.items():
-            target_dates = get_available_dates(
-                source,
-                days=days,
-                timezone=self.config.timezone,
+            available_dates = list(get_available_dates(source))
+            target_dates = (
+                list(available_dates[-days:]) if days and available_dates else list(available_dates)
             )
             
             group_posts = len(target_dates)
@@ -718,7 +732,7 @@ class UnifiedProcessor:
                 if "Quota de API do Gemini esgotada" in str(exc):
                     logger.warning(
                         f"    ⚠️ Quota esgotada ao processar {target_date}. "
-                        f"Posts salvos: {len(post_paths)}. "
+                        f"Posts salvos: {len(results)}. "
                         f"Para continuar, tente novamente mais tarde."
                     )
                     # Return partial results - what we've processed so far
