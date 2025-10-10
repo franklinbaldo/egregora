@@ -53,6 +53,68 @@ jobs:
         run: |
           uv run python scripts/process_backlog.py tests/data/zips ./_tmp_posts --force --offline --quiet
           test -d ./_tmp_posts
+      - name: Prepare lint fixes patch
+        id: lint_patch
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        run: |
+          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changes=true" >> "$GITHUB_OUTPUT"
+          git add -u
+          git diff --binary --cached > "$RUNNER_TEMP/lint_fixes.patch"
+          git reset --quiet
+      - name: Checkout PR head for lint fixes
+        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          path: pr-head
+      - name: Apply lint fixes patch
+        id: apply_lint_patch
+        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
+        working-directory: pr-head
+        run: |
+          set -o errexit
+          if git apply --3way --binary "$RUNNER_TEMP/lint_fixes.patch"; then
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "applied=false" >> "$GITHUB_OUTPUT"
+          echo "Lint fixes patch could not be applied cleanly; skipping automatic fix push." >&2
+        shell: bash
+      - name: Commit and push lint fixes (pull request)
+        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' && steps.apply_lint_patch.outputs.applied == 'true' }}
+        working-directory: pr-head
+        run: |
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "Automatic lint fixes require write access to the source branch." >&2
+            echo "Re-run pre-commit locally and push the changes manually." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "chore: apply automatic lint fixes"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Commit and push lint fixes (push)
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        run: |
+          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "chore: apply automatic lint fixes"
+          git push origin HEAD:${{ github.ref_name }}
       - name: Build RAG embeddings artifact
         run: |
           uv run python - <<'PY'
@@ -93,55 +155,3 @@ jobs:
           name: rag-post-embeddings
           path: artifacts/embeddings/post_chunks.parquet
           if-no-files-found: error
-      - name: Prepare lint fixes patch
-        id: lint_patch
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        run: |
-          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
-            echo "changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "changes=true" >> "$GITHUB_OUTPUT"
-          git add -u
-          git diff --binary --cached > "$RUNNER_TEMP/lint_fixes.patch"
-          git reset --quiet
-      - name: Checkout PR head for lint fixes
-        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          path: pr-head
-      - name: Apply lint fixes patch
-        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
-        working-directory: pr-head
-        run: git apply --binary "$RUNNER_TEMP/lint_fixes.patch"
-      - name: Commit and push lint fixes (pull request)
-        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
-        working-directory: pr-head
-        run: |
-          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            echo "Automatic lint fixes require write access to the source branch." >&2
-            echo "Re-run pre-commit locally and push the changes manually." >&2
-            exit 1
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -u
-          git commit -m "chore: apply automatic lint fixes"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-      - name: Commit and push lint fixes (push)
-        if: ${{ always() && github.event_name != 'pull_request' }}
-        run: |
-          if [[ -z "$(git status --porcelain --untracked-files=no)" ]]; then
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -u
-          git commit -m "chore: apply automatic lint fixes"
-          git push origin HEAD:${{ github.ref_name }}
