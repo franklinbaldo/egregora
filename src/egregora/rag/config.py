@@ -37,15 +37,6 @@ def _default_keyword_stop_words() -> tuple[str, ...]:
     )
 
 
-def _default_mcp_args() -> tuple[str, ...]:
-    return (
-        "run",
-        "python",
-        "-m",
-        "egregora.mcp_server.server",
-    )
-
-
 class RAGConfig(BaseModel):
     """Configuration for post retrieval powered by LlamaIndex."""
 
@@ -64,11 +55,6 @@ class RAGConfig(BaseModel):
     keyword_stop_words: tuple[str, ...] | None = Field(default_factory=_default_keyword_stop_words)
     classifier_max_llm_calls: int | None = 200
     classifier_token_budget: int | None = 20000
-
-    # MCP integration
-    use_mcp: bool = True
-    mcp_command: str = "uv"
-    mcp_args: tuple[str, ...] = Field(default_factory=_default_mcp_args)
 
     # Chunking parameters (tokens)
     chunk_size: int = 1800
@@ -149,11 +135,6 @@ class RAGConfig(BaseModel):
     @classmethod
     def _ensure_path(cls, value: Any) -> Path:
         return Path(value)
-
-    @field_validator("mcp_args")
-    @classmethod
-    def _coerce_mcp_args(cls, value: Sequence[str]) -> tuple[str, ...]:
-        return tuple(str(item) for item in value)
 
     @field_validator("keyword_stop_words")
     @classmethod

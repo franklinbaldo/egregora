@@ -12,7 +12,7 @@ from egregora.pipeline import (
     find_date_in_name,
     _format_transcript_section_header
 )
-from tests.test_framework.helpers import create_test_zip
+from .test_framework.helpers import create_test_zip
 
 
 def test_whatsapp_transcript_preparation(temp_dir):
@@ -271,13 +271,13 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
     # Test valid configuration
     config = PipelineConfig.with_defaults(
         zips_dir=temp_dir / "zips",
-        newsletters_dir=temp_dir / "newsletters",
+        posts_dir=temp_dir / "posts",
         group_name="WhatsApp Test Group"
     )
     
     # Validate configuration
     assert config.zips_dir.name == "zips"
-    assert config.newsletters_dir.name == "newsletters"
+    assert config.posts_dir.name == "posts"
     assert config.group_name == "WhatsApp Test Group"
     assert config.anonymization.enabled == True
     assert config.enrichment.enabled == True

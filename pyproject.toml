@@ -10,7 +10,6 @@ dependencies = [
     "llama-index-core>=0.11.0",
     "llama-index-embeddings-gemini>=0.2.0",
     "llama-index-vector-stores-chroma>=0.2.0",
-    "gdown>=5.2.0",
     "chromadb>=0.5.0",
     "pyyaml>=6.0",
     "polars>=0.20",
@@ -43,11 +42,6 @@ lint = [
 
 [project.scripts]
 egregora = "egregora.__main__:run"
-egregora-mcp = "scripts.start_mcp_server:cli"
-
-[project.entry-points."mkdocs.plugins"]
-"media-files" = "tools.mkdocs_media_plugin:MediaFilesPlugin"
-"tools.mkdocs_build_posts_plugin" = "tools.mkdocs_build_posts_plugin:BuildPostsPlugin"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]
@@ -57,7 +51,7 @@ build-backend = "hatchling.build"
 managed = true
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 
 [tool.black]
 line-length = 100
@@ -83,11 +77,7 @@ disallow_untyped_defs = false
 [tool.hatch.build.targets.wheel.force-include]
 "src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
 "src/egregora/prompts/system_instruction_multigroup.md" = "egregora/prompts/system_instruction_multigroup.md"
-"tools" = "tools"
-"scripts" = "scripts"
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
 "src/egregora/prompts/system_instruction_multigroup.md" = "egregora/prompts/system_instruction_multigroup.md"
-"tools" = "tools"
-"scripts" = "scripts"
