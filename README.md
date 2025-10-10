@@ -7,7 +7,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 ## Highlights
 
 - **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, and prior posts to create high-signal Markdown summaries using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
+- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
 - **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
 - **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
 - **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
@@ -17,7 +17,7 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
 2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
 3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
-4. **Assemble posts** – Blend transcripts, enrichment, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
+4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
 5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for downstream automation or manual review.【F:src/egregora/processor.py†L209-L487】
 
 ## Quick start
@@ -99,6 +99,10 @@ max_links = 50
 enabled = true
 auto_cleanup_days = 90
 
+[rag]
+enabled = true
+cache_dir = "cache/rag"
+
 [profiles]
 enabled = true
 max_profiles_per_run = 3
@@ -117,9 +121,12 @@ model = "gemini-flash-lite-latest"
 
 - `directories.*` override where WhatsApp ZIPs and output artefacts live.
 - `llm`, `enrichment`, and `cache` tune Gemini usage, enrichment thresholds, and persistent caches.
+- `rag` enables post indexing for retrieval-augmented prompts.
 - `profiles` controls when participant dossiers are generated and stored.
 - `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
 - The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
+
+> **Migration note:** The legacy `rag.use_gemini_embeddings` toggle has been removed. Drop the field from existing TOML files and rely on `rag.embedding_model` and related parameters when changing embedding behaviour.
 
 All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
 
@@ -133,11 +140,42 @@ During processing the pipeline materialises a predictable directory tree:
 - `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
 - `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/processor.py†L41-L116】【F:src/egregora/enrichment.py†L432-L720】
 - `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
+## Retrieval utilities
+
+The Retrieval-Augmented Generation helpers store post embeddings in ChromaDB via `PostRAG` for use in bespoke automations or exploratory notebooks.【F:src/egregora/rag/index.py†L12-L189】 Use the runtime API directly to refresh or inspect the index whenever new posts are generated.
+
+### Rebuild the RAG index via the current CLI
+
+Rebuild or refresh the embeddings with the existing CLI/runtime surface—no
+dedicated helper script required:
+
+```bash
+# Force a clean rebuild of the post embeddings
+uv run python - <<'PY'
+from pathlib import Path
+
+from egregora.rag.config import RAGConfig
+from egregora.rag.index import PostRAG
+
+rag = PostRAG(
+    posts_dir=Path("data/posts"),
+    cache_dir=Path("cache/rag"),
+    config=RAGConfig(enabled=True, vector_store_type="chroma"),
+)
+result = rag.update_index(force_rebuild=True)
+print("Rebuilt", result["posts_count"], "posts →", result["chunks_count"], "chunks")
+PY
+```
+
+Adjust the directories or `RAGConfig` arguments to match your deployment. The
+same pattern works inside automations or GitHub Actions, eliminating the need
+for bespoke one-off scripts.
+
 ## Custom prompts & filters
 
 Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
 
-Keyword extraction and system-message filtering now rely on LLM adapters instead of brittle phrase lists. Configure model credentials through the regular pipeline settings and plug custom filters as needed via the system classifier utilities.【F:src/egregora/system_classifier.py†L39-L196】
+Keyword extraction and system-message filtering now rely on LLM adapters instead of brittle phrase lists. Configure model credentials through the regular pipeline settings and provide custom keyword providers when embedding the library in other tooling.【F:src/egregora/rag/query_gen.py†L17-L60】【F:src/egregora/system_classifier.py†L39-L196】
 
 ## Development
 

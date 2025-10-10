@@ -28,10 +28,24 @@ from pydantic_settings.sources import (
 
 from .anonymizer import FormatType
 from .models import MergeConfig
+from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+
+LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
+    "vector_store_path": "persist_dir",
+    "vector_store_dir": "persist_dir",
+    "chunkSize": "chunk_size",
+    "chunkOverlap": "chunk_overlap",
+    "topK": "top_k",
+    "minSimilarity": "min_similarity",
+    "keywordStopWords": "keyword_stop_words",
+    "embeddingExportPath": "embedding_export_path",
+    "cacheDir": "cache_dir",
+    "postsDir": "posts_dir",
+}
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -161,7 +175,74 @@ class ProfilesConfig(BaseModel):
             raise ValueError("minimum_retry_seconds must be non-negative")
         return fvalue
 
+def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
 
+    payload: dict[str, Any] = {str(key): value for key, value in raw.items()}
+
+    for legacy_key, canonical_key in LEGACY_RAG_KEY_ALIASES.items():
+        if legacy_key in payload and canonical_key not in payload:
+            payload[canonical_key] = payload.pop(legacy_key)
+        elif legacy_key in payload:
+            payload.pop(legacy_key)
+
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on"}:
+                return True
+            if lowered in {"false", "0", "no", "off"}:
+                return False
+        return bool(value)
+
+    def _coerce_int(value: Any) -> int:
+        return int(value) if value is not None else value
+
+    def _coerce_float(value: Any) -> float:
+        return float(value) if value is not None else value
+
+    bool_fields = {
+        "enabled",
+        "enable_cache",
+        "export_embeddings",
+    }
+    int_fields = {
+        "top_k",
+        "max_keywords",
+        "exclude_recent_days",
+        "max_context_chars",
+        "classifier_max_llm_calls",
+        "classifier_token_budget",
+        "chunk_size",
+        "chunk_overlap",
+        "embedding_dimension",
+    }
+
+    for field in bool_fields:
+        if field in payload:
+            payload[field] = _coerce_bool(payload[field])
+    for field in int_fields:
+        if field in payload and payload[field] is not None:
+            payload[field] = _coerce_int(payload[field])
+    if "min_similarity" in payload and payload["min_similarity"] is not None:
+        payload["min_similarity"] = _coerce_float(payload["min_similarity"])
+
+    if "keyword_stop_words" in payload:
+        value = payload["keyword_stop_words"]
+        if isinstance(value, str):
+            items = [part.strip().lower() for part in value.split(",") if part.strip()]
+            payload["keyword_stop_words"] = tuple(items)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            payload["keyword_stop_words"] = tuple(
+                str(item).strip().lower() for item in value if str(item).strip()
+            )
+    for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
+        if path_field in payload and payload[path_field] is not None:
+            payload[path_field] = Path(payload[path_field])
+
+    return payload
 
 
 class PipelineTomlSettingsSource(TomlConfigSettingsSource):
@@ -200,6 +281,12 @@ class PipelineTomlSettingsSource(TomlConfigSettingsSource):
             if section_value is not None:
                 payload[section] = section_value
 
+        rag_section = raw.get("rag")
+        if isinstance(rag_section, Mapping):
+            payload["rag"] = sanitize_rag_config_payload(rag_section)
+        elif rag_section is not None:
+            payload["rag"] = rag_section
+
         merges = raw.get("merges")
         if merges is not None:
             payload["merges"] = merges
@@ -233,6 +320,7 @@ class PipelineConfig(BaseSettings):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     system_classifier: SystemClassifierConfig = Field(default_factory=SystemClassifierConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
@@ -346,7 +434,16 @@ class PipelineConfig(BaseSettings):
             return AnonymizationConfig(**value)
         raise TypeError("anonymization configuration must be a mapping")
 
-        @field_validator("profiles", mode="before")
+    @field_validator("rag", mode="before")
+    @classmethod
+    def _validate_rag(cls, value: Any) -> RAGConfig:
+        if isinstance(value, RAGConfig):
+            return value
+        if isinstance(value, dict):
+            return RAGConfig(**value)
+        raise TypeError("rag configuration must be a mapping")
+
+    @field_validator("profiles", mode="before")
     @classmethod
     def _validate_profiles(cls, value: Any) -> ProfilesConfig:
         if isinstance(value, ProfilesConfig):
@@ -399,6 +496,7 @@ class PipelineConfig(BaseSettings):
         cache: CacheConfig | dict[str, Any] | None = None,
         system_classifier: SystemClassifierConfig | dict[str, Any] | None = None,
         anonymization: AnonymizationConfig | dict[str, Any] | None = None,
+        rag: RAGConfig | dict[str, Any] | None = None,
         profiles: ProfilesConfig | dict[str, Any] | None = None,
         merges: dict[str, Any] | None = None,
         skip_real_if_in_virtual: bool | None = None,
@@ -430,6 +528,8 @@ class PipelineConfig(BaseSettings):
             payload["system_classifier"] = system_classifier
         if anonymization is not None:
             payload["anonymization"] = anonymization
+        if rag is not None:
+            payload["rag"] = rag
         if profiles is not None:
             payload["profiles"] = profiles
         if merges is not None:
@@ -511,4 +611,5 @@ __all__ = [
     "LLMConfig",
     "PipelineConfig",
     "ProfilesConfig",
+    "RAGConfig",
 ]

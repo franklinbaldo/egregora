@@ -32,6 +32,7 @@ class PostContext:
     target_date: date
     previous_post: str | None = None
     enrichment_section: str | None = None
+    rag_context: str | None = None
 
 
 _BASE_PROMPT_NAME = "system_instruction_base.md"
@@ -94,6 +95,7 @@ class PostGenerator:
             transcripts=anonymized_transcripts,
             previous_post=context.previous_post,
             enrichment_section=context.enrichment_section,
+            rag_context=context.rag_context,
         )
 
     def generate(self, source: GroupSource, context: PostContext) -> str:

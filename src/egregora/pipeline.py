@@ -267,6 +267,7 @@ def build_llm_input(  # noqa: PLR0913
     transcripts: Sequence[tuple[date, str]],
     previous_post: str | None,
     enrichment_section: str | None = None,
+    rag_context: str | None = None,
 ) -> str:
     """Compose the user prompt sent to Gemini."""
 
@@ -293,6 +294,14 @@ def build_llm_input(  # noqa: PLR0913
             [
                 "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
                 enrichment_section,
+            ]
+        )
+
+    if rag_context:
+        sections.extend(
+            [
+                "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
+                rag_context,
             ]
         )
 

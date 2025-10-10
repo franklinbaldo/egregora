@@ -1,0 +1,76 @@
+{
+  "query_generation": {
+    "whatsapp_transcript": {
+      "keywords": [
+        "franklin",
+        "anexos de mídia",
+        "10",
+        "whatsapp"
+      ],
+      "main_topics": [
+        "franklin",
+        "anexos de mídia",
+        "10"
+      ],
+      "search_query": "franklin, anexos de mídia, 10, whatsapp"
+    }
+  },
+  "post_search_queries": {
+    "ia_governo": "estratégia de inteligência artificial no governo",
+    "dados_publicos": "governança de dados e pipelines analíticos",
+    "trabalho_remoto": "produtividade equipes remotas"
+  },
+  "post_search": {
+    "ia_governo": [
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.596
+      },
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.495
+      },
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.46
+      }
+    ],
+    "dados_publicos": [
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.697
+      },
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.547
+      },
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.458
+      }
+    ],
+    "trabalho_remoto": [
+      {
+        "doc_id": "post::2024-03-30",
+        "file": "2024-03-30.md",
+        "score": 0.375
+      },
+      {
+        "doc_id": "post::2024-04-22",
+        "file": "2024-04-22.md",
+        "score": 0.279
+      },
+      {
+        "doc_id": "post::2024-04-18",
+        "file": "2024-04-18.md",
+        "score": 0.286
+      }
+    ]
+  }
+}

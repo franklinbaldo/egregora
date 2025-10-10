@@ -22,6 +22,9 @@ from .models import GroupSource, WhatsAppExport
 from .pipeline import load_previous_post
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
+from .rag.index import PostRAG
+from .rag.keyword_utils import build_llm_keyword_provider
+from .rag.query_gen import QueryGenerator
 from .transcript import (
     get_available_dates,
     load_source_dataframe,
@@ -492,12 +495,45 @@ class UnifiedProcessor:
                         metrics.error_count,
                     )
 
+            # RAG
+            rag_context = None
+            if self.config.rag.enabled:
+                keyword_provider = None
+                try:
+                    keyword_provider = build_llm_keyword_provider(
+                        self.generator.client,
+                        model=self.config.model,
+                    )
+                except Exception as exc:  # pragma: no cover - optional dependency
+                    logger.warning(
+                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
+                        exc,
+                    )
+
+                if keyword_provider is not None:
+                    rag = PostRAG(
+                        posts_dir=self.config.posts_dir,
+                        config=self.config.rag,
+                    )
+                    query_gen = QueryGenerator(
+                        self.config.rag,
+                        keyword_provider=keyword_provider,
+                    )
+                    query = query_gen.generate(transcript)
+                    search_results = rag.search(query.search_query)
+                    if search_results:
+                        rag_context = "\n\n".join(
+                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
+                            for i, node in enumerate(search_results, 1)
+                        )
+
             context = PostContext(
                 group_name=source.name,
                 transcript=transcript,
                 target_date=target_date,
                 previous_post=previous_post,
                 enrichment_section=enrichment_section,
+                rag_context=rag_context,
             )
             post = self.generator.generate(source, context)
 

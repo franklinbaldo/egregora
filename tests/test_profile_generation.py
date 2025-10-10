@@ -14,6 +14,7 @@ from egregora.config import (
     EnrichmentConfig,
     PipelineConfig,
     ProfilesConfig,
+    RAGConfig,
 )
 from egregora.processor import UnifiedProcessor
 from egregora.profiles import ParticipantProfile, ProfileUpdater
@@ -42,6 +43,7 @@ def test_profile_generation_writes_json_and_markdown(monkeypatch: pytest.MonkeyP
         enrichment=EnrichmentConfig(enabled=False),
         cache=CacheConfig(enabled=False),
         anonymization=AnonymizationConfig(enabled=True),
+        rag=RAGConfig(enabled=False),
         profiles=ProfilesConfig(
             enabled=True,
             profiles_dir=profiles_dir,
