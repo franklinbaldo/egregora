@@ -1,3 +1,5 @@
+"""Integration tests covering the RAG pipeline components."""
+
 from datetime import date
 from pathlib import Path
 
@@ -21,7 +23,7 @@ def _stub_keyword_provider(text: str, *, max_keywords: int) -> list[str]:
     return base_keywords[:max_keywords]
 
 
-def test_query_generation_whatsapp_content(temp_dir):
+def test_query_generation_whatsapp_content(temp_dir: Path):
     """Test query generation components with WhatsApp conversation content."""
     whatsapp_content = """03/10/2025 09:45 - Franklin: Teste de grupo sobre tecnologia
 03/10/2025 09:46 - Franklin: Vamos discutir IA e machine learning
@@ -44,7 +46,7 @@ def test_query_generation_whatsapp_content(temp_dir):
 
 
 
-def test_post_date_detection(temp_dir):
+def test_post_date_detection(temp_dir: Path):
     """Test post date detection functionality."""
     # Test date detection in file paths
     test_files = [
@@ -66,7 +68,7 @@ def test_post_date_detection(temp_dir):
         assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
 
 
-def test_rag_config_validation(temp_dir):
+def test_rag_config_validation(temp_dir: Path):
     """Test RAG configuration with WhatsApp setup."""
     # Test various RAG configurations
     configs = [
@@ -89,7 +91,7 @@ def test_rag_config_validation(temp_dir):
             assert 0.0 <= config.rag.min_similarity <= 1.0
 
 
-def test_search_functionality_patterns(temp_dir):
+def test_search_functionality_patterns(temp_dir: Path):
     """Test search patterns with WhatsApp-like content."""
     # Create test content that simulates indexed conversations
     test_conversations = [
@@ -120,7 +122,7 @@ def test_search_functionality_patterns(temp_dir):
         assert len(processed) > 0
 
 
-def test_rag_context_preparation(temp_dir):
+def test_rag_context_preparation(temp_dir: Path):
     """Test RAG context preparation with WhatsApp data."""
     whatsapp_transcripts = [
         (date(2025, 10, 1), "Conversa sobre projeto A"),
@@ -148,7 +150,7 @@ def test_rag_context_preparation(temp_dir):
         assert ']' in part
 
 
-def test_text_hashing_functionality(temp_dir):
+def test_text_hashing_functionality(temp_dir: Path):
     """Test text hashing for content change detection."""
     whatsapp_texts = [
         "03/10/2025 09:45 - Franklin: Teste de grupo",
@@ -170,7 +172,7 @@ def test_text_hashing_functionality(temp_dir):
     assert hashes[0] != hashes[1]
 
 
-def test_whatsapp_data_processing_pipeline(temp_dir):
+def test_whatsapp_data_processing_pipeline(temp_dir: Path):
     """Test complete data processing pipeline with WhatsApp format."""
     # Setup test data
     zips_dir = temp_dir / "zips"
@@ -200,7 +202,7 @@ def test_whatsapp_data_processing_pipeline(temp_dir):
             assert "IA" in content
 
 
-def test_rag_performance_considerations(temp_dir):
+def test_rag_performance_considerations(temp_dir: Path):
     """Test performance considerations for RAG with large datasets."""
     # Simulate large conversation dataset
     large_conversations = []
