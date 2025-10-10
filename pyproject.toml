@@ -39,7 +39,7 @@ build-backend = "hatchling.build"
 managed = true
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 
 [tool.black]
 line-length = 100

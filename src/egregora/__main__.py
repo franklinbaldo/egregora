@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .config import PipelineConfig
-from .discover import discover_identifier
+
 from .processor import UnifiedProcessor
 
 app = typer.Typer(
@@ -239,67 +239,7 @@ def main(  # noqa: PLR0913
     )
 
 
-@app.command()
-def discover(
-    value: Annotated[
-        str,
-        typer.Argument(help="Telefone ou apelido a ser anonimizado."),
-    ],
-    output_format: Annotated[
-        str,
-        typer.Option(
-            "--format",
-            "-f",
-            help="Formato preferido ao exibir o resultado (human, short, full).",
-        ),
-    ] = "human",
-    quiet: Annotated[
-        bool,
-        typer.Option("--quiet", "-q", help="Imprime apenas o identificador no formato escolhido."),
-    ] = False,
-) -> None:
-    """Calcula o identificador anônimo para um telefone ou apelido."""
 
-    try:
-        result = discover_identifier(value)
-    except ValueError as exc:
-        console.print(f"[red]❌ Erro:[/red] {exc}")
-        raise typer.Exit(code=1) from exc
-
-    fmt = output_format.lower()
-    selected = result.get(fmt)
-    if not selected:
-        console.print(f"[red]❌ Formato desconhecido:[/red] {output_format}")
-        raise typer.Exit(code=1)
-
-    if quiet:
-        console.print(selected)
-        raise typer.Exit()
-
-    panel = Panel(
-        f"[bold cyan]{selected}[/bold cyan]",
-        title=f"🔐 Identificador Anônimo ({fmt})",
-        border_style="cyan",
-    )
-    console.print(panel)
-
-    table = Table(title="Formatos Disponíveis", show_header=True, header_style="bold magenta")
-    table.add_column("Formato", style="cyan")
-    table.add_column("Identificador", style="green")
-
-    for key in ("human", "short", "full"):
-        identifier = result.variants.get(key, "")
-        table.add_row(key, identifier)
-
-    console.print(table)
-    console.print(
-        Panel(
-            f"[bold]Entrada original:[/bold] {result.raw_input}\n"
-            f"[bold]Tipo detectado:[/bold] {result.detected_type}\n"
-            f"[bold]Normalizado:[/bold] {result.normalized}",
-            border_style="magenta",
-        )
-    )
 
 
 def _show_groups_table(processor: UnifiedProcessor) -> None:

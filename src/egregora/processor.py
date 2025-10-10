@@ -15,7 +15,7 @@ from .anonymizer import Anonymizer
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .generator import PostContext, PostGenerator
-from .group_discovery import discover_groups
+# from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
@@ -215,12 +215,14 @@ class UnifiedProcessor:
     ]:
         """Discover and prepare sources for processing."""
 
-        logger.info(f"🔍 Scanning {self.config.zips_dir}...")
-        real_groups = discover_groups(self.config.zips_dir)
+        logger.info(f"🔍 Scanning {self.config.zips_dir}... (Discovery disabled)")
+        real_groups = {}
 
-        logger.info(f"📦 Found {len(real_groups)} real group(s):")
-        for slug, exports in real_groups.items():
-            logger.info(f"  • {exports[0].group_name} ({slug}): {len(exports)} exports")
+        # real_groups = discover_groups(self.config.zips_dir)
+
+        # logger.info(f"📦 Found {len(real_groups)} real group(s):")
+        # for slug, exports in real_groups.items():
+        #     logger.info(f"  • {exports[0].group_name} ({slug}): {len(exports)} exports")
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
@@ -777,7 +779,8 @@ class UnifiedProcessor:
     def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
-        real_groups = discover_groups(self.config.zips_dir)
+        # real_groups = discover_groups(self.config.zips_dir)
+        real_groups = {}
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
         all_info: dict[GroupSlug, dict[str, object]] = {}
