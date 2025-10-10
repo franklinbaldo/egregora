@@ -290,6 +290,8 @@ class UnifiedProcessor:
             group_slug = self._generate_group_slug(group_name)
             logger.info(f"🔗 Auto-generated slug: {group_slug}")
 
+        # Use current date as export creation date
+        # Note: Media extraction no longer depends on this matching message dates
         export_date = date.today()
 
         export = WhatsAppExport(
@@ -480,9 +482,9 @@ class UnifiedProcessor:
         results = []
         extractor = MediaExtractor(group_dir, group_slug=source.slug)
 
-        exports_by_date: dict[date, list] = {}
-        for export in source.exports:
-            exports_by_date.setdefault(export.export_date, []).append(export)
+        # Simplified approach: since we only have one export per group in the new CLI,
+        # we can extract media from all exports for any target date
+        available_exports = source.exports
 
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
@@ -497,7 +499,8 @@ class UnifiedProcessor:
             all_media: dict[str, MediaFile] = {}
             if attachment_names:
                 remaining = set(attachment_names)
-                for export in exports_by_date.get(target_date, []):
+                # Try to extract from all available exports (typically just one)
+                for export in available_exports:
                     extracted = extractor.extract_specific_media_from_zip(
                         export.zip_path,
                         target_date,
