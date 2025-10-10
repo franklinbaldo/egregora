@@ -115,11 +115,18 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           path: pr-head
       - name: Apply lint fixes patch
+        id: apply_lint_patch
         if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
         working-directory: pr-head
-        run: git apply --binary "$RUNNER_TEMP/lint_fixes.patch"
+        run: |
+          if git apply --binary --3way "$RUNNER_TEMP/lint_fixes.patch"; then
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Failed to apply lint fixes patch cleanly. Re-run lint locally or update your branch to resolve conflicts." >&2
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Commit and push lint fixes (pull request)
-        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' }}
+        if: ${{ always() && github.event_name == 'pull_request' && steps.lint_patch.outputs.changes == 'true' && steps.apply_lint_patch.outputs.applied != 'false' }}
         working-directory: pr-head
         run: |
           if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
