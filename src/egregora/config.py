@@ -306,7 +306,7 @@ class PipelineConfig(BaseSettings):
 
     default_toml_path: ClassVar[Path | None] = Path("egregora.toml")
 
-    zip_file: Path | None = None  # The specific ZIP file to process
+    zip_files: list[Path] = Field(default_factory=list)  # ZIP files to process
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
     group_name: str | None = None
     group_slug: GroupSlug | None = None
@@ -484,7 +484,7 @@ class PipelineConfig(BaseSettings):
     def with_defaults(  # noqa: PLR0912, PLR0913
         cls,
         *,
-        zip_file: Path | None = None,
+        zip_files: list[Path] | None = None,
         output_dir: Path | None = None,
         media_url_prefix: str | None = None,
         model: str | None = None,
@@ -504,8 +504,8 @@ class PipelineConfig(BaseSettings):
         use_dataframe_pipeline: bool | None = None,
     ) -> PipelineConfig:
         payload: dict[str, Any] = {}
-        if zip_file is not None:
-            payload["zip_file"] = zip_file
+        if zip_files is not None:
+            payload["zip_files"] = zip_files
         if output_dir is not None:
             payload["posts_dir"] = output_dir
         if group_name is not None:

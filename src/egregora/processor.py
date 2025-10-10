@@ -257,52 +257,78 @@ class UnifiedProcessor:
         dict[GroupSlug, list[WhatsAppExport]],
         dict[GroupSlug, GroupSource],
     ]:
-        """Process the specified ZIP file."""
+        """Process the specified ZIP files."""
 
-        if not self.config.zip_file:
-            raise ValueError("No ZIP file specified. Use the zip_file parameter.")
-        
-        zip_path = Path(self.config.zip_file)
-        if not zip_path.exists():
-            raise FileNotFoundError(f"ZIP file not found: {zip_path}")
+        if not self.config.zip_files:
+            raise ValueError("No ZIP files specified. Use the zip_files parameter.")
 
-        logger.info(f"🔍 Processing ZIP file: {zip_path}")
-        
-        import zipfile
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            # Find the chat file (should be the .txt file)
-            txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
-            if not txt_files:
-                raise ValueError(f"No .txt file found in {zip_path}")
-            chat_file = txt_files[0]  # Use the first (and likely only) .txt file
-            media_files = [f for f in zf.namelist() if f != chat_file]
-
-        # Auto-detect or use provided group information
-        if self.config.group_name:
-            group_name = self.config.group_name
+        num_files = len(self.config.zip_files)
+        if num_files == 1:
+            logger.info(f"🔍 Processing ZIP file: {self.config.zip_files[0]}")
         else:
-            group_name = self._extract_group_name_from_chat_file(chat_file)
-            logger.info(f"📝 Auto-detected group name: {group_name}")
+            logger.info(f"🔍 Processing {num_files} ZIP files for merging:")
+        
+        real_groups: dict[GroupSlug, list[WhatsAppExport]] = {}
+        
+        for zip_path in self.config.zip_files:
+            zip_path = Path(zip_path)
+            if not zip_path.exists():
+                raise FileNotFoundError(f"ZIP file not found: {zip_path}")
 
-        if self.config.group_slug:
-            group_slug = self.config.group_slug
-        else:
-            group_slug = self._generate_group_slug(group_name)
-            logger.info(f"🔗 Auto-generated slug: {group_slug}")
+            if num_files > 1:
+                logger.info(f"  📦 {zip_path}")
+            
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                # Find the chat file (should be the .txt file)
+                txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
+                if not txt_files:
+                    raise ValueError(f"No .txt file found in {zip_path}")
+                chat_file = txt_files[0]  # Use the first (and likely only) .txt file
+                media_files = [f for f in zf.namelist() if f != chat_file]
 
-        # Use current date as export creation date
-        # Note: Media extraction no longer depends on this matching message dates
-        export_date = date.today()
+            # Auto-detect or use provided group information
+            if self.config.group_name:
+                group_name = self.config.group_name
+            else:
+                group_name = self._extract_group_name_from_chat_file(chat_file)
+                if num_files == 1:
+                    logger.info(f"📝 Auto-detected group name: {group_name}")
+                else:
+                    logger.info(f"    📝 Auto-detected group name: {group_name}")
 
-        export = WhatsAppExport(
-            zip_path=zip_path,
-            group_name=group_name,
-            group_slug=group_slug,
-            export_date=export_date,
-            chat_file=chat_file,
-            media_files=media_files,
-        )
-        real_groups = {group_slug: [export]}
+            if self.config.group_slug:
+                group_slug = self.config.group_slug
+            else:
+                group_slug = self._generate_group_slug(group_name)
+                if num_files == 1:
+                    logger.info(f"🔗 Auto-generated slug: {group_slug}")
+                else:
+                    logger.info(f"    🔗 Auto-generated slug: {group_slug}")
+
+            # Use current date as export creation date
+            # Note: Media extraction no longer depends on this matching message dates
+            export_date = date.today()
+
+            export = WhatsAppExport(
+                zip_path=zip_path,
+                group_name=group_name,
+                group_slug=group_slug,
+                export_date=export_date,
+                chat_file=chat_file,
+                media_files=media_files,
+            )
+            
+            # Add export to the group (allowing multiple exports per group for merging)
+            if group_slug not in real_groups:
+                real_groups[group_slug] = []
+            real_groups[group_slug].append(export)
+            
+        # Log merging info if multiple files resulted in same groups
+        if num_files > 1:
+            for group_slug, exports in real_groups.items():
+                if len(exports) > 1:
+                    logger.info(f"🔀 Merging {len(exports)} exports into group '{group_slug}'")
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 

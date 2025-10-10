@@ -50,9 +50,9 @@ ConfigFileOption = Annotated[
         "--config", "-c", callback=_validate_config_file, help="Arquivo TOML de configuração."
     ),
 ]
-ZipFileArgument = Annotated[
-    Path,
-    typer.Argument(help="Arquivo .zip do WhatsApp para processar"),
+ZipFilesArgument = Annotated[
+    list[Path],
+    typer.Argument(help="Um ou mais arquivos .zip do WhatsApp para processar"),
 ]
 OutputDirOption = Annotated[
     Path | None,
@@ -66,6 +66,7 @@ GroupSlugOption = Annotated[
     str | None,
     typer.Option("--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
 ]
+# Removed MergeGroupsOption - auto-merge when multiple ZIPs provided
 ModelOption = Annotated[
     str | None,
     typer.Option(help="Nome do modelo Gemini a ser usado."),
@@ -103,7 +104,7 @@ DryRunOption = Annotated[
 def _build_pipeline_config(  # noqa: PLR0913
     *,
     config_file: Path | None = None,
-    zip_file: Path,
+    zip_files: list[Path],
     output_dir: Path | None = None,
     group_name: str | None = None,
     group_slug: str | None = None,
@@ -124,7 +125,7 @@ def _build_pipeline_config(  # noqa: PLR0913
             raise typer.Exit(code=1) from exc
     else:
         config = PipelineConfig.with_defaults(
-            zip_file=zip_file,
+            zip_files=zip_files,
             output_dir=output_dir,
             group_name=group_name,
             group_slug=group_slug,
@@ -132,8 +133,8 @@ def _build_pipeline_config(  # noqa: PLR0913
             timezone=timezone_override,
         )
 
-    # Override with CLI parameters
-    config.zip_file = zip_file
+    # Override with CLI parameters  
+    config.zip_files = zip_files
     if output_dir:
         config.posts_dir = output_dir
     if group_name:
@@ -156,7 +157,7 @@ def _build_pipeline_config(  # noqa: PLR0913
 def _process_command(  # noqa: PLR0913
     *,
     config_file: Path | None = None,
-    zip_file: Path,
+    zip_files: list[Path],
     output_dir: Path | None = None,
     group_name: str | None = None,
     group_slug: str | None = None,
@@ -172,7 +173,7 @@ def _process_command(  # noqa: PLR0913
 
     config = _build_pipeline_config(
         config_file=config_file,
-        zip_file=zip_file,
+        zip_files=zip_files,
         output_dir=output_dir,
         group_name=group_name,
         group_slug=group_slug,
@@ -197,7 +198,7 @@ def _process_command(  # noqa: PLR0913
 
 @app.command()
 def process(  # noqa: PLR0913
-    zip_file: ZipFileArgument,
+    zip_files: ZipFilesArgument,
     config_file: ConfigFileOption = None,
     output_dir: OutputDirOption = None,
     group_name: GroupNameOption = None,
@@ -210,11 +211,11 @@ def process(  # noqa: PLR0913
     list_groups: ListGroupsOption = False,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Processa um arquivo .zip do WhatsApp e gera posts diárias."""
+    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
     _process_command(
         config_file=config_file,
-        zip_file=zip_file,
+        zip_files=zip_files,
         output_dir=output_dir,
         group_name=group_name,
         group_slug=group_slug,
