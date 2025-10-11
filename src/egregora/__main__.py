@@ -24,7 +24,21 @@ def main(  # noqa: PLR0913
     group_slug: str = typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
     model: str = typer.Option(None, "--model", help="Nome do modelo Gemini a ser usado"),
     timezone: str = typer.Option(None, "--timezone", help="Timezone IANA (ex.: America/Porto_Velho)"),
-    days: int = typer.Option(2, "--days", min=1, help="Quantidade de dias mais recentes a incluir no prompt"),
+    days: int = typer.Option(
+        None, "--days", min=1, help="Processar os N dias mais recentes. Incompatível com --from/--to."
+    ),
+    from_date: str = typer.Option(
+        None,
+        "--from-date",
+        help="Data de início (YYYY-MM-DD). Incompatível com --days.",
+        formats=["%Y-%m-%d"],
+    ),
+    to_date: str = typer.Option(
+        None,
+        "--to-date",
+        help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
+        formats=["%Y-%m-%d"],
+    ),
     disable_enrichment: bool = typer.Option(False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"),
     disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
     list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
@@ -37,6 +51,11 @@ def main(  # noqa: PLR0913
         console.print(f"[red]❌ Arquivo de configuração não encontrado: {config_file}[/red]")
         raise typer.Exit(code=1)
     
+    # Validate date options
+    if days and (from_date or to_date):
+        console.print("[red]❌ A opção --days não pode ser usada com --from-date ou --to-date.[/red]")
+        raise typer.Exit(code=1)
+
     # Parse timezone
     timezone_override = None
     if timezone:
@@ -89,17 +108,44 @@ def main(  # noqa: PLR0913
         _show_groups_table(processor)
         raise typer.Exit()
 
+    # Parse dates
+    from_date_obj = None
+    if from_date:
+        try:
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+        except ValueError:
+            console.print(f"[red]❌ Data de início inválida: '{from_date}'. Use YYYY-MM-DD.[/red]")
+            raise typer.Exit(code=1)
+
+    to_date_obj = None
+    if to_date:
+        try:
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+        except ValueError:
+            console.print(f"[red]❌ Data de fim inválida: '{to_date}'. Use YYYY-MM-DD.[/red]")
+            raise typer.Exit(code=1)
+
+    # Default to 2 days if no date option is provided
+    days_to_process = days
+    if not any([days, from_date, to_date]):
+        days_to_process = 2
+
     if dry_run:
-        _show_dry_run(processor, days)
+        _show_dry_run(
+            processor,
+            days=days_to_process,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+        )
         raise typer.Exit()
 
     # Process normally
-    _process_and_display(processor, days)
-
-
-
-
-
+    _process_and_display(
+        processor,
+        days=days_to_process,
+        from_date=from_date_obj,
+        to_date=to_date_obj,
+    )
 
 
 def _show_groups_table(processor: UnifiedProcessor) -> None:
@@ -149,7 +195,13 @@ def _show_groups_table(processor: UnifiedProcessor) -> None:
         console.print("\n".join(extra_notes))
 
 
-def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
+def _show_dry_run(
+    processor: UnifiedProcessor,
+    *,
+    days: int | None,
+    from_date: date | None,
+    to_date: date | None,
+) -> None:
     """Mostra preview do que seria processado."""
 
     console.print(
@@ -160,7 +212,7 @@ def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
         )
     )
 
-    plans = processor.plan_runs(days=days)
+    plans = processor.plan_runs(days=days, from_date=from_date, to_date=to_date)
     if not plans:
         console.print("[yellow]Nenhum grupo foi encontrado com os filtros atuais.[/yellow]")
         console.print("Use --config ou ajuste diretórios para apontar para os exports corretos.\n")
@@ -194,40 +246,54 @@ def _show_dry_run(processor: UnifiedProcessor, days: int) -> None:
     console.print(
         f"\n[bold]Resumo:[/bold] {len(plans)} grupo(s) gerariam até {total_posts} post(s)."
     )
-    
+
     # Show API quota estimation
     try:
-        quota_info = processor.estimate_api_usage(days=days)
+        quota_info = processor.estimate_api_usage(
+            days=days, from_date=from_date, to_date=to_date
+        )
         console.print("\n[bold cyan]📊 Estimativa de Uso da API:[/bold cyan]")
         console.print(f"   Chamadas para posts: {quota_info['post_generation_calls']}")
-        if quota_info['enrichment_calls'] > 0:
+        if quota_info["enrichment_calls"] > 0:
             console.print(f"   Chamadas para enriquecimento: {quota_info['enrichment_calls']}")
         console.print(f"   [bold]Total de chamadas: {quota_info['total_api_calls']}[/bold]")
-        console.print(f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos")
-        
-        if quota_info['warning']:
+        console.print(
+            f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos"
+        )
+
+        if quota_info["warning"]:
             console.print(f"\n[yellow]{quota_info['warning']}[/yellow]")
-            console.print("[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]")
+            console.print(
+                "[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]"
+            )
     except Exception as exc:
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
-    
+
     console.print()
 
 
-def _process_and_display(processor: UnifiedProcessor, days: int) -> None:
+def _process_and_display(
+    processor: UnifiedProcessor,
+    *,
+    days: int | None,
+    from_date: date | None,
+    to_date: date | None,
+) -> None:
     """Processa grupos e mostra resultado formatado."""
 
     # Show quota estimation before processing
     try:
-        quota_info = processor.estimate_api_usage(days=days)
-        if quota_info['total_api_calls'] > 15:
+        quota_info = processor.estimate_api_usage(
+            days=days, from_date=from_date, to_date=to_date
+        )
+        if quota_info["total_api_calls"] > 15:
             console.print(
                 Panel(
                     f"[yellow]⚠️ Esta operação fará {quota_info['total_api_calls']} chamadas à API[/yellow]\n"
                     f"Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos\n"
                     f"[dim]O processamento pode ser interrompido por limites de quota.[/dim]",
                     border_style="yellow",
-                    title="Estimativa de Quota"
+                    title="Estimativa de Quota",
                 )
             )
     except Exception:
@@ -235,7 +301,7 @@ def _process_and_display(processor: UnifiedProcessor, days: int) -> None:
 
     console.print(Panel("[bold green]🚀 Processando Grupos[/bold green]", border_style="green"))
 
-    results = processor.process_all(days=days)
+    results = processor.process_all(days=days, from_date=from_date, to_date=to_date)
 
     total = sum(len(v) for v in results.values())
     table = Table(
