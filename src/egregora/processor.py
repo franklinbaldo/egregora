@@ -200,7 +200,9 @@ class UnifiedProcessor:
         """Lazily instantiate the post generator to defer Gemini requirements."""
 
         if self._generator is None:
-            self._generator = PostGenerator(self.config, gemini_manager=self.gemini_manager)
+            # Only provide gemini_manager when enrichment is enabled
+            gemini_manager = self.gemini_manager if self.config.enrichment.enabled else None
+            self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
     def estimate_api_usage(

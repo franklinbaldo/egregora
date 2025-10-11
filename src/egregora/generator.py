@@ -52,10 +52,7 @@ class PostGenerator:
     ):
         self.config = config
         self._client = llm_client
-        self._gemini_manager = gemini_manager or GeminiManager(
-            retry_attempts=3,
-            minimum_retry_seconds=30.0,
-        )
+        self._gemini_manager = gemini_manager
 
     def _require_google_dependency(self) -> None:
         """Ensure the optional google-genai dependency is available."""
@@ -72,6 +69,16 @@ class PostGenerator:
         if not key:
             raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
         return genai.Client(api_key=key)
+
+    @property
+    def gemini_manager(self) -> GeminiManager:
+        """Lazy-loaded Gemini manager for rate limiting and retries."""
+        if self._gemini_manager is None:
+            self._gemini_manager = GeminiManager(
+                retry_attempts=3,
+                minimum_retry_seconds=30.0,
+            )
+        return self._gemini_manager
 
     @property
     def client(self) -> GeminiClient:
@@ -150,7 +157,7 @@ class PostGenerator:
         try:
             # Use GeminiManager for rate limiting and retries
             response = asyncio.run(
-                self._gemini_manager.generate_content(
+                self.gemini_manager.generate_content(
                     subsystem="post_generation",
                     model=model,
                     contents=contents,
