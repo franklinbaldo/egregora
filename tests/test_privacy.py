@@ -156,9 +156,12 @@ def _install_generator_stubs(monkeypatch):
     monkeypatch.setattr("egregora.generator._load_prompt", lambda name: f"PROMPT: {name}")
 
 
+from unittest.mock import MagicMock
+
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
     config = PipelineConfig.with_defaults()
+    monkeypatch.setattr("egregora.generator.GeminiManager", MagicMock())
     generator = PostGenerator(config)
 
     # Test without group tags

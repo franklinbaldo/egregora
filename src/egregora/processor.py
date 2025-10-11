@@ -126,6 +126,29 @@ def _ensure_blog_front_matter(
     return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
 
 
+def _filter_target_dates(
+    available_dates: list[date],
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    days: int | None = None,
+) -> list[date]:
+    """Filter available dates based on the provided criteria."""
+    # Date range has priority
+    if from_date or to_date:
+        filtered_dates = available_dates
+        if from_date:
+            filtered_dates = [d for d in filtered_dates if d >= from_date]
+        if to_date:
+            filtered_dates = [d for d in filtered_dates if d <= to_date]
+        return filtered_dates
+
+    if days:
+        return available_dates[-days:]
+
+    return available_dates
+
+
 @dataclass(slots=True)
 class DryRunPlan:
     """Summary of what would be processed during a dry run."""
@@ -180,41 +203,50 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=self.gemini_manager)
         return self._generator
 
-    def estimate_api_usage(self, days: int | None = None) -> dict[str, Any]:
+    def estimate_api_usage(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict[str, Any]:
         """Estimate API quota usage for the planned processing."""
         sources_to_process, _, _ = self._collect_sources()
-        
+
         total_posts = 0
         total_enrichment_calls = 0
         group_estimates = {}
-        
+
         for slug, source in sources_to_process.items():
             available_dates = list(get_available_dates(source))
-            target_dates = (
-                list(available_dates[-days:]) if days and available_dates else list(available_dates)
+            target_dates = _filter_target_dates(
+                available_dates,
+                from_date=from_date,
+                to_date=to_date,
+                days=days,
             )
-            
+
             group_posts = len(target_dates)
             total_posts += group_posts
-            
+
             # Estimate enrichment calls (rough estimate)
             enrichment_calls = 0
             if self.config.enrichment.enabled:
                 # Rough estimate: 1-3 enrichment calls per day on average
                 enrichment_calls = group_posts * 2  # Conservative estimate
-                
+
             total_enrichment_calls += enrichment_calls
-            
+
             group_estimates[slug] = {
                 "posts": group_posts,
                 "enrichment_calls": enrichment_calls,
                 "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
             }
-        
+
         # Free tier limits (based on the issue description)
         free_tier_limit = 15  # requests per minute
         estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
-        
+
         return {
             "total_api_calls": total_posts + total_enrichment_calls,
             "post_generation_calls": total_posts,
@@ -223,13 +255,19 @@ class UnifiedProcessor:
             "free_tier_minutes_needed": estimated_minutes,
             "groups": group_estimates,
             "warning": (
-                "⚠️ Esta operação pode exceder a quota gratuita do Gemini" 
-                if total_posts + total_enrichment_calls > 15 
+                "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
+                if total_posts + total_enrichment_calls > 15
                 else None
-            )
+            ),
         }
 
-    def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
+    def process_all(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
 
         sources_to_process, _, _ = self._collect_sources()
@@ -241,12 +279,23 @@ class UnifiedProcessor:
             if source.is_virtual:
                 self._log_merge_stats(source)
 
-            posts = self._process_source(source, days)
+            posts = self._process_source(
+                source,
+                days=days,
+                from_date=from_date,
+                to_date=to_date,
+            )
             results[slug] = posts
 
         return results
 
-    def plan_runs(self, days: int | None = None) -> list[DryRunPlan]:
+    def plan_runs(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> list[DryRunPlan]:
         """Return a preview of what would be processed."""
 
         sources_to_process, _, _ = self._collect_sources()
@@ -254,8 +303,11 @@ class UnifiedProcessor:
         plans: list[DryRunPlan] = []
         for slug, source in sources_to_process.items():
             available_dates = list(get_available_dates(source))
-            target_dates = (
-                list(available_dates[-days:]) if days and available_dates else list(available_dates)
+            target_dates = _filter_target_dates(
+                available_dates,
+                from_date=from_date,
+                to_date=to_date,
+                days=days,
             )
 
             plans.append(
@@ -538,7 +590,10 @@ class UnifiedProcessor:
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
+        *,
         days: int | None,
+        from_date: date | None,
+        to_date: date | None,
     ) -> list[Path]:
         """Process a single source."""
 
@@ -573,7 +628,12 @@ class UnifiedProcessor:
             return []
 
         available_dates = sorted({d for d in full_df.get_column("date").to_list()})
-        target_dates = available_dates[-days:] if days else available_dates
+        target_dates = _filter_target_dates(
+            available_dates,
+            from_date=from_date,
+            to_date=to_date,
+            days=days,
+        )
 
         results = []
         extractor = MediaExtractor(group_dir, group_slug=source.slug)
