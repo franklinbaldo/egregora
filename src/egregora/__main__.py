@@ -299,14 +299,21 @@ def enrich_command(
             
             if relevant_items:
                 console.print("\n[bold yellow]📋 Itens relevantes:[/bold yellow]")
-                for item in relevant_items[:3]:  # Show first 3
+                for item in relevant_items:  # Show all items
                     ref = item.reference
                     analysis = item.analysis
                     console.print(f"  • {ref.url}")
                     if analysis and analysis.summary:
-                        console.print(f"    {analysis.summary[:100]}{'...' if len(analysis.summary) > 100 else ''}")
-                if len(relevant_items) > 3:
-                    console.print(f"  ... e mais {len(relevant_items) - 3}")
+                        console.print(f"    {analysis.summary}")
+                    if analysis and analysis.topics:
+                        console.print(f"    [bold]Tópicos:[/bold] {', '.join(analysis.topics)}")
+                    if analysis and analysis.actions:
+                        console.print(f"    [bold]Ações:[/bold]")
+                        for action in analysis.actions:
+                            console.print(f"      - {action.description}")
+                    if analysis:
+                        console.print(f"    [bold]Relevância:[/bold] {analysis.relevance}/5")
+                    console.print()  # Add spacing between items
         
     except ImportError as e:
         console.print(f"❌ Dependência não encontrada: {e}")

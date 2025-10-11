@@ -152,6 +152,7 @@ class PostGenerator:
             thinking_config=types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
             safety_settings=safety_settings,
             system_instruction=system_instruction,
+            response_mime_type="text/plain",
         )
 
         try:

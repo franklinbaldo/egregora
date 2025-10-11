@@ -112,15 +112,52 @@ def _build_post_metadata(
 def _ensure_blog_front_matter(
     text: str, *, source: "GroupSource", target_date: date, config: PipelineConfig
 ) -> str:
-    """Prepend YAML front matter when it's missing."""
-
+    """Merge Gemini-generated frontmatter with programmatic metadata."""
+    
     stripped = text.lstrip()
-    if stripped.startswith("---"):
-        return text
-
+    
+    # Check if content has frontmatter (including wrapped in code blocks)
+    if stripped.startswith("```\n---") or stripped.startswith("---"):
+        yaml_content = ""
+        remaining_content = stripped
+        
+        # Handle normal frontmatter first
+        if stripped.startswith("---"):
+            parts = stripped.split("---", 2)
+            if len(parts) >= 3:
+                yaml_content = parts[1]
+                remaining_content = parts[2].lstrip()
+        
+        # Remove any wrapped frontmatter blocks from remaining content
+        while "```\n---" in remaining_content:
+            start_idx = remaining_content.find("```\n---")
+            end_idx = remaining_content.find("---\n```", start_idx)
+            if end_idx > start_idx:
+                # Remove the entire wrapped block
+                remaining_content = (
+                    remaining_content[:start_idx] + 
+                    remaining_content[end_idx + 7:]  # Skip "---\n```\n"
+                ).strip()
+            else:
+                break
+        
+        # Parse existing YAML and merge with programmatic metadata
+        try:
+            existing_metadata = yaml.safe_load(yaml_content) or {}
+        except yaml.YAMLError:
+            existing_metadata = {}
+        
+        # Get programmatic metadata and merge
+        programmatic_metadata = _build_post_metadata(source, target_date, config)
+        merged_metadata = {**programmatic_metadata, **existing_metadata}
+        
+        # Generate clean frontmatter
+        front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
+        return f"---\n{front_matter}\n---\n\n{remaining_content}"
+    
+    # No frontmatter found, add programmatic one
     metadata = _build_post_metadata(source, target_date, config)
     front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-
     prefix_len = len(text) - len(stripped)
     prefix = text[:prefix_len]
     return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
@@ -810,6 +847,7 @@ class UnifiedProcessor:
             if media_section:
                 post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
+            # Merge Gemini-generated frontmatter with programmatic metadata
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
             )

@@ -371,7 +371,16 @@ class PipelineConfig(BaseSettings):
     @field_validator("posts_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
-        return _ensure_safe_directory(value)
+        # Allow external paths for posts_dir to support architectural separation
+        candidate = Path(value).expanduser()
+        
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError(f"Directory path '{candidate}' must not contain '..'")
+        
+        base_dir = Path.cwd().resolve()
+        resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
+        
+        return resolved
 
     @field_validator("group_name", mode="before")
     @classmethod

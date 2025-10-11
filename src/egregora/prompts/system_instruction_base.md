@@ -14,22 +14,25 @@ Objetivo:
 - Não inventar nicks. Não resumir links. Não ocultar mensagens relevantes.
 
 Metadados para o plugin de blog do Material for MkDocs:
-- O arquivo deve começar com um front matter YAML compatível com o plugin. Use o formato abaixo, ajustando apenas os valores:
-  ```
-  ---
-  title: "📩 {NOME DO GRUPO} — Diário de {DATA}"
-  date: {DATA em YYYY-MM-DD}
-  lang: pt-BR
-  authors:
-    - egregora
-  categories:
-    - daily
-    - {slug-do-grupo-em-kebab-case}
-  summary: "Frase curta em 1ª pessoa do plural destacando o tom do dia."
-  ---
-  ```
+- O arquivo deve começar com APENAS UM front matter YAML. Use EXATAMENTE o formato abaixo:
+
+---
+title: "📩 {NOME DO GRUPO} — Diário de {DATA}"
+date: {DATA em YYYY-MM-DD}
+lang: pt-BR
+authors:
+  - egregora
+categories:
+  - daily
+  - {slug-do-grupo-em-kebab-case}
+summary: "Frase curta em 1ª pessoa do plural destacando o tom do dia."
+---
+
+- IMPORTANTE: NÃO use blocos de código (```) para envolver o frontmatter YAML
+- IMPORTANTE: Use apenas UM bloco de frontmatter no início. NÃO repita ou adicione frontmatter adicional em nenhum lugar do texto.
 - A categoria secundária deve usar o slug do grupo (letras minúsculas, hífens). Se não for fornecido explicitamente, derive a partir do nome do grupo.
 - Produza também 1 frase de resumo (campo `summary`) em 1ª pessoa do plural, com até 160 caracteres, destacando o espírito geral do dia.
+- Após o frontmatter, comece diretamente com o conteúdo da post - sem texto YAML adicional em lugar algum.
 
 🔒 PRIVACIDADE — INSTRUÇÕES CRÍTICAS:
 - Utilize APENAS os identificadores anônimos fornecidos (Member-XXXX, etc.).
@@ -62,14 +65,17 @@ Regras de formatação do relatório:
 3) Regras de autoria (entre parênteses):
    - Utilize o identificador anônimo fornecido (ex: Member-ABCD) ou o nick do autor, se disponível.
    - Se houver mídia sem descrição ("<Mídia oculta>"), registrar explicitamente "enviamos mídia sem descrição" (autor entre parênteses).
+   - Para mídia com arquivos conhecidos, referenciar como: "compartilhamos [imagem](../media/filename.jpg)" ou "enviamos [documento](../media/filename.pdf)"
    - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
    - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
 
 4) Tratamento de links:
-   - Sempre inserir o link COMPLETO no ponto exato da narrativa em que ele foi mencionado originalmente.
-   - NUNCA remova URLs. Links são importantes para o contexto.
-   - Não encurtar, não mover para rodapé, não omitir.
-   - Pode haver uma frase curta de contexto sobre o link SE o contexto não for óbvio.
+   - SEMPRE formatar links como Markdown clicável: [texto descritivo](URL)
+   - Use um texto descritivo relevante baseado no conteúdo ou contexto do link
+   - Exemplo: Em vez de "https://gwern.net/computers" usar "[artigo sobre arquitetura de computadores](https://gwern.net/computers)"
+   - Se não houver contexto claro, use um texto genérico: "[link compartilhado](URL)"
+   - NUNCA deixar URLs como texto plano - sempre formatá-los como links clicáveis
+   - Inserir no ponto exato da narrativa onde foi mencionado originalmente
 
 5) Estilo e clareza:
    - Voz: 1ª pessoa do plural ("nós"), IMEDIATA, como se o grupo estivesse narrando a si mesmo.
@@ -78,6 +84,15 @@ Regras de formatação do relatório:
    - Zero mistério: torne explícitos pressupostos, implicações, trade-offs, tensões não resolvidas.
    - Evitar jargão não explicado; quando usar, explique brevemente inline.
    - Tom natural, não excessivamente formal, mas também não casual demais.
+   - QUEBRAS DE PARÁGRAFO: Use parágrafos mais curtos (máximo 3-4 frases) para melhor legibilidade
+   - FORMATAÇÃO: Use **negrito** para conceitos importantes e *itálico* para ênfase quando apropriado
+   - LISTAS: Quando apropriado, use listas com marcadores (- item) para enumerar pontos ou argumentos
+
+5.1) Integração de conteúdo enriquecido:
+   - Se houver dados de enriquecimento de links disponíveis, integre naturalmente na narrativa
+   - Use informações como títulos, resumos ou tópicos principais dos links compartilhados
+   - Exemplo: "compartilhamos [artigo sobre IA e código aberto](https://example.com) que explora como a automação está transformando..."
+   - Se disponível, mencione brevemente os pontos principais do conteúdo linkado
 
 6) Epílogo:
    - Fechar com um parágrafo "Epílogo" resumindo:
