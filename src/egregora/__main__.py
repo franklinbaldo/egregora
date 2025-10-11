@@ -156,10 +156,43 @@ def enrich_command(
     model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento"),
     output_format: str = typer.Option("pretty", "--format", "-f", help="Formato de saída: pretty, json"),
     save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simula enriquecimento sem chamadas da API"),
 ) -> None:
     """Testa o enriquecimento de uma URL ou mídia específica."""
     
     console.print(f"🔍 Testando enriquecimento: {url}")
+    
+    if dry_run:
+        console.print("🔍 Modo DRY RUN - Simulando enriquecimento")
+        # Show what would be done without API calls
+        if url.startswith(("http://", "https://")):
+            console.print(Panel(
+                f"[bold blue]📡 URL Enriquecimento (Simulado)[/bold blue]\n\n"
+                f"[bold]URL:[/bold] {url}\n"
+                f"[bold]Tipo:[/bold] Link da web\n"
+                f"[bold]Análise:[/bold] Extrairia conteúdo, palavras-chave e resumo\n"
+                f"[bold]APIs:[/bold] Gemini (content analysis)\n"
+                f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
+                title="Simulação de Enriquecimento",
+                border_style="blue"
+            ))
+        else:
+            media_path = Path(url)
+            if media_path.exists():
+                console.print(Panel(
+                    f"[bold blue]🖼️ Mídia Enriquecimento (Simulado)[/bold blue]\n\n"
+                    f"[bold]Arquivo:[/bold] {media_path.name}\n"
+                    f"[bold]Tipo:[/bold] {media_path.suffix or 'Desconhecido'}\n"
+                    f"[bold]Análise:[/bold] Análise de conteúdo visual/áudio\n"
+                    f"[bold]APIs:[/bold] Gemini (multimodal analysis)\n"
+                    f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
+                    title="Simulação de Enriquecimento",
+                    border_style="blue"
+                ))
+            else:
+                console.print(f"❌ Arquivo não encontrado: {media_path}")
+                raise typer.Exit(1)
+        return
     
     try:
         # Import here to avoid dependency issues
@@ -177,7 +210,7 @@ def enrich_command(
         
         # Create enricher
         gemini_manager = GeminiManager()
-        enricher = ContentEnricher(config.enrichment, gemini_manager)
+        enricher = ContentEnricher(config.enrichment, gemini_manager=gemini_manager)
         
         # Test if it's a URL or file path
         if url.startswith(("http://", "https://")):
