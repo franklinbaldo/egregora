@@ -256,34 +256,57 @@ def enrich_command(
         # Format output  
         if output_format == "json":
             # Convert result to dict for JSON output
+            metrics_dict = {}
+            if result.metrics:
+                metrics_dict = {
+                    "started_at": result.metrics.started_at.isoformat(),
+                    "finished_at": result.metrics.finished_at.isoformat(),
+                    "total_references": result.metrics.total_references,
+                    "analyzed_items": result.metrics.analyzed_items,
+                    "relevant_items": result.metrics.relevant_items,
+                    "error_count": result.metrics.error_count,
+                    "domains": result.metrics.domains,
+                    "threshold": result.metrics.threshold
+                }
+            
             result_dict = {
-                "references_count": len(result.references),
-                "content_sections": len(result.content_sections),
-                "metrics": result.metrics,
+                "items_count": len(result.items),
+                "errors_count": len(result.errors),
                 "duration_seconds": result.duration_seconds,
-                "started_at": result.started_at.isoformat() if result.started_at else None
+                "metrics": metrics_dict,
+                "errors": result.errors if result.errors else []
             }
             console.print(json.dumps(result_dict, indent=2, ensure_ascii=False))
         else:
             # Pretty format
+            relevant_items = result.relevant_items(2) if result.items else []
             console.print(Panel(
                 f"[bold green]✅ Enriquecimento concluído[/bold green]\n\n"
-                f"[bold]Referências encontradas:[/bold] {len(result.references)}\n"
-                f"[bold]Seções de conteúdo:[/bold] {len(result.content_sections)}\n"
-                f"[bold]Duração:[/bold] {result.duration_seconds:.2f}s\n"
-                f"[bold]Chamadas LLM:[/bold] {result.metrics.get('llm_calls', 0)}\n"
-                f"[bold]Cache hits:[/bold] {result.metrics.get('cache_hits', 0)}\n"
-                f"[bold]Cache misses:[/bold] {result.metrics.get('cache_misses', 0)}",
+                f"[bold]Itens processados:[/bold] {len(result.items)}\n"
+                f"[bold]Itens relevantes:[/bold] {len(relevant_items)}\n"
+                f"[bold]Erros:[/bold] {len(result.errors)}\n"
+                f"[bold]Duração:[/bold] {result.duration_seconds:.2f}s",
                 title="Resultado do Enriquecimento",
-                border_style="green"
+                border_style="green" if not result.errors else "yellow"
             ))
             
-            if result.references:
-                console.print("\n[bold yellow]📋 Referências encontradas:[/bold yellow]")
-                for ref in result.references[:5]:  # Show first 5
+            if result.errors:
+                console.print("\n[bold red]❌ Erros encontrados:[/bold red]")
+                for error in result.errors[:3]:  # Show first 3
+                    console.print(f"  • {error}")
+                if len(result.errors) > 3:
+                    console.print(f"  ... e mais {len(result.errors) - 3}")
+            
+            if relevant_items:
+                console.print("\n[bold yellow]📋 Itens relevantes:[/bold yellow]")
+                for item in relevant_items[:3]:  # Show first 3
+                    ref = item.reference
+                    analysis = item.analysis
                     console.print(f"  • {ref.url}")
-                if len(result.references) > 5:
-                    console.print(f"  ... e mais {len(result.references) - 5}")
+                    if analysis and analysis.summary:
+                        console.print(f"    {analysis.summary[:100]}{'...' if len(analysis.summary) > 100 else ''}")
+                if len(relevant_items) > 3:
+                    console.print(f"  ... e mais {len(relevant_items) - 3}")
         
     except ImportError as e:
         console.print(f"❌ Dependência não encontrada: {e}")
