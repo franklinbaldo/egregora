@@ -68,6 +68,7 @@ Regras de formatação do relatório:
    - Para mídia com arquivos conhecidos, referenciar como: "compartilhamos [imagem](../media/filename.jpg)" ou "enviamos [documento](../media/filename.pdf)"
    - Se a mensagem estiver marcada como editada, pode acrescentar "(editado)" antes do autor.
    - IMPORTANTE: o autor aparece em CADA FRASE de conteúdo substantivo, não apenas uma vez por parágrafo.
+   - FORMATO CRÍTICO: Use exatamente "Member-XXXX" (não "Member XXXX" ou variações) para permitir linkagem automática de perfis
 
 4) Tratamento de links:
    - SEMPRE formatar links como Markdown clicável: [texto descritivo](URL)

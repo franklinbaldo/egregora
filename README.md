@@ -33,20 +33,19 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 ```bash
 pip install uv
 uv sync
-cp egregora.toml.example egregora.toml
 export GEMINI_API_KEY="your-api-key"
 ```
 
-Adjust `egregora.toml` to match your directories, timezone, and enrichment preferences (see [Configuration](#configuration-egregoratoml)).
+Configuration is now handled via environment variables (see [Configuration](#configuration-via-environment-variables)).
 
 ### Generate your first posts
 
 ```bash
 # Preview which groups and dates would run
-uv run egregora --config egregora.toml --dry-run
+uv run egregora process data/whatsapp_zips/*.zip --dry-run
 
 # Process the latest two days for every discovered group
-uv run egregora --config egregora.toml --days 2
+uv run egregora process data/whatsapp_zips/*.zip --days 2
 ```
 
 Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
@@ -85,62 +84,50 @@ Explicit subcommand wrapper around the same options, useful when scripting multi
 
 Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in posts. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
 
-## Configuration (`egregora.toml`)
+## Configuration via Environment Variables
 
-`PipelineConfig` is powered by Pydantic settings and automatically reads `egregora.toml` from the project root, falling back to the class defaults when the file is missing. Environment variables take precedence over TOML values, so CI pipelines can override sensitive fields without editing the repository copy. Use :py:meth:`PipelineConfig.load` to materialise validated instances from alternative files when needed.【F:src/egregora/config.py†L210-L371】 Key sections include:
+`PipelineConfig` is powered by Pydantic settings and reads configuration from environment variables. Use the `EGREGORA__` prefix with double underscores to separate nested config sections. Key configuration options include:
 
-```toml
-[zips]
-# Optional when using custom overrides; defaults live under data/
+```bash
+# Basic configuration
+export GEMINI_API_KEY="your-api-key"
+export EGREGORA__POSTS_DIR="data"
 
-[directories]
-zips_dir = "data/whatsapp_zips"
-posts_dir = "data"
-media_url_prefix = "/media"           # Optional public URL when hosting output
+# Profile linking (optional)
+export EGREGORA__PROFILES__LINK_MEMBERS_IN_POSTS="true"
+export EGREGORA__PROFILES__PROFILE_BASE_URL="/profiles/"
 
-[llm]
-model = "gemini-flash-lite-latest"
-safety_threshold = "BLOCK_NONE"
+# LLM configuration
+export EGREGORA__MODEL="gemini-flash-lite-latest"
+export EGREGORA__LLM__SAFETY_THRESHOLD="BLOCK_NONE"
 
-[enrichment]
-enabled = true
-relevance_threshold = 2
-max_links = 50
+# Enrichment settings
+export EGREGORA__ENRICHMENT__ENABLED="true"
+export EGREGORA__ENRICHMENT__RELEVANCE_THRESHOLD="2"
+export EGREGORA__ENRICHMENT__MAX_LINKS="50"
 
-[cache]
-enabled = true
-auto_cleanup_days = 90
+# Cache settings
+export EGREGORA__CACHE__ENABLED="true"
+export EGREGORA__CACHE__AUTO_CLEANUP_DAYS="90"
 
-[rag]
-enabled = true
-cache_dir = "cache/rag"
+# RAG settings
+export EGREGORA__RAG__ENABLED="true"
+export EGREGORA__RAG__CACHE_DIR="cache/rag"
 
-[profiles]
-enabled = true
-max_profiles_per_run = 3
-min_messages = 2
-
-[merges.virtual_daily]
-name = "Community Digest"
-groups = ["core-group", "side-group"]
-tag_style = "emoji"
-model = "gemini-flash-lite-latest"
-
-[merges.virtual_daily.emojis]
-"core-group" = "🌐"
-"side-group" = "🛰️"
+# Profile settings
+export EGREGORA__PROFILES__ENABLED="true"
+export EGREGORA__PROFILES__MAX_PROFILES_PER_RUN="3"
+export EGREGORA__PROFILES__MIN_MESSAGES="2"
 ```
 
-- `directories.*` override where WhatsApp ZIPs and output artefacts live.
-- `llm`, `enrichment`, and `cache` tune Gemini usage, enrichment thresholds, and persistent caches.
-- `rag` enables post indexing for retrieval-augmented prompts.
-- `profiles` controls when participant dossiers are generated and stored.
-- `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
-- The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
+Environment variable configuration uses the `EGREGORA__` prefix with double underscores to separate nested sections:
+- `EGREGORA__POSTS_DIR` sets where posts are generated
+- `EGREGORA__LLM__*` and `EGREGORA__ENRICHMENT__*` tune Gemini usage and enrichment settings
+- `EGREGORA__CACHE__*` and `EGREGORA__RAG__*` control caching and RAG features
+- `EGREGORA__PROFILES__*` controls participant profile generation and linking
+- All boolean values should be set as `"true"` or `"false"` strings
 
-> **Migration note:** The legacy `rag.use_gemini_embeddings` toggle has been removed. Drop the field from existing TOML files and rely on `rag.embedding_model` and related parameters when changing embedding behaviour.
-
-All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
+Configuration is fully handled via environment variables using `pydantic-settings`, enabling reproducible automation setups without requiring configuration files.
 
 ## Outputs & publishing
 

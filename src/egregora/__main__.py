@@ -24,7 +24,7 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 @app.command("process")
 def process_command(  # noqa: PLR0913
     zip_files: list[Path] = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="Arquivo de configuração"),
+    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
     output_dir: Path = typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
     group_name: str = typer.Option(None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
     group_slug: str = typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
@@ -90,22 +90,19 @@ def process_command(  # noqa: PLR0913
     # Convert days to days_to_process for backward compatibility
     days_to_process = days
 
-    # Build configuration
+    # Build configuration using environment variables and CLI arguments
     if config_file:
-        try:
-            config = PipelineConfig.load(toml_path=config_file)
-        except Exception as exc:
-            console.print(f"[red]❌ Não foi possível carregar o arquivo de configuração:[/red] {exc}")
-            raise typer.Exit(code=1) from exc
-    else:
-        config = PipelineConfig.with_defaults(
-            zip_files=zip_files,
-            output_dir=output_dir,
-            group_name=group_name,
-            group_slug=group_slug,
-            model=model,
-            timezone=ZoneInfo(timezone) if timezone else None,
-        )
+        console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
+        raise typer.Exit(code=1)
+    
+    config = PipelineConfig.with_defaults(
+        zip_files=zip_files,
+        output_dir=output_dir,
+        group_name=group_name,
+        group_slug=group_slug,
+        model=model,
+        timezone=ZoneInfo(timezone) if timezone else None,
+    )
 
     # Override with CLI parameters  
     config.zip_files = zip_files
@@ -152,7 +149,7 @@ def process_command(  # noqa: PLR0913
 @app.command("enrich")
 def enrich_command(
     url: str = typer.Argument(..., help="URL ou caminho de mídia para enriquecer"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="Arquivo de configuração"),
+    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
     model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento"),
     output_format: str = typer.Option("pretty", "--format", "-f", help="Formato de saída: pretty, json"),
     save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache"),
@@ -199,14 +196,15 @@ def enrich_command(
         from .enrichment import ContentEnricher
         from .gemini_manager import GeminiManager
         
-        # Build minimal config
+        # Build minimal config using environment variables
         if config_file:
-            config = PipelineConfig.load(toml_path=config_file)
-        else:
-            config = PipelineConfig.with_defaults(
-                zip_files=[],  # Not needed for enrichment testing
-                model=model,
-            )
+            console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
+            raise typer.Exit(code=1)
+        
+        config = PipelineConfig.with_defaults(
+            zip_files=[],  # Not needed for enrichment testing
+            model=model,
+        )
         
         # Create enricher
         gemini_manager = GeminiManager()
@@ -328,7 +326,7 @@ def enrich_command(
 def profiles_command(
     action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
     target: str = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="Arquivo de configuração"),
+    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
     output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
 ) -> None:
     """Gerencia perfis de participantes."""
@@ -337,11 +335,12 @@ def profiles_command(
         console.print(f"❌ Ação inválida: {action}. Use: list, show, generate, clean")
         raise typer.Exit(1)
     
-    # Build config
+    # Build config using environment variables
     if config_file:
-        config = PipelineConfig.load(toml_path=config_file)
-    else:
-        config = PipelineConfig.with_defaults(zip_files=[])
+        console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
+        raise typer.Exit(code=1)
+    
+    config = PipelineConfig.with_defaults(zip_files=[])
     
     if action == "list":
         _list_profiles(config, output_format)
@@ -537,7 +536,7 @@ def _dry_run_and_exit(
     plans = processor.plan_runs(days=days, from_date=from_date, to_date=to_date)
     if not plans:
         console.print("[yellow]Nenhum grupo foi encontrado com os filtros atuais.[/yellow]")
-        console.print("Use --config ou ajuste diretórios para apontar para os exports corretos.\n")
+        console.print("Ajuste EGREGORA__POSTS_DIR ou coloque exports em data/whatsapp_zips/.\n")
         return
 
     total_posts = 0

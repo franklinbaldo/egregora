@@ -23,7 +23,6 @@ from pydantic_settings.sources import (
     EnvSettingsSource,
     InitSettingsSource,
     SecretsSettingsSource,
-    TomlConfigSettingsSource,
 )
 
 from .anonymizer import FormatType
@@ -147,6 +146,9 @@ class ProfilesConfig(BaseModel):
     rewrite_model: str = "models/gemini-flash-latest"
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
+    # Profile linking configuration
+    link_members_in_posts: bool = True
+    profile_base_url: str = "/profiles/"
 
     @field_validator("profiles_dir", "docs_dir", mode="before")
     @classmethod
@@ -245,53 +247,6 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
-class PipelineTomlSettingsSource(TomlConfigSettingsSource):
-    """Normalise ``egregora.toml`` payloads for :class:`PipelineConfig`."""
-
-    def __call__(self) -> dict[str, Any]:
-        raw = super().__call__()
-        if not raw:
-            return {}
-
-        payload: dict[str, Any] = {}
-
-        directories = raw.get("directories")
-        if isinstance(directories, Mapping):
-            for key in ("posts_dir",):
-                value = directories.get(key)
-                if value is not None:
-                    payload[key] = value
-
-        pipeline_section = raw.get("pipeline")
-        if isinstance(pipeline_section, Mapping):
-            for key, value in pipeline_section.items():
-                if value is None:
-                    continue
-                payload[key] = value
-
-        for section in (
-            "llm",
-            "enrichment",
-            "cache",
-            "anonymization",
-            "profiles",
-            "system_classifier",
-        ):
-            section_value = raw.get(section)
-            if section_value is not None:
-                payload[section] = section_value
-
-        rag_section = raw.get("rag")
-        if isinstance(rag_section, Mapping):
-            payload["rag"] = sanitize_rag_config_payload(rag_section)
-        elif rag_section is not None:
-            payload["rag"] = rag_section
-
-        merges = raw.get("merges")
-        if merges is not None:
-            payload["merges"] = merges
-
-        return payload
 
 
 class PipelineConfig(BaseSettings):
@@ -304,7 +259,7 @@ class PipelineConfig(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    default_toml_path: ClassVar[Path | None] = Path("egregora.toml")
+    # TOML support removed
 
     zip_files: list[Path] = Field(default_factory=list)  # ZIP files to process
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
@@ -342,20 +297,11 @@ class PipelineConfig(BaseSettings):
         dotenv_settings: DotEnvSettingsSource,
         file_secret_settings: SecretsSettingsSource,
     ) -> tuple[InitSettingsSource, ...]:
-        default_toml_path = getattr(settings_cls, "default_toml_path", None)
-        toml_sources: tuple[InitSettingsSource, ...] = ()
-        if default_toml_path is not None:
-            candidate_path = Path(default_toml_path)
-            if candidate_path.is_file():
-                toml_sources = (
-                    PipelineTomlSettingsSource(settings_cls, candidate_path),
-                )
-
+        # TOML support removed - only use environment and dotenv sources
         return (
             init_settings,
             env_settings,
             dotenv_settings,
-            *toml_sources,
             file_secret_settings,
         )
 
@@ -549,38 +495,9 @@ class PipelineConfig(BaseSettings):
             payload["system_message_filters_file"] = system_message_filters_file
         if use_dataframe_pipeline is not None:
             payload["use_dataframe_pipeline"] = use_dataframe_pipeline
-        return cls.load(overrides=payload, use_default_toml=False)
+        return cls(**payload)
 
-    @classmethod
-    def load(
-        cls,
-        *,
-        toml_path: Path | None = None,
-        overrides: Mapping[str, Any] | None = None,
-        use_default_toml: bool = True,
-    ) -> PipelineConfig:
-        if toml_path is not None:
-            if not toml_path.exists():
-                raise FileNotFoundError(toml_path)
-            if not toml_path.is_file():
-                raise ValueError(f"Configuration path '{toml_path}' must be a file")
-
-        original_path = cls.default_toml_path
-        if toml_path is not None:
-            cls.default_toml_path = toml_path
-        elif not use_default_toml:
-            cls.default_toml_path = None
-
-        try:
-            return cls(**dict(overrides or {}))
-        finally:
-            cls.default_toml_path = original_path
-
-    @classmethod
-    def from_toml(cls, toml_path: Path) -> PipelineConfig:
-        """Backwards compatible helper that loads settings from ``toml_path``."""
-
-        return cls.load(toml_path=toml_path)
+    # TOML loading methods removed - use environment variables instead
 
     def safe_dict(self) -> dict[str, Any]:
         """Return a dictionary representation with sensitive values redacted."""

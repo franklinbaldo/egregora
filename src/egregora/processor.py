@@ -163,6 +163,45 @@ def _ensure_blog_front_matter(
     return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
 
 
+def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
+    """Convert Member-XXXX mentions to profile links if enabled."""
+    
+    if not config.profiles.link_members_in_posts:
+        return text
+    
+    import re
+    from pathlib import Path
+    
+    # Pattern to match Member-XXXX format (exactly 4 hex characters)
+    member_pattern = r'\(Member-([A-F0-9]{4})\)'
+    
+    def replace_member_mention(match):
+        member_id = match.group(1)
+        full_uuid_pattern = None
+        
+        # Look for matching profiles in the egregora-site profiles directory
+        # This matches the structure we saw earlier
+        workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
+        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
+        
+        if site_profiles_dir.exists():
+            for profile_file in site_profiles_dir.glob("*.md"):
+                if profile_file.stem.startswith(member_id.lower()):
+                    # Extract the full UUID from filename
+                    full_uuid_pattern = profile_file.stem
+                    break
+        
+        # If no profile found, fall back to original mention
+        if not full_uuid_pattern:
+            return match.group(0)  # Return original (Member-XXXX)
+        
+        # Generate profile link (relative to the posts directory)
+        profile_url = f"../../profiles/{full_uuid_pattern}/"
+        return f"([Member-{member_id}]({profile_url}))"
+    
+    return re.sub(member_pattern, replace_member_mention, text)
+
+
 def _filter_target_dates(
     available_dates: list[date],
     *,
@@ -850,6 +889,11 @@ class UnifiedProcessor:
             # Merge Gemini-generated frontmatter with programmatic metadata
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
+            )
+            
+            # Add profile links to member mentions
+            post = _add_member_profile_links(
+                post, config=self.config, source=source
             )
 
             output_path = daily_dir / f"{target_date}.md"
