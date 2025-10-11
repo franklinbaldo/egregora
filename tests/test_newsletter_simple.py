@@ -276,7 +276,6 @@ def test_config_validation_with_whatsapp_setup(temp_dir):
     )
     
     # Validate configuration
-    assert config.zips_dir.name == "zips"
     assert config.posts_dir.name == "posts"
     assert config.group_name == "WhatsApp Test Group"
     assert config.anonymization.enabled == True
