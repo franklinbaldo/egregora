@@ -205,8 +205,8 @@ class UnifiedProcessor:
 
     def estimate_api_usage(
         self,
-        *,
         days: int | None = None,
+        *,
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> dict[str, Any]:
@@ -263,8 +263,8 @@ class UnifiedProcessor:
 
     def process_all(
         self,
-        *,
         days: int | None = None,
+        *,
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> dict[GroupSlug, list[Path]]:
@@ -291,8 +291,8 @@ class UnifiedProcessor:
 
     def plan_runs(
         self,
-        *,
         days: int | None = None,
+        *,
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> list[DryRunPlan]:
@@ -590,8 +590,8 @@ class UnifiedProcessor:
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
-        *,
         days: int | None,
+        *,
         from_date: date | None,
         to_date: date | None,
     ) -> list[Path]:
