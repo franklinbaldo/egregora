@@ -20,7 +20,6 @@ from .generator import PostContext, PostGenerator
 from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
-from .pipeline import load_previous_post
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.index import PostRAG
@@ -200,6 +199,27 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
         return f"([Member-{member_id}]({profile_url}))"
     
     return re.sub(member_pattern, replace_member_mention, text)
+
+
+def _load_previous_post(
+    posts_dir: Path,
+    reference_date: date,
+    *,
+    search_window_days: int = 7,
+) -> tuple[Path, str | None]:
+    """Return the most recent post prior to ``reference_date``."""
+    if search_window_days < 1:
+        raise ValueError("search_window_days must be at least 1 day")
+
+    target_path = posts_dir / f"{(reference_date - timedelta(days=1)).isoformat()}.md"
+
+    for delta in range(1, search_window_days + 1):
+        candidate_date = reference_date - timedelta(days=delta)
+        candidate_path = posts_dir / f"{candidate_date.isoformat()}.md"
+        if candidate_path.exists():
+            return candidate_path, candidate_path.read_text(encoding="utf-8")
+
+    return target_path, None
 
 
 def _filter_target_dates(
@@ -701,6 +721,11 @@ class UnifiedProcessor:
             logger.warning("  Unable to load messages for %s: %s", source.slug, exc)
             return []
 
+        if self.config.anonymization.enabled:
+            full_df = Anonymizer.anonymize_dataframe(
+                full_df, format=self.config.anonymization.output_format
+            )
+
         if full_df.is_empty():
             logger.warning("  No messages found")
             return []
@@ -772,7 +797,7 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            _, previous_post = load_previous_post(daily_dir, target_date)
+            _, previous_post = _load_previous_post(daily_dir, target_date)
 
             # Enrichment
             enrichment_section = None

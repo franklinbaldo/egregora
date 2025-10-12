@@ -65,18 +65,6 @@ class CacheConfig(BaseModel):
         return _ensure_safe_directory(value)
 
 
-class SystemClassifierConfig(BaseModel):
-    """Settings for the system/noise message classifier."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    enabled: bool = True
-    model: str = DEFAULT_MODEL
-    max_llm_calls: int | None = 200
-    token_budget: int | None = 20000
-    retry_attempts: int = 2
-
-
 class EnrichmentConfig(BaseModel):
     """Configuration specific to the enrichment subsystem."""
 
@@ -266,7 +254,6 @@ class PipelineConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
-    system_classifier: SystemClassifierConfig = Field(default_factory=SystemClassifierConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
@@ -348,15 +335,6 @@ class PipelineConfig(BaseModel):
         if isinstance(value, dict):
             return CacheConfig(**value)
         raise TypeError("cache configuration must be a mapping")
-
-    @field_validator("system_classifier", mode="before")
-    @classmethod
-    def _validate_system_classifier(cls, value: Any) -> SystemClassifierConfig:
-        if isinstance(value, SystemClassifierConfig):
-            return value
-        if isinstance(value, dict):
-            return SystemClassifierConfig(**value)
-        raise TypeError("system_classifier configuration must be a mapping")
 
     @field_validator("anonymization", mode="before")
     @classmethod

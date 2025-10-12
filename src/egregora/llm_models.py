@@ -66,26 +66,4 @@ class SummaryResponse(BaseModel):
         return valid
 
 
-class SystemMessageLabel(BaseModel):
-    """Classification result for transcript lines."""
-
-    is_system: bool = False
-    is_noise: bool = False
-    reason: str = Field(default="", description="Justificativa fornecida pelo modelo.")
-
-    model_config = {
-        "extra": "ignore",
-    }
-
-    def should_discard(self) -> bool:
-        """Return ``True`` when the line should be filtered from prompts."""
-
-        return bool(self.is_system or self.is_noise)
-
-    def sanitized_reason(self) -> str:
-        """Return a cleaned up explanation string."""
-
-        return self.reason.strip()
-
-
-__all__ = ["SummaryResponse", "SystemMessageLabel", "ActionItem"]
+__all__ = ["SummaryResponse", "ActionItem"]
