@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -920,8 +921,57 @@ class UnifiedProcessor:
             except ValueError:
                 logger.info(f"    ✅ {output_path}")
 
+            # Create symlink for MkDocs blog
+            self._link_to_docs(output_path, source)
+
         self._write_group_index(source, group_dir, results)
         return results
+
+    def _link_to_docs(self, post_path: Path, source: GroupSource) -> None:
+        """Create a relative symlink from `docs/blog/posts` to the generated post."""
+        docs_blog_dir = Path("docs/blog/posts")
+        if not docs_blog_dir.is_dir():
+            logger.debug(f"Symlink directory '{docs_blog_dir}' not found, skipping.")
+            return
+
+        # Ensure the post_path is absolute for correct relative path calculation
+        absolute_post_path = post_path.resolve()
+
+        # Create a category subdirectory within the blog posts directory
+        category_dir = docs_blog_dir / source.slug
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        link_path = category_dir / post_path.name
+
+        # To create a relative symlink, we need to find the relative path
+        # from the link's directory to the target file.
+        target_path_relative_to_link_dir = os.path.relpath(
+            absolute_post_path, start=category_dir.resolve()
+        )
+
+        try:
+            # If the link already exists, check if it points to the correct target
+            if link_path.is_symlink():
+                if os.readlink(link_path) == target_path_relative_to_link_dir:
+                    return  # Symlink is correct, do nothing
+                link_path.unlink()  # Remove incorrect symlink
+            elif link_path.exists():
+                # If a file or directory exists at the path, remove it
+                logger.warning(f"Removing existing file at '{link_path}' to create symlink.")
+                if link_path.is_dir():
+                    import shutil
+                    shutil.rmtree(link_path)
+                else:
+                    link_path.unlink()
+
+            # Create the relative symlink
+            os.symlink(target_path_relative_to_link_dir, link_path)
+            logger.info(f"    🔗 Symlinked post to {link_path.relative_to(Path.cwd())}")
+
+        except OSError as e:
+            logger.error(f"    ❌ Failed to create symlink from '{link_path}' to '{target_path_relative_to_link_dir}': {e}")
+        except Exception as e:
+            logger.error(f"    ❌ An unexpected error occurred during symlinking: {e}")
 
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,

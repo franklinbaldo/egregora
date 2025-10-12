@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -671,7 +671,6 @@ lint = [
     { name = "pre-commit" },
 ]
 test = [
-    { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -691,7 +690,6 @@ requires-dist = [
     { name = "polars", specifier = ">=0.20" },
     { name = "pre-commit", marker = "extra == 'lint'", specifier = ">=3.8" },
     { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic", marker = "extra == 'test'", specifier = ">=2.7" },
     { name = "pydantic-ai", specifier = ">=0.0.14" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },

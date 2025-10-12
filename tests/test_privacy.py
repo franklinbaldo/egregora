@@ -61,9 +61,9 @@ def test_get_uuid_variants_returns_human_identifier() -> None:
 
 # From test_privacy_e2e.py
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
 
     class RecordingClassifier:
@@ -111,9 +111,9 @@ def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
 
 
 def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     config.anonymization.enabled = False
 
@@ -160,7 +160,7 @@ from unittest.mock import MagicMock
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
-    config = PipelineConfig.with_defaults()
+    config = PipelineConfig()
     monkeypatch.setattr("egregora.generator.GeminiManager", MagicMock())
     generator = PostGenerator(config)
 

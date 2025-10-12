@@ -1,0 +1,319 @@
+# Site metadata
+site_name: Egregora
+site_description: AI-powered WhatsApp group intelligence platform
+site_author: Egregora Community
+site_url: https://yoursite.example.com  # Update with actual URL
+
+# Repository
+repo_name: yourorg/egregora
+repo_url: https://github.com/yourorg/egregora
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 Egregora
+
+# Theme configuration
+theme:
+  name: material
+  language: pt-BR
+
+  # Color scheme
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Modo escuro
+
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Modo claro
+
+  # Typography
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+  # Features
+  features:
+    # Navigation
+    - navigation.instant        # Fast page loads
+    - navigation.instant.progress  # Progress indicator
+    - navigation.tracking       # URL updates with scroll
+    - navigation.tabs           # Top-level tabs
+    - navigation.tabs.sticky    # Sticky tabs
+    - navigation.sections       # Section index pages
+    - navigation.expand         # Expand sections by default
+    - navigation.path           # Breadcrumbs
+    - navigation.indexes        # Section index pages
+    - navigation.top            # Back to top button
+
+    # Table of contents
+    - toc.follow                # TOC follows scroll
+    - toc.integrate             # TOC in navigation
+
+    # Search
+    - search.suggest            # Search suggestions
+    - search.highlight          # Highlight search terms
+    - search.share              # Share search results
+
+    # Header
+    - header.autohide           # Auto-hide header on scroll
+
+    # Content
+    - content.code.copy         # Copy code blocks
+    - content.code.annotate     # Code annotations
+    - content.tabs.link         # Link content tabs
+    - content.tooltips          # Improved tooltips
+
+    # Announce
+    - announce.dismiss          # Dismissible announcements
+
+  # Icons
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/brain
+
+  # Favicon
+  favicon: assets/favicon.png
+
+# Plugins
+plugins:
+  # Search
+  - search:
+      lang:
+        - pt
+        - en
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+
+  # Blog
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_dir: "{blog}/posts"
+      post_date_format: long
+      post_url_date_format: yyyy/MM/dd
+      post_url_format: "{date}/{slug}"
+      post_excerpt: optional
+      post_excerpt_max_authors: 2
+      post_excerpt_max_categories: 3
+      post_readtime: true
+      post_readtime_words_per_minute: 200
+      archive: true
+      archive_name: Arquivo
+      archive_date_format: MMMM yyyy
+      archive_url_date_format: yyyy/MM
+      archive_url_format: "arquivo/{date}"
+      archive_toc: true
+      categories: true
+      categories_name: Categorias
+      categories_url_format: "categoria/{slug}"
+      categories_toc: true
+      categories_allowed:
+        - daily
+        - analysis
+        - profiles
+      authors: true
+      authors_file: .authors.yml
+      pagination: true
+      pagination_per_page: 10
+      pagination_url_format: "page/{page}"
+      pagination_format: "$link_first $link_previous ~2~ $link_next $link_last"
+      pagination_keep_content: true
+
+  # Tags
+  - tags:
+      tags_file: tags.md
+
+  # Social cards (auto-generate preview images)
+  - social:
+      cards: true
+      cards_layout_options:
+        background_color: "#1a237e"
+        color: "#ffffff"
+
+  # Offline support
+  - offline:
+      enabled: true
+
+  # Git info
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: datetime
+      timezone: America/Porto_Velho
+      locale: pt
+      fallback_to_build_date: true
+
+  # Minification
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+      cache_safe: true
+
+# Markdown extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Link permanente
+      toc_depth: 3
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Extra CSS/JS
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+  # MathJax for formulas
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Extra configuration
+extra:
+  # Analytics (optional)
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX  # Replace with actual GA4 ID
+    feedback:
+      title: Esta página foi útil?
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: Sim, foi útil
+          data: 1
+          note: Obrigado pelo feedback!
+        - icon: material/emoticon-sad-outline
+          name: Não foi útil
+          data: 0
+          note: Obrigado pelo feedback! Como podemos melhorar?
+
+  # Social links
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourorg/egregora
+      name: GitHub
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/yourorg
+      name: Twitter
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/yourserver
+      name: Discord
+
+  # Language selector
+  alternate:
+    - name: Português
+      link: /
+      lang: pt-BR
+    - name: English
+      link: /en/
+      lang: en
+
+  # Cookie consent
+  consent:
+    title: Consentimento de cookies
+    description: >-
+      Usamos cookies para melhorar sua experiência, analisar tráfego
+      e personalizar conteúdo. Ao continuar navegando, você concorda
+      com nosso uso de cookies.
+    actions:
+      - accept
+      - reject
+      - manage
+
+  # Generator notice
+  generator: false  # Hide "Made with Material for MkDocs"
+
+# Navigation
+nav:
+  - Início: index.md
+  - Começar:
+    - getting-started/index.md
+    - Instalação: getting-started/installation.md
+    - Primeiro Post: getting-started/first-post.md
+    - Configuração: getting-started/configuration.md
+  - Guias:
+    - guides/index.md
+    - Pipeline: guides/pipeline.md
+    - RAG: guides/rag.md
+    - Perfis: guides/profiles.md
+    - Enriquecimento: guides/enrichment.md
+    - Cache: guides/cache.md
+  - Referência:
+    - reference/index.md
+    - CLI: reference/cli.md
+    - Configuração: reference/configuration.md
+    - API: reference/api.md
+  - Blog:
+    - blog/index.md
+  - Sobre:
+    - about/index.md
+    - Arquitetura: about/architecture.md
+    - Changelog: about/changelog.md
+    - Contribuir: about/contributing.md
+
+# Validation
+validation:
+  nav:
+    omitted_files: info
+    not_found: warn
+    absolute_links: info
+  links:
+    not_found: warn
+    absolute_links: info
+    unrecognized_links: info
+
+# Watch extra files
+watch:
+  - includes/
+  - data/  # Watch for generated content changes
