@@ -255,7 +255,6 @@ class UnifiedProcessor:
         self._generator: PostGenerator | None = None
 
         self._profile_updater: ProfileUpdater | None = None
-        self._profile_limit_per_run: int = 0
 
         if self.config.profiles.enabled:
             self._profile_updater = ProfileUpdater(
@@ -266,7 +265,6 @@ class UnifiedProcessor:
                 max_api_retries=self.config.profiles.max_api_retries,
                 minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
-            self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
     @property
     def gemini_manager(self) -> GeminiManager:
