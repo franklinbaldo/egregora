@@ -23,7 +23,7 @@ Egregora transforms WhatsApp group conversations into polished, publishable post
 ### 🔒 **Privacy-First Design**
 - **Deterministic Anonymization**: Consistent, reversible pseudonyms for all participants
 - **Safe Content**: No phone numbers or sensitive data in outputs
-- **Member Discovery**: Built-in tool for participants to find their anonymized identities
+- **Privacy Controls**: Configurable anonymization levels and output filtering
 
 ### 📊 **Enterprise-Ready Architecture**
 - **Polars DataFrames**: High-performance data processing for large conversations
@@ -116,30 +116,20 @@ uv run egregora process data/whatsapp_zips/*.zip \
   --profile-base-url "/profiles/"
 ```
 
-### Privacy Tools
-
-```bash
-# Find your anonymized identity
-uv run egregora discover "+5511999999999"
-uv run egregora discover "YourNickname"
-
-# Different output formats
-uv run egregora discover "+5511999999999" --format human
-uv run egregora discover "+5511999999999" --format short
-uv run egregora discover "+5511999999999" --format full
-```
-
 ### Profile Management
 
 ```bash
-# Generate participant profiles
-uv run egregora profiles generate data/whatsapp_zips/*.zip
+# List existing profiles
+uv run egregora profiles list
 
-# Update existing profiles
-uv run egregora profiles update data/whatsapp_zips/*.zip --days 30
+# Show specific member profile
+uv run egregora profiles show <member-id>
 
-# List profile statistics
-uv run egregora profiles stats
+# Generate profiles from ZIP files
+uv run egregora profiles generate <zip-file-path>
+
+# Clean old profiles
+uv run egregora profiles clean
 ```
 
 ## 📁 Output Structure
@@ -400,8 +390,8 @@ uv run egregora process data/creator-group.zip \
 ### Anonymization Details
 - Uses SHA-256 hashing with salt for consistent anonymization
 - Preserves conversation flow while protecting identities
-- Built-in discovery tool for participants to find their IDs
-- Supports various output formats (human-readable, short, full UUIDs)
+- Deterministic pseudonyms ensure same person = same anonymous ID
+- Configurable output formats for different privacy levels
 
 ### Security Best Practices
 - Store API keys in environment variables only
