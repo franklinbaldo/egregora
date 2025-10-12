@@ -15,64 +15,35 @@ from pydantic import (
     model_validator,
 )
 
-def _default_keyword_stop_words() -> tuple[str, ...]:
-    return (
-        "about",
-        "and",
-        "are",
-        "but",
-        "com",
-        "for",
-        "from",
-        "http",
-        "https",
-        "not",
-        "that",
-        "the",
-        "this",
-        "was",
-        "were",
-        "with",
-        "you",
-    )
-
-
 class RAGConfig(BaseModel):
-    """Configuration for post retrieval powered by LlamaIndex."""
+    """Simplified RAG configuration with smart defaults."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    enabled: bool = False
+    enabled: bool = True
 
-    # Retrieval behaviour
-    top_k: int = 5
-    min_similarity: float = 0.65
+    # Retrieval (most important settings)
+    top_k: int = 3
+    min_similarity: float = 0.70
     exclude_recent_days: int = 7
 
-    # Query generation helpers
-    max_context_chars: int = 1200
-    max_keywords: int = 8
-    keyword_stop_words: tuple[str, ...] | None = Field(default_factory=_default_keyword_stop_words)
-    classifier_max_llm_calls: int | None = 200
-    classifier_token_budget: int | None = 20000
+    # Query generation (simplified)
+    max_keywords: int = 5
+    max_context_chars: int = 800
 
-    # Chunking parameters (tokens)
+    # Chunking (good defaults, keep)
     chunk_size: int = 1800
     chunk_overlap: int = 360
 
-    # Embeddings
-    embedding_model: str = "models/gemini-embedding-001"
+    # Embeddings (simplified)
+    embedding_model: str = "models/text-embedding-004"
     embedding_dimension: int = 768
     enable_cache: bool = True
-    cache_dir: Path = Field(default_factory=lambda: Path("cache/embeddings"))
-    export_embeddings: bool = False
-    embedding_export_path: Path = Field(
-        default_factory=lambda: Path("artifacts/embeddings/post_chunks.parquet")
-    )
+    cache_dir: Path = Field(default_factory=lambda: Path("cache/rag"))
 
-    # Vector store
-    vector_store_type: str = "simple"
-    persist_dir: Path = Field(default_factory=lambda: Path("cache/vector_store"))
+    # Storage (simplified)
+    vector_store_type: str = "chroma"
+    persist_dir: Path = Field(default_factory=lambda: Path("cache/rag/chroma"))
     collection_name: str = "posts"
 
     @field_validator("top_k", "max_keywords")
@@ -131,17 +102,10 @@ class RAGConfig(BaseModel):
             raise ValueError("embedding_dimension must be greater than zero")
         return ivalue
 
-    @field_validator("cache_dir", "embedding_export_path", "persist_dir")
+    @field_validator("cache_dir", "persist_dir")
     @classmethod
     def _ensure_path(cls, value: Any) -> Path:
         return Path(value)
-
-    @field_validator("keyword_stop_words")
-    @classmethod
-    def _coerce_stop_words(cls, value: Sequence[str] | None) -> tuple[str, ...] | None:
-        if value is None:
-            return None
-        return tuple(str(item).lower() for item in value if item)
 
     @model_validator(mode="after")
     def _validate_overlap_bounds(self) -> RAGConfig:

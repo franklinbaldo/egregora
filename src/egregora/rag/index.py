@@ -22,6 +22,9 @@ from llama_index.core.vector_stores import SimpleVectorStore
 from ..types import PostSlug
 from .config import RAGConfig
 from .embeddings import CachedGeminiEmbedding
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -137,19 +140,23 @@ class PostRAG:
         return self.load_or_create_index()
 
     def load_or_create_index(self) -> VectorStoreIndex:
+        """Load existing index or create empty one on first run."""
+
         if self._index is not None:
             return self._index
 
         try:
-            assert self._vector_store is not None
-            assert self._storage_context is not None
             self._index = VectorStoreIndex.from_vector_store(
                 vector_store=self._vector_store,
                 storage_context=self._storage_context,
                 embed_model=self._embedding,
             )
-        except Exception:  # pragma: no cover - falls back to empty index
+            logger.info("Loaded existing RAG index with %d posts",
+                    len(self._vector_store.get_all_ref_doc_info() or {}))
+        except Exception:
+            # First run - create empty index
             self._index = self._build_empty_index()
+            logger.info("Created new RAG index (first run)")
 
         return self._index
 

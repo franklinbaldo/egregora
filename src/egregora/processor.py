@@ -164,41 +164,37 @@ def _ensure_blog_front_matter(
 
 
 def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
-    """Convert Member-XXXX mentions to profile links if enabled."""
-    
+    """Convert Member-XXXX mentions to profile links."""
+
     if not config.profiles.link_members_in_posts:
         return text
-    
+
     import re
-    from pathlib import Path
     
-    # Pattern to match Member-XXXX format (exactly 4 hex characters)
+    # Pattern: (Member-ABCD)
     member_pattern = r'\(Member-([A-F0-9]{4})\)'
-    
+
+    # Build profile lookup from actual generated profiles
+    profile_map = {}
+    profiles_dir = config.profiles.docs_dir / "generated"
+
+    if profiles_dir.exists():
+        for profile_file in profiles_dir.glob("*.md"):
+            # Extract short ID from filename (first 4 chars of UUID)
+            short_id = profile_file.stem[:4].upper()
+            profile_map[short_id] = profile_file.stem
+
     def replace_member_mention(match):
-        member_id = match.group(1)
-        full_uuid_pattern = None
-        
-        # Look for matching profiles in the egregora-site profiles directory
-        # This matches the structure we saw earlier
-        workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
-        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
-        
-        if site_profiles_dir.exists():
-            for profile_file in site_profiles_dir.glob("*.md"):
-                if profile_file.stem.startswith(member_id.lower()):
-                    # Extract the full UUID from filename
-                    full_uuid_pattern = profile_file.stem
-                    break
-        
-        # If no profile found, fall back to original mention
-        if not full_uuid_pattern:
-            return match.group(0)  # Return original (Member-XXXX)
-        
-        # Generate profile link (relative to the posts directory)
-        profile_url = f"../../profiles/{full_uuid_pattern}/"
-        return f"([Member-{member_id}]({profile_url}))"
-    
+        short_id = match.group(1).upper()
+        full_uuid = profile_map.get(short_id)
+
+        if not full_uuid:
+            return match.group(0)  # No profile found, keep original
+
+        # Generate relative link from posts/daily/ to profiles/
+        profile_url = f"{config.profiles.profile_base_url}{full_uuid}/"
+        return f"([Member-{short_id}]({profile_url}))"
+
     return re.sub(member_pattern, replace_member_mention, text)
 
 
@@ -223,6 +219,17 @@ def _filter_target_dates(
         return available_dates[-days:]
 
     return available_dates
+
+
+@dataclass(slots=True)
+class ParticipantInfo:
+    """Dataclass to hold participant information for prioritization."""
+
+    uuid: str
+    label: str
+    message_count: int
+    days_since_update: int
+    priority: float
 
 
 @dataclass(slots=True)
@@ -665,6 +672,22 @@ class UnifiedProcessor:
 
         index_path.write_text(content, encoding="utf-8")
 
+    def _format_rag_context(self, search_results: list[Any]) -> str:
+        """Format RAG search results for inclusion in the prompt."""
+        return "\n\n".join(
+            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
+            for i, node in enumerate(search_results, 1)
+        )
+
+    def _update_rag_index(self, post_path: Path) -> None:
+        """Update RAG index with newly generated post."""
+        rag = PostRAG(
+            posts_dir=self.config.posts_dir,
+            config=self.config.rag,
+        )
+        rag.update_index()  # Incremental update
+        logger.info("    [RAG] Index updated with new post")
+
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
@@ -818,34 +841,18 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                keyword_provider = None
                 try:
-                    keyword_provider = build_llm_keyword_provider(
-                        self.generator.client,
-                        model=self.config.model,
+                    rag_context = self._get_rag_context(transcript)
+                except ImportError as exc:
+                    logger.error(
+                        "❌ RAG enabled but dependencies missing. Install with: uv sync\n"
+                        "   Missing: %s", exc
                     )
-                except Exception as exc:  # pragma: no cover - optional dependency
+                    raise
+                except Exception as exc:
                     logger.warning(
-                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
-                        exc,
+                        "⚠️ RAG failed (continuing without historical context): %s", exc
                     )
-
-                if keyword_provider is not None:
-                    rag = PostRAG(
-                        posts_dir=self.config.posts_dir,
-                        config=self.config.rag,
-                    )
-                    query_gen = QueryGenerator(
-                        self.config.rag,
-                        keyword_provider=keyword_provider,
-                    )
-                    query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query)
-                    if search_results:
-                        rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
-                            for i, node in enumerate(search_results, 1)
-                        )
 
             context = PostContext(
                 group_name=source.name,
@@ -899,6 +906,13 @@ class UnifiedProcessor:
             output_path = daily_dir / f"{target_date}.md"
             output_path.write_text(post, encoding="utf-8")
 
+            # Auto-update RAG index with new post
+            if self.config.rag.enabled:
+                try:
+                    self._update_rag_index(output_path)
+                except Exception as exc:
+                    logger.warning("Failed to update RAG index: %s", exc)
+
             if profile_repository and self._profile_updater:
                 try:
                     self._update_profiles_for_day(
@@ -907,10 +921,16 @@ class UnifiedProcessor:
                         target_date=target_date,
                         post_text=post,
                     )
+                except ImportError as exc:
+                    logger.error(
+                        "❌ Profiles enabled but dependencies missing. Install with: uv sync\n"
+                        "   Missing: %s",
+                        exc,
+                    )
+                    raise
                 except Exception as exc:
                     logger.warning(
-                        "    ⚠️ Falha ao atualizar perfis para %s: %s",
-                        target_date,
+                        "    ⚠️ Profile updates failed (continuing): %s",
                         exc,
                     )
 
@@ -922,6 +942,85 @@ class UnifiedProcessor:
 
         self._write_group_index(source, group_dir, results)
         return results
+
+    def _get_rag_context(self, transcript: str) -> str | None:
+        """Get RAG context for a given transcript."""
+        keyword_provider = build_llm_keyword_provider(
+            self.generator.client,
+            model=self.config.model,
+        )
+
+        rag = PostRAG(
+            posts_dir=self.config.posts_dir,
+            config=self.config.rag,
+        )
+
+        query_gen = QueryGenerator(
+            self.config.rag,
+            keyword_provider=keyword_provider,
+        )
+
+        query = query_gen.generate(transcript)
+        search_results = rag.search(query.search_query)
+
+        if search_results:
+            rag_context = self._format_rag_context(search_results)
+            logger.info(
+                "    [RAG] %d contextos históricos encontrados",
+                len(search_results),
+            )
+            return rag_context
+        else:
+            logger.info("    [RAG] Nenhum contexto relevante encontrado")
+            return None
+
+    def _get_prioritized_participants(
+        self, df_day: pl.DataFrame, repository: ProfileRepository
+    ) -> list[ParticipantInfo]:
+        """Return participants sorted by update priority."""
+
+        # Count messages per participant today
+        activity = (
+            df_day.group_by("author")
+            .agg(
+                [
+                    pl.len().alias("message_count"),
+                    pl.col("message").str.len_chars().sum().alias("total_chars"),
+                ]
+            )
+            .sort("message_count", descending=True)
+        )
+
+        participants = []
+        for row in activity.iter_rows(named=True):
+            author = row["author"]
+            member_uuid = Anonymizer.anonymize_author(author, format="full")
+            member_label = Anonymizer.anonymize_author(author, format="human")
+
+            # Load existing profile to check last update
+            current_profile = repository.load(member_uuid)
+
+            # Calculate priority score
+            days_since_update = 999
+            if current_profile:
+                days_since_update = (
+                    date.today() - current_profile.last_updated.date()
+                ).days
+
+            priority = row["message_count"] * 10 + days_since_update
+
+            participants.append(
+                ParticipantInfo(
+                    uuid=member_uuid,
+                    label=member_label,
+                    message_count=row["message_count"],
+                    days_since_update=days_since_update,
+                    priority=priority,
+                )
+            )
+
+        # Sort by priority (most active + longest since update = highest)
+        return sorted(participants, key=lambda p: p.priority, reverse=True)
 
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
@@ -954,35 +1053,31 @@ class UnifiedProcessor:
         if client is None:
             return
 
-        context_block = self._format_profile_context(target_date, conversation, post_text)
+        context_block = self._format_profile_context(
+            target_date, conversation, post_text
+        )
         updates_made = False
 
-        authors_series = df_day.get_column("author")
-        unique_authors = {
-            str(author).strip()
-            for author in authors_series.to_list()
-            if isinstance(author, str) and author.strip()
-        }
+        participants = self._get_prioritized_participants(df_day, repository)
+        api_calls_used = 0
+        max_calls = self.config.profiles.max_api_calls_per_day
+        processed_count = 0
 
-        processed = 0
-        quota_exhausted = False
-
-        for raw_author in sorted(unique_authors):
-            if quota_exhausted:
-                break
-            if self._profile_limit_per_run and processed >= self._profile_limit_per_run:
+        for participant in participants:
+            if api_calls_used >= max_calls:
                 logger.info(
-                    "    ⏸️  Limite diário de perfis atingido (%d)",
-                    self._profile_limit_per_run,
+                    "    ⏸️ API budget reached (%d/%d calls), "
+                    "deferring %d participants",
+                    api_calls_used,
+                    max_calls,
+                    len(participants) - processed_count,
                 )
                 break
 
-            member_uuid = Anonymizer.anonymize_author(raw_author, format="full")
-            member_label = Anonymizer.anonymize_author(raw_author, format="human")
-            current_profile = repository.load(member_uuid)
+            current_profile = repository.load(participant.uuid)
 
             should_consider, _ = updater.should_update_profile_dataframe(
-                raw_author,
+                participant.label,
                 current_profile,
                 df_day,
             )
@@ -992,36 +1087,38 @@ class UnifiedProcessor:
             try:
                 should_update, reasoning, highlights, insights = asyncio.run(
                     updater.should_update_profile(
-                        member_id=member_label,
+                        member_id=participant.label,
                         current_profile=current_profile,
                         full_conversation=conversation,
                         gemini_client=client,
                     )
                 )
+                api_calls_used += 1
             except RuntimeError as exc:
                 if "RESOURCE_EXHAUSTED" in str(exc):
                     logger.warning(
                         "    ⚠️ Limite diário do Gemini atingido ao decidir perfil de %s; interrompendo atualizações.",
-                        member_label,
+                        participant.label,
                     )
-                    quota_exhausted = True
                     break
                 logger.warning(
                     "    ⚠️ Erro ao decidir atualização de perfil de %s: %s",
-                    member_label,
+                    participant.label,
                     exc,
                 )
                 continue
 
             if not should_update:
-                logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
+                logger.debug(
+                    "    Perfil de %s sem alterações (%s)", participant.label, reasoning
+                )
                 continue
 
             try:
                 profile = asyncio.run(
                     self._async_update_profile(
                         updater=updater,
-                        member_label=member_label,
+                        member_label=participant.label,
                         current_profile=current_profile,
                         highlights=highlights,
                         insights=insights,
@@ -1030,27 +1127,27 @@ class UnifiedProcessor:
                         client=client,
                     )
                 )
+                api_calls_used += 1
             except RuntimeError as exc:
                 if "RESOURCE_EXHAUSTED" in str(exc):
                     logger.warning(
                         "    ⚠️ Limite diário do Gemini atingido ao reescrever perfil de %s; interrompendo atualizações.",
-                        member_label,
+                        participant.label,
                     )
-                    quota_exhausted = True
                     break
                 logger.warning(
                     "    ⚠️ Erro ao atualizar perfil de %s: %s",
-                    member_label,
+                    participant.label,
                     exc,
                 )
                 continue
 
-            repository.save(member_uuid, profile)
+            repository.save(participant.uuid, profile)
             updates_made = True
-            processed += 1
+            processed_count += 1
             logger.info(
                 "    👤 Perfil atualizado: %s (versão %d)",
-                member_label,
+                participant.label,
                 profile.analysis_version,
             )
 

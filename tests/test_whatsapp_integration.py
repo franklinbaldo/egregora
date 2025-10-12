@@ -31,9 +31,9 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
 
     posts_root = workspace / "posts"
     posts_root.mkdir(parents=True, exist_ok=True)
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=posts_root,
+        posts_dir=posts_root,
     )
 
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message

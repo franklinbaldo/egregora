@@ -16,6 +16,8 @@ from rich.syntax import Syntax
 
 from .config import PipelineConfig
 from .processor import UnifiedProcessor
+from .rag.index import PostRAG
+from .profiles import ProfileRepository
 
 console = Console()
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
@@ -60,6 +62,8 @@ def process_command(  # noqa: PLR0913
     # Cache options
     cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path"),
     auto_cleanup_days: int = typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
+    rag_disabled: bool = typer.Option(False, "--rag-disabled", help="Disable RAG"),
+    profiles_disabled: bool = typer.Option(False, "--profiles-disabled", help="Disable profiles"),
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
     
@@ -145,7 +149,11 @@ def process_command(  # noqa: PLR0913
         rag=RAGConfig()
     )
 
-    # Configuration is now fully built from CLI arguments above
+    # Override config based on disable flags
+    if rag_disabled:
+        config.rag.enabled = False
+    if profiles_disabled:
+        config.profiles.enabled = False
 
     # Create processor instance
     processor = UnifiedProcessor(config)
@@ -627,23 +635,35 @@ def _dry_run_and_exit(
 
     console.print(f"\nResumo: {len(plans)} grupo(s) gerariam até {total_posts} post(s).")
 
-    # Show quota estimation
-    try:
-        quota_info = processor.estimate_api_usage(
-            days=days, from_date=from_date, to_date=to_date
+    # Show RAG status
+    if config.rag.enabled:
+        try:
+            rag = PostRAG(posts_dir=config.posts_dir, config=config.rag)
+            stats = rag.get_stats()
+            console.print(
+                f"\n[cyan]📚 RAG Index Status:[/cyan]\n"
+                f"   Posts indexed: {stats.total_posts}\n"
+                f"   Chunks available: {stats.total_chunks}\n"
+                f"   Storage: {stats.persist_dir}"
+            )
+        except Exception:
+            console.print(
+                "\n[yellow]📚 RAG Index: Not yet initialized (will be created on first run)[/yellow]"
+            )
+
+    # Show profile status
+    if config.profiles.enabled:
+        profile_repo = ProfileRepository(
+            data_dir=config.profiles.profiles_dir,
+            docs_dir=config.profiles.docs_dir,
         )
-        console.print(f"\n📊 Estimativa de Uso da API:")
-        console.print(f"   Chamadas para posts: {quota_info['post_calls']}")
-        console.print(f"   Chamadas para enriquecimento: {quota_info['enrichment_calls']}")
-        console.print(f"   Total de chamadas: {quota_info['total_api_calls']}")
-        console.print(f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos")
-
-        if quota_info["total_api_calls"] > 200:
-            console.print(f"\n[yellow]⚠️ Esta operação pode exceder a quota gratuita do Gemini[/yellow]")
-            console.print(f"[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]")
-
-    except Exception as exc:
-        console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
+        profile_count = len(list(profile_repo.iter_profiles()))
+        console.print(
+            f"\n[cyan]👥 Participant Profiles:[/cyan]\n"
+            f"   Existing profiles: {profile_count}\n"
+            f"   Daily API budget: {config.profiles.max_api_calls_per_day}\n"
+            f"   Profile linking: {'Enabled' if config.profiles.link_members_in_posts else 'Disabled'}"
+        )
 
     console.print()
     raise typer.Exit()

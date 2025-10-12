@@ -38,6 +38,19 @@ Considere:
 ❌ Participação tangencial ao tema principal
 
 Retorne APENAS um JSON:
+
+**CONTEXTO ADICIONAL:**
+Este perfil será usado para:
+- Gerar recomendações personalizadas
+- Entender dinâmicas do grupo
+- Identificar especialistas em tópicos
+- Facilitar conexões entre membros
+
+Por isso, atualizações devem capturar:
+- Mudanças em expertise ou interesses
+- Novos padrões de interação
+- Evoluções em perspectivas
+- Contribuições únicas ao grupo
 {{
     "should_update": true/false,
     "reasoning": "Explicação considerando o CONTEXTO da conversa (2-3 frases)",

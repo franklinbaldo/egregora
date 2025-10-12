@@ -130,17 +130,29 @@ class ProfilesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
-    profiles_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles"))
-    docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles/docs"))
+
+    # Directory configuration
+    profiles_dir: Path = Field(default_factory=lambda: Path("data/profiles"))
+    docs_dir: Path = Field(default_factory=lambda: Path("data/profiles/docs"))
+
+    # Update thresholds (keep these - they're smart)
     min_messages: int = 2
     min_words_per_message: int = 15
     history_days: int = 5
-    max_profiles_per_run: int = 3
+
+    # Rate limiting (NEW - replace artificial cap)
+    max_api_calls_per_day: int = 100
+    prefer_active_participants: bool = True
+
+    # Models
     decision_model: str = "models/gemini-flash-latest"
     rewrite_model: str = "models/gemini-flash-latest"
+
+    # Retry logic
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
-    # Profile linking configuration
+
+    # Profile linking (keep these)
     link_members_in_posts: bool = True
     profile_base_url: str = "/profiles/"
 
@@ -153,7 +165,7 @@ class ProfilesConfig(BaseModel):
         "min_messages",
         "min_words_per_message",
         "history_days",
-        "max_profiles_per_run",
+        "max_api_calls_per_day",
         "max_api_retries",
     )
     @classmethod

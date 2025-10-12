@@ -6,11 +6,11 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ## Highlights
 
-- **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
-- **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
-- **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
-- **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
+- **Zero-touch ingestion** – Discover exports locally, build virtual groups automatically
+- **Context-aware summaries** – RAG retrieves relevant historical context for every post
+- **Participant intelligence** – Automatic profile generation tracks expertise and evolution
+- **Rich link & media enrichment** – Gemini analyzes shared content for deeper context
+- **Privacy-first by default** – Deterministic anonymization keeps transcripts safe
 
 ## Pipeline at a glance
 
