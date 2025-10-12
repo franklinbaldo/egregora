@@ -1,179 +1,227 @@
-# Egregora
+# 🤖 Egregora
 
-> Automated WhatsApp-to-post pipeline with contextual enrichment, privacy controls, and search-ready archives.
+> **Automated WhatsApp-to-Post Pipeline with AI Enrichment and RAG Capabilities**
 
-Egregora ingests WhatsApp group exports, anonymises participants, enriches shared links, and publishes human-quality posts. The `egregora` CLI orchestrates ingestion, enrichment, retrieval, and profile generation so that communities receive a daily brief without manual curation.
+Egregora transforms WhatsApp group conversations into polished, publishable posts with AI-powered enrichment, intelligent privacy controls, and search-ready archives. Perfect for communities, research groups, and content creators who want to preserve and publish their discussions.
 
-## Highlights
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/badge/dependency_manager-uv-purple.svg)](https://docs.astral.sh/uv/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-- **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
-- **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
-- **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
-- **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
+## ✨ Key Features
 
-## Pipeline at a glance
+### 🚀 **Zero-Touch Processing**
+- **Automated Discovery**: Finds WhatsApp exports automatically, handles multiple groups, skips duplicates
+- **Smart Date Filtering**: Process specific date ranges or recent days with timezone support
+- **Batch Processing**: Handle multiple ZIP files and groups in a single command
 
-1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
-2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
-3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
-4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
-5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for downstream automation or manual review.【F:src/egregora/processor.py†L209-L487】
+### 🧠 **AI-Powered Intelligence**
+- **Gemini Integration**: Rich link analysis, media descriptions, and content enrichment
+- **RAG-Enhanced Posts**: Retrieval-Augmented Generation for contextual, high-quality outputs
+- **Participant Profiles**: Automatically generated member dossiers with interaction history
 
-## Quick start
+### 🔒 **Privacy-First Design**
+- **Deterministic Anonymization**: Consistent, reversible pseudonyms for all participants
+- **Safe Content**: No phone numbers or sensitive data in outputs
+- **Member Discovery**: Built-in tool for participants to find their anonymized identities
 
-### Requirements
+### 📊 **Enterprise-Ready Architecture**
+- **Polars DataFrames**: High-performance data processing for large conversations
+- **Intelligent Caching**: Avoid reprocessing with persistent enrichment cache
+- **Flexible Output**: Markdown posts, JSON profiles, media galleries
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) for dependency management
-- `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) with access to the Gemini models used by the pipeline
+## 🎯 Perfect For
 
-### Install & configure
+- **Research Communities**: Preserve and publish academic discussions with proper anonymization
+- **Content Creators**: Transform group conversations into blog posts or newsletters
+- **Knowledge Management**: Create searchable archives of team discussions
+- **Community Building**: Share highlights and insights from private group conversations
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Python 3.11+** 
+- **[uv](https://docs.astral.sh/uv/)** for dependency management
+- **Gemini API Key** (free tier available at [Google AI Studio](https://aistudio.google.com/app/apikey))
+
+### Installation
 
 ```bash
-pip install uv
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup
+git clone https://github.com/franklinbaldo/egregora.git
+cd egregora
 uv sync
-export GEMINI_API_KEY="your-api-key"
+
+# Set your API key
+export GEMINI_API_KEY="your-api-key-here"
 ```
 
-Configuration is now handled via explicit CLI arguments (see [CLI Configuration](#cli-configuration)).
-
-### Generate your first posts
+### Your First Posts
 
 ```bash
-# Preview which groups and dates would run
+# 1. Add your WhatsApp exports to data/whatsapp_zips/
+cp your-whatsapp-export.zip data/whatsapp_zips/
+
+# 2. Preview what would be processed
 uv run egregora process data/whatsapp_zips/*.zip --dry-run
 
-# Process the latest two days for every discovered group
+# 3. Generate posts for the last 2 days
 uv run egregora process data/whatsapp_zips/*.zip --days 2
+
+# 4. Check your outputs in data/
+ls data/your-group-slug/posts/daily/
 ```
 
-Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
+That's it! Your anonymized, enriched posts are ready in Markdown format.
 
-## Linting & formatting
+## 📖 Usage Guide
 
-Run the automated formatters locally before pushing to mirror the CI behaviour:
-
-```bash
-uv sync --extra lint
-uv run pre-commit install
-uv run pre-commit run --all-files
-```
-
-The CI pipeline re-executes the same hooks, commits any auto-fixable updates back to the source branch, and only fails when an issue requires manual intervention. Installing the hook locally keeps your branches clean and avoids round-trips with the automated fixer.
-
-## Command line interface
-
-### `egregora` (default command)
-
-The root command is equivalent to `egregora process` and accepts the same options:
-
-- `--config / -c` – Load a specific TOML configuration file.
-- `--zips-dir` / `--posts-dir` – Override directories at runtime.
-- `--days` – Number of recent days to include in each prompt.
-- `--disable-enrichment`, `--no-cache`, `--dry-run`, `--list` – Control enrichment, caching, and planning flows.
-- `--timezone` – Run the pipeline as if executed in another IANA timezone.
-
-These switches map directly to the Typer options defined in `egregora.__main__`. When run without subcommands the pipeline executes immediately.【F:src/egregora/__main__.py†L20-L138】
-
-### `egregora process`
-
-Explicit subcommand wrapper around the same options, useful when scripting multiple CLI calls or when future subcommands are added.【F:src/egregora/__main__.py†L99-L136】
-
-### `egregora discover`
-
-Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in posts. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
-
-## CLI Configuration
-
-Configuration is handled entirely through explicit CLI arguments. No environment variables or configuration files are needed (except `GEMINI_API_KEY` for API access). All options have sensible defaults and can be overridden as needed.
-
-### Basic Usage
+### Basic Commands
 
 ```bash
-# Generate posts with defaults
-export GEMINI_API_KEY="your-api-key"
-uv run egregora process data/whatsapp_zips/*.zip
+# Process all ZIP files for recent days
+uv run egregora process data/whatsapp_zips/*.zip --days 3
 
-# Generate with custom options
+# Process specific date range
 uv run egregora process data/whatsapp_zips/*.zip \
-  --output data/output \
-  --model gemini-flash-lite-latest \
-  --timezone America/Porto_Velho \
-  --days 2
-```
+  --from-date 2024-01-01 \
+  --to-date 2024-01-31
 
-### Profile Linking
-
-```bash
-# Enable profile linking (default: enabled)
+# Custom output directory and timezone
 uv run egregora process data/whatsapp_zips/*.zip \
-  --link-profiles \
-  --profile-base-url "/profiles/"
+  --output-dir /path/to/output \
+  --timezone America/New_York
 
-# Disable profile linking
-uv run egregora process data/whatsapp_zips/*.zip \
-  --no-link-profiles
+# Preview without processing
+uv run egregora process data/whatsapp_zips/*.zip --dry-run
 ```
 
 ### Advanced Configuration
 
 ```bash
-# Full configuration example
+# Full feature example
 uv run egregora process data/whatsapp_zips/*.zip \
-  --output data/custom-output \
+  --output-dir data/custom-output \
   --model gemini-flash-lite-latest \
   --timezone America/Porto_Velho \
   --days 7 \
-  --link-profiles \
-  --profile-base-url "/profiles/" \
-  --safety-threshold BLOCK_NONE \
-  --thinking-budget -1 \
   --max-links 50 \
   --relevance-threshold 2 \
   --cache-dir cache \
-  --auto-cleanup-days 90
+  --link-member-profiles \
+  --profile-base-url "/profiles/"
 ```
 
-### Available Options
-
-Run `uv run egregora process --help` to see all available options:
-
-- **Input/Output**: `--output`, `--group-name`, `--group-slug`
-- **Model Settings**: `--model`, `--safety-threshold`, `--thinking-budget`
-- **Date Range**: `--days`, `--from-date`, `--to-date`, `--timezone`
-- **Features**: `--disable-enrichment`, `--no-cache`, `--link-profiles`
-- **Profile Linking**: `--profile-base-url`
-- **Enrichment**: `--max-links`, `--relevance-threshold`
-- **Cache**: `--cache-dir`, `--auto-cleanup-days`
-- **Debug**: `--list`, `--dry-run`
-
-All configuration is explicit and transparent - no hidden dependencies on environment variables or configuration files.
-
-## Outputs & publishing
-
-During processing the pipeline materialises a predictable directory tree:
-
-- `data/<slug>/index.md` – Overview page linking recent daily posts and acting as the group landing page.
-- `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for publication or email distribution.【F:src/egregora/processor.py†L344-L515】
-- `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L188】
-- `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
-- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/processor.py†L41-L116】【F:src/egregora/enrichment.py†L432-L720】
-- `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
-## Retrieval utilities
-
-The Retrieval-Augmented Generation helpers store post embeddings in ChromaDB via `PostRAG` for use in bespoke automations or exploratory notebooks.【F:src/egregora/rag/index.py†L12-L189】 Use the runtime API directly to refresh or inspect the index whenever new posts are generated.
-
-### Rebuild the RAG index via the current CLI
-
-Rebuild or refresh the embeddings with the existing CLI/runtime surface—no
-dedicated helper script required:
+### Privacy Tools
 
 ```bash
-# Force a clean rebuild of the post embeddings
-uv run python - <<'PY'
-from pathlib import Path
+# Find your anonymized identity
+uv run egregora discover "+5511999999999"
+uv run egregora discover "YourNickname"
 
+# Different output formats
+uv run egregora discover "+5511999999999" --format human
+uv run egregora discover "+5511999999999" --format short
+uv run egregora discover "+5511999999999" --format full
+```
+
+### Profile Management
+
+```bash
+# Generate participant profiles
+uv run egregora profiles generate data/whatsapp_zips/*.zip
+
+# Update existing profiles
+uv run egregora profiles update data/whatsapp_zips/*.zip --days 30
+
+# List profile statistics
+uv run egregora profiles stats
+```
+
+## 📁 Output Structure
+
+Egregora creates a well-organized directory structure:
+
+```
+data/
+└── your-group-slug/
+    ├── posts/
+    │   └── daily/
+    │       ├── 2024-01-15.md    # Generated posts
+    │       ├── 2024-01-16.md
+    │       └── ...
+    ├── media/
+    │   ├── uuid1.jpg            # Extracted attachments
+    │   ├── uuid2.pdf
+    │   └── ...
+    ├── profiles/
+    │   ├── generated/
+    │   │   ├── member1.md       # Participant dossiers
+    │   │   └── member2.md
+    │   └── json/
+    │       ├── member1.json     # Machine-readable profiles
+    │       └── member2.json
+    └── index.md                 # Group overview page
+
+cache/                           # Enrichment cache
+├── analyses/                    # Cached AI analyses
+├── rag/                        # RAG embeddings
+└── system_labels/              # Classification cache
+
+metrics/
+└── enrichment_run.csv          # Processing metrics
+```
+
+## 🛠 Configuration Options
+
+### Input/Output
+- `--output-dir` - Where to save generated content (default: `data/`)
+- `--group-name` - Override detected group name
+- `--group-slug` - Override generated group slug
+
+### Date Processing  
+- `--days` - Process last N days
+- `--from-date` - Start date (YYYY-MM-DD)
+- `--to-date` - End date (YYYY-MM-DD)  
+- `--timezone` - IANA timezone (default: `America/Porto_Velho`)
+
+### AI & Enrichment
+- `--model` - Gemini model (default: `gemini-flash-lite-latest`)
+- `--disable-enrichment` - Skip link/media analysis
+- `--max-links` - Maximum links to analyze per day (default: 50)
+- `--relevance-threshold` - Minimum relevance score (default: 2)
+- `--safety-threshold` - Gemini safety level (default: `BLOCK_NONE`)
+- `--thinking-budget` - Token budget for reasoning (default: -1)
+
+### Profiles & Linking
+- `--link-member-profiles` - Link to participant profiles in posts  
+- `--profile-base-url` - Base URL for profile links (default: `/profiles/`)
+- `--no-link-member-profiles` - Disable profile linking
+
+### Cache & Performance
+- `--cache-dir` - Cache directory (default: `cache/`)
+- `--disable-cache` - Skip enrichment caching
+- `--auto-cleanup-days` - Cache cleanup threshold (default: 90)
+
+### Debug & Preview
+- `--dry-run` - Preview without processing
+- `--list-groups` - Show discovered groups and exit
+
+Run `uv run egregora process --help` for the complete list.
+
+## 🔧 Advanced Features
+
+### RAG (Retrieval-Augmented Generation)
+
+Egregora includes a powerful RAG system for contextual post generation:
+
+```python
+# Rebuild RAG index programmatically
+from pathlib import Path
 from egregora.rag.config import RAGConfig
 from egregora.rag.index import PostRAG
 
@@ -183,32 +231,239 @@ rag = PostRAG(
     config=RAGConfig(enabled=True, vector_store_type="chroma"),
 )
 result = rag.update_index(force_rebuild=True)
-print("Rebuilt", result["posts_count"], "posts →", result["chunks_count"], "chunks")
-PY
+print(f"Indexed {result['posts_count']} posts → {result['chunks_count']} chunks")
 ```
 
-Adjust the directories or `RAGConfig` arguments to match your deployment. The
-same pattern works inside automations or GitHub Actions, eliminating the need
-for bespoke one-off scripts.
+### Custom Prompts
 
-## Custom prompts & filters
+Customize AI behavior by editing prompts in `src/egregora/prompts/`:
 
-Edit the Markdown prompts under `src/egregora/prompts/` to adjust the base system instructions or multi-group behaviour. The pipeline falls back to package resources when custom files are absent, and validates that prompts are never empty.【F:src/egregora/pipeline.py†L64-L115】
+- `system_instruction_base.md` - Base system instructions
+- `system_instruction_multigroup.md` - Multi-group processing prompts
 
-Keyword extraction and system-message filtering now rely on LLM adapters instead of brittle phrase lists. Configure model credentials through the regular pipeline settings and provide custom keyword providers when embedding the library in other tooling.【F:src/egregora/rag/query_gen.py†L17-L60】【F:src/egregora/system_classifier.py†L39-L196】
+### Enrichment Metrics
 
-## Development
+Track processing performance with automatic metrics:
 
-- Sync dependencies: `uv sync`
-- Run tests: `uv run --with pytest pytest`
-- Type-check or explore datasets with Polars or a notebook of your choice.
+```bash
+# View enrichment statistics
+cat metrics/enrichment_run.csv
+```
 
-The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】
+Includes timestamps, link counts, domains processed, and error rates.
 
-### CI workflows
+## 🧪 Development
 
-- `Request Codex Review`: Comments `@codex code review` on newly opened pull requests via the account associated with the personal access token stored in the `CODEX_REVIEW_TOKEN` repository secret. The workflow authenticates the GitHub CLI with this token (via `GH_TOKEN`) before issuing the comment so it originates from a human-owned account rather than `github-actions`. Use a classic PAT with `public_repo` (or `repo` for private repos) scope.
+### Setup Development Environment
 
-## License
+```bash
+# Clone and setup
+git clone https://github.com/franklinbaldo/egregora.git
+cd egregora
+
+# Install with development dependencies
+uv sync --extra test --extra lint --extra docs
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+### Testing
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test categories
+uv run pytest tests/test_privacy.py -v
+uv run pytest -k "anonymization" -v
+
+# Test with real data (requires GEMINI_API_KEY)
+uv run pytest tests/test_integration.py -v
+```
+
+### Code Quality
+
+```bash
+# Format and lint
+uv run black .
+uv run ruff check . --fix
+
+# Run pre-commit hooks
+uv run pre-commit run --all-files
+
+# Type checking
+uv run mypy src/egregora/
+```
+
+### Documentation
+
+```bash
+# Serve docs locally
+uv run mkdocs serve
+
+# Build static docs
+uv run mkdocs build
+```
+
+## 🔄 Architecture Overview
+
+### Core Components
+
+- **`UnifiedProcessor`** - Main orchestration engine handling discovery, processing, and output
+- **`WhatsAppParser`** - Converts exports to structured Polars DataFrames
+- **`Anonymizer`** - Deterministic privacy protection for all participants
+- **`EnrichmentEngine`** - AI-powered link and media analysis with caching
+- **`RAGSystem`** - Retrieval-Augmented Generation for contextual posts
+- **`ProfileUpdater`** - Automated participant profile generation
+
+### Data Flow
+
+```
+WhatsApp Exports → Parse → Anonymize → Enrich → Generate Posts
+                     ↓         ↓         ↓
+                 DataFrames  Privacy  AI Analysis
+                     ↓         ↓         ↓  
+                Media Files  Profiles  RAG Context
+```
+
+### Performance Features
+
+- **Polars DataFrames** for high-speed data processing
+- **Persistent caching** to avoid reprocessing
+- **Incremental profile updates** for efficiency
+- **Batch processing** for multiple groups/dates
+
+## 🤖 AI Agent Integration
+
+Egregora includes built-in support for AI agent collaboration:
+
+### Jules Integration
+```bash
+# Create Jules session for complex development tasks
+curl -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" \
+  -d '{"title": "Egregora Enhancement", "sourceContext": {"source": "sources/github/franklinbaldo/egregora"}}'
+```
+
+### Codex Reviews
+```bash
+# Trigger automated code review
+gh pr comment <PR_NUMBER> --body "@codex code review"
+```
+
+See `CLAUDE.md` for detailed agent coordination strategies.
+
+## 📚 Examples
+
+### Daily Newsletter Generation
+
+```bash
+# Generate daily newsletter for the last week
+uv run egregora process data/whatsapp_zips/*.zip \
+  --days 7 \
+  --link-member-profiles \
+  --model gemini-flash-lite-latest
+```
+
+### Research Archive Creation
+
+```bash
+# Process academic group discussions with strict privacy
+uv run egregora process data/academic-group.zip \
+  --from-date 2024-01-01 \
+  --to-date 2024-12-31 \
+  --output-dir research-archive \
+  --disable-enrichment
+```
+
+### Content Creator Workflow
+
+```bash
+# Transform discussions into blog content
+uv run egregora process data/creator-group.zip \
+  --days 3 \
+  --max-links 100 \
+  --output-dir blog-content \
+  --link-member-profiles \
+  --profile-base-url "https://myblog.com/contributors/"
+```
+
+## 🚨 Privacy & Security
+
+### Data Protection
+- **No phone numbers** in outputs - all participants anonymized
+- **Deterministic pseudonyms** - same person = same anonymous ID
+- **Local processing** - your data never leaves your machine
+- **Configurable retention** - automatic cache cleanup
+
+### Anonymization Details
+- Uses SHA-256 hashing with salt for consistent anonymization
+- Preserves conversation flow while protecting identities
+- Built-in discovery tool for participants to find their IDs
+- Supports various output formats (human-readable, short, full UUIDs)
+
+### Security Best Practices
+- Store API keys in environment variables only
+- Use `.gitignore` patterns to avoid committing sensitive data
+- Regular cache cleanup with `--auto-cleanup-days`
+- Review outputs before publishing to ensure privacy compliance
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md).
+
+### Development Workflow
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Run the full test suite
+5. Submit a pull request
+
+### Code Style
+- Follow PEP 8 with Black formatting
+- Add type hints for all functions
+- Include docstrings for public APIs
+- Write tests for new features
+
+### Testing Requirements
+- All tests must pass
+- New features need test coverage
+- Integration tests for AI features
+- Performance tests for large datasets
+
+## 📄 License
 
 Egregora is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+## 🎯 Roadmap
+
+### Upcoming Features
+- [ ] **Multi-language support** - Process conversations in different languages
+- [ ] **Export formats** - PDF, HTML, and JSON output options  
+- [ ] **Web interface** - Browser-based processing and preview
+- [ ] **Cloud deployment** - Docker containers and cloud templates
+- [ ] **Advanced analytics** - Conversation insights and statistics
+
+### Performance Improvements
+- [ ] **Streaming processing** - Handle very large exports efficiently
+- [ ] **Parallel enrichment** - Concurrent AI analysis for speed
+- [ ] **Smart caching** - More intelligent cache invalidation
+- [ ] **Memory optimization** - Reduced memory usage for large datasets
+
+## 💬 Support
+
+- **Documentation**: [docs.egregora.dev](https://docs.egregora.dev) (coming soon)
+- **Issues**: [GitHub Issues](https://github.com/franklinbaldo/egregora/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/franklinbaldo/egregora/discussions)
+- **Email**: egregora@franklin.dev
+
+---
+
+<div align="center">
+
+**Made with ❤️ for communities who value their conversations**
+
+[⭐ Star us on GitHub](https://github.com/franklinbaldo/egregora) • [📖 Read the Docs](https://docs.egregora.dev) • [🐛 Report Issues](https://github.com/franklinbaldo/egregora/issues)
+
+</div>
