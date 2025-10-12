@@ -22,92 +22,74 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 
 @app.command("process")
 def process_command(  # noqa: PLR0913
-    zip_files: list[Path],
-    output_dir: Path = None,
-    group_name: str = None,
-    group_slug: str = None,
-    model: str = "gemini-flash-lite-latest",
-    timezone: str = "America/Porto_Velho",
-    days: int = None,
-    from_date: str = None,
-    to_date: str = None,
-    disable_enrichment: bool = False,
-    disable_cache: bool = False,
-    list_groups: bool = False,
-    dry_run: bool = False,
-    link_member_profiles: bool = True,
-    profile_base_url: str = "/profiles/",
-    safety_threshold: str = "BLOCK_NONE",
-    thinking_budget: int = -1,
-    max_links: int = 50,
-    relevance_threshold: int = 2,
-    cache_dir: str = "cache",
-    auto_cleanup_days: int = 90,
-) -> None:
-    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
     zip_files: list[Path] = typer.Argument(
         ..., help="Um ou mais arquivos .zip do WhatsApp para processar"
-    )
+    ),
     output_dir: Path = typer.Option(
         None, "--output", "-o", help="Diretório onde as posts serão escritas"
-    )
+    ),
     group_name: str = typer.Option(
         None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"
-    )
+    ),
     group_slug: str = typer.Option(
         None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"
-    )
+    ),
     model: str = typer.Option(
         "gemini-flash-lite-latest", "--model", help="Nome do modelo Gemini a ser usado"
-    )
-    timezone: str = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA")
+    ),
+    timezone: str = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA"),
     days: int = typer.Option(
         None,
         "--days",
         min=1,
         help="Processar os N dias mais recentes. Incompatível com --from/--to.",
-    )
+    ),
     from_date: str = typer.Option(
         None,
         "--from-date",
         help="Data de início (YYYY-MM-DD). Incompatível com --days.",
         formats=["%Y-%m-%d"],
-    )
+    ),
     to_date: str = typer.Option(
         None,
         "--to-date",
         help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
         formats=["%Y-%m-%d"],
-    )
+    ),
     disable_enrichment: bool = typer.Option(
         False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"
-    )
-    disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente")
-    list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai")
+    ),
+    disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
+    list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"
-    )
+    ),
+    # Profile linking options
     link_member_profiles: bool = typer.Option(
         True, "--link-profiles/--no-link-profiles", help="Link member mentions to profile pages"
-    )
+    ),
     profile_base_url: str = typer.Option(
         "/profiles/", "--profile-base-url", help="Base URL for profile links"
-    )
+    ),
+    # LLM options
     safety_threshold: str = typer.Option(
         "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
-    )
+    ),
     thinking_budget: int = typer.Option(
         -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
-    )
-    max_links: int = typer.Option(50, "--max-links", help="Maximum links to enrich per post")
+    ),
+    # Enrichment options
+    max_links: int = typer.Option(50, "--max-links", help="Maximum links to enrich per post"),
     relevance_threshold: int = typer.Option(
         2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"
-    )
-    cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path")
+    ),
+    # Cache options
+    cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path"),
     auto_cleanup_days: int = typer.Option(
         90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
-    )
-
+    ),
+) -> None:
+    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
     # Configuration now uses only CLI arguments
 
@@ -153,7 +135,6 @@ def process_command(  # noqa: PLR0913
         LLMConfig,
         PipelineConfig,
         ProfilesConfig,
-        SystemClassifierConfig,
     )
     from .rag.config import RAGConfig
 
@@ -185,7 +166,6 @@ def process_command(  # noqa: PLR0913
         cache=cache_config,
         profiles=profiles_config,
         anonymization=AnonymizationConfig(),
-        system_classifier=SystemClassifierConfig(),
         rag=RAGConfig(),
     )
 
@@ -213,27 +193,20 @@ def process_command(  # noqa: PLR0913
 
 @app.command("enrich")
 def enrich_command(
-    url: str,
-    config_file: Path = None,
-    model: str = None,
-    output_format: str = "pretty",
-    save_cache: bool = True,
-    dry_run: bool = False,
-) -> None:
-    """Testa o enriquecimento de uma URL ou mídia específica."""
-    url: str = typer.Argument(..., help="URL ou caminho de mídia para enriquecer")
+    url: str = typer.Argument(..., help="URL ou caminho de mídia para enriquecer"),
     config_file: Path = typer.Option(
         None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
-    )
-    model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento")
+    ),
+    model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento"),
     output_format: str = typer.Option(
         "pretty", "--format", "-f", help="Formato de saída: pretty, json"
-    )
-    save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache")
+    ),
+    save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache"),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Simula enriquecimento sem chamadas da API"
-    )
-
+    ),
+) -> None:
+    """Testa o enriquecimento de uma URL ou mídia específica."""
 
     console.print(f"🔍 Testando enriquecimento: {url}")
 
@@ -292,7 +265,10 @@ def enrich_command(
             LLMConfig,
             PipelineConfig,
             ProfilesConfig,
+<<<<<<< HEAD
             SystemClassifierConfig,
+=======
+>>>>>>> temp-pr-integration
         )
         from .rag.config import RAGConfig
 
@@ -304,7 +280,10 @@ def enrich_command(
             cache=CacheConfig(),
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
+<<<<<<< HEAD
             system_classifier=SystemClassifierConfig(),
+=======
+>>>>>>> temp-pr-integration
             rag=RAGConfig(),
         )
 
@@ -434,19 +413,14 @@ def enrich_command(
 
 @app.command("profiles")
 def profiles_command(
-    action: str,
-    target: str = None,
-    config_file: Path = None,
-    output_format: str = "pretty",
-) -> None:
-    """Gerencia perfis de participantes."""
-    action: str = typer.Argument(..., help="Ação: list, show, generate, clean")
-    target: str = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)")
+    action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
+    target: str = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
     config_file: Path = typer.Option(
         None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
-    )
-    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json")
-
+    ),
+    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
+) -> None:
+    """Gerencia perfis de participantes."""
 
     if action not in ["list", "show", "generate", "clean"]:
         console.print(f"❌ Ação inválida: {action}. Use: list, show, generate, clean")
@@ -466,7 +440,6 @@ def profiles_command(
         LLMConfig,
         PipelineConfig,
         ProfilesConfig,
-        SystemClassifierConfig,
     )
     from .rag.config import RAGConfig
 
@@ -477,7 +450,6 @@ def profiles_command(
         cache=CacheConfig(),
         profiles=ProfilesConfig(),
         anonymization=AnonymizationConfig(),
-        system_classifier=SystemClassifierConfig(),
         rag=RAGConfig(),
     )
 
@@ -605,10 +577,9 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
             cache=CacheConfig(),
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
-            system_classifier=SystemClassifierConfig(),
             rag=RAGConfig(),
         )
-        UnifiedProcessor(temp_config)
+        processor = UnifiedProcessor(temp_config)
 
         # Generate profiles (this would need implementation in processor)
         console.print("🔄 Processando mensagens para geração de perfis...")

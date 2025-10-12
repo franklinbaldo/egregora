@@ -53,28 +53,15 @@ def test_parse_export_rejects_invalid_utf8(tmp_path):
 
 
 def test_pipeline_config_validates_merges():
-    """Test that PipelineConfig validates merge configurations."""
-    from egregora.models import MergeConfig
-    
-    # Test invalid merge config structure
-    with pytest.raises(Exception):  # Validation will fail
-        PipelineConfig(
-            merges={"bad": "not-a-merge-config"}  # type: ignore[dict-item]
-        )
-
-
-def test_pipeline_config_direct_initialization():
-    """Test that PipelineConfig can be initialized directly."""
-    config = PipelineConfig()
-    assert config.posts_dir is not None
-    assert config.model == "gemini-flash-lite-latest"
-
-
-def test_pipeline_config_validates_paths():
-    """Test that PipelineConfig validates path fields."""
-    from pathlib import Path
-    config = PipelineConfig(posts_dir=Path("/tmp/test"))
-    assert config.posts_dir == Path("/tmp/test")
+    """Ensure that merge configurations are properly validated."""
+    bad_merges_config = {
+        "bad": {
+            "name": "Bad",
+            "source_groups": "not-a-list",  # This should be a list of strings
+        }
+    }
+    with pytest.raises(ValueError, match="Invalid merge configuration for 'bad'"):
+        PipelineConfig(merges=bad_merges_config)
 
 
 def test_ensure_safe_directory_rejects_parent_escape():

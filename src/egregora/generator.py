@@ -5,6 +5,8 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from importlib import resources
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 try:
@@ -15,14 +17,114 @@ except ModuleNotFoundError:
     types = None
 
 from .gemini_manager import GeminiManager, GeminiQuotaError
-from .pipeline import _load_prompt, _prepare_transcripts, build_llm_input
 
 if TYPE_CHECKING:
+    from datetime import tzinfo
+
     from .config import PipelineConfig
     from .models import GroupSource
 
     if genai:
         from google.generativeai.client import Client as GeminiClient
+
+# The functions _load_prompt and build_llm_input were moved from the deleted
+# pipeline.py module to here, as the generator is their only user.
+# The _prepare_transcripts function was removed entirely, as the processor
+# now handles transcript preparation before calling the generator.
+
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+
+
+def _load_prompt(filename: str) -> str:
+    """Load a prompt either from the editable folder or the package data."""
+    local_prompt_path = _PROMPTS_DIR / filename
+    if local_prompt_path.exists():
+        text = local_prompt_path.read_text(encoding="utf-8")
+        stripped = text.strip()
+        if not stripped:
+            raise ValueError(f"Prompt file '{local_prompt_path}' is empty")
+        return stripped
+
+    try:
+        package_text = (
+            resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
+        )
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
+
+    stripped = package_text.strip()
+    if not stripped:
+        raise ValueError(f"Prompt resource '{filename}' is empty")
+    return stripped
+
+
+def _format_transcript_section_header(transcript_count: int) -> str:
+    """Return a localized header describing the transcript coverage."""
+    if transcript_count <= 1:
+        return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
+    return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
+
+
+def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict with method
+    *,
+    group_name: str,
+    timezone: tzinfo,
+    transcripts: Sequence[tuple[date, str]],
+    previous_post: str | None,
+    enrichment_section: str | None = None,
+    rag_context: str | None = None,
+) -> str:
+    """Compose the user prompt sent to Gemini."""
+    from datetime import datetime
+
+    today_str = datetime.now(timezone).date().isoformat()
+    sections: list[str] = [
+        f"NOME DO GRUPO: {group_name}",
+        f"DATA DE HOJE: {today_str}",
+    ]
+
+    if previous_post:
+        sections.extend(
+            [
+                "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+                "<<<POST_ONTEM_INICIO>>>",
+                previous_post.strip(),
+                "<<<POST_ONTEM_FIM>>>",
+            ]
+        )
+    else:
+        sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
+
+    if enrichment_section:
+        sections.extend(
+            [
+                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
+                enrichment_section,
+            ]
+        )
+
+    if rag_context:
+        sections.extend(
+            [
+                "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
+                rag_context,
+            ]
+        )
+
+    header = _format_transcript_section_header(len(transcripts))
+    sections.append(header)
+
+    for transcript_date, transcript_text in transcripts:
+        content = transcript_text.strip()
+        sections.extend(
+            [
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
+                content if content else "(vazio)",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
+            ]
+        )
+
+    return "\n\n".join(sections)
 
 
 @dataclass(slots=True)
@@ -101,14 +203,14 @@ class PostGenerator:
     def _build_llm_input(
         self,
         context: PostContext,
-        anonymized_transcripts: Sequence[tuple[date, str]],
+        transcripts: Sequence[tuple[date, str]],
     ) -> str:
         """Compose the user prompt sent to Gemini."""
 
-        return build_llm_input(
+        return _build_llm_input_string(
             group_name=context.group_name,
             timezone=self.config.timezone,
-            transcripts=anonymized_transcripts,
+            transcripts=transcripts,
             previous_post=context.previous_post,
             enrichment_section=context.enrichment_section,
             rag_context=context.rag_context,
@@ -119,9 +221,7 @@ class PostGenerator:
         self._require_google_dependency()
 
         transcripts = [(context.target_date, context.transcript)]
-        anonymized_transcripts = _prepare_transcripts(transcripts, self.config)
-
-        llm_input = self._build_llm_input(context, anonymized_transcripts)
+        llm_input = self._build_llm_input(context, transcripts)
 
         system_instruction = self._build_system_instruction(has_group_tags=source.is_virtual)
 

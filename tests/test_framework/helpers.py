@@ -5,10 +5,6 @@ from __future__ import annotations
 import zipfile
 from datetime import date
 from pathlib import Path
-from typing import Any
-
-from egregora.config import PipelineConfig
-from egregora.pipeline import _prepare_transcripts
 
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
@@ -87,29 +83,6 @@ def validate_whatsapp_format(content: str) -> list[str]:
             issues.append(f"Line {i}: Unexpected format - {line[:50]}...")
 
     return issues
-
-
-def simulate_pipeline_run(
-    config: PipelineConfig, content: str, test_date: date = None
-) -> tuple[str, dict[str, Any]]:
-    """Simulate a complete pipeline run with test data."""
-    if test_date is None:
-        test_date = date(2025, 10, 3)
-
-    # Simulate transcript preparation
-    transcripts = [(test_date, content)]
-    result = _prepare_transcripts(transcripts, config)
-
-    # Collect metrics
-    metrics = {
-        "processed_lines": len(content.split("\n")),
-        "anonymized_content": result[0][1],
-        "content_length": len(result[0][1]),
-        "date": result[0][0],
-    }
-
-    return result[0][1], metrics
-
 
 class TestDataGenerator:
     """Generate various test scenarios for comprehensive testing."""
