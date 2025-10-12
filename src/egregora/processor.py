@@ -227,6 +227,7 @@ class ParticipantInfo:
 
     uuid: str
     label: str
+    raw_author: str
     message_count: int
     days_since_update: int
     priority: float
@@ -1013,6 +1014,7 @@ class UnifiedProcessor:
                 ParticipantInfo(
                     uuid=member_uuid,
                     label=member_label,
+                    raw_author=author,
                     message_count=row["message_count"],
                     days_since_update=days_since_update,
                     priority=priority,
@@ -1077,7 +1079,7 @@ class UnifiedProcessor:
             current_profile = repository.load(participant.uuid)
 
             should_consider, _ = updater.should_update_profile_dataframe(
-                participant.label,
+                participant.raw_author,
                 current_profile,
                 df_day,
             )
