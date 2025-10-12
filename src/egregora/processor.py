@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -14,6 +15,7 @@ from diskcache import Cache
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
+from .gemini_manager import GeminiManager, GeminiQuotaError
 from .generator import PostContext, PostGenerator
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
@@ -111,18 +113,117 @@ def _build_post_metadata(
 def _ensure_blog_front_matter(
     text: str, *, source: "GroupSource", target_date: date, config: PipelineConfig
 ) -> str:
-    """Prepend YAML front matter when it's missing."""
-
+    """Merge Gemini-generated frontmatter with programmatic metadata."""
+    
     stripped = text.lstrip()
-    if stripped.startswith("---"):
-        return text
-
+    
+    # Check if content has frontmatter (including wrapped in code blocks)
+    if stripped.startswith("```\n---") or stripped.startswith("---"):
+        yaml_content = ""
+        remaining_content = stripped
+        
+        # Handle normal frontmatter first
+        if stripped.startswith("---"):
+            parts = stripped.split("---", 2)
+            if len(parts) >= 3:
+                yaml_content = parts[1]
+                remaining_content = parts[2].lstrip()
+        
+        # Remove any wrapped frontmatter blocks from remaining content
+        while "```\n---" in remaining_content:
+            start_idx = remaining_content.find("```\n---")
+            end_idx = remaining_content.find("---\n```", start_idx)
+            if end_idx > start_idx:
+                # Remove the entire wrapped block
+                remaining_content = (
+                    remaining_content[:start_idx] + 
+                    remaining_content[end_idx + 7:]  # Skip "---\n```\n"
+                ).strip()
+            else:
+                break
+        
+        # Parse existing YAML and merge with programmatic metadata
+        try:
+            existing_metadata = yaml.safe_load(yaml_content) or {}
+        except yaml.YAMLError:
+            existing_metadata = {}
+        
+        # Get programmatic metadata and merge
+        programmatic_metadata = _build_post_metadata(source, target_date, config)
+        merged_metadata = {**programmatic_metadata, **existing_metadata}
+        
+        # Generate clean frontmatter
+        front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
+        return f"---\n{front_matter}\n---\n\n{remaining_content}"
+    
+    # No frontmatter found, add programmatic one
     metadata = _build_post_metadata(source, target_date, config)
     front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-
     prefix_len = len(text) - len(stripped)
     prefix = text[:prefix_len]
     return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
+
+
+def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
+    """Convert Member-XXXX mentions to profile links if enabled."""
+    
+    if not config.profiles.link_members_in_posts:
+        return text
+    
+    import re
+    from pathlib import Path
+    
+    # Pattern to match Member-XXXX format (exactly 4 hex characters)
+    member_pattern = r'\(Member-([A-F0-9]{4})\)'
+    
+    def replace_member_mention(match):
+        member_id = match.group(1)
+        full_uuid_pattern = None
+        
+        # Look for matching profiles in the egregora-site profiles directory
+        # This matches the structure we saw earlier
+        workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
+        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
+        
+        if site_profiles_dir.exists():
+            for profile_file in site_profiles_dir.glob("*.md"):
+                if profile_file.stem.startswith(member_id.lower()):
+                    # Extract the full UUID from filename
+                    full_uuid_pattern = profile_file.stem
+                    break
+        
+        # If no profile found, fall back to original mention
+        if not full_uuid_pattern:
+            return match.group(0)  # Return original (Member-XXXX)
+        
+        # Generate profile link (relative to the posts directory)
+        profile_url = f"../../profiles/{full_uuid_pattern}/"
+        return f"([Member-{member_id}]({profile_url}))"
+    
+    return re.sub(member_pattern, replace_member_mention, text)
+
+
+def _filter_target_dates(
+    available_dates: list[date],
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    days: int | None = None,
+) -> list[date]:
+    """Filter available dates based on the provided criteria."""
+    # Date range has priority
+    if from_date or to_date:
+        filtered_dates = available_dates
+        if from_date:
+            filtered_dates = [d for d in filtered_dates if d >= from_date]
+        if to_date:
+            filtered_dates = [d for d in filtered_dates if d <= to_date]
+        return filtered_dates
+
+    if days:
+        return available_dates[-days:]
+
+    return available_dates
 
 
 @dataclass(slots=True)
@@ -143,7 +244,8 @@ class UnifiedProcessor:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        self.generator = PostGenerator(config)
+        self._gemini_manager: GeminiManager | None = None
+        self._generator: PostGenerator | None = None
 
         self._profile_updater: ProfileUpdater | None = None
         self._profile_limit_per_run: int = 0
@@ -159,7 +261,92 @@ class UnifiedProcessor:
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
-    def process_all(self, days: int | None = None) -> dict[GroupSlug, list[Path]]:
+    @property
+    def gemini_manager(self) -> GeminiManager:
+        """Lazily instantiate the optional Gemini manager."""
+
+        if self._gemini_manager is None:
+            self._gemini_manager = GeminiManager(
+                retry_attempts=3,
+                minimum_retry_seconds=30.0,
+            )
+        return self._gemini_manager
+
+    @property
+    def generator(self) -> PostGenerator:
+        """Lazily instantiate the post generator to defer Gemini requirements."""
+
+        if self._generator is None:
+            # Only provide gemini_manager when enrichment is enabled
+            gemini_manager = self.gemini_manager if self.config.enrichment.enabled else None
+            self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
+        return self._generator
+
+    def estimate_api_usage(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict[str, Any]:
+        """Estimate API quota usage for the planned processing."""
+        sources_to_process, _, _ = self._collect_sources()
+
+        total_posts = 0
+        total_enrichment_calls = 0
+        group_estimates = {}
+
+        for slug, source in sources_to_process.items():
+            available_dates = list(get_available_dates(source))
+            target_dates = _filter_target_dates(
+                available_dates,
+                from_date=from_date,
+                to_date=to_date,
+                days=days,
+            )
+
+            group_posts = len(target_dates)
+            total_posts += group_posts
+
+            # Estimate enrichment calls (rough estimate)
+            enrichment_calls = 0
+            if self.config.enrichment.enabled:
+                # Rough estimate: 1-3 enrichment calls per day on average
+                enrichment_calls = group_posts * 2  # Conservative estimate
+
+            total_enrichment_calls += enrichment_calls
+
+            group_estimates[slug] = {
+                "posts": group_posts,
+                "enrichment_calls": enrichment_calls,
+                "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
+            }
+
+        # Free tier limits (based on the issue description)
+        free_tier_limit = 15  # requests per minute
+        estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
+
+        return {
+            "total_api_calls": total_posts + total_enrichment_calls,
+            "post_generation_calls": total_posts,
+            "enrichment_calls": total_enrichment_calls,
+            "estimated_time_minutes": estimated_minutes,
+            "free_tier_minutes_needed": estimated_minutes,
+            "groups": group_estimates,
+            "warning": (
+                "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
+                if total_posts + total_enrichment_calls > 15
+                else None
+            ),
+        }
+
+    def process_all(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict[GroupSlug, list[Path]]:
         """Process everything (real + virtual groups)."""
 
         sources_to_process, _, _ = self._collect_sources()
@@ -171,12 +358,23 @@ class UnifiedProcessor:
             if source.is_virtual:
                 self._log_merge_stats(source)
 
-            posts = self._process_source(source, days)
+            posts = self._process_source(
+                source,
+                days=days,
+                from_date=from_date,
+                to_date=to_date,
+            )
             results[slug] = posts
 
         return results
 
-    def plan_runs(self, days: int | None = None) -> list[DryRunPlan]:
+    def plan_runs(
+        self,
+        *,
+        days: int | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> list[DryRunPlan]:
         """Return a preview of what would be processed."""
 
         sources_to_process, _, _ = self._collect_sources()
@@ -184,8 +382,11 @@ class UnifiedProcessor:
         plans: list[DryRunPlan] = []
         for slug, source in sources_to_process.items():
             available_dates = list(get_available_dates(source))
-            target_dates = (
-                list(available_dates[-days:]) if days and available_dates else list(available_dates)
+            target_dates = _filter_target_dates(
+                available_dates,
+                from_date=from_date,
+                to_date=to_date,
+                days=days,
             )
 
             plans.append(
@@ -206,6 +407,50 @@ class UnifiedProcessor:
 
         return sorted(plans, key=lambda plan: plan.slug)
 
+    def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
+        """Extract group name from WhatsApp chat filename."""
+        # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
+        import re
+        
+        # Remove file extension
+        base_name = chat_filename.replace('.txt', '')
+        
+        # Common patterns in WhatsApp exports
+        patterns = [
+            r"Conversa do WhatsApp com (.+)",  # Portuguese
+            r"WhatsApp Chat with (.+)",       # English
+            r"Chat de WhatsApp con (.+)",     # Spanish
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, base_name, re.IGNORECASE)
+            if match:
+                group_name = match.group(1).strip()
+                # Remove common suffixes like dates, emojis at the end
+                group_name = re.sub(r'\s*[🀀-🟿]+\s*$', '', group_name).strip()
+                return group_name
+        
+        # Fallback: use the whole filename without extension
+        return base_name
+
+    def _generate_group_slug(self, group_name: str) -> str:
+        """Generate a URL-friendly slug from group name."""
+        import re
+        import unicodedata
+        
+        # Normalize unicode characters
+        slug = unicodedata.normalize('NFKD', group_name)
+        slug = slug.encode('ascii', 'ignore').decode('ascii')
+        
+        # Convert to lowercase and replace spaces/special chars with hyphens
+        slug = re.sub(r'[^\w\s-]', '', slug.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        
+        # Remove leading/trailing hyphens
+        slug = slug.strip('-')
+        
+        return slug or 'whatsapp-group'
+
     def _collect_sources(
         self,
     ) -> tuple[
@@ -213,16 +458,78 @@ class UnifiedProcessor:
         dict[GroupSlug, list[WhatsAppExport]],
         dict[GroupSlug, GroupSource],
     ]:
-        """Discover and prepare sources for processing."""
+        """Process the specified ZIP files."""
 
-        logger.info(f"🔍 Scanning {self.config.zips_dir}... (Discovery disabled)")
-        real_groups = {}
+        if not self.config.zip_files:
+            raise ValueError("No ZIP files specified. Use the zip_files parameter.")
 
-        # real_groups = discover_groups(self.config.zips_dir)
+        num_files = len(self.config.zip_files)
+        if num_files == 1:
+            logger.info(f"🔍 Processing ZIP file: {self.config.zip_files[0]}")
+        else:
+            logger.info(f"🔍 Processing {num_files} ZIP files for merging:")
+        
+        real_groups: dict[GroupSlug, list[WhatsAppExport]] = {}
+        
+        for zip_path in self.config.zip_files:
+            zip_path = Path(zip_path)
+            if not zip_path.exists():
+                raise FileNotFoundError(f"ZIP file not found: {zip_path}")
 
-        # logger.info(f"📦 Found {len(real_groups)} real group(s):")
-        # for slug, exports in real_groups.items():
-        #     logger.info(f"  • {exports[0].group_name} ({slug}): {len(exports)} exports")
+            if num_files > 1:
+                logger.info(f"  📦 {zip_path}")
+            
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                # Find the chat file (should be the .txt file)
+                txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
+                if not txt_files:
+                    raise ValueError(f"No .txt file found in {zip_path}")
+                chat_file = txt_files[0]  # Use the first (and likely only) .txt file
+                media_files = [f for f in zf.namelist() if f != chat_file]
+
+            # Auto-detect or use provided group information
+            if self.config.group_name:
+                group_name = self.config.group_name
+            else:
+                group_name = self._extract_group_name_from_chat_file(chat_file)
+                if num_files == 1:
+                    logger.info(f"📝 Auto-detected group name: {group_name}")
+                else:
+                    logger.info(f"    📝 Auto-detected group name: {group_name}")
+
+            if self.config.group_slug:
+                group_slug = self.config.group_slug
+            else:
+                group_slug = self._generate_group_slug(group_name)
+                if num_files == 1:
+                    logger.info(f"🔗 Auto-generated slug: {group_slug}")
+                else:
+                    logger.info(f"    🔗 Auto-generated slug: {group_slug}")
+
+            # Use current date as export creation date
+            # Note: Media extraction no longer depends on this matching message dates
+            export_date = date.today()
+
+            export = WhatsAppExport(
+                zip_path=zip_path,
+                group_name=group_name,
+                group_slug=group_slug,
+                export_date=export_date,
+                chat_file=chat_file,
+                media_files=media_files,
+            )
+            
+            # Add export to the group (allowing multiple exports per group for merging)
+            if group_slug not in real_groups:
+                real_groups[group_slug] = []
+            real_groups[group_slug].append(export)
+            
+        # Log merging info if multiple files resulted in same groups
+        if num_files > 1:
+            for group_slug, exports in real_groups.items():
+                if len(exports) > 1:
+                    logger.info(f"🔀 Merging {len(exports)} exports into group '{group_slug}'")
 
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
@@ -268,7 +575,8 @@ class UnifiedProcessor:
             logger.info("    • %s: %d messages", row["group_name"], row["message_count"])
 
     def _filter_sources(
-        self, all_sources: dict[GroupSlug, GroupSource]
+        self,
+        all_sources: dict[GroupSlug, GroupSource],
     ) -> dict[GroupSlug, GroupSource]:
         """Filter sources to process."""
 
@@ -303,7 +611,7 @@ class UnifiedProcessor:
         group_dir: Path,
         post_paths: list[Path],
     ) -> None:
-        """Ensure an index page summarising generated posts for *source*."""
+        """Ensure an index page summarising generated posts for *source*. """
 
         index_path = group_dir / "index.md"
         metadata = {
@@ -359,7 +667,12 @@ class UnifiedProcessor:
         index_path.write_text(content, encoding="utf-8")
 
     def _process_source(  # noqa: PLR0912, PLR0915
-        self, source: GroupSource, days: int | None
+        self,
+        source: GroupSource,
+        *,
+        days: int | None,
+        from_date: date | None,
+        to_date: date | None,
     ) -> list[Path]:
         """Process a single source."""
 
@@ -394,14 +707,19 @@ class UnifiedProcessor:
             return []
 
         available_dates = sorted({d for d in full_df.get_column("date").to_list()})
-        target_dates = available_dates[-days:] if days else available_dates
+        target_dates = _filter_target_dates(
+            available_dates,
+            from_date=from_date,
+            to_date=to_date,
+            days=days,
+        )
 
         results = []
         extractor = MediaExtractor(group_dir, group_slug=source.slug)
 
-        exports_by_date: dict[date, list] = {}
-        for export in source.exports:
-            exports_by_date.setdefault(export.export_date, []).append(export)
+        # Simplified approach: since we only have one export per group in the new CLI,
+        # we can extract media from all exports for any target date
+        available_exports = source.exports
 
         for target_date in target_dates:
             logger.info(f"  Processing {target_date}...")
@@ -416,7 +734,8 @@ class UnifiedProcessor:
             all_media: dict[str, MediaFile] = {}
             if attachment_names:
                 remaining = set(attachment_names)
-                for export in exports_by_date.get(target_date, []):
+                # Try to extract from all available exports (typically just one)
+                for export in available_exports:
                     extracted = extractor.extract_specific_media_from_zip(
                         export.zip_path,
                         target_date,
@@ -537,14 +856,29 @@ class UnifiedProcessor:
                 enrichment_section=enrichment_section,
                 rag_context=rag_context,
             )
-            post = self.generator.generate(source, context)
-
+            # Progressive processing: handle quota errors gracefully
             try:
-                validate_newsletter_privacy(post)
-            except PrivacyViolationError as exc:
-                raise PrivacyViolationError(
-                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
-                ) from exc
+                post = self.generator.generate(source, context)
+                
+                try:
+                    validate_newsletter_privacy(post)
+                except PrivacyViolationError as exc:
+                    raise PrivacyViolationError(
+                        f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
+                    ) from exc
+                    
+            except RuntimeError as exc:
+                if "Quota de API do Gemini esgotada" in str(exc):
+                    logger.warning(
+                        f"    ⚠️ Quota esgotada ao processar {target_date}. "
+                        f"Posts salvos: {len(results)}. "
+                        f"Para continuar, tente novamente mais tarde."
+                    )
+                    # Return partial results - what we've processed so far
+                    break
+                else:
+                    # Re-raise other RuntimeErrors
+                    raise
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
@@ -553,8 +887,14 @@ class UnifiedProcessor:
             if media_section:
                 post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
+            # Merge Gemini-generated frontmatter with programmatic metadata
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
+            )
+            
+            # Add profile links to member mentions
+            post = _add_member_profile_links(
+                post, config=self.config, source=source
             )
 
             output_path = daily_dir / f"{target_date}.md"
@@ -581,8 +921,57 @@ class UnifiedProcessor:
             except ValueError:
                 logger.info(f"    ✅ {output_path}")
 
+            # Create symlink for MkDocs blog
+            self._link_to_docs(output_path, source)
+
         self._write_group_index(source, group_dir, results)
         return results
+
+    def _link_to_docs(self, post_path: Path, source: GroupSource) -> None:
+        """Create a relative symlink from `docs/blog/posts` to the generated post."""
+        docs_blog_dir = Path("docs/blog/posts")
+        if not docs_blog_dir.is_dir():
+            logger.debug(f"Symlink directory '{docs_blog_dir}' not found, skipping.")
+            return
+
+        # Ensure the post_path is absolute for correct relative path calculation
+        absolute_post_path = post_path.resolve()
+
+        # Create a category subdirectory within the blog posts directory
+        category_dir = docs_blog_dir / source.slug
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        link_path = category_dir / post_path.name
+
+        # To create a relative symlink, we need to find the relative path
+        # from the link's directory to the target file.
+        target_path_relative_to_link_dir = os.path.relpath(
+            absolute_post_path, start=category_dir.resolve()
+        )
+
+        try:
+            # If the link already exists, check if it points to the correct target
+            if link_path.is_symlink():
+                if os.readlink(link_path) == target_path_relative_to_link_dir:
+                    return  # Symlink is correct, do nothing
+                link_path.unlink()  # Remove incorrect symlink
+            elif link_path.exists():
+                # If a file or directory exists at the path, remove it
+                logger.warning(f"Removing existing file at '{link_path}' to create symlink.")
+                if link_path.is_dir():
+                    import shutil
+                    shutil.rmtree(link_path)
+                else:
+                    link_path.unlink()
+
+            # Create the relative symlink
+            os.symlink(target_path_relative_to_link_dir, link_path)
+            logger.info(f"    🔗 Symlinked post to {link_path.relative_to(Path.cwd())}")
+
+        except OSError as e:
+            logger.error(f"    ❌ Failed to create symlink from '{link_path}' to '{target_path_relative_to_link_dir}': {e}")
+        except Exception as e:
+            logger.error(f"    ❌ An unexpected error occurred during symlinking: {e}")
 
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
@@ -599,7 +988,7 @@ class UnifiedProcessor:
         try:
             df = load_source_dataframe(source)
         except Exception as exc:
-            logger.debug("    Unable to load dataframe for profiles: %s", exc)
+            logger.info("    Unable to load dataframe for profiles: %s", exc)
             return
 
         df_day = df.filter(pl.col("date") == target_date)

@@ -1,4 +1,4 @@
-# Issue #009: Privacy & Security Enhancement
+# Privacy & Security Enhancement
 
 ## Priority: High
 ## Effort: Medium

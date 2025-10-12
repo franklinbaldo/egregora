@@ -40,8 +40,8 @@ def whatsapp_test_data() -> str:
 def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
     return PipelineConfig.with_defaults(
-        zips_dir=temp_dir / "zips",
-        posts_dir=temp_dir / "posts",
+        zip_files=[],
+        output_dir=temp_dir / "posts",
         group_name="Test Group",
     )
 

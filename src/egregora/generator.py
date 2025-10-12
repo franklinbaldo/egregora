@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ except ModuleNotFoundError:
     genai = None
     types = None
 
+from .gemini_manager import GeminiManager, GeminiQuotaError
 from .pipeline import _load_prompt, _prepare_transcripts, build_llm_input
 
 if TYPE_CHECKING:
@@ -40,13 +42,17 @@ _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 
 
 class PostGenerator:
-    """Generates posts using an LLM."""
+    """Generates posts using an LLM with rate limiting and retry logic."""
 
-    _client: GeminiClient | None
-
-    def __init__(self, config: PipelineConfig, llm_client: GeminiClient | None = None):
+    def __init__(
+        self, 
+        config: PipelineConfig, 
+        gemini_manager: GeminiManager | None = None,
+        llm_client: GeminiClient | None = None  # For backward compatibility
+    ):
         self.config = config
         self._client = llm_client
+        self._gemini_manager = gemini_manager
 
     def _require_google_dependency(self) -> None:
         """Ensure the optional google-genai dependency is available."""
@@ -63,6 +69,16 @@ class PostGenerator:
         if not key:
             raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
         return genai.Client(api_key=key)
+
+    @property
+    def gemini_manager(self) -> GeminiManager:
+        """Lazy-loaded Gemini manager for rate limiting and retries."""
+        if self._gemini_manager is None:
+            self._gemini_manager = GeminiManager(
+                retry_attempts=3,
+                minimum_retry_seconds=30.0,
+            )
+        return self._gemini_manager
 
     @property
     def client(self) -> GeminiClient:
@@ -136,16 +152,30 @@ class PostGenerator:
             thinking_config=types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
             safety_settings=safety_settings,
             system_instruction=system_instruction,
+            response_mime_type="text/plain",
         )
 
-        output_lines: list[str] = []
-        stream = self.client.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=generate_content_config,
-        )
-        for chunk in stream:
-            if chunk.text:
-                output_lines.append(chunk.text)
-
-        return "".join(output_lines).strip()
+        try:
+            # Use GeminiManager for rate limiting and retries
+            response = asyncio.run(
+                self.gemini_manager.generate_content(
+                    subsystem="post_generation",
+                    model=model,
+                    contents=contents,
+                    config=generate_content_config,
+                )
+            )
+            
+            # Extract text from response
+            if response.text:
+                return response.text.strip()
+            else:
+                # Handle case where response has no text
+                return ""
+                
+        except GeminiQuotaError as exc:
+            # More graceful handling of quota exhaustion
+            raise RuntimeError(
+                f"⚠️ Quota de API do Gemini esgotada durante geração de post. "
+                f"Tente novamente mais tarde ou ajuste as configurações. Detalhes: {exc}"
+            ) from exc

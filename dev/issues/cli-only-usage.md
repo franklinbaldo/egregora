@@ -1,4 +1,4 @@
-# Issue #011: Enhanced CLI-Only Usage (No TOML Required)
+# Enhanced CLI-Only Usage (No TOML Required)
 
 ## Priority: Medium
 ## Effort: Low

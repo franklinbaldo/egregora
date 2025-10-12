@@ -17,14 +17,7 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_settings.sources import (
-    DotEnvSettingsSource,
-    EnvSettingsSource,
-    InitSettingsSource,
-    SecretsSettingsSource,
-    TomlConfigSettingsSource,
-)
+# Configuration now uses direct initialization instead of environment variables
 
 from .anonymizer import FormatType
 from .models import MergeConfig
@@ -147,6 +140,9 @@ class ProfilesConfig(BaseModel):
     rewrite_model: str = "models/gemini-flash-latest"
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
+    # Profile linking configuration
+    link_members_in_posts: bool = True
+    profile_base_url: str = "/profiles/"
 
     @field_validator("profiles_dir", "docs_dir", mode="before")
     @classmethod
@@ -245,68 +241,20 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
-class PipelineTomlSettingsSource(TomlConfigSettingsSource):
-    """Normalise ``egregora.toml`` payloads for :class:`PipelineConfig`."""
-
-    def __call__(self) -> dict[str, Any]:
-        raw = super().__call__()
-        if not raw:
-            return {}
-
-        payload: dict[str, Any] = {}
-
-        directories = raw.get("directories")
-        if isinstance(directories, Mapping):
-            for key in ("zips_dir", "posts_dir"):
-                value = directories.get(key)
-                if value is not None:
-                    payload[key] = value
-
-        pipeline_section = raw.get("pipeline")
-        if isinstance(pipeline_section, Mapping):
-            for key, value in pipeline_section.items():
-                if value is None:
-                    continue
-                payload[key] = value
-
-        for section in (
-            "llm",
-            "enrichment",
-            "cache",
-            "anonymization",
-            "profiles",
-            "system_classifier",
-        ):
-            section_value = raw.get(section)
-            if section_value is not None:
-                payload[section] = section_value
-
-        rag_section = raw.get("rag")
-        if isinstance(rag_section, Mapping):
-            payload["rag"] = sanitize_rag_config_payload(rag_section)
-        elif rag_section is not None:
-            payload["rag"] = rag_section
-
-        merges = raw.get("merges")
-        if merges is not None:
-            payload["merges"] = merges
-
-        return payload
 
 
-class PipelineConfig(BaseSettings):
+class PipelineConfig(BaseModel):
     """Runtime configuration for the post pipeline."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="forbid",
         arbitrary_types_allowed=True,
         validate_assignment=True,
-        env_nested_delimiter="__",
     )
 
-    default_toml_path: ClassVar[Path | None] = Path("egregora.toml")
+    # TOML support removed
 
-    zips_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/whatsapp_zips"))
+    zip_files: list[Path] = Field(default_factory=list)  # ZIP files to process
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
     group_name: str | None = None
     group_slug: GroupSlug | None = None
@@ -333,31 +281,7 @@ class PipelineConfig(BaseSettings):
         ),
     )
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: InitSettingsSource,
-        env_settings: EnvSettingsSource,
-        dotenv_settings: DotEnvSettingsSource,
-        file_secret_settings: SecretsSettingsSource,
-    ) -> tuple[InitSettingsSource, ...]:
-        default_toml_path = getattr(settings_cls, "default_toml_path", None)
-        toml_sources: tuple[InitSettingsSource, ...] = ()
-        if default_toml_path is not None:
-            candidate_path = Path(default_toml_path)
-            if candidate_path.is_file():
-                toml_sources = (
-                    PipelineTomlSettingsSource(settings_cls, candidate_path),
-                )
-
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            *toml_sources,
-            file_secret_settings,
-        )
+    # Environment variable support removed - use direct initialization
 
     @field_validator("timezone", mode="before")
     @classmethod
@@ -368,10 +292,19 @@ class PipelineConfig(BaseSettings):
             return ZoneInfo(value)
         raise TypeError("timezone must be an IANA timezone string or ZoneInfo")
 
-    @field_validator("zips_dir", "posts_dir", mode="before")
+    @field_validator("posts_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
-        return _ensure_safe_directory(value)
+        # Allow external paths for posts_dir to support architectural separation
+        candidate = Path(value).expanduser()
+        
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError(f"Directory path '{candidate}' must not contain '..'")
+        
+        base_dir = Path.cwd().resolve()
+        resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
+        
+        return resolved
 
     @field_validator("group_name", mode="before")
     @classmethod
@@ -480,98 +413,9 @@ class PipelineConfig(BaseSettings):
                 raise ValueError(f"Invalid merge configuration for '{slug}': {message}") from exc
         return merges
 
-    @classmethod
-    def with_defaults(  # noqa: PLR0912, PLR0913
-        cls,
-        *,
-        zips_dir: Path | None = None,
-        posts_dir: Path | None = None,
-        media_url_prefix: str | None = None,
-        model: str | None = None,
-        timezone: tzinfo | None = None,
-        group_name: str | None = None,
-        group_slug: GroupSlug | str | None = None,
-        llm: LLMConfig | dict[str, Any] | None = None,
-        enrichment: EnrichmentConfig | dict[str, Any] | None = None,
-        cache: CacheConfig | dict[str, Any] | None = None,
-        system_classifier: SystemClassifierConfig | dict[str, Any] | None = None,
-        anonymization: AnonymizationConfig | dict[str, Any] | None = None,
-        rag: RAGConfig | dict[str, Any] | None = None,
-        profiles: ProfilesConfig | dict[str, Any] | None = None,
-        merges: dict[str, Any] | None = None,
-        skip_real_if_in_virtual: bool | None = None,
-        system_message_filters_file: Path | None = None,
-        use_dataframe_pipeline: bool | None = None,
-    ) -> PipelineConfig:
-        payload: dict[str, Any] = {}
-        if zips_dir is not None:
-            payload["zips_dir"] = zips_dir
-        if posts_dir is not None:
-            payload["posts_dir"] = posts_dir
-        if group_name is not None:
-            payload["group_name"] = group_name
-        if group_slug is not None:
-            payload["group_slug"] = group_slug
-        if model is not None:
-            payload["model"] = model
-        if media_url_prefix is not None:
-            payload["media_url_prefix"] = media_url_prefix
-        if timezone is not None:
-            payload["timezone"] = timezone
-        if llm is not None:
-            payload["llm"] = llm
-        if enrichment is not None:
-            payload["enrichment"] = enrichment
-        if cache is not None:
-            payload["cache"] = cache
-        if system_classifier is not None:
-            payload["system_classifier"] = system_classifier
-        if anonymization is not None:
-            payload["anonymization"] = anonymization
-        if rag is not None:
-            payload["rag"] = rag
-        if profiles is not None:
-            payload["profiles"] = profiles
-        if merges is not None:
-            payload["merges"] = merges
-        if skip_real_if_in_virtual is not None:
-            payload["skip_real_if_in_virtual"] = skip_real_if_in_virtual
-        if system_message_filters_file is not None:
-            payload["system_message_filters_file"] = system_message_filters_file
-        if use_dataframe_pipeline is not None:
-            payload["use_dataframe_pipeline"] = use_dataframe_pipeline
-        return cls.load(overrides=payload, use_default_toml=False)
+    # with_defaults method removed - use direct initialization instead
 
-    @classmethod
-    def load(
-        cls,
-        *,
-        toml_path: Path | None = None,
-        overrides: Mapping[str, Any] | None = None,
-        use_default_toml: bool = True,
-    ) -> PipelineConfig:
-        if toml_path is not None:
-            if not toml_path.exists():
-                raise FileNotFoundError(toml_path)
-            if not toml_path.is_file():
-                raise ValueError(f"Configuration path '{toml_path}' must be a file")
-
-        original_path = cls.default_toml_path
-        if toml_path is not None:
-            cls.default_toml_path = toml_path
-        elif not use_default_toml:
-            cls.default_toml_path = None
-
-        try:
-            return cls(**dict(overrides or {}))
-        finally:
-            cls.default_toml_path = original_path
-
-    @classmethod
-    def from_toml(cls, toml_path: Path) -> PipelineConfig:
-        """Backwards compatible helper that loads settings from ``toml_path``."""
-
-        return cls.load(toml_path=toml_path)
+    # TOML loading methods removed - use environment variables instead
 
     def safe_dict(self) -> dict[str, Any]:
         """Return a dictionary representation with sensitive values redacted."""

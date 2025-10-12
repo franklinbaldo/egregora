@@ -12,6 +12,7 @@ Synchronization strategy
 
   - ``github_issue`` – GitHub issue number associated with the file.
   - ``github_state`` – ``open`` or ``closed``.
+  - ``github_state_synced`` – last GitHub state seen during synchronization.
   - ``last_synced`` – timestamp of the last synchronization (ISO 8601).
   - ``sync_hash`` – SHA-256 hash of the Markdown body at last synchronization.
 
@@ -52,7 +53,13 @@ from urllib import error, request
 
 
 ISSUES_DIR_DEFAULT = Path("dev/issues")
-METADATA_ORDER = ("github_issue", "github_state", "last_synced", "sync_hash")
+METADATA_ORDER = (
+    "github_issue",
+    "github_state",
+    "github_state_synced",
+    "last_synced",
+    "sync_hash",
+)
 
 LOGGER = logging.getLogger("egregora.issue_sync")
 
@@ -100,6 +107,10 @@ def compute_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def normalize_state(value: str | None) -> str:
+    return "closed" if str(value or "open").lower() == "closed" else "open"
+
+
 def read_metadata(text: str) -> tuple[dict[str, str], str]:
     text = text.lstrip("\ufeff")
     if not text.startswith("<!--"):
@@ -142,19 +153,18 @@ def format_metadata(metadata: dict[str, str]) -> str:
 
 
 def extract_local_identifier(header_line: str) -> str | None:
-    match = re.match(r"#\s*Issue\s*#([^:]+)", header_line, flags=re.IGNORECASE)
+    match = re.match(r"^#\s*(\d+)", header_line)
     if match:
         return match.group(1).strip()
     return None
 
 
-def extract_title(header_line: str) -> str:
-    header = header_line.lstrip("#").strip()
-    if not header:
-        return "Untitled issue"
-    if ":" in header:
-        return header.split(":", 1)[1].strip() or header
-    return header
+def extract_title(filename: str) -> str:
+    # Extract title from filename (e.g., "001-My-Issue-Title.md" -> "My-Issue-Title")
+    match = re.match(r"^\d+-(.*)\.md$", filename)
+    if match:
+        return match.group(1).replace("-", " ").strip()
+    return "Untitled issue"
 
 
 def ensure_trailing_newline(text: str) -> str:
@@ -199,8 +209,10 @@ class LocalIssue:
     content: str
     content_hash: str
     header_line: str
-    title: str
+    title: str # This is the title from the filename
+    full_title: str # This is the full title from the GitHub issue
     desired_state: str
+    synced_state: str
     issue_number: int | None
     local_identifier: str | None
     last_synced: datetime | None
@@ -214,8 +226,7 @@ class LocalIssue:
 
     @property
     def stored_state(self) -> str:
-        state = self.metadata.get("github_state", "open").lower()
-        return "closed" if state == "closed" else "open"
+        return normalize_state(self.metadata.get("github_state"))
 
 
 def load_local_issues(directory: Path) -> list[LocalIssue]:
@@ -234,9 +245,13 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
                 break
         if not header_line:
             header_line = "# Untitled issue"
-        title = extract_title(header_line)
+        title = extract_title(path.name)
+        full_title = title
         identifier = extract_local_identifier(header_line)
-        desired_state = metadata.get("github_state", "open").lower()
+        desired_state = normalize_state(metadata.get("github_state"))
+        synced_state = normalize_state(
+            metadata.get("github_state_synced") or metadata.get("github_state")
+        )
         issue_number = None
         raw_number = metadata.get("github_issue")
         if raw_number:
@@ -256,7 +271,8 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
                 content_hash=compute_hash(body),
                 header_line=header_line,
                 title=title,
-                desired_state="closed" if desired_state == "closed" else "open",
+                desired_state=desired_state,
+                synced_state=synced_state,
                 issue_number=issue_number,
                 local_identifier=identifier,
                 last_synced=last_synced,
@@ -353,16 +369,19 @@ def parse_remote_content(
         content = body
     else:
         identifier = local_identifier or f"{remote['number']:03d}"
-        header = f"# Issue #{identifier}: {remote['title']}"
-        content = header
+        header = f"# {remote['title']}"
+        github_url = f"GitHub Issue: [#{remote['number']}](https://github.com/franklinbaldo/egregora/issues/{remote['number']})"
+        content = f"{header}\n\n{github_url}"
         if body.strip():
             content += "\n\n" + body.strip("\n")
+")
     return ensure_trailing_newline(content)
 
 
 def write_issue_file(issue: LocalIssue) -> None:
     metadata = issue.metadata.copy()
     metadata["github_state"] = issue.desired_state
+    metadata["github_state_synced"] = issue.synced_state
     if issue.issue_number is not None:
         metadata["github_issue"] = str(issue.issue_number)
     if issue.last_synced is not None:
@@ -407,7 +426,7 @@ def create_local_issue_from_remote(
     token: str,
 ) -> LocalIssue:
     slug = slugify(remote.get("title", "issue"))
-    filename = f"github-{int(remote['number']):05d}-{slug}.md"
+    filename = f"{int(remote['number']):03d}-{slug}.md"
     try:
         path = ensure_unique_path(directory, filename)
     except ValueError as exc:
@@ -418,7 +437,10 @@ def create_local_issue_from_remote(
         fallback_filename = f"github-{int(remote['number']):05d}.md"
         path = ensure_unique_path(directory, fallback_filename)
     content = parse_remote_content(remote)
+    content = f"# {int(remote['number'])}\n\n" + content
     remote_body_updated = get_remote_body_update_time(remote, token=token)
+
+    remote_state = normalize_state(remote.get("state"))
 
     issue = LocalIssue(
         path=path,
@@ -427,7 +449,8 @@ def create_local_issue_from_remote(
         content_hash=compute_hash(content),
         header_line=content.splitlines()[0],
         title=extract_title(content.splitlines()[0]),
-        desired_state=remote["state"],
+        desired_state=remote_state,
+        synced_state=remote_state,
         issue_number=int(remote["number"]),
         local_identifier=extract_local_identifier(content.splitlines()[0]),
         last_synced=remote_body_updated,
@@ -478,12 +501,13 @@ def update_remote_issue(
     *,
     title: str,
     body: str,
-    state: str,
+    state: str | None = None,
 ) -> dict:
     url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
     payload = {"title": title, "body": body}
-    if state in {"open", "closed"}:
-        payload["state"] = state
+    if state is not None:
+        normalized = normalize_state(state)
+        payload["state"] = normalized
     data, _ = github_request(url, token=token, method="PATCH", payload=payload)
     return data
 
@@ -507,13 +531,33 @@ def sync_existing_issue(
     local: LocalIssue,
     remote: dict,
 ) -> None:
-    remote_state = remote.get("state", "open")
+    remote_state = normalize_state(remote.get("state"))
     remote_content = parse_remote_content(remote, local_identifier=local.local_identifier)
     remote_hash = compute_hash(remote_content)
 
     stored_hash = local.sync_hash
     local_changed = stored_hash is None or local.content_hash != stored_hash
-    remote_changed = stored_hash is None or remote_hash != stored_hash
+    remote_body_changed = stored_hash is None or remote_hash != stored_hash
+
+    remote_updated_time = parse_iso8601(remote.get("updated_at"))
+    local_state_changed = local.desired_state != local.synced_state
+    remote_state_changed = (
+        remote_state != local.synced_state
+        and (
+            remote_updated_time is None
+            or local.last_synced is None
+            or remote_updated_time > local.last_synced
+        )
+    )
+    remote_changed = remote_body_changed or remote_state_changed
+
+    local_time = (
+        get_file_modification_time(local.path)
+        or local.modified_time
+        or local.commit_time
+    )
+    if local_time:
+        local.modified_time = local_time
 
     remote_body_updated: datetime | None = None
 
@@ -529,14 +573,7 @@ def sync_existing_issue(
     elif local_changed and not remote_changed:
         chosen_source = "local"
     elif remote_changed and local_changed:
-        local_time = (
-            get_file_modification_time(local.path)
-            or local.modified_time
-            or local.commit_time
-        )
-        if local_time:
-            local.modified_time = local_time
-        remote_time = ensure_remote_body_time()
+        remote_time = ensure_remote_body_time() if remote_body_changed else None
         if remote_time and local_time:
             chosen_source = "remote" if remote_time > local_time else "local"
         elif remote_time:
@@ -552,6 +589,7 @@ def sync_existing_issue(
         local.content = remote_content
         local.content_hash = remote_hash
         local.desired_state = remote_state
+        local.synced_state = remote_state
         local.last_synced = ensure_remote_body_time() or _now_utc()
         local.sync_hash = remote_hash
         write_issue_file(local)
@@ -561,17 +599,24 @@ def sync_existing_issue(
         return
 
     if chosen_source == "local":
+        state_to_send: str | None
+        if local_state_changed or not remote_state_changed:
+            state_to_send = local.desired_state
+        else:
+            state_to_send = None
         response = update_remote_issue(
             repo,
             token,
             local.issue_number or int(remote["number"]),
             title=local.header_line.lstrip("#").strip() or local.title,
             body=local.body_for_github,
-            state=local.desired_state,
+            state=state_to_send,
         )
         remote_updated = parse_iso8601(response.get("updated_at")) or _now_utc()
+        response_state = normalize_state(response.get("state"))
         local.last_synced = remote_updated
-        local.desired_state = response.get("state", local.desired_state)
+        local.desired_state = response_state
+        local.synced_state = response_state
         local.sync_hash = compute_hash(local.content)
         write_issue_file(local)
         _log_info(
@@ -582,6 +627,7 @@ def sync_existing_issue(
     if chosen_source == "none":
         # Ensure metadata is up-to-date even when no content changed.
         local.desired_state = remote_state
+        local.synced_state = remote_state
         if remote_changed:
             local.last_synced = ensure_remote_body_time() or local.last_synced
         local.sync_hash = remote_hash
@@ -600,10 +646,11 @@ def sync_local_without_remote(
         body=local.body_for_github,
     )
     issue_number = int(response["number"])
-    remote_state = response.get("state", "open")
+    remote_state = normalize_state(response.get("state"))
     remote_updated = parse_iso8601(response.get("updated_at")) or _now_utc()
     local.issue_number = issue_number
     local.desired_state = remote_state
+    local.synced_state = remote_state
     local.last_synced = remote_updated
     local.sync_hash = compute_hash(local.content)
     write_issue_file(local)
@@ -618,7 +665,9 @@ def sync_local_without_remote(
             body=local.body_for_github,
             state=local.stored_state,
         )
-        local.desired_state = response.get("state", local.stored_state)
+        updated_state = normalize_state(response.get("state", local.stored_state))
+        local.desired_state = updated_state
+        local.synced_state = updated_state
         local.last_synced = parse_iso8601(response.get("updated_at")) or remote_updated
         local.sync_hash = compute_hash(local.content)
         write_issue_file(local)

@@ -33,20 +33,19 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 ```bash
 pip install uv
 uv sync
-cp egregora.toml.example egregora.toml
 export GEMINI_API_KEY="your-api-key"
 ```
 
-Adjust `egregora.toml` to match your directories, timezone, and enrichment preferences (see [Configuration](#configuration-egregoratoml)).
+Configuration is now handled via explicit CLI arguments (see [CLI Configuration](#cli-configuration)).
 
 ### Generate your first posts
 
 ```bash
 # Preview which groups and dates would run
-uv run egregora --config egregora.toml --dry-run
+uv run egregora process data/whatsapp_zips/*.zip --dry-run
 
 # Process the latest two days for every discovered group
-uv run egregora --config egregora.toml --days 2
+uv run egregora process data/whatsapp_zips/*.zip --days 2
 ```
 
 Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
@@ -85,62 +84,71 @@ Explicit subcommand wrapper around the same options, useful when scripting multi
 
 Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in posts. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
 
-## Configuration (`egregora.toml`)
+## CLI Configuration
 
-`PipelineConfig` is powered by Pydantic settings and automatically reads `egregora.toml` from the project root, falling back to the class defaults when the file is missing. Environment variables take precedence over TOML values, so CI pipelines can override sensitive fields without editing the repository copy. Use :py:meth:`PipelineConfig.load` to materialise validated instances from alternative files when needed.【F:src/egregora/config.py†L210-L371】 Key sections include:
+Configuration is handled entirely through explicit CLI arguments. No environment variables or configuration files are needed (except `GEMINI_API_KEY` for API access). All options have sensible defaults and can be overridden as needed.
 
-```toml
-[zips]
-# Optional when using custom overrides; defaults live under data/
+### Basic Usage
 
-[directories]
-zips_dir = "data/whatsapp_zips"
-posts_dir = "data"
-media_url_prefix = "/media"           # Optional public URL when hosting output
+```bash
+# Generate posts with defaults
+export GEMINI_API_KEY="your-api-key"
+uv run egregora process data/whatsapp_zips/*.zip
 
-[llm]
-model = "gemini-flash-lite-latest"
-safety_threshold = "BLOCK_NONE"
-
-[enrichment]
-enabled = true
-relevance_threshold = 2
-max_links = 50
-
-[cache]
-enabled = true
-auto_cleanup_days = 90
-
-[rag]
-enabled = true
-cache_dir = "cache/rag"
-
-[profiles]
-enabled = true
-max_profiles_per_run = 3
-min_messages = 2
-
-[merges.virtual_daily]
-name = "Community Digest"
-groups = ["core-group", "side-group"]
-tag_style = "emoji"
-model = "gemini-flash-lite-latest"
-
-[merges.virtual_daily.emojis]
-"core-group" = "🌐"
-"side-group" = "🛰️"
+# Generate with custom options
+uv run egregora process data/whatsapp_zips/*.zip \
+  --output data/output \
+  --model gemini-flash-lite-latest \
+  --timezone America/Porto_Velho \
+  --days 2
 ```
 
-- `directories.*` override where WhatsApp ZIPs and output artefacts live.
-- `llm`, `enrichment`, and `cache` tune Gemini usage, enrichment thresholds, and persistent caches.
-- `rag` enables post indexing for retrieval-augmented prompts.
-- `profiles` controls when participant dossiers are generated and stored.
-- `merges` defines virtual groups combining multiple exports with optional emoji/bracket tagging.【F:src/egregora/config.py†L210-L352】【F:src/egregora/models.py†L10-L32】
-- The post pipeline always runs on the Polars-native path; the legacy text flow has been removed along with its feature flag escape hatch.【F:src/egregora/processor.py†L329-L408】
+### Profile Linking
 
-> **Migration note:** The legacy `rag.use_gemini_embeddings` toggle has been removed. Drop the field from existing TOML files and rely on `rag.embedding_model` and related parameters when changing embedding behaviour.
+```bash
+# Enable profile linking (default: enabled)
+uv run egregora process data/whatsapp_zips/*.zip \
+  --link-profiles \
+  --profile-base-url "/profiles/"
 
-All options accept environment variable overrides thanks to `pydantic-settings`, enabling reproducible automation setups.【F:src/egregora/config.py†L205-L371】
+# Disable profile linking
+uv run egregora process data/whatsapp_zips/*.zip \
+  --no-link-profiles
+```
+
+### Advanced Configuration
+
+```bash
+# Full configuration example
+uv run egregora process data/whatsapp_zips/*.zip \
+  --output data/custom-output \
+  --model gemini-flash-lite-latest \
+  --timezone America/Porto_Velho \
+  --days 7 \
+  --link-profiles \
+  --profile-base-url "/profiles/" \
+  --safety-threshold BLOCK_NONE \
+  --thinking-budget -1 \
+  --max-links 50 \
+  --relevance-threshold 2 \
+  --cache-dir cache \
+  --auto-cleanup-days 90
+```
+
+### Available Options
+
+Run `uv run egregora process --help` to see all available options:
+
+- **Input/Output**: `--output`, `--group-name`, `--group-slug`
+- **Model Settings**: `--model`, `--safety-threshold`, `--thinking-budget`
+- **Date Range**: `--days`, `--from-date`, `--to-date`, `--timezone`
+- **Features**: `--disable-enrichment`, `--no-cache`, `--link-profiles`
+- **Profile Linking**: `--profile-base-url`
+- **Enrichment**: `--max-links`, `--relevance-threshold`
+- **Cache**: `--cache-dir`, `--auto-cleanup-days`
+- **Debug**: `--list`, `--dry-run`
+
+All configuration is explicit and transparent - no hidden dependencies on environment variables or configuration files.
 
 ## Outputs & publishing
 
