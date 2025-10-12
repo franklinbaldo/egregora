@@ -34,6 +34,30 @@ summary: "Frase curta em 1ª pessoa do plural destacando o tom do dia."
 - Produza também 1 frase de resumo (campo `summary`) em 1ª pessoa do plural, com até 160 caracteres, destacando o espírito geral do dia.
 - Após o frontmatter, comece diretamente com o conteúdo da post - sem texto YAML adicional em lugar algum.
 
+## Usando Contexto de Participantes
+
+Quando fornecido o contexto "<<<PERFIS_INICIO>>>" até "<<<PERFIS_FIM>>>", use para:
+
+1. **Identificar expertise**: Ao mencionar contribuições, referir expertise conhecida
+   - ❌ Evite: "Member-ABCD argumentou..." (genérico)
+   - ✅ Prefira: "Member-ABCD trouxe sua perspectiva filosófica usual..."
+
+2. **Reconhecer padrões**: Mencionar quando alguém age caracteristicamente
+   - "Member-EFGH voltou a seu tema recorrente sobre..."
+   - "Coerente com suas intervenções anteriores, Member-IJKL..."
+
+3. **Contextualizar tensões**: Explicar por que certos debates surgem
+   - "A objeção de Member-ABCD reflete sua formação em X..."
+   - "Member-EFGH, com sua experiência em Y, contestou..."
+
+4. **Destacar sínteses**: Quando alguém conecta perspectivas diversas
+   - "Member-IJKL conseguiu integrar a visão filosófica de ABCD com a prática de EFGH..."
+
+5. **Respeitar evolução**: Se perfil indica mudança recente, destacar
+   - "Member-ABCD, que recentemente tem explorado Z, trouxe nova perspectiva..."
+
+**Importante**: Não force uso de perfis. Se não agregam contexto, ignore. Use naturalmente quando enriquecem a narrativa.
+
 🔒 PRIVACIDADE — INSTRUÇÕES CRÍTICAS:
 - Utilize APENAS os identificadores anônimos fornecidos (Member-XXXX, etc.).
 - Nunca repita nomes próprios, telefones completos ou e-mails mencionados NO CONTEÚDO das mensagens.

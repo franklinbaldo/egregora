@@ -260,7 +260,7 @@ def _prepare_transcripts_sample(
     return "\n\n".join(collected).strip()
 
 
-def build_llm_input(  # noqa: PLR0913
+def build_llm_input(
     *,
     group_name: str,
     timezone: tzinfo,
@@ -268,6 +268,7 @@ def build_llm_input(  # noqa: PLR0913
     previous_post: str | None,
     enrichment_section: str | None = None,
     rag_context: str | None = None,
+    participant_profiles: str | None = None,
 ) -> str:
     """Compose the user prompt sent to Gemini."""
 
@@ -277,17 +278,28 @@ def build_llm_input(  # noqa: PLR0913
         f"DATA DE HOJE: {today_str}",
     ]
 
+    # Add participant context BEFORE transcripts
+    if participant_profiles:
+        sections.extend([
+            "CONTEXTO DOS PARTICIPANTES:",
+            "<<<PERFIS_INICIO>>>",
+            participant_profiles,
+            "<<<PERFIS_FIM>>>",
+            "",
+            "Use este contexto para:",
+            "- Identificar expertise de cada membro",
+            "- Reconhecer padrões de argumentação",
+            "- Contextualizar intervenções",
+            "- Escrever com mais profundidade sobre contribuições",
+        ])
+
     if previous_post:
-        sections.extend(
-            [
-                "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-                "<<<POST_ONTEM_INICIO>>>",
-                previous_post.strip(),
-                "<<<POST_ONTEM_FIM>>>",
-            ]
-        )
-    else:
-        sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
+        sections.extend([
+            "POST DO DIA ANTERIOR:",
+            "<<<POST_ONTEM_INICIO>>>",
+            previous_post.strip(),
+            "<<<POST_ONTEM_FIM>>>",
+        ])
 
     if enrichment_section:
         sections.extend(

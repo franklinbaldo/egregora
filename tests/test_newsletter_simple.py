@@ -17,9 +17,9 @@ from .test_framework.helpers import create_test_zip
 
 def test_whatsapp_transcript_preparation(temp_dir):
     """Test transcript preparation with WhatsApp data."""
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Real WhatsApp conversation
@@ -152,9 +152,9 @@ def test_zip_file_date_detection_and_listing(temp_dir):
 
 def test_multi_day_transcript_processing(temp_dir):
     """Test processing transcripts from multiple days."""
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Create multi-day transcripts
@@ -201,9 +201,9 @@ def test_transcript_section_headers(temp_dir):
 
 def test_whatsapp_content_with_special_characters(temp_dir):
     """Test processing WhatsApp content with special characters and media."""
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # WhatsApp content with various special elements
@@ -236,9 +236,9 @@ def test_whatsapp_content_with_special_characters(temp_dir):
 
 def test_anonymization_consistency_across_days(temp_dir):
     """Test that anonymization is consistent across multiple days."""
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     
     # Same person across multiple days
@@ -269,9 +269,9 @@ def test_anonymization_consistency_across_days(temp_dir):
 def test_config_validation_with_whatsapp_setup(temp_dir):
     """Test configuration validation for WhatsApp processing."""
     # Test valid configuration
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir / "posts",
+        posts_dir=temp_dir / "posts",
         group_name="WhatsApp Test Group"
     )
     

@@ -6,19 +6,36 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ## Highlights
 
-- **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
-- **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
-- **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
-- **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
+- **Zero-touch ingestion** – Discover exports locally, build virtual groups automatically
+- **Historical awareness** – RAG retrieves relevant past discussions for narrative continuity
+- **Intellectual context** – Profile system tracks participant expertise and thinking styles
+- **Context-aware summaries** – Generator combines temporal + intellectual context
+- **Rich link & media enrichment** – Gemini analyzes shared content for deeper insights
+- **Privacy-first by default** – Deterministic anonymization keeps transcripts safe
 
-## Pipeline at a glance
+## How It Works
 
-1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
-2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
-3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
-4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
-5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for downstream automation or manual review.【F:src/egregora/processor.py†L209-L487】
+Egregora builds **three layers of context** for post generation:
+
+### 1. Historical Context (RAG)
+**What the group discussed before**
+- Automatically indexes all generated posts
+- Retrieves top-3 most relevant past discussions
+- Enables references like "continuing our debate from March..."
+
+### 2. Intellectual Context (Profiles)
+**Who's speaking and their background**
+- Tracks participant expertise, thinking styles, and evolution
+- Updates incrementally as more data is available
+- Enables contextual attribution like "Member-ABCD brought their usual philosophical perspective..."
+
+### 3. Immediate Context (Today's Messages)
+**What's being discussed right now**
+- Parsed, anonymized, enriched WhatsApp transcripts
+- Link analysis and media context
+- Previous day's post for continuity
+
+### The Magic: All Three Together
 
 ## Quick start
 

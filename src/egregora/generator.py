@@ -35,6 +35,7 @@ class PostContext:
     previous_post: str | None = None
     enrichment_section: str | None = None
     rag_context: str | None = None
+    participant_profiles: str | None = None
 
 
 _BASE_PROMPT_NAME = "system_instruction_base.md"
@@ -112,6 +113,7 @@ class PostGenerator:
             previous_post=context.previous_post,
             enrichment_section=context.enrichment_section,
             rag_context=context.rag_context,
+            participant_profiles=context.participant_profiles,
         )
 
     def generate(self, source: GroupSource, context: PostContext) -> str:

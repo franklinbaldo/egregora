@@ -247,7 +247,6 @@ class UnifiedProcessor:
         self._generator: PostGenerator | None = None
 
         self._profile_updater: ProfileUpdater | None = None
-        self._profile_limit_per_run: int = 0
 
         if self.config.profiles.enabled:
             self._profile_updater = ProfileUpdater(
@@ -665,6 +664,58 @@ class UnifiedProcessor:
 
         index_path.write_text(content, encoding="utf-8")
 
+    def _build_participant_context(
+        self,
+        df_day: pl.DataFrame,
+        profile_repository: ProfileRepository,
+    ) -> str | None:
+        """Build compact profile context for today's participants."""
+
+        if not self.config.profiles.enabled:
+            return None
+
+        # Get unique participants from today
+        authors = df_day.get_column("author").unique().to_list()
+
+        profiles_text = []
+        found_count = 0
+
+        for author in sorted(authors):
+            if not author or not isinstance(author, str):
+                continue
+
+            member_uuid = Anonymizer.anonymize_author(author, format="full")
+            member_label = Anonymizer.anonymize_author(author, format="human")
+
+            profile = profile_repository.load(member_uuid)
+            if not profile:
+                continue
+
+            found_count += 1
+
+            # Create compact summary
+            expertise = ", ".join(profile.expertise_areas.keys()) if profile.expertise_areas else "em observação"
+            style = profile.thinking_style or "em observação"
+
+            profiles_text.append(
+                f"**{member_label}:**\n"
+                f"- Expertise: {expertise}\n"
+                f"- Estilo: {style[:200]}...\n"  # Truncate to avoid bloat
+            )
+
+            if profile.intellectual_influences:
+                influences = ", ".join(profile.intellectual_influences[:3])
+                profiles_text.append(f"- Influências: {influences}\n")
+
+        if not profiles_text:
+            return None
+
+        header = (
+            f"Participantes ativos hoje ({found_count} com perfis conhecidos):\n\n"
+        )
+
+        return header + "\n".join(profiles_text)
+
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
@@ -847,6 +898,19 @@ class UnifiedProcessor:
                             for i, node in enumerate(search_results, 1)
                         )
 
+            # Participant profiles
+            participant_context = None
+            if self.config.profiles.enabled and profile_repository:
+                participant_context = self._build_participant_context(
+                    df_day, profile_repository
+                )
+                if participant_context:
+                    logger.info(
+                        "    [Profiles] Context built for %d participants",
+                        participant_context.count("**Member-")
+                    )
+
+            # Create post context with ALL inputs
             context = PostContext(
                 group_name=source.name,
                 transcript=transcript,
@@ -854,6 +918,7 @@ class UnifiedProcessor:
                 previous_post=previous_post,
                 enrichment_section=enrichment_section,
                 rag_context=rag_context,
+                participant_profiles=participant_context,
             )
             # Progressive processing: handle quota errors gracefully
             try:
@@ -923,7 +988,67 @@ class UnifiedProcessor:
         self._write_group_index(source, group_dir, results)
         return results
 
-    def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
+@dataclass
+class ParticipantInfo:
+    uuid: str
+    label: str
+    current_profile: ParticipantProfile | None
+    message_count: int
+    days_since_update: int
+    priority: float
+
+def _get_prioritized_participants(
+    self,
+    df_day: pl.DataFrame,
+    repository: ProfileRepository,
+) -> list[ParticipantInfo]:
+    """Return participants sorted by update priority."""
+
+    # Count messages per participant
+    activity = (
+        df_day.group_by("author")
+        .agg(pl.len().alias("message_count"))
+        .sort("message_count", descending=True)
+    )
+
+    participants = []
+    today = date.today()
+
+    for row in activity.iter_rows(named=True):
+        author = str(row["author"]).strip()
+        if not author:
+            continue
+
+        member_uuid = Anonymizer.anonymize_author(author, format="full")
+        member_label = Anonymizer.anonymize_author(author, format="human")
+        current_profile = repository.load(member_uuid)
+
+        # Calculate priority
+        message_count = row["message_count"]
+
+        if current_profile:
+            days_since = (today - current_profile.last_updated.date()).days
+        else:
+            days_since = 999  # New profile = high priority
+
+        # Priority = activity * staleness
+        # Most active + longest since update = highest priority
+        priority = message_count * (1 + days_since / 10)
+
+        participants.append(
+            ParticipantInfo(
+                uuid=member_uuid,
+                label=member_label,
+                current_profile=current_profile,
+                message_count=message_count,
+                days_since_update=days_since,
+                priority=priority,
+            )
+        )
+
+    return sorted(participants, key=lambda p: p.priority, reverse=True)
+
+    def _update_profiles_for_day(
         self,
         *,
         repository: ProfileRepository,
@@ -931,6 +1056,8 @@ class UnifiedProcessor:
         target_date: date,
         post_text: str,
     ) -> None:
+        """Update profiles with smart prioritization."""
+
         updater = self._profile_updater
         if updater is None:
             return
@@ -941,11 +1068,10 @@ class UnifiedProcessor:
             logger.info("    Unable to load dataframe for profiles: %s", exc)
             return
 
-        df_day = df.filter(pl.col("date") == target_date)
+        df_day = df.filter(pl.col("date") == target_date).sort("timestamp")
         if df_day.is_empty():
             return
 
-        df_day = df_day.sort("timestamp")
         conversation = self._build_profile_conversation(df_day)
         if not conversation.strip():
             return
@@ -954,108 +1080,75 @@ class UnifiedProcessor:
         if client is None:
             return
 
-        context_block = self._format_profile_context(target_date, conversation, post_text)
-        updates_made = False
+        # Get participants sorted by priority
+        participants = self._get_prioritized_participants(df_day, repository)
 
-        authors_series = df_day.get_column("author")
-        unique_authors = {
-            str(author).strip()
-            for author in authors_series.to_list()
-            if isinstance(author, str) and author.strip()
-        }
-
-        processed = 0
+        max_updates = self.config.profiles.max_updates_per_run
+        updates_made = 0
         quota_exhausted = False
 
-        for raw_author in sorted(unique_authors):
-            if quota_exhausted:
+        logger.info(
+            "    [Profiles] Evaluating %d participants (max %d updates)",
+            len(participants), max_updates
+        )
+
+        for participant in participants:
+            if quota_exhausted or updates_made >= max_updates:
                 break
-            if self._profile_limit_per_run and processed >= self._profile_limit_per_run:
-                logger.info(
-                    "    ⏸️  Limite diário de perfis atingido (%d)",
-                    self._profile_limit_per_run,
+
+            # Check if should update
+            should_update, reasoning, highlights, insights = asyncio.run(
+                updater.should_update_profile(
+                    member_id=participant.label,
+                    current_profile=participant.current_profile,
+                    full_conversation=conversation,
+                    gemini_client=client,
                 )
-                break
-
-            member_uuid = Anonymizer.anonymize_author(raw_author, format="full")
-            member_label = Anonymizer.anonymize_author(raw_author, format="human")
-            current_profile = repository.load(member_uuid)
-
-            should_consider, _ = updater.should_update_profile_dataframe(
-                raw_author,
-                current_profile,
-                df_day,
             )
-            if not should_consider:
+
+            if not should_update:
+                logger.debug(
+                    "    Profile %s: no changes (%s)",
+                    participant.label, reasoning
+                )
                 continue
 
+            # Update profile
             try:
-                should_update, reasoning, highlights, insights = asyncio.run(
-                    updater.should_update_profile(
-                        member_id=member_label,
-                        current_profile=current_profile,
-                        full_conversation=conversation,
+                profile = asyncio.run(
+                    updater.rewrite_profile(
+                        member_id=participant.label,
+                        old_profile=participant.current_profile,
+                        recent_conversations=[conversation],
+                        participation_highlights=highlights,
+                        interaction_insights=insights,
                         gemini_client=client,
                     )
                 )
+
+                repository.save(participant.uuid, profile)
+                updates_made += 1
+
+                logger.info(
+                    "    👤 Updated: %s (v%d) - %s",
+                    participant.label,
+                    profile.analysis_version,
+                    reasoning[:60]
+                )
+
             except RuntimeError as exc:
                 if "RESOURCE_EXHAUSTED" in str(exc):
                     logger.warning(
-                        "    ⚠️ Limite diário do Gemini atingido ao decidir perfil de %s; interrompendo atualizações.",
-                        member_label,
+                        "    ⚠️ Quota exhausted at %d updates",
+                        updates_made
                     )
                     quota_exhausted = True
                     break
-                logger.warning(
-                    "    ⚠️ Erro ao decidir atualização de perfil de %s: %s",
-                    member_label,
-                    exc,
-                )
-                continue
+                logger.warning("    ⚠️ Failed to update %s: %s", participant.label, exc)
 
-            if not should_update:
-                logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
-                continue
-
-            try:
-                profile = asyncio.run(
-                    self._async_update_profile(
-                        updater=updater,
-                        member_label=member_label,
-                        current_profile=current_profile,
-                        highlights=highlights,
-                        insights=insights,
-                        conversation=conversation,
-                        context_block=context_block,
-                        client=client,
-                    )
-                )
-            except RuntimeError as exc:
-                if "RESOURCE_EXHAUSTED" in str(exc):
-                    logger.warning(
-                        "    ⚠️ Limite diário do Gemini atingido ao reescrever perfil de %s; interrompendo atualizações.",
-                        member_label,
-                    )
-                    quota_exhausted = True
-                    break
-                logger.warning(
-                    "    ⚠️ Erro ao atualizar perfil de %s: %s",
-                    member_label,
-                    exc,
-                )
-                continue
-
-            repository.save(member_uuid, profile)
-            updates_made = True
-            processed += 1
-            logger.info(
-                "    👤 Perfil atualizado: %s (versão %d)",
-                member_label,
-                profile.analysis_version,
-            )
-
-        if updates_made:
+        if updates_made > 0:
             repository.write_index()
+            logger.info("    [Profiles] Updated %d/%d profiles", updates_made, len(participants))
 
     async def _async_update_profile(  # noqa: PLR0913
         self,

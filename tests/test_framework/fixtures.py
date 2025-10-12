@@ -39,9 +39,9 @@ def whatsapp_test_data() -> str:
 @pytest.fixture
 def sample_config(temp_dir: Path) -> PipelineConfig:
     """Create a sample pipeline configuration for testing."""
-    return PipelineConfig.with_defaults(
+    return PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir / "posts",
+        posts_dir=temp_dir / "posts",
         group_name="Test Group",
     )
 

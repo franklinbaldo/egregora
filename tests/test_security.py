@@ -53,34 +53,16 @@ def test_parse_export_rejects_invalid_utf8(tmp_path):
         parse_export(export)
 
 
-def test_pipeline_config_from_toml_validates_merges(tmp_path):
-    config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        """
-        [merges.bad]
-        name = "Bad"
-        groups = "not-a-list"
-        """,
-        encoding="utf-8",
-    )
-
+def test_pipeline_config_validates_merges():
+    """Verify that `merges` with an invalid payload raises a `ValueError`."""
+    invalid_merges = {
+        "bad": {
+            "name": "Bad",
+            "source_groups": "not-a-list",
+        }
+    }
     with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=config_path)
-
-
-def test_pipeline_config_load_rejects_missing_file(tmp_path):
-    config_path = tmp_path / "missing.toml"
-
-    with pytest.raises(FileNotFoundError):
-        PipelineConfig.load(toml_path=config_path)
-
-
-def test_pipeline_config_load_rejects_directory(tmp_path):
-    directory = tmp_path / "config_dir"
-    directory.mkdir()
-
-    with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=directory)
+        PipelineConfig(merges=invalid_merges)
 
 
 def test_ensure_safe_directory_rejects_parent_escape():
