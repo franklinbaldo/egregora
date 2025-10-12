@@ -281,26 +281,8 @@ nav:
     - getting-started/index.md
     - Instalação: getting-started/installation.md
     - Primeiro Post: getting-started/first-post.md
-    - Configuração: getting-started/configuration.md
-  - Guias:
-    - guides/index.md
-    - Pipeline: guides/pipeline.md
-    - RAG: guides/rag.md
-    - Perfis: guides/profiles.md
-    - Enriquecimento: guides/enrichment.md
-    - Cache: guides/cache.md
-  - Referência:
-    - reference/index.md
-    - CLI: reference/cli.md
-    - Configuração: reference/configuration.md
-    - API: reference/api.md
   - Blog:
     - blog/index.md
-  - Sobre:
-    - about/index.md
-    - Arquitetura: about/architecture.md
-    - Changelog: about/changelog.md
-    - Contribuir: about/contributing.md
 
 # Validation
 validation:
