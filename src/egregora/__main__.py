@@ -100,7 +100,7 @@ def process_command(  # noqa: PLR0913
     # Build configuration using CLI arguments only
     from .config import (
         PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+        ProfilesConfig, AnonymizationConfig
     )
     from .rag.config import RAGConfig
     from pathlib import Path
@@ -141,7 +141,6 @@ def process_command(  # noqa: PLR0913
         cache=cache_config,
         profiles=profiles_config,
         anonymization=AnonymizationConfig(),
-        system_classifier=SystemClassifierConfig(),
         rag=RAGConfig()
     )
 
@@ -224,7 +223,7 @@ def enrich_command(
         
         from .config import (
             PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-            ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+            ProfilesConfig, AnonymizationConfig
         )
         from .rag.config import RAGConfig
         
@@ -236,7 +235,6 @@ def enrich_command(
             cache=CacheConfig(),
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
-            system_classifier=SystemClassifierConfig(),
             rag=RAGConfig()
         )
         
@@ -376,7 +374,7 @@ def profiles_command(
     
     from .config import (
         PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+        ProfilesConfig, AnonymizationConfig
     )
     from .rag.config import RAGConfig
     
@@ -387,7 +385,6 @@ def profiles_command(
         cache=CacheConfig(),
         profiles=ProfilesConfig(),
         anonymization=AnonymizationConfig(),
-        system_classifier=SystemClassifierConfig(),
         rag=RAGConfig()
     )
     
@@ -511,7 +508,6 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
             cache=CacheConfig(),
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
-            system_classifier=SystemClassifierConfig(),
             rag=RAGConfig()
         )
         processor = UnifiedProcessor(temp_config)
