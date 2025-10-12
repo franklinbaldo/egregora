@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from ..cache import CacheMetadata, build_namespace, create_cache, load_vector, store_vector
-from diskcache import Cache
 
 
 class EmbeddingCache:

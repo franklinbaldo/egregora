@@ -11,7 +11,6 @@ from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
 
 import polars as pl
-
 from dateutil import parser as date_parser
 
 from .models import WhatsAppExport

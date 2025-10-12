@@ -320,9 +320,7 @@ class ProfileUpdater:
         messages_df = messages_df.with_columns(self._word_count_expression())
 
         total_messages = messages_df.height
-        avg_words_per_message = float(
-            messages_df.get_column("word_count").mean() or 0.0
-        )
+        avg_words_per_message = float(messages_df.get_column("word_count").mean() or 0.0)
 
         first_message = messages_df.get_column("timestamp").min()
         last_message = messages_df.get_column("timestamp").max()
@@ -335,17 +333,13 @@ class ProfileUpdater:
             .sort("day")
         )
 
-        avg_messages_per_day = float(
-            daily_counts.get_column("message_count").mean() or 0.0
-        )
+        avg_messages_per_day = float(daily_counts.get_column("message_count").mean() or 0.0)
 
         if daily_counts.is_empty():
             most_active_day = None
             max_messages_in_day = 0
         else:
-            top_day = (
-                daily_counts.sort("message_count", descending=True).row(0, named=True)
-            )
+            top_day = daily_counts.sort("message_count", descending=True).row(0, named=True)
             most_active_day = top_day.get("day") if isinstance(top_day, dict) else top_day[0]
             max_messages_in_day = daily_counts.get_column("message_count").max()
 

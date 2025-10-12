@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from datetime import date, datetime
+from pathlib import Path
 from types import SimpleNamespace
+
 import pytest
-import os
-import shutil
-import zipfile
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.anonymizer import Anonymizer
 from egregora.config import PipelineConfig
-from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
 from egregora.generator import PostGenerator
+from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
 from egregora.processor import UnifiedProcessor
-
 
 ANON_SUFFIX_LENGTH = 4
 UUID_FULL_LENGTH = 36
@@ -90,6 +86,7 @@ def _install_generator_stubs(monkeypatch):
 
 from unittest.mock import MagicMock
 
+
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
     config = PipelineConfig()
@@ -112,6 +109,7 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
 
 import polars as pl
 
+
 # From test_unified_processor_anonymization.py
 def test_unified_processor_anonymizes_dataframe(monkeypatch):
     """Verify that the UnifiedProcessor correctly anonymizes the dataframe."""
@@ -129,15 +127,14 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch):
     )
 
     # Mock load_source_dataframe to return our test DataFrame
-    monkeypatch.setattr(
-        "egregora.processor.load_source_dataframe", lambda source: df
-    )
+    monkeypatch.setattr("egregora.processor.load_source_dataframe", lambda source: df)
 
     # Mock the generator to prevent actual LLM calls
     mock_generator = MagicMock()
     mock_generator.generate.return_value = "Generated post content."
-    monkeypatch.setattr("egregora.processor.PostGenerator", lambda config, gemini_manager: mock_generator)
-
+    monkeypatch.setattr(
+        "egregora.processor.PostGenerator", lambda config, gemini_manager: mock_generator
+    )
 
     # Configure and run the processor
     config = PipelineConfig(

@@ -41,9 +41,7 @@ def validate_newsletter_privacy(newsletter_text: str) -> bool:
     for pattern in _PHONE_PATTERNS:
         if pattern.regex.search(newsletter_text):
             raise PrivacyViolationError(
-                "Possible phone number leak detected: {description}".format(
-                    description=pattern.description
-                )
+                f"Possible phone number leak detected: {pattern.description}"
             )
 
     return True

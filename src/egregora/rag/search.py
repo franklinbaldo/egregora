@@ -8,7 +8,8 @@ layer for older integrations and will be removed in a future release.
 from __future__ import annotations
 
 import re
-from typing import Iterable, Any
+from collections.abc import Iterable
+from typing import Any
 
 STOP_WORDS: frozenset[str] = frozenset(
     {

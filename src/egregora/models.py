@@ -59,9 +59,7 @@ class MergeConfig(BaseModel):
 
     @field_validator("group_emojis", mode="before")
     @classmethod
-    def _coerce_group_emojis(
-        cls, value: object
-    ) -> dict[GroupSlug, str]:
+    def _coerce_group_emojis(cls, value: object) -> dict[GroupSlug, str]:
         if value is None:
             return {}
         if not isinstance(value, dict):

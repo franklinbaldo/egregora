@@ -5,9 +5,9 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING
 from importlib import resources
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 try:
     from google import genai
@@ -20,6 +20,7 @@ from .gemini_manager import GeminiManager, GeminiQuotaError
 
 if TYPE_CHECKING:
     from datetime import tzinfo
+
     from .config import PipelineConfig
     from .models import GroupSource
 
@@ -67,7 +68,7 @@ def _format_transcript_section_header(transcript_count: int) -> str:
 def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict with method
     *,
     group_name: str,
-    timezone: "tzinfo",
+    timezone: tzinfo,
     transcripts: Sequence[tuple[date, str]],
     previous_post: str | None,
     enrichment_section: str | None = None,
@@ -149,7 +150,7 @@ class PostGenerator:
         self,
         config: PipelineConfig,
         gemini_manager: GeminiManager | None = None,
-        llm_client: GeminiClient | None = None  # For backward compatibility
+        llm_client: GeminiClient | None = None,  # For backward compatibility
     ):
         self.config = config
         self._client = llm_client

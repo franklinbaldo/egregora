@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-from datetime import date
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -53,20 +52,17 @@ def setup_test_environment(temp_dir: Path, whatsapp_zip_path: Path) -> Path:
     zips_dir = temp_dir / "zips"
     posts_dir = temp_dir / "posts"
     cache_dir = temp_dir / "cache"
-    
+
     zips_dir.mkdir(parents=True)
     posts_dir.mkdir(parents=True)
     cache_dir.mkdir(parents=True)
-    
+
     # Copy WhatsApp test file
     test_zip = zips_dir / "2025-10-03.zip"
     if whatsapp_zip_path.exists():
         shutil.copy2(whatsapp_zip_path, test_zip)
-    
+
     return temp_dir
-
-
-
 
 
 @pytest.fixture

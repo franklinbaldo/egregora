@@ -11,7 +11,6 @@ import pytest
 from egregora.config import PipelineConfig
 from egregora.processor import UnifiedProcessor
 
-
 HAS_GEMINI_KEY = bool(os.getenv("GEMINI_API_KEY"))
 
 
