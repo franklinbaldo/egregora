@@ -17,13 +17,7 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_settings.sources import (
-    DotEnvSettingsSource,
-    EnvSettingsSource,
-    InitSettingsSource,
-    SecretsSettingsSource,
-)
+# Configuration now uses direct initialization instead of environment variables
 
 from .anonymizer import FormatType
 from .models import MergeConfig
@@ -249,14 +243,13 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 
 
-class PipelineConfig(BaseSettings):
+class PipelineConfig(BaseModel):
     """Runtime configuration for the post pipeline."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="forbid",
         arbitrary_types_allowed=True,
         validate_assignment=True,
-        env_nested_delimiter="__",
     )
 
     # TOML support removed
@@ -288,22 +281,7 @@ class PipelineConfig(BaseSettings):
         ),
     )
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: InitSettingsSource,
-        env_settings: EnvSettingsSource,
-        dotenv_settings: DotEnvSettingsSource,
-        file_secret_settings: SecretsSettingsSource,
-    ) -> tuple[InitSettingsSource, ...]:
-        # TOML support removed - only use environment and dotenv sources
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            file_secret_settings,
-        )
+    # Environment variable support removed - use direct initialization
 
     @field_validator("timezone", mode="before")
     @classmethod
@@ -435,67 +413,7 @@ class PipelineConfig(BaseSettings):
                 raise ValueError(f"Invalid merge configuration for '{slug}': {message}") from exc
         return merges
 
-    @classmethod
-    def with_defaults(  # noqa: PLR0912, PLR0913
-        cls,
-        *,
-        zip_files: list[Path] | None = None,
-        output_dir: Path | None = None,
-        media_url_prefix: str | None = None,
-        model: str | None = None,
-        timezone: tzinfo | None = None,
-        group_name: str | None = None,
-        group_slug: GroupSlug | str | None = None,
-        llm: LLMConfig | dict[str, Any] | None = None,
-        enrichment: EnrichmentConfig | dict[str, Any] | None = None,
-        cache: CacheConfig | dict[str, Any] | None = None,
-        system_classifier: SystemClassifierConfig | dict[str, Any] | None = None,
-        anonymization: AnonymizationConfig | dict[str, Any] | None = None,
-        rag: RAGConfig | dict[str, Any] | None = None,
-        profiles: ProfilesConfig | dict[str, Any] | None = None,
-        merges: dict[str, Any] | None = None,
-        skip_real_if_in_virtual: bool | None = None,
-        system_message_filters_file: Path | None = None,
-        use_dataframe_pipeline: bool | None = None,
-    ) -> PipelineConfig:
-        payload: dict[str, Any] = {}
-        if zip_files is not None:
-            payload["zip_files"] = zip_files
-        if output_dir is not None:
-            payload["posts_dir"] = output_dir
-        if group_name is not None:
-            payload["group_name"] = group_name
-        if group_slug is not None:
-            payload["group_slug"] = group_slug
-        if model is not None:
-            payload["model"] = model
-        if media_url_prefix is not None:
-            payload["media_url_prefix"] = media_url_prefix
-        if timezone is not None:
-            payload["timezone"] = timezone
-        if llm is not None:
-            payload["llm"] = llm
-        if enrichment is not None:
-            payload["enrichment"] = enrichment
-        if cache is not None:
-            payload["cache"] = cache
-        if system_classifier is not None:
-            payload["system_classifier"] = system_classifier
-        if anonymization is not None:
-            payload["anonymization"] = anonymization
-        if rag is not None:
-            payload["rag"] = rag
-        if profiles is not None:
-            payload["profiles"] = profiles
-        if merges is not None:
-            payload["merges"] = merges
-        if skip_real_if_in_virtual is not None:
-            payload["skip_real_if_in_virtual"] = skip_real_if_in_virtual
-        if system_message_filters_file is not None:
-            payload["system_message_filters_file"] = system_message_filters_file
-        if use_dataframe_pipeline is not None:
-            payload["use_dataframe_pipeline"] = use_dataframe_pipeline
-        return cls(**payload)
+    # with_defaults method removed - use direct initialization instead
 
     # TOML loading methods removed - use environment variables instead
 

@@ -36,7 +36,7 @@ uv sync
 export GEMINI_API_KEY="your-api-key"
 ```
 
-Configuration is now handled via environment variables (see [Configuration](#configuration-via-environment-variables)).
+Configuration is now handled via explicit CLI arguments (see [CLI Configuration](#cli-configuration)).
 
 ### Generate your first posts
 
@@ -84,50 +84,71 @@ Explicit subcommand wrapper around the same options, useful when scripting multi
 
 Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in posts. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
 
-## Configuration via Environment Variables
+## CLI Configuration
 
-`PipelineConfig` is powered by Pydantic settings and reads configuration from environment variables. Use the `EGREGORA__` prefix with double underscores to separate nested config sections. Key configuration options include:
+Configuration is handled entirely through explicit CLI arguments. No environment variables or configuration files are needed (except `GEMINI_API_KEY` for API access). All options have sensible defaults and can be overridden as needed.
+
+### Basic Usage
 
 ```bash
-# Basic configuration
+# Generate posts with defaults
 export GEMINI_API_KEY="your-api-key"
-export EGREGORA__POSTS_DIR="data"
+uv run egregora process data/whatsapp_zips/*.zip
 
-# Profile linking (optional)
-export EGREGORA__PROFILES__LINK_MEMBERS_IN_POSTS="true"
-export EGREGORA__PROFILES__PROFILE_BASE_URL="/profiles/"
-
-# LLM configuration
-export EGREGORA__MODEL="gemini-flash-lite-latest"
-export EGREGORA__LLM__SAFETY_THRESHOLD="BLOCK_NONE"
-
-# Enrichment settings
-export EGREGORA__ENRICHMENT__ENABLED="true"
-export EGREGORA__ENRICHMENT__RELEVANCE_THRESHOLD="2"
-export EGREGORA__ENRICHMENT__MAX_LINKS="50"
-
-# Cache settings
-export EGREGORA__CACHE__ENABLED="true"
-export EGREGORA__CACHE__AUTO_CLEANUP_DAYS="90"
-
-# RAG settings
-export EGREGORA__RAG__ENABLED="true"
-export EGREGORA__RAG__CACHE_DIR="cache/rag"
-
-# Profile settings
-export EGREGORA__PROFILES__ENABLED="true"
-export EGREGORA__PROFILES__MAX_PROFILES_PER_RUN="3"
-export EGREGORA__PROFILES__MIN_MESSAGES="2"
+# Generate with custom options
+uv run egregora process data/whatsapp_zips/*.zip \
+  --output data/output \
+  --model gemini-flash-lite-latest \
+  --timezone America/Porto_Velho \
+  --days 2
 ```
 
-Environment variable configuration uses the `EGREGORA__` prefix with double underscores to separate nested sections:
-- `EGREGORA__POSTS_DIR` sets where posts are generated
-- `EGREGORA__LLM__*` and `EGREGORA__ENRICHMENT__*` tune Gemini usage and enrichment settings
-- `EGREGORA__CACHE__*` and `EGREGORA__RAG__*` control caching and RAG features
-- `EGREGORA__PROFILES__*` controls participant profile generation and linking
-- All boolean values should be set as `"true"` or `"false"` strings
+### Profile Linking
 
-Configuration is fully handled via environment variables using `pydantic-settings`, enabling reproducible automation setups without requiring configuration files.
+```bash
+# Enable profile linking (default: enabled)
+uv run egregora process data/whatsapp_zips/*.zip \
+  --link-profiles \
+  --profile-base-url "/profiles/"
+
+# Disable profile linking
+uv run egregora process data/whatsapp_zips/*.zip \
+  --no-link-profiles
+```
+
+### Advanced Configuration
+
+```bash
+# Full configuration example
+uv run egregora process data/whatsapp_zips/*.zip \
+  --output data/custom-output \
+  --model gemini-flash-lite-latest \
+  --timezone America/Porto_Velho \
+  --days 7 \
+  --link-profiles \
+  --profile-base-url "/profiles/" \
+  --safety-threshold BLOCK_NONE \
+  --thinking-budget -1 \
+  --max-links 50 \
+  --relevance-threshold 2 \
+  --cache-dir cache \
+  --auto-cleanup-days 90
+```
+
+### Available Options
+
+Run `uv run egregora process --help` to see all available options:
+
+- **Input/Output**: `--output`, `--group-name`, `--group-slug`
+- **Model Settings**: `--model`, `--safety-threshold`, `--thinking-budget`
+- **Date Range**: `--days`, `--from-date`, `--to-date`, `--timezone`
+- **Features**: `--disable-enrichment`, `--no-cache`, `--link-profiles`
+- **Profile Linking**: `--profile-base-url`
+- **Enrichment**: `--max-links`, `--relevance-threshold`
+- **Cache**: `--cache-dir`, `--auto-cleanup-days`
+- **Debug**: `--list`, `--dry-run`
+
+All configuration is explicit and transparent - no hidden dependencies on environment variables or configuration files.
 
 ## Outputs & publishing
 

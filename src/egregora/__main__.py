@@ -24,12 +24,11 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 @app.command("process")
 def process_command(  # noqa: PLR0913
     zip_files: list[Path] = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
     output_dir: Path = typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
     group_name: str = typer.Option(None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
     group_slug: str = typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
-    model: str = typer.Option(None, "--model", help="Nome do modelo Gemini a ser usado"),
-    timezone: str = typer.Option(None, "--timezone", help="Timezone IANA (ex.: America/Porto_Velho)"),
+    model: str = typer.Option("gemini-flash-lite-latest", "--model", help="Nome do modelo Gemini a ser usado"),
+    timezone: str = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA"),
     days: int = typer.Option(
         None, "--days", min=1, help="Processar os N dias mais recentes. Incompatível com --from/--to."
     ),
@@ -49,14 +48,22 @@ def process_command(  # noqa: PLR0913
     disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
     list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"),
+    # Profile linking options
+    link_member_profiles: bool = typer.Option(True, "--link-profiles/--no-link-profiles", help="Link member mentions to profile pages"),
+    profile_base_url: str = typer.Option("/profiles/", "--profile-base-url", help="Base URL for profile links"),
+    # LLM options
+    safety_threshold: str = typer.Option("BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"),
+    thinking_budget: int = typer.Option(-1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"),
+    # Enrichment options
+    max_links: int = typer.Option(50, "--max-links", help="Maximum links to enrich per post"),
+    relevance_threshold: int = typer.Option(2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"),
+    # Cache options
+    cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path"),
+    auto_cleanup_days: int = typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
     
-    # This is the original main function logic
-    # Validate config file
-    if config_file and not config_file.exists():
-        console.print(f"❌ Arquivo de configuração não encontrado: {config_file}")
-        raise typer.Exit(1)
+    # Configuration now uses only CLI arguments
 
     # Mutual exclusivity validation
     date_options_count = sum([days is not None, from_date is not None, to_date is not None])
@@ -90,41 +97,55 @@ def process_command(  # noqa: PLR0913
     # Convert days to days_to_process for backward compatibility
     days_to_process = days
 
-    # Build configuration using environment variables and CLI arguments
-    if config_file:
-        console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
-        raise typer.Exit(code=1)
+    # Build configuration using CLI arguments only
+    from .config import (
+        PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
+        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+    )
+    from .rag.config import RAGConfig
+    from pathlib import Path
     
-    config = PipelineConfig.with_defaults(
+    # Build nested configuration objects
+    llm_config = LLMConfig(
+        safety_threshold=safety_threshold,
+        thinking_budget=thinking_budget
+    )
+    
+    enrichment_config = EnrichmentConfig(
+        enabled=not disable_enrichment,
+        max_links=max_links,
+        relevance_threshold=relevance_threshold
+    )
+    
+    cache_config = CacheConfig(
+        enabled=not disable_cache,
+        cache_dir=Path(cache_dir),
+        auto_cleanup_days=auto_cleanup_days
+    )
+    
+    profiles_config = ProfilesConfig(
+        link_members_in_posts=link_member_profiles,
+        profile_base_url=profile_base_url
+    )
+    
+    # Build main configuration
+    config = PipelineConfig(
         zip_files=zip_files,
-        output_dir=output_dir,
+        posts_dir=Path(output_dir) if output_dir else Path("data"),
         group_name=group_name,
         group_slug=group_slug,
         model=model,
-        timezone=ZoneInfo(timezone) if timezone else None,
+        timezone=ZoneInfo(timezone),
+        llm=llm_config,
+        enrichment=enrichment_config,
+        cache=cache_config,
+        profiles=profiles_config,
+        anonymization=AnonymizationConfig(),
+        system_classifier=SystemClassifierConfig(),
+        rag=RAGConfig()
     )
 
-    # Override with CLI parameters  
-    config.zip_files = zip_files
-    if output_dir:
-        config.posts_dir = output_dir
-    elif not config_file:
-        # Default to data directory for posts (within egregora for now due to validation)
-        config.posts_dir = Path("data")
-    
-    if group_name:
-        config.group_name = group_name
-    if group_slug:
-        config.group_slug = group_slug
-    if model:
-        config.model = model
-    if timezone:
-        config.timezone = ZoneInfo(timezone)
-
-    if disable_enrichment:
-        config.enrichment.enabled = False
-    if disable_cache:
-        config.cache.enabled = False
+    # Configuration is now fully built from CLI arguments above
 
     # Create processor instance
     processor = UnifiedProcessor(config)
@@ -196,14 +217,27 @@ def enrich_command(
         from .enrichment import ContentEnricher
         from .gemini_manager import GeminiManager
         
-        # Build minimal config using environment variables
+        # Build minimal config using CLI arguments
         if config_file:
-            console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
+            console.print(f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]")
             raise typer.Exit(code=1)
         
-        config = PipelineConfig.with_defaults(
+        from .config import (
+            PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
+            ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+        )
+        from .rag.config import RAGConfig
+        
+        config = PipelineConfig(
             zip_files=[],  # Not needed for enrichment testing
-            model=model,
+            model=model or "gemini-flash-lite-latest",
+            llm=LLMConfig(),
+            enrichment=EnrichmentConfig(),
+            cache=CacheConfig(),
+            profiles=ProfilesConfig(),
+            anonymization=AnonymizationConfig(),
+            system_classifier=SystemClassifierConfig(),
+            rag=RAGConfig()
         )
         
         # Create enricher
@@ -335,12 +369,27 @@ def profiles_command(
         console.print(f"❌ Ação inválida: {action}. Use: list, show, generate, clean")
         raise typer.Exit(1)
     
-    # Build config using environment variables
+    # Build config using CLI arguments
     if config_file:
-        console.print(f"[red]❌ TOML configuration files are no longer supported. Use environment variables instead.[/red]")
+        console.print(f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]")
         raise typer.Exit(code=1)
     
-    config = PipelineConfig.with_defaults(zip_files=[])
+    from .config import (
+        PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
+        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+    )
+    from .rag.config import RAGConfig
+    
+    config = PipelineConfig(
+        zip_files=[],
+        llm=LLMConfig(),
+        enrichment=EnrichmentConfig(),
+        cache=CacheConfig(),
+        profiles=ProfilesConfig(),
+        anonymization=AnonymizationConfig(),
+        system_classifier=SystemClassifierConfig(),
+        rag=RAGConfig()
+    )
     
     if action == "list":
         _list_profiles(config, output_format)
@@ -454,9 +503,16 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
     
     try:
         # Create processor with the ZIP file
-        temp_config = PipelineConfig.with_defaults(
+        temp_config = PipelineConfig(
             zip_files=[zip_path],
-            output_dir=config.posts_dir
+            posts_dir=config.posts_dir,
+            llm=LLMConfig(),
+            enrichment=EnrichmentConfig(),
+            cache=CacheConfig(),
+            profiles=ProfilesConfig(),
+            anonymization=AnonymizationConfig(),
+            system_classifier=SystemClassifierConfig(),
+            rag=RAGConfig()
         )
         processor = UnifiedProcessor(temp_config)
         
