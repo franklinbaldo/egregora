@@ -38,3 +38,7 @@ egregora.toml
 
 # Test output
 tests/temp_output/
+
+# Generated metrics and logs
+metrics/
+*.csv
