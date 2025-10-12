@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from datetime import date
-from types import SimpleNamespace
-import pytest
 import os
 import shutil
+import sys
 import zipfile
+from datetime import date
+from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.anonymizer import Anonymizer
 from egregora.config import PipelineConfig
+from egregora.generator import PostGenerator
 from egregora.llm_models import SystemMessageLabel
 from egregora.pipeline import _prepare_transcripts
 from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
-from egregora.generator import PostGenerator
 from egregora.processor import UnifiedProcessor
-
 
 ANON_SUFFIX_LENGTH = 4
 UUID_FULL_LENGTH = 36
@@ -61,9 +61,9 @@ def test_get_uuid_variants_returns_human_identifier() -> None:
 
 # From test_privacy_e2e.py
 def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
 
     class RecordingClassifier:
@@ -111,9 +111,9 @@ def test_prepare_transcripts_anonymizes_authors(temp_dir) -> None:
 
 
 def test_prepare_transcripts_noop_when_disabled(temp_dir) -> None:
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=temp_dir,
+        posts_dir=temp_dir,
     )
     config.anonymization.enabled = False
 
@@ -158,9 +158,10 @@ def _install_generator_stubs(monkeypatch):
 
 from unittest.mock import MagicMock
 
+
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
-    config = PipelineConfig.with_defaults()
+    config = PipelineConfig()
     monkeypatch.setattr("egregora.generator.GeminiManager", MagicMock())
     generator = PostGenerator(config)
 
@@ -204,9 +205,9 @@ def test_unified_processor_anonymizes_transcripts(tmp_path: Path) -> None:
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.write(chat_txt_path, arcname="_chat.txt")
 
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=posts_dir,
+        posts_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
         timezone=ZoneInfo("America/Sao_Paulo"),
     )
@@ -248,9 +249,9 @@ def test_unified_processor_anonymizes_transcripts_no_gemini(tmp_path: Path) -> N
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.write(chat_txt_path, arcname="_chat.txt")
 
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=posts_dir,
+        posts_dir=posts_dir,
         model="none",  # Disable Gemini for this test
         timezone=ZoneInfo("America/Sao_Paulo"),
     )

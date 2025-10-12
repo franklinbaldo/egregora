@@ -11,15 +11,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egregora.config import PipelineConfig
-from egregora.pipeline import _prepare_transcripts, read_zip_texts_and_media
+from egregora.pipeline import _prepare_transcripts
 
 
 def test_whatsapp_zip_processing(tmp_path) -> None:
     """Test that WhatsApp zip files are properly processed."""
-    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
+    Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
 
     # Test zip reading
-    posts_dir = tmp_path / "posts"
+    tmp_path / "posts"
 
     assert True
 
@@ -31,9 +31,9 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
 
     posts_root = workspace / "posts"
     posts_root.mkdir(parents=True, exist_ok=True)
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=posts_root,
+        posts_dir=posts_root,
     )
 
     # WhatsApp format: DD/MM/YYYY HH:MM - Author: Message
@@ -65,7 +65,7 @@ def test_whatsapp_format_anonymization(tmp_path) -> None:
 
 def test_whatsapp_real_data_end_to_end(tmp_path) -> None:
     """End-to-end test with real WhatsApp zip file."""
-    zip_path = Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
+    Path("tests/data/zips/Conversa do WhatsApp com Teste.zip")
 
     # Read the zip
     workspace = Path("tmp-tests") / f"whatsapp-{uuid.uuid4().hex}"

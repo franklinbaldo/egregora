@@ -45,10 +45,10 @@ class PostGenerator:
     """Generates posts using an LLM with rate limiting and retry logic."""
 
     def __init__(
-        self, 
-        config: PipelineConfig, 
+        self,
+        config: PipelineConfig,
         gemini_manager: GeminiManager | None = None,
-        llm_client: GeminiClient | None = None  # For backward compatibility
+        llm_client: GeminiClient | None = None,  # For backward compatibility
     ):
         self.config = config
         self._client = llm_client
@@ -165,14 +165,14 @@ class PostGenerator:
                     config=generate_content_config,
                 )
             )
-            
+
             # Extract text from response
             if response.text:
                 return response.text.strip()
             else:
                 # Handle case where response has no text
                 return ""
-                
+
         except GeminiQuotaError as exc:
             # More graceful handling of quota exhaustion
             raise RuntimeError(

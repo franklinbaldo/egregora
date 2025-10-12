@@ -8,7 +8,6 @@ import pytest
 from egregora.config import PipelineConfig
 from egregora.processor import UnifiedProcessor
 
-
 HAS_GEMINI_KEY = bool(os.getenv("GEMINI_API_KEY"))
 
 
@@ -38,9 +37,9 @@ def test_unified_processor_extracts_media(tmp_path: Path) -> None:
         zf.write(chat_txt_path, arcname="_chat.txt")
         zf.write(media_path, arcname="IMG-20251002-WA0004.jpg")
 
-    config = PipelineConfig.with_defaults(
+    config = PipelineConfig(
         zip_files=[],
-        output_dir=posts_dir,
+        posts_dir=posts_dir,
         model="gemini/gemini-1.5-flash-latest",
     )
 

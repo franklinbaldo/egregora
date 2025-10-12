@@ -197,7 +197,9 @@ class SystemMessageClassifier:
         cache_key = self._cache_key(line)
         existing = self._cache.get(cache_key)
         now = datetime.now(UTC)
-        first_seen = _coerce_timestamp(existing.get("first_seen")) if isinstance(existing, dict) else None
+        first_seen = (
+            _coerce_timestamp(existing.get("first_seen")) if isinstance(existing, dict) else None
+        )
         hit_count = int(existing.get("hit_count", 0)) if isinstance(existing, dict) else 0
 
         payload = {

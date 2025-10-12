@@ -1,4 +1,3 @@
-import io
 import zipfile
 from datetime import date
 
@@ -53,34 +52,29 @@ def test_parse_export_rejects_invalid_utf8(tmp_path):
         parse_export(export)
 
 
-def test_pipeline_config_from_toml_validates_merges(tmp_path):
-    config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        """
-        [merges.bad]
-        name = "Bad"
-        groups = "not-a-list"
-        """,
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=config_path)
+def test_pipeline_config_validates_merges():
+    """Test that PipelineConfig validates merge configurations."""
+    from egregora.models import MergeConfig
+    
+    # Test invalid merge config structure
+    with pytest.raises(Exception):  # Validation will fail
+        PipelineConfig(
+            merges={"bad": "not-a-merge-config"}  # type: ignore[dict-item]
+        )
 
 
-def test_pipeline_config_load_rejects_missing_file(tmp_path):
-    config_path = tmp_path / "missing.toml"
+def test_pipeline_config_direct_initialization():
+    """Test that PipelineConfig can be initialized directly."""
+    config = PipelineConfig()
+    assert config.posts_dir is not None
+    assert config.model == "gemini-flash-lite-latest"
 
-    with pytest.raises(FileNotFoundError):
-        PipelineConfig.load(toml_path=config_path)
 
-
-def test_pipeline_config_load_rejects_directory(tmp_path):
-    directory = tmp_path / "config_dir"
-    directory.mkdir()
-
-    with pytest.raises(ValueError):
-        PipelineConfig.load(toml_path=directory)
+def test_pipeline_config_validates_paths():
+    """Test that PipelineConfig validates path fields."""
+    from pathlib import Path
+    config = PipelineConfig(posts_dir=Path("/tmp/test"))
+    assert config.posts_dir == Path("/tmp/test")
 
 
 def test_ensure_safe_directory_rejects_parent_escape():

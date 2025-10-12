@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Iterable, Mapping
 import hashlib
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime, timezone
+from pathlib import Path
 
 from diskcache import Cache
 
@@ -116,7 +116,7 @@ def store_vector(
     metadata = CacheMetadata(
         dimension=len(vector),
         namespace=namespace,
-        cached_at=datetime.now(timezone.utc).isoformat(),
+        cached_at=datetime.now(UTC).isoformat(),
     )
     cache.set(
         hash_key(namespace, text, kind=kind),

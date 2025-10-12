@@ -45,12 +45,11 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
 from urllib import error, request
-
 
 ISSUES_DIR_DEFAULT = Path("dev/issues")
 METADATA_ORDER = (
@@ -73,7 +72,7 @@ def _log_warning(message: str) -> None:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def parse_iso8601(value: str | None) -> datetime | None:
@@ -90,7 +89,7 @@ def parse_iso8601(value: str | None) -> datetime | None:
 def format_iso8601(value: datetime | None) -> str | None:
     if value is None:
         return None
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def slugify(text: str, *, fallback: str = "issue") -> str:
@@ -123,12 +122,12 @@ def read_metadata(text: str) -> tuple[dict[str, str], str]:
     block = text[4:end_idx].strip()
     metadata: dict[str, str] = {}
     for line in block.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+        clean_line = line.strip()
+        if not clean_line or clean_line.startswith("#"):
             continue
-        if ":" not in line:
+        if ":" not in clean_line:
             continue
-        key, value = line.split(":", 1)
+        key, value = clean_line.split(":", 1)
         metadata[key.strip()] = value.strip()
 
     remainder = text[end_idx + 3 :]
@@ -190,14 +189,14 @@ def get_git_commit_time(path: Path) -> datetime | None:
         return None
 
     try:
-        return datetime.fromisoformat(timestamp).astimezone(timezone.utc)
+        return datetime.fromisoformat(timestamp).astimezone(UTC)
     except ValueError:
         return None
 
 
 def get_file_modification_time(path: Path) -> datetime | None:
     try:
-        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     except OSError:
         return None
 
@@ -209,8 +208,8 @@ class LocalIssue:
     content: str
     content_hash: str
     header_line: str
-    title: str # This is the title from the filename
-    full_title: str # This is the full title from the GitHub issue
+    title: str  # This is the title from the filename
+    full_title: str  # This is the full title from the GitHub issue
     desired_state: str
     synced_state: str
     issue_number: int | None
@@ -246,7 +245,6 @@ def load_local_issues(directory: Path) -> list[LocalIssue]:
         if not header_line:
             header_line = "# Untitled issue"
         title = extract_title(path.name)
-        full_title = title
         identifier = extract_local_identifier(header_line)
         desired_state = normalize_state(metadata.get("github_state"))
         synced_state = normalize_state(
@@ -368,13 +366,12 @@ def parse_remote_content(
     if body.strip().startswith("#"):
         content = body
     else:
-        identifier = local_identifier or f"{remote['number']:03d}"
+        local_identifier or f"{remote['number']:03d}"
         header = f"# {remote['title']}"
         github_url = f"GitHub Issue: [#{remote['number']}](https://github.com/franklinbaldo/egregora/issues/{remote['number']})"
         content = f"{header}\n\n{github_url}"
         if body.strip():
             content += "\n\n" + body.strip("\n")
-")
     return ensure_trailing_newline(content)
 
 
@@ -486,9 +483,7 @@ def get_remote_body_update_time(remote: dict, *, token: str) -> datetime | None:
             if edited_at and (latest is None or edited_at > latest):
                 latest = edited_at
     except RuntimeError as exc:  # pragma: no cover - network failure fallback
-        _log_warning(
-            f"Unable to fetch issue timeline for body edit timestamp: {exc}"
-        )
+        _log_warning(f"Unable to fetch issue timeline for body edit timestamp: {exc}")
         return fallback
 
     return latest or fallback
@@ -541,21 +536,14 @@ def sync_existing_issue(
 
     remote_updated_time = parse_iso8601(remote.get("updated_at"))
     local_state_changed = local.desired_state != local.synced_state
-    remote_state_changed = (
-        remote_state != local.synced_state
-        and (
-            remote_updated_time is None
-            or local.last_synced is None
-            or remote_updated_time > local.last_synced
-        )
+    remote_state_changed = remote_state != local.synced_state and (
+        remote_updated_time is None
+        or local.last_synced is None
+        or remote_updated_time > local.last_synced
     )
     remote_changed = remote_body_changed or remote_state_changed
 
-    local_time = (
-        get_file_modification_time(local.path)
-        or local.modified_time
-        or local.commit_time
-    )
+    local_time = get_file_modification_time(local.path) or local.modified_time or local.commit_time
     if local_time:
         local.modified_time = local_time
 
@@ -740,9 +728,7 @@ def main(argv: list[str] | None = None) -> int:
             sync_local_without_remote(args.repo, args.token, issue)
         elif issue.issue_number not in matched_numbers:
             # The associated GitHub issue no longer exists; recreate it.
-            _log_info(
-                f"♻️  Recreating missing GitHub issue for {issue.path.name}"
-            )
+            _log_info(f"♻️  Recreating missing GitHub issue for {issue.path.name}")
             sync_local_without_remote(args.repo, args.token, issue)
 
     _log_info("✅ Synchronization complete.")
