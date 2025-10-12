@@ -17,6 +17,7 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
+
 # Configuration now uses direct initialization instead of environment variables
 
 from .anonymizer import FormatType
@@ -39,6 +40,7 @@ LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
     "cacheDir": "cache_dir",
     "postsDir": "posts_dir",
 }
+
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -176,6 +178,7 @@ class ProfilesConfig(BaseModel):
             raise ValueError("minimum_retry_seconds must be non-negative")
         return fvalue
 
+
 def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
 
@@ -246,8 +249,6 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
-
-
 class PipelineConfig(BaseModel):
     """Runtime configuration for the post pipeline."""
 
@@ -302,13 +303,13 @@ class PipelineConfig(BaseModel):
     def _validate_directories(cls, value: Any) -> Path:
         # Allow external paths for posts_dir to support architectural separation
         candidate = Path(value).expanduser()
-        
+
         if any(part == ".." for part in candidate.parts):
             raise ValueError(f"Directory path '{candidate}' must not contain '..'")
-        
+
         base_dir = Path.cwd().resolve()
         resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
-        
+
         return resolved
 
     @field_validator("group_name", mode="before")

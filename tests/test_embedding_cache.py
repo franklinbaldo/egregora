@@ -19,7 +19,9 @@ def cache_dir(tmp_path: Path) -> Path:
 
 
 def test_build_namespace_sorts_extra() -> None:
-    namespace = build_namespace(model="gemini", dimension=256, extra={"mode": "online", "tenant": "alpha"})
+    namespace = build_namespace(
+        model="gemini", dimension=256, extra={"mode": "online", "tenant": "alpha"}
+    )
     assert namespace == "model=gemini|dimension=256|mode=online|tenant=alpha"
 
 
@@ -45,7 +47,9 @@ def test_embedding_cache_wrapper(cache_dir: Path) -> None:
     assert cache.get("text") == [pytest.approx(0.1)] * 8
 
 
-def test_cached_gemini_embedding_hits_cache(monkeypatch: pytest.MonkeyPatch, cache_dir: Path) -> None:
+def test_cached_gemini_embedding_hits_cache(
+    monkeypatch: pytest.MonkeyPatch, cache_dir: Path
+) -> None:
     calls: list[str] = []
 
     class StubEmbedding:

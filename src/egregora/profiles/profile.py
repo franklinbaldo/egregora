@@ -114,9 +114,9 @@ class ParticipantProfile:
             recent_shifts=list(data.get("recent_shifts", [])),
             growing_interests=list(data.get("growing_interests", [])),
             interaction_patterns=dict(data.get("interaction_patterns", {})),
-            markdown_document=str(data.get("markdown_document"))
-            if data.get("markdown_document")
-            else None,
+            markdown_document=(
+                str(data.get("markdown_document")) if data.get("markdown_document") else None
+            ),
             last_updated=last_updated,
             analysis_version=int(data.get("analysis_version", 0)),
         )

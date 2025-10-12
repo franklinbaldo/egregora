@@ -16,6 +16,7 @@ from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager, GeminiQuotaError
 from .generator import PostContext, PostGenerator
+
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
@@ -113,21 +114,21 @@ def _ensure_blog_front_matter(
     text: str, *, source: "GroupSource", target_date: date, config: PipelineConfig
 ) -> str:
     """Merge Gemini-generated frontmatter with programmatic metadata."""
-    
+
     stripped = text.lstrip()
-    
+
     # Check if content has frontmatter (including wrapped in code blocks)
     if stripped.startswith("```\n---") or stripped.startswith("---"):
         yaml_content = ""
         remaining_content = stripped
-        
+
         # Handle normal frontmatter first
         if stripped.startswith("---"):
             parts = stripped.split("---", 2)
             if len(parts) >= 3:
                 yaml_content = parts[1]
                 remaining_content = parts[2].lstrip()
-        
+
         # Remove any wrapped frontmatter blocks from remaining content
         while "```\n---" in remaining_content:
             start_idx = remaining_content.find("```\n---")
@@ -135,26 +136,26 @@ def _ensure_blog_front_matter(
             if end_idx > start_idx:
                 # Remove the entire wrapped block
                 remaining_content = (
-                    remaining_content[:start_idx] + 
-                    remaining_content[end_idx + 7:]  # Skip "---\n```\n"
+                    remaining_content[:start_idx]
+                    + remaining_content[end_idx + 7 :]  # Skip "---\n```\n"
                 ).strip()
             else:
                 break
-        
+
         # Parse existing YAML and merge with programmatic metadata
         try:
             existing_metadata = yaml.safe_load(yaml_content) or {}
         except yaml.YAMLError:
             existing_metadata = {}
-        
+
         # Get programmatic metadata and merge
         programmatic_metadata = _build_post_metadata(source, target_date, config)
         merged_metadata = {**programmatic_metadata, **existing_metadata}
-        
+
         # Generate clean frontmatter
         front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
         return f"---\n{front_matter}\n---\n\n{remaining_content}"
-    
+
     # No frontmatter found, add programmatic one
     metadata = _build_post_metadata(source, target_date, config)
     front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
@@ -165,40 +166,42 @@ def _ensure_blog_front_matter(
 
 def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
     """Convert Member-XXXX mentions to profile links if enabled."""
-    
+
     if not config.profiles.link_members_in_posts:
         return text
-    
+
     import re
     from pathlib import Path
-    
+
     # Pattern to match Member-XXXX format (exactly 4 hex characters)
-    member_pattern = r'\(Member-([A-F0-9]{4})\)'
-    
+    member_pattern = r"\(Member-([A-F0-9]{4})\)"
+
     def replace_member_mention(match):
         member_id = match.group(1)
         full_uuid_pattern = None
-        
+
         # Look for matching profiles in the egregora-site profiles directory
         # This matches the structure we saw earlier
         workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
-        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
-        
+        site_profiles_dir = (
+            workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
+        )
+
         if site_profiles_dir.exists():
             for profile_file in site_profiles_dir.glob("*.md"):
                 if profile_file.stem.startswith(member_id.lower()):
                     # Extract the full UUID from filename
                     full_uuid_pattern = profile_file.stem
                     break
-        
+
         # If no profile found, fall back to original mention
         if not full_uuid_pattern:
             return match.group(0)  # Return original (Member-XXXX)
-        
+
         # Generate profile link (relative to the posts directory)
         profile_url = f"../../profiles/{full_uuid_pattern}/"
         return f"([Member-{member_id}]({profile_url}))"
-    
+
     return re.sub(member_pattern, replace_member_mention, text)
 
 
@@ -409,25 +412,25 @@ class UnifiedProcessor:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
         import re
-        
+
         # Remove file extension
-        base_name = chat_filename.replace('.txt', '')
-        
+        base_name = chat_filename.replace(".txt", "")
+
         # Common patterns in WhatsApp exports
         patterns = [
             r"Conversa do WhatsApp com (.+)",  # Portuguese
-            r"WhatsApp Chat with (.+)",       # English
-            r"Chat de WhatsApp con (.+)",     # Spanish
+            r"WhatsApp Chat with (.+)",  # English
+            r"Chat de WhatsApp con (.+)",  # Spanish
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, base_name, re.IGNORECASE)
             if match:
                 group_name = match.group(1).strip()
                 # Remove common suffixes like dates, emojis at the end
-                group_name = re.sub(r'\s*[🀀-🟿]+\s*$', '', group_name).strip()
+                group_name = re.sub(r"\s*[🀀-🟿]+\s*$", "", group_name).strip()
                 return group_name
-        
+
         # Fallback: use the whole filename without extension
         return base_name
 
@@ -435,19 +438,19 @@ class UnifiedProcessor:
         """Generate a URL-friendly slug from group name."""
         import re
         import unicodedata
-        
+
         # Normalize unicode characters
-        slug = unicodedata.normalize('NFKD', group_name)
-        slug = slug.encode('ascii', 'ignore').decode('ascii')
-        
+        slug = unicodedata.normalize("NFKD", group_name)
+        slug = slug.encode("ascii", "ignore").decode("ascii")
+
         # Convert to lowercase and replace spaces/special chars with hyphens
-        slug = re.sub(r'[^\w\s-]', '', slug.lower())
-        slug = re.sub(r'[-\s]+', '-', slug)
-        
+        slug = re.sub(r"[^\w\s-]", "", slug.lower())
+        slug = re.sub(r"[-\s]+", "-", slug)
+
         # Remove leading/trailing hyphens
-        slug = slug.strip('-')
-        
-        return slug or 'whatsapp-group'
+        slug = slug.strip("-")
+
+        return slug or "whatsapp-group"
 
     def _collect_sources(
         self,
@@ -466,9 +469,9 @@ class UnifiedProcessor:
             logger.info(f"🔍 Processing ZIP file: {self.config.zip_files[0]}")
         else:
             logger.info(f"🔍 Processing {num_files} ZIP files for merging:")
-        
+
         real_groups: dict[GroupSlug, list[WhatsAppExport]] = {}
-        
+
         for zip_path in self.config.zip_files:
             zip_path = Path(zip_path)
             if not zip_path.exists():
@@ -476,11 +479,12 @@ class UnifiedProcessor:
 
             if num_files > 1:
                 logger.info(f"  📦 {zip_path}")
-            
+
             import zipfile
-            with zipfile.ZipFile(zip_path, 'r') as zf:
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
                 # Find the chat file (should be the .txt file)
-                txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
+                txt_files = [f for f in zf.namelist() if f.endswith(".txt")]
                 if not txt_files:
                     raise ValueError(f"No .txt file found in {zip_path}")
                 chat_file = txt_files[0]  # Use the first (and likely only) .txt file
@@ -517,12 +521,12 @@ class UnifiedProcessor:
                 chat_file=chat_file,
                 media_files=media_files,
             )
-            
+
             # Add export to the group (allowing multiple exports per group for merging)
             if group_slug not in real_groups:
                 real_groups[group_slug] = []
             real_groups[group_slug].append(export)
-            
+
         # Log merging info if multiple files resulted in same groups
         if num_files > 1:
             for group_slug, exports in real_groups.items():
@@ -609,7 +613,7 @@ class UnifiedProcessor:
         group_dir: Path,
         post_paths: list[Path],
     ) -> None:
-        """Ensure an index page summarising generated posts for *source*. """
+        """Ensure an index page summarising generated posts for *source*."""
 
         index_path = group_dir / "index.md"
         metadata = {
@@ -694,7 +698,11 @@ class UnifiedProcessor:
             found_count += 1
 
             # Create compact summary
-            expertise = ", ".join(profile.expertise_areas.keys()) if profile.expertise_areas else "em observação"
+            expertise = (
+                ", ".join(profile.expertise_areas.keys())
+                if profile.expertise_areas
+                else "em observação"
+            )
             style = profile.thinking_style or "em observação"
 
             profiles_text.append(
@@ -710,9 +718,7 @@ class UnifiedProcessor:
         if not profiles_text:
             return None
 
-        header = (
-            f"Participantes ativos hoje ({found_count} com perfis conhecidos):\n\n"
-        )
+        header = f"Participantes ativos hoje ({found_count} com perfis conhecidos):\n\n"
 
         return header + "\n".join(profiles_text)
 
@@ -901,13 +907,11 @@ class UnifiedProcessor:
             # Participant profiles
             participant_context = None
             if self.config.profiles.enabled and profile_repository:
-                participant_context = self._build_participant_context(
-                    df_day, profile_repository
-                )
+                participant_context = self._build_participant_context(df_day, profile_repository)
                 if participant_context:
                     logger.info(
                         "    [Profiles] Context built for %d participants",
-                        participant_context.count("**Member-")
+                        participant_context.count("**Member-"),
                     )
 
             # Create post context with ALL inputs
@@ -923,14 +927,14 @@ class UnifiedProcessor:
             # Progressive processing: handle quota errors gracefully
             try:
                 post = self.generator.generate(source, context)
-                
+
                 try:
                     validate_newsletter_privacy(post)
                 except PrivacyViolationError as exc:
                     raise PrivacyViolationError(
                         f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
                     ) from exc
-                    
+
             except RuntimeError as exc:
                 if "Quota de API do Gemini esgotada" in str(exc):
                     logger.warning(
@@ -955,11 +959,9 @@ class UnifiedProcessor:
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
             )
-            
+
             # Add profile links to member mentions
-            post = _add_member_profile_links(
-                post, config=self.config, source=source
-            )
+            post = _add_member_profile_links(post, config=self.config, source=source)
 
             output_path = daily_dir / f"{target_date}.md"
             output_path.write_text(post, encoding="utf-8")
@@ -988,6 +990,7 @@ class UnifiedProcessor:
         self._write_group_index(source, group_dir, results)
         return results
 
+
 @dataclass
 class ParticipantInfo:
     uuid: str
@@ -996,6 +999,7 @@ class ParticipantInfo:
     message_count: int
     days_since_update: int
     priority: float
+
 
 def _get_prioritized_participants(
     self,
@@ -1089,7 +1093,8 @@ def _get_prioritized_participants(
 
         logger.info(
             "    [Profiles] Evaluating %d participants (max %d updates)",
-            len(participants), max_updates
+            len(participants),
+            max_updates,
         )
 
         for participant in participants:
@@ -1107,10 +1112,7 @@ def _get_prioritized_participants(
             )
 
             if not should_update:
-                logger.debug(
-                    "    Profile %s: no changes (%s)",
-                    participant.label, reasoning
-                )
+                logger.debug("    Profile %s: no changes (%s)", participant.label, reasoning)
                 continue
 
             # Update profile
@@ -1133,15 +1135,12 @@ def _get_prioritized_participants(
                     "    👤 Updated: %s (v%d) - %s",
                     participant.label,
                     profile.analysis_version,
-                    reasoning[:60]
+                    reasoning[:60],
                 )
 
             except RuntimeError as exc:
                 if "RESOURCE_EXHAUSTED" in str(exc):
-                    logger.warning(
-                        "    ⚠️ Quota exhausted at %d updates",
-                        updates_made
-                    )
+                    logger.warning("    ⚠️ Quota exhausted at %d updates", updates_made)
                     quota_exhausted = True
                     break
                 logger.warning("    ⚠️ Failed to update %s: %s", participant.label, exc)

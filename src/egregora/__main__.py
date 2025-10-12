@@ -23,14 +23,27 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 
 @app.command("process")
 def process_command(  # noqa: PLR0913
-    zip_files: list[Path] = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
-    output_dir: Path = typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
-    group_name: str = typer.Option(None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
-    group_slug: str = typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
-    model: str = typer.Option("gemini-flash-lite-latest", "--model", help="Nome do modelo Gemini a ser usado"),
+    zip_files: list[Path] = typer.Argument(
+        ..., help="Um ou mais arquivos .zip do WhatsApp para processar"
+    ),
+    output_dir: Path = typer.Option(
+        None, "--output", "-o", help="Diretório onde as posts serão escritas"
+    ),
+    group_name: str = typer.Option(
+        None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"
+    ),
+    group_slug: str = typer.Option(
+        None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"
+    ),
+    model: str = typer.Option(
+        "gemini-flash-lite-latest", "--model", help="Nome do modelo Gemini a ser usado"
+    ),
     timezone: str = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA"),
     days: int = typer.Option(
-        None, "--days", min=1, help="Processar os N dias mais recentes. Incompatível com --from/--to."
+        None,
+        "--days",
+        min=1,
+        help="Processar os N dias mais recentes. Incompatível com --from/--to.",
     ),
     from_date: str = typer.Option(
         None,
@@ -44,25 +57,41 @@ def process_command(  # noqa: PLR0913
         help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
         formats=["%Y-%m-%d"],
     ),
-    disable_enrichment: bool = typer.Option(False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"),
+    disable_enrichment: bool = typer.Option(
+        False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"
+    ),
     disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
     list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"
+    ),
     # Profile linking options
-    link_member_profiles: bool = typer.Option(True, "--link-profiles/--no-link-profiles", help="Link member mentions to profile pages"),
-    profile_base_url: str = typer.Option("/profiles/", "--profile-base-url", help="Base URL for profile links"),
+    link_member_profiles: bool = typer.Option(
+        True, "--link-profiles/--no-link-profiles", help="Link member mentions to profile pages"
+    ),
+    profile_base_url: str = typer.Option(
+        "/profiles/", "--profile-base-url", help="Base URL for profile links"
+    ),
     # LLM options
-    safety_threshold: str = typer.Option("BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"),
-    thinking_budget: int = typer.Option(-1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"),
+    safety_threshold: str = typer.Option(
+        "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
+    ),
+    thinking_budget: int = typer.Option(
+        -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
+    ),
     # Enrichment options
     max_links: int = typer.Option(50, "--max-links", help="Maximum links to enrich per post"),
-    relevance_threshold: int = typer.Option(2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"),
+    relevance_threshold: int = typer.Option(
+        2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"
+    ),
     # Cache options
     cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path"),
-    auto_cleanup_days: int = typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
+    auto_cleanup_days: int = typer.Option(
+        90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
+    ),
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
-    
+
     # Configuration now uses only CLI arguments
 
     # Mutual exclusivity validation
@@ -74,21 +103,21 @@ def process_command(  # noqa: PLR0913
     # Date parsing and validation
     from_date_obj = None
     to_date_obj = None
-    
+
     if from_date:
         try:
             from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
         except ValueError:
             console.print(f"❌ Data de início inválida: '{from_date}'. Use YYYY-MM-DD.")
             raise typer.Exit(1)
-    
+
     if to_date:
         try:
             to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
         except ValueError:
             console.print(f"❌ Data de fim inválida: '{to_date}'. Use YYYY-MM-DD.")
             raise typer.Exit(1)
-    
+
     # Date range validation
     if from_date_obj and to_date_obj and from_date_obj > to_date_obj:
         console.print("❌ Data de início deve ser anterior à data de fim.")
@@ -99,35 +128,32 @@ def process_command(  # noqa: PLR0913
 
     # Build configuration using CLI arguments only
     from .config import (
-        PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+        PipelineConfig,
+        LLMConfig,
+        EnrichmentConfig,
+        CacheConfig,
+        ProfilesConfig,
+        AnonymizationConfig,
+        SystemClassifierConfig,
     )
     from .rag.config import RAGConfig
     from pathlib import Path
-    
+
     # Build nested configuration objects
-    llm_config = LLMConfig(
-        safety_threshold=safety_threshold,
-        thinking_budget=thinking_budget
-    )
-    
+    llm_config = LLMConfig(safety_threshold=safety_threshold, thinking_budget=thinking_budget)
+
     enrichment_config = EnrichmentConfig(
-        enabled=not disable_enrichment,
-        max_links=max_links,
-        relevance_threshold=relevance_threshold
+        enabled=not disable_enrichment, max_links=max_links, relevance_threshold=relevance_threshold
     )
-    
+
     cache_config = CacheConfig(
-        enabled=not disable_cache,
-        cache_dir=Path(cache_dir),
-        auto_cleanup_days=auto_cleanup_days
+        enabled=not disable_cache, cache_dir=Path(cache_dir), auto_cleanup_days=auto_cleanup_days
     )
-    
+
     profiles_config = ProfilesConfig(
-        link_members_in_posts=link_member_profiles,
-        profile_base_url=profile_base_url
+        link_members_in_posts=link_member_profiles, profile_base_url=profile_base_url
     )
-    
+
     # Build main configuration
     config = PipelineConfig(
         zip_files=zip_files,
@@ -142,7 +168,7 @@ def process_command(  # noqa: PLR0913
         profiles=profiles_config,
         anonymization=AnonymizationConfig(),
         system_classifier=SystemClassifierConfig(),
-        rag=RAGConfig()
+        rag=RAGConfig(),
     )
 
     # Configuration is now fully built from CLI arguments above
@@ -170,64 +196,81 @@ def process_command(  # noqa: PLR0913
 @app.command("enrich")
 def enrich_command(
     url: str = typer.Argument(..., help="URL ou caminho de mídia para enriquecer"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
+    config_file: Path = typer.Option(
+        None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
+    ),
     model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento"),
-    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato de saída: pretty, json"),
+    output_format: str = typer.Option(
+        "pretty", "--format", "-f", help="Formato de saída: pretty, json"
+    ),
     save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Simula enriquecimento sem chamadas da API"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Simula enriquecimento sem chamadas da API"
+    ),
 ) -> None:
     """Testa o enriquecimento de uma URL ou mídia específica."""
-    
+
     console.print(f"🔍 Testando enriquecimento: {url}")
-    
+
     if dry_run:
         console.print("🔍 Modo DRY RUN - Simulando enriquecimento")
         # Show what would be done without API calls
         if url.startswith(("http://", "https://")):
-            console.print(Panel(
-                f"[bold blue]📡 URL Enriquecimento (Simulado)[/bold blue]\n\n"
-                f"[bold]URL:[/bold] {url}\n"
-                f"[bold]Tipo:[/bold] Link da web\n"
-                f"[bold]Análise:[/bold] Extrairia conteúdo, palavras-chave e resumo\n"
-                f"[bold]APIs:[/bold] Gemini (content analysis)\n"
-                f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
-                title="Simulação de Enriquecimento",
-                border_style="blue"
-            ))
+            console.print(
+                Panel(
+                    f"[bold blue]📡 URL Enriquecimento (Simulado)[/bold blue]\n\n"
+                    f"[bold]URL:[/bold] {url}\n"
+                    f"[bold]Tipo:[/bold] Link da web\n"
+                    f"[bold]Análise:[/bold] Extrairia conteúdo, palavras-chave e resumo\n"
+                    f"[bold]APIs:[/bold] Gemini (content analysis)\n"
+                    f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
+                    title="Simulação de Enriquecimento",
+                    border_style="blue",
+                )
+            )
         else:
             media_path = Path(url)
             if media_path.exists():
-                console.print(Panel(
-                    f"[bold blue]🖼️ Mídia Enriquecimento (Simulado)[/bold blue]\n\n"
-                    f"[bold]Arquivo:[/bold] {media_path.name}\n"
-                    f"[bold]Tipo:[/bold] {media_path.suffix or 'Desconhecido'}\n"
-                    f"[bold]Análise:[/bold] Análise de conteúdo visual/áudio\n"
-                    f"[bold]APIs:[/bold] Gemini (multimodal analysis)\n"
-                    f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
-                    title="Simulação de Enriquecimento",
-                    border_style="blue"
-                ))
+                console.print(
+                    Panel(
+                        f"[bold blue]🖼️ Mídia Enriquecimento (Simulado)[/bold blue]\n\n"
+                        f"[bold]Arquivo:[/bold] {media_path.name}\n"
+                        f"[bold]Tipo:[/bold] {media_path.suffix or 'Desconhecido'}\n"
+                        f"[bold]Análise:[/bold] Análise de conteúdo visual/áudio\n"
+                        f"[bold]APIs:[/bold] Gemini (multimodal analysis)\n"
+                        f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
+                        title="Simulação de Enriquecimento",
+                        border_style="blue",
+                    )
+                )
             else:
                 console.print(f"❌ Arquivo não encontrado: {media_path}")
                 raise typer.Exit(1)
         return
-    
+
     try:
         # Import here to avoid dependency issues
         from .enrichment import ContentEnricher
         from .gemini_manager import GeminiManager
-        
+
         # Build minimal config using CLI arguments
         if config_file:
-            console.print(f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]")
+            console.print(
+                f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]"
+            )
             raise typer.Exit(code=1)
-        
+
         from .config import (
-            PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-            ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+            PipelineConfig,
+            LLMConfig,
+            EnrichmentConfig,
+            CacheConfig,
+            ProfilesConfig,
+            AnonymizationConfig,
+            SystemClassifierConfig,
         )
         from .rag.config import RAGConfig
-        
+
         config = PipelineConfig(
             zip_files=[],  # Not needed for enrichment testing
             model=model or "gemini-flash-lite-latest",
@@ -237,55 +280,59 @@ def enrich_command(
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
             system_classifier=SystemClassifierConfig(),
-            rag=RAGConfig()
+            rag=RAGConfig(),
         )
-        
+
         # Create enricher
         gemini_manager = GeminiManager()
         enricher = ContentEnricher(config.enrichment, gemini_manager=gemini_manager)
-        
+
         # Test if it's a URL or file path
         if url.startswith(("http://", "https://")):
             # It's a URL - create a minimal DataFrame for testing
             console.print(f"📡 Enriquecendo URL: {url}")
-            
+
             # Create a minimal polars DataFrame with the URL in a message
             import polars as pl
             from datetime import datetime
-            
-            test_df = pl.DataFrame({
-                'timestamp': [datetime.now()],
-                'sender': ['Test-User'],
-                'message': [f"Confira este link: {url}"],
-                'date': [datetime.now().date()]
-            })
-            
+
+            test_df = pl.DataFrame(
+                {
+                    "timestamp": [datetime.now()],
+                    "sender": ["Test-User"],
+                    "message": [f"Confira este link: {url}"],
+                    "date": [datetime.now().date()],
+                }
+            )
+
             # Run enrichment on the DataFrame
             result = asyncio.run(enricher.enrich_dataframe(test_df, client=gemini_manager.client))
-            
+
         else:
             # It's likely a file path
             media_path = Path(url)
             if not media_path.exists():
                 console.print(f"❌ Arquivo não encontrado: {media_path}")
                 raise typer.Exit(1)
-                
+
             console.print(f"🖼️ Enriquecendo mídia: {media_path}")
-            
+
             # Create a minimal DataFrame with media reference
             import polars as pl
             from datetime import datetime
-            
-            test_df = pl.DataFrame({
-                'timestamp': [datetime.now()],
-                'sender': ['Test-User'],
-                'message': [f"<Mídia oculta> {media_path.name}"],
-                'date': [datetime.now().date()]
-            })
-            
+
+            test_df = pl.DataFrame(
+                {
+                    "timestamp": [datetime.now()],
+                    "sender": ["Test-User"],
+                    "message": [f"<Mídia oculta> {media_path.name}"],
+                    "date": [datetime.now().date()],
+                }
+            )
+
             result = asyncio.run(enricher.enrich_dataframe(test_df, client=gemini_manager.client))
-        
-        # Format output  
+
+        # Format output
         if output_format == "json":
             # Convert result to dict for JSON output
             metrics_dict = {}
@@ -298,37 +345,39 @@ def enrich_command(
                     "relevant_items": result.metrics.relevant_items,
                     "error_count": result.metrics.error_count,
                     "domains": result.metrics.domains,
-                    "threshold": result.metrics.threshold
+                    "threshold": result.metrics.threshold,
                 }
-            
+
             result_dict = {
                 "items_count": len(result.items),
                 "errors_count": len(result.errors),
                 "duration_seconds": result.duration_seconds,
                 "metrics": metrics_dict,
-                "errors": result.errors if result.errors else []
+                "errors": result.errors if result.errors else [],
             }
             console.print(json.dumps(result_dict, indent=2, ensure_ascii=False))
         else:
             # Pretty format
             relevant_items = result.relevant_items(2) if result.items else []
-            console.print(Panel(
-                f"[bold green]✅ Enriquecimento concluído[/bold green]\n\n"
-                f"[bold]Itens processados:[/bold] {len(result.items)}\n"
-                f"[bold]Itens relevantes:[/bold] {len(relevant_items)}\n"
-                f"[bold]Erros:[/bold] {len(result.errors)}\n"
-                f"[bold]Duração:[/bold] {result.duration_seconds:.2f}s",
-                title="Resultado do Enriquecimento",
-                border_style="green" if not result.errors else "yellow"
-            ))
-            
+            console.print(
+                Panel(
+                    f"[bold green]✅ Enriquecimento concluído[/bold green]\n\n"
+                    f"[bold]Itens processados:[/bold] {len(result.items)}\n"
+                    f"[bold]Itens relevantes:[/bold] {len(relevant_items)}\n"
+                    f"[bold]Erros:[/bold] {len(result.errors)}\n"
+                    f"[bold]Duração:[/bold] {result.duration_seconds:.2f}s",
+                    title="Resultado do Enriquecimento",
+                    border_style="green" if not result.errors else "yellow",
+                )
+            )
+
             if result.errors:
                 console.print("\n[bold red]❌ Erros encontrados:[/bold red]")
                 for error in result.errors[:3]:  # Show first 3
                     console.print(f"  • {error}")
                 if len(result.errors) > 3:
                     console.print(f"  ... e mais {len(result.errors) - 3}")
-            
+
             if relevant_items:
                 console.print("\n[bold yellow]📋 Itens relevantes:[/bold yellow]")
                 for item in relevant_items:  # Show all items
@@ -346,7 +395,7 @@ def enrich_command(
                     if analysis:
                         console.print(f"    [bold]Relevância:[/bold] {analysis.relevance}/5")
                     console.print()  # Add spacing between items
-        
+
     except ImportError as e:
         console.print(f"❌ Dependência não encontrada: {e}")
         console.print("💡 Instale as dependências: uv sync")
@@ -360,26 +409,35 @@ def enrich_command(
 def profiles_command(
     action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
     target: str = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
-    config_file: Path = typer.Option(None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"),
+    config_file: Path = typer.Option(
+        None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
+    ),
     output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
 ) -> None:
     """Gerencia perfis de participantes."""
-    
+
     if action not in ["list", "show", "generate", "clean"]:
         console.print(f"❌ Ação inválida: {action}. Use: list, show, generate, clean")
         raise typer.Exit(1)
-    
+
     # Build config using CLI arguments
     if config_file:
-        console.print(f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]")
+        console.print(
+            f"[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]"
+        )
         raise typer.Exit(code=1)
-    
+
     from .config import (
-        PipelineConfig, LLMConfig, EnrichmentConfig, CacheConfig, 
-        ProfilesConfig, AnonymizationConfig, SystemClassifierConfig
+        PipelineConfig,
+        LLMConfig,
+        EnrichmentConfig,
+        CacheConfig,
+        ProfilesConfig,
+        AnonymizationConfig,
+        SystemClassifierConfig,
     )
     from .rag.config import RAGConfig
-    
+
     config = PipelineConfig(
         zip_files=[],
         llm=LLMConfig(),
@@ -388,9 +446,9 @@ def profiles_command(
         profiles=ProfilesConfig(),
         anonymization=AnonymizationConfig(),
         system_classifier=SystemClassifierConfig(),
-        rag=RAGConfig()
+        rag=RAGConfig(),
     )
-    
+
     if action == "list":
         _list_profiles(config, output_format)
     elif action == "show":
@@ -410,29 +468,31 @@ def profiles_command(
 def _list_profiles(config: PipelineConfig, output_format: str) -> None:
     """Lista perfis existentes."""
     profiles_dir = config.posts_dir / "profiles" / "json"
-    
+
     if not profiles_dir.exists():
         console.print("📁 Nenhum diretório de perfis encontrado")
         return
-    
+
     profile_files = list(profiles_dir.glob("*.json"))
-    
+
     if not profile_files:
         console.print("👤 Nenhum perfil encontrado")
         return
-    
+
     if output_format == "json":
         profiles_data = []
         for profile_file in profile_files:
             try:
                 with open(profile_file) as f:
                     profile_data = json.load(f)
-                    profiles_data.append({
-                        "member_id": profile_file.stem,
-                        "name": profile_data.get("name", "Unknown"),
-                        "message_count": profile_data.get("message_count", 0),
-                        "last_updated": profile_data.get("last_updated", "Unknown")
-                    })
+                    profiles_data.append(
+                        {
+                            "member_id": profile_file.stem,
+                            "name": profile_data.get("name", "Unknown"),
+                            "message_count": profile_data.get("message_count", 0),
+                            "last_updated": profile_data.get("last_updated", "Unknown"),
+                        }
+                    )
             except Exception:
                 continue
         console.print(json.dumps(profiles_data, indent=2, ensure_ascii=False))
@@ -442,7 +502,7 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
         table.add_column("Nome", style="green")
         table.add_column("Mensagens", style="yellow")
         table.add_column("Última Atualização", style="blue")
-        
+
         for profile_file in profile_files:
             try:
                 with open(profile_file) as f:
@@ -451,11 +511,11 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
                         profile_file.stem,
                         profile_data.get("name", "Unknown"),
                         str(profile_data.get("message_count", 0)),
-                        profile_data.get("last_updated", "Unknown")
+                        profile_data.get("last_updated", "Unknown"),
                     )
             except Exception:
                 table.add_row(profile_file.stem, "❌ Erro ao ler", "-", "-")
-        
+
         console.print(table)
 
 
@@ -463,31 +523,33 @@ def _show_profile(config: PipelineConfig, member_id: str, output_format: str) ->
     """Mostra detalhes de um perfil específico."""
     profiles_dir = config.posts_dir / "profiles" / "json"
     profile_file = profiles_dir / f"{member_id}.json"
-    
+
     if not profile_file.exists():
         console.print(f"❌ Perfil não encontrado: {member_id}")
         raise typer.Exit(1)
-    
+
     try:
         with open(profile_file) as f:
             profile_data = json.load(f)
-        
+
         if output_format == "json":
             console.print(json.dumps(profile_data, indent=2, ensure_ascii=False))
         else:
-            console.print(Panel(
-                f"[bold]Nome:[/bold] {profile_data.get('name', 'Unknown')}\n"
-                f"[bold]ID do Membro:[/bold] {member_id}\n"
-                f"[bold]Mensagens:[/bold] {profile_data.get('message_count', 0)}\n"
-                f"[bold]Primeira Atividade:[/bold] {profile_data.get('first_seen', 'Unknown')}\n"
-                f"[bold]Última Atividade:[/bold] {profile_data.get('last_seen', 'Unknown')}\n"
-                f"[bold]Última Atualização:[/bold] {profile_data.get('last_updated', 'Unknown')}\n\n"
-                f"[bold]Descrição:[/bold]\n{profile_data.get('description', 'Nenhuma descrição disponível')}\n\n"
-                f"[bold]Tópicos Principais:[/bold] {', '.join(profile_data.get('main_topics', []))}\n"
-                f"[bold]Estilo de Comunicação:[/bold] {profile_data.get('communication_style', 'Unknown')}",
-                title=f"👤 Perfil: {profile_data.get('name', member_id)}",
-                border_style="blue"
-            ))
+            console.print(
+                Panel(
+                    f"[bold]Nome:[/bold] {profile_data.get('name', 'Unknown')}\n"
+                    f"[bold]ID do Membro:[/bold] {member_id}\n"
+                    f"[bold]Mensagens:[/bold] {profile_data.get('message_count', 0)}\n"
+                    f"[bold]Primeira Atividade:[/bold] {profile_data.get('first_seen', 'Unknown')}\n"
+                    f"[bold]Última Atividade:[/bold] {profile_data.get('last_seen', 'Unknown')}\n"
+                    f"[bold]Última Atualização:[/bold] {profile_data.get('last_updated', 'Unknown')}\n\n"
+                    f"[bold]Descrição:[/bold]\n{profile_data.get('description', 'Nenhuma descrição disponível')}\n\n"
+                    f"[bold]Tópicos Principais:[/bold] {', '.join(profile_data.get('main_topics', []))}\n"
+                    f"[bold]Estilo de Comunicação:[/bold] {profile_data.get('communication_style', 'Unknown')}",
+                    title=f"👤 Perfil: {profile_data.get('name', member_id)}",
+                    border_style="blue",
+                )
+            )
     except Exception as e:
         console.print(f"❌ Erro ao ler perfil: {e}")
         raise typer.Exit(1)
@@ -498,9 +560,9 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
     if not zip_path.exists():
         console.print(f"❌ Arquivo ZIP não encontrado: {zip_path}")
         raise typer.Exit(1)
-    
+
     console.print(f"👥 Gerando perfis a partir de: {zip_path}")
-    
+
     try:
         # Create processor with the ZIP file
         temp_config = PipelineConfig(
@@ -512,17 +574,17 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
             system_classifier=SystemClassifierConfig(),
-            rag=RAGConfig()
+            rag=RAGConfig(),
         )
         processor = UnifiedProcessor(temp_config)
-        
+
         # Generate profiles (this would need implementation in processor)
         console.print("🔄 Processando mensagens para geração de perfis...")
-        
+
         # For now, show what would be done
         console.print("✅ Perfis seriam gerados (funcionalidade em desenvolvimento)")
         console.print("💡 Use 'egregora process' com dados reais para gerar perfis automaticamente")
-        
+
     except Exception as e:
         console.print(f"❌ Erro durante geração de perfis: {e}")
         raise typer.Exit(1)
@@ -531,14 +593,14 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
 def _clean_profiles(config: PipelineConfig) -> None:
     """Remove perfis antigos ou inválidos."""
     profiles_dir = config.posts_dir / "profiles" / "json"
-    
+
     if not profiles_dir.exists():
         console.print("📁 Nenhum diretório de perfis encontrado")
         return
-    
+
     profile_files = list(profiles_dir.glob("*.json"))
     removed_count = 0
-    
+
     for profile_file in profile_files:
         try:
             with open(profile_file) as f:
@@ -547,7 +609,7 @@ def _clean_profiles(config: PipelineConfig) -> None:
             profile_file.unlink()
             removed_count += 1
             console.print(f"🗑️  Removido perfil corrompido: {profile_file.name}")
-    
+
     if removed_count == 0:
         console.print("✅ Todos os perfis estão válidos")
     else:
@@ -583,11 +645,13 @@ def _dry_run_and_exit(
     to_date: date | None,
 ) -> None:
     """Executa dry run e sai."""
-    console.print(Panel(
-        "[bold blue]🔍 Modo DRY RUN[/bold blue]\n"
-        "Mostrando o que seria processado sem executar",
-        border_style="blue"
-    ))
+    console.print(
+        Panel(
+            "[bold blue]🔍 Modo DRY RUN[/bold blue]\n"
+            "Mostrando o que seria processado sem executar",
+            border_style="blue",
+        )
+    )
 
     plans = processor.plan_runs(days=days, from_date=from_date, to_date=to_date)
     if not plans:
@@ -618,9 +682,7 @@ def _dry_run_and_exit(
                 first_5 = ", ".join(str(d) for d in plan.target_dates[:5])
                 last_5 = ", ".join(str(d) for d in plan.target_dates[-5:])
                 formatted_dates = f"{first_5}, ..., {last_5}"
-            console.print(
-                f"   Será gerado para {len(plan.target_dates)} dia(s): {formatted_dates}"
-            )
+            console.print(f"   Será gerado para {len(plan.target_dates)} dia(s): {formatted_dates}")
             total_posts += len(plan.target_dates)
         else:
             console.print("   Nenhuma post seria gerada (sem dados recentes)")
@@ -629,18 +691,22 @@ def _dry_run_and_exit(
 
     # Show quota estimation
     try:
-        quota_info = processor.estimate_api_usage(
-            days=days, from_date=from_date, to_date=to_date
-        )
+        quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
         console.print(f"\n📊 Estimativa de Uso da API:")
         console.print(f"   Chamadas para posts: {quota_info['post_calls']}")
         console.print(f"   Chamadas para enriquecimento: {quota_info['enrichment_calls']}")
         console.print(f"   Total de chamadas: {quota_info['total_api_calls']}")
-        console.print(f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos")
+        console.print(
+            f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos"
+        )
 
         if quota_info["total_api_calls"] > 200:
-            console.print(f"\n[yellow]⚠️ Esta operação pode exceder a quota gratuita do Gemini[/yellow]")
-            console.print(f"[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]")
+            console.print(
+                f"\n[yellow]⚠️ Esta operação pode exceder a quota gratuita do Gemini[/yellow]"
+            )
+            console.print(
+                f"[dim]Tier gratuito: 15 chamadas/minuto. Considere processar em lotes menores.[/dim]"
+            )
 
     except Exception as exc:
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
@@ -660,9 +726,7 @@ def _process_and_display(
 
     # Show quota estimation before processing
     try:
-        quota_info = processor.estimate_api_usage(
-            days=days, from_date=from_date, to_date=to_date
-        )
+        quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
         if quota_info["total_api_calls"] > 15:
             console.print(
                 Panel(
@@ -687,7 +751,7 @@ def _process_and_display(
     table = Table(
         title=f"📊 Resultado do Processamento ({total} posts geradas)",
         show_header=True,
-        header_style="bold magenta"
+        header_style="bold magenta",
     )
     table.add_column("Grupo", style="cyan", no_wrap=True)
     table.add_column("Posts Geradas", justify="center", style="green")

@@ -158,6 +158,7 @@ def _install_generator_stubs(monkeypatch):
 
 from unittest.mock import MagicMock
 
+
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
     config = PipelineConfig()

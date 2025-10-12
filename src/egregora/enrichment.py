@@ -134,7 +134,9 @@ def _redact_url(url: str) -> str:
         userinfo = f"{userinfo}:{REDACTED_PASSWORD_TOKEN}@" if parts.password else f"{userinfo}@"
 
     redacted_netloc = f"{userinfo}{netloc}" if (userinfo or netloc) else netloc
-    return urlunparse((parts.scheme, redacted_netloc, parts.path, parts.params, parts.query, parts.fragment))
+    return urlunparse(
+        (parts.scheme, redacted_netloc, parts.path, parts.params, parts.query, parts.fragment)
+    )
 
 
 def _extract_domain(url: str) -> str | None:
@@ -826,11 +828,7 @@ class ContentEnricher:
 
     @staticmethod
     def _collect_domains(references: Sequence[ContentReference]) -> tuple[str, ...]:
-        domains = {
-            _extract_domain(reference.url)
-            for reference in references
-            if reference.url
-        }
+        domains = {_extract_domain(reference.url) for reference in references if reference.url}
         return tuple(sorted(filter(None, domains)))
 
     def _log_metrics(

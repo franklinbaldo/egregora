@@ -280,26 +280,30 @@ def build_llm_input(
 
     # Add participant context BEFORE transcripts
     if participant_profiles:
-        sections.extend([
-            "CONTEXTO DOS PARTICIPANTES:",
-            "<<<PERFIS_INICIO>>>",
-            participant_profiles,
-            "<<<PERFIS_FIM>>>",
-            "",
-            "Use este contexto para:",
-            "- Identificar expertise de cada membro",
-            "- Reconhecer padrões de argumentação",
-            "- Contextualizar intervenções",
-            "- Escrever com mais profundidade sobre contribuições",
-        ])
+        sections.extend(
+            [
+                "CONTEXTO DOS PARTICIPANTES:",
+                "<<<PERFIS_INICIO>>>",
+                participant_profiles,
+                "<<<PERFIS_FIM>>>",
+                "",
+                "Use este contexto para:",
+                "- Identificar expertise de cada membro",
+                "- Reconhecer padrões de argumentação",
+                "- Contextualizar intervenções",
+                "- Escrever com mais profundidade sobre contribuições",
+            ]
+        )
 
     if previous_post:
-        sections.extend([
-            "POST DO DIA ANTERIOR:",
-            "<<<POST_ONTEM_INICIO>>>",
-            previous_post.strip(),
-            "<<<POST_ONTEM_FIM>>>",
-        ])
+        sections.extend(
+            [
+                "POST DO DIA ANTERIOR:",
+                "<<<POST_ONTEM_INICIO>>>",
+                previous_post.strip(),
+                "<<<POST_ONTEM_FIM>>>",
+            ]
+        )
 
     if enrichment_section:
         sections.extend(

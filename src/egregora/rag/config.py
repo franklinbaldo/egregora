@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+
 def _default_keyword_stop_words() -> tuple[str, ...]:
     return (
         "about",

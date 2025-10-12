@@ -105,7 +105,9 @@ class PostRAG:
         if store_type == "chroma":
             chromadb_module, chroma_vector_store_cls = _load_chroma_dependencies()
 
-            self._chroma_client = chromadb_module.PersistentClient(path=str(self.config.persist_dir))
+            self._chroma_client = chromadb_module.PersistentClient(
+                path=str(self.config.persist_dir)
+            )
             self._chroma_collection = self._chroma_client.get_or_create_collection(
                 name=self.config.collection_name
             )
