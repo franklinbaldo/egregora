@@ -74,9 +74,12 @@ uv run egregora process data/whatsapp_zips/*.zip --days 2
 
 # 4. Check your outputs in data/
 ls data/your-group-slug/posts/daily/
+
+# 5. Build and serve your site
+uv run mkdocs serve
 ```
 
-That's it! Your anonymized, enriched posts are ready in Markdown format.
+That's it! Your anonymized, enriched posts are ready in Markdown format and can be viewed at http://127.0.0.1:8000.
 
 ## 📖 Usage Guide
 
