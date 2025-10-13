@@ -9,7 +9,7 @@ import polars as pl
 
 from .merger import merge_with_tags
 from .models import GroupSource
-from .parser import parse_multiple
+from .ingest.parser import parse_multiple
 from .schema import ensure_message_schema
 
 logger = logging.getLogger(__name__)

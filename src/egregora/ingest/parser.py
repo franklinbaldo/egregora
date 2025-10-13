@@ -13,9 +13,9 @@ from datetime import UTC, date, datetime
 import polars as pl
 from dateutil import parser as date_parser
 
-from .models import WhatsAppExport
-from .schema import ensure_message_schema
-from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from ..models import WhatsAppExport
+from ..schema import ensure_message_schema
+from ..zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 logger = logging.getLogger(__name__)
 

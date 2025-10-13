@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import polars as pl
 import pytest
 
-from egregora.media_extractor import MediaExtractor
+from egregora.ingest.media_extractor import MediaExtractor
 
 
 def test_extract_media_from_zip_creates_files(tmp_path) -> None:

@@ -15,7 +15,9 @@ MESSAGE_SCHEMA: dict[str, pl.DataType] = {
     "timestamp": pl.Datetime(time_unit="ns", time_zone=DEFAULT_TIMEZONE),
     "date": pl.Date,
     "author": pl.String,
+    "anon_author": pl.String,
     "message": pl.String,
+    "enriched_summary": pl.String,
     "original_line": pl.String,
     "tagged_line": pl.String,
 }
@@ -85,7 +87,7 @@ def ensure_message_schema(  # noqa: PLR0912
     else:
         frame = frame.with_columns(pl.col("timestamp").dt.date().alias("date"))
 
-    for name in ("author", "message", "original_line", "tagged_line"):
+    for name in ("author", "anon_author", "message", "enriched_summary", "original_line", "tagged_line"):
         if name not in frame.columns:
             frame = frame.with_columns(pl.lit(None, dtype=pl.String).alias(name))
         else:

@@ -129,10 +129,12 @@ class Anonymizer:
             raise KeyError("DataFrame must have 'author' column")
 
         return df.with_columns(
-            pl.col("author").map_elements(
+            pl.col("author")
+            .map_elements(
                 lambda author: Anonymizer.anonymize_author(author, format),
                 return_dtype=pl.String,
             )
+            .alias("anon_author")
         )
 
     @staticmethod

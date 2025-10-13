@@ -40,6 +40,15 @@ LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
 }
 
 
+class EmbedConfig(BaseModel):
+    """Configuration for the embedding subsystem."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    model: str = "models/embedding-001"
+    batch_size: int = 10
+
+
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
 
@@ -266,6 +275,7 @@ class PipelineConfig(BaseModel):
     media_url_prefix: str | None = None
     model: str = DEFAULT_MODEL
     timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
+    embed: EmbedConfig = Field(default_factory=EmbedConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
@@ -332,6 +342,15 @@ class PipelineConfig(BaseModel):
         if isinstance(value, dict):
             return LLMConfig(**value)
         raise TypeError("llm configuration must be a mapping")
+
+    @field_validator("embed", mode="before")
+    @classmethod
+    def _validate_embed(cls, value: Any) -> EmbedConfig:
+        if isinstance(value, EmbedConfig):
+            return value
+        if isinstance(value, dict):
+            return EmbedConfig(**value)
+        raise TypeError("embed configuration must be a mapping")
 
     @field_validator("enrichment", mode="before")
     @classmethod
@@ -444,6 +463,7 @@ __all__ = [
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",
     "CacheConfig",
+    "EmbedConfig",
     "EnrichmentConfig",
     "LLMConfig",
     "PipelineConfig",

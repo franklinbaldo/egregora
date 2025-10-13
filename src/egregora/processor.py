@@ -21,7 +21,7 @@ from .gemini_manager import GeminiManager
 from .generate.core import PostContext, PostGenerator
 
 # from .group_discovery import discover_groups
-from .media_extractor import MediaExtractor
+from .ingest.media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
@@ -37,7 +37,7 @@ from .transcript import (
 from .types import GroupSlug
 
 if TYPE_CHECKING:
-    from .media_extractor import MediaFile
+    from .ingest.media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
 

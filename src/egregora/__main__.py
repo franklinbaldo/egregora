@@ -23,6 +23,7 @@ from .config import (
 )
 from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
+from .cli import embed as embed_cli
 
 MAX_POSTS_TO_SHOW = 3
 MAX_DATES_TO_SHOW = 10
@@ -31,6 +32,8 @@ QUOTA_WARNING_THRESHOLD_ENRICH = 15
 
 console = Console()
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
+
+app.add_typer(embed_cli.app, name="embed")
 
 
 @app.command("process")

@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 
 import polars as pl
 
-from .types import GroupSlug
+from ..types import GroupSlug
 
 MEDIA_TYPE_BY_EXTENSION = {
     # Images

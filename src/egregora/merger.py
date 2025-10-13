@@ -7,7 +7,7 @@ import logging
 import polars as pl
 
 from .models import GroupSource, MergeConfig, WhatsAppExport
-from .parser import parse_multiple
+from .ingest.parser import parse_multiple
 from .types import GroupSlug
 
 logger = logging.getLogger(__name__)

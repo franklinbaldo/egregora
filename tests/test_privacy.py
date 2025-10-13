@@ -136,7 +136,7 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch):
     anonymized_df = Anonymizer.anonymize_dataframe(df)
 
     # Verify that the authors have been anonymized
-    assert "João Silva" not in anonymized_df["author"].to_list()
-    assert "+55 21 99876-5432" not in anonymized_df["author"].to_list()
-    assert anonymized_df["author"][0].startswith("Member-")
-    assert anonymized_df["author"][1].startswith("Member-")
+    assert "João Silva" not in anonymized_df["anon_author"].to_list()
+    assert "+55 21 99876-5432" not in anonymized_df["anon_author"].to_list()
+    assert anonymized_df["anon_author"][0].startswith("Member-")
+    assert anonymized_df["anon_author"][1].startswith("Member-")
