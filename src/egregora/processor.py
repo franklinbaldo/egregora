@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 import yaml
-from diskcache import Cache
+# from diskcache import Cache
 
-from .anonymizer import Anonymizer
+from .ingest.anonymizer import Anonymizer
 from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager
-from .generator import PostContext, PostGenerator
+from .generate.core import PostContext, PostGenerator
 
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
@@ -46,10 +46,10 @@ QUOTA_WARNING_THRESHOLD = 15
 MIN_YAML_PARTS = 3
 
 
-def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
-    directory.mkdir(parents=True, exist_ok=True)
-    size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
-    return Cache(directory=str(directory), size_limit=size_limit_bytes)
+# def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
+#     directory.mkdir(parents=True, exist_ok=True)
+#     size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
+#     return Cache(directory=str(directory), size_limit=size_limit_bytes)
 
 
 def _coerce_timestamp(value: Any) -> datetime | None:
@@ -71,30 +71,30 @@ def _coerce_timestamp(value: Any) -> datetime | None:
     return None
 
 
-def _cleanup_cache(cache: Cache, days: int) -> int:
-    threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
-    removed = 0
-
-    for key in list(cache.iterkeys()):
-        entry = cache.get(key)
-        if not isinstance(entry, dict):
-            cache.delete(key)
-            continue
-
-        last_used = _coerce_timestamp(entry.get("last_used"))
-        if last_used is None:
-            continue
-
-        if last_used < threshold:
-            cache.delete(key)
-            removed += 1
-            continue
-
-        if not isinstance(entry.get("last_used"), datetime):
-            entry["last_used"] = last_used
-            cache.set(key, entry)
-
-    return removed
+# def _cleanup_cache(cache: Cache, days: int) -> int:
+#     threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
+#     removed = 0
+#
+#     for key in list(cache.iterkeys()):
+#         entry = cache.get(key)
+#         if not isinstance(entry, dict):
+#             cache.delete(key)
+#             continue
+#
+#         last_used = _coerce_timestamp(entry.get("last_used"))
+#         if last_used is None:
+#             continue
+#
+#         if last_used < threshold:
+#             cache.delete(key)
+#             removed += 1
+#             continue
+#
+#         if not isinstance(entry.get("last_used"), datetime):
+#             entry["last_used"] = last_used
+#             cache.set(key, entry)
+#
+#     return removed
 
 
 def _build_post_metadata(

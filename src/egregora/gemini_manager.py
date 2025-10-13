@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 try:  # pragma: no cover - optional dependency
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
+    import google.generativeai as genai
+    from google.generativeai import types
 except ModuleNotFoundError:  # pragma: no cover - graceful degradation when library is absent
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]

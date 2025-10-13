@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from diskcache import Cache
+# from diskcache import Cache
 
 __all__ = [
     "CacheMetadata",

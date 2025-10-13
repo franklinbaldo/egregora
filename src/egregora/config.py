@@ -18,7 +18,7 @@ from pydantic import (
 )
 
 # Configuration now uses direct initialization instead of environment variables
-from .anonymizer import FormatType
+from .ingest.anonymizer import FormatType
 from .models import MergeConfig
 from .rag.config import RAGConfig
 from .types import GroupSlug
