@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 try:
-    from google import genai
-    from google.genai import types
+    import google.generativeai as genai
+    from google.generativeai import types
 except ModuleNotFoundError:
     genai = None
     types = None
 
-from .gemini_manager import GeminiManager, GeminiQuotaError
+from ..gemini_manager import GeminiManager, GeminiQuotaError
 
 if TYPE_CHECKING:
     from datetime import tzinfo

@@ -11,9 +11,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from egregora.anonymizer import Anonymizer
+from egregora.ingest.anonymizer import Anonymizer
 from egregora.config import PipelineConfig
-from egregora.generator import PostGenerator
+from egregora.generate.core import PostGenerator
 from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANON_SUFFIX_LENGTH = 4
@@ -80,15 +80,15 @@ class DummyPart:
 def _install_generator_stubs(monkeypatch):
     stub_types = SimpleNamespace(Part=DummyPart)
     # Patch the types used within the generator module
-    monkeypatch.setattr("egregora.generator.types", stub_types)
+    monkeypatch.setattr("egregora.generate.core.types", stub_types)
     # Mock the prompt loading to avoid file I/O
-    monkeypatch.setattr("egregora.generator._load_prompt", lambda name: f"PROMPT: {name}")
+    monkeypatch.setattr("egregora.generate.core._load_prompt", lambda name: f"PROMPT: {name}")
 
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):
     _install_generator_stubs(monkeypatch)
     config = PipelineConfig()
-    monkeypatch.setattr("egregora.generator.GeminiManager", MagicMock())
+    monkeypatch.setattr("egregora.generate.core.GeminiManager", MagicMock())
     generator = PostGenerator(config)
 
     # Test without group tags

@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 try:  # pragma: no cover - optional dependency
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
+    import google.generativeai as genai
+    from google.generativeai import types
 except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]

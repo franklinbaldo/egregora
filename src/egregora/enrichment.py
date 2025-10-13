@@ -17,8 +17,8 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 try:  # pragma: no cover - optional dependency
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
+    import google.generativeai as genai
+    from google.generativeai import types
 except ModuleNotFoundError:  # pragma: no cover - allows the module to load without dependency
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
@@ -26,9 +26,8 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import polars as pl
-from diskcache import Cache
+# from diskcache import Cache
 from pydantic import ValidationError
-from pydantic_ai import Agent
 
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
@@ -46,8 +45,6 @@ MEDIA_TOKEN_RE = re.compile(r"<m[íi]dia oculta>", re.IGNORECASE)
 
 CACHE_RECORD_VERSION = "2.0"
 CACHE_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-
-SUMMARY_AGENT = Agent(output_type=SummaryResponse)
 
 MEDIA_PLACEHOLDER_SUMMARY = "Mídia sem descrição compartilhada; peça detalhes se necessário."
 MEDIA_PLACEHOLDER_TOPIC = "Conteúdo multimídia sem transcrição"
@@ -584,7 +581,7 @@ class ContentEnricher:
         raw_text = raw_text.strip()
         payload: SummaryResponse | None = None
         try:
-            payload = SUMMARY_AGENT.output_type.model_validate_json(raw_text)
+            payload = SummaryResponse.model_validate_json(raw_text)
         except ValidationError:
             try:
                 data = json.loads(raw_text)
@@ -592,7 +589,7 @@ class ContentEnricher:
                 data = None
             if isinstance(data, dict):
                 try:
-                    payload = SUMMARY_AGENT.output_type.model_validate(data)
+                    payload = SummaryResponse.model_validate(data)
                 except ValidationError:
                     payload = None
 
