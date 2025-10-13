@@ -6,6 +6,7 @@ import asyncio
 import json
 from datetime import date, datetime
 from pathlib import Path
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -22,72 +23,141 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 
 @app.command("process")
 def process_command(  # noqa: PLR0913
-    zip_files: list[Path] = typer.Argument(
-        ..., help="Um ou mais arquivos .zip do WhatsApp para processar"
-    ),
-    output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Diretório onde as posts serão escritas"
-    ),
-    group_name: str = typer.Option(
-        None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"
-    ),
-    group_slug: str = typer.Option(
-        None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"
-    ),
-    model: str = typer.Option(
-        "gemini-flash-lite-latest", "--model", help="Nome do modelo Gemini a ser usado"
-    ),
-    timezone: str = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA"),
-    days: int = typer.Option(
-        None,
-        "--days",
-        min=1,
-        help="Processar os N dias mais recentes. Incompatível com --from/--to.",
-    ),
-    from_date: str = typer.Option(
-        None,
-        "--from-date",
-        help="Data de início (YYYY-MM-DD). Incompatível com --days.",
-        formats=["%Y-%m-%d"],
-    ),
-    to_date: str = typer.Option(
-        None,
-        "--to-date",
-        help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
-        formats=["%Y-%m-%d"],
-    ),
-    disable_enrichment: bool = typer.Option(
-        False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"
-    ),
-    disable_cache: bool = typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
-    list_groups: bool = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"
-    ),
+    zip_files: Annotated[
+        list[Path],
+        typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            None, "--output", "-o", help="Diretório onde as posts serão escritas"
+        ),
+    ],
+    group_name: Annotated[
+        str,
+        typer.Option(
+            None,
+            "--group-name",
+            help="Nome do grupo (auto-detectado se não fornecido)",
+        ),
+    ],
+    group_slug: Annotated[
+        str,
+        typer.Option(
+            None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"
+        ),
+    ],
+    model: Annotated[
+        str,
+        typer.Option(
+            "gemini-flash-lite-latest",
+            "--model",
+            help="Nome do modelo Gemini a ser usado",
+        ),
+    ],
+    timezone: Annotated[
+        str, typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA")
+    ],
+    days: Annotated[
+        int,
+        typer.Option(
+            None,
+            "--days",
+            min=1,
+            help="Processar os N dias mais recentes. Incompatível com --from/--to.",
+        ),
+    ],
+    from_date: Annotated[
+        str,
+        typer.Option(
+            None,
+            "--from-date",
+            help="Data de início (YYYY-MM-DD). Incompatível com --days.",
+            formats=["%Y-%m-%d"],
+        ),
+    ],
+    to_date: Annotated[
+        str,
+        typer.Option(
+            None,
+            "--to-date",
+            help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
+            formats=["%Y-%m-%d"],
+        ),
+    ],
+    disable_enrichment: Annotated[
+        bool,
+        typer.Option(
+            False,
+            "--disable-enrichment",
+            "--no-enrich",
+            help="Desativa o enriquecimento",
+        ),
+    ],
+    disable_cache: Annotated[
+        bool, typer.Option(False, "--no-cache", help="Desativa o cache persistente")
+    ],
+    list_groups: Annotated[
+        bool, typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai")
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            False,
+            "--dry-run",
+            help="Simula a execução e mostra quais posts seriam geradas",
+        ),
+    ],
     # Profile linking options
-    link_member_profiles: bool = typer.Option(
-        True, "--link-profiles/--no-link-profiles", help="Link member mentions to profile pages"
-    ),
-    profile_base_url: str = typer.Option(
-        "/profiles/", "--profile-base-url", help="Base URL for profile links"
-    ),
+    link_member_profiles: Annotated[
+        bool,
+        typer.Option(
+            True,
+            "--link-profiles/--no-link-profiles",
+            help="Link member mentions to profile pages",
+        ),
+    ],
+    profile_base_url: Annotated[
+        str,
+        typer.Option(
+            "/profiles/", "--profile-base-url", help="Base URL for profile links"
+        ),
+    ],
     # LLM options
-    safety_threshold: str = typer.Option(
-        "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
-    ),
-    thinking_budget: int = typer.Option(
-        -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
-    ),
+    safety_threshold: Annotated[
+        str,
+        typer.Option(
+            "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
+        ),
+    ],
+    thinking_budget: Annotated[
+        int,
+        typer.Option(
+            -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
+        ),
+    ],
     # Enrichment options
-    max_links: int = typer.Option(50, "--max-links", help="Maximum links to enrich per post"),
-    relevance_threshold: int = typer.Option(
-        2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"
-    ),
+    max_links: Annotated[
+        int, typer.Option(50, "--max-links", help="Maximum links to enrich per post")
+    ],
+    relevance_threshold: Annotated[
+        int,
+        typer.Option(
+            2,
+            "--relevance-threshold",
+            help="Minimum relevance threshold for enrichment",
+        ),
+    ],
     # Cache options
-    cache_dir: str = typer.Option("cache", "--cache-dir", help="Cache directory path"),
-    auto_cleanup_days: int = typer.Option(
-        90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
-    ),
+    cache_dir: Annotated[
+        str, typer.Option("cache", "--cache-dir", help="Cache directory path")
+    ],
+    auto_cleanup_days: Annotated[
+        int,
+        typer.Option(
+            90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
+        ),
+    ],
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
@@ -193,18 +263,30 @@ def process_command(  # noqa: PLR0913
 
 @app.command("enrich")
 def enrich_command(
-    url: str = typer.Argument(..., help="URL ou caminho de mídia para enriquecer"),
-    config_file: Path = typer.Option(
-        None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
-    ),
-    model: str = typer.Option(None, "--model", help="Modelo Gemini para enriquecimento"),
-    output_format: str = typer.Option(
-        "pretty", "--format", "-f", help="Formato de saída: pretty, json"
-    ),
-    save_cache: bool = typer.Option(True, "--cache/--no-cache", help="Salvar resultado no cache"),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Simula enriquecimento sem chamadas da API"
-    ),
+    url: Annotated[
+        str, typer.Argument(..., help="URL ou caminho de mídia para enriquecer")
+    ],
+    model: Annotated[
+        str, typer.Option(None, "--model", help="Modelo Gemini para enriquecimento")
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option(
+            "pretty", "--format", "-f", help="Formato de saída: pretty, json"
+        ),
+    ],
+    save_cache: Annotated[
+        bool,
+        typer.Option(
+            True, "--cache/--no-cache", help="Salvar resultado no cache"
+        ),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            False, "--dry-run", help="Simula enriquecimento sem chamadas da API"
+        ),
+    ],
 ) -> None:
     """Testa o enriquecimento de uma URL ou mídia específica."""
 
@@ -405,12 +487,19 @@ def enrich_command(
 
 @app.command("profiles")
 def profiles_command(
-    action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
-    target: str = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
-    config_file: Path = typer.Option(
-        None, "--config", "-c", help="[DEPRECATED] Use environment variables instead"
-    ),
-    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
+    action: Annotated[
+        str, typer.Argument(..., help="Ação: list, show, generate, clean")
+    ],
+    target: Annotated[
+        str,
+        typer.Argument(
+            None, help="ID do membro ou caminho do ZIP (para generate)"
+        ),
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
+    ],
 ) -> None:
     """Gerencia perfis de participantes."""
 
