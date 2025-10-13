@@ -16,6 +16,7 @@ from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager, GeminiQuotaError
 from .generator import PostContext, PostGenerator
+from .post_formatter import PostFormatter
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor
 from .merger import create_virtual_groups, get_merge_stats
@@ -263,6 +264,39 @@ class UnifiedProcessor:
             ),
         }
 
+    def _ensure_mkdocs_structure(
+        self, sources: dict[GroupSlug, GroupSource]
+    ) -> None:
+        """Ensure the output directory is a valid MkDocs site."""
+
+        output_dir = self.config.posts_dir
+        docs_dir = output_dir / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create a basic index file if it doesn't exist
+        index_path = docs_dir / "index.md"
+        if not index_path.exists():
+            index_path.write_text("# Bem-vindo ao seu blog Egregora!", encoding="utf-8")
+
+        # Create mkdocs.yml
+        mkdocs_yml_path = output_dir / "mkdocs.yml"
+
+        # Base configuration
+        config = {
+            "site_name": self.config.site_name or "Blog Egregora",
+            "theme": "material",
+            "nav": [{"Home": "index.md"}],
+        }
+
+        # Add navigation for each group
+        nav = config["nav"]
+        for slug, source in sorted(sources.items()):
+            nav.append({source.name: f"{slug}/index.md"})
+
+        if not mkdocs_yml_path.exists():
+            with mkdocs_yml_path.open("w", encoding="utf-8") as f:
+                yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+
     def process_all(
         self,
         *,
@@ -273,6 +307,9 @@ class UnifiedProcessor:
         """Process everything (real + virtual groups)."""
 
         sources_to_process, _, _ = self._collect_sources()
+
+        # Ensure the site structure is ready before processing
+        self._ensure_mkdocs_structure(sources_to_process)
 
         results: dict[GroupSlug, list[Path]] = {}
         for slug, source in sources_to_process.items():
@@ -522,11 +559,11 @@ class UnifiedProcessor:
     def _existing_daily_posts(self, group_dir: Path) -> list[Path]:
         """Return existing daily posts for *group_dir* if they are present."""
 
-        daily_dir = group_dir / "posts" / "daily"
-        if not daily_dir.exists():
+        if not group_dir.exists():
             return []
 
-        return [path for path in daily_dir.glob("*.md") if path.is_file()]
+        # Find all markdown files, excluding index.md
+        return [p for p in group_dir.glob("*.md") if p.is_file() and p.name != "index.md"]
 
     def _write_group_index(
         self,
@@ -560,11 +597,8 @@ class UnifiedProcessor:
 
         items: list[str] = []
         for path in sorted(all_posts, key=lambda p: p.stem, reverse=True):
-            try:
-                relative = path.relative_to(group_dir)
-            except ValueError:
-                relative = path
-            items.append(f"- [{path.stem}]({relative.as_posix()})")
+            # Links are now relative to the index file in the same directory
+            items.append(f"- [{path.stem}]({path.name})")
 
         if not items:
             items.append("_Nenhuma edição gerada ainda._")
@@ -599,17 +633,17 @@ class UnifiedProcessor:
     ) -> list[Path]:
         """Process a single source."""
 
-        group_dir = self.config.posts_dir / source.slug
+        # All content is now generated inside the 'docs' directory
+        docs_dir = self.config.posts_dir / "docs"
+        group_dir = docs_dir / source.slug
         group_dir.mkdir(parents=True, exist_ok=True)
 
-        posts_base = group_dir / "posts"
-        daily_dir = posts_base / "daily"
-        daily_dir.mkdir(parents=True, exist_ok=True)
-
+        # Media is stored relative to the group directory
         media_dir = group_dir / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
 
-        profiles_base = group_dir / "profiles"
+        # Profiles are now stored outside the docs directory to avoid being served.
+        profiles_base = self.config.posts_dir / "profiles" / source.slug
         profiles_base.mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
@@ -673,7 +707,7 @@ class UnifiedProcessor:
             public_paths = MediaExtractor.build_public_paths(
                 all_media,
                 url_prefix=self.config.media_url_prefix,
-                relative_to=(daily_dir if self.config.media_url_prefix is None else None),
+                relative_to=(group_dir if self.config.media_url_prefix is None else None),
             )
 
             df_render = MediaExtractor.replace_media_references_dataframe(
@@ -696,10 +730,11 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            _, previous_post = load_previous_post(daily_dir, target_date)
+            _, previous_post = load_previous_post(group_dir, target_date)
 
             # Enrichment
             enrichment_section = None
+            enrichment_result = None
             if self.config.enrichment.enabled:
                 cache: Cache | None = None
                 if self.config.cache.enabled:
@@ -810,11 +845,19 @@ class UnifiedProcessor:
             if media_section:
                 post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
+            # Format the post using the new formatter
+            formatter = PostFormatter(self.config)
+            post = formatter.format(
+                post,
+                source=source,
+                enrichment_result=enrichment_result,
+            )
+
             post = _ensure_blog_front_matter(
                 post, source=source, target_date=target_date, config=self.config
             )
 
-            output_path = daily_dir / f"{target_date}.md"
+            output_path = group_dir / f"{target_date}.md"
             output_path.write_text(post, encoding="utf-8")
 
             if profile_repository and self._profile_updater:

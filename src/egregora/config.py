@@ -308,6 +308,7 @@ class PipelineConfig(BaseSettings):
 
     zip_files: list[Path] = Field(default_factory=list)  # ZIP files to process
     posts_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data"))
+    site_name: str | None = None
     group_name: str | None = None
     group_slug: GroupSlug | None = None
     post_language: str = "pt-BR"
