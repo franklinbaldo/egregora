@@ -98,7 +98,8 @@ class GeminiManager:
         attempt = 0
         last_exc: Exception | None = None
         contents = list(contents)
-        safety_settings = list(safety_settings or [])
+        safety_settings = list(config.safety_settings or [])
+        config.safety_settings = safety_settings
 
         while attempt < self._retry_attempts:
             attempt += 1
