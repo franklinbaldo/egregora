@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -18,26 +18,34 @@ from pydantic import (
 )
 
 # Configuration now uses direct initialization instead of environment variables
-from .anonymizer import FormatType
+from .ingest.anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "models/gemini-flash-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
-LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
-    "vector_store_path": "persist_dir",
-    "vector_store_dir": "persist_dir",
-    "chunkSize": "chunk_size",
-    "chunkOverlap": "chunk_overlap",
-    "topK": "top_k",
-    "minSimilarity": "min_similarity",
-    "keywordStopWords": "keyword_stop_words",
-    "embeddingExportPath": "embedding_export_path",
-    "cacheDir": "cache_dir",
-    "postsDir": "posts_dir",
-}
+
+class RAGConfig(BaseModel):
+    """Configuration for the RAG subsystem."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    top_k: int = 3
+
+
+class ArchiveConfig(BaseModel):
+    """Configuration for the Internet Archive integration."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    ia_identifier: str = "egregora-vectors"
+
+
+class EmbedConfig(BaseModel):
+    """Configuration for the embedding subsystem."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model: str = "models/embedding-001"
+    batch_size: int = 10
 
 
 class LLMConfig(BaseModel):
@@ -160,92 +168,6 @@ class ProfilesConfig(BaseModel):
         return fvalue
 
 
-def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
-
-    payload: dict[str, Any] = {str(key): value for key, value in raw.items()}
-
-    for legacy_key, canonical_key in LEGACY_RAG_KEY_ALIASES.items():
-        if legacy_key in payload and canonical_key not in payload:
-            payload[canonical_key] = payload.pop(legacy_key)
-        elif legacy_key in payload:
-            payload.pop(legacy_key)
-
-    _coerce_fields(payload)
-
-    return payload
-
-
-def _coerce_fields(payload: dict[str, Any]) -> None:
-    """Coerce fields in the payload to the correct types."""
-    bool_fields = {
-        "enabled",
-        "enable_cache",
-        "export_embeddings",
-    }
-    int_fields = {
-        "top_k",
-        "max_keywords",
-        "exclude_recent_days",
-        "max_context_chars",
-        "classifier_max_llm_calls",
-        "classifier_token_budget",
-        "chunk_size",
-        "chunk_overlap",
-        "embedding_dimension",
-    }
-
-    for field in bool_fields:
-        if field in payload:
-            payload[field] = _coerce_bool(payload[field])
-    for field in int_fields:
-        if field in payload and payload[field] is not None:
-            payload[field] = _coerce_int(payload[field])
-    if "min_similarity" in payload and payload["min_similarity"] is not None:
-        payload["min_similarity"] = _coerce_float(payload["min_similarity"])
-
-    _coerce_keyword_stop_words(payload)
-    _coerce_path_fields(payload)
-
-
-def _coerce_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "on"}:
-            return True
-        if lowered in {"false", "0", "no", "off"}:
-            return False
-    return bool(value)
-
-
-def _coerce_int(value: Any) -> int:
-    return int(value) if value is not None else value
-
-
-def _coerce_float(value: Any) -> float:
-    return float(value) if value is not None else value
-
-
-def _coerce_keyword_stop_words(payload: dict[str, Any]) -> None:
-    if "keyword_stop_words" in payload:
-        value = payload["keyword_stop_words"]
-        if isinstance(value, str):
-            items = [part.strip().lower() for part in value.split(",") if part.strip()]
-            payload["keyword_stop_words"] = tuple(items)
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            payload["keyword_stop_words"] = tuple(
-                str(item).strip().lower() for item in value if str(item).strip()
-            )
-
-
-def _coerce_path_fields(payload: dict[str, Any]) -> None:
-    for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
-        if path_field in payload and payload[path_field] is not None:
-            payload[path_field] = Path(payload[path_field])
-
-
 class PipelineConfig(BaseModel):
     """Runtime configuration for the post pipeline."""
 
@@ -268,9 +190,11 @@ class PipelineConfig(BaseModel):
     timezone: ZoneInfo = Field(default_factory=lambda: ZoneInfo(DEFAULT_TIMEZONE))
     llm: LLMConfig = Field(default_factory=LLMConfig)
     enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
+    embed: EmbedConfig = Field(default_factory=EmbedConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
+    archive: ArchiveConfig = Field(default_factory=ArchiveConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
@@ -342,6 +266,15 @@ class PipelineConfig(BaseModel):
             return EnrichmentConfig(**value)
         raise TypeError("enrichment configuration must be a mapping")
 
+    @field_validator("embed", mode="before")
+    @classmethod
+    def _validate_embed(cls, value: Any) -> EmbedConfig:
+        if isinstance(value, EmbedConfig):
+            return value
+        if isinstance(value, dict):
+            return EmbedConfig(**value)
+        raise TypeError("embed configuration must be a mapping")
+
     @field_validator("cache", mode="before")
     @classmethod
     def _validate_cache(cls, value: Any) -> CacheConfig:
@@ -368,6 +301,15 @@ class PipelineConfig(BaseModel):
         if isinstance(value, dict):
             return RAGConfig(**value)
         raise TypeError("rag configuration must be a mapping")
+
+    @field_validator("archive", mode="before")
+    @classmethod
+    def _validate_archive(cls, value: Any) -> ArchiveConfig:
+        if isinstance(value, ArchiveConfig):
+            return value
+        if isinstance(value, dict):
+            return ArchiveConfig(**value)
+        raise TypeError("archive configuration must be a mapping")
 
     @field_validator("profiles", mode="before")
     @classmethod
@@ -443,7 +385,9 @@ __all__ = [
     "DEFAULT_MODEL",
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",
+    "ArchiveConfig",
     "CacheConfig",
+    "EmbedConfig",
     "EnrichmentConfig",
     "LLMConfig",
     "PipelineConfig",

@@ -26,14 +26,73 @@ except ModuleNotFoundError:  # pragma: no cover - allows the module to load with
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import polars as pl
-from diskcache import Cache
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import Agent
 
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
-from .llm_models import ActionItem, SummaryResponse
 from .schema import ensure_message_schema
+
+
+class ActionItem(BaseModel):
+    """Actionable follow-up produced by the LLM."""
+
+    description: str = Field(..., min_length=1)
+    owner: str | None = Field(
+        default=None,
+        description="Responsável sugerido ou participante mencionado na conversa.",
+    )
+    priority: str | None = Field(
+        default=None,
+        description="Prioridade ou urgência contextualizada (ex.: alta, moderada).",
+    )
+
+    model_config = {
+        "extra": "ignore",
+    }
+
+    def format_bullet(self) -> str:
+        """Return a human friendly bullet representation."""
+
+        owner = f" (@{self.owner})" if self.owner else ""
+        priority = f" [{self.priority}]" if self.priority else ""
+        return f"{self.description.strip()}{owner}{priority}".strip()
+
+
+class SummaryResponse(BaseModel):
+    """Structured analytics block summarising a conversation."""
+
+    summary: str = Field(..., min_length=1)
+    topics: list[str] = Field(default_factory=list)
+    actions: list[ActionItem] = Field(default_factory=list)
+
+    model_config = {
+        "extra": "ignore",
+    }
+
+    def sanitized_topics(self) -> list[str]:
+        """Return cleaned topics, removing blank entries."""
+
+        topics: list[str] = []
+        for topic in self.topics:
+            if not isinstance(topic, str):
+                continue
+            cleaned = topic.strip()
+            if cleaned:
+                topics.append(cleaned)
+        return topics
+
+    def sanitized_actions(self) -> list[ActionItem]:
+        """Return actions filtered for valid descriptions."""
+
+        valid: list[ActionItem] = []
+        for item in self.actions:
+            if not isinstance(item, ActionItem):
+                continue
+            description = item.description.strip()
+            if description:
+                valid.append(item.model_copy(update={"description": description}))
+        return valid
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
@@ -329,17 +388,13 @@ class ContentEnricher:
         self,
         config: EnrichmentConfig,
         *,
-        cache: Cache | None = None,
         gemini_manager: GeminiManager | None = None,
     ) -> None:
         self._config = config
-        self._cache = cache
         self._gemini_manager = gemini_manager
         self._metrics: dict[str, int] = {
             "llm_calls": 0,
             "estimated_tokens": 0,
-            "cache_hits": 0,
-            "cache_misses": 0,
         }
 
     @property
@@ -472,98 +527,6 @@ class ContentEnricher:
         self._record_llm_usage(prompt, analysis.raw_response)
         return analysis
 
-    def _store_in_cache(self, reference: ContentReference, analysis: AnalysisResult) -> None:
-        cache = self._cache
-        if cache is None or not reference.url:
-            return
-
-        enrichment_payload = {
-            "summary": analysis.summary,
-            "topics": list(analysis.topics),
-            "actions": [item.model_dump() for item in analysis.actions],
-            "relevance": analysis.relevance,
-            "raw_response": analysis.raw_response,
-        }
-        timestamp = datetime.now(UTC).strftime(CACHE_TIMESTAMP_FORMAT)
-        domain = _extract_domain(reference.url) if reference.url else None
-        context = {
-            "message": reference.message,
-            "messages_before": list(reference.context_before),
-            "messages_after": list(reference.context_after),
-            "sender": reference.sender,
-            "timestamp": reference.timestamp,
-            "date": reference.date.isoformat(),
-        }
-        metadata = {
-            "domain": domain,
-            "extracted_at": timestamp,
-        }
-        payload: dict[str, Any] = {
-            "model": self._config.enrichment_model,
-            "analyzed_at": timestamp,
-            "enrichment": enrichment_payload,
-            "context": context,
-            "metadata": {k: v for k, v in metadata.items() if v is not None},
-            "version": CACHE_RECORD_VERSION,
-        }
-
-        cache_key = _cache_key_for_url(reference.url)
-        _, existing_record = _extract_cache_entry(cache.get(cache_key))
-
-        now = datetime.now(UTC)
-        first_seen = _coerce_timestamp((existing_record or {}).get("first_seen")) or now
-        hit_count = int((existing_record or {}).get("hit_count", 0))
-
-        entry = {
-            "payload": payload,
-            "first_seen": first_seen,
-            "last_used": now,
-            "hit_count": hit_count,
-        }
-
-        try:
-            cache.set(cache_key, entry)
-        except Exception:
-            # Cache failures must not break the enrichment flow.
-            return
-
-    def _analysis_from_cache(self, payload: dict[str, object]) -> AnalysisResult | None:
-        enrichment = payload.get("enrichment")
-        if not isinstance(enrichment, dict):
-            return None
-
-        summary = self._coerce_string(enrichment.get("summary"))
-        topics = [
-            point.strip()
-            for point in enrichment.get("topics", [])
-            if isinstance(point, str) and point.strip()
-        ]
-        actions: list[ActionItem] = []
-        for action_payload in enrichment.get("actions", []) or []:
-            try:
-                action = ActionItem.model_validate(action_payload)
-            except ValidationError:
-                continue
-            cleaned = action.description.strip()
-            if not cleaned:
-                continue
-            actions.append(action.model_copy(update={"description": cleaned}))
-        relevance = enrichment.get("relevance")
-        if not isinstance(relevance, int):
-            relevance = 1
-
-        raw_response = enrichment.get("raw_response")
-        if raw_response is not None and not isinstance(raw_response, str):
-            raw_response = str(raw_response)
-
-        return AnalysisResult(
-            summary=summary,
-            topics=topics,
-            actions=actions,
-            relevance=relevance,
-            raw_response=raw_response,
-        )
-
     @staticmethod
     def _parse_response(response: object) -> AnalysisResult:
         raw_text = getattr(response, "text", None)
@@ -656,48 +619,6 @@ class ContentEnricher:
         )
         self._metrics["estimated_tokens"] = self._metrics.get("estimated_tokens", 0) + estimated
 
-    def _fetch_cache_entry(
-        self, url: str | None
-    ) -> tuple[str | None, dict[str, Any] | None, dict[str, Any] | None]:
-        cache = self._cache
-        if not url or cache is None:
-            return None, None, None
-
-        cache_key = _cache_key_for_url(url)
-        entry = cache.get(cache_key)
-        if entry is None:
-            return cache_key, None, None
-
-        payload, record = _extract_cache_entry(entry)
-        if payload is None:
-            try:
-                cache.delete(cache_key)
-            except Exception:
-                pass
-            return cache_key, None, None
-
-        return cache_key, payload, record
-
-    def _register_cache_hit(
-        self, cache_key: str, payload: dict[str, Any], record: dict[str, Any] | None
-    ) -> None:
-        cache = self._cache
-        if cache is None:
-            return
-
-        entry = record or {"payload": payload}
-        entry["payload"] = payload
-
-        now = datetime.now(UTC)
-        entry["last_used"] = now
-        entry["hit_count"] = int(entry.get("hit_count", 0)) + 1
-        entry["first_seen"] = _coerce_timestamp(entry.get("first_seen")) or now
-
-        try:
-            cache.set(cache_key, entry)
-        except Exception:
-            return
-
     @staticmethod
     def _estimate_relevance(
         summary: str | None,
@@ -735,25 +656,6 @@ class ContentEnricher:
                 )
                 return EnrichedItem(reference=reference, analysis=analysis)
 
-            cache_key, cached_payload, cache_record = self._fetch_cache_entry(reference.url)
-            if cache_key is not None and cached_payload is None:
-                self._metrics["cache_misses"] = self._metrics.get("cache_misses", 0) + 1
-
-            if cache_key is not None and cached_payload is not None:
-                cached_item = self._analysis_from_cache(cached_payload)
-                if cached_item:
-                    self._metrics["cache_hits"] = self._metrics.get("cache_hits", 0) + 1
-                    self._register_cache_hit(cache_key, cached_payload, cache_record)
-                    return EnrichedItem(reference=reference, analysis=cached_item)
-
-                self._metrics["cache_misses"] = self._metrics.get("cache_misses", 0) + 1
-                cache = self._cache
-                if cache is not None:
-                    try:
-                        cache.delete(cache_key)
-                    except Exception:
-                        pass
-
             async with semaphore_analysis:
                 analysis = await self._analyze_reference(
                     reference,
@@ -766,9 +668,6 @@ class ContentEnricher:
                     error=analysis.error,
                 )
 
-            cache = self._cache
-            if cache is not None:
-                self._store_in_cache(reference, analysis)
             return EnrichedItem(reference=reference, analysis=analysis)
 
         try:

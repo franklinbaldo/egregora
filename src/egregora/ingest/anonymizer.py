@@ -6,7 +6,9 @@ import re
 import uuid
 from typing import Literal
 
+import ibis
 import polars as pl
+from ibis.expr.types import Table
 
 BRAZIL_MOBILE_WITH_PREFIX_LENGTH = 13
 BRAZIL_COUNTRY_PREFIX = "55"
@@ -123,16 +125,18 @@ class Anonymizer:
 
     @staticmethod
     def anonymize_dataframe(df: pl.DataFrame, format: FormatType = "human") -> pl.DataFrame:
-        """Return a new DataFrame with the ``author`` column anonymized."""
+        """Return a new DataFrame with the ``anon_author`` column anonymized."""
 
-        if "author" not in df.columns:
-            raise KeyError("DataFrame must have 'author' column")
+        if "anon_author" not in df.columns:
+            raise KeyError("DataFrame must have 'anon_author' column")
 
         return df.with_columns(
-            pl.col("author").map_elements(
+            pl.col("anon_author")
+            .map_elements(
                 lambda author: Anonymizer.anonymize_author(author, format),
                 return_dtype=pl.String,
             )
+            .alias("anon_author")
         )
 
     @staticmethod
@@ -143,6 +147,20 @@ class Anonymizer:
             lambda author: Anonymizer.anonymize_author(author, format),
             return_dtype=pl.String,
         )
+
+    @staticmethod
+    def anonymize_ibis_table(table: Table, format: FormatType = "human") -> Table:
+        """Return a new Ibis table with the ``anon_author`` column anonymized."""
+
+        if "anon_author" not in table.columns:
+            raise KeyError("Table must have 'anon_author' column")
+
+        # Define a UDF for the anonymization function
+        @ibis.udf.scalar.python
+        def anonymize_udf(author: str) -> str:
+            return Anonymizer.anonymize_author(author, format)
+
+        return table.mutate(anon_author=anonymize_udf(table["anon_author"]))
 
 
 __all__ = ["Anonymizer", "FormatType"]

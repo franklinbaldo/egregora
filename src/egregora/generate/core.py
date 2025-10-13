@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     genai = None
     types = None
 
-from .gemini_manager import GeminiManager, GeminiQuotaError
+from ..gemini_manager import GeminiManager, GeminiQuotaError
 
 if TYPE_CHECKING:
     from datetime import tzinfo

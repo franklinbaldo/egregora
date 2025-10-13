@@ -9,10 +9,12 @@ import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import polars as pl
 from dateutil import parser as date_parser
 
+from .media_extractor import MediaExtractor, MediaFile
 from .models import WhatsAppExport
 from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -41,7 +43,27 @@ def parse_export(export: WhatsAppExport) -> pl.DataFrame:
         return pl.DataFrame()
 
     df = pl.DataFrame(rows).sort("timestamp")
-    return ensure_message_schema(df)
+    df = ensure_message_schema(df)
+
+    # Find and stub media references
+    attachment_names = MediaExtractor.find_attachment_names_dataframe(df)
+    if attachment_names:
+        # Create dummy MediaFile objects for stubbing
+        media_files = {
+            name: MediaFile(
+                filename=name,
+                media_type="unknown",
+                source_path="",
+                dest_path=Path(""),
+                relative_path=f"media/{name}",
+            )
+            for name in attachment_names
+        }
+        df = MediaExtractor.replace_media_references_dataframe(
+            df, media_files, public_paths={name: f"media/{name}" for name in attachment_names}
+        )
+
+    return df
 
 
 def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
@@ -165,12 +187,9 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
                 "timestamp": datetime.combine(msg_date, msg_time),
                 "date": msg_date,
                 "time": msg_time.strftime("%H:%M"),
-                "author": _normalize_text(author.strip()),
+                "anon_author": _normalize_text(author.strip()),
                 "message": _normalize_text(message.strip()),
-                "group_slug": export.group_slug,
-                "group_name": export.group_name,
-                "original_line": line,
-                "tagged_line": None,
+                "enriched_summary": None,
             }
         )
 
