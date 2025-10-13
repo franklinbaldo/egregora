@@ -171,23 +171,13 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
         elif legacy_key in payload:
             payload.pop(legacy_key)
 
-    def _coerce_bool(value: Any) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered in {"true", "1", "yes", "on"}:
-                return True
-            if lowered in {"false", "0", "no", "off"}:
-                return False
-        return bool(value)
+    _coerce_fields(payload)
 
-    def _coerce_int(value: Any) -> int:
-        return int(value) if value is not None else value
+    return payload
 
-    def _coerce_float(value: Any) -> float:
-        return float(value) if value is not None else value
 
+def _coerce_fields(payload: dict[str, Any]) -> None:
+    """Coerce fields in the payload to the correct types."""
     bool_fields = {
         "enabled",
         "enable_cache",
@@ -214,6 +204,31 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     if "min_similarity" in payload and payload["min_similarity"] is not None:
         payload["min_similarity"] = _coerce_float(payload["min_similarity"])
 
+    _coerce_keyword_stop_words(payload)
+    _coerce_path_fields(payload)
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+    return bool(value)
+
+
+def _coerce_int(value: Any) -> int:
+    return int(value) if value is not None else value
+
+
+def _coerce_float(value: Any) -> float:
+    return float(value) if value is not None else value
+
+
+def _coerce_keyword_stop_words(payload: dict[str, Any]) -> None:
     if "keyword_stop_words" in payload:
         value = payload["keyword_stop_words"]
         if isinstance(value, str):
@@ -223,11 +238,12 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
             payload["keyword_stop_words"] = tuple(
                 str(item).strip().lower() for item in value if str(item).strip()
             )
+
+
+def _coerce_path_fields(payload: dict[str, Any]) -> None:
     for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
         if path_field in payload and payload[path_field] is not None:
             payload[path_field] = Path(payload[path_field])
-
-    return payload
 
 
 class PipelineConfig(BaseModel):

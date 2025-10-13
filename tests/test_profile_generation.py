@@ -14,7 +14,6 @@ from egregora.processor import UnifiedProcessor
 HAS_GEMINI_KEY = bool(os.getenv("GEMINI_API_KEY"))
 
 
-@pytest.mark.skip(reason="Group discovery is temporarily disabled")
 @pytest.mark.skipif(
     not HAS_GEMINI_KEY,
     reason="GEMINI_API_KEY not configured; skipping live Gemini integration test.",

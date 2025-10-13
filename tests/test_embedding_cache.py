@@ -10,6 +10,8 @@ from egregora.cache import build_namespace, create_cache, load_vector, store_vec
 from egregora.rag.embedding_cache import EmbeddingCache
 from egregora.rag.embeddings import CachedGeminiEmbedding
 
+DIMENSION = 4
+
 
 @pytest.fixture()
 def cache_dir(tmp_path: Path) -> Path:
@@ -34,7 +36,7 @@ def test_low_level_helpers_round_trip(cache_dir: Path) -> None:
 
     metadata = store_vector(cache, namespace, text, [1, 2, 3, 4])
     assert metadata is not None
-    assert metadata.dimension == 4
+    assert metadata.dimension == DIMENSION
 
     stored = load_vector(cache, namespace, text)
     assert stored == [1.0, 2.0, 3.0, 4.0]

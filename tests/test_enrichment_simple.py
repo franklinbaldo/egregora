@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -10,6 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 from egregora.enrichment import MEDIA_TOKEN_RE, MESSAGE_RE, URL_RE
+
+EXPECTED_URLS = 3
+EXPECTED_MESSAGES = 5
+EXPECTED_TIME_PARTS = 2
+EXPECTED_URLS_LARGE = 100
 
 
 def test_url_extraction_patterns():
@@ -20,7 +26,7 @@ def test_url_extraction_patterns():
 
     urls = URL_RE.findall(whatsapp_content)
 
-    assert len(urls) == 3
+    assert len(urls) == EXPECTED_URLS
     assert "https://youtu.be/Nkhp-mb6FRc?si=HFXbG4Kke-1Ec1XT" in urls
     assert "https://example.com/article" in urls
     assert "http://test.com" in urls
@@ -79,7 +85,9 @@ def test_complex_conversation_patterns():
         if MESSAGE_RE.match(line):
             parsed_messages += 1
 
-    assert parsed_messages >= 5, f"Should parse multiple messages, found {parsed_messages}"
+    assert parsed_messages >= EXPECTED_MESSAGES, (
+        f"Should parse multiple messages, found {parsed_messages}"
+    )
 
 
 def test_whatsapp_real_data_patterns():
@@ -100,7 +108,7 @@ def test_whatsapp_real_data_patterns():
         if " - " in line and ": " in line:
             # Try to extract time portion: "09:45 - Franklin: message"
             time_part = line.split(" ", 2)[1:]  # Skip date
-            if len(time_part) >= 2:
+            if len(time_part) >= EXPECTED_TIME_PARTS:
                 time_message = " ".join(time_part)
                 if MESSAGE_RE.match(time_message):
                     parsed_count += 1
@@ -140,7 +148,7 @@ def test_edge_cases_regex_patterns():
             # match can be None, that's ok
 
         except Exception as e:
-            raise AssertionError(f"Regex failed on edge case: {case[:50]}... Error: {e}")
+            raise AssertionError(f"Regex failed on edge case: {case[:50]}... Error: {e}") from e
 
 
 def test_url_extraction_performance():
@@ -153,13 +161,11 @@ def test_url_extraction_performance():
     content = "\n".join(large_content)
 
     # Should handle large content efficiently
-    import time
-
     start = time.time()
     urls = URL_RE.findall(content)
     duration = time.time() - start
 
-    assert len(urls) == 100
+    assert len(urls) == EXPECTED_URLS_LARGE
     assert duration < 1.0, f"URL extraction took {duration:.2f}s, should be < 1s"
 
 

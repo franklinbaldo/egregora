@@ -4,7 +4,7 @@ import asyncio
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -67,47 +67,42 @@ def _format_transcript_section_header(transcript_count: int) -> str:
 
 def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict with method
     *,
-    group_name: str,
+    context: PostContext,
     timezone: tzinfo,
     transcripts: Sequence[tuple[date, str]],
-    previous_post: str | None,
-    enrichment_section: str | None = None,
-    rag_context: str | None = None,
 ) -> str:
     """Compose the user prompt sent to Gemini."""
-    from datetime import datetime
-
     today_str = datetime.now(timezone).date().isoformat()
     sections: list[str] = [
-        f"NOME DO GRUPO: {group_name}",
+        f"NOME DO GRUPO: {context.group_name}",
         f"DATA DE HOJE: {today_str}",
     ]
 
-    if previous_post:
+    if context.previous_post:
         sections.extend(
             [
                 "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
                 "<<<POST_ONTEM_INICIO>>>",
-                previous_post.strip(),
+                context.previous_post.strip(),
                 "<<<POST_ONTEM_FIM>>>",
             ]
         )
     else:
         sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
 
-    if enrichment_section:
+    if context.enrichment_section:
         sections.extend(
             [
                 "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
-                enrichment_section,
+                context.enrichment_section,
             ]
         )
 
-    if rag_context:
+    if context.rag_context:
         sections.extend(
             [
                 "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
-                rag_context,
+                context.rag_context,
             ]
         )
 
@@ -208,12 +203,9 @@ class PostGenerator:
         """Compose the user prompt sent to Gemini."""
 
         return _build_llm_input_string(
-            group_name=context.group_name,
+            context=context,
             timezone=self.config.timezone,
             transcripts=transcripts,
-            previous_post=context.previous_post,
-            enrichment_section=context.enrichment_section,
-            rag_context=context.rag_context,
         )
 
     def generate(self, source: GroupSource, context: PostContext) -> str:

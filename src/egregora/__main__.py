@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -14,8 +13,21 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .config import PipelineConfig
+from .config import (
+    AnonymizationConfig,
+    CacheConfig,
+    EnrichmentConfig,
+    LLMConfig,
+    PipelineConfig,
+    ProfilesConfig,
+)
 from .processor import UnifiedProcessor
+from .rag.config import RAGConfig
+
+MAX_POSTS_TO_SHOW = 3
+MAX_DATES_TO_SHOW = 10
+QUOTA_WARNING_THRESHOLD = 200
+QUOTA_WARNING_THRESHOLD_ENRICH = 15
 
 console = Console()
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
@@ -29,9 +41,7 @@ def process_command(  # noqa: PLR0913
     ],
     output_dir: Annotated[
         Path,
-        typer.Option(
-            None, "--output", "-o", help="Diretório onde as posts serão escritas"
-        ),
+        typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
     ],
     group_name: Annotated[
         str,
@@ -43,9 +53,7 @@ def process_command(  # noqa: PLR0913
     ],
     group_slug: Annotated[
         str,
-        typer.Option(
-            None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"
-        ),
+        typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
     ],
     model: Annotated[
         str,
@@ -119,22 +127,16 @@ def process_command(  # noqa: PLR0913
     ],
     profile_base_url: Annotated[
         str,
-        typer.Option(
-            "/profiles/", "--profile-base-url", help="Base URL for profile links"
-        ),
+        typer.Option("/profiles/", "--profile-base-url", help="Base URL for profile links"),
     ],
     # LLM options
     safety_threshold: Annotated[
         str,
-        typer.Option(
-            "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
-        ),
+        typer.Option("BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"),
     ],
     thinking_budget: Annotated[
         int,
-        typer.Option(
-            -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
-        ),
+        typer.Option(-1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"),
     ],
     # Enrichment options
     max_links: Annotated[
@@ -149,14 +151,10 @@ def process_command(  # noqa: PLR0913
         ),
     ],
     # Cache options
-    cache_dir: Annotated[
-        str, typer.Option("cache", "--cache-dir", help="Cache directory path")
-    ],
+    cache_dir: Annotated[str, typer.Option("cache", "--cache-dir", help="Cache directory path")],
     auto_cleanup_days: Annotated[
         int,
-        typer.Option(
-            90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
-        ),
+        typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
     ],
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
@@ -176,16 +174,16 @@ def process_command(  # noqa: PLR0913
     if from_date:
         try:
             from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
-        except ValueError:
+        except ValueError as e:
             console.print(f"❌ Data de início inválida: '{from_date}'. Use YYYY-MM-DD.")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     if to_date:
         try:
             to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
-        except ValueError:
+        except ValueError as e:
             console.print(f"❌ Data de fim inválida: '{to_date}'. Use YYYY-MM-DD.")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     # Date range validation
     if from_date_obj and to_date_obj and from_date_obj > to_date_obj:
@@ -194,19 +192,6 @@ def process_command(  # noqa: PLR0913
 
     # Convert days to days_to_process for backward compatibility
     days_to_process = days
-
-    # Build configuration using CLI arguments only
-    from pathlib import Path
-
-    from .config import (
-        AnonymizationConfig,
-        CacheConfig,
-        EnrichmentConfig,
-        LLMConfig,
-        PipelineConfig,
-        ProfilesConfig,
-    )
-    from .rag.config import RAGConfig
 
     # Build nested configuration objects
     llm_config = LLMConfig(safety_threshold=safety_threshold, thinking_budget=thinking_budget)
@@ -261,240 +246,12 @@ def process_command(  # noqa: PLR0913
     )
 
 
-@app.command("enrich")
-def enrich_command(
-    url: Annotated[
-        str, typer.Argument(..., help="URL ou caminho de mídia para enriquecer")
-    ],
-    model: Annotated[
-        str, typer.Option(None, "--model", help="Modelo Gemini para enriquecimento")
-    ],
-    output_format: Annotated[
-        str,
-        typer.Option(
-            "pretty", "--format", "-f", help="Formato de saída: pretty, json"
-        ),
-    ],
-    save_cache: Annotated[
-        bool,
-        typer.Option(
-            True, "--cache/--no-cache", help="Salvar resultado no cache"
-        ),
-    ],
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            False, "--dry-run", help="Simula enriquecimento sem chamadas da API"
-        ),
-    ],
-) -> None:
-    """Testa o enriquecimento de uma URL ou mídia específica."""
-
-    console.print(f"🔍 Testando enriquecimento: {url}")
-
-    if dry_run:
-        console.print("🔍 Modo DRY RUN - Simulando enriquecimento")
-        # Show what would be done without API calls
-        if url.startswith(("http://", "https://")):
-            console.print(
-                Panel(
-                    f"[bold blue]📡 URL Enriquecimento (Simulado)[/bold blue]\n\n"
-                    f"[bold]URL:[/bold] {url}\n"
-                    f"[bold]Tipo:[/bold] Link da web\n"
-                    f"[bold]Análise:[/bold] Extrairia conteúdo, palavras-chave e resumo\n"
-                    f"[bold]APIs:[/bold] Gemini (content analysis)\n"
-                    f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
-                    title="Simulação de Enriquecimento",
-                    border_style="blue",
-                )
-            )
-        else:
-            media_path = Path(url)
-            if media_path.exists():
-                console.print(
-                    Panel(
-                        f"[bold blue]🖼️ Mídia Enriquecimento (Simulado)[/bold blue]\n\n"
-                        f"[bold]Arquivo:[/bold] {media_path.name}\n"
-                        f"[bold]Tipo:[/bold] {media_path.suffix or 'Desconhecido'}\n"
-                        f"[bold]Análise:[/bold] Análise de conteúdo visual/áudio\n"
-                        f"[bold]APIs:[/bold] Gemini (multimodal analysis)\n"
-                        f"[bold]Cache:[/bold] {'Habilitado' if save_cache else 'Desabilitado'}",
-                        title="Simulação de Enriquecimento",
-                        border_style="blue",
-                    )
-                )
-            else:
-                console.print(f"❌ Arquivo não encontrado: {media_path}")
-                raise typer.Exit(1)
-        return
-
-    try:
-        # Import here to avoid dependency issues
-        from .enrichment import ContentEnricher
-        from .gemini_manager import GeminiManager
-
-        # Build minimal config using CLI arguments
-        if config_file:
-            console.print(
-                "[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]"
-            )
-            raise typer.Exit(code=1)
-
-        from .config import (
-            AnonymizationConfig,
-            CacheConfig,
-            EnrichmentConfig,
-            LLMConfig,
-            PipelineConfig,
-            ProfilesConfig,
-        )
-        from .rag.config import RAGConfig
-
-        config = PipelineConfig(
-            zip_files=[],  # Not needed for enrichment testing
-            model=model or "gemini-flash-lite-latest",
-            llm=LLMConfig(),
-            enrichment=EnrichmentConfig(),
-            cache=CacheConfig(),
-            profiles=ProfilesConfig(),
-            anonymization=AnonymizationConfig(),
-            rag=RAGConfig(),
-        )
-
-        # Create enricher
-        gemini_manager = GeminiManager()
-        enricher = ContentEnricher(config.enrichment, gemini_manager=gemini_manager)
-
-        # Test if it's a URL or file path
-        if url.startswith(("http://", "https://")):
-            # It's a URL - create a minimal DataFrame for testing
-            console.print(f"📡 Enriquecendo URL: {url}")
-
-            # Create a minimal polars DataFrame with the URL in a message
-            from datetime import datetime
-
-            import polars as pl
-
-            test_df = pl.DataFrame(
-                {
-                    "timestamp": [datetime.now()],
-                    "sender": ["Test-User"],
-                    "message": [f"Confira este link: {url}"],
-                    "date": [datetime.now().date()],
-                }
-            )
-
-            # Run enrichment on the DataFrame
-            result = asyncio.run(enricher.enrich_dataframe(test_df, client=gemini_manager.client))
-
-        else:
-            # It's likely a file path
-            media_path = Path(url)
-            if not media_path.exists():
-                console.print(f"❌ Arquivo não encontrado: {media_path}")
-                raise typer.Exit(1)
-
-            console.print(f"🖼️ Enriquecendo mídia: {media_path}")
-
-            # Create a minimal DataFrame with media reference
-            from datetime import datetime
-
-            import polars as pl
-
-            test_df = pl.DataFrame(
-                {
-                    "timestamp": [datetime.now()],
-                    "sender": ["Test-User"],
-                    "message": [f"<Mídia oculta> {media_path.name}"],
-                    "date": [datetime.now().date()],
-                }
-            )
-
-            result = asyncio.run(enricher.enrich_dataframe(test_df, client=gemini_manager.client))
-
-        # Format output
-        if output_format == "json":
-            # Convert result to dict for JSON output
-            metrics_dict = {}
-            if result.metrics:
-                metrics_dict = {
-                    "started_at": result.metrics.started_at.isoformat(),
-                    "finished_at": result.metrics.finished_at.isoformat(),
-                    "total_references": result.metrics.total_references,
-                    "analyzed_items": result.metrics.analyzed_items,
-                    "relevant_items": result.metrics.relevant_items,
-                    "error_count": result.metrics.error_count,
-                    "domains": result.metrics.domains,
-                    "threshold": result.metrics.threshold,
-                }
-
-            result_dict = {
-                "items_count": len(result.items),
-                "errors_count": len(result.errors),
-                "duration_seconds": result.duration_seconds,
-                "metrics": metrics_dict,
-                "errors": result.errors if result.errors else [],
-            }
-            console.print(json.dumps(result_dict, indent=2, ensure_ascii=False))
-        else:
-            # Pretty format
-            relevant_items = result.relevant_items(2) if result.items else []
-            console.print(
-                Panel(
-                    f"[bold green]✅ Enriquecimento concluído[/bold green]\n\n"
-                    f"[bold]Itens processados:[/bold] {len(result.items)}\n"
-                    f"[bold]Itens relevantes:[/bold] {len(relevant_items)}\n"
-                    f"[bold]Erros:[/bold] {len(result.errors)}\n"
-                    f"[bold]Duração:[/bold] {result.duration_seconds:.2f}s",
-                    title="Resultado do Enriquecimento",
-                    border_style="green" if not result.errors else "yellow",
-                )
-            )
-
-            if result.errors:
-                console.print("\n[bold red]❌ Erros encontrados:[/bold red]")
-                for error in result.errors[:3]:  # Show first 3
-                    console.print(f"  • {error}")
-                if len(result.errors) > 3:
-                    console.print(f"  ... e mais {len(result.errors) - 3}")
-
-            if relevant_items:
-                console.print("\n[bold yellow]📋 Itens relevantes:[/bold yellow]")
-                for item in relevant_items:  # Show all items
-                    ref = item.reference
-                    analysis = item.analysis
-                    console.print(f"  • {ref.url}")
-                    if analysis and analysis.summary:
-                        console.print(f"    {analysis.summary}")
-                    if analysis and analysis.topics:
-                        console.print(f"    [bold]Tópicos:[/bold] {', '.join(analysis.topics)}")
-                    if analysis and analysis.actions:
-                        console.print("    [bold]Ações:[/bold]")
-                        for action in analysis.actions:
-                            console.print(f"      - {action.description}")
-                    if analysis:
-                        console.print(f"    [bold]Relevância:[/bold] {analysis.relevance}/5")
-                    console.print()  # Add spacing between items
-
-    except ImportError as e:
-        console.print(f"❌ Dependência não encontrada: {e}")
-        console.print("💡 Instale as dependências: uv sync")
-        raise typer.Exit(1) from e
-    except Exception as e:
-        console.print(f"❌ Erro durante enriquecimento: {e}")
-        raise typer.Exit(1) from e
-
-
 @app.command("profiles")
 def profiles_command(
-    action: Annotated[
-        str, typer.Argument(..., help="Ação: list, show, generate, clean")
-    ],
+    action: Annotated[str, typer.Argument(..., help="Ação: list, show, generate, clean")],
     target: Annotated[
         str,
-        typer.Argument(
-            None, help="ID do membro ou caminho do ZIP (para generate)"
-        ),
+        typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
     ],
     output_format: Annotated[
         str,
@@ -508,22 +265,6 @@ def profiles_command(
         raise typer.Exit(1)
 
     # Build config using CLI arguments
-    if config_file:
-        console.print(
-            "[red]❌ Configuration files are no longer supported. Use CLI arguments instead.[/red]"
-        )
-        raise typer.Exit(code=1)
-
-    from .config import (
-        AnonymizationConfig,
-        CacheConfig,
-        EnrichmentConfig,
-        LLMConfig,
-        PipelineConfig,
-        ProfilesConfig,
-    )
-    from .rag.config import RAGConfig
-
     config = PipelineConfig(
         zip_files=[],
         llm=LLMConfig(),
@@ -650,18 +391,6 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
 
     try:
         # Create processor with the ZIP file
-        temp_config = PipelineConfig(
-            zip_files=[zip_path],
-            posts_dir=config.posts_dir,
-            llm=LLMConfig(),
-            enrichment=EnrichmentConfig(),
-            cache=CacheConfig(),
-            profiles=ProfilesConfig(),
-            anonymization=AnonymizationConfig(),
-            rag=RAGConfig(),
-        )
-        processor = UnifiedProcessor(temp_config)
-
         # Generate profiles (this would need implementation in processor)
         console.print("🔄 Processando mensagens para geração de perfis...")
 
@@ -671,7 +400,7 @@ def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
 
     except Exception as e:
         console.print(f"❌ Erro durante geração de perfis: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _clean_profiles(config: PipelineConfig) -> None:
@@ -759,7 +488,7 @@ def _dry_run_and_exit(
             console.print("   Nenhuma data disponível nos exports")
 
         if plan.target_dates:
-            if len(plan.target_dates) <= 10:
+            if len(plan.target_dates) <= MAX_DATES_TO_SHOW:
                 formatted_dates = ", ".join(str(d) for d in plan.target_dates)
             else:
                 first_5 = ", ".join(str(d) for d in plan.target_dates[:5])
@@ -783,7 +512,7 @@ def _dry_run_and_exit(
             f"   Tempo estimado (tier gratuito): {quota_info['estimated_time_minutes']:.1f} minutos"
         )
 
-        if quota_info["total_api_calls"] > 200:
+        if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD:
             console.print(
                 "\n[yellow]⚠️ Esta operação pode exceder a quota gratuita do Gemini[/yellow]"
             )
@@ -810,7 +539,7 @@ def _process_and_display(
     # Show quota estimation before processing
     try:
         quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
-        if quota_info["total_api_calls"] > 15:
+        if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD_ENRICH:
             console.print(
                 Panel(
                     f"[yellow]⚠️ Esta operação fará {quota_info['total_api_calls']} chamadas à API[/yellow]\n"
@@ -841,9 +570,9 @@ def _process_and_display(
     table.add_column("Arquivos", style="dim")
 
     for group_slug, post_paths in results.items():
-        files = ", ".join(p.name for p in post_paths[:3])
-        if len(post_paths) > 3:
-            files += f", +{len(post_paths) - 3} mais"
+        files = ", ".join(p.name for p in post_paths[:MAX_POSTS_TO_SHOW])
+        if len(post_paths) > MAX_POSTS_TO_SHOW:
+            files += f", +{len(post_paths) - MAX_POSTS_TO_SHOW} mais"
         table.add_row(group_slug, str(len(post_paths)), files)
 
     console.print(table)

@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import polars as pl
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -14,7 +15,6 @@ from egregora.anonymizer import Anonymizer
 from egregora.config import PipelineConfig
 from egregora.generator import PostGenerator
 from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
-from egregora.processor import UnifiedProcessor
 
 ANON_SUFFIX_LENGTH = 4
 UUID_FULL_LENGTH = 36
@@ -105,9 +105,6 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     assert "PROMPT: system_instruction_multigroup.md" in system_text_multigroup
 
 
-import polars as pl
-
-
 def test_unified_processor_anonymizes_dataframe(monkeypatch):
     """Verify that the UnifiedProcessor correctly anonymizes the dataframe."""
     # Create a mock DataFrame
@@ -133,15 +130,8 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch):
         "egregora.processor.PostGenerator", lambda config, gemini_manager: mock_generator
     )
 
-    # Configure and run the processor
-    config = PipelineConfig(
-        zip_files=[Path("dummy.zip")],
-        posts_dir=Path("test_posts"),
-        anonymization={"enabled": True},
-    )
-    processor = UnifiedProcessor(config)
-
     # The actual processing logic is inside _process_source, which we can't
+
     # easily call. However, we can check the anonymization function directly.
     anonymized_df = Anonymizer.anonymize_dataframe(df)
 

@@ -6,6 +6,8 @@ import zipfile
 from datetime import date
 from pathlib import Path
 
+ASCII_THRESHOLD = 127
+
 
 def create_test_zip(content: str, zip_path: Path, filename: str = "conversation.txt") -> None:
     """Create a test zip file with conversation content."""
@@ -49,7 +51,7 @@ def count_message_types(content: str) -> dict[str, int]:
             if "http" in line:
                 counts["urls"] += 1
             # Simple emoji detection
-            if any(ord(char) > 127 for char in line):
+            if any(ord(char) > ASCII_THRESHOLD for char in line):
                 counts["emojis"] += 1
         else:
             # System message

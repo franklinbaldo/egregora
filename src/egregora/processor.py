@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import re
+import unicodedata
+import zipfile
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -37,6 +40,10 @@ if TYPE_CHECKING:
     from .media_extractor import MediaFile
 
 logger = logging.getLogger(__name__)
+
+YAML_DELIMITER = "---"
+QUOTA_WARNING_THRESHOLD = 15
+MIN_YAML_PARTS = 3
 
 
 def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
@@ -122,16 +129,16 @@ def _ensure_blog_front_matter(
         remaining_content = stripped
 
         # Handle normal frontmatter first
-        if stripped.startswith("---"):
-            parts = stripped.split("---", 2)
-            if len(parts) >= 3:
+        if stripped.startswith(YAML_DELIMITER):
+            parts = stripped.split(YAML_DELIMITER, 2)
+            if len(parts) >= MIN_YAML_PARTS:
                 yaml_content = parts[1]
                 remaining_content = parts[2].lstrip()
 
         # Remove any wrapped frontmatter blocks from remaining content
-        while "```\n---" in remaining_content:
-            start_idx = remaining_content.find("```\n---")
-            end_idx = remaining_content.find("---\n```", start_idx)
+        while f"```\n{YAML_DELIMITER}" in remaining_content:
+            start_idx = remaining_content.find(f"```\n{YAML_DELIMITER}")
+            end_idx = remaining_content.find(f"{YAML_DELIMITER}\n```", start_idx)
             if end_idx > start_idx:
                 # Remove the entire wrapped block
                 remaining_content = (
@@ -153,14 +160,14 @@ def _ensure_blog_front_matter(
 
         # Generate clean frontmatter
         front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
-        return f"---\n{front_matter}\n---\n\n{remaining_content}"
+        return f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{remaining_content}"
 
     # No frontmatter found, add programmatic one
     metadata = _build_post_metadata(source, target_date, config)
     front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
     prefix_len = len(text) - len(stripped)
     prefix = text[:prefix_len]
-    return f"{prefix}---\n{front_matter}\n---\n\n{stripped}"
+    return f"{prefix}{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{stripped}"
 
 
 def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
@@ -168,9 +175,6 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
 
     if not config.profiles.link_members_in_posts:
         return text
-
-    import re
-    from pathlib import Path
 
     # Pattern to match Member-XXXX format (exactly 4 hex characters)
     member_pattern = r"\(Member-([A-F0-9]{4})\)"
@@ -357,7 +361,7 @@ class UnifiedProcessor:
             "groups": group_estimates,
             "warning": (
                 "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
-                if total_posts + total_enrichment_calls > 15
+                if total_posts + total_enrichment_calls > QUOTA_WARNING_THRESHOLD
                 else None
             ),
         }
@@ -432,7 +436,6 @@ class UnifiedProcessor:
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
-        import re
 
         # Remove file extension
         base_name = chat_filename.replace(".txt", "")
@@ -457,8 +460,6 @@ class UnifiedProcessor:
 
     def _generate_group_slug(self, group_name: str) -> str:
         """Generate a URL-friendly slug from group name."""
-        import re
-        import unicodedata
 
         # Normalize unicode characters
         slug = unicodedata.normalize("NFKD", group_name)
@@ -485,6 +486,29 @@ class UnifiedProcessor:
         if not self.config.zip_files:
             raise ValueError("No ZIP files specified. Use the zip_files parameter.")
 
+        real_groups = self._process_zip_files()
+        virtual_groups = self._create_virtual_groups(real_groups)
+
+        real_sources: dict[GroupSlug, GroupSource] = {
+            slug: GroupSource(
+                slug=slug,
+                name=exports[0].group_name,
+                exports=exports,
+                is_virtual=False,
+            )
+            for slug, exports in real_groups.items()
+        }
+
+        all_sources: dict[GroupSlug, GroupSource] = {
+            **real_sources,
+            **virtual_groups,
+        }
+        sources_to_process = self._filter_sources(all_sources)
+
+        return sources_to_process, real_groups, virtual_groups
+
+    def _process_zip_files(self) -> dict[GroupSlug, list[WhatsAppExport]]:
+        """Process the specified ZIP files."""
         num_files = len(self.config.zip_files)
         if num_files == 1:
             logger.info(f"🔍 Processing ZIP file: {self.config.zip_files[0]}")
@@ -493,15 +517,13 @@ class UnifiedProcessor:
 
         real_groups: dict[GroupSlug, list[WhatsAppExport]] = {}
 
-        for zip_path in self.config.zip_files:
-            zip_path = Path(zip_path)
+        for zip_file_path in self.config.zip_files:
+            zip_path = Path(zip_file_path)
             if not zip_path.exists():
                 raise FileNotFoundError(f"ZIP file not found: {zip_path}")
 
             if num_files > 1:
                 logger.info(f"  📦 {zip_path}")
-
-            import zipfile
 
             with zipfile.ZipFile(zip_path, "r") as zf:
                 # Find the chat file (should be the .txt file)
@@ -511,24 +533,7 @@ class UnifiedProcessor:
                 chat_file = txt_files[0]  # Use the first (and likely only) .txt file
                 media_files = [f for f in zf.namelist() if f != chat_file]
 
-            # Auto-detect or use provided group information
-            if self.config.group_name:
-                group_name = self.config.group_name
-            else:
-                group_name = self._extract_group_name_from_chat_file(chat_file)
-                if num_files == 1:
-                    logger.info(f"📝 Auto-detected group name: {group_name}")
-                else:
-                    logger.info(f"    📝 Auto-detected group name: {group_name}")
-
-            if self.config.group_slug:
-                group_slug = self.config.group_slug
-            else:
-                group_slug = self._generate_group_slug(group_name)
-                if num_files == 1:
-                    logger.info(f"🔗 Auto-generated slug: {group_slug}")
-                else:
-                    logger.info(f"    🔗 Auto-generated slug: {group_slug}")
+            group_name, group_slug = self._get_group_info(chat_file, num_files)
 
             # Use current date as export creation date
             # Note: Media extraction no longer depends on this matching message dates
@@ -553,31 +558,40 @@ class UnifiedProcessor:
             for group_slug, exports in real_groups.items():
                 if len(exports) > 1:
                     logger.info(f"🔀 Merging {len(exports)} exports into group '{group_slug}'")
+        return real_groups
 
+    def _get_group_info(self, chat_file: str, num_files: int) -> tuple[str, GroupSlug]:
+        """Get group name and slug."""
+        if self.config.group_name:
+            group_name = self.config.group_name
+        else:
+            group_name = self._extract_group_name_from_chat_file(chat_file)
+            if num_files == 1:
+                logger.info(f"📝 Auto-detected group name: {group_name}")
+            else:
+                logger.info(f"    📝 Auto-detected group name: {group_name}")
+
+        if self.config.group_slug:
+            group_slug = self.config.group_slug
+        else:
+            group_slug = self._generate_group_slug(group_name)
+            if num_files == 1:
+                logger.info(f"🔗 Auto-generated slug: {group_slug}")
+            else:
+                logger.info(f"    🔗 Auto-generated slug: {group_slug}")
+        return group_name, group_slug
+
+    def _create_virtual_groups(
+        self, real_groups: dict[GroupSlug, list[WhatsAppExport]]
+    ) -> dict[GroupSlug, GroupSource]:
+        """Create virtual groups from real groups."""
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 
         if virtual_groups:
             logger.info(f"🔀 Created {len(virtual_groups)} virtual group(s):")
             for slug, source in virtual_groups.items():
                 logger.info(f"  • {source.name} ({slug}): merges {len(source.exports)} exports")
-
-        real_sources: dict[GroupSlug, GroupSource] = {
-            slug: GroupSource(
-                slug=slug,
-                name=exports[0].group_name,
-                exports=exports,
-                is_virtual=False,
-            )
-            for slug, exports in real_groups.items()
-        }
-
-        all_sources: dict[GroupSlug, GroupSource] = {
-            **real_sources,
-            **virtual_groups,
-        }
-        sources_to_process = self._filter_sources(all_sources)
-
-        return sources_to_process, real_groups, virtual_groups
+        return virtual_groups
 
     def _log_merge_stats(self, source: GroupSource):
         """Log merge statistics."""
