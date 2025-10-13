@@ -106,7 +106,7 @@ def process_command(  # noqa: PLR0913
     if from_date:
         try:
             from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
-        except ValueError as e:
+        except ValueError:
             console.print(f"❌ Data de início inválida: '{from_date}'. Use YYYY-MM-DD.")
             raise typer.Exit(1)
 
