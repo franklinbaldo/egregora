@@ -692,16 +692,12 @@ docs = [
 ]
 lint = [
     { name = "pre-commit" },
+    { name = "ruff" },
 ]
 test = [
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "repomix" },
     { name = "ruff" },
 ]
 
@@ -730,15 +726,11 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "repomix", specifier = ">=0.3.4" },
     { name = "rich", specifier = ">=13.7.0" },
+    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.4" },
+    { name = "ruff", marker = "extra == 'test'", specifier = ">=0.4.4" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
 provides-extras = ["test", "docs", "lint"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "repomix" },
-    { name = "ruff", specifier = ">=0.14.0" },
-]
 
 [[package]]
 name = "eval-type-backport"
