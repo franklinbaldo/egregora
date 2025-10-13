@@ -23,7 +23,7 @@ from .models import MergeConfig
 from .rag.config import RAGConfig
 from .types import GroupSlug
 
-DEFAULT_MODEL = "gemini-flash-lite-latest"
+DEFAULT_MODEL = "models/gemini-flash-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
 LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
@@ -71,7 +71,7 @@ class EnrichmentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
-    enrichment_model: str = "gemini-2.0-flash-exp"
+    enrichment_model: str = "models/gemini-flash-lite-latest"
     max_links: int = 50
     context_window: int = 3
     relevance_threshold: int = 2
