@@ -84,6 +84,7 @@ def validate_whatsapp_format(content: str) -> list[str]:
 
     return issues
 
+
 class TestDataGenerator:
     """Generate various test scenarios for comprehensive testing."""
 

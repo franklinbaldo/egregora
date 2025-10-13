@@ -265,10 +265,6 @@ def enrich_command(
             LLMConfig,
             PipelineConfig,
             ProfilesConfig,
-<<<<<<< HEAD
-            SystemClassifierConfig,
-=======
->>>>>>> temp-pr-integration
         )
         from .rag.config import RAGConfig
 
@@ -280,10 +276,6 @@ def enrich_command(
             cache=CacheConfig(),
             profiles=ProfilesConfig(),
             anonymization=AnonymizationConfig(),
-<<<<<<< HEAD
-            system_classifier=SystemClassifierConfig(),
-=======
->>>>>>> temp-pr-integration
             rag=RAGConfig(),
         )
 
@@ -650,8 +642,7 @@ def _dry_run_and_exit(
     """Executa dry run e sai."""
     console.print(
         Panel(
-            "[bold blue]🔍 Modo DRY RUN[/bold blue]\n"
-            "Mostrando o que seria processado sem executar",
+            "[bold blue]🔍 Modo DRY RUN[/bold blue]\nMostrando o que seria processado sem executar",
             border_style="blue",
         )
     )

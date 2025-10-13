@@ -19,6 +19,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "pydantic>=2.7",
     "pydantic-ai>=0.0.14",
+    "repomix>=0.3.4",
 ]
 
 [project.optional-dependencies]
@@ -80,3 +81,9 @@ disallow_untyped_defs = false
 [tool.hatch.build.targets.sdist.force-include]
 "src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
 "src/egregora/prompts/system_instruction_multigroup.md" = "egregora/prompts/system_instruction_multigroup.md"
+
+[dependency-groups]
+dev = [
+    "repomix",
+    "ruff>=0.14.0",
+]
