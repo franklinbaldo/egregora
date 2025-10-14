@@ -45,7 +45,7 @@ class RAGConfig(BaseModel):
     enabled: bool = False
 
     # Retrieval behaviour
-    top_k: int = 5
+    top_k: int = 3
     min_similarity: float = 0.65
     exclude_recent_days: int = 7
 

@@ -6,19 +6,26 @@ Egregora ingests WhatsApp group exports, anonymises participants, enriches share
 
 ## Highlights
 
-- **Zero-touch ingestion** – Discover exports locally, build virtual groups, and skip duplicates automatically via `UnifiedProcessor`.【F:src/egregora/processor.py†L72-L168】
-- **Context-aware summaries** – Combine anonymised transcripts, enrichment snippets, prior posts, and RAG search hits to create high-signal Markdown posts using the Gemini-based generator.【F:src/egregora/pipeline.py†L64-L266】【F:src/egregora/generator.py†L24-L115】
-- **Rich link & media enrichment** – Resolve URLs with Gemini, cache results, and replace WhatsApp attachment markers with publishable paths so posts embed context and media previews out of the box.【F:src/egregora/enrichment.py†L35-L202】【F:src/egregora/processor.py†L209-L313】
-- **Participant dossiers** – Incrementally update member profiles whenever activity meets configurable thresholds, producing Markdown dossiers alongside machine-readable history.【F:src/egregora/processor.py†L315-L487】【F:src/egregora/profiles/updater.py†L18-L260】
-- **Privacy-first by default** – Deterministic anonymisation keeps transcripts safe, while the `discover` command lets members compute their pseudonyms independently.【F:src/egregora/anonymizer.py†L16-L132】【F:src/egregora/__main__.py†L142-L197】
+- **Local-first ingestion** – Parse WhatsApp exports into Polars DataFrames, enforce schema guarantees, and apply deterministic anonymisation in one pass ready for downstream enrichment.【F:src/egregora/ingest/parser.py†L18-L117】【F:src/egregora/pipeline_runner.py†L44-L90】
+- **Gemini embeddings + DuckDB RAG** – Generate vectors with the Gemini API, persist Parquet artefacts, and answer context lookups locally through a DuckDB/VSS index or FastMCP bridge.【F:src/egregora/embed/embed.py†L18-L118】【F:src/egregora/pipeline_runner.py†L130-L160】
+- **Jinja-driven generation** – Blend transcripts, enrichment, prior editions, and optional RAG snippets to produce “we”-voiced Markdown posts with reproducible prompts.【F:src/egregora/generate/core.py†L34-L171】【F:src/egregora/generate/cli.py†L24-L144】
+- **MkDocs previews out of the box** – Sync generated posts into a docs workspace, run `mkdocs build/serve`, and share live previews without leaving the CLI.【F:src/egregora/static/builder.py†L20-L142】【F:src/egregora/generate/cli.py†L68-L139】
+- **Zero-cost archival** – Upload embeddings to the Internet Archive, resume from prior vectors, and toggle uploads directly from the generation flow.【F:src/egregora/archive/uploader.py†L24-L220】【F:src/egregora/generate/cli.py†L139-L188】
+
+## What's new in 1.0.0
+
+- ✅ **Single-command pipeline** – `uv run egregora pipeline …` now routes through a dedicated orchestration layer that chains ingestion, embeddings, local RAG bootstrapping, generation, MkDocs builds, and optional archival in sequence.【F:src/egregora/__main__.py†L118-L219】【F:src/egregora/pipeline_runner.py†L44-L185】
+- ✅ **Reusable RAG client** – `LocalRAGClient` embeds queries locally, falls back gracefully when DuckDB VSS is unavailable, and can be injected directly into `_run_generation` or external automation via FastMCP.【F:src/egregora/pipeline_runner.py†L18-L80】【F:src/egregora/generate/cli.py†L24-L196】
+- ✅ **Fresh documentation** – New MkDocs guides describe how to configure the DuckDB/Gemini index and run the refactored flow end to end.【F:docs/getting-started/rag-setup.md†L1-L67】【F:docs/getting-started/index.md†L1-L26】
+- ✅ **Versioned release** – Package metadata and module exports now report `1.0.0`, signalling the completion of the eight-phase refactor.【F:pyproject.toml†L1-L40】【F:src/egregora/__init__.py†L1-L16】
 
 ## Pipeline at a glance
 
-1. **Discover sources** – Sync optional Google Drive folders, detect WhatsApp exports, and combine them into real or virtual group sources.【F:src/egregora/processor.py†L72-L168】
-2. **Normalise daily message frames** – Parse WhatsApp exports into Polars DataFrames, enforce schema/timezone guarantees, and slice per-day transcripts before rendering.【F:src/egregora/parser.py†L20-L150】【F:src/egregora/transcript.py†L12-L154】
-3. **Enrich content** – Analyse shared links or media markers with Gemini, store structured insights, and reuse cached analyses to control cost.【F:src/egregora/enrichment.py†L432-L720】【F:src/egregora/processor.py†L41-L116】
-4. **Assemble posts** – Blend transcripts, enrichment, RAG snippets, and prior editions into a polished Markdown post per group/day.【F:src/egregora/generator.py†L24-L115】【F:src/egregora/processor.py†L233-L340】
-5. **Publish artefacts** – Persist posts, media, and profile dossiers in predictable folders ready for downstream automation or manual review.【F:src/egregora/processor.py†L209-L487】
+1. **Parse & anonymise** – Extract transcripts from one or many ZIP exports, normalise timestamps, and assign deterministic `Member-XXXX` pseudonyms via Polars expressions.【F:src/egregora/ingest/parser.py†L150-L214】【F:src/egregora/pipeline_runner.py†L44-L90】
+2. **Embed conversations** – Call the Gemini embeddings API in batches, attach vector columns, and write Parquet datasets that power later retrieval or archival.【F:src/egregora/embed/embed.py†L43-L95】【F:src/egregora/pipeline_runner.py†L118-L160】
+3. **Answer context queries** – Spin up a DuckDB-backed similarity index (with optional VSS extension) and expose it through FastMCP or direct in-process queries.【F:src/egregora/pipeline_runner.py†L132-L160】【F:src/egregora/rag_context/server.py†L12-L91】
+4. **Render posts** – Use Jinja templates plus Gemini to craft daily Markdown editions enriched with optional RAG snippets and cached link summaries.【F:src/egregora/generate/core.py†L34-L171】【F:src/egregora/generate/cli.py†L68-L144】
+5. **Preview & publish** – Copy posts into a MkDocs workspace, build/serve the static site, and optionally upload embeddings to the Internet Archive for zero-cost persistence.【F:src/egregora/static/builder.py†L20-L142】【F:src/egregora/archive/uploader.py†L24-L220】
 
 ## Quick start
 
@@ -41,14 +48,14 @@ Configuration is now handled via explicit CLI arguments (see [CLI Configuration]
 ### Generate your first posts
 
 ```bash
-# Preview which groups and dates would run
-uv run egregora process data/whatsapp_zips/*.zip --dry-run
+# Run the refactored local-first pipeline end to end
+uv run egregora pipeline data/exports/*.zip --days 2 --preview
 
-# Process the latest two days for every discovered group
-uv run egregora process data/whatsapp_zips/*.zip --days 2
+# Persist the embedding parquet on the Internet Archive after generation
+uv run egregora pipeline data/exports/*.zip --archive --archive-suffix nightly
 ```
 
-Use `--list` to inspect discovered groups, `--no-enrich`/`--no-cache` to toggle enrichment subsystems, and `--timezone` to override the default run date window.【F:src/egregora/__main__.py†L59-L147】
+The command ingests the provided exports, generates embeddings, boots a local DuckDB index for contextual snippets, renders Markdown posts, builds the MkDocs site, and (optionally) uploads the resulting Parquet artefact.【F:src/egregora/__main__.py†L31-L220】
 
 ## Linting & formatting
 
@@ -64,25 +71,23 @@ The CI pipeline re-executes the same hooks, commits any auto-fixable updates bac
 
 ## Command line interface
 
-### `egregora` (default command)
+### `egregora pipeline`
 
-The root command is equivalent to `egregora process` and accepts the same options:
+Recommended entry-point that chains ingestion, embeddings, RAG lookup, generation, MkDocs previews, and optional archival in a single call. Key options include:
 
-- `--config / -c` – Load a specific TOML configuration file.
-- `--zips-dir` / `--posts-dir` – Override directories at runtime.
-- `--days` – Number of recent days to include in each prompt.
-- `--disable-enrichment`, `--no-cache`, `--dry-run`, `--list` – Control enrichment, caching, and planning flows.
-- `--timezone` – Run the pipeline as if executed in another IANA timezone.
+- `--workspace` – Directory where intermediate Parquet files live.
+- `--dataset-out` – Override the location of the generated dataset (defaults to `<workspace>/<slug>-<timestamp>.parquet`).
+- `--inject-rag/--no-inject-rag` – Toggle the local DuckDB similarity search; combine with `--rag-endpoint` to target a remote FastMCP server instead.【F:src/egregora/__main__.py†L118-L196】
+- `--build-static/--no-build-static`, `--preview`, `--preview-host`, `--preview-port` – Control MkDocs builds and live previews.【F:src/egregora/__main__.py†L168-L205】
+- `--archive*` flags – Forward the output Parquet to the Internet Archive using the same metadata helpers as the `egregora archive` subcommand.【F:src/egregora/__main__.py†L194-L219】
 
-These switches map directly to the Typer options defined in `egregora.__main__`. When run without subcommands the pipeline executes immediately.【F:src/egregora/__main__.py†L20-L138】
+### `egregora gen`
 
-### `egregora process`
+Render posts from an existing CSV/Parquet dataset. Ideal when datasets are produced elsewhere but you still want the templating, MkDocs, or archival features.【F:src/egregora/generate/cli.py†L24-L196】
 
-Explicit subcommand wrapper around the same options, useful when scripting multiple CLI calls or when future subcommands are added.【F:src/egregora/__main__.py†L99-L136】
+### `egregora ingest`, `egregora embed`, `egregora rag`, `egregora archive`
 
-### `egregora discover`
-
-Calculate deterministic pseudonyms for phone numbers or nicknames so participants can verify how they are represented in posts. Supports `--format` (`human`, `short`, `full`) and `--quiet` for automation-friendly output.【F:src/egregora/__main__.py†L142-L197】
+Modular building blocks that expose each phase independently for experimentation or integration into other workflows. All commands share the same configuration surface used by `pipeline` and can be scripted individually.【F:src/egregora/ingest/main.py†L12-L90】【F:src/egregora/embed/cli.py†L12-L120】【F:src/egregora/rag_context/cli.py†L10-L108】【F:src/egregora/archive/cli.py†L15-L138】
 
 ## CLI Configuration
 
@@ -93,73 +98,38 @@ Configuration is handled entirely through explicit CLI arguments. No environment
 ```bash
 # Generate posts with defaults
 export GEMINI_API_KEY="your-api-key"
-uv run egregora process data/whatsapp_zips/*.zip
+uv run egregora pipeline data/exports/*.zip
 
 # Generate with custom options
-uv run egregora process data/whatsapp_zips/*.zip \
-  --output data/output \
-  --model gemini-flash-lite-latest \
-  --timezone America/Porto_Velho \
-  --days 2
-```
-
-### Profile Linking
-
-```bash
-# Enable profile linking (default: enabled)
-uv run egregora process data/whatsapp_zips/*.zip \
-  --link-profiles \
-  --profile-base-url "/profiles/"
-
-# Disable profile linking
-uv run egregora process data/whatsapp_zips/*.zip \
-  --no-link-profiles
-```
-
-### Advanced Configuration
-
-```bash
-# Full configuration example
-uv run egregora process data/whatsapp_zips/*.zip \
-  --output data/custom-output \
-  --model gemini-flash-lite-latest \
-  --timezone America/Porto_Velho \
-  --days 7 \
-  --link-profiles \
-  --profile-base-url "/profiles/" \
-  --safety-threshold BLOCK_NONE \
-  --thinking-budget -1 \
-  --max-links 50 \
-  --relevance-threshold 2 \
-  --cache-dir cache \
-  --auto-cleanup-days 90
+uv run egregora pipeline data/exports/*.zip \
+  --workspace tmp/egregora \
+  --dataset-out artifacts/dataset.parquet \
+  --days 3 \
+  --build-static \
+  --archive --archive-identifier egregora-demo
 ```
 
 ### Available Options
 
-Run `uv run egregora process --help` to see all available options:
+Run `uv run egregora pipeline --help` to see all available options. Highlights:
 
-- **Input/Output**: `--output`, `--group-name`, `--group-slug`
-- **Model Settings**: `--model`, `--safety-threshold`, `--thinking-budget`
-- **Date Range**: `--days`, `--from-date`, `--to-date`, `--timezone`
-- **Features**: `--disable-enrichment`, `--no-cache`, `--link-profiles`
-- **Profile Linking**: `--profile-base-url`
-- **Enrichment**: `--max-links`, `--relevance-threshold`
-- **Cache**: `--cache-dir`, `--auto-cleanup-days`
-- **Debug**: `--list`, `--dry-run`
-
-All configuration is explicit and transparent - no hidden dependencies on environment variables or configuration files.
+- **Input/Output**: `--workspace`, `--dataset-out`, `--output`, `--template`, `--previous-post`.
+- **Date Range**: `--days`, `--from-date`, `--to-date`.
+- **Retrieval**: `--inject-rag/--no-inject-rag`, `--rag-endpoint`, `--rag-top-k`, `--rag-min-similarity`.
+- **Static site**: `--build-static/--no-build-static`, `--preview`, `--preview-host`, `--preview-port`.
+- **Archival**: `--archive`, `--archive-identifier`, `--archive-suffix`, `--archive-meta`.
+- All configuration is explicit and transparent—no hidden environment variables beyond the Gemini API credentials.
 
 ## Outputs & publishing
 
-During processing the pipeline materialises a predictable directory tree:
+The refactored pipeline keeps its artefacts simple:
 
-- `data/<slug>/index.md` – Overview page linking recent daily posts and acting as the group landing page.
-- `data/<slug>/posts/daily/YYYY-MM-DD.md` – Generated posts ready for publication or email distribution.【F:src/egregora/processor.py†L344-L515】
-- `data/<slug>/media/` – Deduplicated attachments renamed to deterministic UUIDs for stable links.【F:src/egregora/media_extractor.py†L44-L188】
-- `data/<slug>/profiles/` – Markdown dossiers plus JSON archives for participant history.【F:src/egregora/processor.py†L517-L664】
-- `cache/` – Disk-backed enrichment cache to avoid reprocessing URLs.【F:src/egregora/processor.py†L41-L116】【F:src/egregora/enrichment.py†L432-L720】
-- `metrics/enrichment_run.csv` – Rolling log with start/end timestamps, relevant counts, domains, and errors for each enrichment run.【F:src/egregora/enrichment.py†L146-L291】
+- A consolidated Parquet dataset with embeddings (defaults to `tmp-tests/pipeline/<slug>-<timestamp>.parquet`).
+- Markdown posts written to `docs/posts/` (or to the `--output` directory), prontos para MkDocs/GitHub Pages.【F:src/egregora/generate/cli.py†L76-L153】
+- Opcionalmente, um site estático recompilado em `site/` quando `--build-static` ou `--preview` é utilizado.【F:src/egregora/static/builder.py†L41-L171】
+
+Os diretórios de cache legados e dossiês de perfis foram removidos junto com o processador monolítico. O foco agora é o fluxo enxuto dataset → embeddings → MkDocs com suporte opcional a arquivamento.
+
 ## Retrieval utilities
 
 The Retrieval-Augmented Generation helpers store post embeddings in ChromaDB via `PostRAG` for use in bespoke automations or exploratory notebooks.【F:src/egregora/rag/index.py†L12-L189】 Use the runtime API directly to refresh or inspect the index whenever new posts are generated.
@@ -200,7 +170,9 @@ Keyword extraction and system-message filtering now rely on LLM adapters instead
 ## Development
 
 - Sync dependencies: `uv sync`
-- Run tests: `uv run --with pytest pytest`
+  - The uv-managed environment now pre-installs the testing and docs toolchain declared under `tool.uv.dev-dependencies`, so the
+    common commands below work without extra flags.
+- Run tests: `uv run pytest`
 - Type-check or explore datasets with Polars or a notebook of your choice.
 
 The codebase targets Python 3.11+ and relies on `pydantic`, `typer`, and `rich` for configuration and CLI ergonomics.【F:pyproject.toml†L16-L42】

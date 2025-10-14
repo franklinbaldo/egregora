@@ -24,15 +24,15 @@ hide:
 
     Busca semântica sobre todo histórico de conversas para contexto rico e continuidade narrativa
 
-    [:octicons-arrow-right-24: Saiba mais](guides/rag.md)
+    [:octicons-arrow-right-24: Saiba mais](getting-started/rag-setup.md)
 
--   :material-account-group:{ .lg .middle } __Perfis Intelectuais__
+-   :material-book-open-variant:{ .lg .middle } __Blog & Releases__
 
     ---
 
-    Sistema rastreia expertise, estilo de pensamento e evolução de cada participante
+    Acompanhe anúncios de versão e estudos de caso publicados com o pipeline 1.0
 
-    [:octicons-arrow-right-24: Ver perfis](guides/profiles.md)
+    [:octicons-arrow-right-24: Ler novidades](blog/index.md)
 
 -   :material-shield-lock:{ .lg .middle } __Privacidade Garantida__
 
@@ -40,7 +40,7 @@ hide:
 
     Anonimização determinística mantém identidades seguras em todos os outputs
 
-    [:octicons-arrow-right-24: Segurança](guides/privacy.md)
+    [:octicons-arrow-right-24: Segurança](getting-started/first-post.md)
 
 </div>
 
@@ -73,12 +73,13 @@ apresentou dados empíricos (Member-EFGH)...
 
     ``` mermaid
     graph LR
-      A[WhatsApp ZIP] --> B[Parser]
+      A[WhatsApp ZIP] --> B[Ingest (Polars)]
       B --> C[Anonymizer]
-      C --> D[Enriquecimento]
-      D --> E[Generator + RAG]
-      E --> F[Post Markdown]
-      F --> G[MkDocs Site]
+      C --> D[Gemini Embeddings]
+      D --> E[DuckDB / FastMCP]
+      E --> F[Jinja + Gemini]
+      F --> G[MkDocs Build/Preview]
+      F --> H[Internet Archive]
     ```
 
 === "Contexto Triplo"
@@ -118,5 +119,5 @@ apresentou dados empíricos (Member-EFGH)...
 **Pronto para começar?**
 
 [Instalar Egregora](getting-started/installation.md){ .md-button .md-button--primary }
-[Ver Documentação](guides/index.md){ .md-button }
+[Ver Documentação](getting-started/index.md){ .md-button }
 [Código Fonte :fontawesome-brands-github:](https://github.com/yourorg/egregora){ .md-button }

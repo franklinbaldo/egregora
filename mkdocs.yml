@@ -131,7 +131,6 @@ plugins:
 
   # Tags
   - tags:
-      tags_file: tags.md
 
   # Social cards (auto-generate preview images)
   - social:
@@ -281,6 +280,7 @@ nav:
     - getting-started/index.md
     - Instalação: getting-started/installation.md
     - Primeiro Post: getting-started/first-post.md
+    - Configurar RAG Local: getting-started/rag-setup.md
   - Blog:
     - blog/index.md
 
@@ -298,4 +298,3 @@ validation:
 # Watch extra files
 watch:
   - includes/
-  - data/  # Watch for generated content changes

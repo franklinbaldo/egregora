@@ -20,8 +20,8 @@ Esta seção guia você através da instalação e primeiro uso do Egregora.
 
     Gere seu primeiro post em 5 minutos
 
--   :material-cog:{ .lg } **[Configuração](configuration.md)**
+-   :material-brain:{ .lg } **[RAG Local](rag-setup.md)**
 
-    Ajuste o pipeline para suas necessidades
+    Construa o índice DuckDB + Gemini e aproveite contexto histórico
 
 </div>
