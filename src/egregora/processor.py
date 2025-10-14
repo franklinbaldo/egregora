@@ -783,6 +783,12 @@ class UnifiedProcessor:
         available_exports = source.exports
 
         for target_date in target_dates:
+            output_path = daily_dir / f"{target_date}.md"
+            if self.config.skip_existing_posts and output_path.exists():
+                logger.info(f"  ⏭️  Skipping {target_date}: post already exists at {output_path.name}")
+                results.append(output_path)
+                continue
+
             logger.info(f"  Processing {target_date}...")
 
             df_day = full_df.filter(pl.col("date") == target_date).sort("timestamp")
@@ -919,6 +925,7 @@ class UnifiedProcessor:
             )
             # Progressive processing: handle quota errors gracefully
             try:
+                logger.info(f"    🤖 Generating post with Gemini for {target_date}...")
                 post = self.generator.generate(source, context)
             except RuntimeError as exc:
                 if "Quota de API do Gemini esgotada" in str(exc):
@@ -961,12 +968,7 @@ class UnifiedProcessor:
             # Add profile links to member mentions
             post = _add_member_profile_links(post, config=self.config, source=source)
 
-            output_path = daily_dir / f"{target_date}.md"
-            if self.config.skip_existing_posts and output_path.exists():
-                logger.info("    ⏭️  Post já existe em %s – pulando geração.", output_path)
-                results.append(output_path)
-                continue
-
+            logger.info(f"    💾 Saving post to {output_path.name}")
             output_path.write_text(post, encoding="utf-8")
 
             if profile_repository and self._profile_updater:

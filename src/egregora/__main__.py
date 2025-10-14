@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import json
+import logging
+import warnings
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+
+# Suppress the specific Pydantic warning about `validate_default`
+# This must be done before importing other modules that might trigger the warning
+from pydantic.warnings import UnsupportedFieldAttributeWarning
+warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning, message=".*`validate_default`.*")
+
+
 import typer
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
@@ -30,6 +40,17 @@ QUOTA_WARNING_THRESHOLD = 200
 QUOTA_WARNING_THRESHOLD_ENRICH = 15
 
 console = Console()
+
+
+# Configure logging to use Rich for pretty output
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(console=console, show_path=False, show_level=False, show_time=False, rich_tracebacks=True)],
+)
+
+
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
 
 
