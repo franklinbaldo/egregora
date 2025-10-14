@@ -5,9 +5,11 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING
+import jinja2
+import subprocess
+import requests
 
 try:
     from google import genai
@@ -32,30 +34,13 @@ if TYPE_CHECKING:
 # The _prepare_transcripts function was removed entirely, as the processor
 # now handles transcript preparation before calling the generator.
 
-_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+_jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(_PROMPTS_DIR))
 
 
-def _load_prompt(filename: str) -> str:
-    """Load a prompt either from the editable folder or the package data."""
-    local_prompt_path = _PROMPTS_DIR / filename
-    if local_prompt_path.exists():
-        text = local_prompt_path.read_text(encoding="utf-8")
-        stripped = text.strip()
-        if not stripped:
-            raise ValueError(f"Prompt file '{local_prompt_path}' is empty")
-        return stripped
-
-    try:
-        package_text = (
-            resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
-        )
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(f"Prompt file '{filename}' is missing.") from exc
-
-    stripped = package_text.strip()
-    if not stripped:
-        raise ValueError(f"Prompt resource '{filename}' is empty")
-    return stripped
+def _load_prompt(filename: str) -> jinja2.Template:
+    """Load a prompt template from the file system."""
+    return _jinja_env.get_template(filename)
 
 
 def _format_transcript_section_header(transcript_count: int) -> str:
@@ -63,6 +48,30 @@ def _format_transcript_section_header(transcript_count: int) -> str:
     if transcript_count <= 1:
         return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
     return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
+
+
+def _start_rag_server(parquet_path: Path) -> subprocess.Popen:
+    """Starts the FastMCP RAG server in a background process."""
+    return subprocess.Popen(
+        ["uv", "run", "egregora", "rag", "serve", str(parquet_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _query_rag_server(query: str, k: int = 3) -> str | None:
+    """Queries the FastMCP RAG server."""
+    try:
+        response = requests.get(
+            "http://localhost:8000/search_similar",
+            params={"query": query, "k": k},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error querying RAG server: {e}")
+        return None
 
 
 def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict with method
@@ -187,12 +196,11 @@ class PostGenerator:
     def _build_system_instruction(self, has_group_tags: bool = False) -> list[types.Part]:
         """Return the validated system prompt."""
         self._require_google_dependency()
-        base_prompt = _load_prompt(_BASE_PROMPT_NAME)
+        base_template = _load_prompt(_BASE_PROMPT_NAME)
+        prompt_text = base_template.render()
         if has_group_tags:
-            multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
-            prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
-        else:
-            prompt_text = base_prompt
+            multigroup_template = _load_prompt(_MULTIGROUP_PROMPT_NAME)
+            prompt_text += f"\n\n{multigroup_template.render()}"
         return [types.Part.from_text(text=prompt_text)]
 
     def _build_llm_input(
@@ -213,6 +221,24 @@ class PostGenerator:
         self._require_google_dependency()
 
         transcripts = [(context.target_date, context.transcript)]
+
+        # Start RAG server and get context
+        rag_context = None
+        if self.config.rag.enabled:
+            parquet_path = Path("embeddings.parquet")  # Assuming a default path for now
+            if parquet_path.exists():
+                rag_server_process = _start_rag_server(parquet_path)
+                # A simple way to get a query from the transcript
+                query = " ".join(context.transcript.split()[:100])
+                rag_context_json = _query_rag_server(query, k=self.config.rag.top_k)
+                if rag_context_json:
+                    rag_context = "\n\n".join(
+                        f"<<<CONTEXTO_{i}>>>\n{item['message']}"
+                        for i, item in enumerate(rag_context_json, 1)
+                    )
+                rag_server_process.terminate()
+
+        context.rag_context = rag_context
         llm_input = self._build_llm_input(context, transcripts)
 
         system_instruction = self._build_system_instruction(has_group_tags=source.is_virtual)

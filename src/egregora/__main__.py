@@ -11,6 +11,8 @@ from .ingest.main import app as ingest_app
 from .rag_context.main import app as rag_app
 from .archive.main import app as archive_app
 from .embed.main import app as embed_app
+from .config import PipelineConfig, RAGConfig
+from .processor import UnifiedProcessor
 
 MAX_POSTS_TO_SHOW = 3
 MAX_DATES_TO_SHOW = 10
@@ -40,12 +42,19 @@ def generate_run(
     archive: bool = typer.Option(False, "--archive", help="Arquiva os embeddings no IA."),
 ) -> None:
     """Executa o pipeline de geração completo."""
-    console.print("Executando o pipeline de geração (placeholder)...")
-    console.print(f"  - ZIP: {zip_file}")
-    console.print(f"  - RAG: {'Sim' if inject_rag else 'Não'}")
-    console.print(f"  - Saída: {output_dir}")
-    console.print(f"  - Preview: {'Sim' if preview else 'Não'}")
-    console.print(f"  - Arquivar: {'Sim' if archive else 'Não'}")
+    config = PipelineConfig(
+        zip_files=[zip_file],
+        posts_dir=output_dir,
+        rag=RAGConfig(enabled=inject_rag),
+    )
+    processor = UnifiedProcessor(config)
+    processor.process_all()
+
+    # TODO: Implement preview and archive functionality
+    if preview:
+        console.print("Preview not yet implemented.")
+    if archive:
+        console.print("Archive not yet implemented.")
 
 
 
@@ -68,11 +77,16 @@ def pipeline(
     archive: bool = typer.Option(False, "--archive", help="Ativa o arquivamento no IA."),
 ) -> None:
     """Executa o pipeline completo: ingest -> embed -> rag -> gen -> static -> archive."""
-    console.print("Executando o pipeline completo (placeholder)...")
-    console.print(f"  - ZIP: {zip_file}")
-    console.print(f"  - Dias: {days}")
-    console.print(f"  - Preview: {'Sim' if preview else 'Não'}")
-    console.print(f"  - Arquivar: {'Sim' if archive else 'Não'}")
+    console.print("🚀 Executing the full pipeline...")
+
+    # Ingest
+    ingest_app(["run", str(zip_file)])
+
+    # Embed
+    embed_app(["run", "ingest.parquet"])
+
+    # RAG, Gen, and Archive are still placeholders
+    console.print("Skipping RAG, Gen, and Archive (placeholders).")
 
 
 def run() -> None:

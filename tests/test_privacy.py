@@ -81,8 +81,14 @@ def _install_generator_stubs(monkeypatch):
     stub_types = SimpleNamespace(Part=DummyPart)
     # Patch the types used within the generator module
     monkeypatch.setattr("egregora.generate.core.types", stub_types)
-    # Mock the prompt loading to avoid file I/O
-    monkeypatch.setattr("egregora.generate.core._load_prompt", lambda name: f"PROMPT: {name}")
+
+    # Mock the Jinja2 environment and template loading
+    mock_template = MagicMock()
+    mock_template.render.return_value = "rendered_template"
+    mock_env = MagicMock()
+    mock_env.get_template.return_value = mock_template
+    monkeypatch.setattr("egregora.generate.core._jinja_env", mock_env)
+    monkeypatch.setattr("egregora.generate.core._load_prompt", lambda name: mock_template)
 
 
 def test_system_instruction_includes_privacy_rules(monkeypatch):
@@ -95,14 +101,12 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     instruction = generator._build_system_instruction(has_group_tags=False)
     assert instruction, "system instruction should not be empty"
     system_text = instruction[0].text
-    assert "PROMPT: system_instruction_base.md" in system_text
-    assert "PROMPT: system_instruction_multigroup.md" not in system_text
+    assert "rendered_template" in system_text
 
     # Test with group tags
     instruction_multigroup = generator._build_system_instruction(has_group_tags=True)
     system_text_multigroup = instruction_multigroup[0].text
-    assert "PROMPT: system_instruction_base.md" in system_text_multigroup
-    assert "PROMPT: system_instruction_multigroup.md" in system_text_multigroup
+    assert "rendered_template\n\nrendered_template" in system_text_multigroup
 
 
 def test_unified_processor_anonymizes_dataframe(monkeypatch):
