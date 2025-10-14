@@ -74,6 +74,11 @@ def _run_generation(  # noqa: PLR0913
         group_name=resolved_group_name,
         group_slug=GroupSlug(resolved_group_slug),
     )
+    # O dataset carregado já passou por anonimização no comando `pipeline`, que
+    # aplica `anonymise_frame` e preenche `anon_author` com pseudônimos estáveis.
+    # Mantemos essa identidade ao desabilitar a anonimização na etapa de geração
+    # para evitar reatribuir pseudônimos inconsistentes nos posts produzidos.
+    config.anonymization.enabled = False
 
     if preview_host is not None:
         config.static_site.preview_host = preview_host
