@@ -804,7 +804,7 @@ class ContentEnricher:
             frame.sort(["date", "timestamp"])
             .with_columns(
                 pl.col("message").fill_null("").alias("message"),
-                pl.col("author").fill_null("").alias("author"),
+                pl.col("anon_author").fill_null("").alias("anon_author"),
             )
             .with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("__time_str"))
         )
@@ -814,7 +814,7 @@ class ContentEnricher:
         fallback = pl.format(
             "{} — {}: {}",
             pl.col("__time_str").fill_null(""),
-            pl.col("author"),
+            pl.col("anon_author"),
             pl.col("message"),
         )
 
@@ -894,7 +894,7 @@ class ContentEnricher:
 
         for row in url_rows.iter_rows(named=True):
             url = row["__urls"]
-            sender = row.get("author") or None
+            sender = row.get("anon_author") or None
             key = (url, sender or "")
             if key in seen:
                 continue
@@ -937,7 +937,7 @@ class ContentEnricher:
                 ContentReference(
                     date=row["date"],
                     url=None,
-                    sender=row.get("author") or None,
+                    sender=row.get("anon_author") or None,
                     timestamp=row.get("__time_str"),
                     message=row.get("message", ""),
                     context_before=before,
@@ -968,7 +968,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
             {
                 "url": [],
                 "timestamp": [],
-                "author": [],
+                "anon_author": [],
                 "message": [],
                 "context_before": [],
                 "context_after": [],
@@ -976,7 +976,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
             schema={
                 "url": pl.String,
                 "timestamp": pl.Datetime,
-                "author": pl.String,
+                "anon_author": pl.String,
                 "message": pl.String,
                 "context_before": pl.String,
                 "context_after": pl.String,
@@ -986,7 +986,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
     df_sorted = df.sort("timestamp").with_row_index(name="row_index")
     rows = df_sorted.to_dicts()
     formatted_messages = [
-        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip() for row in rows
+        f"{row.get('time')} — {row.get('anon_author')}: {row.get('message')}".strip() for row in rows
     ]
 
     results: list[dict[str, object]] = []
@@ -1009,7 +1009,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
                 {
                     "url": url,
                     "timestamp": row.get("timestamp"),
-                    "author": row.get("author"),
+                    "anon_author": row.get("anon_author"),
                     "message": row.get("message"),
                     "context_before": context_before,
                     "context_after": context_after,
@@ -1021,7 +1021,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
             {
                 "url": [],
                 "timestamp": [],
-                "author": [],
+                "anon_author": [],
                 "message": [],
                 "context_before": [],
                 "context_after": [],
@@ -1029,7 +1029,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
             schema={
                 "url": pl.String,
                 "timestamp": pl.Datetime,
-                "author": pl.String,
+                "anon_author": pl.String,
                 "message": pl.String,
                 "context_before": pl.String,
                 "context_after": pl.String,
@@ -1039,7 +1039,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
     schema = {
         "url": pl.String,
         "timestamp": pl.Datetime,
-        "author": pl.String,
+        "anon_author": pl.String,
         "message": pl.String,
         "context_before": pl.String,
         "context_after": pl.String,
@@ -1049,7 +1049,7 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
         [
             "url",
             "timestamp",
-            "author",
+            "anon_author",
             "message",
             "context_before",
             "context_after",

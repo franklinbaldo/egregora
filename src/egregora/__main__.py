@@ -6,11 +6,12 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from typer.testing import CliRunner
 
-from .ingest.main import app as ingest_app
-from .rag_context.main import app as rag_app
-from .archive.main import app as archive_app
-from .embed.main import app as embed_app
+from .ingest.main import app as ingest_app, ingest_zip
+from .rag_context.main import app as rag_app, rag_serve
+from .archive.main import app as archive_app, upload_command
+from .embed.main import app as embed_app, embed_run
 from .config import PipelineConfig, RAGConfig
 from .processor import UnifiedProcessor
 from .static.builder import StaticSiteBuilder
@@ -79,27 +80,36 @@ def pipeline(
     days: int = typer.Option(3, "--days", help="Número de dias para processar."),
     preview: bool = typer.Option(False, "--preview", help="Ativa o preview do site estático."),
     archive: bool = typer.Option(False, "--archive", help="Ativa o arquivamento no IA."),
+    legacy: bool = typer.Option(False, "--legacy", help="Executa o pipeline antigo."),
 ) -> None:
     """Executa o pipeline completo: ingest -> embed -> rag -> gen -> static -> archive."""
+    if legacy:
+        console.print("🚀 Executing the legacy pipeline...")
+        config = PipelineConfig(zip_files=[zip_file])
+        processor = UnifiedProcessor(config)
+        processor.process_all(days=days)
+        return
+
     console.print("🚀 Executing the full pipeline...")
 
     # Ingest
-    ingest_app(["run", str(zip_file), "--output", "ingest.parquet"])
+    ingest_zip(zip_file, Path("ingest.parquet"))
 
     # Embed
-    embed_app(["run", "ingest.parquet", "--output", "embeddings.parquet"])
+    embed_run(
+        Path("ingest.parquet"),
+        Path("embeddings.parquet"),
+        "models/embedding-001",
+        10,
+    )
 
     # Gen
-    gen_app(
-        [
-            "run",
-            str(zip_file),
-            "--inject-rag",
-            "--output",
-            "posts/",
-            "--preview" if preview else "--no-preview",
-            "--archive" if archive else "--no-archive",
-        ]
+    generate_run(
+        zip_file,
+        inject_rag=True,
+        output_dir=Path("posts/"),
+        preview=preview,
+        archive=archive,
     )
 
 

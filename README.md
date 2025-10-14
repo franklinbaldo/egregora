@@ -34,31 +34,31 @@ Egregora is built on a modular pipeline that mirrors a cognitive process: from p
 
 ```mermaid
 graph TD
-    A[Raw Chat Exports (.zip)] --> B{1. Parse & Structure};
-    B --> C[Anonymized Polars DataFrame];
-    C --> D{2. Enrich & Analyze};
-    D --> E[Content with Context (Links, Media)];
-    E --> F{3. Generate Collective Narrative};
-    F --> G[Daily Markdown Posts];
-
-    subgraph "🧠 Collective Memory"
-        H(Evolving Member Profiles)
-        I(RAG Vector Index - ChromaDB)
-    end
-
-    E --> H;
-    G --> I;
+    A[Raw Chat Exports (.zip)] --> B{1. Ingest & Anonymize};
+    B --> C[Polars DataFrame];
+    C --> D{2. Embed with Gemini};
+    D --> E[DataFrame with Vectors];
+    E --> F{3. Archive to IA};
+    F --> G[Parquet on Internet Archive];
+    E --> H{4. Local RAG with DuckDB/Ibis};
+    H --> I[Context Snippets];
+    I --> J{5. Generate Narrative};
+    J --> K[Daily Markdown Posts];
+    K --> L{6. Build Static Site};
+    L --> M[MkDocs Site];
 
     style B fill:#f9f,stroke:#333,stroke-width:2px
     style D fill:#ccf,stroke:#333,stroke-width:2px
-    style F fill:#9f9,stroke:#333,stroke-width:2px
-
+    style J fill:#9f9,stroke:#333,stroke-width:2px
+    style L fill:#f9c,stroke:#333,stroke-width:2px
 ```
 
-1.  **Parse & Structure:** WhatsApp exports are parsed into clean, structured Polars DataFrames. Participants are anonymized with deterministic UUIDs to protect privacy while preserving conversational flow.
-2.  **Enrich & Analyze:** The system analyzes links and media using Google Gemini, extracting summaries and key themes. This enriched data provides the intellectual context for each day's conversation.
-3.  **Generate Collective Narrative:** A powerful prompt engine synthesizes the day's messages into a coherent story, written from the group's perspective ("we discussed," "we explored").
-4.  **Update Collective Memory:** The system continuously updates individual member profiles with their intellectual contributions and indexes the final posts in a local RAG (Retrieval-Augmented Generation) vector store, creating a searchable long-term memory.
+1.  **Ingest & Anonymize:** WhatsApp exports are parsed into clean, structured Polars DataFrames. Participants are anonymized with deterministic UUIDs.
+2.  **Embed with Gemini:** The text content is converted into vector embeddings using Google's Gemini models.
+3.  **Archive to Internet Archive:** The DataFrame with embeddings is exported to a Parquet file and uploaded to the Internet Archive for long-term, zero-cost storage.
+4.  **Local RAG with DuckDB/Ibis:** An ephemeral RAG server is started, loading the embeddings into an in-memory DuckDB database with a VSS index for fast similarity search via Ibis.
+5.  **Generate Narrative:** A powerful Jinja2 prompt engine synthesizes the day's messages, enriched with context from the RAG server, into a coherent story.
+6.  **Build Static Site:** The generated Markdown posts are used to build a static website with MkDocs, ready for local preview or deployment.
 
 ---
 
@@ -92,14 +92,14 @@ export GEMINI_API_KEY="your-api-key-here"
 # 1. Place your WhatsApp export in a known directory
 # (e.g., /path/to/your/chat.zip)
 
-# 2. Run the pipeline for the last 3 days
-uv run egregora process /path/to/your/chat.zip --days 3
+# 2. Run the full pipeline
+uv run egregora pipeline /path/to/your/chat.zip
 
 # 3. Check the output
-ls -R data/
+ls -R posts/
 ```
 
-Your first anonymized, enriched, and collectively narrated posts are now in `data/{group-name}/posts/daily/`.
+Your first anonymized, enriched, and collectively narrated posts are now in `posts/`.
 
 ---
 
@@ -108,11 +108,11 @@ Your first anonymized, enriched, and collectively narrated posts are now in `dat
 | Feature                 | Description                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | 🧠 **Collective Narration** | Rewrites daily conversations from the group's perspective ("we"), creating a unified, coherent voice.                                  |
-| 👥 **Evolving Profiles**    | Automatically tracks the intellectual contributions and patterns of each member, creating dynamic profiles of their thought.           |
-| 🔍 **RAG Memory**           | Indexes all generated posts into a local vector store, allowing you to search and query your group's entire conversational history.    |
+| 🔍 **Local RAG Memory**     | Indexes all generated posts into a local, in-memory vector store, allowing you to search and query your group's entire conversational history. |
 | 📡 **AI Enrichment**        | Analyzes links and media with Google Gemini, providing summaries and context that become part of the permanent archive.              |
 | 💾 **Local-First & Private**  | All processing and data storage happens locally. Your conversations are never sent to a third-party server.                          |
 | 🔒 **Deterministic Anonymization** | Protects privacy with consistent, unique identifiers for each participant, preserving conversational flow without revealing identities. |
+| 📦 **Zero-Cost Archival**   | Exports embeddings to Parquet files and archives them on the Internet Archive for free, long-term storage.                           |
 
 ---
 
@@ -121,24 +121,26 @@ Your first anonymized, enriched, and collectively narrated posts are now in `dat
 ### Basic Commands
 
 ```bash
-# Process all ZIP files for the last 3 days
-uv run egregora process /path/to/zips/*.zip --days 3
+# Run the full pipeline
+uv run egregora pipeline /path/to/your/chat.zip
 
-# Process a specific date range
-uv run egregora process /path/to/zips/*.zip --from-date 2024-01-01 --to-date 2024-01-31
+# Ingest a ZIP file and save the DataFrame
+uv run egregora ingest run /path/to/your/chat.zip --output ingest.parquet
 
-# Preview the processing without writing files
-uv run egregora process /path/to/zips/*.zip --dry-run
-```
+# Generate embeddings from a DataFrame
+uv run egregora embed run ingest.parquet --output embeddings.parquet
 
-### Profile Management
+# Start the RAG server
+uv run egregora rag serve embeddings.parquet
 
-```bash
-# List all generated member profiles
-uv run egregora profiles list
+# Generate posts with RAG context
+uv run egregora gen run /path/to/your/chat.zip --inject-rag
 
-# Show the detailed profile for a specific member
-uv run egregora profiles show <member-id>
+# Build the static site
+uv run egregora gen run /path/to/your/chat.zip --preview
+
+# Archive the embeddings
+uv run egregora archive upload embeddings.parquet
 ```
 
 ---
@@ -147,9 +149,9 @@ uv run egregora profiles show <member-id>
 
 Egregora is designed to be modular. Key integration points include:
 
-*   **Adding new LLM models:** The `PostGenerator` class in `src/egregora/generator.py` can be adapted to support other models like Llama or Claude.
-*   **Custom Enrichment Modules:** The `EnrichmentEngine` in `src/egregora/enrichment.py` can be extended with new analysis tools.
-*   **Connecting Chat Sources:** The parsers in `src/egregora/parsers/` can be expanded to support other platforms like Telegram or Signal.
+*   **Adding new LLM models:** The `PostGenerator` class in `src/egregora/generate/core.py` can be adapted to support other models like Llama or Claude.
+*   **Custom Enrichment Modules:** The `ContentEnricher` in `src/egregora/enrichment.py` can be extended with new analysis tools.
+*   **Connecting Chat Sources:** The parser in `src/egregora/parser.py` can be expanded to support other platforms like Telegram or Signal.
 *   **MkDocs Publishing:** The output Markdown is structured for seamless integration with [MkDocs](https://www.mkdocs.org/) to publish your group's archive as a static site.
 
 ---

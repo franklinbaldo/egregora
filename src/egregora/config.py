@@ -30,6 +30,7 @@ class RAGConfig(BaseModel):
     """Configuration for the RAG subsystem."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    enabled: bool = False
     top_k: int = 3
 
 

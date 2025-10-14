@@ -286,7 +286,7 @@ class MediaExtractor:
             .then(pl.col("time"))
             .otherwise(pl.col("timestamp").dt.strftime("%H:%M"))
         )
-        author_expr = pl.col("author").fill_null("")
+        author_expr = pl.col("anon_author").fill_null("")
         message_expr = pl.col("message").fill_null("")
         fallback = pl.format("{} — {}: {}", time_expr, author_expr, message_expr)
 

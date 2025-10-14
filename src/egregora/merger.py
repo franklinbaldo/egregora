@@ -74,7 +74,7 @@ def merge_with_tags(
         tagged = pl.format(
             "{} — {} {}: {}",
             pl.col("time"),
-            pl.col("author"),
+            pl.col("anon_author"),
             emoji_expr,
             pl.col("message"),
         )
@@ -83,14 +83,14 @@ def merge_with_tags(
             "{} — [{}] {}: {}",
             pl.col("time"),
             pl.col("group_name"),
-            pl.col("author"),
+            pl.col("anon_author"),
             pl.col("message"),
         )
     else:  # brackets
         tagged = pl.format(
             "{} — {} [{}]: {}",
             pl.col("time"),
-            pl.col("author"),
+            pl.col("anon_author"),
             pl.col("group_name"),
             pl.col("message"),
         )
