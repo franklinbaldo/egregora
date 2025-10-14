@@ -13,6 +13,7 @@ from .archive.main import app as archive_app
 from .embed.main import app as embed_app
 from .config import PipelineConfig, RAGConfig
 from .processor import UnifiedProcessor
+from .static.builder import StaticSiteBuilder
 
 MAX_POSTS_TO_SHOW = 3
 MAX_DATES_TO_SHOW = 10
@@ -50,11 +51,14 @@ def generate_run(
     processor = UnifiedProcessor(config)
     processor.process_all()
 
+    builder = StaticSiteBuilder(config)
+    builder.build()
+
     # TODO: Implement preview and archive functionality
     if preview:
-        console.print("Preview not yet implemented.")
+        builder.serve()
     if archive:
-        console.print("Archive not yet implemented.")
+        archive_app(["upload", "embeddings.parquet"])
 
 
 
@@ -80,13 +84,23 @@ def pipeline(
     console.print("🚀 Executing the full pipeline...")
 
     # Ingest
-    ingest_app(["run", str(zip_file)])
+    ingest_app(["run", str(zip_file), "--output", "ingest.parquet"])
 
     # Embed
-    embed_app(["run", "ingest.parquet"])
+    embed_app(["run", "ingest.parquet", "--output", "embeddings.parquet"])
 
-    # RAG, Gen, and Archive are still placeholders
-    console.print("Skipping RAG, Gen, and Archive (placeholders).")
+    # Gen
+    gen_app(
+        [
+            "run",
+            str(zip_file),
+            "--inject-rag",
+            "--output",
+            "posts/",
+            "--preview" if preview else "--no-preview",
+            "--archive" if archive else "--no-archive",
+        ]
+    )
 
 
 def run() -> None:

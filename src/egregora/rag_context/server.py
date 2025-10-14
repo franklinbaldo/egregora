@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import fastmcp as mcp
@@ -41,7 +40,7 @@ def run_server(parquet_path: str | Path):
         console.print(f"🔍 Searching for similar content to: '{query}' (k={k})")
         query_vector = get_embedding(query)
         results = search_func(query_vector, k)
-        return json.dumps(results.to_dicts())
+        return results.write_json(row_oriented=True)
 
     server = mcp.server.server.FastMCP(tools=[search_similar])
     console.print("🚀 Starting FastMCP server on port 8000...")

@@ -34,9 +34,12 @@ def _generate_group_slug(group_name: str) -> str:
 @app.command("run")
 def ingest_zip(
     zip_path: Path = typer.Argument(..., help="Path to the WhatsApp ZIP file."),
+    output_path: Path = typer.Option(
+        None, "--output", "-o", help="Path to save the output Parquet file."
+    ),
 ) -> None:
     """
-    Ingests a WhatsApp ZIP file, parses it, and prints the resulting DataFrame.
+    Ingests a WhatsApp ZIP file, parses it, and saves the resulting DataFrame.
     """
     console.print(f"📥 Ingesting ZIP file: {zip_path}")
 
@@ -69,6 +72,10 @@ def ingest_zip(
     )
 
     df = parse_export(export)
+
+    if output_path:
+        console.print(f"💾 Saving DataFrame to: {output_path}")
+        df.write_parquet(output_path)
 
     console.print("✅ Ingestion complete.")
     console.print("DataFrame head:")

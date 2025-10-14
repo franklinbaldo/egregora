@@ -767,6 +767,7 @@ class UnifiedProcessor:
             if self.config.enrichment.enabled:
                 enricher = ContentEnricher(
                     self.config.enrichment,
+                    cache=None,
                 )
                 enrichment_result = asyncio.run(
                     enricher.enrich_dataframe(

@@ -28,7 +28,7 @@ def download(
     if version != "latest":
         query += f" AND version:{version}"
 
-    search = search_items(query, sort_by="publicdate desc")
+    search = search_items(query)
 
     if not search:
         console.print(f"❌ No items found for identifier: {identifier}")
@@ -59,11 +59,12 @@ def upload_command(
     today = date.today().isoformat()
     item_identifier = f"{identifier}-{today}"
 
-    upload(
-        item_identifier,
-        files={str(parquet_file): parquet_file.read_bytes()},
-        metadata={"title": f"Egregora Vectors {today}", "date": today},
-    )
+    with open(parquet_file, "rb") as f:
+        upload(
+            item_identifier,
+            files={parquet_file.name: f},
+            metadata={"title": f"Egregora Vectors {today}", "date": today},
+        )
     console.print("✅ Upload complete.")
 
 
