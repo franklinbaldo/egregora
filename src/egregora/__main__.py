@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -20,6 +19,7 @@ from .config import (
     LLMConfig,
     PipelineConfig,
     ProfilesConfig,
+    DEFAULT_MODEL,
 )
 from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
@@ -35,127 +35,93 @@ app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment"
 
 @app.command("process")
 def process_command(  # noqa: PLR0913
-    zip_files: Annotated[
-        list[Path],
-        typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
-    ],
-    output_dir: Annotated[
-        Path,
-        typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
-    ],
-    group_name: Annotated[
-        str,
-        typer.Option(
-            None,
-            "--group-name",
-            help="Nome do grupo (auto-detectado se não fornecido)",
-        ),
-    ],
-    group_slug: Annotated[
-        str,
-        typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
-    ],
-    model: Annotated[
-        str,
-        typer.Option(
-            "gemini-flash-lite-latest",
-            "--model",
-            help="Nome do modelo Gemini a ser usado",
-        ),
-    ],
-    timezone: Annotated[
-        str, typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA")
-    ],
-    days: Annotated[
-        int,
-        typer.Option(
-            None,
-            "--days",
-            min=1,
-            help="Processar os N dias mais recentes. Incompatível com --from/--to.",
-        ),
-    ],
-    from_date: Annotated[
-        str,
-        typer.Option(
-            None,
-            "--from-date",
-            help="Data de início (YYYY-MM-DD). Incompatível com --days.",
-            formats=["%Y-%m-%d"],
-        ),
-    ],
-    to_date: Annotated[
-        str,
-        typer.Option(
-            None,
-            "--to-date",
-            help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
-            formats=["%Y-%m-%d"],
-        ),
-    ],
-    disable_enrichment: Annotated[
-        bool,
-        typer.Option(
-            False,
-            "--disable-enrichment",
-            "--no-enrich",
-            help="Desativa o enriquecimento",
-        ),
-    ],
-    disable_cache: Annotated[
-        bool, typer.Option(False, "--no-cache", help="Desativa o cache persistente")
-    ],
-    list_groups: Annotated[
-        bool, typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai")
-    ],
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            False,
-            "--dry-run",
-            help="Simula a execução e mostra quais posts seriam geradas",
-        ),
-    ],
-    # Profile linking options
-    link_member_profiles: Annotated[
-        bool,
-        typer.Option(
-            True,
-            "--link-profiles/--no-link-profiles",
-            help="Link member mentions to profile pages",
-        ),
-    ],
-    profile_base_url: Annotated[
-        str,
-        typer.Option("/profiles/", "--profile-base-url", help="Base URL for profile links"),
-    ],
-    # LLM options
-    safety_threshold: Annotated[
-        str,
-        typer.Option("BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"),
-    ],
-    thinking_budget: Annotated[
-        int,
-        typer.Option(-1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"),
-    ],
-    # Enrichment options
-    max_links: Annotated[
-        int, typer.Option(50, "--max-links", help="Maximum links to enrich per post")
-    ],
-    relevance_threshold: Annotated[
-        int,
-        typer.Option(
-            2,
-            "--relevance-threshold",
-            help="Minimum relevance threshold for enrichment",
-        ),
-    ],
-    # Cache options
-    cache_dir: Annotated[str, typer.Option("cache", "--cache-dir", help="Cache directory path")],
-    auto_cleanup_days: Annotated[
-        int,
-        typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
-    ],
+    zip_files: list[Path] = typer.Argument(
+        ..., help="Um ou mais arquivos .zip do WhatsApp para processar"
+    ),
+    output_dir: Path | None = typer.Option(
+        None, "--output", "-o", help="Diretório onde as posts serão escritas"
+    ),
+    group_name: str | None = typer.Option(
+        None,
+        "--group-name",
+        help="Nome do grupo (auto-detectado se não fornecido)",
+    ),
+    group_slug: str | None = typer.Option(
+        None,
+        "--group-slug",
+        help="Slug do grupo (auto-gerado se não fornecido)",
+    ),
+    model: str = typer.Option(
+        DEFAULT_MODEL,
+        "--model",
+        help="Nome do modelo Gemini a ser usado",
+    ),
+    timezone: str = typer.Option(
+        "America/Porto_Velho", "--timezone", help="Timezone IANA"
+    ),
+    days: int | None = typer.Option(
+        None,
+        "--days",
+        min=1,
+        help="Processar os N dias mais recentes. Incompatível com --from/--to.",
+    ),
+    from_date: str | None = typer.Option(
+        None,
+        "--from-date",
+        help="Data de início (YYYY-MM-DD). Incompatível com --days.",
+        formats=["%Y-%m-%d"],
+    ),
+    to_date: str | None = typer.Option(
+        None,
+        "--to-date",
+        help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
+        formats=["%Y-%m-%d"],
+    ),
+    disable_enrichment: bool = typer.Option(
+        False,
+        "--disable-enrichment",
+        "--no-enrich",
+        help="Desativa o enriquecimento",
+    ),
+    disable_cache: bool = typer.Option(
+        False, "--no-cache", help="Desativa o cache persistente"
+    ),
+    list_groups: bool = typer.Option(
+        False, "--list", "-l", help="Lista grupos descobertos e sai"
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Simula a execução e mostra quais posts seriam geradas",
+    ),
+    link_member_profiles: bool = typer.Option(
+        True,
+        "--link-profiles/--no-link-profiles",
+        help="Link member mentions to profile pages",
+    ),
+    profile_base_url: str = typer.Option(
+        "/profiles/", "--profile-base-url", help="Base URL for profile links"
+    ),
+    safety_threshold: str = typer.Option(
+        "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
+    ),
+    thinking_budget: int = typer.Option(
+        -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
+    ),
+    max_links: int = typer.Option(
+        50, "--max-links", help="Maximum links to enrich per post"
+    ),
+    relevance_threshold: int = typer.Option(
+        2,
+        "--relevance-threshold",
+        help="Minimum relevance threshold for enrichment",
+    ),
+    cache_dir: Path = typer.Option(
+        Path("cache"), "--cache-dir", help="Cache directory path"
+    ),
+    auto_cleanup_days: int = typer.Option(
+        90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
+    ),
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
@@ -193,6 +159,9 @@ def process_command(  # noqa: PLR0913
     # Convert days to days_to_process for backward compatibility
     days_to_process = days
 
+    # Normalize input paths
+    zip_files = [path.resolve() for path in zip_files]
+
     # Build nested configuration objects
     llm_config = LLMConfig(safety_threshold=safety_threshold, thinking_budget=thinking_budget)
 
@@ -201,7 +170,7 @@ def process_command(  # noqa: PLR0913
     )
 
     cache_config = CacheConfig(
-        enabled=not disable_cache, cache_dir=Path(cache_dir), auto_cleanup_days=auto_cleanup_days
+        enabled=not disable_cache, cache_dir=cache_dir, auto_cleanup_days=auto_cleanup_days
     )
 
     profiles_config = ProfilesConfig(
@@ -209,9 +178,11 @@ def process_command(  # noqa: PLR0913
     )
 
     # Build main configuration
+    posts_dir = (output_dir if output_dir else Path("data")).resolve()
+
     config = PipelineConfig(
         zip_files=zip_files,
-        posts_dir=Path(output_dir) if output_dir else Path("data"),
+        posts_dir=posts_dir,
         group_name=group_name,
         group_slug=group_slug,
         model=model,
@@ -248,15 +219,9 @@ def process_command(  # noqa: PLR0913
 
 @app.command("profiles")
 def profiles_command(
-    action: Annotated[str, typer.Argument(..., help="Ação: list, show, generate, clean")],
-    target: Annotated[
-        str,
-        typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
-    ],
-    output_format: Annotated[
-        str,
-        typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
-    ],
+    action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
+    target: str | None = typer.Argument(None, help="ID do membro ou caminho do ZIP (para generate)"),
+    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
 ) -> None:
     """Gerencia perfis de participantes."""
 

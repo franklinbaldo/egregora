@@ -36,6 +36,11 @@ from .transcript import (
 )
 from .types import GroupSlug
 
+try:  # pragma: no cover - optional dependency
+    from google.genai import errors as genai_errors
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    genai_errors = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
     from .media_extractor import MediaFile
 
@@ -44,6 +49,22 @@ logger = logging.getLogger(__name__)
 YAML_DELIMITER = "---"
 QUOTA_WARNING_THRESHOLD = 15
 MIN_YAML_PARTS = 3
+_TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+
+
+def _is_transient_gemini_error(exc: Exception) -> bool:
+    """Return ``True`` when *exc* looks like a temporary Gemini outage."""
+
+    message = str(exc)
+    if "UNAVAILABLE" in message or "model is overloaded" in message:
+        return True
+
+    if genai_errors is not None and isinstance(exc, genai_errors.ServerError):
+        status_code = getattr(exc, "status_code", None)
+        if status_code in _TRANSIENT_STATUS_CODES:
+            return True
+
+    return False
 
 
 def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
@@ -186,9 +207,7 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
         # Look for matching profiles in the egregora-site profiles directory
         # This matches the structure we saw earlier
         workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
-        site_profiles_dir = (
-            workspace_root / "egregora-site" / source.slug / "profiles" / "generated"
-        )
+        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
         if site_profiles_dir.exists():
             for profile_file in site_profiles_dir.glob("*.md"):
@@ -202,7 +221,7 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
             return match.group(0)  # Return original (Member-XXXX)
 
         # Generate profile link (relative to the posts directory)
-        profile_url = f"../../profiles/{full_uuid_pattern}/"
+        profile_url = f"../../profiles/{full_uuid_pattern}.md"
         return f"([Member-{member_id}]({profile_url}))"
 
     return re.sub(member_pattern, replace_member_mention, text)
@@ -901,14 +920,6 @@ class UnifiedProcessor:
             # Progressive processing: handle quota errors gracefully
             try:
                 post = self.generator.generate(source, context)
-
-                try:
-                    validate_newsletter_privacy(post)
-                except PrivacyViolationError as exc:
-                    raise PrivacyViolationError(
-                        f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
-                    ) from exc
-
             except RuntimeError as exc:
                 if "Quota de API do Gemini esgotada" in str(exc):
                     logger.warning(
@@ -918,9 +929,22 @@ class UnifiedProcessor:
                     )
                     # Return partial results - what we've processed so far
                     break
-                else:
-                    # Re-raise other RuntimeErrors
-                    raise
+                raise
+            except Exception as exc:  # noqa: BLE001
+                if _is_transient_gemini_error(exc):
+                    logger.warning(
+                        "    ⚠️ Gemini indisponível ao gerar post de %s; seguindo para a próxima data.",
+                        target_date,
+                    )
+                    continue
+                raise
+
+            try:
+                validate_newsletter_privacy(post)
+            except PrivacyViolationError as exc:
+                raise PrivacyViolationError(
+                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
+                ) from exc
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
@@ -938,6 +962,11 @@ class UnifiedProcessor:
             post = _add_member_profile_links(post, config=self.config, source=source)
 
             output_path = daily_dir / f"{target_date}.md"
+            if self.config.skip_existing_posts and output_path.exists():
+                logger.info("    ⏭️  Post já existe em %s – pulando geração.", output_path)
+                results.append(output_path)
+                continue
+
             output_path.write_text(post, encoding="utf-8")
 
             if profile_repository and self._profile_updater:

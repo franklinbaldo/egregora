@@ -275,6 +275,7 @@ class PipelineConfig(BaseModel):
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
+    skip_existing_posts: bool = True
     use_dataframe_pipeline: bool = Field(
         default=True,
         validation_alias=AliasChoices(

@@ -1,8 +1,8 @@
 *.pyc
-__pycache__/
+__pycache__
 .venv/
 .uv/
-
+*__pycache__*
 # uv build artifacts
 /dist/
 
@@ -16,8 +16,7 @@ __pycache__/
 
 # Cache
 cache/
-!src/egregora/cache/
-!src/egregora/cache/**
+
 docs/reports/
 site/
 mkdocs-dev.yml
@@ -30,8 +29,7 @@ mkdocs-dev.yml
 
 # Data and config
 data/
-!src/egregora/data/
-!src/egregora/data/**
+
 egregora.toml
 *.zip:Zone.Identifier
 

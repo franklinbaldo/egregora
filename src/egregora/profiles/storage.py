@@ -60,7 +60,7 @@ class ProfileRepository:
             markdown += "\n"
         markdown_content = f"{disclaimer}\n\n{markdown}"
 
-        markdown_path = self.docs_dir / "generated" / f"{identifier}.md"
+        markdown_path = self.docs_dir / f"{identifier}.md"
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(markdown_content, encoding="utf-8")
 
@@ -111,15 +111,13 @@ class ProfileRepository:
         lines.append("")
         lines.append("## Onde encontrar os dados")
         lines.append("- JSON anonimizado: `data/profiles/` (uso interno e integrações).")
-        lines.append(
-            "- Relatórios em Markdown: `docs/profiles/generated/` para revisão antes da publicação."
-        )
+        lines.append("- Relatórios em Markdown: `docs/profiles/` para revisão antes da publicação.")
         lines.append(
             "- Esta página permanece genérica por padrão; edite-a manualmente caso queira destacar perfis específicos."
         )
         lines.append("")
         lines.append("## Fluxo sugerido para publicar no site")
-        lines.append("1. Revise os arquivos em `docs/profiles/generated/`.")
+        lines.append("1. Revise os arquivos em `docs/profiles/`.")
         lines.append("2. Copie os perfis aprovados para uma seção pública da documentação.")
         lines.append("3. Atualize este índice com links curados, se necessário.")
         lines.append(
