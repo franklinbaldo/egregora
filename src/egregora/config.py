@@ -6,7 +6,7 @@ import copy
 from collections.abc import Mapping, Sequence
 from datetime import tzinfo
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import (
@@ -19,13 +19,14 @@ from pydantic import (
 )
 # Configuration now uses direct initialization instead of environment variables
 
-from .anonymizer import FormatType
 from .models import MergeConfig
 from .rag.config import RAGConfig
 from .types import GroupSlug
 
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+
+AnonymizationFormat = Literal["human", "short", "full"]
 
 LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
     "vector_store_path": "persist_dir",
@@ -77,6 +78,35 @@ class SystemClassifierConfig(BaseModel):
     retry_attempts: int = 2
 
 
+class EmbedConfig(BaseModel):
+    """Configuration for Gemini embeddings generation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    enabled: bool = True
+    model: str = "models/embedding-001"
+    batch_size: int = 10
+    chunk_char_limit: int = 2048
+    text_column: str = "message"
+    vector_column: str = "vector"
+    output_path: Path | None = None
+
+    @field_validator("batch_size", "chunk_char_limit")
+    @classmethod
+    def _validate_positive_int(cls, value: Any) -> int:
+        candidate = int(value)
+        if candidate < 1:
+            raise ValueError("batch_size e chunk_char_limit devem ser inteiros positivos")
+        return candidate
+
+    @field_validator("output_path", mode="before")
+    @classmethod
+    def _validate_output_path(cls, value: Any) -> Path | None:
+        if value in {None, ""}:
+            return None
+        return Path(value)
+
+
 class EnrichmentConfig(BaseModel):
     """Configuration specific to the enrichment subsystem."""
 
@@ -113,11 +143,11 @@ class AnonymizationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
-    output_format: FormatType = "human"
+    output_format: AnonymizationFormat = "human"
 
     @field_validator("output_format", mode="before")
     @classmethod
-    def _validate_output_format(cls, value: Any) -> FormatType:
+    def _validate_output_format(cls, value: Any) -> AnonymizationFormat:
         candidate = str(value)
         if candidate not in ("human", "short", "full"):
             raise ValueError("output_format must be one of 'human', 'short' or 'full'")
@@ -170,6 +200,71 @@ class ProfilesConfig(BaseModel):
         if fvalue < 0:
             raise ValueError("minimum_retry_seconds must be non-negative")
         return fvalue
+
+
+class ArchiveConfig(BaseModel):
+    """Settings for zero-cost archival exports."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    enabled: bool = False
+    ia_identifier: str = "egregora-vectors"
+    dataset_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/exports"))
+
+    @field_validator("ia_identifier", mode="before")
+    @classmethod
+    def _validate_identifier(cls, value: Any) -> str:
+        candidate = str(value).strip()
+        if not candidate:
+            raise ValueError("ia_identifier must be a non-empty string")
+        return candidate
+
+    @field_validator("dataset_dir", mode="before")
+    @classmethod
+    def _validate_dataset_dir(cls, value: Any) -> Path:
+        return _ensure_safe_directory(value)
+
+
+class StaticSiteConfig(BaseModel):
+    """Configuration for MkDocs static previews."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    enabled: bool = True
+    auto_build: bool = True
+    docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("docs"))
+    site_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("site"))
+    mkdocs_config: Path = Field(default_factory=lambda: Path("mkdocs.yml"))
+    posts_output_dir: Path = Field(default_factory=lambda: Path("posts"))
+    preview_host: str = "0.0.0.0"
+    preview_port: int = 8001
+
+    @field_validator("mkdocs_config", mode="before")
+    @classmethod
+    def _validate_mkdocs_config(cls, value: Any) -> Path:
+        candidate = Path(value)
+        if candidate.is_absolute():
+            return candidate
+        return Path.cwd() / candidate
+
+    @field_validator("posts_output_dir", mode="before")
+    @classmethod
+    def _validate_posts_output_dir(cls, value: Any) -> Path:
+        candidate = Path(value)
+        if candidate.is_absolute():
+            raise ValueError("posts_output_dir deve ser relativo ao diretório docs")
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError("posts_output_dir não pode conter '..'")
+        return candidate
+
+    @field_validator("preview_port", mode="before")
+    @classmethod
+    def _validate_preview_port(cls, value: Any) -> int:
+        port = int(value)
+        if port < 1 or port > 65535:
+            raise ValueError("preview_port deve estar entre 1 e 65535")
+        return port
+
 
 def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
@@ -267,9 +362,12 @@ class PipelineConfig(BaseModel):
     enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     system_classifier: SystemClassifierConfig = Field(default_factory=SystemClassifierConfig)
+    embed: EmbedConfig = Field(default_factory=EmbedConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
+    archive: ArchiveConfig = Field(default_factory=ArchiveConfig)
+    static_site: StaticSiteConfig = Field(default_factory=StaticSiteConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None
@@ -357,6 +455,15 @@ class PipelineConfig(BaseModel):
         if isinstance(value, dict):
             return SystemClassifierConfig(**value)
         raise TypeError("system_classifier configuration must be a mapping")
+
+    @field_validator("embed", mode="before")
+    @classmethod
+    def _validate_embed(cls, value: Any) -> EmbedConfig:
+        if isinstance(value, EmbedConfig):
+            return value
+        if isinstance(value, dict):
+            return EmbedConfig(**value)
+        raise TypeError("embed configuration must be a mapping")
 
     @field_validator("anonymization", mode="before")
     @classmethod
@@ -451,9 +558,11 @@ __all__ = [
     "DEFAULT_TIMEZONE",
     "AnonymizationConfig",
     "CacheConfig",
+    "EmbedConfig",
     "EnrichmentConfig",
     "LLMConfig",
     "PipelineConfig",
     "ProfilesConfig",
     "RAGConfig",
+    "StaticSiteConfig",
 ]

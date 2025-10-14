@@ -25,12 +25,7 @@ class Anonymizer:
 
     @staticmethod
     def normalize_phone(phone: str) -> str:
-        """Return a normalized representation of *phone*.
-
-        The normalization removes spaces, hyphens and parentheses while keeping
-        the leading ``+`` if present. Phone numbers without ``+`` are assumed to
-        be Brazilian numbers (``+55``) when they contain 10 or 11 digits.
-        """
+        """Return a normalized representation of *phone*."""
 
         normalized = re.sub(r"[^\d+]", "", phone)
         if not normalized:
@@ -74,11 +69,7 @@ class Anonymizer:
         format: FormatType = "human",
         prefix: str = "Member",
     ) -> str:
-        """Return a deterministic pseudonym for ``phone``.
-
-        ``prefix`` allows configuring the human-friendly prefix to keep the
-        anonymized format aligned with nickname anonymization.
-        """
+        """Return a deterministic pseudonym for ``phone``."""
 
         normalized = Anonymizer.normalize_phone(phone)
         uuid_full = str(uuid.uuid5(Anonymizer.NAMESPACE_PHONE, normalized))
@@ -122,18 +113,51 @@ class Anonymizer:
         return variants
 
     @staticmethod
-    def anonymize_dataframe(df: pl.DataFrame, format: FormatType = "human") -> pl.DataFrame:
-        """Return a new DataFrame with the ``author`` column anonymized."""
+    def anonymize_dataframe(
+        df: pl.DataFrame,
+        format: FormatType = "human",
+        *,
+        column: str = "author",
+        target_column: str | None = None,
+    ) -> pl.DataFrame:
+        """Return a new DataFrame with deterministic pseudonyms applied."""
 
-        if "author" not in df.columns:
-            raise KeyError("DataFrame must have 'author' column")
+        if column not in df.columns:
+            raise KeyError(f"DataFrame must have '{column}' column")
 
-        return df.with_columns(
-            pl.col("author").map_elements(
-                lambda author: Anonymizer.anonymize_author(author, format),
-                return_dtype=pl.String,
-            )
+        expr = pl.col(column).map_elements(
+            lambda author: Anonymizer.anonymize_author(author, format),
+            return_dtype=pl.String,
         )
+
+        if target_column and target_column != column:
+            expr = expr.alias(target_column)
+        else:
+            expr = expr.alias(column)
+
+        return df.with_columns(expr)
+
+    @staticmethod
+    def anonymize_lazyframe(
+        frame: pl.LazyFrame,
+        format: FormatType = "human",
+        *,
+        column: str = "author",
+        target_column: str | None = None,
+    ) -> pl.LazyFrame:
+        """Return a lazy frame with anonymized author information."""
+
+        expr = pl.col(column).map_elements(
+            lambda author: Anonymizer.anonymize_author(author, format),
+            return_dtype=pl.String,
+        )
+
+        if target_column and target_column != column:
+            expr = expr.alias(target_column)
+        else:
+            expr = expr.alias(column)
+
+        return frame.with_columns(expr)
 
     @staticmethod
     def anonymize_series(series: pl.Series, format: FormatType = "human") -> pl.Series:
@@ -143,6 +167,30 @@ class Anonymizer:
             lambda author: Anonymizer.anonymize_author(author, format),
             return_dtype=pl.String,
         )
+
+    @staticmethod
+    def to_ibis_memtable(
+        df: pl.DataFrame,
+        *,
+        format: FormatType = "human",
+        column: str = "author",
+        target_column: str = "anon_author",
+    ):
+        """Return an :mod:`ibis` memtable with anonymized identifiers."""
+
+        try:
+            import ibis
+        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+            msg = "ibis-framework is required to build an ibis memtable"
+            raise RuntimeError(msg) from exc
+
+        materialized = Anonymizer.anonymize_dataframe(
+            df,
+            format=format,
+            column=column,
+            target_column=target_column,
+        )
+        return ibis.memtable(materialized.to_dicts())
 
 
 __all__ = ["Anonymizer", "FormatType"]

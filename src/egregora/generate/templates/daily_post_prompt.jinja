@@ -1,0 +1,29 @@
+NOME DO GRUPO: {{ group_name }}
+DATA DE HOJE: {{ today }}
+
+{% if previous_post %}
+POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):
+<<<POST_ONTEM_INICIO>>>
+{{ previous_post }}
+<<<POST_ONTEM_FIM>>>
+{% else %}
+POST DO DIA ANTERIOR: NÃO ENCONTRADA
+{% endif %}
+
+{% if enrichment_section %}
+CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:
+{{ enrichment_section }}
+{% endif %}
+
+{% if rag_snippets %}
+CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:
+{% for snippet in rag_snippets %}- {{ snippet }}
+{% endfor %}
+{% endif %}
+
+{{ transcript_header }}
+{% for block in transcripts %}<<<TRANSCRITO_{{ block.marker }}_INICIO>>>
+{{ block.text }}
+<<<TRANSCRITO_{{ block.marker }}_FIM>>>
+
+{% endfor %}

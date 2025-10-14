@@ -1,10 +1,10 @@
 [project]
 name = "egregora"
-version = "0.2.0"
+version = "1.0.0"
 description = "Pipeline para gerar posts diárias a partir de exports do WhatsApp."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "google-genai>=0.3.0",
     "llama-index-core>=0.11.0",
@@ -19,12 +19,18 @@ dependencies = [
     "python-dateutil>=2.9",
     "pydantic>=2.7",
     "pydantic-ai>=0.0.14",
+    "ibis-framework[duckdb]>=9.0.0",
+    "fastmcp>=0.3.0",
+    "pyarrow>=17.0.0",
+    "jinja2>=3.1.4",
+    "internetarchive>=3.5.0",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.108.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -32,7 +38,13 @@ docs = [
     "mkdocs-static-i18n>=1.2",
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-minify-plugin>=0.8",
+    "cairosvg>=2.7",
     "codespell>=2.3.0",
+]
+duckdb-vss = [
+    "duckdb>=1.0.0",
 ]
 lint = [
     "pre-commit>=3.8",
@@ -47,26 +59,40 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 managed = true
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.108.0",
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocs-static-i18n>=1.2",
+    "python-dateutil>=2.9",
+    "pymdown-extensions>=10.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-minify-plugin>=0.8",
+    "cairosvg>=2.7",
+    "codespell>=2.3.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests"]
 
 [tool.black]
 line-length = 100
-target-version = ["py311"]
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true

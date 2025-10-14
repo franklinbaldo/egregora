@@ -23,62 +23,64 @@ mkdir -p data/whatsapp_zips
 mv ~/Downloads/WhatsApp*.zip data/whatsapp_zips/
 ```
 
-## 2. Gerar Post (Modo Dry-Run)
+## 2. Ensaiar com Dry-Run
 
-Primeiro, veja o que seria processado:
-
-```bash
-uv run egregora process data/whatsapp_zips/*.zip --dry-run
-```
-
-Saída esperada:
-
-```
-🔍 Modo DRY RUN
-
-📝 Rationality Club (rationality-club)
-   Exports disponíveis: 1
-   Intervalo: 2025-03-02 → 2025-10-11
-   Será gerado: 2025-10-10, 2025-10-11
-
-📊 Estimativa:
-   Total: 2 posts
-   API calls: ~25
-   Tempo: ~2 minutos
-```
-
-## 3. Gerar Posts
+Veja rapidamente quais datas seriam processadas sem gerar arquivos:
 
 ```bash
-# Gerar últimos 2 dias
-uv run egregora process data/whatsapp_zips/*.zip --days 2
+uv run egregora pipeline data/whatsapp_zips/*.zip --days 2 --dry-run --show
 ```
 
-Progresso:
+Saída típica:
 
 ```
-📝 Processing: Rationality Club
-  Processing 2025-10-10...
-    132 messages from 7 participants
-    [Enriquecimento] 2/3 itens relevantes
-    [RAG] Nenhum contexto histórico (primeira execução)
-    ✅ data/rationality-club/posts/daily/2025-10-10.md
-
-  Processing 2025-10-11...
-    156 messages from 9 participants
-    [Enriquecimento] 3/4 itens relevantes
-    [RAG] 2 contextos históricos encontrados
-    [Profiles] Context built for 5 participants
-    👤 Updated: Member-ABCD (v1)
-    👤 Updated: Member-EFGH (v1)
-    ✅ data/rationality-club/posts/daily/2025-10-11.md
+📥 Ingerindo exports...
+🧮 Gerando embeddings com Gemini...
+📝 Gerando posts...
+╭─ Prévia 2025-10-10 ─╮
+│ ...markdown renderizado... │
+╰────────────────────╯
+╭─ Prévia 2025-10-11 ─╮
+│ ...markdown renderizado... │
+╰────────────────────╯
 ```
+
+O modo `--show` imprime a versão resumida de cada dia, útil para validar anonimização e tom antes de gravar em disco.【F:src/egregora/__main__.py†L188-L212】
+
+## 3. Gerar Posts e Prévia MkDocs
+
+```bash
+uv run egregora pipeline data/whatsapp_zips/*.zip \
+  --days 2 \
+  --workspace tmp/egregora \
+  --build-static \
+  --preview
+```
+
+Progresso esperado:
+
+```
+📥 Ingerindo exports...
+🧮 Gerando embeddings com Gemini...
+💾 Dataset consolidado em tmp/egregora/grupo-teste-20251011.parquet
+🧠 Construindo índice DuckDB em memória...
+📝 Gerando posts...
+╭─ Posts geradas ─────╮
+│ Data       │ Arquivo │
+│ 2025-10-10 │ docs/posts/2025-10-10-grupo-teste.md │
+│ 2025-10-11 │ docs/posts/2025-10-11-grupo-teste.md │
+╰────────────────────╯
+✅ Site estático atualizado com sucesso.
+🌐 Servindo MkDocs em http://127.0.0.1:8001 (Ctrl+C para sair)
+```
+
+Enquanto o servidor MkDocs estiver ativo você verá uma prévia atualizada no navegador. Use `Ctrl+C` para encerrar quando terminar.【F:src/egregora/__main__.py†L168-L212】
 
 ## 4. Visualizar Resultado
 
 ```bash
 # Ver post gerado
-cat data/rationality-club/posts/daily/2025-10-11.md
+cat docs/posts/2025-10-11-grupo-teste.md
 ```
 
 Você verá:
@@ -102,27 +104,26 @@ Retomamos a discussão iniciada ontem sobre...
 
 ## 5. Ver no Site
 
-```bash
-# Iniciar servidor local
-uv run mkdocs serve
+Se usou `--preview`, o servidor MkDocs já estará em execução em `http://127.0.0.1:8001`. Caso queira reconstruir manualmente depois:
 
-# Abrir no navegador
-open http://localhost:8000
+```bash
+uv run mkdocs build
+uv run mkdocs serve
 ```
 
 ## Próximos Passos
 
 <div class="grid cards" markdown>
 
--   :material-cog: **[Configurar](configuration.md)**
+-   :material-cog: **[Configurar](rag-setup.md)**
 
     Ajuste RAG, Profiles, Cache
 
--   :material-book-open: **[Guias](../guides/index.md)**
+-   :material-book-open: **[Guias](../blog/index.md)**
 
     Aprenda recursos avançados
 
--   :material-frequently-asked-questions: **[FAQ](../about/faq.md)**
+-   :material-frequently-asked-questions: **[FAQ](../blog/posts/2025-10-13-egregora-1-0.md)**
 
     Perguntas frequentes
 
@@ -157,5 +158,5 @@ open http://localhost:8000
 
     **Solução:** Tier gratuito tem limite de 15 req/min. Espere ou reduza batch:
     ```bash
-    uv run egregora process data/whatsapp_zips/*.zip --days 1
+    uv run egregora pipeline data/whatsapp_zips/*.zip --days 1
     ```

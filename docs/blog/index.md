@@ -18,6 +18,5 @@ Cada post é uma síntese inteligente das conversas do grupo, enriquecida com:
 
 ## Filtrar por
 
-[:material-tag: Tags](../tags.md){ .md-button }
 [:material-folder: Categorias](#){ .md-button }
 [:material-calendar: Arquivo](#){ .md-button }
