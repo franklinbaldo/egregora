@@ -4,14 +4,14 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-# import chromadb
-# from llama_index.core import VectorStoreIndex
-# from llama_index.core.embeddings import BaseEmbedding
-# from llama_index.core.vector_stores.types import VectorStore
-# from llama_index.vector_stores.chroma import ChromaVectorStore
+import chromadb
+from llama_index.core import VectorStoreIndex
+from llama_index.core.embeddings import BaseEmbedding
+from llama_index.core.vector_stores.types import VectorStore
+from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from .config import RAGConfig
-# from .embeddings import CachedGeminiEmbedding
+from .embeddings import CachedGeminiEmbedding
 
 if TYPE_CHECKING:
     from llama_index.core.schema import NodeWithScore
