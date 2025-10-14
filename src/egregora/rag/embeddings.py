@@ -1,4 +1,4 @@
-"""Embedding helpers built on top of LlamaIndex."""
+"""Embedding helpers built on top of ChromaDB."""
 
 from __future__ import annotations
 
@@ -9,20 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from diskcache import Cache
-from llama_index.core.embeddings import BaseEmbedding
+import chromadb.utils.embedding_functions as embedding_functions
 
-try:  # pragma: no cover - optional dependency
-    from llama_index.embeddings.gemini import GeminiEmbedding
-except ModuleNotFoundError:  # pragma: no cover - handled in fallback
-    GeminiEmbedding = None  # type: ignore[misc]
-
-
-class _FallbackEmbedding(BaseEmbedding):
+class _FallbackEmbedding:
     """Deterministic, offline-friendly embedding used when Gemini is unavailable."""
 
     def __init__(self, dimension: int = 256) -> None:
-        super().__init__()
-        object.__setattr__(self, "_dimension", max(32, dimension))
+        self._dimension = max(32, dimension)
 
     def _vectorise(self, text: str) -> list[float]:
         if not text:
@@ -42,26 +35,11 @@ class _FallbackEmbedding(BaseEmbedding):
             return vector
         return [value / norm for value in vector]
 
-    def _get_text_embedding(
-        self, text: str
-    ) -> list[float]:  # pragma: no cover - delegated to sync path
-        return self._vectorise(text)
-
-    def _get_query_embedding(
-        self, query: str
-    ) -> list[float]:  # pragma: no cover - delegated to sync path
-        return self._vectorise(query)
-
-    async def _aget_text_embedding(self, text: str) -> list[float]:  # pragma: no cover - delegated
-        return self._vectorise(text)
-
-    async def _aget_query_embedding(
-        self, query: str
-    ) -> list[float]:  # pragma: no cover - delegated
-        return self._vectorise(query)
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        return [self._vectorise(text) for text in input]
 
 
-class CachedGeminiEmbedding(BaseEmbedding):
+class CachedGeminiEmbedding:
     """Gemini embeddings with optional disk caching and offline fallback."""
 
     def __init__(
@@ -72,47 +50,42 @@ class CachedGeminiEmbedding(BaseEmbedding):
         cache_dir: Path | None = None,
         api_key: str | None = None,
     ) -> None:
-        super().__init__()
-        object.__setattr__(self, "_model_name", model_name)
-        object.__setattr__(self, "_dimension", dimension)
-        resolved_api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        object.__setattr__(self, "_api_key", resolved_api_key)
+        self._model_name = model_name
+        self._dimension = dimension
+        self._api_key = api_key or os.getenv("GOOGLE_API_KEY")
 
-        using_fallback = not resolved_api_key or GeminiEmbedding is None
-        object.__setattr__(self, "_using_fallback", using_fallback)
+        using_fallback = not self._api_key
+        self._using_fallback = using_fallback
 
         cache_namespace = self._build_cache_namespace(
             model_name=model_name,
             dimension=dimension,
             using_fallback=using_fallback,
         )
-        object.__setattr__(self, "_cache_namespace", cache_namespace)
+        self._cache_namespace = cache_namespace
 
         cache: Cache | None = None
         if cache_dir:
             resolved_dir = Path(cache_dir).expanduser()
             resolved_dir.mkdir(parents=True, exist_ok=True)
             cache = Cache(directory=str(resolved_dir))
-        object.__setattr__(self, "_cache", cache)
+        self._cache = cache
 
-        if not using_fallback and GeminiEmbedding is not None:
-            embed_model: BaseEmbedding = GeminiEmbedding(
-                model_name=model_name,
-                api_key=resolved_api_key,
+        if not using_fallback:
+            self._embed_model = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
+                api_key=self._api_key, model_name=self._model_name
             )
         else:
-            embed_model = _FallbackEmbedding(dimension)
-        object.__setattr__(self, "_embed_model", embed_model)
+            self._embed_model = _FallbackEmbedding(dimension)
 
-    def _cache_key(self, text: str, *, kind: str) -> str:
-        base = f"{self._cache_namespace}|{kind}|{text}"
+    def _cache_key(self, text: str) -> str:
+        base = f"{self._cache_namespace}|{text}"
         return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
-    def _lookup_cache(self, text: str, *, kind: str) -> list[float] | None:
-        cache = self._cache
-        if cache is None:
+    def _lookup_cache(self, text: str) -> list[float] | None:
+        if self._cache is None:
             return None
-        record = cache.get(self._cache_key(text, kind=kind))
+        record = self._cache.get(self._cache_key(text))
         if not isinstance(record, dict):
             return None
         if record.get("namespace") != self._cache_namespace:
@@ -122,9 +95,8 @@ class CachedGeminiEmbedding(BaseEmbedding):
             return None
         return [float(value) for value in vector]
 
-    def _store_cache(self, text: str, values: Iterable[float], *, kind: str) -> None:
-        cache = self._cache
-        if cache is None:
+    def _store_cache(self, text: str, values: Iterable[float]) -> None:
+        if self._cache is None:
             return
         vector = [float(value) for value in values]
         record = {
@@ -132,36 +104,38 @@ class CachedGeminiEmbedding(BaseEmbedding):
             "namespace": self._cache_namespace,
             "cached_at": datetime.now(UTC).isoformat(),
         }
-        cache.set(self._cache_key(text, kind=kind), record)
+        self._cache.set(self._cache_key(text), record)
 
-    def _embed(self, text: str, *, kind: str) -> list[float]:
-        cached = self._lookup_cache(text, kind=kind)
-        if cached is not None:
-            return cached
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        """Embed a list of texts."""
+        results: list[list[float]] = []
+        texts_to_embed: list[str] = []
+        indices_to_embed: list[int] = []
 
-        if kind == "query":
-            vector = self._embed_model.get_query_embedding(text)  # type: ignore[attr-defined]
-        else:
-            vector = self._embed_model.get_text_embedding(text)  # type: ignore[attr-defined]
+        # First, check cache for existing embeddings
+        for i, text in enumerate(input):
+            cached = self._lookup_cache(text)
+            if cached is not None:
+                results.insert(i, cached)
+            else:
+                results.append([]) # placeholder
+                texts_to_embed.append(text)
+                indices_to_embed.append(i)
 
-        self._store_cache(text, vector, kind=kind)
-        return vector
+        if not texts_to_embed:
+            return results
 
-    def _get_text_embedding(self, text: str) -> list[float]:
-        return self._embed(text, kind="text")
+        # Embed the texts that were not in the cache
+        embeddings = self._embed_model(texts_to_embed)
 
-    def _get_query_embedding(self, query: str) -> list[float]:
-        return self._embed(query, kind="query")
+        # Store new embeddings in cache and fill in the results
+        for i, embedding in enumerate(embeddings):
+            original_index = indices_to_embed[i]
+            text = texts_to_embed[i]
+            self._store_cache(text, embedding)
+            results[original_index] = embedding
 
-    async def _aget_text_embedding(
-        self, text: str
-    ) -> list[float]:  # pragma: no cover - simple passthrough
-        return self._get_text_embedding(text)
-
-    async def _aget_query_embedding(
-        self, query: str
-    ) -> list[float]:  # pragma: no cover - simple passthrough
-        return self._get_query_embedding(query)
+        return results
 
     @staticmethod
     def _build_cache_namespace(*, model_name: str, dimension: int, using_fallback: bool) -> str:

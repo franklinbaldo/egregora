@@ -143,6 +143,11 @@ def process_command(  # noqa: PLR0913
     auto_cleanup_days: int = typer.Option(
         90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
     ),
+    enable_rag: bool = typer.Option(
+        False,
+        "--enable-rag",
+        help="Enable RAG.",
+    ),
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
@@ -213,7 +218,7 @@ def process_command(  # noqa: PLR0913
         cache=cache_config,
         profiles=profiles_config,
         anonymization=AnonymizationConfig(),
-        rag=RAGConfig(),
+        rag=RAGConfig(enabled=enable_rag),
     )
 
     # Configuration is now fully built from CLI arguments above

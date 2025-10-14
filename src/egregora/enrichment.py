@@ -300,6 +300,7 @@ class EnrichmentRunMetrics:
     relevant_items: int
     error_count: int
     domains: tuple[str, ...]
+    urls: tuple[str, ...]
     threshold: int
 
     def to_dict(self) -> dict[str, object]:
@@ -312,12 +313,14 @@ class EnrichmentRunMetrics:
             "relevant_items": self.relevant_items,
             "error_count": self.error_count,
             "domains": list(self.domains),
+            "urls": list(self.urls),
             "threshold": self.threshold,
         }
 
     def to_csv_row(self, errors: Sequence[str]) -> dict[str, object]:
         base = self.to_dict()
         base["domains"] = COLUMN_SEPARATOR.join(self.domains)
+        base["urls"] = COLUMN_SEPARATOR.join(self.urls)
         base["errors"] = COLUMN_SEPARATOR.join(errors)
         return base
 
@@ -805,6 +808,7 @@ class ContentEnricher:
         result.duration_seconds = duration
 
         finished_at = datetime.now(UTC)
+        urls = tuple(sorted({r.url for r in references if r.url}))
         metrics = EnrichmentRunMetrics(
             started_at=started_at,
             finished_at=finished_at,
@@ -814,6 +818,7 @@ class ContentEnricher:
             relevant_items=self._count_relevant_items(result.items),
             error_count=len(result.errors),
             domains=self._collect_domains(references),
+            urls=urls,
             threshold=max(1, self._config.relevance_threshold),
         )
         result.metrics = metrics
@@ -835,16 +840,16 @@ class ContentEnricher:
         metrics: EnrichmentRunMetrics,
         errors: Sequence[str],
     ) -> None:
-        domains_display = ", ".join(metrics.domains) if metrics.domains else "-"
+        urls_display = ", ".join(metrics.urls) if metrics.urls else "-"
         payload = metrics.to_dict()
         payload["errors"] = list(errors)
         logger.info(
-            "Enrichment: %d/%d relevant items (≥%d) in %.2fs; domains=%s; errors=%d",
+            "Enrichment: %d/%d relevant items (≥%d) in %.2fs; urls=%s; errors=%d",
             metrics.relevant_items,
             metrics.analyzed_items,
             metrics.threshold,
             metrics.duration_seconds,
-            domains_display,
+            urls_display,
             metrics.error_count,
             extra={"enrichment_metrics": payload},
         )

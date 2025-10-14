@@ -26,7 +26,7 @@ from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
-from .rag.index import PostRAG
+from .rag.chromadb_rag import ChromadbRAG
 from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
 from .transcript import (
@@ -870,22 +870,15 @@ class UnifiedProcessor:
                 enrichment_section = enrichment_result.format_for_prompt(
                     self.config.enrichment.relevance_threshold
                 )
-                metrics = enrichment_result.metrics
-                if metrics:
-                    domains = ", ".join(metrics.domains) if metrics.domains else "-"
-                    logger.info(
-                        "    [Enriquecimento] %d/%d itens relevantes (≥%d) em %.2fs; domínios=%s; erros=%d",
-                        metrics.relevant_items,
-                        metrics.analyzed_items,
-                        metrics.threshold,
-                        metrics.duration_seconds,
-                        domains,
-                        metrics.error_count,
-                    )
 
             # RAG
             rag_context = None
             if self.config.rag.enabled:
+                rag = ChromadbRAG(config=self.config.rag)
+                
+                # Index all posts before searching
+                rag.index_files(daily_dir)
+
                 keyword_provider = None
                 try:
                     keyword_provider = build_llm_keyword_provider(
@@ -899,20 +892,16 @@ class UnifiedProcessor:
                     )
 
                 if keyword_provider is not None:
-                    rag = PostRAG(
-                        posts_dir=self.config.posts_dir,
-                        config=self.config.rag,
-                    )
                     query_gen = QueryGenerator(
                         self.config.rag,
                         keyword_provider=keyword_provider,
                     )
                     query = query_gen.generate(transcript)
                     search_results = rag.search(query.search_query)
-                    if search_results:
+                    if search_results and search_results['documents']:
                         rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{node.get_text()}"
-                            for i, node in enumerate(search_results, 1)
+                            f"<<<CONTEXTO_{i}>>>\n{doc}"
+                            for i, doc in enumerate(search_results['documents'][0], 1)
                         )
 
             context = PostContext(
