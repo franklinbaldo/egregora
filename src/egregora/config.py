@@ -23,7 +23,7 @@ from .models import MergeConfig
 from .rag.config import RAGConfig
 from .types import GroupSlug
 
-DEFAULT_MODEL = "models/gemini-flash-latest"
+DEFAULT_MODEL = "models/gemini-2.5-flash"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
 LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
