@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -26,6 +26,7 @@ from .config import (
 )
 from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
+from .site_scaffolding import ensure_mkdocs_project
 
 MAX_POSTS_TO_SHOW = 3
 MAX_DATES_TO_SHOW = 10
@@ -55,119 +56,112 @@ logging.basicConfig(
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
 
 
+ZIP_FILES_ARGUMENT = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar")
+OUTPUT_DIR_OPTION = typer.Option(
+    None, "--output", "-o", help="Diretório onde as posts serão escritas"
+)
+GROUP_NAME_OPTION = typer.Option(
+    None,
+    "--group-name",
+    help="Nome do grupo (auto-detectado se não fornecido)",
+)
+GROUP_SLUG_OPTION = typer.Option(
+    None,
+    "--group-slug",
+    help="Slug do grupo (auto-gerado se não fornecido)",
+)
+MODEL_OPTION = typer.Option(
+    DEFAULT_MODEL,
+    "--model",
+    help="Nome do modelo Gemini a ser usado",
+)
+TIMEZONE_OPTION = typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA")
+DAYS_OPTION = typer.Option(
+    None,
+    "--days",
+    min=1,
+    help="Processar os N dias mais recentes. Incompatível com --from/--to.",
+)
+FROM_DATE_OPTION = typer.Option(
+    None,
+    "--from-date",
+    help="Data de início (YYYY-MM-DD). Incompatível com --days.",
+    formats=["%Y-%m-%d"],
+)
+TO_DATE_OPTION = typer.Option(
+    None,
+    "--to-date",
+    help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
+    formats=["%Y-%m-%d"],
+)
+DISABLE_ENRICHMENT_OPTION = typer.Option(
+    False,
+    "--disable-enrichment",
+    "--no-enrich",
+    help="Desativa o enriquecimento",
+)
+DISABLE_CACHE_OPTION = typer.Option(False, "--no-cache", help="Desativa o cache persistente")
+LIST_GROUPS_OPTION = typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai")
+DRY_RUN_OPTION = typer.Option(
+    False,
+    "--dry-run",
+    help="Simula a execução e mostra quais posts seriam geradas",
+)
+LINK_MEMBER_PROFILES_OPTION = typer.Option(
+    True,
+    "--link-profiles/--no-link-profiles",
+    help="Link member mentions to profile pages",
+)
+PROFILE_BASE_URL_OPTION = typer.Option(
+    "/profiles/", "--profile-base-url", help="Base URL for profile links"
+)
+SAFETY_THRESHOLD_OPTION = typer.Option(
+    "BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"
+)
+THINKING_BUDGET_OPTION = typer.Option(
+    -1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"
+)
+MAX_LINKS_OPTION = typer.Option(50, "--max-links", help="Maximum links to enrich per post")
+RELEVANCE_THRESHOLD_OPTION = typer.Option(
+    2,
+    "--relevance-threshold",
+    help="Minimum relevance threshold for enrichment",
+)
+CACHE_DIR_OPTION = typer.Option(Path("cache"), "--cache-dir", help="Cache directory path")
+AUTO_CLEANUP_DAYS_OPTION = typer.Option(
+    90, "--auto-cleanup-days", help="Auto cleanup cache after N days"
+)
+ENABLE_RAG_OPTION = typer.Option(
+    False,
+    "--enable-rag",
+    help="Enable RAG.",
+)
+
+
 @app.command("process")
 def process_command(
-    zip_files: Annotated[
-        list[Path],
-        typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar"),
-    ],
-    output_dir: Annotated[
-        Path | None,
-        typer.Option(None, "--output", "-o", help="Diretório onde as posts serão escritas"),
-    ] = None,
-    group_name: Annotated[
-        str | None,
-        typer.Option(None, "--group-name", help="Nome do grupo (auto-detectado se não fornecido)"),
-    ] = None,
-    group_slug: Annotated[
-        str | None,
-        typer.Option(None, "--group-slug", help="Slug do grupo (auto-gerado se não fornecido)"),
-    ] = None,
-    model: Annotated[
-        str,
-        typer.Option(DEFAULT_MODEL, "--model", help="Nome do modelo Gemini a ser usado"),
-    ] = DEFAULT_MODEL,
-    timezone: Annotated[
-        str,
-        typer.Option("America/Porto_Velho", "--timezone", help="Timezone IANA"),
-    ] = "America/Porto_Velho",
-    days: Annotated[
-        int | None,
-        typer.Option(
-            None,
-            "--days",
-            min=1,
-            help="Processar os N dias mais recentes. Incompatível com --from/--to.",
-        ),
-    ] = None,
-    from_date: Annotated[
-        str | None,
-        typer.Option(
-            None,
-            "--from-date",
-            help="Data de início (YYYY-MM-DD). Incompatível com --days.",
-            formats=["%Y-%m-%d"],
-        ),
-    ] = None,
-    to_date: Annotated[
-        str | None,
-        typer.Option(
-            None,
-            "--to-date",
-            help="Data de fim (YYYY-MM-DD). Incompatível com --days.",
-            formats=["%Y-%m-%d"],
-        ),
-    ] = None,
-    disable_enrichment: Annotated[
-        bool,
-        typer.Option(
-            False, "--disable-enrichment", "--no-enrich", help="Desativa o enriquecimento"
-        ),
-    ] = False,
-    disable_cache: Annotated[
-        bool,
-        typer.Option(False, "--no-cache", help="Desativa o cache persistente"),
-    ] = False,
-    list_groups: Annotated[
-        bool,
-        typer.Option(False, "--list", "-l", help="Lista grupos descobertos e sai"),
-    ] = False,
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            False, "--dry-run", help="Simula a execução e mostra quais posts seriam geradas"
-        ),
-    ] = False,
-    link_member_profiles: Annotated[
-        bool,
-        typer.Option(
-            True,
-            "--link-profiles/--no-link-profiles",
-            help="Link member mentions to profile pages",
-        ),
-    ] = True,
-    profile_base_url: Annotated[
-        str,
-        typer.Option("/profiles/", "--profile-base-url", help="Base URL for profile links"),
-    ] = "/profiles/",
-    safety_threshold: Annotated[
-        str,
-        typer.Option("BLOCK_NONE", "--safety-threshold", help="Gemini safety threshold"),
-    ] = "BLOCK_NONE",
-    thinking_budget: Annotated[
-        int,
-        typer.Option(-1, "--thinking-budget", help="Gemini thinking budget (-1 for unlimited)"),
-    ] = -1,
-    max_links: Annotated[
-        int,
-        typer.Option(50, "--max-links", help="Maximum links to enrich per post"),
-    ] = 50,
-    relevance_threshold: Annotated[
-        int,
-        typer.Option(2, "--relevance-threshold", help="Minimum relevance threshold for enrichment"),
-    ] = 2,
-    cache_dir: Annotated[
-        Path,
-        typer.Option(Path("cache"), "--cache-dir", help="Cache directory path"),
-    ] = Path("cache"),
-    auto_cleanup_days: Annotated[
-        int,
-        typer.Option(90, "--auto-cleanup-days", help="Auto cleanup cache after N days"),
-    ] = 90,
-    enable_rag: Annotated[
-        bool,
-        typer.Option(False, "--enable-rag", help="Enable RAG."),
-    ] = False,
+    zip_files: list[Path] = ZIP_FILES_ARGUMENT,
+    output_dir: Path | None = OUTPUT_DIR_OPTION,
+    group_name: str | None = GROUP_NAME_OPTION,
+    group_slug: str | None = GROUP_SLUG_OPTION,
+    model: str = MODEL_OPTION,
+    timezone: str = TIMEZONE_OPTION,
+    days: int | None = DAYS_OPTION,
+    from_date: str | None = FROM_DATE_OPTION,
+    to_date: str | None = TO_DATE_OPTION,
+    disable_enrichment: bool = DISABLE_ENRICHMENT_OPTION,
+    disable_cache: bool = DISABLE_CACHE_OPTION,
+    list_groups: bool = LIST_GROUPS_OPTION,
+    dry_run: bool = DRY_RUN_OPTION,
+    link_member_profiles: bool = LINK_MEMBER_PROFILES_OPTION,
+    profile_base_url: str = PROFILE_BASE_URL_OPTION,
+    safety_threshold: str = SAFETY_THRESHOLD_OPTION,
+    thinking_budget: int = THINKING_BUDGET_OPTION,
+    max_links: int = MAX_LINKS_OPTION,
+    relevance_threshold: int = RELEVANCE_THRESHOLD_OPTION,
+    cache_dir: Path = CACHE_DIR_OPTION,
+    auto_cleanup_days: int = AUTO_CLEANUP_DAYS_OPTION,
+    enable_rag: bool = ENABLE_RAG_OPTION,
 ) -> None:
     """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
 
@@ -223,12 +217,17 @@ def process_command(
         link_members_in_posts=link_member_profiles, profile_base_url=profile_base_url
     )
 
-    # Build main configuration
-    posts_dir = (output_dir if output_dir else Path("data")).resolve()
+    # Prepare MkDocs scaffold (or reuse an existing one)
+    site_root = (output_dir if output_dir else Path("data")).resolve()
+    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+    if mkdocs_created:
+        console.print(f"🛠️  mkdocs.yml criado em {site_root / 'mkdocs.yml'}")
+    elif docs_dir != site_root:
+        console.print(f"📁 Usando docs_dir definido no mkdocs.yml: {docs_dir}")
 
     config = PipelineConfig(
         zip_files=zip_files,
-        posts_dir=posts_dir,
+        posts_dir=docs_dir,
         group_name=group_name,
         group_slug=group_slug,
         model=model,
@@ -593,6 +592,14 @@ def _process_and_display(
 
 def run() -> None:
     """Entry point used by the console script."""
+    argv = sys.argv[1:]
+    if not argv or not argv[0].startswith("-"):
+        command_infos = getattr(app, "registered_commands", ()) or ()
+        command_candidates = {
+            info.name for info in command_infos if hasattr(info, "name") and info.name
+        }
+        if not argv or argv[0] not in command_candidates:
+            sys.argv.insert(1, "process")
     app()
 
 

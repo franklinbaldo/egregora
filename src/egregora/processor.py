@@ -934,7 +934,11 @@ class UnifiedProcessor:
                 all_media,
                 public_paths=public_paths,
             )
-            transcript = render_transcript(df_render, use_tagged=source.is_virtual)
+            transcript = render_transcript(
+                df_render,
+                use_tagged=source.is_virtual,
+                prefer_original_line=False,
+            )
 
             stats = {
                 "message_count": df_day.height,

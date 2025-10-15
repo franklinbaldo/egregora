@@ -19,6 +19,7 @@ def render_transcript(
     df: pl.DataFrame,
     *,
     use_tagged: bool = False,
+    prefer_original_line: bool = False,
 ) -> str:
     """Render a Polars frame into the canonical transcript text."""
 
@@ -51,7 +52,7 @@ def render_transcript(
             .otherwise(None)
         )
 
-    if "original_line" in frame.columns:
+    if prefer_original_line and "original_line" in frame.columns:
         candidates.append(
             pl.when(
                 pl.col("original_line").is_not_null()
