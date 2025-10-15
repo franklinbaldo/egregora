@@ -432,10 +432,22 @@ class ContentEnricher:
                 fallback = f"URL compartilhada: {reference.redacted_url()}"
                 parts.append(types.Part.from_text(text=fallback))
         contents = [types.Content(role="user", parts=parts)]
-        config = types.GenerateContentConfig(
-            temperature=PROMPT_TEMPERATURE,
-            response_mime_type="application/json",
-        )
+        afc_config = None
+        if types is not None:
+            max_remote_calls = self._config.afc_max_remote_calls
+            if max_remote_calls is None:
+                max_remote_calls = max(self._config.max_links, 10)
+            max_remote_calls = max(1, int(max_remote_calls))
+            afc_config = types.AutomaticFunctionCallingConfig(
+                maximum_remote_calls=max_remote_calls
+            )
+        config_kwargs: dict[str, Any] = {
+            "temperature": PROMPT_TEMPERATURE,
+            "response_mime_type": "application/json",
+        }
+        if afc_config is not None:
+            config_kwargs["automatic_function_calling"] = afc_config
+        config = types.GenerateContentConfig(**config_kwargs)
 
         try:
             if manager is not None:

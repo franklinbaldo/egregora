@@ -83,6 +83,7 @@ class EnrichmentConfig(BaseModel):
         ),
     )
     max_total_enrichment_time: float = 120.0
+    afc_max_remote_calls: int | None = None
     metrics_csv_path: Path | None = Field(
         default_factory=lambda: Path("metrics/enrichment_run.csv")
     )
@@ -93,6 +94,16 @@ class EnrichmentConfig(BaseModel):
         if value is None or value == "":
             return None
         return Path(value)
+
+    @field_validator("afc_max_remote_calls", mode="before")
+    @classmethod
+    def _validate_afc_limit(cls, value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+        limit = int(value)
+        if limit < 1:
+            raise ValueError("afc_max_remote_calls must be a positive integer")
+        return limit
 
 
 class AnonymizationConfig(BaseModel):

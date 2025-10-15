@@ -874,10 +874,16 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = ChromadbRAG(config=self.config.rag)
-                
-                # Index all posts before searching
-                rag.index_files(daily_dir)
+                rag = ChromadbRAG(config=self.config.rag, source=source)
+
+                # Index raw messages in the vector store without storing plaintext
+                try:
+                    rag.upsert_messages(df_day, group_slug=source.slug)
+                except Exception as exc:  # pragma: no cover - defensive: vector store errors
+                    logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
+
+                # Index all generated posts before searching
+                rag.index_files(daily_dir, group_slug=source.slug)
 
                 keyword_provider = None
                 try:
@@ -897,7 +903,7 @@ class UnifiedProcessor:
                         keyword_provider=keyword_provider,
                     )
                     query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query)
+                    search_results = rag.search(query.search_query, group_slug=source.slug)
                     if search_results and search_results['documents']:
                         rag_context = "\n\n".join(
                             f"<<<CONTEXTO_{i}>>>\n{doc}"

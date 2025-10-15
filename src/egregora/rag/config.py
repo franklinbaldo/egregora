@@ -76,6 +76,10 @@ class RAGConfig(BaseModel):
     persist_dir: Path = Field(default_factory=lambda: Path("cache/vector_store"))
     collection_name: str = "posts"
 
+    # Message indexing (no plaintext in vector store)
+    message_context_radius_before: int = 1
+    message_context_radius_after: int = 1
+
     @field_validator("top_k", "max_keywords")
     @classmethod
     def _validate_positive_int(cls, value: Any, info: ValidationInfo) -> int:
@@ -122,6 +126,14 @@ class RAGConfig(BaseModel):
         ivalue = int(value)
         if ivalue < 0:
             raise ValueError("chunk_overlap must be zero or positive")
+        return ivalue
+
+    @field_validator("message_context_radius_before", "message_context_radius_after")
+    @classmethod
+    def _validate_context_radius(cls, value: Any, info: ValidationInfo) -> int:
+        ivalue = int(value)
+        if ivalue < 0:
+            raise ValueError(f"{info.field_name} must be zero or positive")
         return ivalue
 
     @field_validator("embedding_dimension")
