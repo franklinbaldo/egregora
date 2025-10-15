@@ -75,9 +75,7 @@ class MediaExtractor:
     _DEFAULT_ATTACHMENT_LABEL = "(arquivo anexado)"
     _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
     _attachment_pattern = re.compile(
-        r"[^\n]*?(?:"
-        + "|".join(re.escape(marker) for marker in _ATTACHMENT_MARKERS)
-        + ")",
+        r"[^\n]*?(?:" + "|".join(re.escape(marker) for marker in _ATTACHMENT_MARKERS) + ")",
         re.IGNORECASE,
     )
 

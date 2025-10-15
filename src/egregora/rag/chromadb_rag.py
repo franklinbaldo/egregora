@@ -114,13 +114,13 @@ class ChromadbRAG:
         for day_frame in partitions:
             if day_frame.is_empty():
                 continue
-            day_frame = day_frame.sort("timestamp").with_row_count(_ROW_INDEX_COLUMN)
-            date_value = day_frame.get_column("date")[0]
+            annotated_frame = day_frame.sort("timestamp").with_row_count(_ROW_INDEX_COLUMN)
+            date_value = annotated_frame.get_column("date")[0]
             iso_date = str(date_value)
-            cached_frames[iso_date] = day_frame
-            height = day_frame.height
+            cached_frames[iso_date] = annotated_frame
+            height = annotated_frame.height
 
-            for row in day_frame.iter_rows(named=True):
+            for row in annotated_frame.iter_rows(named=True):
                 index = int(row[_ROW_INDEX_COLUMN])
                 message_text = row.get("message") or ""
                 timestamp = row.get("timestamp")
@@ -136,7 +136,7 @@ class ChromadbRAG:
                 context_start = max(0, index - radius_before)
                 context_end = min(height - 1, index + radius_after)
                 segment_length = context_end - context_start + 1
-                segment = day_frame.slice(context_start, segment_length)
+                segment = annotated_frame.slice(context_start, segment_length)
 
                 context_lines: list[str] = []
                 for ctx_row in segment.iter_rows(named=True):

@@ -1,5 +1,7 @@
 """Unified processor with Polars-based message manipulation."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -20,10 +22,10 @@ from .config import PipelineConfig
 from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager
 from .generator import PostContext, PostGenerator
+from .markdown_utils import format_markdown
 
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor, MediaFile
-from .markdown_utils import format_markdown
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
@@ -52,6 +54,7 @@ YAML_DELIMITER = "---"
 QUOTA_WARNING_THRESHOLD = 15
 MIN_YAML_PARTS = 3
 _TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+MAX_MEDIA_CAPTION_LENGTH = 160
 
 
 def _is_transient_gemini_error(exc: Exception) -> bool:
@@ -121,7 +124,7 @@ def _cleanup_cache(cache: Cache, days: int) -> int:
 
 
 def _build_post_metadata(
-    source: "GroupSource", target_date: date, config: PipelineConfig
+    source: GroupSource, target_date: date, config: PipelineConfig
 ) -> dict[str, object]:
     """Return front matter metadata compatible with the Material blog plugin."""
 
@@ -140,7 +143,7 @@ def _build_post_metadata(
 
 
 def _ensure_blog_front_matter(
-    text: str, *, source: "GroupSource", target_date: date, config: PipelineConfig
+    text: str, *, source: GroupSource, target_date: date, config: PipelineConfig
 ) -> str:
     """Merge Gemini-generated frontmatter with programmatic metadata."""
 
@@ -193,15 +196,13 @@ def _ensure_blog_front_matter(
     return f"{prefix}{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{stripped}"
 
 
-def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "GroupSource") -> str:
+def _add_member_profile_links(text: str, *, config: PipelineConfig, source: GroupSource) -> str:
     """Convert Member-XXXX mentions to profile links if enabled."""
 
     if not config.profiles.link_members_in_posts:
         return text
 
-    markdown_pattern = re.compile(
-        r"\[(?P<label>@?Member-(?P<id>[A-F0-9]{4}))\]\((?P<url>[^)]+)\)"
-    )
+    markdown_pattern = re.compile(r"\[(?P<label>@?Member-(?P<id>[A-F0-9]{4}))\]\((?P<url>[^)]+)\)")
     paren_pattern = re.compile(r"\(Member-(?P<id>[A-F0-9]{4})\)")
     bare_pattern = re.compile(r"(?<![\w@\[\(])(?P<label>@?Member-(?P<id>[A-F0-9]{4}))")
 
@@ -259,7 +260,7 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
 
 def _apply_media_captions_from_enrichment(
     media_map: dict[str, MediaFile],
-    enrichment_result: "EnrichmentResult" | None,
+    enrichment_result: EnrichmentResult | None,
 ) -> None:
     """Populate media captions based on enrichment summaries."""
 
@@ -284,8 +285,10 @@ def _apply_media_captions_from_enrichment(
             continue
 
         normalized = " ".join(caption.split())
-        if len(normalized) > 160:
-            normalized = textwrap.shorten(normalized, width=160, placeholder="…")
+        if len(normalized) > MAX_MEDIA_CAPTION_LENGTH:
+            normalized = textwrap.shorten(
+                normalized, width=MAX_MEDIA_CAPTION_LENGTH, placeholder="…"
+            )
         media.caption = normalized
 
 
@@ -725,7 +728,7 @@ class UnifiedProcessor:
 
     def _write_group_index(
         self,
-        source: "GroupSource",
+        source: GroupSource,
         group_dir: Path,
         post_paths: list[Path],
     ) -> None:
@@ -854,7 +857,9 @@ class UnifiedProcessor:
         for target_date in target_dates:
             output_path = daily_dir / f"{target_date}.md"
             if self.config.skip_existing_posts and output_path.exists():
-                logger.info(f"  ⏭️  Skipping {target_date}: post already exists at {output_path.name}")
+                logger.info(
+                    f"  ⏭️  Skipping {target_date}: post already exists at {output_path.name}"
+                )
                 results.append(output_path)
                 continue
 
@@ -887,7 +892,7 @@ class UnifiedProcessor:
 
             # Enrichment
             enrichment_section = None
-            enrichment_result: "EnrichmentResult" | None = None
+            enrichment_result: EnrichmentResult | None = None
             if self.config.enrichment.enabled:
                 cache: Cache | None = None
                 if self.config.cache.enabled:
@@ -977,10 +982,10 @@ class UnifiedProcessor:
                     )
                     query = query_gen.generate(transcript)
                     search_results = rag.search(query.search_query, group_slug=source.slug)
-                    if search_results and search_results['documents']:
+                    if search_results and search_results["documents"]:
                         rag_context = "\n\n".join(
                             f"<<<CONTEXTO_{i}>>>\n{doc}"
-                            for i, doc in enumerate(search_results['documents'][0], 1)
+                            for i, doc in enumerate(search_results["documents"][0], 1)
                         )
 
             context = PostContext(

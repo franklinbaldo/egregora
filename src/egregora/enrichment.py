@@ -7,13 +7,13 @@ import csv
 import hashlib
 import json
 import logging
+import mimetypes
 import re
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
-import mimetypes
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
@@ -34,8 +34,8 @@ from pydantic_ai import Agent
 from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
 from .llm_models import ActionItem, SummaryResponse
-from .schema import ensure_message_schema
 from .media_extractor import MediaExtractor
+from .schema import ensure_message_schema
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
@@ -366,7 +366,7 @@ class ContentEnricher:
         *,
         client: genai.Client | None,
         target_dates: Sequence[date] | None = None,
-        media_files: Mapping[str, "MediaFile"] | None = None,
+        media_files: Mapping[str, MediaFile] | None = None,
     ) -> EnrichmentResult:
         """DataFrame-native enrichment pipeline using Polars expressions."""
 
@@ -416,12 +416,12 @@ class ContentEnricher:
             result=result,
         )
 
-    async def _analyze_reference(
+    async def _analyze_reference(  # noqa: PLR0912, PLR0915
         self,
         reference: ContentReference,
         *,
         client: genai.Client | None,
-        media_info: "MediaFile" | None = None,
+        media_info: MediaFile | None = None,
     ) -> AnalysisResult:
         manager = self._gemini_manager
 
@@ -471,9 +471,7 @@ class ContentEnricher:
                         mime_candidate = "audio/ogg"
                 media_mime = mime_candidate or "application/octet-stream"
                 try:
-                    parts.append(
-                        types.Part.from_bytes(data=media_bytes, mime_type=media_mime)
-                    )
+                    parts.append(types.Part.from_bytes(data=media_bytes, mime_type=media_mime))
                 except Exception as exc:  # pragma: no cover - SDK specific
                     logger.warning(
                         "Falha ao anexar mídia '%s' ao prompt: %s",
@@ -488,9 +486,7 @@ class ContentEnricher:
             if max_remote_calls is None:
                 max_remote_calls = max(self._config.max_links, 10)
             max_remote_calls = max(1, int(max_remote_calls))
-            afc_config = types.AutomaticFunctionCallingConfig(
-                maximum_remote_calls=max_remote_calls
-            )
+            afc_config = types.AutomaticFunctionCallingConfig(maximum_remote_calls=max_remote_calls)
         config_kwargs: dict[str, Any] = {
             "temperature": PROMPT_TEMPERATURE,
             "response_mime_type": "application/json",
@@ -789,13 +785,13 @@ class ContentEnricher:
         references: Sequence[ContentReference],
         *,
         client: genai.Client | None,
-        media_files: Mapping[str, "MediaFile"] | None = None,
+        media_files: Mapping[str, MediaFile] | None = None,
     ) -> EnrichmentResult:
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
 
         async def _process(reference: ContentReference) -> EnrichedItem:
-            media_info: "MediaFile" | None = None
+            media_info: MediaFile | None = None
             if media_files and reference.media_key:
                 media_info = media_files.get(reference.media_key)
                 if media_info:

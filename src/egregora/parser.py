@@ -119,7 +119,7 @@ def _normalize_text(value: str) -> str:
     return normalized
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
+def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:  # noqa: PLR0915
     """Parse messages from an iterable of strings."""
 
     rows: list[dict] = []
@@ -163,7 +163,6 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
         time_str = match.group("time")
         am_pm = match.group("ampm")
         author = match.group("author")
-        message = match.group("message")
 
         if date_str:
             parsed_date = _parse_message_date(date_str)

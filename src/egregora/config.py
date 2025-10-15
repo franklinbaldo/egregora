@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -16,12 +17,16 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
+from pydantic.warnings import UnsupportedFieldAttributeWarning
 
-# Configuration now uses direct initialization instead of environment variables
 from .anonymizer import FormatType
 from .models import MergeConfig
 from .rag.config import RAGConfig
 from .types import GroupSlug
+
+warnings.filterwarnings(
+    "ignore", category=UnsupportedFieldAttributeWarning, message=".*`validate_default`.*"
+)
 
 DEFAULT_MODEL = "models/gemini-2.5-flash"
 DEFAULT_TIMEZONE = "America/Porto_Velho"

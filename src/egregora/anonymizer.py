@@ -151,9 +151,7 @@ class Anonymizer:
         for column in ("message", "original_line", "tagged_line"):
             if column in result.columns:
                 result = result.with_columns(
-                    pl.col(column)
-                        .map_elements(_map_mentions, return_dtype=pl.String)
-                        .alias(column)
+                    pl.col(column).map_elements(_map_mentions, return_dtype=pl.String).alias(column)
                 )
 
         return result

@@ -8,8 +8,9 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from chromadb.utils import embedding_functions
 from diskcache import Cache
-import chromadb.utils.embedding_functions as embedding_functions
+
 
 class _FallbackEmbedding:
     """Deterministic, offline-friendly embedding used when Gemini is unavailable."""
@@ -118,7 +119,7 @@ class CachedGeminiEmbedding:
             if cached is not None:
                 results.insert(i, cached)
             else:
-                results.append([]) # placeholder
+                results.append([])  # placeholder
                 texts_to_embed.append(text)
                 indices_to_embed.append(i)
 

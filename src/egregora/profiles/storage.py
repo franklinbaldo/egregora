@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .profile import ParticipantProfile
 from ..markdown_utils import format_markdown
+from .profile import ParticipantProfile
 
 
 @dataclass(slots=True)

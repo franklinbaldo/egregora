@@ -85,9 +85,9 @@ def test_complex_conversation_patterns():
         if MESSAGE_RE.match(line):
             parsed_messages += 1
 
-    assert parsed_messages >= EXPECTED_MESSAGES, (
-        f"Should parse multiple messages, found {parsed_messages}"
-    )
+    assert (
+        parsed_messages >= EXPECTED_MESSAGES
+    ), f"Should parse multiple messages, found {parsed_messages}"
 
 
 def test_whatsapp_real_data_patterns():

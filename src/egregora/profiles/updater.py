@@ -17,9 +17,9 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
 
 import polars as pl
 
+from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
 from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
-from ..markdown_utils import format_markdown
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
