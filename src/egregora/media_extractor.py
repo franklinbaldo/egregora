@@ -66,9 +66,19 @@ class MediaFile:
 class MediaExtractor:
     """Extracts WhatsApp media files and rewrites transcript references."""
 
-    _ATTACHMENT_MARKER = "(arquivo anexado)"
+    _ATTACHMENT_MARKERS = (
+        "(arquivo anexado)",
+        "(file attached)",
+        "(archivo adjunto)",
+    )
+    _DEFAULT_ATTACHMENT_LABEL = "(arquivo anexado)"
     _DIRECTIONAL_TRANSLATION = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e")
-    _attachment_pattern = re.compile(rf"[^\n]*?{re.escape(_ATTACHMENT_MARKER)}", re.IGNORECASE)
+    _attachment_pattern = re.compile(
+        r"[^\n]*?(?:"
+        + "|".join(re.escape(marker) for marker in _ATTACHMENT_MARKERS)
+        + ")",
+        re.IGNORECASE,
+    )
 
     def __init__(self, group_dir: Path, *, group_slug: GroupSlug | None = None) -> None:
         self.group_dir = group_dir
@@ -217,7 +227,7 @@ class MediaExtractor:
                 if extracted is None:
                     return segment
 
-                sanitized_name, original_segment = extracted
+                sanitized_name, original_segment, marker_text = extracted
                 key, media = cls._lookup_media(sanitized_name, media_files)
                 if media is None:
                     return segment
@@ -227,7 +237,8 @@ class MediaExtractor:
                     path = media.relative_path
 
                 markdown = cls._format_markdown_reference(media, path)
-                return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
+                marker_display = marker_text.strip() or cls._DEFAULT_ATTACHMENT_LABEL
+                return segment.replace(original_segment, f"{markdown} _{marker_display}_")
 
             return pattern.sub(replacement, text)
 
@@ -260,14 +271,15 @@ class MediaExtractor:
             if extracted is None:
                 return segment
 
-            sanitized_name, original_segment = extracted
+            sanitized_name, original_segment, marker_text = extracted
             key, media = cls._lookup_media(sanitized_name, media_files)
             if media is None:
                 return segment
 
             path = paths.get(key) if key and key in paths else media.relative_path
             markdown = cls._format_markdown_reference(media, path)
-            return segment.replace(original_segment, f"{markdown} _(arquivo anexado)_")
+            marker_display = marker_text.strip() or cls._DEFAULT_ATTACHMENT_LABEL
+            return segment.replace(original_segment, f"{markdown} _{marker_display}_")
 
         return pattern.sub(replacement, text)
 
@@ -324,7 +336,7 @@ class MediaExtractor:
                 extracted = cls._extract_attachment_segment(part)
                 if extracted is None:
                     continue
-                sanitized_name, _ = extracted
+                sanitized_name, _, _ = extracted
                 if sanitized_name:
                     attachments.add(sanitized_name)
         return attachments
@@ -440,28 +452,32 @@ class MediaExtractor:
         return cleaned.strip()
 
     @classmethod
-    def _extract_attachment_segment(cls, line: str) -> tuple[str, str] | None:
+    def _extract_attachment_segment(cls, line: str) -> tuple[str, str, str] | None:
         lowered = line.casefold()
-        marker = cls._ATTACHMENT_MARKER
-        marker_lower = marker.casefold()
-        idx = lowered.find(marker_lower)
-        if idx == -1:
-            return None
+        for marker in cls._ATTACHMENT_MARKERS:
+            marker_lower = marker.casefold()
+            idx = lowered.find(marker_lower)
+            if idx == -1:
+                continue
 
-        suffix = line[idx : idx + len(marker)]
-        prefix = line[:idx].rstrip()
+            suffix = line[idx : idx + len(marker)]
+            prefix = line[:idx].rstrip()
 
-        if ": " in prefix:
-            _, candidate = prefix.rsplit(": ", 1)
-        elif ":" in prefix:
-            _, candidate = prefix.rsplit(":", 1)
-        else:
-            candidate = prefix
+            if ": " in prefix:
+                _, candidate = prefix.rsplit(": ", 1)
+            elif ":" in prefix:
+                _, candidate = prefix.rsplit(":", 1)
+            else:
+                candidate = prefix
 
-        raw_name = candidate.strip()
-        sanitized = cls._clean_attachment_name(raw_name)
-        if not sanitized:
-            return None
+            raw_name = candidate.strip()
+            sanitized = cls._clean_attachment_name(raw_name)
+            if not sanitized:
+                sanitized = raw_name.strip()
 
-        original_segment = f"{raw_name} {suffix}" if raw_name else suffix
-        return sanitized, original_segment
+            if not sanitized:
+                return None
+
+            original_segment = f"{raw_name} {suffix}" if raw_name else suffix
+            return sanitized, original_segment, suffix
+        return None

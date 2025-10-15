@@ -124,15 +124,39 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
 
     rows: list[dict] = []
     current_date = export.export_date
+    current_message: dict | None = None
+
+    def _finalize_current() -> None:
+        nonlocal current_message
+        if current_message is None:
+            return
+
+        message_lines: list[str] = current_message.pop("_message_lines", [])
+        original_lines: list[str] = current_message.pop("_original_lines", [])
+
+        message_text = "\n".join(message_lines).strip()
+        original_text = "\n".join(original_lines).strip()
+
+        current_message["message"] = message_text
+        current_message["original_line"] = original_text or None
+        rows.append(current_message)
+        current_message = None
 
     for raw_line in lines:
-        normalized_line = _normalize_text(raw_line)
+        stripped_line = raw_line.rstrip("\n")
+        normalized_line = _normalize_text(stripped_line)
         line = normalized_line.strip()
         if not line:
+            if current_message is not None:
+                current_message["_message_lines"].append("")
+                current_message["_original_lines"].append("")
             continue
 
         match = _LINE_PATTERN.match(line)
         if not match:
+            if current_message is not None:
+                current_message["_message_lines"].append(_normalize_text(line))
+                current_message["_original_lines"].append(normalized_line)
             continue
 
         date_str = match.group("date")
@@ -160,19 +184,24 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             logger.debug("Failed to parse time '%s' in line: %s", time_str, line)
             continue
 
-        rows.append(
-            {
-                "timestamp": datetime.combine(msg_date, msg_time),
-                "date": msg_date,
-                "time": msg_time.strftime("%H:%M"),
-                "author": _normalize_text(author.strip()),
-                "message": _normalize_text(message.strip()),
-                "group_slug": export.group_slug,
-                "group_name": export.group_name,
-                "original_line": line,
-                "tagged_line": None,
-            }
-        )
+        _finalize_current()
+
+        initial_message = _normalize_text(match.group("message").strip())
+        current_message = {
+            "timestamp": datetime.combine(msg_date, msg_time),
+            "date": msg_date,
+            "time": msg_time.strftime("%H:%M"),
+            "author": _normalize_text(author.strip()),
+            "message": "",
+            "group_slug": export.group_slug,
+            "group_name": export.group_name,
+            "original_line": None,
+            "tagged_line": None,
+            "_message_lines": [initial_message],
+            "_original_lines": [normalized_line],
+        }
+
+    _finalize_current()
 
     return rows
 

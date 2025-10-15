@@ -22,6 +22,7 @@ class Anonymizer:
     # are impossible.
     NAMESPACE_PHONE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
     NAMESPACE_NICKNAME = uuid.UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c9")
+    _MENTION_PATTERN = re.compile(r"(?P<prefix>@?)\u2068(?P<label>.*?)\u2069")
 
     @staticmethod
     def normalize_phone(phone: str) -> str:
@@ -128,12 +129,25 @@ class Anonymizer:
         if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
 
-        return df.with_columns(
+        result = df.with_columns(
             pl.col("author").map_elements(
                 lambda author: Anonymizer.anonymize_author(author, format),
                 return_dtype=pl.String,
             )
         )
+
+        def _map_mentions(value: str | None) -> str | None:
+            return Anonymizer.anonymize_mentions(value, format)
+
+        for column in ("message", "original_line", "tagged_line"):
+            if column in result.columns:
+                result = result.with_columns(
+                    pl.col(column)
+                        .map_elements(_map_mentions, return_dtype=pl.String)
+                        .alias(column)
+                )
+
+        return result
 
     @staticmethod
     def anonymize_series(series: pl.Series, format: FormatType = "human") -> pl.Series:
@@ -143,6 +157,24 @@ class Anonymizer:
             lambda author: Anonymizer.anonymize_author(author, format),
             return_dtype=pl.String,
         )
+
+    @staticmethod
+    def anonymize_mentions(text: str | None, format: FormatType = "human") -> str | None:
+        """Replace WhatsApp mention isolates with anonymized equivalents."""
+
+        if text is None or not isinstance(text, str):
+            return text
+
+        def _replace(match: re.Match[str]) -> str:
+            prefix = match.group("prefix") or "@"
+            label = match.group("label").strip()
+            if not label:
+                return prefix
+            pseudonym = Anonymizer.anonymize_author(label, format)
+            return f"{prefix}{pseudonym}"
+
+        sanitized = Anonymizer._MENTION_PATTERN.sub(_replace, text)
+        return sanitized.replace("\u2068", "").replace("\u2069", "")
 
 
 __all__ = ["Anonymizer", "FormatType"]
