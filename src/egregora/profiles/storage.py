@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .profile import ParticipantProfile
+from ..markdown_utils import format_markdown
 
 
 @dataclass(slots=True)
@@ -47,6 +48,7 @@ class ProfileRepository:
         )
 
         markdown = profile.to_markdown().strip()
+        markdown = format_markdown(markdown)
         if not markdown:
             markdown = (
                 f"# Perfil Analítico: {profile.member_id}\n\n(Conteúdo indisponível no momento.)"
@@ -59,6 +61,7 @@ class ProfileRepository:
         if not markdown.endswith("\n"):
             markdown += "\n"
         markdown_content = f"{disclaimer}\n\n{markdown}"
+        markdown_content = format_markdown(markdown_content)
 
         markdown_path = self.docs_dir / f"{identifier}.md"
         markdown_path.parent.mkdir(parents=True, exist_ok=True)

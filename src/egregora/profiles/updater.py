@@ -19,6 +19,7 @@ import polars as pl
 
 from .profile import ParticipantProfile
 from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
+from ..markdown_utils import format_markdown
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
@@ -189,6 +190,8 @@ class ProfileUpdater:
 
         if not markdown:
             raise ValueError("Resposta vazia do modelo ao reescrever o perfil.")
+
+        markdown = format_markdown(markdown)
 
         analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
         summary = _extract_summary_from_markdown(markdown)

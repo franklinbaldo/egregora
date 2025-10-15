@@ -23,6 +23,7 @@ from .generator import PostContext, PostGenerator
 
 # from .group_discovery import discover_groups
 from .media_extractor import MediaExtractor, MediaFile
+from .markdown_utils import format_markdown
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
@@ -1034,6 +1035,8 @@ class UnifiedProcessor:
 
             # Add profile links to member mentions
             post = _add_member_profile_links(post, config=self.config, source=source)
+
+            post = format_markdown(post, assume_front_matter=True)
 
             logger.info(f"    💾 Saving post to {output_path.name}")
             output_path.write_text(post, encoding="utf-8")
