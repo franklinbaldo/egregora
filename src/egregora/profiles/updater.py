@@ -177,6 +177,16 @@ class ProfileUpdater:
             markdown = "".join(getattr(part, "text", "") or "" for part in parts)
 
         markdown = (markdown or "").strip()
+        if markdown.startswith("{"):
+            try:
+                payload = json.loads(markdown)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                candidate = payload.get("profile") or payload.get("markdown")
+                if isinstance(candidate, str):
+                    markdown = candidate.strip()
+
         if not markdown:
             raise ValueError("Resposta vazia do modelo ao reescrever o perfil.")
 

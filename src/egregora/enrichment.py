@@ -52,8 +52,11 @@ CACHE_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 SUMMARY_AGENT = Agent(output_type=SummaryResponse)
 
-MEDIA_PLACEHOLDER_SUMMARY = "Mídia sem descrição compartilhada; peça detalhes se necessário."
-MEDIA_PLACEHOLDER_TOPIC = "Conteúdo multimídia sem transcrição"
+MEDIA_PLACEHOLDER_SUMMARY = (
+    "Não foi possível acessar esta mídia. Use somente o contexto das mensagens para inferir o que ela "
+    "pode significar ou ignore-a se estiver pouco claro."
+)
+MEDIA_PLACEHOLDER_TOPIC = "Mídia sem conteúdo acessível"
 PROMPT_TEMPERATURE = 0.2
 TOKEN_ESTIMATE_DIVISOR = 4
 TOKEN_ESTIMATE_MIN = 1
