@@ -9,10 +9,11 @@ import json
 import logging
 import re
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
+import mimetypes
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
@@ -34,9 +35,11 @@ from .config import EnrichmentConfig
 from .gemini_manager import GeminiQuotaError
 from .llm_models import ActionItem, SummaryResponse
 from .schema import ensure_message_schema
+from .media_extractor import MediaExtractor
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .gemini_manager import GeminiManager
+    from .media_extractor import MediaFile
 
 URL_RE = re.compile(r"(https?://[^\s>\)]+)", re.IGNORECASE)
 MESSAGE_RE = re.compile(
@@ -210,6 +213,9 @@ class ContentReference:
     context_before: list[str]
     context_after: list[str]
     is_media_placeholder: bool = False
+    media_key: str | None = None
+    media_path: Path | None = None
+    media_type: str | None = None
 
     def context_block(self) -> str:
         """Return a human-friendly snippet of the surrounding chat messages."""
@@ -357,6 +363,7 @@ class ContentEnricher:
         *,
         client: genai.Client | None,
         target_dates: Sequence[date] | None = None,
+        media_files: Mapping[str, "MediaFile"] | None = None,
     ) -> EnrichmentResult:
         """DataFrame-native enrichment pipeline using Polars expressions."""
 
@@ -397,6 +404,7 @@ class ContentEnricher:
         result = await self._enrich_references(
             references,
             client=client,
+            media_files=media_files,
         )
         return self._finalize_result(
             started_at=started_at,
@@ -408,7 +416,9 @@ class ContentEnricher:
     async def _analyze_reference(
         self,
         reference: ContentReference,
+        *,
         client: genai.Client | None,
+        media_info: "MediaFile" | None = None,
     ) -> AnalysisResult:
         manager = self._gemini_manager
 
@@ -423,6 +433,12 @@ class ContentEnricher:
             )
 
         prompt = self._build_prompt(reference)
+        if reference.media_path:
+            prompt += (
+                "\n\nUm arquivo de mídia desta conversa foi anexado a você. "
+                "Descreva sucintamente o conteúdo da mídia e por que ela é relevante "
+                "para a discussão, mencionando participantes ou mensagens importantes."
+            )
 
         parts = [types.Part.from_text(text=prompt)]
         if reference.url:
@@ -431,6 +447,37 @@ class ContentEnricher:
             except Exception:  # pragma: no cover - depends on mimetype detection
                 fallback = f"URL compartilhada: {reference.redacted_url()}"
                 parts.append(types.Part.from_text(text=fallback))
+
+        media_bytes: bytes | None = None
+        media_mime: str | None = None
+        if reference.media_path:
+            try:
+                media_bytes = reference.media_path.read_bytes()
+            except Exception as exc:  # pragma: no cover - file issues
+                logger.warning("Falha ao ler mídia %s: %s", reference.media_path, exc)
+                media_bytes = None
+
+            if media_bytes:
+                mime_candidate = mimetypes.guess_type(reference.media_path.name)[0]
+                if mime_candidate is None and reference.media_type:
+                    if reference.media_type == "image":
+                        mime_candidate = "image/jpeg"
+                    elif reference.media_type == "video":
+                        mime_candidate = "video/mp4"
+                    elif reference.media_type == "audio":
+                        mime_candidate = "audio/ogg"
+                media_mime = mime_candidate or "application/octet-stream"
+                try:
+                    parts.append(
+                        types.Part.from_bytes(data=media_bytes, mime_type=media_mime)
+                    )
+                except Exception as exc:  # pragma: no cover - SDK specific
+                    logger.warning(
+                        "Falha ao anexar mídia '%s' ao prompt: %s",
+                        reference.media_path,
+                        exc,
+                    )
+
         contents = [types.Content(role="user", parts=parts)]
         afc_config = None
         if types is not None:
@@ -645,6 +692,10 @@ class ContentEnricher:
             "context_before": reference.context_before,
             "context_after": reference.context_after,
         }
+        if reference.media_key:
+            context["media_identifier"] = reference.media_key
+        if reference.is_media_placeholder:
+            context["media_placeholder"] = True
         return (
             "Você analisa conteúdos compartilhados em um grupo de WhatsApp. "
             "Considere o contexto das mensagens e o link anexado. Responda em JSON "
@@ -735,12 +786,27 @@ class ContentEnricher:
         references: Sequence[ContentReference],
         *,
         client: genai.Client | None,
+        media_files: Mapping[str, "MediaFile"] | None = None,
     ) -> EnrichmentResult:
         concurrency = max(1, self._config.max_concurrent_analyses)
         semaphore_analysis = asyncio.Semaphore(concurrency)
 
         async def _process(reference: ContentReference) -> EnrichedItem:
-            if reference.is_media_placeholder or not reference.url:
+            media_info: "MediaFile" | None = None
+            if media_files and reference.media_key:
+                media_info = media_files.get(reference.media_key)
+                if media_info:
+                    media_path = getattr(media_info, "dest_path", None)
+                    if media_path:
+                        reference.media_path = (
+                            media_path if isinstance(media_path, Path) else Path(media_path)
+                        )
+                    reference.media_type = getattr(media_info, "media_type", None)
+
+            if reference.media_path is not None and not reference.media_path.exists():
+                reference.media_path = None
+
+            if reference.url is None and reference.media_path is None:
                 analysis = AnalysisResult(
                     summary=MEDIA_PLACEHOLDER_SUMMARY,
                     topics=[MEDIA_PLACEHOLDER_TOPIC],
@@ -773,6 +839,7 @@ class ContentEnricher:
                 analysis = await self._analyze_reference(
                     reference,
                     client=client,
+                    media_info=media_info,
                 )
             if analysis.error:
                 return EnrichedItem(
@@ -964,10 +1031,27 @@ class ContentEnricher:
 
     @staticmethod
     def _annotate_references(frame: pl.DataFrame) -> pl.DataFrame:
+        attachment_key = pl.col("__context_line").map_elements(
+            ContentEnricher._extract_attachment_key,
+            return_dtype=pl.String,
+        )
+        media_token = pl.col("message").str.contains(MEDIA_TOKEN_RE.pattern)
         return frame.with_columns(
             pl.col("message").str.extract_all(URL_RE.pattern).alias("__urls"),
-            pl.col("message").str.contains(MEDIA_TOKEN_RE.pattern).alias("__media_placeholder"),
+            attachment_key.alias("__attachment_key"),
+            (media_token | attachment_key.is_not_null()).alias("__media_placeholder"),
         )
+
+    @staticmethod
+    def _extract_attachment_key(value: str | None) -> str | None:
+        if not value:
+            return None
+        extracted = MediaExtractor._extract_attachment_segment(value)
+        if extracted is None:
+            return None
+        sanitized, _, _ = extracted
+        cleaned = sanitized.strip()
+        return cleaned or None
 
     def _apply_context_window(self, frame: pl.DataFrame) -> pl.DataFrame:
         window = max(self._config.context_window, 0)
@@ -1023,6 +1107,9 @@ class ContentEnricher:
             before = [item for item in before_values if item]
             after = [item for item in after_values if item]
 
+            media_key = row.get("__attachment_key") or None
+            media_key = media_key or None
+
             references.append(
                 ContentReference(
                     date=row["date"],
@@ -1032,6 +1119,7 @@ class ContentEnricher:
                     message=row.get("message", ""),
                     context_before=before,
                     context_after=after,
+                    media_key=media_key,
                 )
             )
 
@@ -1041,7 +1129,8 @@ class ContentEnricher:
 
         for row in placeholder_rows.iter_rows(named=True):
             context_line = row.get("__context_line", "") or ""
-            key = (None, context_line)
+            attachment_key = row.get("__attachment_key") or None
+            key = (attachment_key, context_line)
             if key in seen:
                 continue
             seen.add(key)
@@ -1061,6 +1150,7 @@ class ContentEnricher:
                     context_before=before,
                     context_after=after,
                     is_media_placeholder=True,
+                    media_key=attachment_key,
                 )
             )
 

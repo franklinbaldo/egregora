@@ -123,7 +123,12 @@ class Anonymizer:
         return variants
 
     @staticmethod
-    def anonymize_dataframe(df: pl.DataFrame, format: FormatType = "human") -> pl.DataFrame:
+    def anonymize_dataframe(
+        df: pl.DataFrame,
+        format: FormatType = "human",
+        *,
+        profile_link_base: str | None = None,
+    ) -> pl.DataFrame:
         """Return a new DataFrame with the ``author`` column anonymized."""
 
         if "author" not in df.columns:
@@ -137,7 +142,11 @@ class Anonymizer:
         )
 
         def _map_mentions(value: str | None) -> str | None:
-            return Anonymizer.anonymize_mentions(value, format)
+            return Anonymizer.anonymize_mentions(
+                value,
+                format=format,
+                profile_link_base=profile_link_base,
+            )
 
         for column in ("message", "original_line", "tagged_line"):
             if column in result.columns:
@@ -150,7 +159,10 @@ class Anonymizer:
         return result
 
     @staticmethod
-    def anonymize_series(series: pl.Series, format: FormatType = "human") -> pl.Series:
+    def anonymize_series(
+        series: pl.Series,
+        format: FormatType = "human",
+    ) -> pl.Series:
         """Return a new Polars series with anonymized author names."""
 
         return series.map_elements(
@@ -159,7 +171,12 @@ class Anonymizer:
         )
 
     @staticmethod
-    def anonymize_mentions(text: str | None, format: FormatType = "human") -> str | None:
+    def anonymize_mentions(
+        text: str | None,
+        *,
+        format: FormatType = "human",
+        profile_link_base: str | None = None,
+    ) -> str | None:
         """Replace WhatsApp mention isolates with anonymized equivalents."""
 
         if text is None or not isinstance(text, str):
@@ -171,7 +188,17 @@ class Anonymizer:
             if not label:
                 return prefix
             pseudonym = Anonymizer.anonymize_author(label, format)
-            return f"{prefix}{pseudonym}"
+            display = f"{prefix}{pseudonym}" if prefix else pseudonym
+
+            if profile_link_base:
+                full_uuid = Anonymizer.anonymize_author(label, "full")
+                base = profile_link_base.rstrip("/")
+                if not base:
+                    base = "/"
+                link = f"{base}/{full_uuid}"
+                return f"[{display}]({link})"
+
+            return display
 
         sanitized = Anonymizer._MENTION_PATTERN.sub(_replace, text)
         return sanitized.replace("\u2068", "").replace("\u2069", "")

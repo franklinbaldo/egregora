@@ -61,6 +61,7 @@ class MediaFile:
     source_path: str
     dest_path: Path
     relative_path: str
+    caption: str | None = None
 
 
 class MediaExtractor:
@@ -355,7 +356,7 @@ class MediaExtractor:
         lines: list[str] = []
         for key in sorted(media_files):
             media = media_files[key]
-            label = media.filename
+            label = media.caption or media.filename
             path = (
                 public_paths.get(key)
                 if public_paths and key in public_paths
@@ -436,15 +437,16 @@ class MediaExtractor:
 
     @staticmethod
     def _format_markdown_reference(media: MediaFile, path: str) -> str:
+        label = media.caption or media.filename
         if media.media_type == "image":
-            return f"![{media.filename}]({path})"
+            return f"![{label}]({path})"
         if media.media_type == "video":
-            return f"[🎥 {media.filename}]({path})"
+            return f"[🎥 {label}]({path})"
         if media.media_type == "audio":
-            return f"[🔊 {media.filename}]({path})"
+            return f"[🔊 {label}]({path})"
         if media.media_type == "document":
-            return f"[📄 {media.filename}]({path})"
-        return f"[{media.filename}]({path})"
+            return f"[📄 {label}]({path})"
+        return f"[{label}]({path})"
 
     @classmethod
     def _clean_attachment_name(cls, filename: str) -> str:

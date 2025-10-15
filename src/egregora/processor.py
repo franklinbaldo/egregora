@@ -3,11 +3,12 @@
 import asyncio
 import logging
 import re
+import textwrap
 import unicodedata
 import zipfile
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -21,7 +22,7 @@ from .gemini_manager import GeminiManager
 from .generator import PostContext, PostGenerator
 
 # from .group_discovery import discover_groups
-from .media_extractor import MediaExtractor
+from .media_extractor import MediaExtractor, MediaFile
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
@@ -42,7 +43,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
     genai_errors = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
-    from .media_extractor import MediaFile
+    from .enrichment import EnrichmentResult
 
 logger = logging.getLogger(__name__)
 
@@ -197,34 +198,94 @@ def _add_member_profile_links(text: str, *, config: PipelineConfig, source: "Gro
     if not config.profiles.link_members_in_posts:
         return text
 
-    # Pattern to match Member-XXXX format (exactly 4 hex characters)
-    member_pattern = r"\(Member-([A-F0-9]{4})\)"
+    markdown_pattern = re.compile(
+        r"\[(?P<label>@?Member-(?P<id>[A-F0-9]{4}))\]\((?P<url>[^)]+)\)"
+    )
+    paren_pattern = re.compile(r"\(Member-(?P<id>[A-F0-9]{4})\)")
+    bare_pattern = re.compile(r"(?<![\w@\[\(])(?P<label>@?Member-(?P<id>[A-F0-9]{4}))")
 
-    def replace_member_mention(match):
-        member_id = match.group(1)
-        full_uuid_pattern = None
+    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
+    site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
-        # Look for matching profiles in the egregora-site profiles directory
-        # This matches the structure we saw earlier
-        workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
-        site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
+    def _resolve_profile(member_id: str) -> str | None:
+        member_id_lower = member_id.lower()
 
         if site_profiles_dir.exists():
             for profile_file in site_profiles_dir.glob("*.md"):
-                if profile_file.stem.startswith(member_id.lower()):
-                    # Extract the full UUID from filename
-                    full_uuid_pattern = profile_file.stem
-                    break
+                if profile_file.stem.lower().startswith(member_id_lower):
+                    rel = PurePosixPath("../../profiles") / profile_file.name
+                    return rel.as_posix()
 
-        # If no profile found, fall back to original mention
-        if not full_uuid_pattern:
-            return match.group(0)  # Return original (Member-XXXX)
+        base = (config.profiles.profile_base_url or "").strip()
+        if base:
+            base_clean = base.rstrip("/")
+            if not base_clean:
+                base_clean = "/"
+            rel = PurePosixPath(f"{base_clean}/{member_id_lower}")
+            return rel.as_posix()
 
-        # Generate profile link (relative to the posts directory)
-        profile_url = f"../../profiles/{full_uuid_pattern}.md"
-        return f"([Member-{member_id}]({profile_url}))"
+        return None
 
-    return re.sub(member_pattern, replace_member_mention, text)
+    def _replace_markdown(match: re.Match[str]) -> str:
+        member_id = match.group("id")
+        label = match.group("label")
+        resolved = _resolve_profile(member_id)
+        if resolved is None:
+            return match.group(0)
+        return f"[{label}]({resolved})"
+
+    def _replace_paren(match: re.Match[str]) -> str:
+        member_id = match.group("id")
+        resolved = _resolve_profile(member_id)
+        if resolved is None:
+            return match.group(0)
+        label = f"Member-{member_id}"
+        return f"([{label}]({resolved}))"
+
+    def _replace_bare(match: re.Match[str]) -> str:
+        label = match.group("label")
+        member_id = match.group("id")
+        resolved = _resolve_profile(member_id)
+        if resolved is None:
+            return match.group(0)
+        return f"[{label}]({resolved})"
+
+    text = markdown_pattern.sub(_replace_markdown, text)
+    text = paren_pattern.sub(_replace_paren, text)
+    text = bare_pattern.sub(_replace_bare, text)
+    return text
+
+
+def _apply_media_captions_from_enrichment(
+    media_map: dict[str, MediaFile],
+    enrichment_result: "EnrichmentResult" | None,
+) -> None:
+    """Populate media captions based on enrichment summaries."""
+
+    if not media_map or enrichment_result is None:
+        return
+
+    for item in enrichment_result.items:
+        reference = item.reference
+        media_key = getattr(reference, "media_key", None)
+        if not media_key:
+            continue
+
+        media = media_map.get(media_key)
+        if media is None or item.analysis is None:
+            continue
+
+        caption = item.analysis.summary or ""
+        if not caption and item.analysis.topics:
+            caption = item.analysis.topics[0]
+        caption = caption.strip()
+        if not caption:
+            continue
+
+        normalized = " ".join(caption.split())
+        if len(normalized) > 160:
+            normalized = textwrap.shorten(normalized, width=160, placeholder="…")
+        media.caption = normalized
 
 
 def _load_previous_post(
@@ -759,8 +820,15 @@ class UnifiedProcessor:
             return []
 
         if self.config.anonymization.enabled:
+            profile_link_base = (
+                self.config.profiles.profile_base_url
+                if self.config.profiles.link_members_in_posts
+                else None
+            )
             full_df = Anonymizer.anonymize_dataframe(
-                full_df, format=self.config.anonymization.output_format
+                full_df,
+                format=self.config.anonymization.output_format,
+                profile_link_base=profile_link_base,
             )
 
         if full_df.is_empty():
@@ -814,6 +882,41 @@ class UnifiedProcessor:
                     if not remaining:
                         break
 
+            _, previous_post = _load_previous_post(daily_dir, target_date)
+
+            # Enrichment
+            enrichment_section = None
+            enrichment_result: "EnrichmentResult" | None = None
+            if self.config.enrichment.enabled:
+                cache: Cache | None = None
+                if self.config.cache.enabled:
+                    try:
+                        cache = _create_cache(
+                            self.config.cache.cache_dir,
+                            self.config.cache.max_disk_mb,
+                        )
+                        if self.config.cache.auto_cleanup_days:
+                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
+                    except Exception:
+                        cache = None
+                enricher = ContentEnricher(
+                    self.config.enrichment,
+                    cache=cache,
+                )
+                enrichment_result = asyncio.run(
+                    enricher.enrich_dataframe(
+                        df_day,
+                        client=self.generator.client,
+                        target_dates=[target_date],
+                        media_files=all_media,
+                    )
+                )
+                enrichment_section = enrichment_result.format_for_prompt(
+                    self.config.enrichment.relevance_threshold
+                )
+
+            _apply_media_captions_from_enrichment(all_media, enrichment_result)
+
             public_paths = MediaExtractor.build_public_paths(
                 all_media,
                 url_prefix=self.config.media_url_prefix,
@@ -839,37 +942,6 @@ class UnifiedProcessor:
                 stats["message_count"],
                 stats["participant_count"],
             )
-
-            _, previous_post = _load_previous_post(daily_dir, target_date)
-
-            # Enrichment
-            enrichment_section = None
-            if self.config.enrichment.enabled:
-                cache: Cache | None = None
-                if self.config.cache.enabled:
-                    try:
-                        cache = _create_cache(
-                            self.config.cache.cache_dir,
-                            self.config.cache.max_disk_mb,
-                        )
-                        if self.config.cache.auto_cleanup_days:
-                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
-                    except Exception:
-                        cache = None
-                enricher = ContentEnricher(
-                    self.config.enrichment,
-                    cache=cache,
-                )
-                enrichment_result = asyncio.run(
-                    enricher.enrich_dataframe(
-                        df_day,
-                        client=self.generator.client,
-                        target_dates=[target_date],
-                    )
-                )
-                enrichment_section = enrichment_result.format_for_prompt(
-                    self.config.enrichment.relevance_threshold
-                )
 
             # RAG
             rag_context = None
