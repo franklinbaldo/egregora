@@ -17,6 +17,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-ai>=0.0.14",
     "repomix>=0.3.4",
+    "mdformat>=0.7.22",
 ]
 
 [project.optional-dependencies]
