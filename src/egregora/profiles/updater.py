@@ -1,4 +1,4 @@
-"Logic for determining when and how to update participant profiles."
+Logic for determining when and how to update participant profiles.
 
 from __future__ import annotations
 
@@ -67,7 +67,9 @@ def _ensure_str_list(value: object) -> list[str]:
 
 
 @dataclass(slots=True)
-#TODO: This class has a lot of logic for deciding when and how to update profiles. It could be split into smaller classes.
+# TODO: This class has a lot of logic. It could be split into smaller classes,
+# for example, a `ProfileDecisionMaker` for deciding when to update and a
+# `ProfileWriter` for generating the new profile content.
 class ProfileUpdater:
     """High level orchestrator that talks to Gemini to maintain profiles."""
 
@@ -78,7 +80,8 @@ class ProfileUpdater:
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
 
-    #TODO: This method has a lot of logic for deciding if a profile should be updated. It could be simplified.
+    # TODO: This method is too long. The prompt formatting and response parsing
+    # logic could be extracted into separate helper functions.
     async def should_update_profile(
         self,
         member_id: str,
@@ -138,7 +141,9 @@ class ProfileUpdater:
             insights,
         )
 
-    #TODO: This method has a lot of logic for rewriting a profile. It could be simplified.
+    # TODO: This method has too many arguments (PLR0913). The arguments could be
+    # grouped into a dataclass. It is also too long and could be simplified by
+    # extracting the prompt formatting and response parsing logic.
     async def rewrite_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -217,7 +222,9 @@ class ProfileUpdater:
         profile.update_timestamp()
         return profile
 
-    #TODO: This method has a lot of logic for appending to a profile. It could be simplified.
+    # TODO: This method has too many arguments (PLR0913). The arguments could be
+    # grouped into a dataclass. It is also too long and could be simplified by
+    # extracting the prompt formatting and response parsing logic.
     async def append_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -313,7 +320,10 @@ class ProfileUpdater:
         new_profile.update_timestamp()
         return new_profile
 
-    #TODO: This method has a lot of logic for retrying a Gemini API call. It could be simplified.
+    # FIXME: This method duplicates the retry logic from GeminiManager. It should
+    # be removed and the GeminiManager should be used instead.
+    # TODO: This method is too complex. It could be simplified by using the
+    # GeminiManager.
     async def _generate_with_retry(
         self,
         client: genai.Client,
@@ -329,7 +339,7 @@ class ProfileUpdater:
             attempt += 1
             try:
                 config = types.GenerateContentConfig(temperature=temperature)
-                if response_mime_type:
+                if response_mime_mime_type:
                     config.response_mime_type = response_mime_type
 
                 return await asyncio.to_thread(
@@ -338,6 +348,7 @@ class ProfileUpdater:
                     contents=contents,
                     config=config,
                 )
+            # FIXME: This is a broad exception. It should be more specific.
             except Exception as exc:  # pragma: no cover - depends on API behaviour
                 last_exc = exc
                 delay = self._extract_retry_delay(exc)
@@ -382,7 +393,8 @@ class ProfileUpdater:
                 merged.append(normalized)
         return merged
 
-    #TODO: This method has a lot of logic for applying updates to a markdown file. It could be simplified.
+    # TODO: This method is too complex. It could be simplified by using a more
+    # robust Markdown parsing library to find and replace the sections.
     @staticmethod
     def _apply_updates_to_markdown(
         markdown: str,
