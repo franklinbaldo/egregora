@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
 # pipeline.py module to here, as the generator is their only user.
 # The _prepare_transcripts function was removed entirely, as the processor
 # now handles transcript preparation before calling the generator.
+
+logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
@@ -190,8 +193,13 @@ class PostGenerator:
         self._require_google_dependency()
         base_prompt = _load_prompt(_BASE_PROMPT_NAME)
         if has_group_tags:
-            multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
-            prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
+            try:
+                multigroup_prompt = _load_prompt(_MULTIGROUP_PROMPT_NAME)
+                prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
+            except FileNotFoundError:
+                # Fallback to base prompt if multigroup prompt is missing
+                logger.warning(f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only")
+                prompt_text = base_prompt
         else:
             prompt_text = base_prompt
         return [types.Part.from_text(text=prompt_text)]
