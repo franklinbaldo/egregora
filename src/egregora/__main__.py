@@ -331,7 +331,8 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
                             "last_updated": profile_data.get("last_updated", "Unknown"),
                         }
                     )
-            except Exception:
+            except (json.JSONDecodeError, IOError) as e:
+                logging.warning(f"Error reading profile {profile_file}: {e}")
                 continue
         console.print(json.dumps(profiles_data, indent=2, ensure_ascii=False))
     else:
@@ -351,7 +352,7 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
                         str(profile_data.get("message_count", 0)),
                         profile_data.get("last_updated", "Unknown"),
                     )
-            except Exception:
+            except (json.JSONDecodeError, IOError):
                 table.add_row(profile_file.stem, "❌ Erro ao ler", "-", "-")
 
         console.print(table)
@@ -388,13 +389,15 @@ def _show_profile(config: PipelineConfig, member_id: str, output_format: str) ->
                     border_style="blue",
                 )
             )
-    except Exception as e:
+    except (json.JSONDecodeError, IOError) as e:
         console.print(f"❌ Erro ao ler perfil: {e}")
         raise typer.Exit(1) from e
 
 
 def _generate_profiles(config: PipelineConfig, zip_path: Path) -> None:
     """Gera perfis a partir de um ZIP do WhatsApp."""
+    # TODO: Implement the logic to generate profiles from a ZIP file.
+    # This will likely involve calling the UnifiedProcessor with the appropriate configuration.
     if not zip_path.exists():
         console.print(f"❌ Arquivo ZIP não encontrado: {zip_path}")
         raise typer.Exit(1)
@@ -430,7 +433,7 @@ def _clean_profiles(config: PipelineConfig) -> None:
         try:
             with open(profile_file) as f:
                 json.load(f)  # Validate JSON
-        except Exception:
+        except (json.JSONDecodeError, IOError):
             profile_file.unlink()
             removed_count += 1
             console.print(f"🗑️  Removido perfil corrompido: {profile_file.name}")
@@ -533,6 +536,7 @@ def _dry_run_and_exit(
             )
 
     except Exception as exc:
+        # TODO: Log the exception here to help with debugging.
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
 
     console.print()
@@ -563,6 +567,7 @@ def _process_and_display(
             )
 
     except Exception as exc:
+        # TODO: Log the exception here to help with debugging.
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
 
     console.print()
