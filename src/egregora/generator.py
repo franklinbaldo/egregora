@@ -240,12 +240,12 @@ class PostGenerator:
             )
         ]
 
+        # We do not provide tools/functions, so Gemini generates plain text without invoking AFC.
         generate_content_config = types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
             safety_settings=safety_settings,
             system_instruction=system_instruction,
             response_mime_type="text/plain",
-            use_function_calling=False,
         )
 
         try:
