@@ -13,7 +13,10 @@ from .profile import ParticipantProfile
 
 
 @dataclass(slots=True)
-#TODO: This class has a lot of logic for loading, saving, and indexing profiles. It could be split into smaller classes.
+# TODO: This class has multiple responsibilities (loading, saving, indexing).
+# It could be split into smaller classes, for example, a `ProfileStorage`
+# class for loading/saving and a `ProfileIndexer` class for Markdown generation
+# and indexing.
 class ProfileRepository:
     """Manage profile persistence on disk and build a documentation index."""
 
@@ -38,7 +41,8 @@ class ProfileRepository:
             return None
         return ParticipantProfile.from_dict(payload)
 
-    #TODO: The markdown generation is a bit complex.
+    # TODO: The markdown generation logic is a bit complex and could be moved
+    # to a separate helper function or class.
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
         """Persist *profile* to JSON outputs and generated Markdown."""
 
@@ -78,13 +82,16 @@ class ProfileRepository:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 continue
+            # FIXME: This is a broad exception. It should be more specific, for
+            # example, catching `ValidationError` from Pydantic.
             try:
                 profile = ParticipantProfile.from_dict(payload)
             except Exception:
                 continue
             yield identifier, profile
 
-    #TODO: The content of the index file is hardcoded. It would be better to use a template engine for this.
+    # TODO: The content of the index file is hardcoded. It would be better to
+    # use a template engine like Jinja2 for this.
     def write_index(self) -> None:
         """Regenerate the Markdown index listing all profiles."""
 
