@@ -52,6 +52,8 @@ def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         docs_dir = (site_root / docs_dir).resolve()
     return docs_dir
 
+# TODO: The MkDocs configuration is hardcoded here. It would be better to have
+# this as a template file (e.g., mkdocs.yml.jinja2) and use Jinja2 to render it.
 def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Create a comprehensive MkDocs configuration for blog and return the docs directory path."""
 
@@ -238,7 +240,8 @@ def _create_site_structure(site_root: Path) -> None:
     for directory in [docs_dir, posts_dir, profiles_dir, media_dir]:
         directory.mkdir(parents=True, exist_ok=True)
     
-    # Setup Jinja2 environment
+    # Setup Jinja2 environment to load templates from the `templates` directory
+    # within the `egregora` package.
     env = Environment(
         loader=PackageLoader('egregora', 'templates'),
         autoescape=select_autoescape(['html', 'xml', 'md'])
