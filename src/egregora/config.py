@@ -117,7 +117,7 @@ class AnonymizationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     enabled: bool = True
-    output_format: FormatType = "human"
+    output_format: FormatType = "full"
 
     @field_validator("output_format", mode="before")
     @classmethod

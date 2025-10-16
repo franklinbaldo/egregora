@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -19,7 +19,7 @@ import polars as pl
 
 from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
-from .prompts import PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
+from .prompts import PROFILE_APPEND_PROMPT, PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
@@ -100,9 +100,11 @@ class ProfileUpdater:
         if not current_profile or not current_profile.worldview_summary:
             return True, "Primeiro perfil sendo criado", [], []
 
+        member_display = self._display_member_id(member_id)
         profile_markdown = current_profile.to_markdown()
         prompt = UPDATE_DECISION_PROMPT.format(
             member_id=member_id,
+            member_display=member_display,
             current_profile=profile_markdown,
             full_conversation=full_conversation,
         )
@@ -112,6 +114,7 @@ class ProfileUpdater:
             model=self.decision_model,
             contents=prompt,
             temperature=0.3,
+            response_mime_type="application/json",
         )
 
         raw_text = getattr(response, "text", "")
@@ -149,6 +152,7 @@ class ProfileUpdater:
                 "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
             )
 
+        member_display = self._display_member_id(member_id)
         old_profile_text = (
             old_profile.to_markdown() if old_profile else "Nenhum perfil anterior registrado."
         )
@@ -159,6 +163,7 @@ class ProfileUpdater:
 
         prompt = PROFILE_REWRITE_PROMPT.format(
             member_id=member_id,
+            member_display=member_display,
             old_profile=old_profile_text,
             recent_conversations=conversations_formatted,
             participation_highlights=highlights_block,
@@ -170,6 +175,7 @@ class ProfileUpdater:
             model=self.rewrite_model,
             contents=prompt,
             temperature=0.7,
+            response_mime_type="text/plain",
         )
 
         markdown = getattr(response, "text", "")
@@ -208,6 +214,101 @@ class ProfileUpdater:
         profile.update_timestamp()
         return profile
 
+    async def append_profile(  # noqa: PLR0913
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile,
+        recent_conversations: Sequence[str],
+        participation_highlights: Sequence[str],
+        interaction_insights: Sequence[str],
+        gemini_client: genai.Client,
+    ) -> ParticipantProfile | None:
+        """Request incremental additions for an existing profile."""
+
+        if gemini_client is None:
+            raise RuntimeError(
+                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
+            )
+
+        current_markdown = current_profile.to_markdown()
+        member_display = self._display_member_id(member_id)
+        conversations_formatted = self._format_recent_conversations(recent_conversations)
+        highlights_block = self._format_bullets(participation_highlights)
+        insights_block = self._format_bullets(interaction_insights)
+
+        prompt = PROFILE_APPEND_PROMPT.format(
+            member_id=member_id,
+            member_display=member_display,
+            current_profile=current_markdown,
+            context_block=conversations_formatted,
+            participation_highlights=highlights_block,
+            interaction_insights=insights_block,
+        )
+
+        response = await self._generate_with_retry(
+            gemini_client,
+            model=self.rewrite_model,
+            contents=prompt,
+            temperature=0.5,
+            response_mime_type="application/json",
+        )
+
+        raw_text = getattr(response, "text", "")
+        if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
+            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
+            raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
+
+        if not raw_text:
+            raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
+
+        try:
+            payload = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Resposta inválida do modelo ao sugerir acréscimos: {exc}") from exc
+
+        updates_raw = payload.get("updates") or []
+        summary_addendum = str(payload.get("summary_addendum") or "").strip()
+
+        updates: list[tuple[str, str]] = []
+        for item in updates_raw:
+            if not isinstance(item, dict):
+                continue
+            heading = str(item.get("heading") or "").strip()
+            content = str(item.get("content") or "").strip()
+            if heading and content:
+                updates.append((heading, content))
+
+        if not updates and not summary_addendum:
+            return None
+
+        updated_markdown = self._apply_updates_to_markdown(current_markdown, updates)
+        updated_markdown = format_markdown(updated_markdown)
+
+        merged_values = self._merge_lists(
+            current_profile.values_and_priorities, participation_highlights
+        )
+        merged_arguments = self._merge_lists(
+            current_profile.argument_patterns, interaction_insights
+        )
+
+        new_summary = current_profile.worldview_summary
+        if summary_addendum:
+            if new_summary:
+                new_summary = f"{new_summary.rstrip()} {summary_addendum}".strip()
+            else:
+                new_summary = summary_addendum
+
+        new_profile = replace(
+            current_profile,
+            worldview_summary=new_summary,
+            values_and_priorities=merged_values,
+            argument_patterns=merged_arguments,
+            markdown_document=updated_markdown,
+            analysis_version=current_profile.analysis_version + 1,
+        )
+        new_profile.update_timestamp()
+        return new_profile
+
     async def _generate_with_retry(
         self,
         client: genai.Client,
@@ -215,20 +316,22 @@ class ProfileUpdater:
         model: str,
         contents: str,
         temperature: float,
+        response_mime_type: str | None = None,
     ):
         attempt = 0
         last_exc: Exception | None = None
         while attempt < max(self.max_api_retries, 1):
             attempt += 1
             try:
+                config = types.GenerateContentConfig(temperature=temperature)
+                if response_mime_type:
+                    config.response_mime_type = response_mime_type
+
                 return await asyncio.to_thread(
                     client.models.generate_content,
                     model=model,
                     contents=contents,
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        response_mime_type="application/json",
-                    ),
+                    config=config,
                 )
             except Exception as exc:  # pragma: no cover - depends on API behaviour
                 last_exc = exc
@@ -237,6 +340,11 @@ class ProfileUpdater:
                     break
                 await asyncio.sleep(max(delay, self.minimum_retry_seconds))
         raise last_exc if last_exc is not None else RuntimeError("Unknown error calling Gemini API")
+
+    @staticmethod
+    def _display_member_id(member_id: str) -> str:
+        segment = member_id.split("-")[0].strip()
+        return segment.upper() if segment else member_id
 
     @staticmethod
     def _extract_retry_delay(exc: Exception) -> float | None:
@@ -255,6 +363,63 @@ class ProfileUpdater:
             return float(match.group(1))
 
         return None
+
+    @staticmethod
+    def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
+        merged: list[str] = []
+        for item in base:
+            normalized = str(item).strip()
+            if normalized and normalized not in merged:
+                merged.append(normalized)
+        for item in additions:
+            normalized = str(item).strip()
+            if normalized and normalized not in merged:
+                merged.append(normalized)
+        return merged
+
+    @staticmethod
+    def _apply_updates_to_markdown(
+        markdown: str,
+        updates: Sequence[tuple[str, str]],
+    ) -> str:
+        if not updates:
+            return markdown
+
+        lines = markdown.splitlines()
+
+        for heading, addition in updates:
+            heading_clean = heading.strip()
+            addition_text = addition.strip()
+            if not heading_clean or not addition_text:
+                continue
+
+            addition_lines = addition_text.splitlines()
+
+            try:
+                heading_index = next(
+                    idx for idx, line in enumerate(lines) if line.strip() == heading_clean
+                )
+            except StopIteration:
+                if lines and lines[-1].strip():
+                    lines.append("")
+                lines.append(heading_clean)
+                lines.append("")
+                heading_index = len(lines) - 2
+
+            insert_pos = heading_index + 1
+            while insert_pos < len(lines) and not lines[insert_pos].startswith("#"):
+                insert_pos += 1
+
+            block: list[str] = addition_lines
+            if insert_pos > 0 and lines[insert_pos - 1].strip():
+                block = [""] + block
+            if block and block[-1].strip():
+                block = block + [""]
+
+            lines[insert_pos:insert_pos] = block
+
+        result = "\n".join(lines).rstrip() + "\n"
+        return result
 
     def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
         pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")

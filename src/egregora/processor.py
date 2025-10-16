@@ -196,65 +196,82 @@ def _ensure_blog_front_matter(
     return f"{prefix}{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{stripped}"
 
 
-def _add_member_profile_links(text: str, *, config: PipelineConfig, source: GroupSource) -> str:
-    """Convert Member-XXXX mentions to profile links if enabled."""
+def _add_member_profile_links(
+    text: str,
+    *,
+    config: PipelineConfig,
+    source: GroupSource,
+    repository: ProfileRepository | None = None,
+) -> str:
+    """Convert anonymized UUID mentions to profile emoji links."""
 
     if not config.profiles.link_members_in_posts:
         return text
 
-    markdown_pattern = re.compile(r"\[(?P<label>@?Member-(?P<id>[A-F0-9]{4}))\]\((?P<url>[^)]+)\)")
-    paren_pattern = re.compile(r"\(Member-(?P<id>[A-F0-9]{4})\)")
-    bare_pattern = re.compile(r"(?<![\w@\[\(])(?P<label>@?Member-(?P<id>[A-F0-9]{4}))")
+    uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    markdown_with_uuid = re.compile(
+        rf"(?P<link>\[[^\]]+\]\([^\)]+\))\s*\((?P<uuid>{uuid_pattern})\)",
+        re.IGNORECASE,
+    )
+    paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
+    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
     workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
     site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
-    def _resolve_profile(member_id: str) -> str | None:
-        member_id_lower = member_id.lower()
+    profile_files: dict[str, Path] = {}
+    if repository is not None:
+        try:
+            docs_dir = repository.docs_dir
+            for identifier, _profile in repository.iter_profiles():
+                candidate = docs_dir / f"{identifier}.md"
+                if candidate.exists():
+                    profile_files[identifier.lower()] = candidate
+        except Exception:
+            pass
 
-        if site_profiles_dir.exists():
-            for profile_file in site_profiles_dir.glob("*.md"):
-                if profile_file.stem.lower().startswith(member_id_lower):
-                    rel = PurePosixPath("../../profiles") / profile_file.name
-                    return rel.as_posix()
+    if site_profiles_dir.exists():
+        for profile_file in site_profiles_dir.glob("*.md"):
+            if profile_file.name.lower() == "index.md":
+                continue
+            profile_files[profile_file.stem.lower()] = profile_file
+
+    def _resolve_profile(uuid_value: str) -> str | None:
+        identifier = uuid_value.lower()
+        candidate_path = profile_files.get(identifier)
+        if candidate_path is not None and candidate_path.exists():
+            rel = PurePosixPath("../../profiles") / candidate_path.name
+            return rel.as_posix()
 
         base = (config.profiles.profile_base_url or "").strip()
         if base:
-            base_clean = base.rstrip("/")
-            if not base_clean:
-                base_clean = "/"
-            rel = PurePosixPath(f"{base_clean}/{member_id_lower}")
+            base_clean = base.rstrip("/") or "/"
+            rel = PurePosixPath(f"{base_clean}/{identifier}")
             return rel.as_posix()
 
         return None
 
+    def _format_link(resolved: str) -> str:
+        return f"[🪪]({resolved})"
+
     def _replace_markdown(match: re.Match[str]) -> str:
-        member_id = match.group("id")
-        label = match.group("label")
-        resolved = _resolve_profile(member_id)
-        if resolved is None:
-            return match.group(0)
-        return f"[{label}]({resolved})"
+        resolved = _resolve_profile(match.group("uuid"))
+        link = match.group("link")
+        emoji = _format_link(resolved) if resolved else "🪪"
+        return f"{link} {emoji}"
 
     def _replace_paren(match: re.Match[str]) -> str:
-        member_id = match.group("id")
-        resolved = _resolve_profile(member_id)
-        if resolved is None:
-            return match.group(0)
-        label = f"Member-{member_id}"
-        return f"([{label}]({resolved}))"
+        resolved = _resolve_profile(match.group("uuid"))
+        emoji = _format_link(resolved) if resolved else "🪪"
+        return emoji
 
     def _replace_bare(match: re.Match[str]) -> str:
-        label = match.group("label")
-        member_id = match.group("id")
-        resolved = _resolve_profile(member_id)
-        if resolved is None:
-            return match.group(0)
-        return f"[{label}]({resolved})"
+        resolved = _resolve_profile(match.group("uuid"))
+        return _format_link(resolved) if resolved else "🪪"
 
-    text = markdown_pattern.sub(_replace_markdown, text)
-    text = paren_pattern.sub(_replace_paren, text)
-    text = bare_pattern.sub(_replace_bare, text)
+    text = markdown_with_uuid.sub(_replace_markdown, text)
+    text = paren_uuid.sub(_replace_paren, text)
+    text = bare_uuid.sub(_replace_bare, text)
     return text
 
 
@@ -1043,7 +1060,12 @@ class UnifiedProcessor:
             )
 
             # Add profile links to member mentions
-            post = _add_member_profile_links(post, config=self.config, source=source)
+            post = _add_member_profile_links(
+                post,
+                config=self.config,
+                source=source,
+                repository=profile_repository,
+            )
 
             post = format_markdown(post, assume_front_matter=True)
 
@@ -1128,12 +1150,14 @@ class UnifiedProcessor:
                 )
                 break
 
-            member_uuid = Anonymizer.anonymize_author(raw_author, format="full")
-            member_label = Anonymizer.anonymize_author(raw_author, format="human")
+            member_uuid = str(raw_author).strip().lower()
+            if not member_uuid:
+                continue
+            member_label = member_uuid.split("-")[0].upper()
             current_profile = repository.load(member_uuid)
 
             should_consider, _ = updater.should_update_profile_dataframe(
-                raw_author,
+                member_uuid,
                 current_profile,
                 df_day,
             )
@@ -1143,7 +1167,7 @@ class UnifiedProcessor:
             try:
                 should_update, reasoning, highlights, insights = asyncio.run(
                     updater.should_update_profile(
-                        member_id=member_label,
+                        member_id=member_uuid,
                         current_profile=current_profile,
                         full_conversation=conversation,
                         gemini_client=client,
@@ -1173,6 +1197,7 @@ class UnifiedProcessor:
                     self._async_update_profile(
                         updater=updater,
                         member_label=member_label,
+                        member_uuid=member_uuid,
                         current_profile=current_profile,
                         highlights=highlights,
                         insights=insights,
@@ -1196,6 +1221,9 @@ class UnifiedProcessor:
                 )
                 continue
 
+            if profile is None:
+                continue
+
             repository.save(member_uuid, profile)
             updates_made = True
             processed += 1
@@ -1213,6 +1241,7 @@ class UnifiedProcessor:
         *,
         updater: ProfileUpdater,
         member_label: str,
+        member_uuid: str,
         current_profile,
         highlights,
         insights,
@@ -1220,15 +1249,24 @@ class UnifiedProcessor:
         context_block: str,
         client,
     ) -> ParticipantProfile | None:
-        profile = await updater.rewrite_profile(
-            member_id=member_label,
-            old_profile=current_profile,
+        if current_profile is None:
+            return await updater.rewrite_profile(
+                member_id=member_uuid,
+                old_profile=None,
+                recent_conversations=[context_block],
+                participation_highlights=highlights,
+                interaction_insights=insights,
+                gemini_client=client,
+            )
+
+        return await updater.append_profile(
+            member_id=member_uuid,
+            current_profile=current_profile,
             recent_conversations=[context_block],
             participation_highlights=highlights,
             interaction_insights=insights,
             gemini_client=client,
         )
-        return profile
 
     def _build_profile_conversation(self, df_day: pl.DataFrame) -> str:
         lines: list[str] = []

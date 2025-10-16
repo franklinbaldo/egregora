@@ -63,7 +63,7 @@ def test_validate_newsletter_privacy_detects_phone_numbers() -> None:
 
 
 def test_validate_newsletter_privacy_allows_safe_content() -> None:
-    text = "Estamos alinhados com Member-ABCD e (Nick) para 2024."
+    text = "Estamos alinhados com (123e4567-e89b-12d3-a456-426614174000) para 2024."
     assert validate_newsletter_privacy(text) is True
 
 
@@ -133,10 +133,12 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch):
     # The actual processing logic is inside _process_source, which we can't
 
     # easily call. However, we can check the anonymization function directly.
-    anonymized_df = Anonymizer.anonymize_dataframe(df)
+    anonymized_df = Anonymizer.anonymize_dataframe(df, format="full")
 
     # Verify that the authors have been anonymized
     assert "João Silva" not in anonymized_df["author"].to_list()
     assert "+55 21 99876-5432" not in anonymized_df["author"].to_list()
-    assert anonymized_df["author"][0].startswith("Member-")
-    assert anonymized_df["author"][1].startswith("Member-")
+    assert len(anonymized_df["author"][0]) == UUID_FULL_LENGTH
+    assert len(anonymized_df["author"][1]) == UUID_FULL_LENGTH
+    assert "-" in anonymized_df["author"][0]
+    assert "-" in anonymized_df["author"][1]
