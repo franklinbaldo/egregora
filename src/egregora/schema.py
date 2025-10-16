@@ -21,6 +21,8 @@ MESSAGE_SCHEMA: dict[str, pl.DataType] = {
 }
 
 
+# TODO: This function is too complex (PLR0912). The timestamp handling logic
+# should be refactored into a separate helper function.
 def ensure_message_schema(  # noqa: PLR0912
     df: pl.DataFrame,
     *,
