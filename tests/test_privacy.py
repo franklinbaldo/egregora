@@ -1,3 +1,8 @@
+# TODO: This file seems to be a collection of tests from other files.
+# It would be better to have a clear test file for each module (e.g.,
+# test_anonymizer.py, test_privacy.py, test_generator.py).
+# TODO: The sys.path manipulation should be removed. The tests should be run
+# in an environment where the `egregora` package is properly installed.
 from __future__ import annotations
 
 import sys
@@ -105,6 +110,10 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     assert "PROMPT: system_instruction_multigroup.md" in system_text_multigroup
 
 
+# TODO: This test does not actually test the UnifiedProcessor. It only tests
+# the Anonymizer.anonymize_dataframe function. This test should be rewritten
+# to be a proper integration test that calls the UnifiedProcessor and checks
+# the output.
 def test_unified_processor_anonymizes_dataframe(monkeypatch):
     """Verify that the UnifiedProcessor correctly anonymizes the dataframe."""
     # Create a mock DataFrame
