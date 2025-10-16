@@ -14,7 +14,7 @@ from .schema import ensure_message_schema
 
 logger = logging.getLogger(__name__)
 
-
+#TODO: The logic for choosing which column to use for rendering the transcript is a bit complex. It could be simplified.
 def render_transcript(
     df: pl.DataFrame,
     *,
@@ -120,7 +120,7 @@ def load_source_dataframe(source: GroupSource) -> pl.DataFrame:
         _DATAFRAME_CACHE[key] = df
     return df.clone()
 
-
+#TODO: The cache key is a tuple of many items. It could be simplified by using a hash of the items.
 def _build_cache_key(source: GroupSource) -> tuple:
     exports_key = tuple(
         sorted(
@@ -145,7 +145,7 @@ def _build_cache_key(source: GroupSource) -> tuple:
 
     return (source.is_virtual, exports_key, merge_key)
 
-
+# FIXME: This is a global in-memory cache. It might grow indefinitely and cause memory issues.
 _DATAFRAME_CACHE: dict[tuple, pl.DataFrame] = {}
 
 

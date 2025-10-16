@@ -1,4 +1,4 @@
-"""Logic for determining when and how to update participant profiles."""
+"Logic for determining when and how to update participant profiles."
 
 from __future__ import annotations
 
@@ -67,6 +67,7 @@ def _ensure_str_list(value: object) -> list[str]:
 
 
 @dataclass(slots=True)
+#TODO: This class has a lot of logic for deciding when and how to update profiles. It could be split into smaller classes.
 class ProfileUpdater:
     """High level orchestrator that talks to Gemini to maintain profiles."""
 
@@ -77,6 +78,7 @@ class ProfileUpdater:
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
 
+    #TODO: This method has a lot of logic for deciding if a profile should be updated. It could be simplified.
     async def should_update_profile(
         self,
         member_id: str,
@@ -136,6 +138,7 @@ class ProfileUpdater:
             insights,
         )
 
+    #TODO: This method has a lot of logic for rewriting a profile. It could be simplified.
     async def rewrite_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -214,6 +217,7 @@ class ProfileUpdater:
         profile.update_timestamp()
         return profile
 
+    #TODO: This method has a lot of logic for appending to a profile. It could be simplified.
     async def append_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -309,6 +313,7 @@ class ProfileUpdater:
         new_profile.update_timestamp()
         return new_profile
 
+    #TODO: This method has a lot of logic for retrying a Gemini API call. It could be simplified.
     async def _generate_with_retry(
         self,
         client: genai.Client,
@@ -352,7 +357,7 @@ class ProfileUpdater:
         if "RESOURCE_EXHAUSTED" not in message:
             return None
 
-        match = re.search(r"retryDelay['\"]?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
+        match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
         if match:
             whole = match.group(1)
             frac = match.group(2) or ""
@@ -377,6 +382,7 @@ class ProfileUpdater:
                 merged.append(normalized)
         return merged
 
+    #TODO: This method has a lot of logic for applying updates to a markdown file. It could be simplified.
     @staticmethod
     def _apply_updates_to_markdown(
         markdown: str,

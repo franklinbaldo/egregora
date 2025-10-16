@@ -13,6 +13,7 @@ from .profile import ParticipantProfile
 
 
 @dataclass(slots=True)
+#TODO: This class has a lot of logic for loading, saving, and indexing profiles. It could be split into smaller classes.
 class ProfileRepository:
     """Manage profile persistence on disk and build a documentation index."""
 
@@ -37,6 +38,7 @@ class ProfileRepository:
             return None
         return ParticipantProfile.from_dict(payload)
 
+    #TODO: The markdown generation is a bit complex.
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
         """Persist *profile* to JSON outputs and generated Markdown."""
 
@@ -82,6 +84,7 @@ class ProfileRepository:
                 continue
             yield identifier, profile
 
+    #TODO: The content of the index file is hardcoded. It would be better to use a template engine for this.
     def write_index(self) -> None:
         """Regenerate the Markdown index listing all profiles."""
 

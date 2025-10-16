@@ -1,4 +1,4 @@
-"""Unified processor with Polars-based message manipulation."""
+"Unified processor with Polars-based message manipulation."
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ def _build_post_metadata(
         "tags": tags,
     }
 
-
+#TODO: This function has some complex logic for handling front matter. It could be simplified and made more robust.
 def _ensure_blog_front_matter(
     text: str, *, source: GroupSource, target_date: date, config: PipelineConfig
 ) -> str:
@@ -162,17 +162,24 @@ def _ensure_blog_front_matter(
                 remaining_content = parts[2].lstrip()
 
         # Remove any wrapped frontmatter blocks from remaining content
-        while f"```\n{YAML_DELIMITER}" in remaining_content:
-            start_idx = remaining_content.find(f"```\n{YAML_DELIMITER}")
-            end_idx = remaining_content.find(f"{YAML_DELIMITER}\n```", start_idx)
-            if end_idx > start_idx:
-                # Remove the entire wrapped block
-                remaining_content = (
-                    remaining_content[:start_idx]
-                    + remaining_content[end_idx + 7 :]  # Skip "---\n```\n"
-                ).strip()
+        while f"```\n{YAML_DELIMITER}" in remaining_content or f"```yaml\n{YAML_DELIMITER}" in remaining_content:
+            # Check for both plain and yaml-labeled code blocks
+            patterns = [f"```\n{YAML_DELIMITER}", f"```yaml\n{YAML_DELIMITER}"]
+            for pattern in patterns:
+                if pattern in remaining_content:
+                    start_idx = remaining_content.find(pattern)
+                    # Look for closing pattern
+                    end_pattern = f"{YAML_DELIMITER}\n```"
+                    end_idx = remaining_content.find(end_pattern, start_idx)
+                    if end_idx > start_idx:
+                        # Remove the entire wrapped block
+                        remaining_content = (
+                            remaining_content[:start_idx]
+                            + remaining_content[end_idx + len(end_pattern):]
+                        ).strip()
+                        break  # Process one at a time
             else:
-                break
+                break  # No more patterns found
 
         # Parse existing YAML and merge with programmatic metadata
         try:
@@ -208,15 +215,19 @@ def _add_member_profile_links(
     if not config.profiles.link_members_in_posts:
         return text
 
+    # FIXME: The regex could be improved to be more specific and avoid false positives.
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    
     markdown_with_uuid = re.compile(
-        rf"(?P<link>\[[^\]]+\]\([^\)]+\))\s*\((?P<uuid>{uuid_pattern})\)",
+        rf"(?P<link>\[[^\]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
     )
+    # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
+    # Match bare UUIDs that are NOT followed by file extensions
     bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
+    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
     site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
     profile_files: dict[str, Path] = {}
@@ -261,12 +272,32 @@ def _add_member_profile_links(
         return f"{link} {emoji}"
 
     def _replace_paren(match: re.Match[str]) -> str:
-        resolved = _resolve_profile(match.group("uuid"))
+        # Skip if this appears to be in a media section
+        uuid_str = match.group("uuid")
+        full_match = match.group(0)
+        start_pos = match.start()
+        
+        # Check if we're in a media section (rough heuristic)
+        before_context = text[max(0, start_pos-100):start_pos]
+        if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
+            return full_match  # Don't convert media UUIDs
+            
+        resolved = _resolve_profile(uuid_str)
         emoji = _format_link(resolved) if resolved else "🪪"
         return emoji
 
     def _replace_bare(match: re.Match[str]) -> str:
-        resolved = _resolve_profile(match.group("uuid"))
+        # Skip if this appears to be in a media section
+        uuid_str = match.group("uuid")
+        full_match = match.group(0)
+        start_pos = match.start()
+        
+        # Check if we're in a media section
+        before_context = text[max(0, start_pos-100):start_pos]
+        if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
+            return full_match  # Don't convert media UUIDs
+            
+        resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
     text = markdown_with_uuid.sub(_replace_markdown, text)
@@ -409,6 +440,7 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
+    #TODO: The estimation is very rough and could be improved.
     def estimate_api_usage(
         self,
         *,
@@ -531,9 +563,9 @@ class UnifiedProcessor:
                     ),
                 )
             )
-
         return sorted(plans, key=lambda plan: plan.slug)
 
+    #TODO: This function uses a list of hardcoded patterns to extract the group name. This could be made more configurable.
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
@@ -559,6 +591,7 @@ class UnifiedProcessor:
         # Fallback: use the whole filename without extension
         return base_name
 
+    #TODO: This function generates a slug from the group name. It could be improved to handle more edge cases.
     def _generate_group_slug(self, group_name: str) -> str:
         """Generate a URL-friendly slug from group name."""
 
@@ -683,7 +716,8 @@ class UnifiedProcessor:
         return group_name, group_slug
 
     def _create_virtual_groups(
-        self, real_groups: dict[GroupSlug, list[WhatsAppExport]]
+        self,
+        real_groups: dict[GroupSlug, list[WhatsAppExport]],
     ) -> dict[GroupSlug, GroupSource]:
         """Create virtual groups from real groups."""
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
@@ -734,75 +768,28 @@ class UnifiedProcessor:
 
         return filtered
 
-    def _existing_daily_posts(self, group_dir: Path) -> list[Path]:
-        """Return existing daily posts for *group_dir* if they are present."""
+    def _existing_daily_posts(self, site_root: Path) -> list[Path]:
+        """Return existing daily posts for *site_root* if they are present."""
 
-        daily_dir = group_dir / "posts" / "daily"
-        if not daily_dir.exists():
+        posts_dir = site_root / "posts"
+        if not posts_dir.exists():
             return []
 
-        return [path for path in daily_dir.glob("*.md") if path.is_file()]
+        return [path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"]
 
     def _write_group_index(
         self,
         source: GroupSource,
-        group_dir: Path,
+        site_root: Path,
         post_paths: list[Path],
     ) -> None:
-        """Ensure an index page summarising generated posts for *source*."""
-
-        index_path = group_dir / "index.md"
-        metadata = {
-            "title": f"{source.name} — Sumário",
-            "lang": self.config.post_language,
-            "authors": [self.config.default_post_author],
-            "categories": [source.slug, "summary"],
-        }
-        front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-
-        # Merge existing posts on disk with the ones produced in this run so the
-        # index remains cumulative when processing a limited window of days.
-        existing_posts = self._existing_daily_posts(group_dir)
-
-        def _normalize(path: Path) -> Path:
-            try:
-                return path.resolve()
-            except OSError:
-                return path
-
-        all_posts: set[Path] = {_normalize(path) for path in existing_posts}
-        all_posts.update(_normalize(path) for path in post_paths)
-
-        items: list[str] = []
-        for path in sorted(all_posts, key=lambda p: p.stem, reverse=True):
-            try:
-                relative = path.relative_to(group_dir)
-            except ValueError:
-                relative = path
-            items.append(f"- [{path.stem}]({relative.as_posix()})")
-
-        if not items:
-            items.append("_Nenhuma edição gerada ainda._")
-
-        body = "\n".join(items)
-        content_lines = [
-            "---",
-            front_matter,
-            "---",
-            "",
-            f"# {source.name}",
-            "",
-            body,
-            "",
-        ]
-        content = "\n".join(content_lines)
-
-        if index_path.exists():
-            existing = index_path.read_text(encoding="utf-8")
-            if existing == content:
-                return
-
-        index_path.write_text(content, encoding="utf-8")
+        """Update the blog index with generated posts. With Material blog plugin, this is mostly handled automatically."""
+        
+        # The blog plugin handles post indexing automatically, so we just ensure
+        # the posts directory structure is correct
+        posts_dir = site_root / "posts"
+        if not posts_dir.exists():
+            posts_dir.mkdir(parents=True, exist_ok=True)
 
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
@@ -814,20 +801,19 @@ class UnifiedProcessor:
     ) -> list[Path]:
         """Process a single source."""
 
-        if self.config.posts_dir.name == source.slug:
-            group_dir = self.config.posts_dir
-        else:
-            group_dir = self.config.posts_dir / source.slug
-        group_dir.mkdir(parents=True, exist_ok=True)
+        # Use flat structure instead of nested group directories
+        site_root = self.config.posts_dir
+        site_root.mkdir(parents=True, exist_ok=True)
 
-        posts_base = group_dir / "posts"
-        daily_dir = posts_base / "daily"
+        # Posts go directly into posts/ directory
+        daily_dir = site_root / "posts"
         daily_dir.mkdir(parents=True, exist_ok=True)
 
-        media_dir = group_dir / "media"
+        # Media and profiles at root level
+        media_dir = site_root / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
 
-        profiles_base = group_dir / "profiles"
+        profiles_base = site_root / "profiles"
         profiles_base.mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
@@ -868,7 +854,7 @@ class UnifiedProcessor:
         )
 
         results = []
-        extractor = MediaExtractor(group_dir, group_slug=source.slug)
+        extractor = MediaExtractor(site_root, group_slug=source.slug)
 
         # Simplified approach: since we only have one export per group in the new CLI,
         # we can extract media from all exports for any target date
@@ -1096,7 +1082,7 @@ class UnifiedProcessor:
             except ValueError:
                 logger.info(f"    ✅ {output_path}")
 
-        self._write_group_index(source, group_dir, results)
+        self._write_group_index(source, site_root, results)
         return results
 
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915

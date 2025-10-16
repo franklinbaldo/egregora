@@ -11,7 +11,7 @@ from pathlib import Path
 from chromadb.utils import embedding_functions
 from diskcache import Cache
 
-
+#TODO: The fallback embedding is a bit simplistic and could be improved.
 class _FallbackEmbedding:
     """Deterministic, offline-friendly embedding used when Gemini is unavailable."""
 
@@ -39,7 +39,7 @@ class _FallbackEmbedding:
     def __call__(self, input: list[str]) -> list[list[float]]:
         return [self._vectorise(text) for text in input]
 
-
+#TODO: The caching logic could be simplified and made more robust.
 class CachedGeminiEmbedding:
     """Gemini embeddings with optional disk caching and offline fallback."""
 
@@ -107,6 +107,7 @@ class CachedGeminiEmbedding:
         }
         self._cache.set(self._cache_key(text), record)
 
+    #TODO: This method has a lot of logic for handling cached and non-cached embeddings. It could be simplified.
     def __call__(self, input: list[str]) -> list[list[float]]:
         """Embed a list of texts."""
         results: list[list[float]] = []

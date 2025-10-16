@@ -1,4 +1,4 @@
-"""WhatsApp chat parser that converts ZIP exports to Polars DataFrames."""
+"WhatsApp chat parser that converts ZIP exports to Polars DataFrames."
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
 
     return ensure_message_schema(pl.concat(frames).sort("timestamp"))
 
-
+# FIXME: This regex is complex and could be hard to understand. Add more comments to explain what it does.
 _LINE_PATTERN = re.compile(
     r"^(?:"
     r"(?P<date>\d{1,2}/\d{1,2}/\d{2,4})"
@@ -82,7 +82,7 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
     {"dayfirst": False},
 )
 
-
+#TODO: This function has a lot of logic for parsing dates. It could be simplified.
 def _parse_message_date(token: str) -> date | None:
     normalized = token.strip()
     if not normalized:
@@ -118,7 +118,7 @@ def _normalize_text(value: str) -> str:
     normalized = _INVISIBLE_MARKS.sub("", normalized)
     return normalized
 
-
+#TODO: This function has a lot of logic for parsing messages. It could be split into smaller functions.
 def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:  # noqa: PLR0915
     """Parse messages from an iterable of strings."""
 

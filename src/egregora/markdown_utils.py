@@ -28,7 +28,7 @@ def _split_front_matter(text: str) -> tuple[str, str]:
     remainder = stripped[end_index:]
     return prefix + front_matter + "\n", remainder
 
-
+#TODO: If mdformat is not installed, the function will just return the original text. It would be better to log a warning message to the user.
 def format_markdown(text: str, *, assume_front_matter: bool = False) -> str:
     """Return ``text`` formatted with mdformat when available."""
 
