@@ -28,7 +28,7 @@ warnings.filterwarnings(
     "ignore", category=UnsupportedFieldAttributeWarning, message=".*`validate_default`.*"
 )
 
-DEFAULT_MODEL = "models/gemini-2.5-flash"
+DEFAULT_MODEL = "models/gemini-1.5-flash"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 
 LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
@@ -201,6 +201,10 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 def _coerce_fields(payload: dict[str, Any]) -> None:
     """Coerce fields in the payload to the correct types."""
+    # TODO: The field names are hardcoded here. This is not ideal because if the
+    # RAGConfig model changes, this function will need to be updated manually.
+    # A better approach would be to dynamically inspect the RAGConfig model's
+    # fields and their types.
     bool_fields = {
         "enabled",
         "enable_cache",
