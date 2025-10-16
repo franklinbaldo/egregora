@@ -188,7 +188,8 @@ class ChromadbRAG:
     #TODO: The logic for rehydrating the documents is a bit complex.
     def search(self, query: str, *, group_slug: str | None = None) -> QueryResult:
         """Search the vector store and rehydrate message contexts when needed."""
-
+        # TODO: The rehydration logic can be a performance bottleneck if there are
+        # many search results. The caching helps, but this should be monitored.
         query_embedding = self.embed_model([query])[0]
         slug = group_slug or (self.source.slug if self.source else None)
 
@@ -247,6 +248,8 @@ class ChromadbRAG:
         try:
             if hasattr(value, "strftime"):
                 return value.strftime("%H:%M")
+        # FIXME: This is a broad exception. It should be more specific if possible,
+        # for example, catching TypeError or ValueError.
         except Exception:  # pragma: no cover - defensive fallback
             pass
         return str(value)
