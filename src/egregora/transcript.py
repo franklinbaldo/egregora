@@ -120,7 +120,9 @@ def load_source_dataframe(source: GroupSource) -> pl.DataFrame:
         _DATAFRAME_CACHE[key] = df
     return df.clone()
 
-#TODO: The cache key is a tuple of many items. It could be simplified by using a hash of the items.
+# TODO: The cache key is a tuple of many items. It could be simplified by using a
+# hash of the items. This would be more memory-efficient and robust to changes
+# in the MergeConfig class.
 def _build_cache_key(source: GroupSource) -> tuple:
     exports_key = tuple(
         sorted(
@@ -145,7 +147,9 @@ def _build_cache_key(source: GroupSource) -> tuple:
 
     return (source.is_virtual, exports_key, merge_key)
 
-# FIXME: This is a global in-memory cache. It might grow indefinitely and cause memory issues.
+# FIXME: This is a global in-memory cache. It might grow indefinitely and cause
+# memory issues. A proper cache implementation with a size limit, like
+# `diskcache.Cache` or a simple LRU cache from `functools`, should be used.
 _DATAFRAME_CACHE: dict[tuple, pl.DataFrame] = {}
 
 
