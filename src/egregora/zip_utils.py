@@ -21,6 +21,8 @@ _MAX_MEMBER_SIZE = 50 * 1024 * 1024  # 50MB per file - for videos/images
 _MAX_MEMBER_COUNT = 2000  # Increased for WhatsApp groups with lots of media
 
 
+# TODO: The validation limits are hardcoded. It would be better to make them
+# configurable in the PipelineConfig.
 def validate_zip_contents(
     zf: zipfile.ZipFile,
     *,
