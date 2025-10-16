@@ -54,6 +54,16 @@ YAML_DELIMITER = "---"
 QUOTA_WARNING_THRESHOLD = 15
 MIN_YAML_PARTS = 3
 _TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+_PHONE_PATTERN = re.compile(
+    r"(?:\+?\d[\d\s\-\(\)]{6,}\d|\b\d{4}-\d{4}\b|\b\d{9,}\b)",
+    re.UNICODE,
+)
+
+
+def _sanitize_for_llm(text: str | None) -> str | None:
+    if text is None:
+        return None
+    return _PHONE_PATTERN.sub("[dado-redigido]", text)
 MAX_MEDIA_CAPTION_LENGTH = 160
 
 
@@ -956,6 +966,7 @@ class UnifiedProcessor:
                 use_tagged=source.is_virtual,
                 prefer_original_line=False,
             )
+            transcript_sanitized = _sanitize_for_llm(transcript) or ""
 
             stats = {
                 "message_count": df_day.height,
@@ -1001,7 +1012,7 @@ class UnifiedProcessor:
                         self.config.rag,
                         keyword_provider=keyword_provider,
                     )
-                    query = query_gen.generate(transcript)
+                    query = query_gen.generate(transcript_sanitized or transcript)
                     search_results = rag.search(query.search_query, group_slug=source.slug)
                     if search_results and search_results["documents"]:
                         rag_context = "\n\n".join(
@@ -1009,9 +1020,13 @@ class UnifiedProcessor:
                             for i, doc in enumerate(search_results["documents"][0], 1)
                         )
 
+            previous_post = _sanitize_for_llm(previous_post)
+            enrichment_section = _sanitize_for_llm(enrichment_section)
+            rag_context = _sanitize_for_llm(rag_context)
+
             context = PostContext(
                 group_name=source.name,
-                transcript=transcript,
+                transcript=transcript_sanitized,
                 target_date=target_date,
                 previous_post=previous_post,
                 enrichment_section=enrichment_section,
@@ -1122,12 +1137,14 @@ class UnifiedProcessor:
         conversation = self._build_profile_conversation(df_day)
         if not conversation.strip():
             return
+        conversation = _sanitize_for_llm(conversation) or ""
 
         client = self._get_profiles_client()
         if client is None:
             return
 
         context_block = self._format_profile_context(target_date, conversation, post_text)
+        context_block = _sanitize_for_llm(context_block) or ""
         updates_made = False
 
         authors_series = df_day.get_column("author")
@@ -1191,6 +1208,9 @@ class UnifiedProcessor:
             if not should_update:
                 logger.debug("    Perfil de %s sem alterações (%s)", member_label, reasoning)
                 continue
+
+            highlights = [(_sanitize_for_llm(item) or "").strip() for item in highlights]
+            insights = [(_sanitize_for_llm(item) or "").strip() for item in insights]
 
             try:
                 profile = asyncio.run(

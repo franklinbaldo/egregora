@@ -245,6 +245,7 @@ class PostGenerator:
             safety_settings=safety_settings,
             system_instruction=system_instruction,
             response_mime_type="text/plain",
+            use_function_calling=False,
         )
 
         try:
