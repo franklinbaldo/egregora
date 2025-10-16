@@ -39,12 +39,10 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
 def _load_prompt(filename: str) -> str:
-    """Load a prompt either from the editable folder or the package data.
-
-    The local prompts directory is relative to the installed package location.
-    Consider clarifying this in the documentation or making the local prompts
-    path more explicitly configurable.
-    """
+    """Load a prompt either from the editable folder or the package data."""
+    # TODO: The local prompts directory is relative to the installed package location.
+    # This might be confusing. Consider clarifying this in the documentation or
+    # making the local prompts path more explicitly configurable.
     local_prompt_path = _PROMPTS_DIR / filename
     if local_prompt_path.exists():
         text = local_prompt_path.read_text(encoding="utf-8")
