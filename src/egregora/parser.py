@@ -1,4 +1,4 @@
-"WhatsApp chat parser that converts ZIP exports to Polars DataFrames."
+"""WhatsApp chat parser that converts ZIP exports to Polars DataFrames."""
 
 from __future__ import annotations
 
@@ -65,15 +65,14 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
 
 # FIXME: This regex is complex and could be hard to understand. Add more comments to explain what it does.
 _LINE_PATTERN = re.compile(
-    r"^(?:"
-    r"(?P<date>\d{1,2}/\d{1,2}/\d{2,4})"
-    r"(?:,\s*|\s+)"
-    r")?"
+    r"^("
+    r"(?:(?P<date>\d{1,2}/\d{1,2}/\d{2,4})(?:,\s*|\s+))?"
     r"(?P<time>\d{1,2}:\d{2})"
     r"(?:\s*(?P<ampm>[APap][Mm]))?"
     r"\s*[—\-]\s*"
     r"(?P<author>[^:]+?):\s*"
-    r"(?P<message>.+)$"
+    r"(?P<message>.+)"
+    r")$"
 )
 
 
@@ -118,7 +117,9 @@ def _normalize_text(value: str) -> str:
     normalized = _INVISIBLE_MARKS.sub("", normalized)
     return normalized
 
-#TODO: This function has a lot of logic for parsing messages. It could be split into smaller functions.
+# TODO: This function is too long and complex. It could be split into smaller
+# functions. For example, the logic for finalizing a message could be extracted
+# into a separate function. The date and time parsing could also be extracted.
 def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:  # noqa: PLR0915
     """Parse messages from an iterable of strings."""
 
