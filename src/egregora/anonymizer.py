@@ -32,7 +32,8 @@ class Anonymizer:
         the leading ``+`` if present. Phone numbers without ``+`` are assumed to
         be Brazilian numbers (``+55``) when they contain 10 or 11 digits.
         """
-
+        # TODO: The logic to assume Brazilian numbers is hardcoded. This should be
+        # made more generic or configurable if the tool is to be used in other regions.
         normalized = re.sub(r"[^\d+]", "", phone)
         if not normalized:
             return ""
@@ -100,7 +101,10 @@ class Anonymizer:
     @staticmethod
     def anonymize_author(author: str, format: FormatType = "human") -> str:
         """Return a deterministic pseudonym for either a phone or nickname."""
-
+        # TODO: The heuristic to distinguish between a phone number and a nickname
+        # is simple and might misclassify nicknames that are all digits. This is a
+        # trade-off between simplicity and accuracy. A more robust solution could
+        # involve more sophisticated pattern matching or configuration.
         candidate = author.strip().replace(" ", "").replace("-", "")
         if candidate.startswith("+") or candidate.isdigit():
             return Anonymizer.anonymize_phone(author, format)
