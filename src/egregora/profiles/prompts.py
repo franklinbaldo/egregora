@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# TODO: These prompts are hardcoded in the Python file. For easier management
+# and versioning, they could be moved to separate `.txt` or `.md` files and
+# loaded at runtime.
 UPDATE_DECISION_PROMPT = """Você é um analista de perfis de participantes em grupos.
 
 **PERFIL ATUAL de {member_display} ({member_id}):**
