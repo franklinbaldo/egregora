@@ -162,17 +162,24 @@ def _ensure_blog_front_matter(
                 remaining_content = parts[2].lstrip()
 
         # Remove any wrapped frontmatter blocks from remaining content
-        while f"```\n{YAML_DELIMITER}" in remaining_content:
-            start_idx = remaining_content.find(f"```\n{YAML_DELIMITER}")
-            end_idx = remaining_content.find(f"{YAML_DELIMITER}\n```", start_idx)
-            if end_idx > start_idx:
-                # Remove the entire wrapped block
-                remaining_content = (
-                    remaining_content[:start_idx]
-                    + remaining_content[end_idx + 7 :]  # Skip "---\n```\n"
-                ).strip()
+        while f"```\n{YAML_DELIMITER}" in remaining_content or f"```yaml\n{YAML_DELIMITER}" in remaining_content:
+            # Check for both plain and yaml-labeled code blocks
+            patterns = [f"```\n{YAML_DELIMITER}", f"```yaml\n{YAML_DELIMITER}"]
+            for pattern in patterns:
+                if pattern in remaining_content:
+                    start_idx = remaining_content.find(pattern)
+                    # Look for closing pattern
+                    end_pattern = f"{YAML_DELIMITER}\n```"
+                    end_idx = remaining_content.find(end_pattern, start_idx)
+                    if end_idx > start_idx:
+                        # Remove the entire wrapped block
+                        remaining_content = (
+                            remaining_content[:start_idx]
+                            + remaining_content[end_idx + len(end_pattern):]
+                        ).strip()
+                        break  # Process one at a time
             else:
-                break
+                break  # No more patterns found
 
         # Parse existing YAML and merge with programmatic metadata
         try:
@@ -209,14 +216,17 @@ def _add_member_profile_links(
         return text
 
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    
     markdown_with_uuid = re.compile(
         rf"(?P<link>\[[^\]]+\]\([^\)]+\))\s*\((?P<uuid>{uuid_pattern})\)",
         re.IGNORECASE,
     )
+    # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
+    # Match bare UUIDs that are NOT followed by file extensions
     bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
+    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
     site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
     profile_files: dict[str, Path] = {}
@@ -261,12 +271,32 @@ def _add_member_profile_links(
         return f"{link} {emoji}"
 
     def _replace_paren(match: re.Match[str]) -> str:
-        resolved = _resolve_profile(match.group("uuid"))
+        # Skip if this appears to be in a media section
+        uuid_str = match.group("uuid")
+        full_match = match.group(0)
+        start_pos = match.start()
+        
+        # Check if we're in a media section (rough heuristic)
+        before_context = text[max(0, start_pos-100):start_pos]
+        if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
+            return full_match  # Don't convert media UUIDs
+            
+        resolved = _resolve_profile(uuid_str)
         emoji = _format_link(resolved) if resolved else "🪪"
         return emoji
 
     def _replace_bare(match: re.Match[str]) -> str:
-        resolved = _resolve_profile(match.group("uuid"))
+        # Skip if this appears to be in a media section
+        uuid_str = match.group("uuid")
+        full_match = match.group(0)
+        start_pos = match.start()
+        
+        # Check if we're in a media section
+        before_context = text[max(0, start_pos-100):start_pos]
+        if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
+            return full_match  # Don't convert media UUIDs
+            
+        resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
     text = markdown_with_uuid.sub(_replace_markdown, text)
