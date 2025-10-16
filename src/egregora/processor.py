@@ -1,4 +1,4 @@
-"Unified processor with Polars-based message manipulation."
+"""Unified processor with Polars-based message manipulation."""
 
 from __future__ import annotations
 
@@ -59,7 +59,8 @@ MAX_MEDIA_CAPTION_LENGTH = 160
 
 def _is_transient_gemini_error(exc: Exception) -> bool:
     """Return ``True`` when *exc* looks like a temporary Gemini outage."""
-
+    # FIXME: String matching on error messages is brittle. This should be updated
+    # if the Gemini library provides more specific exception types or error codes.
     message = str(exc)
     if "UNAVAILABLE" in message or "model is overloaded" in message:
         return True
@@ -98,6 +99,9 @@ def _coerce_timestamp(value: Any) -> datetime | None:
 
 
 def _cleanup_cache(cache: Cache, days: int) -> int:
+    """Clean up expired entries from the cache."""
+    # TODO: For very large caches, iterating over all keys could be slow.
+    # A more efficient cache cleanup strategy might be needed if performance becomes an issue.
     threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
     removed = 0
 
@@ -227,7 +231,10 @@ def _add_member_profile_links(
     # Match bare UUIDs that are NOT followed by file extensions
     bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
+    # TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
+    # TODO: The path to the site profiles directory is hardcoded here.
+    # This should be made configurable, perhaps in the `egregora.toml` file.
+    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
     site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
 
     profile_files: dict[str, Path] = {}
@@ -573,6 +580,7 @@ class UnifiedProcessor:
         # Remove file extension
         base_name = chat_filename.replace(".txt", "")
 
+        # TODO: These patterns could be moved to a configuration file to allow for easier customization.
         # Common patterns in WhatsApp exports
         patterns = [
             r"Conversa do WhatsApp com (.+)",  # Portuguese
@@ -585,7 +593,7 @@ class UnifiedProcessor:
             if match:
                 group_name = match.group(1).strip()
                 # Remove common suffixes like dates, emojis at the end
-                group_name = re.sub(r"\s*[🀀-🟿]+\s*$", "", group_name).strip()
+                group_name = re.sub(r"\s*[\U0001f000-\U0001f0ff]+\s*$", "", group_name).strip()
                 return group_name
 
         # Fallback: use the whole filename without extension
@@ -791,6 +799,8 @@ class UnifiedProcessor:
         if not posts_dir.exists():
             posts_dir.mkdir(parents=True, exist_ok=True)
 
+    # TODO: This function is too long and complex. It should be refactored into
+    # smaller, more manageable functions.
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
@@ -967,6 +977,8 @@ class UnifiedProcessor:
                 # Index raw messages in the vector store without storing plaintext
                 try:
                     rag.upsert_messages(df_day, group_slug=source.slug)
+                # FIXME: Catching a broad `Exception` can hide bugs. This should be
+                # replaced with more specific exception types from the ChromaDB library.
                 except Exception as exc:  # pragma: no cover - defensive: vector store errors
                     logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
 
@@ -1085,6 +1097,8 @@ class UnifiedProcessor:
         self._write_group_index(source, site_root, results)
         return results
 
+    # TODO: This function is too long and complex. It should be refactored into
+    # smaller, more manageable functions.
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
         *,
@@ -1224,6 +1238,8 @@ class UnifiedProcessor:
         if updates_made:
             repository.write_index()
 
+    # TODO: This function has too many arguments. It should be refactored,
+    # perhaps by using a dataclass for the arguments.
     async def _async_update_profile(  # noqa: PLR0913
         self,
         *,
@@ -1295,6 +1311,10 @@ class UnifiedProcessor:
     def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
+        # TODO: The `discover_groups` function is commented out and `real_groups`
+        # is initialized to an empty dict. This might be dead code or a feature
+        # that is currently disabled. This should be clarified and either
+        # removed or re-enabled.
         # real_groups = discover_groups(self.config.zips_dir)
         real_groups = {}
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
