@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 _ROW_INDEX_COLUMN = "__row_index"
 
-
+#TODO: This class has a lot of logic for indexing and searching. It could be split into smaller classes.
 class ChromadbRAG:
     """Handles RAG operations for posts using ChromaDB directly."""
 
@@ -59,6 +59,7 @@ class ChromadbRAG:
         for file_path in files:
             self.index_file(file_path, group_slug=group_slug)
 
+    #TODO: The chunking logic is in a separate function. It would be better to have the chunking logic in this class.
     def index_file(self, file_path: Path, *, group_slug: str | None = None) -> None:
         """Index a single markdown file."""
         logger.info("Indexing %s", file_path)
@@ -92,6 +93,7 @@ class ChromadbRAG:
             metadatas=metadatas,
         )
 
+    #TODO: The logic for creating the embedding text is a bit complex.
     def upsert_messages(self, df: pl.DataFrame, *, group_slug: str) -> None:
         """Index chat messages without storing raw text in ChromaDB."""
 
@@ -183,6 +185,7 @@ class ChromadbRAG:
     # Query helpers
     # ------------------------------------------------------------------
 
+    #TODO: The logic for rehydrating the documents is a bit complex.
     def search(self, query: str, *, group_slug: str | None = None) -> QueryResult:
         """Search the vector store and rehydrate message contexts when needed."""
 
@@ -306,6 +309,7 @@ class ChromadbRAG:
             )
         return "\n".join(lines)
 
+    #FIXME: The cache is a dictionary, and it might grow indefinitely.
     def _get_daily_frame(self, group_slug: str, iso_date: str) -> pl.DataFrame | None:
         key = (group_slug, iso_date)
         cached = self._daily_frame_cache.get(key)

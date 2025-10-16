@@ -37,7 +37,7 @@ def _default_keyword_stop_words() -> tuple[str, ...]:
         "you",
     )
 
-
+#TODO: This class has a lot of configuration options. It would be better to split this class into smaller classes.
 class RAGConfig(BaseModel):
     """Configuration for post retrieval powered by LlamaIndex."""
 

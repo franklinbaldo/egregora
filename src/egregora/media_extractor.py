@@ -64,6 +64,7 @@ class MediaFile:
     caption: str | None = None
 
 
+#TODO: This class has a lot of logic for extracting and replacing media references. It could be split into smaller classes.
 class MediaExtractor:
     """Extracts WhatsApp media files and rewrites transcript references."""
 
@@ -92,6 +93,7 @@ class MediaExtractor:
 
         self._relative_root = self.group_dir.parent
 
+    #TODO: This method has a lot of logic for extracting specific media files from a zip file. It could be simplified.
     def extract_specific_media_from_zip(
         self,
         zip_path: Path,
@@ -179,6 +181,7 @@ class MediaExtractor:
         extension = Path(filename).suffix.lower()
         return MEDIA_TYPE_BY_EXTENSION.get(extension)
 
+    #TODO: This method has a lot of logic for replacing media references in a dataframe. It could be simplified.
     @classmethod
     def replace_media_references_dataframe(
         cls,
@@ -282,6 +285,7 @@ class MediaExtractor:
 
         return pattern.sub(replacement, text)
 
+    #TODO: This method has a lot of logic for finding attachment names in a dataframe. It could be simplified.
     @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
         """Return attachment names referenced inside a Polars ``DataFrame``."""
@@ -374,6 +378,7 @@ class MediaExtractor:
 
         return "\n".join(lines)
 
+    #TODO: This method has a lot of logic for building public paths for media files. It could be simplified.
     @staticmethod
     def build_public_paths(
         media_files: dict[str, MediaFile],
@@ -451,6 +456,7 @@ class MediaExtractor:
         cleaned = filename.translate(cls._DIRECTIONAL_TRANSLATION)
         return cleaned.strip()
 
+    #TODO: This method has a lot of logic for extracting attachment segments from a line. It could be simplified.
     @classmethod
     def _extract_attachment_segment(cls, line: str) -> tuple[str, str, str] | None:
         lowered = line.casefold()

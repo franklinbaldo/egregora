@@ -64,8 +64,8 @@ def _format_transcript_section_header(transcript_count: int) -> str:
         return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
     return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
 
-
-def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict with method
+#TODO: This function has a lot of logic for building the user prompt. It could be simplified.
+def _build_llm_input_string(
     *,
     context: PostContext,
     timezone: tzinfo,
@@ -82,9 +82,9 @@ def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict w
         sections.extend(
             [
                 "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-                "<<<POST_ONTEM_INICIO>>>",
+                "<<<POST_ONTEM_INICIO>>>>>",
                 context.previous_post.strip(),
-                "<<<POST_ONTEM_FIM>>>",
+                "<<<POST_ONTEM_FIM>>>>>",
             ]
         )
     else:
@@ -113,9 +113,9 @@ def _build_llm_input_string(  # Renamed from build_llm_input to avoid conflict w
         content = transcript_text.strip()
         sections.extend(
             [
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>>>",
                 content if content else "(vazio)",
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>>>",
             ]
         )
 
@@ -138,6 +138,7 @@ _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 
 
+#TODO: This class has a lot of logic for generating posts. It could be split into smaller classes.
 class PostGenerator:
     """Generates posts using an LLM with rate limiting and retry logic."""
 
@@ -208,6 +209,7 @@ class PostGenerator:
             transcripts=transcripts,
         )
 
+    #TODO: This method has a lot of logic for generating a post. It could be simplified.
     def generate(self, source: GroupSource, context: PostContext) -> str:
         """Generate post for a specific date."""
         self._require_google_dependency()
