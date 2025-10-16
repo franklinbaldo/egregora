@@ -40,6 +40,9 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 def _load_prompt(filename: str) -> str:
     """Load a prompt either from the editable folder or the package data."""
+    # TODO: The local prompts directory is relative to the installed package location.
+    # This might be confusing. Consider clarifying this in the documentation or
+    # making the local prompts path more explicitly configurable.
     local_prompt_path = _PROMPTS_DIR / filename
     if local_prompt_path.exists():
         text = local_prompt_path.read_text(encoding="utf-8")
@@ -63,6 +66,8 @@ def _load_prompt(filename: str) -> str:
 
 def _format_transcript_section_header(transcript_count: int) -> str:
     """Return a localized header describing the transcript coverage."""
+    # TODO: These strings are hardcoded in Portuguese. They should be moved to a
+    # configurable localization file to support multiple languages.
     if transcript_count <= 1:
         return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
     return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
@@ -76,6 +81,8 @@ def _build_llm_input_string(
 ) -> str:
     """Compose the user prompt sent to Gemini."""
     today_str = datetime.now(timezone).date().isoformat()
+    # TODO: The section headers are hardcoded in Portuguese. They should be moved to a
+    # configurable localization file to support multiple languages.
     sections: list[str] = [
         f"NOME DO GRUPO: {context.group_name}",
         f"DATA DE HOJE: {today_str}",
@@ -166,10 +173,10 @@ class PostGenerator:
     def _create_client(self) -> GeminiClient:
         """Instantiate the Gemini client."""
         self._require_google_dependency()
-        key = os.environ.get("GEMINI_API_KEY")
-        if not key:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
             raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
-        return genai.Client(api_key=key)
+        return genai.Client(api_key=api_key)
 
     @property
     def gemini_manager(self) -> GeminiManager:
@@ -240,6 +247,9 @@ class PostGenerator:
             ),
         ]
 
+        # TODO: The safety categories are hardcoded. If the API adds more categories,
+        # this code will need to be updated. Consider loading these from a
+        # configuration or dynamically from the API if possible.
         safety_settings = [
             types.SafetySetting(category=category, threshold=self.config.llm.safety_threshold)
             for category in (
