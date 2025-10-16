@@ -1083,6 +1083,16 @@ class UnifiedProcessor:
                 logger.info(f"    ✅ {output_path}")
 
         self._write_group_index(source, site_root, results)
+        
+        # Regenerate profile index after all days have been processed
+        # This ensures the index reflects all profiles even if the last day had no updates
+        if profile_repository:
+            try:
+                profile_repository.write_index()
+                logger.info("  📋 Profile index regenerated after processing %d days", len(results))
+            except Exception as exc:
+                logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
+        
         return results
 
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
