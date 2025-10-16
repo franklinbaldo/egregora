@@ -21,6 +21,7 @@ class WhatsAppExport:
     group_slug: GroupSlug  # "rc-latam"
     export_date: date  # 2025-10-01
     chat_file: str  # "Conversa do WhatsApp com RC LatAm.txt"
+    # Full paths of the media files within the ZIP archive
     media_files: list[str]  # ["IMG-001.jpg", ...]
 
 
@@ -49,11 +50,7 @@ class MergeConfig(BaseModel):
     @classmethod
     def _coerce_source_groups(cls, value: object) -> list[GroupSlug]:
         if isinstance(value, list):
-            coerced = [GroupSlug(str(item)) for item in value]
-            if not coerced:
-                msg = "Merge configuration must include at least one source group"
-                raise ValueError(msg)
-            return coerced
+            return [GroupSlug(str(item)) for item in value]
         msg = "source_groups must be provided as a list of strings"
         raise ValueError(msg)
 
