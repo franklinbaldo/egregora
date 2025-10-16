@@ -416,6 +416,8 @@ class ContentEnricher:
             result=result,
         )
 
+    # TODO: This function is too long and complex. It should be broken down into
+    # smaller functions for better readability and maintenance.
     async def _analyze_reference(  # noqa: PLR0912, PLR0915
         self,
         reference: ContentReference,
@@ -447,6 +449,8 @@ class ContentEnricher:
         if reference.url:
             try:
                 parts.append(types.Part.from_uri(file_uri=reference.url))
+            # FIXME: This is a broad exception. It should be more specific, for example,
+            # catching exceptions from the `google.genai` library if they exist.
             except Exception:  # pragma: no cover - depends on mimetype detection
                 fallback = f"URL compartilhada: {reference.redacted_url()}"
                 parts.append(types.Part.from_text(text=fallback))
@@ -456,6 +460,8 @@ class ContentEnricher:
         if reference.media_path:
             try:
                 media_bytes = reference.media_path.read_bytes()
+            # FIXME: This is a broad exception. It should be more specific, for example,
+            # catching `FileNotFoundError` or `IOError`.
             except Exception as exc:  # pragma: no cover - file issues
                 logger.warning("Falha ao ler mídia %s: %s", reference.media_path, exc)
                 media_bytes = None
@@ -472,6 +478,7 @@ class ContentEnricher:
                 media_mime = mime_candidate or "application/octet-stream"
                 try:
                     parts.append(types.Part.from_bytes(data=media_bytes, mime_type=media_mime))
+                # FIXME: This is a broad exception. It should be more specific.
                 except Exception as exc:  # pragma: no cover - SDK specific
                     logger.warning(
                         "Falha ao anexar mídia '%s' ao prompt: %s",
@@ -519,6 +526,7 @@ class ContentEnricher:
                 raw_response=None,
                 error=str(exc),
             )
+        # FIXME: This is a broad exception. It should be more specific.
         except Exception as exc:  # pragma: no cover - depends on network/model
             return AnalysisResult(
                 summary=None,
@@ -695,6 +703,8 @@ class ContentEnricher:
             context["media_identifier"] = reference.media_key
         if reference.is_media_placeholder:
             context["media_placeholder"] = True
+        # TODO: The prompt is hardcoded in Portuguese. It should be moved to a
+        # configurable localization file to support multiple languages.
         return (
             "Você analisa conteúdos compartilhados em um grupo de WhatsApp. "
             "Considere o contexto das mensagens e o link anexado. Responda em JSON "
@@ -1167,6 +1177,10 @@ def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+# TODO: This function seems to be a legacy or alternative implementation for
+# extracting URL contexts. It uses `to_dicts()` which is not performant.
+# It should be investigated if this function is still needed and, if so,
+# if it can be refactored to use a more efficient Polars implementation.
 def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.DataFrame:
     """Extract URLs with surrounding context from a conversation DataFrame."""
 
