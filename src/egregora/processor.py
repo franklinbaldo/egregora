@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import yaml
 from diskcache import Cache
+import chromadb
 
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
@@ -979,7 +980,7 @@ class UnifiedProcessor:
                     rag.upsert_messages(df_day, group_slug=source.slug)
                 # FIXME: Catching a broad `Exception` can hide bugs. This should be
                 # replaced with more specific exception types from the ChromaDB library.
-                except Exception as exc:  # pragma: no cover - defensive: vector store errors
+                except (chromadb.exceptions.ChromaDBError, Exception) as exc:  # pragma: no cover - defensive: vector store errors
                     logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
 
                 # Index all generated posts before searching
