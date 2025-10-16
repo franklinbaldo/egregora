@@ -1,5 +1,8 @@
 """Simplified enrichment tests focusing on regex patterns and core functionality."""
 
+# TODO: These tests should be integrated with the pytest suite.
+# TODO: The sys.path manipulation should be removed. The tests should be run
+# in an environment where the `egregora` package is properly installed.
 from __future__ import annotations
 
 import sys
@@ -102,16 +105,8 @@ def test_whatsapp_real_data_patterns():
 
     # Note: The current MESSAGE_RE expects HH:MM format, but WhatsApp uses DD/MM/YYYY HH:MM
     # This test documents the current limitation
-    parsed_count = 0
     for line in real_whatsapp_lines:
-        # Extract just the time and message part for MESSAGE_RE
-        if " - " in line and ": " in line:
-            # Try to extract time portion: "09:45 - Franklin: message"
-            time_part = line.split(" ", 2)[1:]  # Skip date
-            if len(time_part) >= EXPECTED_TIME_PARTS:
-                time_message = " ".join(time_part)
-                if MESSAGE_RE.match(time_message):
-                    parsed_count += 1
+        assert MESSAGE_RE.match(line) is None, f"MESSAGE_RE should not match full WhatsApp line: {line}"
 
     # URLs should be found regardless
     all_content = "\n".join(real_whatsapp_lines)
