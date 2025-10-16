@@ -814,7 +814,10 @@ class UnifiedProcessor:
     ) -> list[Path]:
         """Process a single source."""
 
-        group_dir = self.config.posts_dir / source.slug
+        if self.config.posts_dir.name == source.slug:
+            group_dir = self.config.posts_dir
+        else:
+            group_dir = self.config.posts_dir / source.slug
         group_dir.mkdir(parents=True, exist_ok=True)
 
         posts_base = group_dir / "posts"
