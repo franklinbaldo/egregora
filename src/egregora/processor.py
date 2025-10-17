@@ -20,7 +20,6 @@ from diskcache import Cache
 
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
-from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager
 from .generator import PostContext, PostGenerator
 from .markdown_utils import format_markdown
@@ -179,13 +178,13 @@ def _add_member_profile_links(
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
     
     markdown_with_uuid = re.compile(
-        rf"(?P<link>\[[^\]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
+        rf"(?P<link>\[[^]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
     )
     # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
     # Match bare UUIDs that are NOT followed by file extensions
-    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
+    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![[\w-])", re.IGNORECASE)
 
     profile_files: dict[str, Path] = {}
     if repository is not None:
@@ -584,8 +583,8 @@ class UnifiedProcessor:
         slug = slug.encode("ascii", "ignore").decode("ascii")
 
         # Convert to lowercase and replace spaces/special chars with hyphens
-        slug = re.sub(r"[^\w\s-]", "", slug.lower())
-        slug = re.sub(r"[-\s]+", "-", slug)
+        slug = re.sub(r"[^\\w\\s-]", "", slug.lower())
+        slug = re.sub(r"[-\\s]+", "-", slug)
 
         # Remove leading/trailing hyphens
         slug = slug.strip("-")
@@ -887,39 +886,138 @@ class UnifiedProcessor:
 
             _, previous_post = _load_previous_post(daily_dir, target_date)
 
-            # Enrichment
-            enrichment_section = None
-            enrichment_result: EnrichmentResult | None = None
+            # Simple enrichment - add enrichments as messages to dataframe
             if self.config.enrichment.enabled:
-                cache: Cache | None = None
-                if self.config.cache.enabled:
-                    try:
-                        cache = _create_cache(
-                            self.config.cache.cache_dir,
-                            self.config.cache.max_disk_mb,
-                        )
-                        if self.config.cache.auto_cleanup_days:
-                            cache.cull()
-                    except Exception:
-                        cache = None
-                enricher = ContentEnricher(
-                    self.config.enrichment,
-                    cache=cache,
-                    cache_ttl_days=self.config.cache.auto_cleanup_days,
-                )
-                enrichment_result = asyncio.run(
-                    enricher.enrich_dataframe(
-                        df_day,
-                        client=self.generator.client,
-                        target_dates=[target_date],
-                        media_files=all_media,
+                try:
+                    from .simple_enricher import simple_enrich_url_with_cache, save_simple_enrichment
+                    
+                    # Setup cache
+                    cache: Cache | None = None
+                    if self.config.cache.enabled:
+                        try:
+                            cache = _create_cache(
+                                self.config.cache.cache_dir,
+                                self.config.cache.max_disk_mb,
+                            )
+                            if self.config.cache.auto_cleanup_days:
+                                cache.cull()
+                        except Exception:
+                            cache = None
+                    
+                    # Extract URLs from the day's messages
+                    urls_df = df_day.filter(
+                        pl.col("message").str.contains(r"https?://[^\s>)]+")
+                    ).with_columns(
+                        pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
+                    ).explode("urls").filter(
+                        pl.col("urls").is_not_null() & (pl.col("urls") != "")
                     )
-                )
-                enrichment_section = enrichment_result.format_for_prompt(
-                    self.config.enrichment.relevance_threshold
-                )
+                    
+                    enriched_rows = []
+                    processed_urls = set()
+                    
+                    for row in urls_df.iter_rows(named=True):
+                        url = row["urls"]
+                        if url in processed_urls:
+                            continue  # Skip duplicate URLs
+                        processed_urls.add(url)
+                        
+                        original_message = row["message"] 
+                        original_timestamp = row["timestamp"]
+                        original_author = row["author"]
+                        
+                        # Get enrichment (with cache)
+                        enrichment_text = asyncio.run(
+                            simple_enrich_url_with_cache(url, original_message, cache)
+                        )
+                        
+                        # Save as markdown file with media info
+                        save_simple_enrichment(
+                            url=url,
+                            enrichment_text=enrichment_text,
+                            media_dir=media_dir,
+                            sender=original_author,
+                            timestamp=original_timestamp.strftime("%H:%M") if original_timestamp else None,
+                            date_str=target_date.isoformat(),
+                            message=original_message,
+                            media_path=None,  # URLs don't have local media
+                            media_type=None,
+                        )
+                        
+                        # Add as message to dataframe (match full schema and timezone)
+                        enriched_rows.append({
+                            "timestamp": original_timestamp,
+                            "date": target_date,
+                            "author": "egregora",
+                            "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
+                            "original_line": None,
+                            "tagged_line": None,
+                        })
+                    
+                    # Process media files for enrichment
+                    for media_key, media_file in all_media.items():
+                        # Ensure we use the actual UUID, not the original filename
+                        actual_media_uuid = getattr(media_file, 'uuid', media_key)
+                        if hasattr(media_file, 'dest_path') and media_file.dest_path:
+                            # Extract UUID from dest_path filename if available
+                            dest_filename = media_file.dest_path.stem  # filename without extension
+                            # Check if dest_filename is a valid UUID format
+                            try:
+                                import uuid
+                                uuid.UUID(dest_filename)
+                                actual_media_uuid = dest_filename
+                            except ValueError:
+                                # If not a UUID, use the original media_key
+                                pass
+                        # Get enrichment from LLM for media files
+                        from .simple_enricher import save_media_enrichment, simple_enrich_media_with_cache
+                        
+                        # Find the message that references this media
+                        media_message_row = None
+                        for row in df_day.iter_rows(named=True):
+                            if media_key in str(row.get("message", "")):
+                                media_message_row = row
+                                break
+                        
+                        # Get LLM analysis of the media
+                        media_path = getattr(media_file, 'dest_path', Path("unknown"))
+                        media_type = getattr(media_file, 'media_type', 'unknown')
+                        context_message = media_message_row.get("message") if media_message_row else ""
+                        
+                        media_enrichment = asyncio.run(
+                            simple_enrich_media_with_cache(
+                                media_path=media_path,
+                                media_type=media_type,
+                                context_message=context_message,
+                                cache=cache
+                            )
+                        )
+                        
+                        save_media_enrichment(
+                            media_key=actual_media_uuid,
+                            media_path=getattr(media_file, 'dest_path', Path("unknown")),
+                            media_type=getattr(media_file, 'media_type', 'unknown'),
+                            enrichment_text=media_enrichment,
+                            media_dir=media_dir,
+                            sender=media_message_row.get("author") if media_message_row else None,
+                            timestamp=media_message_row.get("timestamp").strftime("%H:%M") if media_message_row and media_message_row.get("timestamp") else None,
+                            date_str=target_date.isoformat(),
+                            message=media_message_row.get("message") if media_message_row else None,
+                        )
+                    
+                    # Add enriched messages to dataframe
+                    if enriched_rows:
+                        enrichment_df = pl.DataFrame(enriched_rows)
+                        # Ensure schemas match exactly
+                        from .schema import ensure_message_schema
+                        enrichment_df = ensure_message_schema(enrichment_df, timezone=self.config.timezone)
+                        df_day = pl.concat([df_day, enrichment_df], how="diagonal")
+                        df_day = df_day.sort("timestamp")
+                        
+                        logger.info(f"    🔍 Added {len(enriched_rows)} enrichments as messages")
 
-            _apply_media_captions_from_enrichment(all_media, enrichment_result)
+                except Exception as exc:
+                    logger.warning("    ⚠️ Failed to perform simple enrichment: %s", exc)
 
             public_paths = MediaExtractor.build_public_paths(
                 all_media,
@@ -997,7 +1095,7 @@ class UnifiedProcessor:
                 transcript=transcript,
                 target_date=target_date,
                 previous_post=previous_post,
-                enrichment_section=enrichment_section,
+                enrichment_section=None,
                 rag_context=rag_context,
             )
             # Progressive processing: handle quota errors gracefully
@@ -1077,6 +1175,16 @@ class UnifiedProcessor:
                 logger.info(f"    ✅ {output_path}")
 
         self._write_group_index(source, site_root, results)
+        
+        # Regenerate profile index after all days have been processed
+        # This ensures the index reflects all profiles even if the last day had no updates
+        if profile_repository:
+            try:
+                profile_repository.write_index()
+                logger.info("  📋 Profile index regenerated after processing %d days", len(results))
+            except Exception as exc:
+                logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
+        
         return results
 
     # TODO: This function is too long and complex. It should be refactored into
@@ -1149,7 +1257,7 @@ class UnifiedProcessor:
                 continue
 
             try:
-            should_update, reasoning, _, _ = asyncio.run(
+                should_update, reasoning, _, _ = asyncio.run(
                 updater.should_update_profile(
                     member_id=member_uuid,
                     current_profile=current_profile,
