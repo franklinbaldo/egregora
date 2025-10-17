@@ -204,7 +204,7 @@ class ProfilesConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    enabled: bool = True
+    enabled: bool = False
     profiles_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles"))
     docs_dir: Path = Field(default_factory=lambda: _ensure_safe_directory("data/profiles/docs"))
     min_messages: int = 2

@@ -522,7 +522,7 @@ def _dry_run_and_exit(
     try:
         quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
         console.print("\n📊 Estimativa de Uso da API:")
-        console.print(f"   Chamadas para posts: {quota_info['post_calls']}")
+        console.print(f"   Chamadas para posts: {quota_info['post_generation_calls']}")
         console.print(f"   Chamadas para enriquecimento: {quota_info['enrichment_calls']}")
         console.print(f"   Total de chamadas: {quota_info['total_api_calls']}")
         console.print(
