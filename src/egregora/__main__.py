@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -53,12 +54,31 @@ logging.basicConfig(
 )
 
 
-app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
+app = typer.Typer(
+    help="""[bold blue]🤖 Egregora[/bold blue] - Transform WhatsApp exports into organized daily posts
+
+[dim]Egregora processes WhatsApp group exports and uses AI to create structured daily summaries,
+enriched with context and member profiles. Perfect for communities, study groups, and teams
+that want to preserve and organize their conversations.[/dim]
+
+[bold yellow]🔑 SETUP:[/bold yellow]
+  Get your Google Gemini API key from [link=https://aistudio.google.com/app/apikey]https://aistudio.google.com/app/apikey[/link]
+  
+  [bold green]Options to provide API key:[/bold green]
+  • [cyan]--gemini-key[/cyan] flag: [dim]egregora process file.zip --gemini-key YOUR_KEY[/dim]
+  • Environment variable: [dim]export GOOGLE_API_KEY="your-key"[/dim]
+  • .env file: [dim]GOOGLE_API_KEY=your-key[/dim]
+
+[bold yellow]⚡ TYPICAL USAGE:[/bold yellow]
+  [green]egregora process whatsapp-export.zip --gemini-key YOUR_API_KEY --output ./my-group-blog[/green]
+""",
+    rich_markup_mode="rich"
+)
 
 logger = logging.getLogger(__name__)
 
 
-ZIP_FILES_ARGUMENT = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar")
+ZIP_FILES_ARGUMENT = typer.Argument(None, help="WhatsApp .zip export files to process")
 OUTPUT_DIR_OPTION = typer.Option(
     None, "--output", "-o", help="Diretório onde as posts serão escritas"
 )
@@ -138,11 +158,22 @@ ENABLE_RAG_OPTION = typer.Option(
     "--enable-rag",
     help="Enable RAG.",
 )
+API_KEY_OPTION = typer.Option(
+    None,
+    "--gemini-key",
+    help="Google Gemini API key (alternatively set GOOGLE_API_KEY environment variable)",
+    envvar="GOOGLE_API_KEY",
+)
+DEBUG_OPTION = typer.Option(
+    False,
+    "--debug",
+    help="Show detailed error messages and stack traces",
+)
 
 
 @app.command("process")
 def process_command(
-    zip_files: list[Path] = ZIP_FILES_ARGUMENT,
+    zip_files: list[Path] | None = ZIP_FILES_ARGUMENT,
     output_dir: Path | None = OUTPUT_DIR_OPTION,
     group_name: str | None = GROUP_NAME_OPTION,
     group_slug: str | None = GROUP_SLUG_OPTION,
@@ -164,8 +195,46 @@ def process_command(
     cache_dir: Path = CACHE_DIR_OPTION,
     auto_cleanup_days: int = AUTO_CLEANUP_DAYS_OPTION,
     enable_rag: bool = ENABLE_RAG_OPTION,
+    api_key: str | None = API_KEY_OPTION,
+    debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Processa um ou mais arquivos .zip do WhatsApp e gera posts diárias."""
+    """Process WhatsApp .zip exports and generate organized daily posts with AI enrichment."""
+    
+    # Check if ZIP files are provided
+    if not zip_files or len(zip_files) == 0:
+        console.print(Panel(
+            "[yellow]📁 No WhatsApp export files provided![/yellow]\n\n"
+            "[bold]How to get WhatsApp export:[/bold]\n"
+            "1. Open WhatsApp on your phone\n"
+            "2. Go to group chat → Menu (⋮) → More → Export chat\n"
+            "3. Choose 'With Media' or 'Without Media'\n"
+            "4. Save the .zip file to your computer\n\n"
+            "[bold green]Then run:[/bold green]\n"
+            "[cyan]egregora process whatsapp-export.zip --gemini-key YOUR_API_KEY --output ./my-group-blog[/cyan]\n\n"
+            "[bold green]To view your blog:[/bold green]\n"
+            "[cyan]cd ./my-group-blog && mkdocs serve[/cyan]",
+            title="📱 WhatsApp Export Required",
+            border_style="yellow"
+        ))
+        raise typer.Exit(1)
+    
+    # Handle API key
+    if api_key:
+        os.environ["GOOGLE_API_KEY"] = api_key
+    elif not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+        console.print(Panel(
+            "[red]❌ Google Gemini API key is required![/red]\n\n"
+            "[yellow]Get your API key:[/yellow]\n"
+            "1. Visit https://aistudio.google.com/app/apikey\n"
+            "2. Create and copy your API key\n\n"
+            "[yellow]Then either:[/yellow]\n"
+            "• Use --gemini-key flag: [cyan]egregora process file.zip --gemini-key YOUR_KEY[/cyan]\n"
+            "• Set environment variable: [cyan]export GOOGLE_API_KEY=YOUR_KEY[/cyan]\n"
+            "• Add to .env file: [cyan]GOOGLE_API_KEY=YOUR_KEY[/cyan]",
+            title="🔑 API Key Required",
+            border_style="red"
+        ))
+        raise typer.Exit(1)
 
     # Configuration now uses only CLI arguments
 
@@ -253,26 +322,96 @@ def process_command(
 
     # Dry run mode
     if dry_run:
-        _dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
+        try:
+            _dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
+        except FileNotFoundError as e:
+            if debug:
+                raise
+            console.print(Panel(
+                f"[red]❌ File not found: {str(e).split(': ')[-1]}[/red]\n\n"
+                "[yellow]Please check that:[/yellow]\n"
+                "• The ZIP file path is correct\n"
+                "• The file exists and is accessible\n"
+                "• You have permission to read the file\n\n"
+                "[bold green]Example:[/bold green]\n"
+                "[cyan]egregora process ./whatsapp-export.zip --gemini-key YOUR_KEY --dry-run[/cyan]\n\n"
+                "[dim]💡 Use --debug flag to see detailed error information[/dim]",
+                title="📁 File Error",
+                border_style="red"
+            ))
+            raise typer.Exit(1)
+        except Exception as e:
+            if debug:
+                raise
+            console.print(Panel(
+                f"[red]❌ An error occurred during dry run: {str(e)}[/red]\n\n"
+                "[yellow]This might be due to:[/yellow]\n"
+                "• Invalid ZIP file format\n"
+                "• Corrupted WhatsApp export\n"
+                "• Permission issues\n\n"
+                "[bold green]Try:[/bold green]\n"
+                "• Check your ZIP file is a valid WhatsApp export\n"
+                "• Use [cyan]--debug[/cyan] flag for detailed error information\n\n"
+                "[dim]💡 Run with --debug to see the full error trace[/dim]",
+                title="⚠️ Dry Run Error",
+                border_style="red"
+            ))
+            raise typer.Exit(1)
 
     # Process normally
-    _process_and_display(
-        processor,
-        days=days_to_process,
-        from_date=from_date_obj,
-        to_date=to_date_obj,
-    )
+    try:
+        _process_and_display(
+            processor,
+            days=days_to_process,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+        )
+    except FileNotFoundError as e:
+        if debug:
+            raise
+        console.print(Panel(
+            f"[red]❌ File not found: {str(e).split(': ')[-1]}[/red]\n\n"
+            "[yellow]Please check that:[/yellow]\n"
+            "• The ZIP file path is correct\n"
+            "• The file exists and is accessible\n"
+            "• You have permission to read the file\n\n"
+            "[bold green]Example:[/bold green]\n"
+            "[cyan]egregora process ./whatsapp-export.zip --gemini-key YOUR_KEY --output ./my-blog[/cyan]\n\n"
+            "[dim]💡 Use --debug flag to see detailed error information[/dim]",
+            title="📁 File Error",
+            border_style="red"
+        ))
+        raise typer.Exit(1)
+    except Exception as e:
+        if debug:
+            raise
+        console.print(Panel(
+            f"[red]❌ An error occurred: {str(e)}[/red]\n\n"
+            "[yellow]This might be due to:[/yellow]\n"
+            "• Invalid ZIP file format\n"
+            "• Network connectivity issues\n"
+            "• API key problems\n"
+            "• Insufficient disk space\n\n"
+            "[bold green]Try:[/bold green]\n"
+            "• Check your ZIP file is a valid WhatsApp export\n"
+            "• Verify your API key is correct\n"
+            "• Use [cyan]--debug[/cyan] flag for detailed error information\n\n"
+            "[dim]💡 Run with --debug to see the full error trace[/dim]",
+            title="⚠️ Processing Error",
+            border_style="red"
+        ))
+        raise typer.Exit(1)
 
 
 @app.command("profiles")
 def profiles_command(
-    action: str = typer.Argument(..., help="Ação: list, show, generate, clean"),
+    action: str = typer.Argument(..., help="Action: list, show, generate, clean"),
     target: str | None = typer.Argument(
-        None, help="ID do membro ou caminho do ZIP (para generate)"
+        None, help="Member ID or ZIP path (for generate command)"
     ),
-    output_format: str = typer.Option("pretty", "--format", "-f", help="Formato: pretty, json"),
+    output_format: str = typer.Option("pretty", "--format", "-f", help="Output format: pretty, json"),
 ) -> None:
-    """Gerencia perfis de participantes."""
+    """Manage participant profiles and member information."""
 
     if action not in ["list", "show", "generate", "clean"]:
         console.print(f"❌ Ação inválida: {action}. Use: list, show, generate, clean")
@@ -600,12 +739,15 @@ def _process_and_display(
 def run() -> None:
     """Entry point used by the console script."""
     argv = sys.argv[1:]
-    if not argv or not argv[0].startswith("-"):
+    if not argv:
+        # Show help when no arguments provided
+        sys.argv.append("--help")
+    elif not argv[0].startswith("-"):
         command_infos = getattr(app, "registered_commands", ()) or ()
         command_candidates = {
             info.name for info in command_infos if hasattr(info, "name") and info.name
         }
-        if not argv or argv[0] not in command_candidates:
+        if argv[0] not in command_candidates:
             sys.argv.insert(1, "process")
     app()
 
