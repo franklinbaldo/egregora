@@ -8,6 +8,7 @@ import re
 import textwrap
 import unicodedata
 import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path, PurePosixPath
@@ -1148,12 +1149,12 @@ class UnifiedProcessor:
                 continue
 
             try:
-                should_update, reasoning, highlights, insights = asyncio.run(
-                    updater.should_update_profile(
-                        member_id=member_uuid,
-                        current_profile=current_profile,
-                        full_conversation=conversation,
-                        gemini_client=client,
+            should_update, reasoning, _, _ = asyncio.run(
+                updater.should_update_profile(
+                    member_id=member_uuid,
+                    current_profile=current_profile,
+                    full_conversation=conversation,
+                    gemini_client=client,
                     )
                 )
             except RuntimeError as exc:
@@ -1179,13 +1180,10 @@ class UnifiedProcessor:
                 profile = asyncio.run(
                     self._async_update_profile(
                         updater=updater,
-                        member_label=member_label,
                         member_uuid=member_uuid,
                         current_profile=current_profile,
-                        highlights=highlights,
-                        insights=insights,
                         conversation=conversation,
-                        context_block=context_block,
+                        recent_conversations=[context_block],
                         client=client,
                     )
                 )
@@ -1221,35 +1219,21 @@ class UnifiedProcessor:
 
     # TODO: This function has too many arguments. It should be refactored,
     # perhaps by using a dataclass for the arguments.
-    async def _async_update_profile(  # noqa: PLR0913
+    async def _async_update_profile(
         self,
         *,
         updater: ProfileUpdater,
-        member_label: str,
         member_uuid: str,
-        current_profile,
-        highlights,
-        insights,
+        current_profile: ParticipantProfile | None,
         conversation: str,
-        context_block: str,
+        recent_conversations: Sequence[str],
         client,
     ) -> ParticipantProfile | None:
-        if current_profile is None:
-            return await updater.rewrite_profile(
-                member_id=member_uuid,
-                old_profile=None,
-                recent_conversations=[context_block],
-                participation_highlights=highlights,
-                interaction_insights=insights,
-                gemini_client=client,
-            )
-
-        return await updater.append_profile(
+        return await updater.update_profile_with_agent(
             member_id=member_uuid,
             current_profile=current_profile,
-            recent_conversations=[context_block],
-            participation_highlights=highlights,
-            interaction_insights=insights,
+            full_conversation=conversation,
+            recent_conversations=recent_conversations,
             gemini_client=client,
         )
 

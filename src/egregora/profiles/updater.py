@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from collections.abc import Sequence
@@ -21,7 +20,7 @@ import polars as pl
 
 from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
-from .prompts import PROFILE_APPEND_PROMPT, PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
+from .prompts import UPDATE_DECISION_PROMPT
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
@@ -99,12 +98,6 @@ def _format_recent_conversations(conversations: Sequence[str]) -> str:
     return "\n".join(formatted)
 
 
-def _format_bullets(items: Sequence[str]) -> str:
-    if not items:
-        return "- (Sem registros para hoje.)"
-    return "\n".join(f"- {item}" for item in items)
-
-
 def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
     merged: list[str] = []
     for item in base:
@@ -118,25 +111,7 @@ def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
     return merged
 
 
-def _extract_retry_delay(exc: Exception) -> float | None:
-    if genai_errors is not None and isinstance(exc, genai_errors.ResourceExhausted):
-        message = str(exc)
-        match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
-        if match:
-            whole = match.group(1)
-            frac = match.group(2) or ""
-            return float(f"{whole}.{frac}" if frac else whole)
-
-        match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
-        if match:
-            return float(match.group(1))
-    return None
-
-
-def _apply_updates_to_markdown(
-    markdown: str,
-    updates: Sequence[tuple[str, str]],
-) -> str:
+def _apply_updates_to_markdown(markdown: str, updates: Sequence[tuple[str, str]]) -> str:
     if not updates:
         return markdown
 
@@ -177,6 +152,47 @@ def _apply_updates_to_markdown(
     return result
 
 
+def _replace_section_in_markdown(markdown: str, heading: str, content: str) -> str:
+    lines = markdown.splitlines()
+    heading_clean = heading.strip()
+    content_lines = content.strip().splitlines()
+
+    try:
+        heading_index = next(idx for idx, line in enumerate(lines) if line.strip() == heading_clean)
+    except StopIteration:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(heading_clean)
+        lines.append("")
+        heading_index = len(lines) - 2
+
+    end_index = heading_index + 1
+    while end_index < len(lines) and not lines[end_index].startswith("#"):
+        end_index += 1
+
+    block: list[str] = content_lines or [""]
+    if block and block[-1].strip():
+        block = block + [""]
+
+    lines[heading_index + 1 : end_index] = block
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _extract_retry_delay(exc: Exception) -> float | None:
+    if genai_errors is not None and isinstance(exc, genai_errors.ResourceExhausted):
+        message = str(exc)
+        match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
+        if match:
+            whole = match.group(1)
+            frac = match.group(2) or ""
+            return float(f"{whole}.{frac}" if frac else whole)
+
+        match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
+        if match:
+            return float(match.group(1))
+    return None
+
+
 def _word_count_expression() -> pl.Expr:
     return (
         pl.col("message")
@@ -188,11 +204,16 @@ def _word_count_expression() -> pl.Expr:
 
 
 @dataclass(slots=True)
-class ProfileDecision:
-    should_update: bool
-    reasoning: str
-    participation_highlights: list[str]
-    interaction_insights: list[str]
+class AgentProfileAction:
+    tool: str
+    payload: dict[str, object]
+
+
+@dataclass(slots=True)
+class ProfileAgentContext:
+    current_markdown: str | None
+    full_conversation: str
+    recent_conversations: Sequence[str]
 
 
 @dataclass(slots=True)
@@ -246,180 +267,15 @@ class ProfileLLMClient:
 
 
 @dataclass(slots=True)
-class ProfileDecisionEngine:
-    min_messages: int
-    min_words_per_message: int
-    decision_model: str
-    prompt_template: str
+class AgentProfiler:
+    model: str
     llm: ProfileLLMClient
 
-    async def evaluate(
-        self,
-        member_id: str,
-        current_profile: ParticipantProfile | None,
-        full_conversation: str,
-        gemini_client: genai.Client,
-    ) -> ProfileDecision:
-        member_messages = _extract_member_messages_from_text(member_id, full_conversation)
-        meaningful = [
-            msg for msg in member_messages if _is_meaningful_message(msg, self.min_words_per_message)
-        ]
-
-        if len(meaningful) < self.min_messages:
-            return ProfileDecision(False, "Participação mínima hoje", [], [])
-
-        if not current_profile or not current_profile.worldview_summary:
-            return ProfileDecision(True, "Primeiro perfil sendo criado", [], [])
-
-        member_display = _display_member_id(member_id)
-        profile_markdown = current_profile.to_markdown()
-        prompt = self.prompt_template.format(
-            member_id=member_id,
-            member_display=member_display,
-            current_profile=profile_markdown,
-            full_conversation=full_conversation,
-        )
-
+    async def plan(self, client: genai.Client, context: ProfileAgentContext) -> list[AgentProfileAction]:
+        prompt = self._build_prompt(context)
         response = await self.llm.generate(
-            gemini_client,
-            model=self.decision_model,
-            prompt=prompt,
-            temperature=0.3,
-            response_mime_type="application/json",
-        )
-
-        raw_text = getattr(response, "text", "")
-        if not raw_text:
-            raise ValueError("Resposta vazia do modelo ao decidir atualização do perfil.")
-
-        decision_payload = json.loads(raw_text)
-        highlights = _ensure_str_list(decision_payload.get("participation_highlights"))
-        insights = _ensure_str_list(decision_payload.get("interaction_insights"))
-
-        return ProfileDecision(
-            bool(decision_payload.get("should_update", False)),
-            str(decision_payload.get("reasoning", "")),
-            highlights,
-            insights,
-        )
-
-
-@dataclass(slots=True)
-class ProfileRevisionEngine:
-    rewrite_model: str
-    rewrite_prompt: str
-    append_prompt: str
-    llm: ProfileLLMClient
-
-    async def rewrite(
-        self,
-        member_id: str,
-        old_profile: ParticipantProfile | None,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
-    ) -> ParticipantProfile:
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
-            )
-
-        member_display = _display_member_id(member_id)
-        old_profile_text = (
-            old_profile.to_markdown() if old_profile else "Nenhum perfil anterior registrado."
-        )
-
-        conversations_formatted = _format_recent_conversations(recent_conversations)
-        highlights_block = _format_bullets(participation_highlights)
-        insights_block = _format_bullets(interaction_insights)
-
-        prompt = self.rewrite_prompt.format(
-            member_id=member_id,
-            member_display=member_display,
-            old_profile=old_profile_text,
-            recent_conversations=conversations_formatted,
-            participation_highlights=highlights_block,
-            interaction_insights=insights_block,
-        )
-
-        response = await self.llm.generate(
-            gemini_client,
-            model=self.rewrite_model,
-            prompt=prompt,
-            temperature=0.7,
-            response_mime_type="text/plain",
-        )
-
-        markdown = getattr(response, "text", "") or ""
-        if not markdown and getattr(response, "candidates", None):  # pragma: no cover - defensive
-            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
-            markdown = "".join(getattr(part, "text", "") or "" for part in parts)
-
-        markdown = markdown.strip()
-        if markdown.startswith("{"):
-            try:
-                payload = json.loads(markdown)
-            except json.JSONDecodeError:
-                payload = None
-            if isinstance(payload, dict):
-                candidate = payload.get("profile") or payload.get("markdown")
-                if isinstance(candidate, str):
-                    markdown = candidate.strip()
-
-        if not markdown:
-            raise ValueError("Resposta vazia do modelo ao reescrever o perfil.")
-
-        markdown = format_markdown(markdown)
-
-        analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
-        summary = _extract_summary_from_markdown(markdown) or (
-            "Perfil gerado automaticamente; personalize se necessário."
-        )
-
-        profile = ParticipantProfile(
-            member_id=member_id,
-            worldview_summary=summary,
-            values_and_priorities=_ensure_str_list(participation_highlights),
-            argument_patterns=_ensure_str_list(interaction_insights),
-            markdown_document=markdown,
-            analysis_version=analysis_version,
-        )
-        profile.update_timestamp()
-        return profile
-
-    async def append(
-        self,
-        member_id: str,
-        current_profile: ParticipantProfile,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
-    ) -> ParticipantProfile | None:
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
-            )
-
-        current_markdown = current_profile.to_markdown()
-        member_display = _display_member_id(member_id)
-        conversations_formatted = _format_recent_conversations(recent_conversations)
-        highlights_block = _format_bullets(participation_highlights)
-        insights_block = _format_bullets(interaction_insights)
-
-        prompt = self.append_prompt.format(
-            member_id=member_id,
-            member_display=member_display,
-            current_profile=current_markdown,
-            context_block=conversations_formatted,
-            participation_highlights=highlights_block,
-            interaction_insights=insights_block,
-        )
-
-        response = await self.llm.generate(
-            gemini_client,
-            model=self.rewrite_model,
+            client,
+            model=self.model,
             prompt=prompt,
             temperature=0.5,
             response_mime_type="application/json",
@@ -431,55 +287,58 @@ class ProfileRevisionEngine:
             raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
 
         if not raw_text:
-            raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
+            raise ValueError("Resposta vazia do modelo ao planejar atualização de perfil.")
 
         payload = json.loads(raw_text)
-        updates_raw = payload.get("updates") or []
-        summary_addendum = str(payload.get("summary_addendum") or "").strip()
-
-        updates: list[tuple[str, str]] = []
-        for item in updates_raw:
+        actions_raw = payload.get("actions") or []
+        actions: list[AgentProfileAction] = []
+        for item in actions_raw:
             if not isinstance(item, dict):
                 continue
-            heading = str(item.get("heading") or "").strip()
-            content = str(item.get("content") or "").strip()
-            if heading and content:
-                updates.append((heading, content))
+            tool = str(item.get("tool") or "").strip()
+            if not tool:
+                continue
+            data = item.get("payload")
+            if not isinstance(data, dict):
+                data = {k: v for k, v in item.items() if k != "tool"}
+            actions.append(AgentProfileAction(tool=tool, payload=data))
+        return actions
 
-        if not updates and not summary_addendum:
-            return None
+    def _build_prompt(self, context: ProfileAgentContext) -> str:
+        existing_profile = context.current_markdown or "(Perfil inexistente)"
+        recent = _format_recent_conversations(context.recent_conversations)
+        tools_description = """
+Ferramentas disponíveis (use quantas precisar, ou nenhuma se não houver ação):
+1. create_profile{markdown: string} — Cria o perfil completo em Markdown.
+2. append_sections{sections: [{heading: string, content: string}]} — Acrescenta conteúdo em headings existentes ou cria novos se necessário.
+3. replace_sections{sections: [{heading: string, content: string}]} — Substitui o conteúdo de headings existentes.
+4. set_summary{summary: string} — Atualiza o resumo principal do perfil.
 
-        updated_markdown = format_markdown(_apply_updates_to_markdown(current_markdown, updates))
-
-        merged_values = _merge_lists(
-            current_profile.values_and_priorities, participation_highlights
+Retorne APENAS um JSON válido no formato:
+{
+  "actions": [
+    {"tool": "create_profile", "payload": {"markdown": "..."}},
+    {"tool": "append_sections", "payload": {"sections": [{"heading": "## ...", "content": "..."}]}}
+  ]
+}
+"""
+        instructions = """
+Analise a conversa e o perfil atual. Decida se precisa criar, editar ou apenas registrar que nenhuma ação é necessária.
+Só use as ferramentas necessárias. Se optar por não alterar nada, retorne {"actions": []}.
+"""
+        return (
+            f"Você é um assistente encarregado de manter perfis analíticos de membros.\n\n"
+            f"{tools_description}\n\n"
+            f"{instructions}\n\n"
+            f"Perfil atual (Markdown):\n```markdown\n{existing_profile}\n```\n\n"
+            f"Trechos recentes:\n{recent}\n\n"
+            f"Conversa completa:\n{context.full_conversation.strip()}\n"
         )
-        merged_arguments = _merge_lists(
-            current_profile.argument_patterns, interaction_insights
-        )
-
-        new_summary = current_profile.worldview_summary
-        if summary_addendum:
-            if new_summary:
-                new_summary = f"{new_summary.rstrip()} {summary_addendum}".strip()
-            else:
-                new_summary = summary_addendum
-
-        new_profile = replace(
-            current_profile,
-            worldview_summary=new_summary,
-            values_and_priorities=merged_values,
-            argument_patterns=merged_arguments,
-            markdown_document=updated_markdown,
-            analysis_version=current_profile.analysis_version + 1,
-        )
-        new_profile.update_timestamp()
-        return new_profile
 
 
 @dataclass(slots=True)
 class ProfileUpdater:
-    """High level orchestrator that talks to Gemini to maintain profiles."""
+    """High level orchestrator that talks to an agent to maintain profiles."""
 
     min_messages: int = 2
     min_words_per_message: int = 15
@@ -493,19 +352,25 @@ class ProfileUpdater:
             max_api_retries=self.max_api_retries,
             minimum_retry_seconds=self.minimum_retry_seconds,
         )
-        self._decision_engine = ProfileDecisionEngine(
-            min_messages=self.min_messages,
-            min_words_per_message=self.min_words_per_message,
-            decision_model=self.decision_model,
-            prompt_template=UPDATE_DECISION_PROMPT,
-            llm=self._llm,
+        self._agent = AgentProfiler(model=self.rewrite_model, llm=self._llm)
+
+    async def update_profile_with_agent(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        full_conversation: str,
+        recent_conversations: Sequence[str],
+        gemini_client: genai.Client,
+    ) -> ParticipantProfile | None:
+        actions = await self._agent.plan(
+            gemini_client,
+            context=ProfileAgentContext(
+                current_markdown=current_profile.to_markdown() if current_profile else None,
+                full_conversation=full_conversation,
+                recent_conversations=recent_conversations,
+            ),
         )
-        self._revision_engine = ProfileRevisionEngine(
-            rewrite_model=self.rewrite_model,
-            rewrite_prompt=PROFILE_REWRITE_PROMPT,
-            append_prompt=PROFILE_APPEND_PROMPT,
-            llm=self._llm,
-        )
+        return self._apply_actions(member_id, current_profile, actions)
 
     async def should_update_profile(
         self,
@@ -514,71 +379,123 @@ class ProfileUpdater:
         full_conversation: str,
         gemini_client: genai.Client,
     ) -> tuple[bool, str, list[str], list[str]]:
-        decision = await self._decision_engine.evaluate(
-            member_id=member_id,
-            current_profile=current_profile,
+        messages = _extract_member_messages_from_text(member_id, full_conversation)
+        meaningful = [msg for msg in messages if _is_meaningful_message(msg, self.min_words_per_message)]
+        if len(meaningful) < self.min_messages:
+            return False, "Participação mínima hoje", [], []
+        if not current_profile or not current_profile.worldview_summary:
+            return True, "Primeiro perfil sendo criado", [], []
+
+        highlight_prompt = UPDATE_DECISION_PROMPT.format(
+            member_id="(omit)",
+            member_display=_display_member_id(member_id),
+            current_profile=current_profile.to_markdown(),
             full_conversation=full_conversation,
-            gemini_client=gemini_client,
         )
-        return (
-            decision.should_update,
-            decision.reasoning,
-            decision.participation_highlights,
-            decision.interaction_insights,
+        response = await self._llm.generate(
+            gemini_client,
+            model=self.decision_model,
+            prompt=highlight_prompt,
+            temperature=0.3,
+            response_mime_type="application/json",
         )
+        raw = getattr(response, "text", "") or ""
+        if not raw:
+            return True, "Perfil elegível para atualização", [], []
+        payload = json.loads(raw)
+        highlights = _ensure_str_list(payload.get("participation_highlights"))
+        insights = _ensure_str_list(payload.get("interaction_insights"))
+        return bool(payload.get("should_update", True)), str(payload.get("reasoning", "")), highlights, insights
 
-    async def rewrite_profile(
+    def _apply_actions(
         self,
         member_id: str,
-        old_profile: ParticipantProfile | None,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
-    ) -> ParticipantProfile:
-        return await self._revision_engine.rewrite(
-            member_id=member_id,
-            old_profile=old_profile,
-            recent_conversations=recent_conversations,
-            participation_highlights=participation_highlights,
-            interaction_insights=interaction_insights,
-            gemini_client=gemini_client,
-        )
-
-    async def append_profile(
-        self,
-        member_id: str,
-        current_profile: ParticipantProfile,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
+        current_profile: ParticipantProfile | None,
+        actions: Sequence[AgentProfileAction],
     ) -> ParticipantProfile | None:
-        return await self._revision_engine.append(
-            member_id=member_id,
-            current_profile=current_profile,
-            recent_conversations=recent_conversations,
-            participation_highlights=participation_highlights,
-            interaction_insights=interaction_insights,
-            gemini_client=gemini_client,
-        )
+        if not actions:
+            return current_profile
 
-    def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
-        return _extract_member_messages_from_text(member_id, conversation)
+        profile = current_profile
+        markdown = current_profile.to_markdown() if current_profile else ""
+        summary = current_profile.worldview_summary if current_profile else ""
+        values = list(current_profile.values_and_priorities) if current_profile else []
+        arguments = list(current_profile.argument_patterns) if current_profile else []
+        changed = False
 
-    def _is_meaningful(self, message: str) -> bool:
-        return _is_meaningful_message(message, self.min_words_per_message)
+        for action in actions:
+            tool = action.tool.lower()
+            payload = action.payload
+            if tool == "create_profile":
+                markdown = format_markdown(str(payload.get("markdown", "")))
+                summary = _extract_summary_from_markdown(markdown) or summary
+                changed = True
+            elif tool == "append_sections":
+                sections = payload.get("sections") or []
+                updates = []
+                for item in sections:
+                    if isinstance(item, dict):
+                        heading = str(item.get("heading") or "").strip()
+                        content = str(item.get("content") or "").strip()
+                        if heading and content:
+                            updates.append((heading, content))
+                if updates:
+                    markdown = format_markdown(_apply_updates_to_markdown(markdown, updates))
+                    changed = True
+            elif tool == "replace_sections":
+                sections = payload.get("sections") or []
+                for item in sections:
+                    if isinstance(item, dict):
+                        heading = str(item.get("heading") or "").strip()
+                        content = str(item.get("content") or "").strip()
+                        if heading and content:
+                            markdown = format_markdown(_replace_section_in_markdown(markdown, heading, content))
+                            changed = True
+            elif tool == "set_summary":
+                summary_candidate = str(payload.get("summary") or "").strip()
+                if summary_candidate:
+                    summary = summary_candidate
+                    changed = True
+            elif tool == "set_values":
+                values = _merge_lists(values, _ensure_str_list(payload.get("values")))
+                changed = True
+            elif tool == "set_argument_patterns":
+                arguments = _merge_lists(arguments, _ensure_str_list(payload.get("patterns")))
+                changed = True
+
+        if not changed:
+            return current_profile
+
+        analysis_version = (current_profile.analysis_version if current_profile else 0) + 1
+
+        if current_profile is None:
+            profile = ParticipantProfile(
+                member_id=member_id,
+                worldview_summary=summary or "Resumo não fornecido.",
+                values_and_priorities=values,
+                argument_patterns=arguments,
+                markdown_document=markdown,
+                analysis_version=analysis_version,
+            )
+        else:
+            profile = replace(
+                current_profile,
+                worldview_summary=summary or current_profile.worldview_summary,
+                values_and_priorities=values or list(current_profile.values_and_priorities),
+                argument_patterns=arguments or list(current_profile.argument_patterns),
+                markdown_document=markdown or current_profile.markdown_document,
+                analysis_version=analysis_version,
+            )
+        profile.update_timestamp()
+        return profile
 
     def extract_member_messages_dataframe(
         self,
         member_id: str,
         df: pl.DataFrame,
     ) -> pl.DataFrame:
-        """Extract messages from a specific member using Polars operations."""
-
         if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
-
         return df.filter(pl.col("author") == member_id)
 
     def should_update_profile_dataframe(
@@ -587,18 +504,13 @@ class ProfileUpdater:
         current_profile: ParticipantProfile | None,
         df: pl.DataFrame,
     ) -> tuple[bool, str]:
-        """Decide if member warrants profile refresh using DataFrame analysis."""
-
         messages_df = self.extract_member_messages_dataframe(member_id, df)
-
         if "message" not in messages_df.columns:
-            raise KeyError("DataFrame must have 'message' column")
-
+            raise KeyError("DataFrame deve conter coluna 'message'")
         if messages_df.is_empty():
             return False, "Nenhuma mensagem encontrada"
 
         messages_with_counts = messages_df.with_columns(_word_count_expression())
-
         meaningful_messages = messages_with_counts.filter(
             pl.col("word_count") >= self.min_words_per_message
         )
@@ -609,10 +521,8 @@ class ProfileUpdater:
                 False,
                 f"Apenas {meaningful_count} mensagens significativas (mín: {self.min_messages})",
             )
-
         if not current_profile or not current_profile.worldview_summary:
             return True, "Primeiro perfil sendo criado"
-
         return True, (
             f"Perfil elegível para atualização ({meaningful_count} mensagens significativas)"
         )
@@ -622,15 +532,11 @@ class ProfileUpdater:
         member_id: str,
         df: pl.DataFrame,
     ) -> dict[str, object]:
-        """Get comprehensive participation statistics using DataFrame operations."""
-
         messages_df = self.extract_member_messages_dataframe(member_id, df)
-
         required_columns = {"message", "timestamp"}
         missing = required_columns.difference(messages_df.columns)
         if missing:
             raise KeyError(f"DataFrame must include columns: {', '.join(sorted(missing))}")
-
         if messages_df.is_empty():
             return {}
 
@@ -657,10 +563,7 @@ class ProfileUpdater:
             max_messages_in_day = 0
         else:
             top_day = daily_counts.sort("message_count", descending=True).row(0, named=True)
-            if isinstance(top_day, dict):
-                most_active_day = top_day.get("day")
-            else:
-                most_active_day = top_day[0]
+            most_active_day = top_day.get("day") if isinstance(top_day, dict) else top_day[0]
             max_messages_in_day = daily_counts.get_column("message_count").max()
 
         return {
@@ -674,3 +577,9 @@ class ProfileUpdater:
             "most_active_day": most_active_day,
             "max_messages_in_day": max_messages_in_day,
         }
+
+    def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
+        return _extract_member_messages_from_text(member_id, conversation)
+
+    def _is_meaningful(self, message: str) -> bool:
+        return _is_meaningful_message(message, self.min_words_per_message)
