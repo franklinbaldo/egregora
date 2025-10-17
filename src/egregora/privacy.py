@@ -19,10 +19,17 @@ class _PrivacyPattern:
 # Patterns that indicate potential phone number leaks. The expressions are kept
 # deliberately conservative; if a pattern matches we prefer to fail fast and
 # surface an explicit error to the caller.
+# deliberately conservative; if a pattern matches we prefer to fail fast and
+# surface an explicit error to the caller.
 _PHONE_PATTERNS: tuple[_PrivacyPattern, ...] = (
     _PrivacyPattern(
         description="international phone number",
         regex=re.compile(r"\+\d{2}\s?\d{2}\s?\d{4,5}-?\d{4}"),
+    ),
+    _PrivacyPattern(
+        description="partial phone number (4-5 digits)",
+        # Exclude common years from this check to avoid false positives
+        regex=re.compile(r"\b(?!19\d{2}|20\d{2})\d{4,5}\b"),
     ),
 )
 

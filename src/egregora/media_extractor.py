@@ -64,7 +64,7 @@ class MediaFile:
     caption: str | None = None
 
 
-#TODO: This class has a lot of logic for extracting and replacing media references. It could be split into smaller classes.
+# TODO: This class has a lot of logic for extracting and replacing media references. It could be split into smaller classes.
 class MediaExtractor:
     """Extracts WhatsApp media files and rewrites transcript references."""
 
@@ -93,7 +93,43 @@ class MediaExtractor:
 
         self._relative_root = self.group_dir.parent
 
-    #TODO: This method has a lot of logic for extracting specific media files from a zip file. It could be simplified.
+    def _write_media_file(
+        self,
+        zipped: zipfile.ZipFile,
+        info: zipfile.ZipInfo,
+        namespace: uuid.UUID,
+        target_dir: Path,
+    ) -> tuple[str, MediaFile] | None:
+        """Write a single media file to disk and return its metadata."""
+        original_name = Path(info.filename).name
+        cleaned_name = self._clean_attachment_name(original_name)
+        media_type = self._detect_media_type(cleaned_name)
+        if media_type is None:
+            return None
+
+        with zipped.open(info, "r") as source:
+            file_content = source.read()
+
+        content_hash = hashlib.sha256(file_content).hexdigest()
+        file_uuid = uuid.uuid5(namespace, content_hash)
+        file_extension = Path(cleaned_name).suffix
+        new_filename = f"{file_uuid}{file_extension}"
+        dest_path = target_dir / new_filename
+
+        if not dest_path.exists():
+            with open(dest_path, "wb") as target:
+                target.write(file_content)
+
+        relative_path = PurePosixPath(os.path.relpath(dest_path, self._relative_root)).as_posix()
+        media_file = MediaFile(
+            filename=new_filename,
+            media_type=media_type,
+            source_path=info.filename,
+            dest_path=dest_path,
+            relative_path=relative_path,
+        )
+        return cleaned_name, media_file
+
     def extract_specific_media_from_zip(
         self,
         zip_path: Path,
@@ -101,15 +137,12 @@ class MediaExtractor:
         filenames: Iterable[str],
     ) -> dict[str, MediaFile]:
         """Extract only ``filenames`` from *zip_path* into ``post_date`` directory."""
-
         extracted: dict[str, MediaFile] = {}
         target_dir = self.media_base_dir
-
-        cleaned_targets = {self._clean_attachment_name(name): name for name in filenames if name}
+        cleaned_targets = {self._clean_attachment_name(name) for name in filenames if name}
         if not cleaned_targets:
             return {}
 
-        # Create a stable namespace for this group to generate deterministic UUIDs
         namespace = uuid.uuid5(uuid.NAMESPACE_DNS, self.group_slug)
 
         with zipfile.ZipFile(zip_path, "r") as zipped:
@@ -117,42 +150,13 @@ class MediaExtractor:
                 if info.is_dir():
                     continue
 
-                original_name = Path(info.filename).name
-                cleaned_name = self._clean_attachment_name(original_name)
-                if cleaned_name not in cleaned_targets:
+                cleaned_name = self._clean_attachment_name(Path(info.filename).name)
+                if cleaned_name not in cleaned_targets or cleaned_name in extracted:
                     continue
 
-                media_type = self._detect_media_type(cleaned_name)
-                if media_type is None:
-                    continue
-
-                if cleaned_name in extracted:
-                    continue
-
-                # Generate a deterministic UUID based on file content to avoid collisions
-                with zipped.open(info, "r") as source:
-                    file_content = source.read()
-
-                content_hash = hashlib.sha256(file_content).hexdigest()
-                file_uuid = uuid.uuid5(namespace, content_hash)
-                file_extension = Path(cleaned_name).suffix
-                new_filename = f"{file_uuid}{file_extension}"
-                dest_path = target_dir / new_filename
-
-                if not dest_path.exists():
-                    with open(dest_path, "wb") as target:
-                        target.write(file_content)
-
-                relative_path = PurePosixPath(
-                    os.path.relpath(dest_path, self._relative_root)
-                ).as_posix()
-                extracted[cleaned_name] = MediaFile(
-                    filename=new_filename,
-                    media_type=media_type,
-                    source_path=info.filename,
-                    dest_path=dest_path,
-                    relative_path=relative_path,
-                )
+                result = self._write_media_file(zipped, info, namespace, target_dir)
+                if result:
+                    extracted[result[0]] = result[1]
 
         return extracted
 
@@ -181,7 +185,7 @@ class MediaExtractor:
         extension = Path(filename).suffix.lower()
         return MEDIA_TYPE_BY_EXTENSION.get(extension)
 
-    #TODO: This method has a lot of logic for replacing media references in a dataframe. It could be simplified.
+    # TODO: This method has a lot of logic for replacing media references in a dataframe. It could be simplified.
     @classmethod
     def replace_media_references_dataframe(
         cls,
@@ -285,63 +289,33 @@ class MediaExtractor:
 
         return pattern.sub(replacement, text)
 
-    #TODO: This method has a lot of logic for finding attachment names in a dataframe. It could be simplified.
     @classmethod
     def find_attachment_names_dataframe(cls, df: pl.DataFrame) -> set[str]:
         """Return attachment names referenced inside a Polars ``DataFrame``."""
-
         if df.is_empty():
             return set()
 
-        frame = df
-        if "time" not in frame.columns:
-            frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("time"))
-        time_expr = (
-            pl.when(pl.col("time").is_not_null())
-            .then(pl.col("time"))
-            .otherwise(pl.col("timestamp").dt.strftime("%H:%M"))
-        )
-        author_expr = pl.col("author").fill_null("")
-        message_expr = pl.col("message").fill_null("")
-        fallback = pl.format("{} — {}: {}", time_expr, author_expr, message_expr)
+        line_candidates = []
+        if "tagged_line" in df.columns:
+            line_candidates.append(pl.col("tagged_line"))
+        if "original_line" in df.columns:
+            line_candidates.append(pl.col("original_line"))
+        line_candidates.append(pl.col("message"))
 
-        candidates: list[pl.Expr] = [fallback]
-
-        if "original_line" in frame.columns:
-            candidates.insert(
-                0,
-                pl.when(
-                    pl.col("original_line").is_not_null()
-                    & (pl.col("original_line").str.len_chars() > 0)
-                )
-                .then(pl.col("original_line"))
-                .otherwise(None),
-            )
-
-        if "tagged_line" in frame.columns:
-            candidates.insert(
-                0,
-                pl.when(
-                    pl.col("tagged_line").is_not_null()
-                    & (pl.col("tagged_line").str.len_chars() > 0)
-                )
-                .then(pl.col("tagged_line"))
-                .otherwise(None),
-            )
-
-        lines = frame.with_columns(pl.coalesce(*candidates).alias("__line"))
+        lines = df.with_columns(
+            pl.coalesce(line_candidates).fill_null("").alias("__line")
+        ).get_column("__line")
 
         attachments: set[str] = set()
-        for value in lines.get_column("__line").to_list():
+        for value in lines:
             if not isinstance(value, str):
                 continue
             for part in value.splitlines():
                 extracted = cls._extract_attachment_segment(part)
-                if extracted is None:
-                    continue
-                sanitized_name, _, _ = extracted
-                if sanitized_name:
-                    attachments.add(sanitized_name)
+                if extracted:
+                    sanitized_name, _, _ = extracted
+                    if sanitized_name:
+                        attachments.add(sanitized_name)
         return attachments
 
     @staticmethod
@@ -378,7 +352,7 @@ class MediaExtractor:
 
         return "\n".join(lines)
 
-    #TODO: This method has a lot of logic for building public paths for media files. It could be simplified.
+    # TODO: This method has a lot of logic for building public paths for media files. It could be simplified.
     @staticmethod
     def build_public_paths(
         media_files: dict[str, MediaFile],
@@ -456,7 +430,7 @@ class MediaExtractor:
         cleaned = filename.translate(cls._DIRECTIONAL_TRANSLATION)
         return cleaned.strip()
 
-    #TODO: This method has a lot of logic for extracting attachment segments from a line. It could be simplified.
+    # TODO: This method has a lot of logic for extracting attachment segments from a line. It could be simplified.
     @classmethod
     def _extract_attachment_segment(cls, line: str) -> tuple[str, str, str] | None:
         lowered = line.casefold()

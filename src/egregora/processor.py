@@ -30,9 +30,6 @@ from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
-from .rag.chromadb_rag import ChromadbRAG
-from .rag.keyword_utils import build_llm_keyword_provider
-from .rag.query_gen import QueryGenerator
 from .transcript import (
     get_available_dates,
     load_source_dataframe,
@@ -141,7 +138,8 @@ def _build_post_metadata(
         "tags": tags,
     }
 
-#TODO: This function has some complex logic for handling front matter. It could be simplified and made more robust.
+
+# TODO: This function has some complex logic for handling front matter. It could be simplified and made more robust.
 def _ensure_blog_front_matter(
     text: str, *, source: GroupSource, target_date: date, config: PipelineConfig
 ) -> str:
@@ -162,7 +160,10 @@ def _ensure_blog_front_matter(
                 remaining_content = parts[2].lstrip()
 
         # Remove any wrapped frontmatter blocks from remaining content
-        while f"```\n{YAML_DELIMITER}" in remaining_content or f"```yaml\n{YAML_DELIMITER}" in remaining_content:
+        while (
+            f"```\n{YAML_DELIMITER}" in remaining_content
+            or f"```yaml\n{YAML_DELIMITER}" in remaining_content
+        ):
             # Check for both plain and yaml-labeled code blocks
             patterns = [f"```\n{YAML_DELIMITER}", f"```yaml\n{YAML_DELIMITER}"]
             for pattern in patterns:
@@ -175,7 +176,7 @@ def _ensure_blog_front_matter(
                         # Remove the entire wrapped block
                         remaining_content = (
                             remaining_content[:start_idx]
-                            + remaining_content[end_idx + len(end_pattern):]
+                            + remaining_content[end_idx + len(end_pattern) :]
                         ).strip()
                         break  # Process one at a time
             else:
@@ -217,7 +218,7 @@ def _add_member_profile_links(
 
     # FIXME: The regex could be improved to be more specific and avoid false positives.
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-    
+
     markdown_with_uuid = re.compile(
         rf"(?P<link>\[[^\]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
@@ -227,8 +228,8 @@ def _add_member_profile_links(
     # Match bare UUIDs that are NOT followed by file extensions
     bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
-    site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
+    # TODO: The hardcoded 'egregora-site' should be configurable.
+    site_profiles_dir = config.workspace_root / "egregora-site" / source.slug / "profiles"
 
     profile_files: dict[str, Path] = {}
     if repository is not None:
@@ -276,12 +277,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section (rough heuristic)
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         emoji = _format_link(resolved) if resolved else "🪪"
         return emoji
@@ -291,12 +292,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
@@ -440,7 +441,7 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
-    #TODO: The estimation is very rough and could be improved.
+    # TODO: The estimation is very rough and could be improved.
     def estimate_api_usage(
         self,
         *,
@@ -565,7 +566,7 @@ class UnifiedProcessor:
             )
         return sorted(plans, key=lambda plan: plan.slug)
 
-    #TODO: This function uses a list of hardcoded patterns to extract the group name. This could be made more configurable.
+    # TODO: This function uses a list of hardcoded patterns to extract the group name. This could be made more configurable.
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
@@ -591,7 +592,7 @@ class UnifiedProcessor:
         # Fallback: use the whole filename without extension
         return base_name
 
-    #TODO: This function generates a slug from the group name. It could be improved to handle more edge cases.
+    # TODO: This function generates a slug from the group name. It could be improved to handle more edge cases.
     def _generate_group_slug(self, group_name: str) -> str:
         """Generate a URL-friendly slug from group name."""
 
@@ -775,7 +776,9 @@ class UnifiedProcessor:
         if not posts_dir.exists():
             return []
 
-        return [path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"]
+        return [
+            path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"
+        ]
 
     def _write_group_index(
         self,
@@ -784,7 +787,7 @@ class UnifiedProcessor:
         post_paths: list[Path],
     ) -> None:
         """Update the blog index with generated posts. With Material blog plugin, this is mostly handled automatically."""
-        
+
         # The blog plugin handles post indexing automatically, so we just ensure
         # the posts directory structure is correct
         posts_dir = site_root / "posts"
@@ -959,45 +962,7 @@ class UnifiedProcessor:
                 stats["participant_count"],
             )
 
-            # RAG
             rag_context = None
-            if self.config.rag.enabled:
-                rag = ChromadbRAG(config=self.config.rag, source=source)
-
-                # Index raw messages in the vector store without storing plaintext
-                try:
-                    rag.upsert_messages(df_day, group_slug=source.slug)
-                except Exception as exc:  # pragma: no cover - defensive: vector store errors
-                    logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
-
-                # Index all generated posts before searching
-                rag.index_files(daily_dir, group_slug=source.slug)
-
-                keyword_provider = None
-                try:
-                    keyword_provider = build_llm_keyword_provider(
-                        self.generator.client,
-                        model=self.config.model,
-                    )
-                except Exception as exc:  # pragma: no cover - optional dependency
-                    logger.warning(
-                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
-                        exc,
-                    )
-
-                if keyword_provider is not None:
-                    query_gen = QueryGenerator(
-                        self.config.rag,
-                        keyword_provider=keyword_provider,
-                    )
-                    query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query, group_slug=source.slug)
-                    if search_results and search_results["documents"]:
-                        rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{doc}"
-                            for i, doc in enumerate(search_results["documents"][0], 1)
-                        )
-
             context = PostContext(
                 group_name=source.name,
                 transcript=transcript,

@@ -67,7 +67,51 @@ def _format_transcript_section_header(transcript_count: int) -> str:
         return "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
     return f"TRANSCRITO BRUTO DOS ÚLTIMOS {transcript_count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"
 
-#TODO: This function has a lot of logic for building the user prompt. It could be simplified.
+
+def _build_previous_post_section(context: PostContext) -> list[str]:
+    if context.previous_post:
+        return [
+            "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
+            "<<<POST_ONTEM_INICIO>>>>>",
+            context.previous_post.strip(),
+            "<<<POST_ONTEM_FIM>>>>>",
+        ]
+    return ["POST DO DIA ANTERIOR: NÃO ENCONTRADA"]
+
+
+def _build_enrichment_section(context: PostContext) -> list[str]:
+    if context.enrichment_section:
+        return [
+            "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
+            context.enrichment_section,
+        ]
+    return []
+
+
+def _build_rag_section(context: PostContext) -> list[str]:
+    if context.rag_context:
+        return [
+            "CONTEXTOS HISTÓRICOS DE POSTS RElevantes:",
+            context.rag_context,
+        ]
+    return []
+
+
+def _build_transcript_section(transcripts: Sequence[tuple[date, str]]) -> list[str]:
+    header = _format_transcript_section_header(len(transcripts))
+    section = [header]
+    for transcript_date, transcript_text in transcripts:
+        content = transcript_text.strip()
+        section.extend(
+            [
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>>>",
+                content if content else "(vazio)",
+                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>>>",
+            ]
+        )
+    return section
+
+
 def _build_llm_input_string(
     *,
     context: PostContext,
@@ -81,46 +125,10 @@ def _build_llm_input_string(
         f"DATA DE HOJE: {today_str}",
     ]
 
-    if context.previous_post:
-        sections.extend(
-            [
-                "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):",
-                "<<<POST_ONTEM_INICIO>>>>>",
-                context.previous_post.strip(),
-                "<<<POST_ONTEM_FIM>>>>>",
-            ]
-        )
-    else:
-        sections.append("POST DO DIA ANTERIOR: NÃO ENCONTRADA")
-
-    if context.enrichment_section:
-        sections.extend(
-            [
-                "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:",
-                context.enrichment_section,
-            ]
-        )
-
-    if context.rag_context:
-        sections.extend(
-            [
-                "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:",
-                context.rag_context,
-            ]
-        )
-
-    header = _format_transcript_section_header(len(transcripts))
-    sections.append(header)
-
-    for transcript_date, transcript_text in transcripts:
-        content = transcript_text.strip()
-        sections.extend(
-            [
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_INICIO>>>>>",
-                content if content else "(vazio)",
-                f"<<<TRANSCRITO_{transcript_date.isoformat()}_FIM>>>>>",
-            ]
-        )
+    sections.extend(_build_previous_post_section(context))
+    sections.extend(_build_enrichment_section(context))
+    sections.extend(_build_rag_section(context))
+    sections.extend(_build_transcript_section(transcripts))
 
     return "\n\n".join(sections)
 
@@ -141,7 +149,7 @@ _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
 
 
-#TODO: This class has a lot of logic for generating posts. It could be split into smaller classes.
+# TODO: This class has a lot of logic for generating posts. It could be split into smaller classes.
 class PostGenerator:
     """Generates posts using an LLM with rate limiting and retry logic."""
 
@@ -198,7 +206,9 @@ class PostGenerator:
                 prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
             except FileNotFoundError:
                 # Fallback to base prompt if multigroup prompt is missing
-                logger.warning(f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only")
+                logger.warning(
+                    f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only"
+                )
                 prompt_text = base_prompt
         else:
             prompt_text = base_prompt
@@ -217,29 +227,24 @@ class PostGenerator:
             transcripts=transcripts,
         )
 
-    #TODO: This method has a lot of logic for generating a post. It could be simplified.
-    def generate(self, source: GroupSource, context: PostContext) -> str:
-        """Generate post for a specific date."""
-        self._require_google_dependency()
-
+    def _build_gemini_request(
+        self, source: GroupSource, context: PostContext
+    ) -> tuple[str, list[types.Content], types.GenerateContentConfig]:
+        """Build the request payload for the Gemini API."""
         transcripts = [(context.target_date, context.transcript)]
         llm_input = self._build_llm_input(context, transcripts)
-
         system_instruction = self._build_system_instruction(has_group_tags=source.is_virtual)
-
         model = (
             source.merge_config.model_override
             if source.is_virtual and source.merge_config and source.merge_config.model_override
             else self.config.model
         )
-
         contents = [
             types.Content(
                 role="user",
                 parts=[types.Part.from_text(text=llm_input)],
             ),
         ]
-
         safety_settings = [
             types.SafetySetting(category=category, threshold=self.config.llm.safety_threshold)
             for category in (
@@ -249,35 +254,30 @@ class PostGenerator:
                 "HARM_CATEGORY_DANGEROUS_CONTENT",
             )
         ]
-
-        # We do not provide tools/functions, so Gemini generates plain text without invoking AFC.
-        generate_content_config = types.GenerateContentConfig(
+        config = types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
             safety_settings=safety_settings,
             system_instruction=system_instruction,
             response_mime_type="text/plain",
         )
+        return model, contents, config
+
+    def generate(self, source: GroupSource, context: PostContext) -> str:
+        """Generate post for a specific date."""
+        self._require_google_dependency()
+        model, contents, config = self._build_gemini_request(source, context)
 
         try:
-            # Use GeminiManager for rate limiting and retries
             response = asyncio.run(
                 self.gemini_manager.generate_content(
                     subsystem="post_generation",
                     model=model,
                     contents=contents,
-                    config=generate_content_config,
+                    config=config,
                 )
             )
-
-            # Extract text from response
-            if response.text:
-                return response.text.strip()
-            else:
-                # Handle case where response has no text
-                return ""
-
+            return response.text.strip() if response.text else ""
         except GeminiQuotaError as exc:
-            # More graceful handling of quota exhaustion
             raise RuntimeError(
                 f"⚠️ Quota de API do Gemini esgotada durante geração de post. "
                 f"Tente novamente mais tarde ou ajuste as configurações. Detalhes: {exc}"

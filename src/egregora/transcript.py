@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import date
 
@@ -14,7 +16,7 @@ from .schema import ensure_message_schema
 
 logger = logging.getLogger(__name__)
 
-#TODO: The logic for choosing which column to use for rendering the transcript is a bit complex. It could be simplified.
+
 def render_transcript(
     df: pl.DataFrame,
     *,
@@ -22,7 +24,6 @@ def render_transcript(
     prefer_original_line: bool = False,
 ) -> str:
     """Render a Polars frame into the canonical transcript text."""
-
     frame = ensure_message_schema(df)
     if frame.is_empty():
         return ""
@@ -32,39 +33,21 @@ def render_transcript(
     if "time" not in frame.columns:
         frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("time"))
 
-    time_expr = (
-        pl.when(pl.col("time").is_not_null())
-        .then(pl.col("time"))
-        .otherwise(pl.col("timestamp").dt.strftime("%H:%M"))
+    fallback = pl.format(
+        "{} — {}: {}",
+        pl.col("time"),
+        pl.col("author").fill_null(""),
+        pl.col("message").fill_null(""),
     )
-    author_expr = pl.col("author").fill_null("")
-    message_expr = pl.col("message").fill_null("")
-    fallback = pl.format("{} — {}: {}", time_expr, author_expr, message_expr)
 
-    candidates: list[pl.Expr] = []
-
+    candidates = []
     if use_tagged and "tagged_line" in frame.columns:
-        candidates.append(
-            pl.when(
-                pl.col("tagged_line").is_not_null() & (pl.col("tagged_line").str.len_chars() > 0)
-            )
-            .then(pl.col("tagged_line"))
-            .otherwise(None)
-        )
-
+        candidates.append(pl.col("tagged_line"))
     if prefer_original_line and "original_line" in frame.columns:
-        candidates.append(
-            pl.when(
-                pl.col("original_line").is_not_null()
-                & (pl.col("original_line").str.len_chars() > 0)
-            )
-            .then(pl.col("original_line"))
-            .otherwise(None)
-        )
-
+        candidates.append(pl.col("original_line"))
     candidates.append(fallback)
 
-    frame = frame.with_columns(pl.coalesce(*candidates).alias("__render_line"))
+    frame = frame.with_columns(pl.coalesce(candidates).alias("__render_line"))
 
     lines = [line or "" for line in frame.get_column("__render_line").to_list()]
     return "\n".join(lines)
@@ -101,6 +84,43 @@ def get_available_dates(source: GroupSource) -> list[date]:
     return sorted({d for d in dates})
 
 
+# Simple in-memory cache with a size limit to prevent unbounded growth
+_DATAFRAME_CACHE: dict[str, pl.DataFrame] = {}
+_MAX_CACHE_SIZE = 100
+
+
+def _build_cache_key(source: GroupSource) -> str:
+    """Build a stable, hash-based cache key for a given source."""
+    exports_key = tuple(
+        sorted(
+            (
+                str(exp.zip_path.resolve()),
+                exp.chat_file,
+                exp.export_date.isoformat(),
+            )
+            for exp in source.exports
+        )
+    )
+
+    merge_key = None
+    if source.is_virtual and source.merge_config:
+        merge = source.merge_config
+        merge_key = {
+            "tag_style": merge.tag_style,
+            "model_override": merge.model_override,
+            "group_emojis": tuple(sorted(merge.group_emojis.items())),
+        }
+
+    key_data = {
+        "is_virtual": source.is_virtual,
+        "exports": exports_key,
+        "merge_config": merge_key,
+    }
+    # Use JSON with sorted keys to ensure a canonical representation
+    key_json = json.dumps(key_data, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(key_json).hexdigest()
+
+
 def load_source_dataframe(source: GroupSource) -> pl.DataFrame:
     key = _build_cache_key(source)
     cached = _DATAFRAME_CACHE.get(key)
@@ -117,36 +137,13 @@ def load_source_dataframe(source: GroupSource) -> pl.DataFrame:
     df = ensure_message_schema(df)
 
     if not df.is_empty():
+        # Enforce cache size limit
+        if len(_DATAFRAME_CACHE) >= _MAX_CACHE_SIZE:
+            # Simple FIFO eviction: remove the first item inserted
+            oldest_key = next(iter(_DATAFRAME_CACHE))
+            del _DATAFRAME_CACHE[oldest_key]
         _DATAFRAME_CACHE[key] = df
     return df.clone()
-
-#TODO: The cache key is a tuple of many items. It could be simplified by using a hash of the items.
-def _build_cache_key(source: GroupSource) -> tuple:
-    exports_key = tuple(
-        sorted(
-            (
-                str(exp.zip_path.resolve()),
-                exp.chat_file,
-                exp.export_date.isoformat(),
-            )
-            for exp in source.exports
-        )
-    )
-
-    if source.is_virtual and source.merge_config:
-        merge = source.merge_config
-        merge_key = (
-            merge.tag_style,
-            merge.model_override,
-            tuple(sorted(merge.group_emojis.items())),
-        )
-    else:
-        merge_key = None
-
-    return (source.is_virtual, exports_key, merge_key)
-
-# FIXME: This is a global in-memory cache. It might grow indefinitely and cause memory issues.
-_DATAFRAME_CACHE: dict[tuple, pl.DataFrame] = {}
 
 
 __all__ = [

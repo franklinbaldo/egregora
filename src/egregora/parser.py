@@ -8,7 +8,7 @@ import re
 import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
 import polars as pl
 from dateutil import parser as date_parser
@@ -63,6 +63,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
 
     return ensure_message_schema(pl.concat(frames).sort("timestamp"))
 
+
 # FIXME: This regex is complex and could be hard to understand. Add more comments to explain what it does.
 _LINE_PATTERN = re.compile(
     r"^(?:"
@@ -82,32 +83,19 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
     {"dayfirst": False},
 )
 
-#TODO: This function has a lot of logic for parsing dates. It could be simplified.
+
 def _parse_message_date(token: str) -> date | None:
+    """Parse a date string using a series of strategies."""
     normalized = token.strip()
     if not normalized:
         return None
 
-    def _normalize(parsed: datetime) -> date:
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        else:
-            parsed = parsed.astimezone(UTC)
-        return parsed.date()
-
-    try:
-        parsed_iso = date_parser.isoparse(normalized)
-    except (TypeError, ValueError, OverflowError):
-        parsed_iso = None
-    else:
-        return _normalize(parsed_iso)
-
     for options in _DATE_PARSE_PREFERENCES:
         try:
             parsed = date_parser.parse(normalized, **options)
-        except (TypeError, ValueError, OverflowError):
+            return parsed.date()
+        except (ValueError, TypeError, OverflowError):
             continue
-        return _normalize(parsed)
 
     return None
 
@@ -118,10 +106,57 @@ def _normalize_text(value: str) -> str:
     normalized = _INVISIBLE_MARKS.sub("", normalized)
     return normalized
 
-#TODO: This function has a lot of logic for parsing messages. It could be split into smaller functions.
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:  # noqa: PLR0915
-    """Parse messages from an iterable of strings."""
 
+def _handle_message_match(
+    match: re.Match[str],
+    current_date: date,
+    export: WhatsAppExport,
+    normalized_line: str,
+) -> tuple[dict, date]:
+    """Process a matched line and return the new message and current date."""
+    date_str = match.group("date")
+    time_str = match.group("time")
+    am_pm = match.group("ampm")
+    author = match.group("author")
+
+    if date_str:
+        parsed_date = _parse_message_date(date_str)
+        if parsed_date:
+            msg_date = parsed_date
+            current_date = parsed_date
+        else:
+            msg_date = current_date
+    else:
+        msg_date = current_date
+
+    try:
+        if am_pm:
+            msg_time = datetime.strptime(f"{time_str} {am_pm.upper()}", "%I:%M %p").time()
+        else:
+            msg_time = datetime.strptime(time_str, "%H:%M").time()
+    except ValueError:
+        logger.debug("Failed to parse time '%s' in line: %s", time_str, normalized_line)
+        return None, current_date
+
+    initial_message = _normalize_text(match.group("message").strip())
+    new_message = {
+        "timestamp": datetime.combine(msg_date, msg_time),
+        "date": msg_date,
+        "time": msg_time.strftime("%H:%M"),
+        "author": _normalize_text(author.strip()),
+        "message": "",
+        "group_slug": export.group_slug,
+        "group_name": export.group_name,
+        "original_line": None,
+        "tagged_line": None,
+        "_message_lines": [initial_message],
+        "_original_lines": [normalized_line],
+    }
+    return new_message, current_date
+
+
+def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
+    """Parse messages from an iterable of strings."""
     rows: list[dict] = []
     current_date = export.export_date
     current_message: dict | None = None
@@ -159,49 +194,14 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
                 current_message["_original_lines"].append(normalized_line)
             continue
 
-        date_str = match.group("date")
-        time_str = match.group("time")
-        am_pm = match.group("ampm")
-        author = match.group("author")
-
-        if date_str:
-            parsed_date = _parse_message_date(date_str)
-            if parsed_date:
-                msg_date = parsed_date
-                current_date = parsed_date
-            else:
-                msg_date = current_date
-        else:
-            msg_date = current_date
-
-        try:
-            if am_pm:
-                msg_time = datetime.strptime(f"{time_str} {am_pm.upper()}", "%I:%M %p").time()
-            else:
-                msg_time = datetime.strptime(time_str, "%H:%M").time()
-        except ValueError:
-            logger.debug("Failed to parse time '%s' in line: %s", time_str, line)
-            continue
-
         _finalize_current()
-
-        initial_message = _normalize_text(match.group("message").strip())
-        current_message = {
-            "timestamp": datetime.combine(msg_date, msg_time),
-            "date": msg_date,
-            "time": msg_time.strftime("%H:%M"),
-            "author": _normalize_text(author.strip()),
-            "message": "",
-            "group_slug": export.group_slug,
-            "group_name": export.group_name,
-            "original_line": None,
-            "tagged_line": None,
-            "_message_lines": [initial_message],
-            "_original_lines": [normalized_line],
-        }
+        new_message, current_date = _handle_message_match(
+            match, current_date, export, normalized_line
+        )
+        if new_message:
+            current_message = new_message
 
     _finalize_current()
-
     return rows
 
 

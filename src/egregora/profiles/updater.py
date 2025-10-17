@@ -67,7 +67,7 @@ def _ensure_str_list(value: object) -> list[str]:
 
 
 @dataclass(slots=True)
-#TODO: This class has a lot of logic for deciding when and how to update profiles. It could be split into smaller classes.
+# TODO: This class has a lot of logic for deciding when and how to update profiles. It could be split into smaller classes.
 class ProfileUpdater:
     """High level orchestrator that talks to Gemini to maintain profiles."""
 
@@ -78,7 +78,7 @@ class ProfileUpdater:
     max_api_retries: int = 3
     minimum_retry_seconds: float = 30.0
 
-    #TODO: This method has a lot of logic for deciding if a profile should be updated. It could be simplified.
+    # TODO: This method has a lot of logic for deciding if a profile should be updated. It could be simplified.
     async def should_update_profile(
         self,
         member_id: str,
@@ -138,7 +138,6 @@ class ProfileUpdater:
             insights,
         )
 
-    #TODO: This method has a lot of logic for rewriting a profile. It could be simplified.
     async def rewrite_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -149,22 +148,59 @@ class ProfileUpdater:
         gemini_client: genai.Client,
     ) -> ParticipantProfile:
         """Request a full profile rewrite based on recent context."""
-
         if gemini_client is None:
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
             )
 
+        prompt = self._build_rewrite_prompt(
+            member_id,
+            old_profile,
+            recent_conversations,
+            participation_highlights,
+            interaction_insights,
+        )
+        response = await self._generate_with_retry(
+            gemini_client,
+            model=self.rewrite_model,
+            contents=prompt,
+            temperature=0.7,
+            response_mime_type="text/plain",
+        )
+        markdown = self._parse_rewrite_response(response)
+
+        analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
+        summary = _extract_summary_from_markdown(markdown)
+        summary = summary or "Perfil gerado automaticamente; personalize se necessário."
+
+        profile = ParticipantProfile(
+            member_id=member_id,
+            worldview_summary=summary,
+            values_and_priorities=_ensure_str_list(participation_highlights),
+            argument_patterns=_ensure_str_list(interaction_insights),
+            markdown_document=markdown,
+            analysis_version=analysis_version,
+        )
+        profile.update_timestamp()
+        return profile
+
+    def _build_rewrite_prompt(
+        self,
+        member_id: str,
+        old_profile: ParticipantProfile | None,
+        recent_conversations: Sequence[str],
+        participation_highlights: Sequence[str],
+        interaction_insights: Sequence[str],
+    ) -> str:
         member_display = self._display_member_id(member_id)
         old_profile_text = (
             old_profile.to_markdown() if old_profile else "Nenhum perfil anterior registrado."
         )
-
         conversations_formatted = self._format_recent_conversations(recent_conversations)
         highlights_block = self._format_bullets(participation_highlights)
         insights_block = self._format_bullets(interaction_insights)
 
-        prompt = PROFILE_REWRITE_PROMPT.format(
+        return PROFILE_REWRITE_PROMPT.format(
             member_id=member_id,
             member_display=member_display,
             old_profile=old_profile_text,
@@ -173,14 +209,7 @@ class ProfileUpdater:
             interaction_insights=insights_block,
         )
 
-        response = await self._generate_with_retry(
-            gemini_client,
-            model=self.rewrite_model,
-            contents=prompt,
-            temperature=0.7,
-            response_mime_type="text/plain",
-        )
-
+    def _parse_rewrite_response(self, response) -> str:
         markdown = getattr(response, "text", "")
         if not markdown and getattr(response, "candidates", None):  # pragma: no cover - defensive
             parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
@@ -200,24 +229,8 @@ class ProfileUpdater:
         if not markdown:
             raise ValueError("Resposta vazia do modelo ao reescrever o perfil.")
 
-        markdown = format_markdown(markdown)
+        return format_markdown(markdown)
 
-        analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
-        summary = _extract_summary_from_markdown(markdown)
-        summary = summary or "Perfil gerado automaticamente; personalize se necessário."
-
-        profile = ParticipantProfile(
-            member_id=member_id,
-            worldview_summary=summary,
-            values_and_priorities=_ensure_str_list(participation_highlights),
-            argument_patterns=_ensure_str_list(interaction_insights),
-            markdown_document=markdown,
-            analysis_version=analysis_version,
-        )
-        profile.update_timestamp()
-        return profile
-
-    #TODO: This method has a lot of logic for appending to a profile. It could be simplified.
     async def append_profile(  # noqa: PLR0913
         self,
         member_id: str,
@@ -228,27 +241,18 @@ class ProfileUpdater:
         gemini_client: genai.Client,
     ) -> ParticipantProfile | None:
         """Request incremental additions for an existing profile."""
-
         if gemini_client is None:
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
             )
 
-        current_markdown = current_profile.to_markdown()
-        member_display = self._display_member_id(member_id)
-        conversations_formatted = self._format_recent_conversations(recent_conversations)
-        highlights_block = self._format_bullets(participation_highlights)
-        insights_block = self._format_bullets(interaction_insights)
-
-        prompt = PROFILE_APPEND_PROMPT.format(
-            member_id=member_id,
-            member_display=member_display,
-            current_profile=current_markdown,
-            context_block=conversations_formatted,
-            participation_highlights=highlights_block,
-            interaction_insights=insights_block,
+        prompt = self._build_append_prompt(
+            member_id,
+            current_profile,
+            recent_conversations,
+            participation_highlights,
+            interaction_insights,
         )
-
         response = await self._generate_with_retry(
             gemini_client,
             model=self.rewrite_model,
@@ -256,36 +260,12 @@ class ProfileUpdater:
             temperature=0.5,
             response_mime_type="application/json",
         )
-
-        raw_text = getattr(response, "text", "")
-        if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
-            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
-            raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
-
-        if not raw_text:
-            raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
-
-        try:
-            payload = json.loads(raw_text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Resposta inválida do modelo ao sugerir acréscimos: {exc}") from exc
-
-        updates_raw = payload.get("updates") or []
-        summary_addendum = str(payload.get("summary_addendum") or "").strip()
-
-        updates: list[tuple[str, str]] = []
-        for item in updates_raw:
-            if not isinstance(item, dict):
-                continue
-            heading = str(item.get("heading") or "").strip()
-            content = str(item.get("content") or "").strip()
-            if heading and content:
-                updates.append((heading, content))
+        updates, summary_addendum = self._parse_append_response(response)
 
         if not updates and not summary_addendum:
             return None
 
-        updated_markdown = self._apply_updates_to_markdown(current_markdown, updates)
+        updated_markdown = self._apply_updates_to_markdown(current_profile.to_markdown(), updates)
         updated_markdown = format_markdown(updated_markdown)
 
         merged_values = self._merge_lists(
@@ -313,7 +293,58 @@ class ProfileUpdater:
         new_profile.update_timestamp()
         return new_profile
 
-    #TODO: This method has a lot of logic for retrying a Gemini API call. It could be simplified.
+    def _build_append_prompt(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile,
+        recent_conversations: Sequence[str],
+        participation_highlights: Sequence[str],
+        interaction_insights: Sequence[str],
+    ) -> str:
+        current_markdown = current_profile.to_markdown()
+        member_display = self._display_member_id(member_id)
+        conversations_formatted = self._format_recent_conversations(recent_conversations)
+        highlights_block = self._format_bullets(participation_highlights)
+        insights_block = self._format_bullets(interaction_insights)
+
+        return PROFILE_APPEND_PROMPT.format(
+            member_id=member_id,
+            member_display=member_display,
+            current_profile=current_markdown,
+            context_block=conversations_formatted,
+            participation_highlights=highlights_block,
+            interaction_insights=insights_block,
+        )
+
+    def _parse_append_response(self, response) -> tuple[list[tuple[str, str]], str]:
+        raw_text = getattr(response, "text", "")
+        if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
+            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
+            raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
+
+        if not raw_text:
+            raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
+
+        try:
+            payload = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Resposta inválida do modelo ao sugerir acréscimos: {exc}") from exc
+
+        updates_raw = payload.get("updates") or []
+        summary_addendum = str(payload.get("summary_addendum") or "").strip()
+
+        updates: list[tuple[str, str]] = []
+        for item in updates_raw:
+            if not isinstance(item, dict):
+                continue
+            heading = str(item.get("heading") or "").strip()
+            content = str(item.get("content") or "").strip()
+            if heading and content:
+                updates.append((heading, content))
+
+        return updates, summary_addendum
+
+    # TODO: This method has a lot of logic for retrying a Gemini API call. It could be simplified.
     async def _generate_with_retry(
         self,
         client: genai.Client,
@@ -382,7 +413,7 @@ class ProfileUpdater:
                 merged.append(normalized)
         return merged
 
-    #TODO: This method has a lot of logic for applying updates to a markdown file. It could be simplified.
+    # TODO: This method has a lot of logic for applying updates to a markdown file. It could be simplified.
     @staticmethod
     def _apply_updates_to_markdown(
         markdown: str,

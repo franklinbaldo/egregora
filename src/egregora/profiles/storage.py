@@ -8,12 +8,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import jinja2
+
 from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
 
 
 @dataclass(slots=True)
-#TODO: This class has a lot of logic for loading, saving, and indexing profiles. It could be split into smaller classes.
+# TODO: This class has a lot of logic for loading, saving, and indexing profiles. It could be split into smaller classes.
 class ProfileRepository:
     """Manage profile persistence on disk and build a documentation index."""
 
@@ -38,7 +40,7 @@ class ProfileRepository:
             return None
         return ParticipantProfile.from_dict(payload)
 
-    #TODO: The markdown generation is a bit complex.
+    # TODO: The markdown generation is a bit complex.
     def save(self, identifier: str, profile: ParticipantProfile) -> None:
         """Persist *profile* to JSON outputs and generated Markdown."""
 
@@ -84,10 +86,8 @@ class ProfileRepository:
                 continue
             yield identifier, profile
 
-    #TODO: The content of the index file is hardcoded. It would be better to use a template engine for this.
     def write_index(self) -> None:
         """Regenerate the Markdown index listing all profiles."""
-
         entries = []
         for identifier, profile in self.iter_profiles():
             entries.append(
@@ -106,35 +106,17 @@ class ProfileRepository:
         latest_update = max((entry[0] for entry in entries), default=None)
         highest_version = max((entry[3] for entry in entries), default=0)
 
-        lines: list[str] = ["# Perfis dos Participantes", ""]
-        lines.append(
-            "Resumo automatizado para acompanhar o módulo de perfis sem expor dados específicos."
-        )
-        lines.append("")
-        lines.append(f"- Perfis monitorados: {total_profiles}")
-        lines.append(f"- Última atualização registrada: {_format_datetime(latest_update)}")
-        lines.append(f"- Maior versão gerada: {highest_version}")
-        lines.append("")
-        lines.append("## Onde encontrar os dados")
-        lines.append("- JSON anonimizado: `data/profiles/` (uso interno e integrações).")
-        lines.append("- Relatórios em Markdown: `docs/profiles/` para revisão antes da publicação.")
-        lines.append(
-            "- Esta página permanece genérica por padrão; edite-a manualmente caso queira destacar perfis específicos."
-        )
-        lines.append("")
-        lines.append("## Fluxo sugerido para publicar no site")
-        lines.append("1. Revise os arquivos em `docs/profiles/`.")
-        lines.append("2. Copie os perfis aprovados para uma seção pública da documentação.")
-        lines.append("3. Atualize este índice com links curados, se necessário.")
-        lines.append(
-            "4. Remova arquivos antigos de `data/profiles/` quando quiser reiniciar as análises."
-        )
-        lines.append("")
-        lines.append(
-            "> Dica: utilize `uv run egregora --config egregora.toml --dry-run` para validar quais perfis seriam afetados antes de consumir cota do modelo."
+        template_path = Path(__file__).parent / "prompts" / "index_template.md"
+        template_str = template_path.read_text(encoding="utf-8")
+        template = jinja2.Template(template_str)
+
+        content = template.render(
+            total_profiles=total_profiles,
+            latest_update=_format_datetime(latest_update),
+            highest_version=highest_version,
         )
 
-        index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        index_path.write_text(content, encoding="utf-8")
 
     def _json_path(self, identifier: str) -> Path:
         return self.data_dir / f"{identifier}.json"
