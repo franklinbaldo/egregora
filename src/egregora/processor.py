@@ -575,7 +575,6 @@ class UnifiedProcessor:
         # Fallback: use the whole filename without extension
         return base_name
 
-    #TODO: This function generates a slug from the group name. It could be improved to handle more edge cases.
     def _generate_group_slug(self, group_name: str) -> str:
         """Generate a URL-friendly slug from group name."""
 
@@ -590,6 +589,11 @@ class UnifiedProcessor:
         # Remove leading/trailing hyphens
         slug = slug.strip("-")
 
+        if not slug:
+            fallback = re.sub(r"[^\da-zA-Z]+", "-", group_name.lower()).strip("-")
+            slug = fallback or f"whatsapp-group-{abs(hash(group_name)) & 0xFFFF:04x}"
+
+        slug = slug[:64].strip("-")
         return slug or "whatsapp-group"
 
     def _collect_sources(
