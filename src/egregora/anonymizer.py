@@ -8,8 +8,7 @@ from typing import Literal
 
 import polars as pl
 
-BRAZIL_MOBILE_WITH_PREFIX_LENGTH = 13
-BRAZIL_COUNTRY_PREFIX = "55"
+DEFAULT_MIN_PHONE_DIGITS = 10
 
 FormatType = Literal["human", "short", "full"]
 
@@ -26,29 +25,9 @@ class Anonymizer:
 
     @staticmethod
     def normalize_phone(phone: str) -> str:
-        """Return a normalized representation of *phone*.
+        """Return only the numeric digits contained in *phone*."""
 
-        The normalization removes spaces, hyphens and parentheses while keeping
-        the leading ``+`` if present. Phone numbers without ``+`` are assumed to
-        be Brazilian numbers (``+55``) when they contain 10 or 11 digits.
-        """
-        # TODO: The logic to assume Brazilian numbers is hardcoded. This should be
-        # made more generic or configurable if the tool is to be used in other regions.
-        normalized = re.sub(r"[^\d+]", "", phone)
-        if not normalized:
-            return ""
-
-        if normalized.startswith("+"):
-            return normalized
-
-        digits_only = re.sub(r"\D", "", normalized)
-        if len(digits_only) in {10, 11}:
-            return "+55" + digits_only
-        if len(digits_only) == BRAZIL_MOBILE_WITH_PREFIX_LENGTH and digits_only.startswith(
-            BRAZIL_COUNTRY_PREFIX
-        ):
-            return "+" + digits_only
-        return digits_only
+        return re.sub(r"\D", "", phone)
 
     @staticmethod
     def normalize_nickname(nickname: str) -> str:
@@ -101,12 +80,9 @@ class Anonymizer:
     @staticmethod
     def anonymize_author(author: str, format: FormatType = "human") -> str:
         """Return a deterministic pseudonym for either a phone or nickname."""
-        # TODO: The heuristic to distinguish between a phone number and a nickname
-        # is simple and might misclassify nicknames that are all digits. This is a
-        # trade-off between simplicity and accuracy. A more robust solution could
-        # involve more sophisticated pattern matching or configuration.
         candidate = author.strip().replace(" ", "").replace("-", "")
-        if candidate.startswith("+") or candidate.isdigit():
+        digits_only = re.sub(r"\D", "", candidate)
+        if candidate.startswith("+") or len(digits_only) >= DEFAULT_MIN_PHONE_DIGITS:
             return Anonymizer.anonymize_phone(author, format)
         return Anonymizer.anonymize_nickname(author, format)
 
@@ -116,7 +92,8 @@ class Anonymizer:
 
         variants: dict[str, str] = {}
         candidate = identifier.strip().replace(" ", "").replace("-", "")
-        if candidate.startswith("+") or candidate.isdigit():
+        digits_only = re.sub(r"\D", "", candidate)
+        if candidate.startswith("+") or len(digits_only) >= DEFAULT_MIN_PHONE_DIGITS:
             variants["human"] = Anonymizer.anonymize_phone(identifier, "human")
             variants["short"] = Anonymizer.anonymize_phone(identifier, "short")
             variants["full"] = Anonymizer.anonymize_phone(identifier, "full")
