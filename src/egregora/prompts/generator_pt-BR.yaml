@@ -1,0 +1,8 @@
+group_name_label: "NOME DO GRUPO"
+today_label: "DATA DE HOJE"
+previous_post_header: "POST DO DIA ANTERIOR (INCLUA COMO CONTEXTO, NÃO COPIE):"
+previous_post_missing: "POST DO DIA ANTERIOR: NÃO ENCONTRADA"
+enrichment_header: "CONTEXTOS ENRIQUECIDOS DOS LINKS COMPARTILHADOS:"
+rag_header: "CONTEXTOS HISTÓRICOS DE POSTS RELEVANTES:"
+transcript_header_single: "TRANSCRITO BRUTO DO ÚLTIMO DIA (NA ORDEM CRONOLÓGICA POR DIA):"
+transcript_header_multiple: "TRANSCRITO BRUTO DOS ÚLTIMOS {count} DIAS (NA ORDEM CRONOLÓGICA POR DIA):"

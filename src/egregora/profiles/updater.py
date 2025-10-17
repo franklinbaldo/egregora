@@ -1,8 +1,7 @@
-Logic for determining when and how to update participant profiles.
+"""Logic for determining when and how to update participant profiles."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from collections.abc import Sequence
@@ -10,16 +9,18 @@ from dataclasses import dataclass, replace
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
+    from google.genai import errors as genai_errors  # type: ignore
     from google.genai import types  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
+    genai_errors = None  # type: ignore[assignment]
 
 import polars as pl
 
 from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
-from .prompts import PROFILE_APPEND_PROMPT, PROFILE_REWRITE_PROMPT, UPDATE_DECISION_PROMPT
+from .prompts import UPDATE_DECISION_PROMPT
 
 
 def _extract_summary_from_markdown(markdown: str) -> str:
@@ -66,308 +67,120 @@ def _ensure_str_list(value: object) -> list[str]:
         return [str(value)]
 
 
-@dataclass(slots=True)
-# TODO: This class has a lot of logic. It could be split into smaller classes,
-# for example, a `ProfileDecisionMaker` for deciding when to update and a
-# `ProfileWriter` for generating the new profile content.
-class ProfileUpdater:
-    """High level orchestrator that talks to Gemini to maintain profiles."""
+def _display_member_id(member_id: str) -> str:
+    segment = member_id.split("-")[0].strip()
+    return segment.upper() if segment else member_id
 
-    min_messages: int = 2
-    min_words_per_message: int = 15
-    decision_model: str = "models/gemini-flash-latest"
-    rewrite_model: str = "models/gemini-flash-latest"
-    max_api_retries: int = 3
-    minimum_retry_seconds: float = 30.0
 
-    # TODO: This method is too long. The prompt formatting and response parsing
-    # logic could be extracted into separate helper functions.
-    async def should_update_profile(
-        self,
-        member_id: str,
-        current_profile: ParticipantProfile | None,
-        full_conversation: str,
-        gemini_client: genai.Client,
-    ) -> tuple[bool, str, list[str], list[str]]:
-        """Decide if *member_id* warrants a profile refresh."""
+def _extract_member_messages_from_text(member_id: str, conversation: str) -> list[str]:
+    pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")
+    messages: list[str] = []
+    for line in conversation.splitlines():
+        match = pattern.search(line)
+        if match:
+            messages.append(match.group(1).strip())
+    return messages
 
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
-            )
 
-        member_messages = self._extract_member_messages(member_id, full_conversation)
-        meaningful = [msg for msg in member_messages if self._is_meaningful(msg)]
+def _is_meaningful_message(message: str, min_words: int) -> bool:
+    words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
+    return len(words) >= min_words
 
-        if len(meaningful) < self.min_messages:
-            return False, "Participação mínima hoje", [], []
 
-        if not current_profile or not current_profile.worldview_summary:
-            return True, "Primeiro perfil sendo criado", [], []
+def _format_recent_conversations(conversations: Sequence[str]) -> str:
+    if not conversations:
+        return "(Sem conversas recentes registradas.)"
 
-        member_display = self._display_member_id(member_id)
-        profile_markdown = current_profile.to_markdown()
-        prompt = UPDATE_DECISION_PROMPT.format(
-            member_id=member_id,
-            member_display=member_display,
-            current_profile=profile_markdown,
-            full_conversation=full_conversation,
-        )
+    formatted: list[str] = []
+    start_index = max(len(conversations) - 5, 0)
+    for idx, conv in enumerate(conversations[start_index:], start=1):
+        formatted.append(f"## Sessão {idx}\n{conv.strip()}\n")
+    return "\n".join(formatted)
 
-        response = await self._generate_with_retry(
-            gemini_client,
-            model=self.decision_model,
-            contents=prompt,
-            temperature=0.3,
-            response_mime_type="application/json",
-        )
 
-        raw_text = getattr(response, "text", "")
-        if not raw_text:
-            raise ValueError("Resposta vazia do modelo ao decidir atualização do perfil.")
+def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
+    merged: list[str] = []
+    for item in base:
+        normalized = str(item).strip()
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    for item in additions:
+        normalized = str(item).strip()
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    return merged
+
+
+def _apply_updates_to_markdown(markdown: str, updates: Sequence[tuple[str, str]]) -> str:
+    if not updates:
+        return markdown
+
+    lines = markdown.splitlines()
+
+    for heading, addition in updates:
+        heading_clean = heading.strip()
+        addition_text = addition.strip()
+        if not heading_clean or not addition_text:
+            continue
+
+        addition_lines = addition_text.splitlines()
 
         try:
-            decision = json.loads(raw_text)
-        except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-            raise ValueError(f"Resposta inválida do modelo ao decidir atualização: {exc}") from exc
-
-        highlights = _ensure_str_list(decision.get("participation_highlights"))
-        insights = _ensure_str_list(decision.get("interaction_insights"))
-
-        return (
-            bool(decision.get("should_update", False)),
-            str(decision.get("reasoning", "")),
-            highlights,
-            insights,
-        )
-
-    # TODO: This method has too many arguments (PLR0913). The arguments could be
-    # grouped into a dataclass. It is also too long and could be simplified by
-    # extracting the prompt formatting and response parsing logic.
-    async def rewrite_profile(  # noqa: PLR0913
-        self,
-        member_id: str,
-        old_profile: ParticipantProfile | None,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
-    ) -> ParticipantProfile:
-        """Request a full profile rewrite based on recent context."""
-
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
+            heading_index = next(
+                idx for idx, line in enumerate(lines) if line.strip() == heading_clean
             )
+        except StopIteration:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(heading_clean)
+            lines.append("")
+            heading_index = len(lines) - 2
 
-        member_display = self._display_member_id(member_id)
-        old_profile_text = (
-            old_profile.to_markdown() if old_profile else "Nenhum perfil anterior registrado."
-        )
+        insert_pos = heading_index + 1
+        while insert_pos < len(lines) and not lines[insert_pos].startswith("#"):
+            insert_pos += 1
 
-        conversations_formatted = self._format_recent_conversations(recent_conversations)
-        highlights_block = self._format_bullets(participation_highlights)
-        insights_block = self._format_bullets(interaction_insights)
+        block: list[str] = addition_lines
+        if insert_pos > 0 and lines[insert_pos - 1].strip():
+            block = [""] + block
+        if block and block[-1].strip():
+            block = block + [""]
 
-        prompt = PROFILE_REWRITE_PROMPT.format(
-            member_id=member_id,
-            member_display=member_display,
-            old_profile=old_profile_text,
-            recent_conversations=conversations_formatted,
-            participation_highlights=highlights_block,
-            interaction_insights=insights_block,
-        )
+        lines[insert_pos:insert_pos] = block
 
-        response = await self._generate_with_retry(
-            gemini_client,
-            model=self.rewrite_model,
-            contents=prompt,
-            temperature=0.7,
-            response_mime_type="text/plain",
-        )
+    result = "\n".join(lines).rstrip() + "\n"
+    return result
 
-        markdown = getattr(response, "text", "")
-        if not markdown and getattr(response, "candidates", None):  # pragma: no cover - defensive
-            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
-            markdown = "".join(getattr(part, "text", "") or "" for part in parts)
 
-        markdown = (markdown or "").strip()
-        if markdown.startswith("{"):
-            try:
-                payload = json.loads(markdown)
-            except json.JSONDecodeError:
-                payload = None
-            if isinstance(payload, dict):
-                candidate = payload.get("profile") or payload.get("markdown")
-                if isinstance(candidate, str):
-                    markdown = candidate.strip()
+def _replace_section_in_markdown(markdown: str, heading: str, content: str) -> str:
+    lines = markdown.splitlines()
+    heading_clean = heading.strip()
+    content_lines = content.strip().splitlines()
 
-        if not markdown:
-            raise ValueError("Resposta vazia do modelo ao reescrever o perfil.")
+    try:
+        heading_index = next(idx for idx, line in enumerate(lines) if line.strip() == heading_clean)
+    except StopIteration:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(heading_clean)
+        lines.append("")
+        heading_index = len(lines) - 2
 
-        markdown = format_markdown(markdown)
+    end_index = heading_index + 1
+    while end_index < len(lines) and not lines[end_index].startswith("#"):
+        end_index += 1
 
-        analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
-        summary = _extract_summary_from_markdown(markdown)
-        summary = summary or "Perfil gerado automaticamente; personalize se necessário."
+    block: list[str] = content_lines or [""]
+    if block and block[-1].strip():
+        block = block + [""]
 
-        profile = ParticipantProfile(
-            member_id=member_id,
-            worldview_summary=summary,
-            values_and_priorities=_ensure_str_list(participation_highlights),
-            argument_patterns=_ensure_str_list(interaction_insights),
-            markdown_document=markdown,
-            analysis_version=analysis_version,
-        )
-        profile.update_timestamp()
-        return profile
+    lines[heading_index + 1 : end_index] = block
+    return "\n".join(lines).rstrip() + "\n"
 
-    # TODO: This method has too many arguments (PLR0913). The arguments could be
-    # grouped into a dataclass. It is also too long and could be simplified by
-    # extracting the prompt formatting and response parsing logic.
-    async def append_profile(  # noqa: PLR0913
-        self,
-        member_id: str,
-        current_profile: ParticipantProfile,
-        recent_conversations: Sequence[str],
-        participation_highlights: Sequence[str],
-        interaction_insights: Sequence[str],
-        gemini_client: genai.Client,
-    ) -> ParticipantProfile | None:
-        """Request incremental additions for an existing profile."""
 
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
-            )
-
-        current_markdown = current_profile.to_markdown()
-        member_display = self._display_member_id(member_id)
-        conversations_formatted = self._format_recent_conversations(recent_conversations)
-        highlights_block = self._format_bullets(participation_highlights)
-        insights_block = self._format_bullets(interaction_insights)
-
-        prompt = PROFILE_APPEND_PROMPT.format(
-            member_id=member_id,
-            member_display=member_display,
-            current_profile=current_markdown,
-            context_block=conversations_formatted,
-            participation_highlights=highlights_block,
-            interaction_insights=insights_block,
-        )
-
-        response = await self._generate_with_retry(
-            gemini_client,
-            model=self.rewrite_model,
-            contents=prompt,
-            temperature=0.5,
-            response_mime_type="application/json",
-        )
-
-        raw_text = getattr(response, "text", "")
-        if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
-            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
-            raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
-
-        if not raw_text:
-            raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
-
-        try:
-            payload = json.loads(raw_text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Resposta inválida do modelo ao sugerir acréscimos: {exc}") from exc
-
-        updates_raw = payload.get("updates") or []
-        summary_addendum = str(payload.get("summary_addendum") or "").strip()
-
-        updates: list[tuple[str, str]] = []
-        for item in updates_raw:
-            if not isinstance(item, dict):
-                continue
-            heading = str(item.get("heading") or "").strip()
-            content = str(item.get("content") or "").strip()
-            if heading and content:
-                updates.append((heading, content))
-
-        if not updates and not summary_addendum:
-            return None
-
-        updated_markdown = self._apply_updates_to_markdown(current_markdown, updates)
-        updated_markdown = format_markdown(updated_markdown)
-
-        merged_values = self._merge_lists(
-            current_profile.values_and_priorities, participation_highlights
-        )
-        merged_arguments = self._merge_lists(
-            current_profile.argument_patterns, interaction_insights
-        )
-
-        new_summary = current_profile.worldview_summary
-        if summary_addendum:
-            if new_summary:
-                new_summary = f"{new_summary.rstrip()} {summary_addendum}".strip()
-            else:
-                new_summary = summary_addendum
-
-        new_profile = replace(
-            current_profile,
-            worldview_summary=new_summary,
-            values_and_priorities=merged_values,
-            argument_patterns=merged_arguments,
-            markdown_document=updated_markdown,
-            analysis_version=current_profile.analysis_version + 1,
-        )
-        new_profile.update_timestamp()
-        return new_profile
-
-    # FIXME: This method duplicates the retry logic from GeminiManager. It should
-    # be removed and the GeminiManager should be used instead.
-    # TODO: This method is too complex. It could be simplified by using the
-    # GeminiManager.
-    async def _generate_with_retry(
-        self,
-        client: genai.Client,
-        *,
-        model: str,
-        contents: str,
-        temperature: float,
-        response_mime_type: str | None = None,
-    ):
-        attempt = 0
-        last_exc: Exception | None = None
-        while attempt < max(self.max_api_retries, 1):
-            attempt += 1
-            try:
-                config = types.GenerateContentConfig(temperature=temperature)
-                if response_mime_mime_type:
-                    config.response_mime_type = response_mime_type
-
-                return await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=model,
-                    contents=contents,
-                    config=config,
-                )
-            # FIXME: This is a broad exception. It should be more specific.
-            except Exception as exc:  # pragma: no cover - depends on API behaviour
-                last_exc = exc
-                delay = self._extract_retry_delay(exc)
-                if delay is None or attempt >= self.max_api_retries:
-                    break
-                await asyncio.sleep(max(delay, self.minimum_retry_seconds))
-        raise last_exc if last_exc is not None else RuntimeError("Unknown error calling Gemini API")
-
-    @staticmethod
-    def _display_member_id(member_id: str) -> str:
-        segment = member_id.split("-")[0].strip()
-        return segment.upper() if segment else member_id
-
-    @staticmethod
-    def _extract_retry_delay(exc: Exception) -> float | None:
+def _extract_retry_delay(exc: Exception) -> float | None:
+    if genai_errors is not None and isinstance(exc, genai_errors.ResourceExhausted):
         message = str(exc)
-        if "RESOURCE_EXHAUSTED" not in message:
-            return None
-
         match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
         if match:
             whole = match.group(1)
@@ -377,87 +190,312 @@ class ProfileUpdater:
         match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
         if match:
             return float(match.group(1))
+    return None
 
-        return None
 
-    @staticmethod
-    def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
-        merged: list[str] = []
-        for item in base:
-            normalized = str(item).strip()
-            if normalized and normalized not in merged:
-                merged.append(normalized)
-        for item in additions:
-            normalized = str(item).strip()
-            if normalized and normalized not in merged:
-                merged.append(normalized)
-        return merged
+def _word_count_expression() -> pl.Expr:
+    return (
+        pl.col("message")
+        .cast(pl.Utf8)
+        .fill_null("")
+        .str.count_matches(r"\S+")
+        .alias("word_count")
+    )
 
-    # TODO: This method is too complex. It could be simplified by using a more
-    # robust Markdown parsing library to find and replace the sections.
-    @staticmethod
-    def _apply_updates_to_markdown(
-        markdown: str,
-        updates: Sequence[tuple[str, str]],
-    ) -> str:
-        if not updates:
-            return markdown
 
-        lines = markdown.splitlines()
+@dataclass(slots=True)
+class AgentProfileAction:
+    tool: str
+    payload: dict[str, object]
 
-        for heading, addition in updates:
-            heading_clean = heading.strip()
-            addition_text = addition.strip()
-            if not heading_clean or not addition_text:
-                continue
 
-            addition_lines = addition_text.splitlines()
+@dataclass(slots=True)
+class ProfileAgentContext:
+    current_markdown: str | None
+    full_conversation: str
+    recent_conversations: Sequence[str]
 
+
+@dataclass(slots=True)
+class ProfileLLMClient:
+    max_api_retries: int
+    minimum_retry_seconds: float
+
+    async def generate(
+        self,
+        client: genai.Client,
+        *,
+        model: str,
+        prompt: str,
+        temperature: float,
+        response_mime_type: str | None = None,
+    ):
+        if genai is None or types is None:
+            raise RuntimeError(
+                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
+            )
+        if client is None:
+            raise RuntimeError("Gemini client não foi inicializado.")
+
+        attempt = 0
+        last_exc: Exception | None = None
+        retries = max(self.max_api_retries, 1)
+
+        while attempt < retries:
+            attempt += 1
             try:
-                heading_index = next(
-                    idx for idx, line in enumerate(lines) if line.strip() == heading_clean
+                config_kwargs = {"temperature": temperature}
+                if response_mime_type:
+                    config_kwargs["response_mime_type"] = response_mime_type
+                config = types.GenerateContentConfig(**config_kwargs)  # type: ignore[call-arg]
+                return await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model,
+                    contents=prompt,
+                    config=config,
                 )
-            except StopIteration:
-                if lines and lines[-1].strip():
-                    lines.append("")
-                lines.append(heading_clean)
-                lines.append("")
-                heading_index = len(lines) - 2
+            except Exception as exc:  # pragma: no cover - depends on API errors
+                last_exc = exc
+                delay = _extract_retry_delay(exc)
+                if delay is None or attempt >= retries:
+                    break
+                await asyncio.sleep(max(delay, self.minimum_retry_seconds))
 
-            insert_pos = heading_index + 1
-            while insert_pos < len(lines) and not lines[insert_pos].startswith("#"):
-                insert_pos += 1
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Falha desconhecida ao chamar o modelo Gemini.")
 
-            block: list[str] = addition_lines
-            if insert_pos > 0 and lines[insert_pos - 1].strip():
-                block = [""] + block
-            if block and block[-1].strip():
-                block = block + [""]
 
-            lines[insert_pos:insert_pos] = block
+@dataclass(slots=True)
+class AgentProfiler:
+    model: str
+    llm: ProfileLLMClient
 
-        result = "\n".join(lines).rstrip() + "\n"
-        return result
+    async def plan(self, client: genai.Client, context: ProfileAgentContext) -> list[AgentProfileAction]:
+        prompt = self._build_prompt(context)
+        response = await self.llm.generate(
+            client,
+            model=self.model,
+            prompt=prompt,
+            temperature=0.5,
+            response_mime_type="application/json",
+        )
 
-    def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
-        pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")
-        messages: list[str] = []
-        for line in conversation.splitlines():
-            match = pattern.search(line)
-            if match:
-                messages.append(match.group(1).strip())
-        return messages
+        raw_text = getattr(response, "text", "") or ""
+        if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
+            parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
+            raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
+
+        if not raw_text:
+            raise ValueError("Resposta vazia do modelo ao planejar atualização de perfil.")
+
+        payload = json.loads(raw_text)
+        actions_raw = payload.get("actions") or []
+        actions: list[AgentProfileAction] = []
+        for item in actions_raw:
+            if not isinstance(item, dict):
+                continue
+            tool = str(item.get("tool") or "").strip()
+            if not tool:
+                continue
+            data = item.get("payload")
+            if not isinstance(data, dict):
+                data = {k: v for k, v in item.items() if k != "tool"}
+            actions.append(AgentProfileAction(tool=tool, payload=data))
+        return actions
+
+    def _build_prompt(self, context: ProfileAgentContext) -> str:
+        existing_profile = context.current_markdown or "(Perfil inexistente)"
+        recent = _format_recent_conversations(context.recent_conversations)
+        tools_description = """
+Ferramentas disponíveis (use quantas precisar, ou nenhuma se não houver ação):
+1. create_profile{markdown: string} — Cria o perfil completo em Markdown.
+2. append_sections{sections: [{heading: string, content: string}]} — Acrescenta conteúdo em headings existentes ou cria novos se necessário.
+3. replace_sections{sections: [{heading: string, content: string}]} — Substitui o conteúdo de headings existentes.
+4. set_summary{summary: string} — Atualiza o resumo principal do perfil.
+
+Retorne APENAS um JSON válido no formato:
+{
+  "actions": [
+    {"tool": "create_profile", "payload": {"markdown": "..."}},
+    {"tool": "append_sections", "payload": {"sections": [{"heading": "## ...", "content": "..."}]}}
+  ]
+}
+"""
+        instructions = """
+Analise a conversa e o perfil atual. Decida se precisa criar, editar ou apenas registrar que nenhuma ação é necessária.
+Só use as ferramentas necessárias. Se optar por não alterar nada, retorne {"actions": []}.
+"""
+        return (
+            f"Você é um assistente encarregado de manter perfis analíticos de membros.\n\n"
+            f"{tools_description}\n\n"
+            f"{instructions}\n\n"
+            f"Perfil atual (Markdown):\n```markdown\n{existing_profile}\n```\n\n"
+            f"Trechos recentes:\n{recent}\n\n"
+            f"Conversa completa:\n{context.full_conversation.strip()}\n"
+        )
+
+
+@dataclass(slots=True)
+class ProfileUpdater:
+    """High level orchestrator that talks to an agent to maintain profiles."""
+
+    min_messages: int = 2
+    min_words_per_message: int = 15
+    decision_model: str = "models/gemini-flash-latest"
+    rewrite_model: str = "models/gemini-flash-latest"
+    max_api_retries: int = 3
+    minimum_retry_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        self._llm = ProfileLLMClient(
+            max_api_retries=self.max_api_retries,
+            minimum_retry_seconds=self.minimum_retry_seconds,
+        )
+        self._agent = AgentProfiler(model=self.rewrite_model, llm=self._llm)
+
+    async def update_profile_with_agent(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        full_conversation: str,
+        recent_conversations: Sequence[str],
+        gemini_client: genai.Client,
+    ) -> ParticipantProfile | None:
+        actions = await self._agent.plan(
+            gemini_client,
+            context=ProfileAgentContext(
+                current_markdown=current_profile.to_markdown() if current_profile else None,
+                full_conversation=full_conversation,
+                recent_conversations=recent_conversations,
+            ),
+        )
+        return self._apply_actions(member_id, current_profile, actions)
+
+    async def should_update_profile(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        full_conversation: str,
+        gemini_client: genai.Client,
+    ) -> tuple[bool, str, list[str], list[str]]:
+        messages = _extract_member_messages_from_text(member_id, full_conversation)
+        meaningful = [msg for msg in messages if _is_meaningful_message(msg, self.min_words_per_message)]
+        if len(meaningful) < self.min_messages:
+            return False, "Participação mínima hoje", [], []
+        if not current_profile or not current_profile.worldview_summary:
+            return True, "Primeiro perfil sendo criado", [], []
+
+        highlight_prompt = UPDATE_DECISION_PROMPT.format(
+            member_id="(omit)",
+            member_display=_display_member_id(member_id),
+            current_profile=current_profile.to_markdown(),
+            full_conversation=full_conversation,
+        )
+        response = await self._llm.generate(
+            gemini_client,
+            model=self.decision_model,
+            prompt=highlight_prompt,
+            temperature=0.3,
+            response_mime_type="application/json",
+        )
+        raw = getattr(response, "text", "") or ""
+        if not raw:
+            return True, "Perfil elegível para atualização", [], []
+        payload = json.loads(raw)
+        highlights = _ensure_str_list(payload.get("participation_highlights"))
+        insights = _ensure_str_list(payload.get("interaction_insights"))
+        return bool(payload.get("should_update", True)), str(payload.get("reasoning", "")), highlights, insights
+
+    def _apply_actions(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        actions: Sequence[AgentProfileAction],
+    ) -> ParticipantProfile | None:
+        if not actions:
+            return current_profile
+
+        profile = current_profile
+        markdown = current_profile.to_markdown() if current_profile else ""
+        summary = current_profile.worldview_summary if current_profile else ""
+        values = list(current_profile.values_and_priorities) if current_profile else []
+        arguments = list(current_profile.argument_patterns) if current_profile else []
+        changed = False
+
+        for action in actions:
+            tool = action.tool.lower()
+            payload = action.payload
+            if tool == "create_profile":
+                markdown = format_markdown(str(payload.get("markdown", "")))
+                summary = _extract_summary_from_markdown(markdown) or summary
+                changed = True
+            elif tool == "append_sections":
+                sections = payload.get("sections") or []
+                updates = []
+                for item in sections:
+                    if isinstance(item, dict):
+                        heading = str(item.get("heading") or "").strip()
+                        content = str(item.get("content") or "").strip()
+                        if heading and content:
+                            updates.append((heading, content))
+                if updates:
+                    markdown = format_markdown(_apply_updates_to_markdown(markdown, updates))
+                    changed = True
+            elif tool == "replace_sections":
+                sections = payload.get("sections") or []
+                for item in sections:
+                    if isinstance(item, dict):
+                        heading = str(item.get("heading") or "").strip()
+                        content = str(item.get("content") or "").strip()
+                        if heading and content:
+                            markdown = format_markdown(_replace_section_in_markdown(markdown, heading, content))
+                            changed = True
+            elif tool == "set_summary":
+                summary_candidate = str(payload.get("summary") or "").strip()
+                if summary_candidate:
+                    summary = summary_candidate
+                    changed = True
+            elif tool == "set_values":
+                values = _merge_lists(values, _ensure_str_list(payload.get("values")))
+                changed = True
+            elif tool == "set_argument_patterns":
+                arguments = _merge_lists(arguments, _ensure_str_list(payload.get("patterns")))
+                changed = True
+
+        if not changed:
+            return current_profile
+
+        analysis_version = (current_profile.analysis_version if current_profile else 0) + 1
+
+        if current_profile is None:
+            profile = ParticipantProfile(
+                member_id=member_id,
+                worldview_summary=summary or "Resumo não fornecido.",
+                values_and_priorities=values,
+                argument_patterns=arguments,
+                markdown_document=markdown,
+                analysis_version=analysis_version,
+            )
+        else:
+            profile = replace(
+                current_profile,
+                worldview_summary=summary or current_profile.worldview_summary,
+                values_and_priorities=values or list(current_profile.values_and_priorities),
+                argument_patterns=arguments or list(current_profile.argument_patterns),
+                markdown_document=markdown or current_profile.markdown_document,
+                analysis_version=analysis_version,
+            )
+        profile.update_timestamp()
+        return profile
 
     def extract_member_messages_dataframe(
         self,
         member_id: str,
         df: pl.DataFrame,
     ) -> pl.DataFrame:
-        """Extract messages from a specific member using Polars operations."""
-
         if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
-
         return df.filter(pl.col("author") == member_id)
 
     def should_update_profile_dataframe(
@@ -466,18 +504,13 @@ class ProfileUpdater:
         current_profile: ParticipantProfile | None,
         df: pl.DataFrame,
     ) -> tuple[bool, str]:
-        """Decide if member warrants profile refresh using DataFrame analysis."""
-
         messages_df = self.extract_member_messages_dataframe(member_id, df)
-
         if "message" not in messages_df.columns:
-            raise KeyError("DataFrame must have 'message' column")
-
+            raise KeyError("DataFrame deve conter coluna 'message'")
         if messages_df.is_empty():
             return False, "Nenhuma mensagem encontrada"
 
-        messages_with_counts = messages_df.with_columns(self._word_count_expression())
-
+        messages_with_counts = messages_df.with_columns(_word_count_expression())
         meaningful_messages = messages_with_counts.filter(
             pl.col("word_count") >= self.min_words_per_message
         )
@@ -488,10 +521,8 @@ class ProfileUpdater:
                 False,
                 f"Apenas {meaningful_count} mensagens significativas (mín: {self.min_messages})",
             )
-
         if not current_profile or not current_profile.worldview_summary:
             return True, "Primeiro perfil sendo criado"
-
         return True, (
             f"Perfil elegível para atualização ({meaningful_count} mensagens significativas)"
         )
@@ -501,19 +532,15 @@ class ProfileUpdater:
         member_id: str,
         df: pl.DataFrame,
     ) -> dict[str, object]:
-        """Get comprehensive participation statistics using DataFrame operations."""
-
         messages_df = self.extract_member_messages_dataframe(member_id, df)
-
         required_columns = {"message", "timestamp"}
         missing = required_columns.difference(messages_df.columns)
         if missing:
             raise KeyError(f"DataFrame must include columns: {', '.join(sorted(missing))}")
-
         if messages_df.is_empty():
             return {}
 
-        messages_df = messages_df.with_columns(self._word_count_expression())
+        messages_df = messages_df.with_columns(_word_count_expression())
 
         total_messages = messages_df.height
         avg_words_per_message = float(messages_df.get_column("word_count").mean() or 0.0)
@@ -551,33 +578,8 @@ class ProfileUpdater:
             "max_messages_in_day": max_messages_in_day,
         }
 
-    @staticmethod
-    def _word_count_expression() -> pl.Expr:
-        """Return a Polars expression that counts non-empty tokens in ``message``."""
-
-        return (
-            pl.col("message")
-            .cast(pl.Utf8)
-            .fill_null("")
-            .str.count_matches(r"\S+")
-            .alias("word_count")
-        )
+    def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
+        return _extract_member_messages_from_text(member_id, conversation)
 
     def _is_meaningful(self, message: str) -> bool:
-        words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
-        return len(words) >= self.min_words_per_message
-
-    def _format_recent_conversations(self, conversations: Sequence[str]) -> str:
-        if not conversations:
-            return "(Sem conversas recentes registradas.)"
-
-        formatted: list[str] = []
-        start_index = max(len(conversations) - 5, 0)
-        for idx, conv in enumerate(conversations[start_index:], start=1):
-            formatted.append(f"## Sessão {idx}\n{conv.strip()}\n")
-        return "\n".join(formatted)
-
-    def _format_bullets(self, items: Sequence[str]) -> str:
-        if not items:
-            return "- (Sem registros para hoje.)"
-        return "\n".join(f"- {item}" for item in items)
+        return _is_meaningful_message(message, self.min_words_per_message)
