@@ -39,6 +39,7 @@ from .transcript import (
     render_transcript,
 )
 from .types import GroupSlug
+from .zip_utils import ZipValidationLimits, configure_default_limits
 
 try:  # pragma: no cover - optional dependency
     from google.genai import errors as genai_errors
@@ -376,6 +377,14 @@ class UnifiedProcessor:
                 minimum_retry_seconds=self.config.profiles.minimum_retry_seconds,
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
+
+        configure_default_limits(
+            ZipValidationLimits(
+                max_total_size=self.config.zip_validation.max_total_size,
+                max_member_size=self.config.zip_validation.max_member_size,
+                max_member_count=self.config.zip_validation.max_member_count,
+            )
+        )
 
     @property
     def gemini_manager(self) -> GeminiManager:

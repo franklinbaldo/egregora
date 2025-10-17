@@ -21,6 +21,7 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from .anonymizer import FormatType
 from .models import MergeConfig
+from .zip_utils import ZipValidationLimits
 from .rag.config import (
     RAGConfig,
     ChunkingSettings,
@@ -163,6 +164,24 @@ class EnrichmentConfig(BaseModel):
         return limit
 
 
+class ArchiveValidationConfig(BaseModel):
+    """Configuration for WhatsApp ZIP validation thresholds."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    max_total_size: int = ZipValidationLimits().max_total_size
+    max_member_size: int = ZipValidationLimits().max_member_size
+    max_member_count: int = ZipValidationLimits().max_member_count
+
+    @field_validator("max_total_size", "max_member_size", "max_member_count")
+    @classmethod
+    def _validate_positive_int(cls, value: Any, info: ValidationInfo) -> int:
+        ivalue = int(value)
+        if ivalue < 1:
+            raise ValueError(f"{info.field_name} must be a positive integer")
+        return ivalue
+
+
 class AnonymizationConfig(BaseModel):
     """Configuration for author anonymisation."""
 
@@ -288,6 +307,7 @@ class PipelineConfig(BaseModel):
     enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     anonymization: AnonymizationConfig = Field(default_factory=AnonymizationConfig)
+    zip_validation: ArchiveValidationConfig = Field(default_factory=ArchiveValidationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
