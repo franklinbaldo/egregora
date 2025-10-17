@@ -1,4 +1,4 @@
-Logic for determining when and how to update participant profiles.
+"""Logic for determining when and how to update participant profiles."""
 
 from __future__ import annotations
 
@@ -10,10 +10,12 @@ from dataclasses import dataclass, replace
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
+    from google.genai import errors as genai_errors  # type: ignore
     from google.genai import types  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - allows importing without dependency
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
+    genai_errors = None  # type: ignore[assignment]
 
 import polars as pl
 
@@ -66,58 +68,222 @@ def _ensure_str_list(value: object) -> list[str]:
         return [str(value)]
 
 
+def _display_member_id(member_id: str) -> str:
+    segment = member_id.split("-")[0].strip()
+    return segment.upper() if segment else member_id
+
+
+def _extract_member_messages_from_text(member_id: str, conversation: str) -> list[str]:
+    pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")
+    messages: list[str] = []
+    for line in conversation.splitlines():
+        match = pattern.search(line)
+        if match:
+            messages.append(match.group(1).strip())
+    return messages
+
+
+def _is_meaningful_message(message: str, min_words: int) -> bool:
+    words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
+    return len(words) >= min_words
+
+
+def _format_recent_conversations(conversations: Sequence[str]) -> str:
+    if not conversations:
+        return "(Sem conversas recentes registradas.)"
+
+    formatted: list[str] = []
+    start_index = max(len(conversations) - 5, 0)
+    for idx, conv in enumerate(conversations[start_index:], start=1):
+        formatted.append(f"## Sessão {idx}\n{conv.strip()}\n")
+    return "\n".join(formatted)
+
+
+def _format_bullets(items: Sequence[str]) -> str:
+    if not items:
+        return "- (Sem registros para hoje.)"
+    return "\n".join(f"- {item}" for item in items)
+
+
+def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
+    merged: list[str] = []
+    for item in base:
+        normalized = str(item).strip()
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    for item in additions:
+        normalized = str(item).strip()
+        if normalized and normalized not in merged:
+            merged.append(normalized)
+    return merged
+
+
+def _extract_retry_delay(exc: Exception) -> float | None:
+    if genai_errors is not None and isinstance(exc, genai_errors.ResourceExhausted):
+        message = str(exc)
+        match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
+        if match:
+            whole = match.group(1)
+            frac = match.group(2) or ""
+            return float(f"{whole}.{frac}" if frac else whole)
+
+        match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
+        if match:
+            return float(match.group(1))
+    return None
+
+
+def _apply_updates_to_markdown(
+    markdown: str,
+    updates: Sequence[tuple[str, str]],
+) -> str:
+    if not updates:
+        return markdown
+
+    lines = markdown.splitlines()
+
+    for heading, addition in updates:
+        heading_clean = heading.strip()
+        addition_text = addition.strip()
+        if not heading_clean or not addition_text:
+            continue
+
+        addition_lines = addition_text.splitlines()
+
+        try:
+            heading_index = next(
+                idx for idx, line in enumerate(lines) if line.strip() == heading_clean
+            )
+        except StopIteration:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(heading_clean)
+            lines.append("")
+            heading_index = len(lines) - 2
+
+        insert_pos = heading_index + 1
+        while insert_pos < len(lines) and not lines[insert_pos].startswith("#"):
+            insert_pos += 1
+
+        block: list[str] = addition_lines
+        if insert_pos > 0 and lines[insert_pos - 1].strip():
+            block = [""] + block
+        if block and block[-1].strip():
+            block = block + [""]
+
+        lines[insert_pos:insert_pos] = block
+
+    result = "\n".join(lines).rstrip() + "\n"
+    return result
+
+
+def _word_count_expression() -> pl.Expr:
+    return (
+        pl.col("message")
+        .cast(pl.Utf8)
+        .fill_null("")
+        .str.count_matches(r"\S+")
+        .alias("word_count")
+    )
+
+
 @dataclass(slots=True)
-# TODO: This class has a lot of logic. It could be split into smaller classes,
-# for example, a `ProfileDecisionMaker` for deciding when to update and a
-# `ProfileWriter` for generating the new profile content.
-class ProfileUpdater:
-    """High level orchestrator that talks to Gemini to maintain profiles."""
+class ProfileDecision:
+    should_update: bool
+    reasoning: str
+    participation_highlights: list[str]
+    interaction_insights: list[str]
 
-    min_messages: int = 2
-    min_words_per_message: int = 15
-    decision_model: str = "models/gemini-flash-latest"
-    rewrite_model: str = "models/gemini-flash-latest"
-    max_api_retries: int = 3
-    minimum_retry_seconds: float = 30.0
 
-    # TODO: This method is too long. The prompt formatting and response parsing
-    # logic could be extracted into separate helper functions.
-    async def should_update_profile(
+@dataclass(slots=True)
+class ProfileLLMClient:
+    max_api_retries: int
+    minimum_retry_seconds: float
+
+    async def generate(
+        self,
+        client: genai.Client,
+        *,
+        model: str,
+        prompt: str,
+        temperature: float,
+        response_mime_type: str | None = None,
+    ):
+        if genai is None or types is None:
+            raise RuntimeError(
+                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
+            )
+        if client is None:
+            raise RuntimeError("Gemini client não foi inicializado.")
+
+        attempt = 0
+        last_exc: Exception | None = None
+        retries = max(self.max_api_retries, 1)
+
+        while attempt < retries:
+            attempt += 1
+            try:
+                config_kwargs = {"temperature": temperature}
+                if response_mime_type:
+                    config_kwargs["response_mime_type"] = response_mime_type
+                config = types.GenerateContentConfig(**config_kwargs)  # type: ignore[call-arg]
+                return await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+            except Exception as exc:  # pragma: no cover - depends on API errors
+                last_exc = exc
+                delay = _extract_retry_delay(exc)
+                if delay is None or attempt >= retries:
+                    break
+                await asyncio.sleep(max(delay, self.minimum_retry_seconds))
+
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Falha desconhecida ao chamar o modelo Gemini.")
+
+
+@dataclass(slots=True)
+class ProfileDecisionEngine:
+    min_messages: int
+    min_words_per_message: int
+    decision_model: str
+    prompt_template: str
+    llm: ProfileLLMClient
+
+    async def evaluate(
         self,
         member_id: str,
         current_profile: ParticipantProfile | None,
         full_conversation: str,
         gemini_client: genai.Client,
-    ) -> tuple[bool, str, list[str], list[str]]:
-        """Decide if *member_id* warrants a profile refresh."""
-
-        if gemini_client is None:
-            raise RuntimeError(
-                "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
-            )
-
-        member_messages = self._extract_member_messages(member_id, full_conversation)
-        meaningful = [msg for msg in member_messages if self._is_meaningful(msg)]
+    ) -> ProfileDecision:
+        member_messages = _extract_member_messages_from_text(member_id, full_conversation)
+        meaningful = [
+            msg for msg in member_messages if _is_meaningful_message(msg, self.min_words_per_message)
+        ]
 
         if len(meaningful) < self.min_messages:
-            return False, "Participação mínima hoje", [], []
+            return ProfileDecision(False, "Participação mínima hoje", [], [])
 
         if not current_profile or not current_profile.worldview_summary:
-            return True, "Primeiro perfil sendo criado", [], []
+            return ProfileDecision(True, "Primeiro perfil sendo criado", [], [])
 
-        member_display = self._display_member_id(member_id)
+        member_display = _display_member_id(member_id)
         profile_markdown = current_profile.to_markdown()
-        prompt = UPDATE_DECISION_PROMPT.format(
+        prompt = self.prompt_template.format(
             member_id=member_id,
             member_display=member_display,
             current_profile=profile_markdown,
             full_conversation=full_conversation,
         )
 
-        response = await self._generate_with_retry(
+        response = await self.llm.generate(
             gemini_client,
             model=self.decision_model,
-            contents=prompt,
+            prompt=prompt,
             temperature=0.3,
             response_mime_type="application/json",
         )
@@ -126,25 +292,26 @@ class ProfileUpdater:
         if not raw_text:
             raise ValueError("Resposta vazia do modelo ao decidir atualização do perfil.")
 
-        try:
-            decision = json.loads(raw_text)
-        except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-            raise ValueError(f"Resposta inválida do modelo ao decidir atualização: {exc}") from exc
+        decision_payload = json.loads(raw_text)
+        highlights = _ensure_str_list(decision_payload.get("participation_highlights"))
+        insights = _ensure_str_list(decision_payload.get("interaction_insights"))
 
-        highlights = _ensure_str_list(decision.get("participation_highlights"))
-        insights = _ensure_str_list(decision.get("interaction_insights"))
-
-        return (
-            bool(decision.get("should_update", False)),
-            str(decision.get("reasoning", "")),
+        return ProfileDecision(
+            bool(decision_payload.get("should_update", False)),
+            str(decision_payload.get("reasoning", "")),
             highlights,
             insights,
         )
 
-    # TODO: This method has too many arguments (PLR0913). The arguments could be
-    # grouped into a dataclass. It is also too long and could be simplified by
-    # extracting the prompt formatting and response parsing logic.
-    async def rewrite_profile(  # noqa: PLR0913
+
+@dataclass(slots=True)
+class ProfileRevisionEngine:
+    rewrite_model: str
+    rewrite_prompt: str
+    append_prompt: str
+    llm: ProfileLLMClient
+
+    async def rewrite(
         self,
         member_id: str,
         old_profile: ParticipantProfile | None,
@@ -153,23 +320,21 @@ class ProfileUpdater:
         interaction_insights: Sequence[str],
         gemini_client: genai.Client,
     ) -> ParticipantProfile:
-        """Request a full profile rewrite based on recent context."""
-
         if gemini_client is None:
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
             )
 
-        member_display = self._display_member_id(member_id)
+        member_display = _display_member_id(member_id)
         old_profile_text = (
             old_profile.to_markdown() if old_profile else "Nenhum perfil anterior registrado."
         )
 
-        conversations_formatted = self._format_recent_conversations(recent_conversations)
-        highlights_block = self._format_bullets(participation_highlights)
-        insights_block = self._format_bullets(interaction_insights)
+        conversations_formatted = _format_recent_conversations(recent_conversations)
+        highlights_block = _format_bullets(participation_highlights)
+        insights_block = _format_bullets(interaction_insights)
 
-        prompt = PROFILE_REWRITE_PROMPT.format(
+        prompt = self.rewrite_prompt.format(
             member_id=member_id,
             member_display=member_display,
             old_profile=old_profile_text,
@@ -178,20 +343,20 @@ class ProfileUpdater:
             interaction_insights=insights_block,
         )
 
-        response = await self._generate_with_retry(
+        response = await self.llm.generate(
             gemini_client,
             model=self.rewrite_model,
-            contents=prompt,
+            prompt=prompt,
             temperature=0.7,
             response_mime_type="text/plain",
         )
 
-        markdown = getattr(response, "text", "")
+        markdown = getattr(response, "text", "") or ""
         if not markdown and getattr(response, "candidates", None):  # pragma: no cover - defensive
             parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
             markdown = "".join(getattr(part, "text", "") or "" for part in parts)
 
-        markdown = (markdown or "").strip()
+        markdown = markdown.strip()
         if markdown.startswith("{"):
             try:
                 payload = json.loads(markdown)
@@ -208,8 +373,9 @@ class ProfileUpdater:
         markdown = format_markdown(markdown)
 
         analysis_version = (old_profile.analysis_version if old_profile else 0) + 1
-        summary = _extract_summary_from_markdown(markdown)
-        summary = summary or "Perfil gerado automaticamente; personalize se necessário."
+        summary = _extract_summary_from_markdown(markdown) or (
+            "Perfil gerado automaticamente; personalize se necessário."
+        )
 
         profile = ParticipantProfile(
             member_id=member_id,
@@ -222,10 +388,7 @@ class ProfileUpdater:
         profile.update_timestamp()
         return profile
 
-    # TODO: This method has too many arguments (PLR0913). The arguments could be
-    # grouped into a dataclass. It is also too long and could be simplified by
-    # extracting the prompt formatting and response parsing logic.
-    async def append_profile(  # noqa: PLR0913
+    async def append(
         self,
         member_id: str,
         current_profile: ParticipantProfile,
@@ -234,20 +397,18 @@ class ProfileUpdater:
         interaction_insights: Sequence[str],
         gemini_client: genai.Client,
     ) -> ParticipantProfile | None:
-        """Request incremental additions for an existing profile."""
-
         if gemini_client is None:
             raise RuntimeError(
                 "A dependência opcional 'google-genai' não está instalada ou o cliente não foi inicializado."
             )
 
         current_markdown = current_profile.to_markdown()
-        member_display = self._display_member_id(member_id)
-        conversations_formatted = self._format_recent_conversations(recent_conversations)
-        highlights_block = self._format_bullets(participation_highlights)
-        insights_block = self._format_bullets(interaction_insights)
+        member_display = _display_member_id(member_id)
+        conversations_formatted = _format_recent_conversations(recent_conversations)
+        highlights_block = _format_bullets(participation_highlights)
+        insights_block = _format_bullets(interaction_insights)
 
-        prompt = PROFILE_APPEND_PROMPT.format(
+        prompt = self.append_prompt.format(
             member_id=member_id,
             member_display=member_display,
             current_profile=current_markdown,
@@ -256,15 +417,15 @@ class ProfileUpdater:
             interaction_insights=insights_block,
         )
 
-        response = await self._generate_with_retry(
+        response = await self.llm.generate(
             gemini_client,
             model=self.rewrite_model,
-            contents=prompt,
+            prompt=prompt,
             temperature=0.5,
             response_mime_type="application/json",
         )
 
-        raw_text = getattr(response, "text", "")
+        raw_text = getattr(response, "text", "") or ""
         if not raw_text and getattr(response, "candidates", None):  # pragma: no cover - defensive
             parts = response.candidates[0].content.parts  # type: ignore[attr-defined]
             raw_text = "".join(getattr(part, "text", "") or "" for part in parts)
@@ -272,11 +433,7 @@ class ProfileUpdater:
         if not raw_text:
             raise ValueError("Resposta vazia do modelo ao sugerir acréscimos do perfil.")
 
-        try:
-            payload = json.loads(raw_text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Resposta inválida do modelo ao sugerir acréscimos: {exc}") from exc
-
+        payload = json.loads(raw_text)
         updates_raw = payload.get("updates") or []
         summary_addendum = str(payload.get("summary_addendum") or "").strip()
 
@@ -292,13 +449,12 @@ class ProfileUpdater:
         if not updates and not summary_addendum:
             return None
 
-        updated_markdown = self._apply_updates_to_markdown(current_markdown, updates)
-        updated_markdown = format_markdown(updated_markdown)
+        updated_markdown = format_markdown(_apply_updates_to_markdown(current_markdown, updates))
 
-        merged_values = self._merge_lists(
+        merged_values = _merge_lists(
             current_profile.values_and_priorities, participation_highlights
         )
-        merged_arguments = self._merge_lists(
+        merged_arguments = _merge_lists(
             current_profile.argument_patterns, interaction_insights
         )
 
@@ -320,133 +476,98 @@ class ProfileUpdater:
         new_profile.update_timestamp()
         return new_profile
 
-    # FIXME: This method duplicates the retry logic from GeminiManager. It should
-    # be removed and the GeminiManager should be used instead.
-    # TODO: This method is too complex. It could be simplified by using the
-    # GeminiManager.
-    async def _generate_with_retry(
+
+@dataclass(slots=True)
+class ProfileUpdater:
+    """High level orchestrator that talks to Gemini to maintain profiles."""
+
+    min_messages: int = 2
+    min_words_per_message: int = 15
+    decision_model: str = "models/gemini-flash-latest"
+    rewrite_model: str = "models/gemini-flash-latest"
+    max_api_retries: int = 3
+    minimum_retry_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        self._llm = ProfileLLMClient(
+            max_api_retries=self.max_api_retries,
+            minimum_retry_seconds=self.minimum_retry_seconds,
+        )
+        self._decision_engine = ProfileDecisionEngine(
+            min_messages=self.min_messages,
+            min_words_per_message=self.min_words_per_message,
+            decision_model=self.decision_model,
+            prompt_template=UPDATE_DECISION_PROMPT,
+            llm=self._llm,
+        )
+        self._revision_engine = ProfileRevisionEngine(
+            rewrite_model=self.rewrite_model,
+            rewrite_prompt=PROFILE_REWRITE_PROMPT,
+            append_prompt=PROFILE_APPEND_PROMPT,
+            llm=self._llm,
+        )
+
+    async def should_update_profile(
         self,
-        client: genai.Client,
-        *,
-        model: str,
-        contents: str,
-        temperature: float,
-        response_mime_type: str | None = None,
-    ):
-        attempt = 0
-        last_exc: Exception | None = None
-        while attempt < max(self.max_api_retries, 1):
-            attempt += 1
-            try:
-                config = types.GenerateContentConfig(temperature=temperature)
-                if response_mime_mime_type:
-                    config.response_mime_type = response_mime_type
+        member_id: str,
+        current_profile: ParticipantProfile | None,
+        full_conversation: str,
+        gemini_client: genai.Client,
+    ) -> tuple[bool, str, list[str], list[str]]:
+        decision = await self._decision_engine.evaluate(
+            member_id=member_id,
+            current_profile=current_profile,
+            full_conversation=full_conversation,
+            gemini_client=gemini_client,
+        )
+        return (
+            decision.should_update,
+            decision.reasoning,
+            decision.participation_highlights,
+            decision.interaction_insights,
+        )
 
-                return await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=model,
-                    contents=contents,
-                    config=config,
-                )
-            # FIXME: This is a broad exception. It should be more specific.
-            except Exception as exc:  # pragma: no cover - depends on API behaviour
-                last_exc = exc
-                delay = self._extract_retry_delay(exc)
-                if delay is None or attempt >= self.max_api_retries:
-                    break
-                await asyncio.sleep(max(delay, self.minimum_retry_seconds))
-        raise last_exc if last_exc is not None else RuntimeError("Unknown error calling Gemini API")
+    async def rewrite_profile(
+        self,
+        member_id: str,
+        old_profile: ParticipantProfile | None,
+        recent_conversations: Sequence[str],
+        participation_highlights: Sequence[str],
+        interaction_insights: Sequence[str],
+        gemini_client: genai.Client,
+    ) -> ParticipantProfile:
+        return await self._revision_engine.rewrite(
+            member_id=member_id,
+            old_profile=old_profile,
+            recent_conversations=recent_conversations,
+            participation_highlights=participation_highlights,
+            interaction_insights=interaction_insights,
+            gemini_client=gemini_client,
+        )
 
-    @staticmethod
-    def _display_member_id(member_id: str) -> str:
-        segment = member_id.split("-")[0].strip()
-        return segment.upper() if segment else member_id
-
-    @staticmethod
-    def _extract_retry_delay(exc: Exception) -> float | None:
-        message = str(exc)
-        if "RESOURCE_EXHAUSTED" not in message:
-            return None
-
-        match = re.search(r"retryDelay[\"']?\s*[:=]\s*'?(\d+)(?:\.(\d+))?s", message)
-        if match:
-            whole = match.group(1)
-            frac = match.group(2) or ""
-            return float(f"{whole}.{frac}" if frac else whole)
-
-        match = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", message)
-        if match:
-            return float(match.group(1))
-
-        return None
-
-    @staticmethod
-    def _merge_lists(base: Sequence[str], additions: Sequence[str]) -> list[str]:
-        merged: list[str] = []
-        for item in base:
-            normalized = str(item).strip()
-            if normalized and normalized not in merged:
-                merged.append(normalized)
-        for item in additions:
-            normalized = str(item).strip()
-            if normalized and normalized not in merged:
-                merged.append(normalized)
-        return merged
-
-    # TODO: This method is too complex. It could be simplified by using a more
-    # robust Markdown parsing library to find and replace the sections.
-    @staticmethod
-    def _apply_updates_to_markdown(
-        markdown: str,
-        updates: Sequence[tuple[str, str]],
-    ) -> str:
-        if not updates:
-            return markdown
-
-        lines = markdown.splitlines()
-
-        for heading, addition in updates:
-            heading_clean = heading.strip()
-            addition_text = addition.strip()
-            if not heading_clean or not addition_text:
-                continue
-
-            addition_lines = addition_text.splitlines()
-
-            try:
-                heading_index = next(
-                    idx for idx, line in enumerate(lines) if line.strip() == heading_clean
-                )
-            except StopIteration:
-                if lines and lines[-1].strip():
-                    lines.append("")
-                lines.append(heading_clean)
-                lines.append("")
-                heading_index = len(lines) - 2
-
-            insert_pos = heading_index + 1
-            while insert_pos < len(lines) and not lines[insert_pos].startswith("#"):
-                insert_pos += 1
-
-            block: list[str] = addition_lines
-            if insert_pos > 0 and lines[insert_pos - 1].strip():
-                block = [""] + block
-            if block and block[-1].strip():
-                block = block + [""]
-
-            lines[insert_pos:insert_pos] = block
-
-        result = "\n".join(lines).rstrip() + "\n"
-        return result
+    async def append_profile(
+        self,
+        member_id: str,
+        current_profile: ParticipantProfile,
+        recent_conversations: Sequence[str],
+        participation_highlights: Sequence[str],
+        interaction_insights: Sequence[str],
+        gemini_client: genai.Client,
+    ) -> ParticipantProfile | None:
+        return await self._revision_engine.append(
+            member_id=member_id,
+            current_profile=current_profile,
+            recent_conversations=recent_conversations,
+            participation_highlights=participation_highlights,
+            interaction_insights=interaction_insights,
+            gemini_client=gemini_client,
+        )
 
     def _extract_member_messages(self, member_id: str, conversation: str) -> list[str]:
-        pattern = re.compile(rf"\b{re.escape(member_id)}\s*:\s*(.*)")
-        messages: list[str] = []
-        for line in conversation.splitlines():
-            match = pattern.search(line)
-            if match:
-                messages.append(match.group(1).strip())
-        return messages
+        return _extract_member_messages_from_text(member_id, conversation)
+
+    def _is_meaningful(self, message: str) -> bool:
+        return _is_meaningful_message(message, self.min_words_per_message)
 
     def extract_member_messages_dataframe(
         self,
@@ -476,7 +597,7 @@ class ProfileUpdater:
         if messages_df.is_empty():
             return False, "Nenhuma mensagem encontrada"
 
-        messages_with_counts = messages_df.with_columns(self._word_count_expression())
+        messages_with_counts = messages_df.with_columns(_word_count_expression())
 
         meaningful_messages = messages_with_counts.filter(
             pl.col("word_count") >= self.min_words_per_message
@@ -513,7 +634,7 @@ class ProfileUpdater:
         if messages_df.is_empty():
             return {}
 
-        messages_df = messages_df.with_columns(self._word_count_expression())
+        messages_df = messages_df.with_columns(_word_count_expression())
 
         total_messages = messages_df.height
         avg_words_per_message = float(messages_df.get_column("word_count").mean() or 0.0)
@@ -536,7 +657,10 @@ class ProfileUpdater:
             max_messages_in_day = 0
         else:
             top_day = daily_counts.sort("message_count", descending=True).row(0, named=True)
-            most_active_day = top_day.get("day") if isinstance(top_day, dict) else top_day[0]
+            if isinstance(top_day, dict):
+                most_active_day = top_day.get("day")
+            else:
+                most_active_day = top_day[0]
             max_messages_in_day = daily_counts.get_column("message_count").max()
 
         return {
@@ -550,34 +674,3 @@ class ProfileUpdater:
             "most_active_day": most_active_day,
             "max_messages_in_day": max_messages_in_day,
         }
-
-    @staticmethod
-    def _word_count_expression() -> pl.Expr:
-        """Return a Polars expression that counts non-empty tokens in ``message``."""
-
-        return (
-            pl.col("message")
-            .cast(pl.Utf8)
-            .fill_null("")
-            .str.count_matches(r"\S+")
-            .alias("word_count")
-        )
-
-    def _is_meaningful(self, message: str) -> bool:
-        words = [chunk for chunk in re.split(r"\s+", message.strip()) if chunk]
-        return len(words) >= self.min_words_per_message
-
-    def _format_recent_conversations(self, conversations: Sequence[str]) -> str:
-        if not conversations:
-            return "(Sem conversas recentes registradas.)"
-
-        formatted: list[str] = []
-        start_index = max(len(conversations) - 5, 0)
-        for idx, conv in enumerate(conversations[start_index:], start=1):
-            formatted.append(f"## Sessão {idx}\n{conv.strip()}\n")
-        return "\n".join(formatted)
-
-    def _format_bullets(self, items: Sequence[str]) -> str:
-        if not items:
-            return "- (Sem registros para hoje.)"
-        return "\n".join(f"- {item}" for item in items)
