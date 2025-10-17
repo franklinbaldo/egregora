@@ -67,10 +67,10 @@ def merge_with_tags(
         return df
 
     if merge_config.tag_style == "emoji":
-        # TODO: The default emoji is hardcoded. This could be made configurable in the MergeConfig.
+        default_emoji = merge_config.default_emoji or "📱"
         emoji_expr = pl.col("group_slug").replace(
             merge_config.group_emojis,
-            default="📱",
+            default=default_emoji,
         )
         tagged = pl.format(
             "{} — {} {}: {}",

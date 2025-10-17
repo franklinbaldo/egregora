@@ -41,6 +41,7 @@ class MergeConfig(BaseModel):
         default_factory=dict,
         validation_alias=AliasChoices("group_emojis", "emojis"),
     )
+    default_emoji: str = "📱"
     model_override: str | None = Field(
         default=None,
         validation_alias=AliasChoices("model_override", "model"),

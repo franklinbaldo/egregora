@@ -21,9 +21,7 @@ MESSAGE_SCHEMA: dict[str, pl.DataType] = {
 }
 
 
-# TODO: This function is too complex (PLR0912). The timestamp handling logic
-# should be refactored into a separate helper function.
-def ensure_message_schema(  # noqa: PLR0912
+def ensure_message_schema(
     df: pl.DataFrame,
     *,
     timezone: str | ZoneInfo | None = None,
@@ -58,39 +56,52 @@ def ensure_message_schema(  # noqa: PLR0912
 
     frame = df.cast(casts, strict=False) if casts else df.clone()
 
+    frame = frame.with_columns(_normalise_timestamp(frame, desired_dtype))
+    frame = _ensure_date_column(frame)
+    frame = _ensure_text_columns(frame, ("author", "message", "original_line", "tagged_line"))
+    return frame
+
+
+def _normalise_timestamp(
+    frame: pl.DataFrame,
+    desired_dtype: pl.Datetime,
+) -> pl.Expr:
+    """Return a ``pl.Expr`` that yields a timestamp in the desired dtype."""
+
+    tz_name = desired_dtype.time_zone
+    if tz_name is None:
+        raise ValueError("desired_dtype must have a timezone")
+
     timestamp_dtype = frame.schema.get("timestamp")
     if timestamp_dtype is None:
         raise ValueError("DataFrame is missing required 'timestamp' column")
 
     if timestamp_dtype == desired_dtype:
-        timestamp_expr = pl.col("timestamp")
-    elif isinstance(timestamp_dtype, DateTimeType):
+        return pl.col("timestamp")
+
+    if isinstance(timestamp_dtype, DateTimeType):
+        expr = pl.col("timestamp").dt.cast_time_unit(desired_dtype.time_unit)
         if timestamp_dtype.time_zone is None:
-            timestamp_expr = (
-                pl.col("timestamp").cast(pl.Datetime(time_unit="ns")).dt.replace_time_zone(tz_name)
-            )
-        else:
-            timestamp_expr = (
-                pl.col("timestamp").dt.cast_time_unit("ns").dt.convert_time_zone(tz_name)
-            )
-    else:
-        timestamp_expr = (
-            pl.col("timestamp")
-            .str.strptime(pl.Datetime(time_unit="ns"))
-            .dt.replace_time_zone(tz_name)
-        )
+            return expr.dt.replace_time_zone(tz_name)
+        return expr.dt.convert_time_zone(tz_name)
 
-    frame = frame.with_columns(timestamp_expr.alias("timestamp"))
+    return (
+        pl.col("timestamp")
+        .str.strptime(pl.Datetime(time_unit=desired_dtype.time_unit))
+        .dt.replace_time_zone(tz_name)
+    )
 
+
+def _ensure_date_column(frame: pl.DataFrame) -> pl.DataFrame:
     if "date" in frame.columns:
-        frame = frame.with_columns(pl.col("date").cast(pl.Date).alias("date"))
-    else:
-        frame = frame.with_columns(pl.col("timestamp").dt.date().alias("date"))
+        return frame.with_columns(pl.col("date").cast(pl.Date).alias("date"))
+    return frame.with_columns(pl.col("timestamp").dt.date().alias("date"))
 
-    for name in ("author", "message", "original_line", "tagged_line"):
-        if name not in frame.columns:
-            frame = frame.with_columns(pl.lit(None, dtype=pl.String).alias(name))
-        else:
+
+def _ensure_text_columns(frame: pl.DataFrame, columns: tuple[str, ...]) -> pl.DataFrame:
+    for name in columns:
+        if name in frame.columns:
             frame = frame.with_columns(pl.col(name).cast(pl.String).alias(name))
-
+        else:
+            frame = frame.with_columns(pl.lit(None, dtype=pl.String).alias(name))
     return frame

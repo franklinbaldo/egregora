@@ -343,10 +343,14 @@ class ContentEnricher:
         *,
         cache: Cache | None = None,
         gemini_manager: GeminiManager | None = None,
+        cache_ttl_days: int | None = None,
     ) -> None:
         self._config = config
         self._cache = cache
         self._gemini_manager = gemini_manager
+        self._cache_ttl_seconds = (
+            max(1, int(cache_ttl_days)) * 24 * 60 * 60 if cache_ttl_days else None
+        )
         self._metrics: dict[str, int] = {
             "llm_calls": 0,
             "estimated_tokens": 0,
@@ -591,7 +595,7 @@ class ContentEnricher:
         }
 
         try:
-            cache.set(cache_key, entry)
+            cache.set(cache_key, entry, expire=self._cache_ttl_seconds)
         except Exception:
             # Cache failures must not break the enrichment flow.
             return
@@ -769,7 +773,7 @@ class ContentEnricher:
         entry["first_seen"] = _coerce_timestamp(entry.get("first_seen")) or now
 
         try:
-            cache.set(cache_key, entry)
+            cache.set(cache_key, entry, expire=self._cache_ttl_seconds)
         except Exception:
             return
 

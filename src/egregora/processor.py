@@ -52,9 +52,13 @@ logger = logging.getLogger(__name__)
 
 YAML_DELIMITER = "---"
 QUOTA_WARNING_THRESHOLD = 15
-MIN_YAML_PARTS = 3
 _TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 MAX_MEDIA_CAPTION_LENGTH = 160
+_FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+_CODE_BLOCK_FRONT_MATTER_PATTERN = re.compile(
+    r"```(?:yaml)?\s*\n---\s*\n(.*?)\n---\s*\n```\s*\n?",
+    re.DOTALL,
+)
 
 
 def _is_transient_gemini_error(exc: Exception) -> bool:
@@ -97,36 +101,6 @@ def _coerce_timestamp(value: Any) -> datetime | None:
 
     return None
 
-
-def _cleanup_cache(cache: Cache, days: int) -> int:
-    """Clean up expired entries from the cache."""
-    # TODO: For very large caches, iterating over all keys could be slow.
-    # A more efficient cache cleanup strategy might be needed if performance becomes an issue.
-    threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
-    removed = 0
-
-    for key in list(cache.iterkeys()):
-        entry = cache.get(key)
-        if not isinstance(entry, dict):
-            cache.delete(key)
-            continue
-
-        last_used = _coerce_timestamp(entry.get("last_used"))
-        if last_used is None:
-            continue
-
-        if last_used < threshold:
-            cache.delete(key)
-            removed += 1
-            continue
-
-        if not isinstance(entry.get("last_used"), datetime):
-            entry["last_used"] = last_used
-            cache.set(key, entry)
-
-    return removed
-
-
 def _build_post_metadata(
     source: GroupSource, target_date: date, config: PipelineConfig
 ) -> dict[str, object]:
@@ -144,60 +118,40 @@ def _build_post_metadata(
         "categories": categories,
         "tags": tags,
     }
+def _safe_load_mapping(raw_yaml: str) -> dict[str, Any]:
+    try:
+        loaded = yaml.safe_load(raw_yaml) or {}
+    except yaml.YAMLError:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
 
-#TODO: This function has some complex logic for handling front matter. It could be simplified and made more robust.
+
+def _extract_front_matter(text: str) -> tuple[dict[str, Any], str]:
+    stripped = text.lstrip()
+    metadata: dict[str, Any] = {}
+    remaining = stripped
+
+    match = _FRONT_MATTER_PATTERN.match(stripped)
+    if match:
+        metadata = _safe_load_mapping(match.group(1))
+        remaining = stripped[match.end():]
+
+    cleaned = _CODE_BLOCK_FRONT_MATTER_PATTERN.sub("", remaining)
+    return metadata, cleaned.lstrip()
+
+
 def _ensure_blog_front_matter(
     text: str, *, source: GroupSource, target_date: date, config: PipelineConfig
 ) -> str:
     """Merge Gemini-generated frontmatter with programmatic metadata."""
 
-    stripped = text.lstrip()
+    user_metadata, body = _extract_front_matter(text)
+    programmatic = _build_post_metadata(source, target_date, config)
+    merged_metadata = {**programmatic, **user_metadata}
 
-    # Check if content has frontmatter (including wrapped in code blocks)
-    if stripped.startswith("```\n---") or stripped.startswith("---"):
-        yaml_content = ""
-        remaining_content = stripped
-
-        # Handle normal frontmatter first
-        if stripped.startswith(YAML_DELIMITER):
-            parts = stripped.split(YAML_DELIMITER, 2)
-            if len(parts) >= MIN_YAML_PARTS:
-                yaml_content = parts[1]
-                remaining_content = parts[2].lstrip()
-
-        # Remove any wrapped frontmatter blocks from remaining content
-        while f"```\n{YAML_DELIMITER}" in remaining_content or f"```yaml\n{YAML_DELIMITER}" in remaining_content:
-            # Check for both plain and yaml-labeled code blocks
-            patterns = [f"```\n{YAML_DELIMITER}", f"```yaml\n{YAML_DELIMITER}"]
-            for pattern in patterns:
-                if pattern in remaining_content:
-                    start_idx = remaining_content.find(pattern)
-                    # Look for closing pattern
-                    end_pattern = f"{YAML_DELIMITER}\n```"
-                    end_idx = remaining_content.find(end_pattern, start_idx)
-                    if end_idx > start_idx:
-                        # Remove the entire wrapped block
-                        remaining_content = (
-                            remaining_content[:start_idx]
-                            + remaining_content[end_idx + len(end_pattern):]
-                        ).strip()
-                        break  # Process one at a time
-            else:
-                break  # No more patterns found
-
-        # Parse existing YAML and merge with programmatic metadata
-        try:
-            existing_metadata = yaml.safe_load(yaml_content) or {}
-        except yaml.YAMLError:
-            existing_metadata = {}
-
-        # Get programmatic metadata and merge
-        programmatic_metadata = _build_post_metadata(source, target_date, config)
-        merged_metadata = {**programmatic_metadata, **existing_metadata}
-
-        # Generate clean frontmatter
-        front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
-        return f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{remaining_content}"
+    front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
+    content = body.lstrip()
+    return f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{content}" if content else f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n"
 
     # No frontmatter found, add programmatic one
     metadata = _build_post_metadata(source, target_date, config)
@@ -231,12 +185,6 @@ def _add_member_profile_links(
     # Match bare UUIDs that are NOT followed by file extensions
     bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
-    # TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
-    # TODO: The path to the site profiles directory is hardcoded here.
-    # This should be made configurable, perhaps in the `egregora.toml` file.
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd()
-    site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
-
     profile_files: dict[str, Path] = {}
     if repository is not None:
         try:
@@ -248,11 +196,14 @@ def _add_member_profile_links(
         except Exception:
             pass
 
-    if site_profiles_dir.exists():
-        for profile_file in site_profiles_dir.glob("*.md"):
-            if profile_file.name.lower() == "index.md":
-                continue
-            profile_files[profile_file.stem.lower()] = profile_file
+    for extra_dir in config.profiles.link_directories:
+        try:
+            for profile_file in extra_dir.glob("*.md"):
+                if profile_file.name.lower() == "index.md":
+                    continue
+                profile_files[profile_file.stem.lower()] = profile_file
+        except Exception:
+            continue
 
     def _resolve_profile(uuid_value: str) -> str | None:
         identifier = uuid_value.lower()
@@ -447,7 +398,6 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
-    #TODO: The estimation is very rough and could be improved.
     def estimate_api_usage(
         self,
         *,
@@ -463,7 +413,12 @@ class UnifiedProcessor:
         group_estimates = {}
 
         for slug, source in sources_to_process.items():
-            available_dates = list(get_available_dates(source))
+            frame = load_source_dataframe(source)
+            if frame.is_empty():
+                group_estimates[slug] = {"posts": 0, "enrichment_calls": 0, "date_range": None}
+                continue
+
+            available_dates = sorted(frame.get_column("date").unique().to_list())
             target_dates = _filter_target_dates(
                 available_dates,
                 from_date=from_date,
@@ -474,11 +429,32 @@ class UnifiedProcessor:
             group_posts = len(target_dates)
             total_posts += group_posts
 
-            # Estimate enrichment calls (rough estimate)
             enrichment_calls = 0
-            if self.config.enrichment.enabled:
-                # Rough estimate: 1-3 enrichment calls per day on average
-                enrichment_calls = group_posts * 2  # Conservative estimate
+            if self.config.enrichment.enabled and group_posts:
+                max_links = max(1, int(self.config.enrichment.max_links))
+                for current_date in target_dates:
+                    df_day = frame.filter(pl.col("date") == current_date)
+                    if df_day.is_empty():
+                        continue
+                    message_col = pl.col("message").cast(pl.Utf8, strict=False).fill_null("")
+                    url_hits = int(
+                        df_day.select(
+                            message_col.str.contains(r"https?://", literal=False)
+                            .cast(pl.Int32)
+                            .sum()
+                        ).item()
+                    )
+                    media_hits = int(
+                        df_day.select(
+                            message_col.str.contains("mídia oculta", literal=False)
+                            .cast(pl.Int32)
+                            .sum()
+                        ).item()
+                    )
+                    references = url_hits + media_hits
+                    if references == 0:
+                        references = 1
+                    enrichment_calls += min(max_links, references)
 
             total_enrichment_calls += enrichment_calls
 
@@ -572,7 +548,6 @@ class UnifiedProcessor:
             )
         return sorted(plans, key=lambda plan: plan.slug)
 
-    #TODO: This function uses a list of hardcoded patterns to extract the group name. This could be made more configurable.
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
@@ -580,15 +555,7 @@ class UnifiedProcessor:
         # Remove file extension
         base_name = chat_filename.replace(".txt", "")
 
-        # TODO: These patterns could be moved to a configuration file to allow for easier customization.
-        # Common patterns in WhatsApp exports
-        patterns = [
-            r"Conversa do WhatsApp com (.+)",  # Portuguese
-            r"WhatsApp Chat with (.+)",  # English
-            r"Chat de WhatsApp con (.+)",  # Spanish
-        ]
-
-        for pattern in patterns:
+        for pattern in self.config.group_name_patterns:
             match = re.search(pattern, base_name, re.IGNORECASE)
             if match:
                 group_name = match.group(1).strip()
@@ -918,12 +885,13 @@ class UnifiedProcessor:
                             self.config.cache.max_disk_mb,
                         )
                         if self.config.cache.auto_cleanup_days:
-                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
+                            cache.cull()
                     except Exception:
                         cache = None
                 enricher = ContentEnricher(
                     self.config.enrichment,
                     cache=cache,
+                    cache_ttl_days=self.config.cache.auto_cleanup_days,
                 )
                 enrichment_result = asyncio.run(
                     enricher.enrich_dataframe(

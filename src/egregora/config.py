@@ -21,7 +21,15 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import RAGConfig
+from .rag.config import (
+    RAGConfig,
+    ChunkingSettings,
+    EmbeddingSettings,
+    MessageContextSettings,
+    QuerySettings,
+    RetrievalSettings,
+    VectorStoreSettings,
+)
 from .types import GroupSlug
 
 warnings.filterwarnings(
@@ -30,6 +38,11 @@ warnings.filterwarnings(
 
 DEFAULT_MODEL = "models/gemini-1.5-flash"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
+DEFAULT_GROUP_NAME_PATTERNS: tuple[str, ...] = (
+    r"Conversa do WhatsApp com (.+)",
+    r"WhatsApp Chat with (.+)",
+    r"Chat de WhatsApp con (.+)",
+)
 
 LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
     "vector_store_path": "persist_dir",
@@ -44,6 +57,21 @@ LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
     "postsDir": "posts_dir",
 }
 
+_RAG_NAMESPACE_MODELS: Mapping[str, type[BaseModel]] = {
+    "retrieval": RetrievalSettings,
+    "query": QuerySettings,
+    "chunking": ChunkingSettings,
+    "embedding": EmbeddingSettings,
+    "vector_store": VectorStoreSettings,
+    "messages": MessageContextSettings,
+}
+
+_RAG_FIELD_NAMESPACE: dict[str, tuple[str, str]] = {
+    field_name: (namespace, field_name)
+    for namespace, model in _RAG_NAMESPACE_MODELS.items()
+    for field_name in model.model_fields
+}
+
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -52,6 +80,30 @@ class LLMConfig(BaseModel):
 
     safety_threshold: str = "BLOCK_NONE"
     thinking_budget: int = -1
+    safety_categories: tuple[str, ...] = (
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_DANGEROUS_CONTENT",
+    )
+
+    @field_validator("safety_categories", mode="before")
+    @classmethod
+    def _validate_safety_categories(cls, value: Any) -> tuple[str, ...]:
+        if value is None:
+            msg = "safety_categories must contain at least one category"
+            raise ValueError(msg)
+        if isinstance(value, (list, tuple, set)):
+            items = tuple(str(item) for item in value if str(item))
+        elif isinstance(value, str):
+            items = (value,)
+        else:
+            msg = "safety_categories must be a sequence of strings or a string"
+            raise TypeError(msg)
+        if not items:
+            msg = "safety_categories must contain at least one category"
+            raise ValueError(msg)
+        return items
 
 
 class CacheConfig(BaseModel):
@@ -147,11 +199,21 @@ class ProfilesConfig(BaseModel):
     # Profile linking configuration
     link_members_in_posts: bool = True
     profile_base_url: str = "/profiles/"
+    link_directories: list[Path] = Field(default_factory=list)
 
     @field_validator("profiles_dir", "docs_dir", mode="before")
     @classmethod
     def _validate_directories(cls, value: Any) -> Path:
         return _ensure_safe_directory(value)
+
+    @field_validator("link_directories", mode="before")
+    @classmethod
+    def _validate_link_directories(cls, value: Any) -> list[Path]:
+        if value in (None, "", []):
+            return []
+        if isinstance(value, (list, tuple, set)):
+            return [_ensure_safe_directory(item) for item in value]
+        return [_ensure_safe_directory(value)]
 
     @field_validator(
         "min_messages",
@@ -186,91 +248,19 @@ class ProfilesConfig(BaseModel):
 def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
 
-    payload: dict[str, Any] = {str(key): value for key, value in raw.items()}
+    normalized: dict[str, Any] = {}
 
-    for legacy_key, canonical_key in LEGACY_RAG_KEY_ALIASES.items():
-        if legacy_key in payload and canonical_key not in payload:
-            payload[canonical_key] = payload.pop(legacy_key)
-        elif legacy_key in payload:
-            payload.pop(legacy_key)
+    for raw_key, raw_value in raw.items():
+        key = str(raw_key)
+        canonical = LEGACY_RAG_KEY_ALIASES.get(key, key)
+        namespace_entry = _RAG_FIELD_NAMESPACE.get(canonical)
+        if namespace_entry is not None:
+            namespace, field_name = namespace_entry
+            normalized.setdefault(namespace, {})[field_name] = raw_value
+        else:
+            normalized[canonical] = raw_value
 
-    _coerce_fields(payload)
-
-    return payload
-
-
-def _coerce_fields(payload: dict[str, Any]) -> None:
-    """Coerce fields in the payload to the correct types."""
-    # TODO: The field names are hardcoded here. This is not ideal because if the
-    # RAGConfig model changes, this function will need to be updated manually.
-    # A better approach would be to dynamically inspect the RAGConfig model's
-    # fields and their types.
-    bool_fields = {
-        "enabled",
-        "enable_cache",
-        "export_embeddings",
-    }
-    int_fields = {
-        "top_k",
-        "max_keywords",
-        "exclude_recent_days",
-        "max_context_chars",
-        "classifier_max_llm_calls",
-        "classifier_token_budget",
-        "chunk_size",
-        "chunk_overlap",
-        "embedding_dimension",
-    }
-
-    for field in bool_fields:
-        if field in payload:
-            payload[field] = _coerce_bool(payload[field])
-    for field in int_fields:
-        if field in payload and payload[field] is not None:
-            payload[field] = _coerce_int(payload[field])
-    if "min_similarity" in payload and payload["min_similarity"] is not None:
-        payload["min_similarity"] = _coerce_float(payload["min_similarity"])
-
-    _coerce_keyword_stop_words(payload)
-    _coerce_path_fields(payload)
-
-
-def _coerce_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "on"}:
-            return True
-        if lowered in {"false", "0", "no", "off"}:
-            return False
-    return bool(value)
-
-
-def _coerce_int(value: Any) -> int:
-    return int(value) if value is not None else value
-
-
-def _coerce_float(value: Any) -> float:
-    return float(value) if value is not None else value
-
-
-def _coerce_keyword_stop_words(payload: dict[str, Any]) -> None:
-    if "keyword_stop_words" in payload:
-        value = payload["keyword_stop_words"]
-        if isinstance(value, str):
-            items = [part.strip().lower() for part in value.split(",") if part.strip()]
-            payload["keyword_stop_words"] = tuple(items)
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            payload["keyword_stop_words"] = tuple(
-                str(item).strip().lower() for item in value if str(item).strip()
-            )
-
-
-def _coerce_path_fields(payload: dict[str, Any]) -> None:
-    for path_field in ("posts_dir", "cache_dir", "embedding_export_path", "persist_dir"):
-        if path_field in payload and payload[path_field] is not None:
-            payload[path_field] = Path(payload[path_field])
+    return normalized
 
 
 class PipelineConfig(BaseModel):
@@ -289,6 +279,7 @@ class PipelineConfig(BaseModel):
     group_name: str | None = None
     group_slug: GroupSlug | None = None
     post_language: str = "pt-BR"
+    prompts_dir: Path | None = None
     default_post_author: str = "egregora"
     media_url_prefix: str | None = None
     model: str = DEFAULT_MODEL
@@ -310,6 +301,7 @@ class PipelineConfig(BaseModel):
             "EGREGORA_USE_DF_PIPELINE",
         ),
     )
+    group_name_patterns: tuple[str, ...] = DEFAULT_GROUP_NAME_PATTERNS
 
     # Environment variable support removed - use direct initialization
 
@@ -336,6 +328,18 @@ class PipelineConfig(BaseModel):
 
         return resolved
 
+    @field_validator("prompts_dir", mode="before")
+    @classmethod
+    def _validate_prompts_dir(cls, value: Any) -> Path | None:
+        if value in (None, "", False):
+            return None
+        candidate = Path(value).expanduser()
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError("prompts_dir must not contain '..'")
+        base_dir = Path.cwd().resolve()
+        resolved = (candidate if candidate.is_absolute() else base_dir / candidate).resolve()
+        return resolved
+
     @field_validator("group_name", mode="before")
     @classmethod
     def _validate_group_name(cls, value: Any) -> str | None:
@@ -351,6 +355,20 @@ class PipelineConfig(BaseModel):
             return None
         candidate = str(value).strip()
         return GroupSlug(candidate) if candidate else None
+
+    @field_validator("group_name_patterns", mode="before")
+    @classmethod
+    def _validate_group_name_patterns(cls, value: Any) -> tuple[str, ...]:
+        if value in (None, "", ()):  # allow default
+            return DEFAULT_GROUP_NAME_PATTERNS
+        if isinstance(value, str):
+            return (value,)
+        if isinstance(value, Sequence):
+            patterns = [str(item).strip() for item in value if str(item).strip()]
+            if not patterns:
+                raise ValueError("group_name_patterns must contain at least one pattern")
+            return tuple(patterns)
+        raise TypeError("group_name_patterns must be a string or sequence of strings")
 
     @field_validator("llm", mode="before")
     @classmethod

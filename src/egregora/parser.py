@@ -63,7 +63,9 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
 
     return ensure_message_schema(pl.concat(frames).sort("timestamp"))
 
-# FIXME: This regex is complex and could be hard to understand. Add more comments to explain what it does.
+# Pattern captures optional date, mandatory time, separator (dash/en dash),
+# author, and the message content. WhatsApp exports vary the separator and may
+# include date prefixes (DD/MM/YYYY or locale variants) as well as AM/PM markers.
 _LINE_PATTERN = re.compile(
     r"^("
     r"(?:(?P<date>\d{1,2}/\d{1,2}/\d{2,4})(?:,\s*|\s+))?"
@@ -81,34 +83,17 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
     {"dayfirst": False},
 )
 
-#TODO: This function has a lot of logic for parsing dates. It could be simplified.
 def _parse_message_date(token: str) -> date | None:
+    """Parse ``token`` into a ``date`` in UTC, returning ``None`` when invalid."""
+
     normalized = token.strip()
     if not normalized:
         return None
 
-    def _normalize(parsed: datetime) -> date:
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        else:
-            parsed = parsed.astimezone(UTC)
-        return parsed.date()
-
-    try:
-        parsed_iso = date_parser.isoparse(normalized)
-    except (TypeError, ValueError, OverflowError):
-        parsed_iso = None
-    else:
-        return _normalize(parsed_iso)
-
-    for options in _DATE_PARSE_PREFERENCES:
-        try:
-            parsed = date_parser.parse(normalized, **options)
-        except (TypeError, ValueError, OverflowError):
-            continue
-        return _normalize(parsed)
-
-    return None
+    parsed = _parse_iso_date(normalized) or _parse_with_preferences(normalized)
+    if parsed is None:
+        return None
+    return _normalise_parsed_date(parsed)
 
 
 def _normalize_text(value: str) -> str:
@@ -117,93 +102,166 @@ def _normalize_text(value: str) -> str:
     normalized = _INVISIBLE_MARKS.sub("", normalized)
     return normalized
 
-# TODO: This function is too long and complex. It could be split into smaller
-# functions. For example, the logic for finalizing a message could be extracted
-# into a separate function. The date and time parsing could also be extracted.
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:  # noqa: PLR0915
+def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     """Parse messages from an iterable of strings."""
 
     rows: list[dict] = []
     current_date = export.export_date
-    current_message: dict | None = None
-
-    def _finalize_current() -> None:
-        nonlocal current_message
-        if current_message is None:
-            return
-
-        message_lines: list[str] = current_message.pop("_message_lines", [])
-        original_lines: list[str] = current_message.pop("_original_lines", [])
-
-        message_text = "\n".join(message_lines).strip()
-        original_text = "\n".join(original_lines).strip()
-
-        current_message["message"] = message_text
-        current_message["original_line"] = original_text or None
-        rows.append(current_message)
-        current_message = None
+    builder: _MessageBuilder | None = None
 
     for raw_line in lines:
-        stripped_line = raw_line.rstrip("\n")
-        normalized_line = _normalize_text(stripped_line)
-        line = normalized_line.strip()
-        if not line:
-            if current_message is not None:
-                current_message["_message_lines"].append("")
-                current_message["_original_lines"].append("")
+        prepared = _prepare_line(raw_line)
+        if prepared.trimmed == "":
+            if builder is not None:
+                builder.append("", "")
             continue
 
-        match = _LINE_PATTERN.match(line)
+        match = _LINE_PATTERN.match(prepared.trimmed)
         if not match:
-            if current_message is not None:
-                current_message["_message_lines"].append(_normalize_text(line))
-                current_message["_original_lines"].append(normalized_line)
+            if builder is not None:
+                builder.append(_normalize_text(prepared.trimmed), prepared.normalized)
             continue
 
-        date_str = match.group("date")
-        time_str = match.group("time")
-        am_pm = match.group("ampm")
-        author = match.group("author")
-
-        if date_str:
-            parsed_date = _parse_message_date(date_str)
-            if parsed_date:
-                msg_date = parsed_date
-                current_date = parsed_date
-            else:
-                msg_date = current_date
-        else:
-            msg_date = current_date
-
-        try:
-            if am_pm:
-                msg_time = datetime.strptime(f"{time_str} {am_pm.upper()}", "%I:%M %p").time()
-            else:
-                msg_time = datetime.strptime(time_str, "%H:%M").time()
-        except ValueError:
-            logger.debug("Failed to parse time '%s' in line: %s", time_str, line)
+        msg_date, current_date = _resolve_message_date(match.group("date"), current_date)
+        msg_time = _parse_message_time(match.group("time"), match.group("ampm"), prepared.trimmed)
+        if msg_time is None:
             continue
 
-        _finalize_current()
+        if builder is not None:
+            rows.append(builder.finalize())
 
-        initial_message = _normalize_text(match.group("message").strip())
-        current_message = {
-            "timestamp": datetime.combine(msg_date, msg_time),
-            "date": msg_date,
-            "time": msg_time.strftime("%H:%M"),
-            "author": _normalize_text(author.strip()),
-            "message": "",
-            "group_slug": export.group_slug,
-            "group_name": export.group_name,
-            "original_line": None,
-            "tagged_line": None,
-            "_message_lines": [initial_message],
-            "_original_lines": [normalized_line],
-        }
+        builder = _start_message_builder(
+            export=export,
+            msg_date=msg_date,
+            msg_time=msg_time,
+            author=_normalize_text(match.group("author").strip()),
+            initial_message=_normalize_text(match.group("message").strip()),
+            original_line=prepared.normalized,
+        )
 
-    _finalize_current()
+    if builder is not None:
+        rows.append(builder.finalize())
 
     return rows
 
 
 _INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+
+
+def _parse_iso_date(value: str) -> datetime | None:
+    try:
+        return date_parser.isoparse(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _parse_with_preferences(value: str) -> datetime | None:
+    for options in _DATE_PARSE_PREFERENCES:
+        try:
+            return date_parser.parse(value, **options)
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return None
+
+
+def _normalise_parsed_date(parsed: datetime) -> date:
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    else:
+        parsed = parsed.astimezone(UTC)
+    return parsed.date()
+
+
+def _prepare_line(raw_line: str) -> "_PreparedLine":
+    stripped = raw_line.rstrip("\n")
+    normalized = _normalize_text(stripped)
+    return _PreparedLine(original=stripped, normalized=normalized, trimmed=normalized.strip())
+
+
+def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date, date]:
+    if not date_token:
+        return fallback, fallback
+
+    parsed = _parse_message_date(date_token)
+    if parsed is None:
+        return fallback, fallback
+    return parsed, parsed
+
+
+def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
+    try:
+        if am_pm:
+            return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
+        return datetime.strptime(time_token, "%H:%M").time()
+    except ValueError:
+        logger.debug("Failed to parse time '%s' in line: %s", time_token, context_line)
+        return None
+
+
+def _start_message_builder(
+    *,
+    export: WhatsAppExport,
+    msg_date: date,
+    msg_time,
+    author: str,
+    initial_message: str,
+    original_line: str,
+) -> "_MessageBuilder":
+    builder = _MessageBuilder(
+        timestamp=datetime.combine(msg_date, msg_time),
+        date=msg_date,
+        author=author,
+        group_slug=export.group_slug,
+        group_name=export.group_name,
+    )
+    builder.append(initial_message, original_line)
+    return builder
+
+
+class _MessageBuilder:
+    """Incrementally assemble a message entry before committing to ``rows``."""
+
+    def __init__(
+        self,
+        *,
+        timestamp: datetime,
+        date: date,
+        author: str,
+        group_slug: str,
+        group_name: str,
+    ) -> None:
+        self.timestamp = timestamp
+        self.date = date
+        self.author = author
+        self.group_slug = group_slug
+        self.group_name = group_name
+        self._message_lines: list[str] = []
+        self._original_lines: list[str] = []
+
+    def append(self, content: str, original: str) -> None:
+        self._message_lines.append(content)
+        self._original_lines.append(original)
+
+    def finalize(self) -> dict:
+        message_text = "\n".join(self._message_lines).strip()
+        original_text = "\n".join(self._original_lines).strip()
+        return {
+            "timestamp": self.timestamp,
+            "date": self.date,
+            "time": self.timestamp.strftime("%H:%M"),
+            "author": self.author,
+            "message": message_text,
+            "group_slug": self.group_slug,
+            "group_name": self.group_name,
+            "original_line": original_text or None,
+            "tagged_line": None,
+        }
+
+
+class _PreparedLine:
+    __slots__ = ("original", "normalized", "trimmed")
+
+    def __init__(self, *, original: str, normalized: str, trimmed: str) -> None:
+        self.original = original
+        self.normalized = normalized
+        self.trimmed = trimmed
