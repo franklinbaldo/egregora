@@ -22,6 +22,7 @@ from .config import (
     LLMConfig,
     PipelineConfig,
     ProfilesConfig,
+    SiteConfig,
 )
 from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
@@ -69,7 +70,8 @@ class EgregoraCLI:
             output_dir: The directory path for the new site (e.g., 'my-blog').
         """
         site_root = Path(output_dir).resolve()
-        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+        site_config = SiteConfig()
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_config)
         if mkdocs_created:
             console.print(Panel(
                 f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
@@ -275,7 +277,11 @@ class EgregoraCLI:
 
         # Prepare MkDocs scaffold
         site_root = (Path(output) if output else Path("data")).resolve()
-        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+
+        # Create site config
+        site_config = SiteConfig()
+
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_config)
         if mkdocs_created:
             console.print(f"🛠️  mkdocs.yml created at {site_root / 'mkdocs.yml'}")
         elif docs_dir != site_root:
@@ -294,6 +300,7 @@ class EgregoraCLI:
             profiles=profiles_config,
             anonymization=AnonymizationConfig(),
             rag=RAGConfig(enabled=enable_rag or self.enable_rag),
+            site=site_config,
         )
 
         # Create processor instance

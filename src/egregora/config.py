@@ -283,6 +283,50 @@ def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+class SiteConfig(BaseModel):
+    """Configuration for MkDocs site structure and templates."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    # Directory structure
+    docs_dir: str = "docs"
+    blog_dir: str = "blog"
+    posts_subdir: str = "posts"
+
+    # Site metadata
+    site_name: str = "Egregora Archive"
+    site_description: str | None = None  # Defaults to "Diários da consciência coletiva - {site_name}"
+
+    # Theme configuration
+    theme_name: str = "material"
+    theme_language: str = "pt-BR"
+    theme_primary_color: str = "indigo"
+    theme_accent_color: str = "blue"
+
+    # Blog plugin configuration
+    post_url_format: str = "{date}/{slug}"
+    post_url_date_format: str = "yyyy/MM/dd"
+    post_date_format: str = "long"
+    posts_per_page: int = 10
+
+    # Navigation
+    blog_nav_title: str = "Blog"
+    profiles_nav_title: str = "Perfis"
+    about_nav_title: str = "Sobre"
+
+    @property
+    def full_blog_path(self) -> str:
+        """Return the full path to blog posts directory relative to docs_dir."""
+        return f"{self.blog_dir}/{self.posts_subdir}"
+
+    def get_site_description(self, site_name: str | None = None) -> str:
+        """Get site description, using custom or generating default."""
+        if self.site_description:
+            return self.site_description
+        name = site_name or self.site_name
+        return f"Diários da consciência coletiva - {name}"
+
+
 class PipelineConfig(BaseModel):
     """Runtime configuration for the post pipeline."""
 
@@ -311,6 +355,7 @@ class PipelineConfig(BaseModel):
     zip_validation: ArchiveValidationConfig = Field(default_factory=ArchiveValidationConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
+    site: SiteConfig = Field(default_factory=SiteConfig)
     merges: dict[GroupSlug, MergeConfig] = Field(default_factory=dict)
     skip_real_if_in_virtual: bool = True
     system_message_filters_file: Path | None = None

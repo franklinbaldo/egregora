@@ -797,7 +797,7 @@ class UnifiedProcessor:
     def _existing_daily_posts(self, site_root: Path) -> list[Path]:
         """Return existing daily posts for *site_root* if they are present."""
 
-        posts_dir = site_root / "posts"
+        posts_dir = site_root / self.config.site.full_blog_path
         if not posts_dir.exists():
             return []
 
@@ -815,7 +815,7 @@ class UnifiedProcessor:
 
         # The blog plugin handles post indexing automatically, so we just ensure
         # the posts directory structure is correct
-        posts_dir = site_root / "posts"
+        posts_dir = site_root / self.config.site.full_blog_path
         if not posts_dir.exists():
             posts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -835,15 +835,16 @@ class UnifiedProcessor:
         site_root = self.config.posts_dir
         site_root.mkdir(parents=True, exist_ok=True)
 
-        # Posts go directly into posts/ directory
-        daily_dir = site_root / "posts"
+        # Posts go into blog/posts/ directory using SiteConfig
+        daily_dir = site_root / self.config.site.full_blog_path
         daily_dir.mkdir(parents=True, exist_ok=True)
 
-        # Media and profiles at root level
-        media_dir = site_root / "media"
+        # Media and profiles at root level (relative to output directory, not docs dir)
+        output_root = site_root.parent if site_root.name == self.config.site.docs_dir else site_root
+        media_dir = output_root / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
 
-        profiles_base = site_root / "profiles"
+        profiles_base = output_root / "profiles"
         profiles_base.mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
