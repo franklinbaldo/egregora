@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 DEFAULT_SITE_NAME = "Egregora Archive"
@@ -53,188 +52,36 @@ def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     return docs_dir
 
 
-# TODO: The MkDocs configuration is hardcoded here. It would be better to have
-# this as a template file (e.g., mkdocs.yml.jinja2) and use Jinja2 to render it.
 def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Create a comprehensive MkDocs configuration for blog and return the docs directory path."""
 
     site_name = site_root.name or DEFAULT_SITE_NAME
 
-    # Create comprehensive blog-ready configuration
-    config = {
-        "site_name": site_name,
-        "site_description": f"Diários da consciência coletiva - {site_name}",
-        "site_dir": "site",
-        "theme": {
-            "name": "material",
-            "language": "pt-BR",
-            "palette": [
-                {
-                    "media": "(prefers-color-scheme: light)",
-                    "scheme": "default",
-                    "primary": "indigo",
-                    "accent": "blue",
-                    "toggle": {"icon": "material/brightness-7", "name": "Mudar para modo escuro"},
-                },
-                {
-                    "media": "(prefers-color-scheme: dark)",
-                    "scheme": "slate",
-                    "primary": "indigo",
-                    "accent": "blue",
-                    "toggle": {"icon": "material/brightness-4", "name": "Mudar para modo claro"},
-                },
-            ],
-            "features": [
-                "navigation.instant",
-                "navigation.tracking",
-                "navigation.tabs",
-                "navigation.sections",
-                "navigation.indexes",
-                "navigation.top",
-                "search.highlight",
-                "search.share",
-                "content.code.copy",
-                "content.action.edit",
-                "content.action.view",
-            ],
-        },
-        "plugins": [
-            {"search": {"lang": "pt"}},
-            {
-                "blog": {
-                    "blog_dir": DEFAULT_BLOG_DIR,
-                    "blog_toc": True,
-                    "post_date_format": "long",
-                    "post_url_date_format": "yyyy/MM/dd",
-                    "post_url_format": "{date}/{slug}",
-                    "pagination_per_page": 10,
-                    "categories_allowed": [
-                        "daily",
-                        "artificial-intelligence",
-                        "philosophy",
-                        "meetup",
-                        "emergency",
-                        "culture",
-                        "psychology",
-                        "neuroscience",
-                        "open-source",
-                        "social-engineering",
-                    ],
-                }
-            },
-            "tags",
-            {"minify": {"minify_html": True}},
-        ],
-        "nav": [
-            {"Home": "docs/index.md"},
-            {"Blog": f"{DEFAULT_BLOG_DIR}/index.md"},
-            {"Perfis": "profiles/index.md"},
-            {"Sobre": "docs/about.md"},
-        ],
-        "markdown_extensions": [
-            "abbr",
-            "admonition",
-            "attr_list",
-            "def_list",
-            "footnotes",
-            "md_in_html",
-            {"toc": {"permalink": True}},
-            {"pymdownx.arithmatex": {"generic": True}},
-            {"pymdownx.betterem": {"smart_enable": "all"}},
-            "pymdownx.caret",
-            "pymdownx.details",
-            {
-                "pymdownx.emoji": {
-                    "emoji_index": "!!python/name:material.extensions.emoji.twemoji",
-                    "emoji_generator": "!!python/name:material.extensions.emoji.to_svg",
-                }
-            },
-            {
-                "pymdownx.highlight": {
-                    "anchor_linenums": True,
-                    "line_spans": "__span",
-                    "pygments_lang_class": True,
-                }
-            },
-            "pymdownx.inlinehilite",
-            "pymdownx.keys",
-            "pymdownx.mark",
-            "pymdownx.smartsymbols",
-            {
-                "pymdownx.superfences": {
-                    "custom_fences": [
-                        {
-                            "name": "mermaid",
-                            "class": "mermaid",
-                            "format": "!!python/name:pymdownx.superfences.fence_code_format",
-                        }
-                    ]
-                }
-            },
-            {"pymdownx.tabbed": {"alternate_style": True, "combine_header_slug": True}},
-            {"pymdownx.tasklist": {"custom_checkbox": True}},
-            "pymdownx.tilde",
-        ],
-        "extra": {"generator": False},
-    }
+    # Setup Jinja2 environment to load templates
+    env = Environment(
+        loader=PackageLoader("egregora", "templates"),
+        autoescape=select_autoescape(["html", "xml", "md", "yml", "yaml", "toml"]),
+    )
 
-    # Generate YAML and fix Python name tags that get quoted by safe_dump
-    yaml_content = yaml.safe_dump(config, sort_keys=False, allow_unicode=True)
-    # Remove quotes around !!python/name: tags
-    yaml_content = yaml_content.replace(
-        "'!!python/name:material.extensions.emoji.twemoji'",
-        "!!python/name:material.extensions.emoji.twemoji"
-    )
-    yaml_content = yaml_content.replace(
-        "'!!python/name:material.extensions.emoji.to_svg'",
-        "!!python/name:material.extensions.emoji.to_svg"
-    )
-    yaml_content = yaml_content.replace(
-        "'!!python/name:pymdownx.superfences.fence_code_format'",
-        "!!python/name:pymdownx.superfences.fence_code_format"
-    )
-    mkdocs_path.write_text(yaml_content, encoding="utf-8")
+    # Template context
+    context = {"site_name": site_name, "blog_dir": DEFAULT_BLOG_DIR}
 
-    # Create pyproject.toml for uv
-    _create_pyproject(site_root, site_name)
+    # Create mkdocs.yml from template
+    mkdocs_template = env.get_template("mkdocs.yml.jinja2")
+    mkdocs_content = mkdocs_template.render(**context)
+    mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
+
+    # Create pyproject.toml from template
+    pyproject_path = site_root / "pyproject.toml"
+    if not pyproject_path.exists():
+        pyproject_template = env.get_template("pyproject.toml.jinja2")
+        pyproject_content = pyproject_template.render(**context)
+        pyproject_path.write_text(pyproject_content, encoding="utf-8")
 
     # Create essential directories and files
     _create_site_structure(site_root)
 
     return site_root
-
-
-def _create_pyproject(site_root: Path, site_name: str) -> None:
-    """Create a pyproject.toml file for the mkdocs site."""
-
-    pyproject_path = site_root / "pyproject.toml"
-
-    # Don't overwrite existing pyproject.toml
-    if pyproject_path.exists():
-        return
-
-    pyproject_content = f'''[project]
-name = "{site_name}"
-version = "0.1.0"
-description = "MkDocs site for {site_name}"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.5.0",
-    "mkdocs-minify-plugin>=0.8.0",
-    "materialx>=1.39.0",
-]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.uv]
-dev-dependencies = []
-'''
-
-    pyproject_path.write_text(pyproject_content, encoding="utf-8")
 
 
 def _create_site_structure(site_root: Path) -> None:
