@@ -55,6 +55,8 @@ logging.basicConfig(
 
 app = typer.Typer(help="Egregora - WhatsApp to post pipeline with AI enrichment")
 
+logger = logging.getLogger(__name__)
+
 
 ZIP_FILES_ARGUMENT = typer.Argument(..., help="Um ou mais arquivos .zip do WhatsApp para processar")
 OUTPUT_DIR_OPTION = typer.Option(
@@ -533,6 +535,7 @@ def _dry_run_and_exit(
             )
 
     except Exception as exc:
+        logger.exception("Failed to estimate quota usage")
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
 
     console.print()
@@ -563,6 +566,7 @@ def _process_and_display(
             )
 
     except Exception as exc:
+        logger.exception("Failed to estimate quota usage before processing")
         console.print(f"\n[yellow]Não foi possível estimar uso da API: {exc}[/yellow]")
 
     console.print()
