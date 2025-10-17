@@ -37,7 +37,7 @@ warnings.filterwarnings(
     "ignore", category=UnsupportedFieldAttributeWarning, message=".*`validate_default`.*"
 )
 
-DEFAULT_MODEL = "models/gemini-1.5-flash"
+DEFAULT_MODEL = "models/gemini-2.5-flash"
 DEFAULT_TIMEZONE = "America/Porto_Velho"
 DEFAULT_GROUP_NAME_PATTERNS: tuple[str, ...] = (
     r"Conversa do WhatsApp com (.+)",

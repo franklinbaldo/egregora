@@ -38,6 +38,7 @@ from .transcript import (
     load_source_dataframe,
     render_transcript,
 )
+from .schema import ensure_message_schema
 from .types import GroupSlug
 from .zip_utils import ZipValidationLimits, configure_default_limits
 
@@ -45,6 +46,14 @@ try:  # pragma: no cover - optional dependency
     from google.genai import errors as genai_errors
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     genai_errors = None  # type: ignore[assignment]
+
+try:  # Simple enricher imports for enrichment functionality
+    from .simple_enricher import simple_enrich_url_with_cache, save_simple_enrichment, save_media_enrichment, simple_enrich_media_with_cache
+except ImportError:  # pragma: no cover - optional dependency
+    simple_enrich_url_with_cache = None  # type: ignore[assignment]
+    save_simple_enrichment = None  # type: ignore[assignment]
+    save_media_enrichment = None  # type: ignore[assignment]
+    simple_enrich_media_with_cache = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from .enrichment import EnrichmentResult
@@ -184,7 +193,7 @@ def _add_member_profile_links(
     # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
     # Match bare UUIDs that are NOT followed by file extensions
-    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![[\w-])", re.IGNORECASE)
+    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
     profile_files: dict[str, Path] = {}
     if repository is not None:
@@ -887,9 +896,8 @@ class UnifiedProcessor:
             _, previous_post = _load_previous_post(daily_dir, target_date)
 
             # Simple enrichment - add enrichments as messages to dataframe
-            if self.config.enrichment.enabled:
+            if self.config.enrichment.enabled and simple_enrich_url_with_cache is not None:
                 try:
-                    from .simple_enricher import simple_enrich_url_with_cache, save_simple_enrichment
                     
                     # Setup cache
                     cache: Cache | None = None
@@ -970,7 +978,6 @@ class UnifiedProcessor:
                                 # If not a UUID, use the original media_key
                                 pass
                         # Get enrichment from LLM for media files
-                        from .simple_enricher import save_media_enrichment, simple_enrich_media_with_cache
                         
                         # Find the message that references this media
                         media_message_row = None
@@ -1009,7 +1016,6 @@ class UnifiedProcessor:
                     if enriched_rows:
                         enrichment_df = pl.DataFrame(enriched_rows)
                         # Ensure schemas match exactly
-                        from .schema import ensure_message_schema
                         enrichment_df = ensure_message_schema(enrichment_df, timezone=self.config.timezone)
                         df_day = pl.concat([df_day, enrichment_df], how="diagonal")
                         df_day = df_day.sort("timestamp")
