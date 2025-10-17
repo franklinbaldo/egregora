@@ -5,7 +5,6 @@ from __future__ import annotations
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
 
 __all__ = [
     "ZipValidationError",

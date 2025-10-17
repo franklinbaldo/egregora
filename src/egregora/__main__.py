@@ -333,7 +333,7 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
                             "last_updated": profile_data.get("last_updated", "Unknown"),
                         }
                     )
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logging.warning(f"Error reading profile {profile_file}: {e}")
                 continue
         console.print(json.dumps(profiles_data, indent=2, ensure_ascii=False))
@@ -354,7 +354,7 @@ def _list_profiles(config: PipelineConfig, output_format: str) -> None:
                         str(profile_data.get("message_count", 0)),
                         profile_data.get("last_updated", "Unknown"),
                     )
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 table.add_row(profile_file.stem, "❌ Erro ao ler", "-", "-")
 
         console.print(table)
@@ -391,7 +391,7 @@ def _show_profile(config: PipelineConfig, member_id: str, output_format: str) ->
                     border_style="blue",
                 )
             )
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         console.print(f"❌ Erro ao ler perfil: {e}")
         raise typer.Exit(1) from e
 
@@ -435,7 +435,7 @@ def _clean_profiles(config: PipelineConfig) -> None:
         try:
             with open(profile_file) as f:
                 json.load(f)  # Validate JSON
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             profile_file.unlink()
             removed_count += 1
             console.print(f"🗑️  Removido perfil corrompido: {profile_file.name}")

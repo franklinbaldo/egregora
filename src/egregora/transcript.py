@@ -34,7 +34,9 @@ def render_transcript(
     if "time" not in frame.columns:
         frame = frame.with_columns(pl.col("timestamp").dt.strftime("%H:%M").alias("time"))
 
-    render_expr = _build_render_expression(frame, use_tagged=use_tagged, prefer_original_line=prefer_original_line)
+    render_expr = _build_render_expression(
+        frame, use_tagged=use_tagged, prefer_original_line=prefer_original_line
+    )
     frame = frame.with_columns(render_expr.alias("__render_line"))
 
     lines = [line or "" for line in frame.get_column("__render_line").to_list()]

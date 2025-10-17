@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 _ROW_INDEX_COLUMN = "__row_index"
 
+
 @dataclass(slots=True)
 class _MessageEmbeddingBatch:
     ids: list[str]
@@ -169,7 +170,7 @@ class _MessageEmbeddingBuilder:
 class _SearchHydrator:
     """Augment search results with rehydrated message contexts."""
 
-    def __init__(self, rag: "ChromadbRAG") -> None:
+    def __init__(self, rag: ChromadbRAG) -> None:
         self._rag = rag
 
     def enrich(self, results: QueryResult) -> QueryResult:

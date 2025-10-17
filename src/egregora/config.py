@@ -15,23 +15,24 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
+    ValidationInfo,
     field_validator,
 )
 from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .zip_utils import ZipValidationLimits
 from .rag.config import (
-    RAGConfig,
     ChunkingSettings,
     EmbeddingSettings,
     MessageContextSettings,
     QuerySettings,
+    RAGConfig,
     RetrievalSettings,
     VectorStoreSettings,
 )
 from .types import GroupSlug
+from .zip_utils import ZipValidationLimits
 
 warnings.filterwarnings(
     "ignore", category=UnsupportedFieldAttributeWarning, message=".*`validate_default`.*"

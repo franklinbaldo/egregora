@@ -6,7 +6,9 @@ import asyncio
 import logging
 import re
 import textwrap
+import time
 import unicodedata
+import uuid
 import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -33,12 +35,12 @@ from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.chromadb_rag import ChromadbRAG
 from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
+from .schema import ensure_message_schema
 from .transcript import (
     get_available_dates,
     load_source_dataframe,
     render_transcript,
 )
-from .schema import ensure_message_schema
 from .types import GroupSlug
 from .zip_utils import ZipValidationLimits, configure_default_limits
 
@@ -48,7 +50,12 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
     genai_errors = None  # type: ignore[assignment]
 
 try:  # Simple enricher imports for enrichment functionality
-    from .simple_enricher import simple_enrich_url_with_cache, save_simple_enrichment, save_media_enrichment, simple_enrich_media_with_cache
+    from .simple_enricher import (
+        save_media_enrichment,
+        save_simple_enrichment,
+        simple_enrich_media_with_cache,
+        simple_enrich_url_with_cache,
+    )
 except ImportError:  # pragma: no cover - optional dependency
     simple_enrich_url_with_cache = None  # type: ignore[assignment]
     save_simple_enrichment = None  # type: ignore[assignment]
@@ -95,14 +102,15 @@ def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
 
 def _cleanup_cache(cache: Cache, max_age_days: int) -> None:
     """Remove cache entries older than max_age_days."""
-    import time
     cutoff_time = time.time() - (max_age_days * 24 * 60 * 60)
-    
+
     try:
         for key in list(cache):
             try:
                 # Get the access time for the key
-                access_time = cache.get(key, expire_time=True, tag=True, read=False)[1]  # get expire time
+                access_time = cache.get(key, expire_time=True, tag=True, read=False)[
+                    1
+                ]  # get expire time
                 if access_time is not None and access_time < cutoff_time:
                     cache.delete(key)
             except (KeyError, TypeError):
@@ -132,6 +140,7 @@ def _coerce_timestamp(value: Any) -> datetime | None:
 
     return None
 
+
 def _build_post_metadata(
     source: GroupSource, target_date: date, config: PipelineConfig
 ) -> dict[str, object]:
@@ -149,6 +158,8 @@ def _build_post_metadata(
         "categories": categories,
         "tags": tags,
     }
+
+
 def _safe_load_mapping(raw_yaml: str) -> dict[str, Any]:
     try:
         loaded = yaml.safe_load(raw_yaml) or {}
@@ -165,7 +176,7 @@ def _extract_front_matter(text: str) -> tuple[dict[str, Any], str]:
     match = _FRONT_MATTER_PATTERN.match(stripped)
     if match:
         metadata = _safe_load_mapping(match.group(1))
-        remaining = stripped[match.end():]
+        remaining = stripped[match.end() :]
 
     cleaned = _CODE_BLOCK_FRONT_MATTER_PATTERN.sub("", remaining)
     return metadata, cleaned.lstrip()
@@ -182,14 +193,11 @@ def _ensure_blog_front_matter(
 
     front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
     content = body.lstrip()
-    return f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{content}" if content else f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n"
-
-    # No frontmatter found, add programmatic one
-    metadata = _build_post_metadata(source, target_date, config)
-    front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-    prefix_len = len(text) - len(stripped)
-    prefix = text[:prefix_len]
-    return f"{prefix}{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{stripped}"
+    return (
+        f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{content}"
+        if content
+        else f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n"
+    )
 
 
 def _add_member_profile_links(
@@ -206,7 +214,7 @@ def _add_member_profile_links(
 
     # FIXME: The regex could be improved to be more specific and avoid false positives.
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-    
+
     markdown_with_uuid = re.compile(
         rf"(?P<link>\[[^]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
@@ -265,12 +273,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section (rough heuristic)
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         emoji = _format_link(resolved) if resolved else "🪪"
         return emoji
@@ -280,12 +288,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
@@ -793,7 +801,9 @@ class UnifiedProcessor:
         if not posts_dir.exists():
             return []
 
-        return [path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"]
+        return [
+            path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"
+        ]
 
     def _write_group_index(
         self,
@@ -802,7 +812,7 @@ class UnifiedProcessor:
         post_paths: list[Path],
     ) -> None:
         """Update the blog index with generated posts. With Material blog plugin, this is mostly handled automatically."""
-        
+
         # The blog plugin handles post indexing automatically, so we just ensure
         # the posts directory structure is correct
         posts_dir = site_root / "posts"
@@ -919,7 +929,6 @@ class UnifiedProcessor:
             # Simple enrichment - add enrichments as messages to dataframe
             if self.config.enrichment.enabled and simple_enrich_url_with_cache is not None:
                 try:
-                    
                     # Setup cache
                     cache: Cache | None = None
                     if self.config.cache.enabled:
@@ -932,115 +941,125 @@ class UnifiedProcessor:
                                 _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
                         except Exception:
                             cache = None
-                    
+
                     # Extract URLs from the day's messages
-                    urls_df = df_day.filter(
-                        pl.col("message").str.contains(r"https?://[^\s>)]+")
-                    ).with_columns(
-                        pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
-                    ).explode("urls").filter(
-                        pl.col("urls").is_not_null() & (pl.col("urls") != "")
+                    urls_df = (
+                        df_day.filter(pl.col("message").str.contains(r"https?://[^\s>)]+"))
+                        .with_columns(
+                            pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
+                        )
+                        .explode("urls")
+                        .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
                     )
-                    
+
                     enriched_rows = []
                     processed_urls = set()
-                    
+
                     for row in urls_df.iter_rows(named=True):
                         url = row["urls"]
                         if url in processed_urls:
                             continue  # Skip duplicate URLs
                         processed_urls.add(url)
-                        
-                        original_message = row["message"] 
+
+                        original_message = row["message"]
                         original_timestamp = row["timestamp"]
                         original_author = row["author"]
-                        
+
                         # Get enrichment (with cache)
                         enrichment_text = asyncio.run(
                             simple_enrich_url_with_cache(url, original_message, cache)
                         )
-                        
+
                         # Save as markdown file with media info
                         save_simple_enrichment(
                             url=url,
                             enrichment_text=enrichment_text,
                             media_dir=media_dir,
                             sender=original_author,
-                            timestamp=original_timestamp.strftime("%H:%M") if original_timestamp else None,
+                            timestamp=original_timestamp.strftime("%H:%M")
+                            if original_timestamp
+                            else None,
                             date_str=target_date.isoformat(),
                             message=original_message,
                             media_path=None,  # URLs don't have local media
                             media_type=None,
                         )
-                        
+
                         # Add as message to dataframe (match full schema and timezone)
-                        enriched_rows.append({
-                            "timestamp": original_timestamp,
-                            "date": target_date,
-                            "author": "egregora",
-                            "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
-                            "original_line": None,
-                            "tagged_line": None,
-                        })
-                    
+                        enriched_rows.append(
+                            {
+                                "timestamp": original_timestamp,
+                                "date": target_date,
+                                "author": "egregora",
+                                "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
+                                "original_line": None,
+                                "tagged_line": None,
+                            }
+                        )
+
                     # Process media files for enrichment
                     for media_key, media_file in all_media.items():
                         # Ensure we use the actual UUID, not the original filename
-                        actual_media_uuid = getattr(media_file, 'uuid', media_key)
-                        if hasattr(media_file, 'dest_path') and media_file.dest_path:
+                        actual_media_uuid = getattr(media_file, "uuid", media_key)
+                        if hasattr(media_file, "dest_path") and media_file.dest_path:
                             # Extract UUID from dest_path filename if available
                             dest_filename = media_file.dest_path.stem  # filename without extension
                             # Check if dest_filename is a valid UUID format
                             try:
-                                import uuid
                                 uuid.UUID(dest_filename)
                                 actual_media_uuid = dest_filename
                             except ValueError:
                                 # If not a UUID, use the original media_key
                                 pass
                         # Get enrichment from LLM for media files
-                        
+
                         # Find the message that references this media
                         media_message_row = None
                         for row in df_day.iter_rows(named=True):
                             if media_key in str(row.get("message", "")):
                                 media_message_row = row
                                 break
-                        
+
                         # Get LLM analysis of the media
-                        media_path = getattr(media_file, 'dest_path', Path("unknown"))
-                        media_type = getattr(media_file, 'media_type', 'unknown')
-                        context_message = media_message_row.get("message") if media_message_row else ""
-                        
+                        media_path = getattr(media_file, "dest_path", Path("unknown"))
+                        media_type = getattr(media_file, "media_type", "unknown")
+                        context_message = (
+                            media_message_row.get("message") if media_message_row else ""
+                        )
+
                         media_enrichment = asyncio.run(
                             simple_enrich_media_with_cache(
                                 media_path=media_path,
                                 media_type=media_type,
                                 context_message=context_message,
-                                cache=cache
+                                cache=cache,
                             )
                         )
-                        
+
                         save_media_enrichment(
                             media_key=actual_media_uuid,
-                            media_path=getattr(media_file, 'dest_path', Path("unknown")),
-                            media_type=getattr(media_file, 'media_type', 'unknown'),
+                            media_path=getattr(media_file, "dest_path", Path("unknown")),
+                            media_type=getattr(media_file, "media_type", "unknown"),
                             enrichment_text=media_enrichment,
                             media_dir=media_dir,
                             sender=media_message_row.get("author") if media_message_row else None,
-                            timestamp=media_message_row.get("timestamp").strftime("%H:%M") if media_message_row and media_message_row.get("timestamp") else None,
+                            timestamp=media_message_row.get("timestamp").strftime("%H:%M")
+                            if media_message_row and media_message_row.get("timestamp")
+                            else None,
                             date_str=target_date.isoformat(),
                             message=media_message_row.get("message") if media_message_row else None,
                         )
-                    
+
                     # Add enriched messages to dataframe
                     if enriched_rows:
                         enrichment_df = pl.DataFrame(enriched_rows)
                         # Ensure schemas match exactly
-                        enrichment_df = ensure_message_schema(enrichment_df, timezone=self.config.timezone)
+                        enrichment_df = ensure_message_schema(
+                            enrichment_df, timezone=self.config.timezone
+                        )
                         df_day = pl.concat([df_day, enrichment_df], how="diagonal")
                         df_day = df_day.sort("timestamp")
-                        
+
                         logger.info(f"    🔍 Added {len(enriched_rows)} enrichments as messages")
 
                 except Exception as exc:
@@ -1202,7 +1221,7 @@ class UnifiedProcessor:
                 logger.info(f"    ✅ {output_path}")
 
         self._write_group_index(source, site_root, results)
-        
+
         # Regenerate profile index after all days have been processed
         # This ensures the index reflects all profiles even if the last day had no updates
         if profile_repository:
@@ -1211,7 +1230,7 @@ class UnifiedProcessor:
                 logger.info("  📋 Profile index regenerated after processing %d days", len(results))
             except Exception as exc:
                 logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
-        
+
         return results
 
     # TODO: This function is too long and complex. It should be refactored into
@@ -1285,11 +1304,11 @@ class UnifiedProcessor:
 
             try:
                 should_update, reasoning, _, _ = asyncio.run(
-                updater.should_update_profile(
-                    member_id=member_uuid,
-                    current_profile=current_profile,
-                    full_conversation=conversation,
-                    gemini_client=client,
+                    updater.should_update_profile(
+                        member_id=member_uuid,
+                        current_profile=current_profile,
+                        full_conversation=conversation,
+                        gemini_client=client,
                     )
                 )
             except RuntimeError as exc:
