@@ -64,7 +64,6 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     config = {
         "site_name": site_name,
         "site_description": f"Diários da consciência coletiva - {site_name}",
-        "docs_dir": ".",
         "site_dir": "site",
         "theme": {
             "name": "material",
@@ -179,14 +178,63 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         "extra": {"generator": False},
     }
 
-    mkdocs_path.write_text(
-        yaml.safe_dump(config, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    # Generate YAML and fix Python name tags that get quoted by safe_dump
+    yaml_content = yaml.safe_dump(config, sort_keys=False, allow_unicode=True)
+    # Remove quotes around !!python/name: tags
+    yaml_content = yaml_content.replace(
+        "'!!python/name:material.extensions.emoji.twemoji'",
+        "!!python/name:material.extensions.emoji.twemoji"
     )
+    yaml_content = yaml_content.replace(
+        "'!!python/name:material.extensions.emoji.to_svg'",
+        "!!python/name:material.extensions.emoji.to_svg"
+    )
+    yaml_content = yaml_content.replace(
+        "'!!python/name:pymdownx.superfences.fence_code_format'",
+        "!!python/name:pymdownx.superfences.fence_code_format"
+    )
+    mkdocs_path.write_text(yaml_content, encoding="utf-8")
+
+    # Create pyproject.toml for uv
+    _create_pyproject(site_root, site_name)
 
     # Create essential directories and files
     _create_site_structure(site_root)
 
     return site_root
+
+
+def _create_pyproject(site_root: Path, site_name: str) -> None:
+    """Create a pyproject.toml file for the mkdocs site."""
+
+    pyproject_path = site_root / "pyproject.toml"
+
+    # Don't overwrite existing pyproject.toml
+    if pyproject_path.exists():
+        return
+
+    pyproject_content = f'''[project]
+name = "{site_name}"
+version = "0.1.0"
+description = "MkDocs site for {site_name}"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-minify-plugin>=0.8.0",
+    "materialx>=1.39.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
+'''
+
+    pyproject_path.write_text(pyproject_content, encoding="utf-8")
 
 
 def _create_site_structure(site_root: Path) -> None:
