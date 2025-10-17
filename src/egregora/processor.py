@@ -19,7 +19,6 @@ from diskcache import Cache
 
 from .anonymizer import Anonymizer
 from .config import PipelineConfig
-from .enrichment import ContentEnricher
 from .gemini_manager import GeminiManager
 from .generator import PostContext, PostGenerator
 from .markdown_utils import format_markdown
@@ -46,7 +45,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
     genai_errors = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
-    from .enrichment import EnrichmentResult
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -219,13 +218,13 @@ def _add_member_profile_links(
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
     
     markdown_with_uuid = re.compile(
-        rf"(?P<link>\[[^\]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
+        rf"(?P<link>\[[^]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
     )
     # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
     # Match bare UUIDs that are NOT followed by file extensions
-    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
+    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![[\w-])", re.IGNORECASE)
 
     workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
     site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
@@ -600,8 +599,8 @@ class UnifiedProcessor:
         slug = slug.encode("ascii", "ignore").decode("ascii")
 
         # Convert to lowercase and replace spaces/special chars with hyphens
-        slug = re.sub(r"[^\w\s-]", "", slug.lower())
-        slug = re.sub(r"[-\s]+", "-", slug)
+        slug = re.sub(r"[^\\w\\s-]", "", slug.lower())
+        slug = re.sub(r"[-\\s]+", "-", slug)
 
         # Remove leading/trailing hyphens
         slug = slug.strip("-")
@@ -898,36 +897,42 @@ class UnifiedProcessor:
 
             # Enrichment
             enrichment_section = None
-            enrichment_result: EnrichmentResult | None = None
             if self.config.enrichment.enabled:
-                cache: Cache | None = None
-                if self.config.cache.enabled:
-                    try:
-                        cache = _create_cache(
-                            self.config.cache.cache_dir,
-                            self.config.cache.max_disk_mb,
-                        )
-                        if self.config.cache.auto_cleanup_days:
-                            _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
-                    except Exception:
-                        cache = None
-                enricher = ContentEnricher(
-                    self.config.enrichment,
-                    cache=cache,
-                )
-                enrichment_result = asyncio.run(
-                    enricher.enrich_dataframe(
-                        df_day,
-                        client=self.generator.client,
-                        target_dates=[target_date],
-                        media_files=all_media,
-                    )
-                )
-                enrichment_section = enrichment_result.format_for_prompt(
-                    self.config.enrichment.relevance_threshold
-                )
+                try:
+                    from .simple_enricher import simple_enrich_url
+                    
+                    # Extract URLs from the day's messages
+                    urls = df_day.select(pl.col("message").str.extract_all(r"(https?://[^\s>)]+)")).to_series().explode().to_list()
+                    
+                    for url in set(urls):
+                        if not url:
+                            continue
 
-            _apply_media_captions_from_enrichment(all_media, enrichment_result)
+                        # Find the original message for context
+                        original_message_row = df_day.filter(pl.col("message").str.contains(url, literal=True)).row(0, named=True)
+                        context_message = original_message_row.get('message', '')
+                        original_timestamp = original_message_row.get('timestamp')
+
+                        enrichment_text = asyncio.run(
+                            simple_enrich_url(url, context_message)
+                        )
+                        
+                        # Create a new row for the enrichment message
+                        new_row = {
+                            "timestamp": original_timestamp,
+                            "date": target_date,
+                            "author": "egregora",
+                            "message": f"Enrichment for {url}:\n{enrichment_text}",
+                        }
+                        
+                        # Append the new row to the dataframe
+                        df_day = df_day.vstack(pl.DataFrame([new_row]))
+
+                    # Sort by timestamp again after adding new rows
+                    df_day = df_day.sort("timestamp")
+
+                except Exception as exc:
+                    logger.warning("    ⚠️ Failed to perform simple enrichment: %s", exc)
 
             public_paths = MediaExtractor.build_public_paths(
                 all_media,

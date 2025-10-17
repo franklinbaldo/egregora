@@ -16,6 +16,21 @@ import polars as pl
 
 from .types import GroupSlug
 
+
+def get_media_subfolder(media_type: str, file_extension: str) -> str:
+    """Get the appropriate subfolder name based on media type."""
+    ext = file_extension.lower()
+    if media_type == "image" or ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']:
+        return "images"
+    elif media_type == "video" or ext in ['.mp4', '.webm', '.ogg', '.mov']:
+        return "videos"
+    elif media_type == "audio" or ext in ['.mp3', '.wav', '.ogg', '.m4a', '.opus']:
+        return "audio"
+    elif ext in ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt', '.pptx', '.ppt', '.xlsx', '.xls']:
+        return "documents"
+    else:
+        return "files"
+
 MEDIA_TYPE_BY_EXTENSION = {
     # Images
     ".jpg": "image",
@@ -137,7 +152,13 @@ class MediaExtractor:
                 file_uuid = uuid.uuid5(namespace, content_hash)
                 file_extension = Path(cleaned_name).suffix
                 new_filename = f"{file_uuid}{file_extension}"
-                dest_path = target_dir / new_filename
+                
+                # Create subfolder based on media type
+                subfolder = get_media_subfolder(media_type, file_extension)
+                subfolder_path = target_dir / subfolder
+                subfolder_path.mkdir(parents=True, exist_ok=True)
+                
+                dest_path = subfolder_path / new_filename
 
                 if not dest_path.exists():
                     with open(dest_path, "wb") as target:
