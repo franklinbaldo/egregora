@@ -93,6 +93,27 @@ def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
     return Cache(directory=str(directory), size_limit=size_limit_bytes)
 
 
+def _cleanup_cache(cache: Cache, max_age_days: int) -> None:
+    """Remove cache entries older than max_age_days."""
+    import time
+    cutoff_time = time.time() - (max_age_days * 24 * 60 * 60)
+    
+    try:
+        for key in list(cache):
+            try:
+                # Get the access time for the key
+                access_time = cache.get(key, expire_time=True, tag=True, read=False)[1]  # get expire time
+                if access_time is not None and access_time < cutoff_time:
+                    cache.delete(key)
+            except (KeyError, TypeError):
+                continue  # Skip keys that can't be processed
+        # Also do size-based cleanup
+        cache.cull()
+    except Exception:
+        # Fallback to just size-based cleanup if age-based fails
+        cache.cull()
+
+
 def _coerce_timestamp(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         if value.tzinfo is None:
@@ -908,7 +929,7 @@ class UnifiedProcessor:
                                 self.config.cache.max_disk_mb,
                             )
                             if self.config.cache.auto_cleanup_days:
-                                cache.cull()
+                                _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
                         except Exception:
                             cache = None
                     
