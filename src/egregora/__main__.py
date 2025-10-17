@@ -1,11 +1,8 @@
-"""Enhanced command line interface for Egregora with subcommands using Fire."""
-
 from __future__ import annotations
 
-import json
 import logging
 import os
-import sys
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -16,6 +13,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
+# Imports for config, processor, etc., as in original
 from .config import (
     DEFAULT_MODEL,
     AnonymizationConfig,
@@ -29,117 +27,173 @@ from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
 from .site_scaffolding import ensure_mkdocs_project
 
+# Constants and console setup as in original
 MAX_POSTS_TO_SHOW = 3
 MAX_DATES_TO_SHOW = 10
 QUOTA_WARNING_THRESHOLD = 200
 QUOTA_WARNING_THRESHOLD_ENRICH = 15
 
 console = Console()
-
-# Configure logging to use Rich for pretty output
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[
-        RichHandler(
-            console=console,
-            show_path=False,
-            show_level=False,
-            show_time=False,
-            rich_tracebacks=True,
-        )
-    ],
-)
-
 logger = logging.getLogger(__name__)
 
 
 class EgregoraCLI:
-    """🤖 Egregora - Transform WhatsApp exports into organized daily posts
+    """🤖 Egregora CLI: Transform WhatsApp exports into organized daily posts.
 
-    Egregora processes WhatsApp group exports and uses AI to create structured daily summaries,
-    enriched with context and member profiles. Perfect for communities, study groups, and teams
-    that want to preserve and organize their conversations.
-
-    SETUP:
-      Get your Google Gemini API key from https://aistudio.google.com/app/apikey
-      
-      Options to provide API key:
-      • --gemini_key flag: egregora process --zip_files=file.zip --gemini_key=YOUR_KEY
-      • Environment variable: export GOOGLE_API_KEY="your-key"  
-      • .env file: GOOGLE_API_KEY=your-key
-
-    TYPICAL USAGE:
-      egregora process --zip_files=whatsapp-export.zip --gemini_key=YOUR_API_KEY --output=./my-group-blog
+    Processes WhatsApp group exports using AI for structured summaries and enrichment.
+    Setup: Obtain Google Gemini API key from https://aistudio.google.com/app/apikey.
+    Usage: egregora <subcommand> [options]
+        init <output_dir>    Initialize a new MkDocs site scaffold.
+        process [options]    Process exports and generate posts.
     """
+
+    def __init__(self):
+        self.model: str = DEFAULT_MODEL
+        self.timezone: str = "America/Porto_Velho"
+        self.disable_enrichment: bool = False
+        self.disable_cache: bool = False
+        self.link_member_profiles: bool = True
+        self.profile_base_url: str = "/profiles/"
+        self.safety_threshold: str = "BLOCK_NONE"
+        self.thinking_budget: int = -1
+        self.max_links: int = 50
+        self.relevance_threshold: int = 2
+        self.cache_dir: Path = Path("cache")
+        self.auto_cleanup_days: int = 90
+        self.enable_rag: bool = False
+
+    def init(self, output_dir: str) -> None:
+        """Initialize a new MkDocs site scaffold in the specified directory.
+
+        Args:
+            output_dir: The directory path for the new site (e.g., 'my-blog').
+        """
+        site_root = Path(output_dir).resolve()
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+        if mkdocs_created:
+            console.print(Panel(
+                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+                f"📁 Site root: {site_root}\n"
+                f"📝 Docs directory: {docs_dir}\n\n"
+                f"[bold]Next steps:[/bold]\n"
+                f"• Run [cyan]cd {site_root}[/cyan]\n"
+                f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
+                f"• Process exports: [cyan]egregora process --zip_files=export.zip --output={output_dir}[/cyan]",
+                title="🛠️ Initialization Complete",
+                border_style="green"
+            ))
+        else:
+            console.print(Panel(
+                f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
+                f"📁 Using existing setup:\n"
+                f"• Docs directory: {docs_dir}\n\n"
+                f"[bold]To update or regenerate:[/bold]\n"
+                f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
+                title="📁 Site Exists",
+                border_style="yellow"
+            ))
 
     def process(
         self,
-        zip_files=None,
-        output=None,
-        group_name=None,
-        group_slug=None,
-        model=DEFAULT_MODEL,
-        timezone="America/Porto_Velho",
-        days=None,
-        from_date=None,
-        to_date=None,
-        disable_enrichment=False,
-        disable_cache=False,
-        list_groups=False,
-        dry_run=False,
-        link_member_profiles=True,
-        profile_base_url="/profiles/",
-        safety_threshold="BLOCK_NONE",
-        thinking_budget=-1,
-        max_links=50,
-        relevance_threshold=2,
-        cache_dir="cache",
-        auto_cleanup_days=90,
-        enable_rag=False,
-        gemini_key=None,
-        debug=False,
-    ):
-        """Process WhatsApp .zip exports and generate organized daily posts with AI enrichment.
+        zip_files: str | None = None,  # Comma-separated paths
+        output: str | None = None,
+        group_name: str | None = None,
+        group_slug: str | None = None,
+        model: str | None = None,
+        timezone: str | None = None,
+        days: int | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        disable_enrichment: bool | None = None,
+        disable_cache: bool | None = None,
+        dry_run: bool = False,
+        link_member_profiles: bool | None = None,
+        profile_base_url: str | None = None,
+        safety_threshold: str | None = None,
+        thinking_budget: int | None = None,
+        max_links: int | None = None,
+        relevance_threshold: int | None = None,
+        cache_dir: str | None = None,
+        auto_cleanup_days: int | None = None,
+        enable_rag: bool | None = None,
+        gemini_key: str | None = None,
+        debug: bool = False,
+    ) -> None:
+        """Process WhatsApp ZIP exports and generate AI-enriched daily posts.
 
         Args:
-            zip_files: Comma-separated WhatsApp .zip export files to process
-            output: Directory where posts will be written
-            group_name: Group name (auto-detected if not provided)
-            group_slug: Group slug (auto-generated if not provided)
-            model: Gemini model to use
-            timezone: IANA timezone
-            days: Process N most recent days (incompatible with from_date/to_date)
-            from_date: Start date (YYYY-MM-DD, incompatible with days)
-            to_date: End date (YYYY-MM-DD, incompatible with days)
-            disable_enrichment: Disable AI enrichment
-            disable_cache: Disable persistent cache
-            list_groups: List discovered groups and exit
-            dry_run: Show what would be generated without creating files
-            link_member_profiles: Link member mentions to profile pages
-            profile_base_url: Base URL for profile links
-            safety_threshold: Gemini safety threshold
-            thinking_budget: Gemini thinking budget (-1 for unlimited)
-            max_links: Maximum links to enrich per post
-            relevance_threshold: Minimum relevance threshold for enrichment
-            cache_dir: Cache directory path
-            auto_cleanup_days: Auto cleanup cache after N days
-            enable_rag: Enable RAG
-            gemini_key: Google Gemini API key
-            debug: Show detailed error messages and stack traces
+            zip_files: Comma-separated WhatsApp .zip export files to process.
+            output: Directory where posts will be written.
+            group_name: Group name (auto-detected if not provided).
+            group_slug: Group slug (auto-generated if not provided).
+            model: Gemini model to use.
+            timezone: IANA timezone.
+            days: Process N most recent days (incompatible with from_date/to_date).
+            from_date: Start date (YYYY-MM-DD, incompatible with days).
+            to_date: End date (YYYY-MM-DD, incompatible with days).
+            disable_enrichment: Disable AI enrichment.
+            disable_cache: Disable persistent cache.
+            dry_run: Show what would be generated without creating files.
+            link_member_profiles: Link member mentions to profile pages.
+            profile_base_url: Base URL for profile links.
+            safety_threshold: Gemini safety threshold.
+            thinking_budget: Gemini thinking budget (-1 for unlimited).
+            max_links: Maximum links to enrich per post.
+            relevance_threshold: Minimum relevance threshold for enrichment.
+            cache_dir: Cache directory path.
+            auto_cleanup_days: Auto cleanup cache after N days.
+            enable_rag: Enable RAG.
+            gemini_key: Google Gemini API key (or use GOOGLE_API_KEY env var).
+            debug: Enable detailed logging and stack traces.
         """
+        # Configure logging based on debug flag
+        log_level = logging.DEBUG if debug else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format="%(message)s",
+            datefmt="[%X]",
+            handlers=[
+                RichHandler(
+                    console=console,
+                    show_path=False,
+                    show_level=False,
+                    show_time=False,
+                    rich_tracebacks=True,
+                )
+            ],
+        )
 
-        # Parse zip_files as list if provided as comma-separated string
-        if zip_files:
-            if isinstance(zip_files, str):
-                zip_files = [Path(p.strip()) for p in zip_files.split(",")]
-            else:
-                zip_files = [Path(p) for p in zip_files]
+        # Update instance defaults from parameters
+        if model is not None:
+            self.model = model
+        if timezone is not None:
+            self.timezone = timezone
+        if disable_enrichment is not None:
+            self.disable_enrichment = disable_enrichment
+        if disable_cache is not None:
+            self.disable_cache = disable_cache
+        if link_member_profiles is not None:
+            self.link_member_profiles = link_member_profiles
+        if profile_base_url is not None:
+            self.profile_base_url = profile_base_url
+        if safety_threshold is not None:
+            self.safety_threshold = safety_threshold
+        if thinking_budget is not None:
+            self.thinking_budget = thinking_budget
+        if max_links is not None:
+            self.max_links = max_links
+        if relevance_threshold is not None:
+            self.relevance_threshold = relevance_threshold
+        if cache_dir is not None:
+            self.cache_dir = Path(cache_dir)
+        if auto_cleanup_days is not None:
+            self.auto_cleanup_days = auto_cleanup_days
+        if enable_rag is not None:
+            self.enable_rag = enable_rag
 
-        # Check if ZIP files are provided
+        # Parse and validate zip_files
         if not zip_files:
-            console.print(Panel(
+            self._error_panel(
                 "[yellow]📁 No WhatsApp export files provided![/yellow]\n\n"
                 "[bold]How to get WhatsApp export:[/bold]\n"
                 "1. Open WhatsApp on your phone\n"
@@ -147,82 +201,79 @@ class EgregoraCLI:
                 "3. Choose 'With Media' or 'Without Media'\n"
                 "4. Save the .zip file to your computer\n\n"
                 "[bold green]Then run:[/bold green]\n"
-                "[cyan]egregora process --zip_files=whatsapp-export.zip --gemini_key=YOUR_API_KEY --output=./my-group-blog[/cyan]\n\n"
+                "[cyan]egregora process --zip_files=whatsapp-export.zip --gemini_key=YOUR_KEY --output=./my-group-blog[/cyan]\n\n"
                 "[bold green]To view your blog:[/bold green]\n"
                 "[cyan]cd ./my-group-blog && mkdocs serve[/cyan]",
-                title="📱 WhatsApp Export Required",
-                border_style="yellow"
-            ))
+                "📱 WhatsApp Export Required"
+            )
             return
+        zip_files_list: list[Path] = [Path(p.strip()) for p in zip_files.split(",")]
+        zip_files_list = [p.resolve() for p in zip_files_list]
 
         # Handle API key
         if gemini_key:
             os.environ["GOOGLE_API_KEY"] = gemini_key
         elif not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):
-            console.print(Panel(
+            self._error_panel(
                 "[red]❌ Google Gemini API key is required![/red]\n\n"
                 "[yellow]Get your API key:[/yellow]\n"
                 "1. Visit https://aistudio.google.com/app/apikey\n"
                 "2. Create and copy your API key\n\n"
                 "[yellow]Then either:[/yellow]\n"
-                "• Use --gemini_key flag: [cyan]egregora process --zip_files=file.zip --gemini_key=YOUR_KEY[/cyan]\n"
+                "• Use --gemini_key flag: [cyan]egregora process --gemini_key=YOUR_KEY[/cyan]\n"
                 "• Set environment variable: [cyan]export GOOGLE_API_KEY=YOUR_KEY[/cyan]\n"
                 "• Add to .env file: [cyan]GOOGLE_API_KEY=YOUR_KEY[/cyan]",
-                title="🔑 API Key Required",
-                border_style="red"
-            ))
+                "🔑 API Key Required"
+            )
             return
 
         # Mutual exclusivity validation
         if days is not None and (from_date is not None or to_date is not None):
-            console.print("❌ The --days option cannot be used with --from_date or --to_date.")
+            self._error_panel("❌ The --days option cannot be used with --from_date or --to_date.", "Invalid Options")
             return
 
         # Date parsing and validation
-        from_date_obj = None
-        to_date_obj = None
-
+        from_date_obj: date | None = None
+        to_date_obj: date | None = None
         if from_date:
             try:
                 from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
-            except ValueError as e:
-                console.print(f"❌ Invalid start date: '{from_date}'. Use YYYY-MM-DD.")
+            except ValueError:
+                self._error_panel(f"❌ Invalid start date: '{from_date}'. Use YYYY-MM-DD.", "Invalid Date")
                 return
-
         if to_date:
             try:
                 to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
-            except ValueError as e:
-                console.print(f"❌ Invalid end date: '{to_date}'. Use YYYY-MM-DD.")
+            except ValueError:
+                self._error_panel(f"❌ Invalid end date: '{to_date}'. Use YYYY-MM-DD.", "Invalid Date")
                 return
-
-        # Date range validation
         if from_date_obj and to_date_obj and from_date_obj > to_date_obj:
-            console.print("❌ Start date must be before end date.")
+            self._error_panel("❌ Start date must be before end date.", "Invalid Date Range")
             return
 
-        # Convert days to days_to_process for backward compatibility
         days_to_process = days
 
-        # Normalize input paths
-        zip_files = [path.resolve() for path in zip_files]
-
         # Build nested configuration objects
-        llm_config = LLMConfig(safety_threshold=safety_threshold, thinking_budget=thinking_budget)
-
+        llm_config = LLMConfig(
+            safety_threshold=safety_threshold or self.safety_threshold,
+            thinking_budget=thinking_budget or self.thinking_budget
+        )
         enrichment_config = EnrichmentConfig(
-            enabled=not disable_enrichment, max_links=max_links, relevance_threshold=relevance_threshold
+            enabled=not (disable_enrichment or self.disable_enrichment),
+            max_links=max_links or self.max_links,
+            relevance_threshold=relevance_threshold or self.relevance_threshold
         )
-
         cache_config = CacheConfig(
-            enabled=not disable_cache, cache_dir=Path(cache_dir), auto_cleanup_days=auto_cleanup_days
+            enabled=not (disable_cache or self.disable_cache),
+            cache_dir=Path(cache_dir) if cache_dir else self.cache_dir,
+            auto_cleanup_days=auto_cleanup_days or self.auto_cleanup_days
         )
-
         profiles_config = ProfilesConfig(
-            link_members_in_posts=link_member_profiles, profile_base_url=profile_base_url
+            link_members_in_posts=link_member_profiles or self.link_member_profiles,
+            profile_base_url=profile_base_url or self.profile_base_url
         )
 
-        # Prepare MkDocs scaffold (or reuse an existing one)
+        # Prepare MkDocs scaffold
         site_root = (Path(output) if output else Path("data")).resolve()
         docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
         if mkdocs_created:
@@ -231,27 +282,22 @@ class EgregoraCLI:
             console.print(f"📁 Using docs_dir from mkdocs.yml: {docs_dir}")
 
         config = PipelineConfig(
-            zip_files=zip_files,
+            zip_files=zip_files_list,
             posts_dir=docs_dir,
             group_name=group_name,
             group_slug=group_slug,
-            model=model,
-            timezone=ZoneInfo(timezone),
+            model=self.model,
+            timezone=ZoneInfo(self.timezone),
             llm=llm_config,
             enrichment=enrichment_config,
             cache=cache_config,
             profiles=profiles_config,
             anonymization=AnonymizationConfig(),
-            rag=RAGConfig(enabled=enable_rag),
+            rag=RAGConfig(enabled=enable_rag or self.enable_rag),
         )
 
         # Create processor instance
         processor = UnifiedProcessor(config)
-
-        # List groups and exit if requested
-        if list_groups:
-            self._list_groups_and_exit(processor)
-            return
 
         # Dry run mode
         if dry_run:
@@ -259,272 +305,30 @@ class EgregoraCLI:
                 self._dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
                 return
             except FileNotFoundError as e:
-                if debug:
-                    raise
-                console.print(Panel(
-                    f"[red]❌ File not found: {str(e).split(': ')[-1]}[/red]\n\n"
-                    "[yellow]Please check that:[/yellow]\n"
-                    "• The ZIP file path is correct\n"
-                    "• The file exists and is accessible\n"
-                    "• You have permission to read the file\n\n"
-                    "[bold green]Example:[/bold green]\n"
-                    "[cyan]egregora process --zip_files=./whatsapp-export.zip --gemini_key=YOUR_KEY --dry_run[/cyan]\n\n"
-                    "[dim]💡 Use --debug=True flag to see detailed error information[/dim]",
-                    title="📁 File Error",
-                    border_style="red"
-                ))
+                self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
                 return
             except Exception as e:
-                if debug:
-                    raise
-                console.print(Panel(
-                    f"[red]❌ An error occurred during dry run: {str(e)}[/red]\n\n"
-                    "[yellow]This might be due to:[/yellow]\n"
-                    "• Invalid ZIP file format\n"
-                    "• Corrupted WhatsApp export\n"
-                    "• Permission issues\n\n"
-                    "[bold green]Try:[/bold green]\n"
-                    "• Check your ZIP file is a valid WhatsApp export\n"
-                    "• Use [cyan]--debug=True[/cyan] flag for detailed error information\n\n"
-                    "[dim]💡 Run with --debug=True to see the full error trace[/dim]",
-                    title="⚠️ Dry Run Error",
-                    border_style="red"
-                ))
+                self._error_panel(f"❌ An error occurred during dry run: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Corrupted WhatsApp export\n• Permission issues", "⚠️ Dry Run Error")
                 return
 
         # Process normally
         try:
-            self._process_and_display(
-                processor,
-                days=days_to_process,
-                from_date=from_date_obj,
-                to_date=to_date_obj,
-            )
+            self._process_and_display(processor, days=days_to_process, from_date=from_date_obj, to_date=to_date_obj)
         except FileNotFoundError as e:
-            if debug:
-                raise
-            console.print(Panel(
-                f"[red]❌ File not found: {str(e).split(': ')[-1]}[/red]\n\n"
-                "[yellow]Please check that:[/yellow]\n"
-                "• The ZIP file path is correct\n"
-                "• The file exists and is accessible\n"
-                "• You have permission to read the file\n\n"
-                "[bold green]Example:[/bold green]\n"
-                "[cyan]egregora process --zip_files=./whatsapp-export.zip --gemini_key=YOUR_KEY --output=./my-blog[/cyan]\n\n"
-                "[dim]💡 Use --debug=True flag to see detailed error information[/dim]",
-                title="📁 File Error",
-                border_style="red"
-            ))
+            self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
+            return
+        except IsADirectoryError as e:
+            self._error_panel(f"❌ Path is a directory, not a ZIP file: {str(e).split(': ')[-1]}\n\n[yellow]Please provide:[/yellow]\n• A path to a .zip file, not a directory\n• The WhatsApp export ZIP file specifically", "📁 Directory Error")
+            return
+        except zipfile.BadZipFile as e:
+            self._error_panel(f"❌ Invalid ZIP file: {str(e)}\n\n[yellow]Make sure the file is a valid WhatsApp export ZIP[/yellow]", "📁 ZIP Error")
+            return
+        except PermissionError as e:
+            self._error_panel(f"❌ Permission denied: {str(e).split(': ')[-1]}\n\n[yellow]Check file permissions or try running with appropriate access[/yellow]", "🔒 Permission Error")
+            return
         except Exception as e:
-            if debug:
-                raise
-            console.print(Panel(
-                f"[red]❌ An error occurred: {str(e)}[/red]\n\n"
-                "[yellow]This might be due to:[/yellow]\n"
-                "• Invalid ZIP file format\n"
-                "• Network connectivity issues\n"
-                "• API key problems\n"
-                "• Insufficient disk space\n\n"
-                "[bold green]Try:[/bold green]\n"
-                "• Check your ZIP file is a valid WhatsApp export\n"
-                "• Verify your API key is correct\n"
-                "• Use [cyan]--debug=True[/cyan] flag for detailed error information\n\n"
-                "[dim]💡 Run with --debug=True to see the full error trace[/dim]",
-                title="⚠️ Processing Error",
-                border_style="red"
-            ))
-
-    def profiles(
-        self,
-        action,
-        target=None,
-        format="pretty",
-    ):
-        """Manage participant profiles and member information.
-
-        Args:
-            action: Action: list, show, generate, clean
-            target: Member ID or ZIP path (for generate command)
-            format: Output format: pretty, json
-        """
-        if action not in ["list", "show", "generate", "clean"]:
-            console.print(f"❌ Invalid action: {action}. Use: list, show, generate, clean")
-            return
-
-        # Build config using CLI arguments
-        config = PipelineConfig(
-            zip_files=[],
-            llm=LLMConfig(),
-            enrichment=EnrichmentConfig(),
-            cache=CacheConfig(),
-            profiles=ProfilesConfig(),
-            anonymization=AnonymizationConfig(),
-            rag=RAGConfig(),
-        )
-
-        if action == "list":
-            self._list_profiles(config, format)
-        elif action == "show":
-            if not target:
-                console.print("❌ Specify member ID to show")
-                return
-            self._show_profile(config, target, format)
-        elif action == "generate":
-            if not target:
-                console.print("❌ Specify ZIP path to generate profiles")
-                return
-            self._generate_profiles(config, Path(target))
-        elif action == "clean":
-            self._clean_profiles(config)
-
-    def _list_profiles(self, config: PipelineConfig, output_format: str) -> None:
-        """List existing profiles."""
-        profiles_dir = config.posts_dir / "profiles" / "json"
-
-        if not profiles_dir.exists():
-            console.print("📁 No profiles directory found")
-            return
-
-        profile_files = list(profiles_dir.glob("*.json"))
-
-        if not profile_files:
-            console.print("👤 No profiles found")
-            return
-
-        if output_format == "json":
-            profiles_data = []
-            for profile_file in profile_files:
-                try:
-                    with open(profile_file) as f:
-                        profile_data = json.load(f)
-                        profiles_data.append(
-                            {
-                                "member_id": profile_file.stem,
-                                "name": profile_data.get("name", "Unknown"),
-                                "message_count": profile_data.get("message_count", 0),
-                                "last_updated": profile_data.get("last_updated", "Unknown"),
-                            }
-                        )
-                except (OSError, json.JSONDecodeError) as e:
-                    logging.warning(f"Error reading profile {profile_file}: {e}")
-                    continue
-            console.print(json.dumps(profiles_data, indent=2, ensure_ascii=False))
-        else:
-            table = Table(title="👥 Participant Profiles")
-            table.add_column("Member ID", style="cyan")
-            table.add_column("Name", style="green")
-            table.add_column("Messages", style="yellow")
-            table.add_column("Last Updated", style="blue")
-
-            for profile_file in profile_files:
-                try:
-                    with open(profile_file) as f:
-                        profile_data = json.load(f)
-                        table.add_row(
-                            profile_file.stem,
-                            profile_data.get("name", "Unknown"),
-                            str(profile_data.get("message_count", 0)),
-                            profile_data.get("last_updated", "Unknown"),
-                        )
-                except (OSError, json.JSONDecodeError):
-                    table.add_row(profile_file.stem, "❌ Error reading", "-", "-")
-
-            console.print(table)
-
-    def _show_profile(self, config: PipelineConfig, member_id: str, output_format: str) -> None:
-        """Show details of a specific profile."""
-        profiles_dir = config.posts_dir / "profiles" / "json"
-        profile_file = profiles_dir / f"{member_id}.json"
-
-        if not profile_file.exists():
-            console.print(f"❌ Profile not found: {member_id}")
-            return
-
-        try:
-            with open(profile_file) as f:
-                profile_data = json.load(f)
-
-            if output_format == "json":
-                console.print(json.dumps(profile_data, indent=2, ensure_ascii=False))
-            else:
-                console.print(
-                    Panel(
-                        f"[bold]Name:[/bold] {profile_data.get('name', 'Unknown')}\n"
-                        f"[bold]Member ID:[/bold] {member_id}\n"
-                        f"[bold]Messages:[/bold] {profile_data.get('message_count', 0)}\n"
-                        f"[bold]First Activity:[/bold] {profile_data.get('first_seen', 'Unknown')}\n"
-                        f"[bold]Last Activity:[/bold] {profile_data.get('last_seen', 'Unknown')}\n"
-                        f"[bold]Last Updated:[/bold] {profile_data.get('last_updated', 'Unknown')}\n\n"
-                        f"[bold]Description:[/bold]\n{profile_data.get('description', 'No description available')}\n\n"
-                        f"[bold]Main Topics:[/bold] {', '.join(profile_data.get('main_topics', []))}\n"
-                        f"[bold]Communication Style:[/bold] {profile_data.get('communication_style', 'Unknown')}",
-                        title=f"👤 Profile: {profile_data.get('name', member_id)}",
-                        border_style="blue",
-                    )
-                )
-        except (OSError, json.JSONDecodeError) as e:
-            console.print(f"❌ Error reading profile: {e}")
-
-    def _generate_profiles(self, config: PipelineConfig, zip_path: Path) -> None:
-        """Generate profiles from a WhatsApp ZIP."""
-        if not zip_path.exists():
-            console.print(f"❌ ZIP file not found: {zip_path}")
-            return
-
-        console.print(f"👥 Generating profiles from: {zip_path}")
-
-        try:
-            console.print("🔄 Processing messages for profile generation...")
-            console.print("✅ Profiles would be generated (feature in development)")
-            console.print("💡 Use 'egregora process' with real data to generate profiles automatically")
-
-        except Exception as e:
-            console.print(f"❌ Error during profile generation: {e}")
-
-    def _clean_profiles(self, config: PipelineConfig) -> None:
-        """Remove old or invalid profiles."""
-        profiles_dir = config.posts_dir / "profiles" / "json"
-
-        if not profiles_dir.exists():
-            console.print("📁 No profiles directory found")
-            return
-
-        profile_files = list(profiles_dir.glob("*.json"))
-        removed_count = 0
-
-        for profile_file in profile_files:
-            try:
-                with open(profile_file) as f:
-                    json.load(f)  # Validate JSON
-            except (OSError, json.JSONDecodeError):
-                profile_file.unlink()
-                removed_count += 1
-                console.print(f"🗑️  Removed corrupted profile: {profile_file.name}")
-
-        if removed_count == 0:
-            console.print("✅ All profiles are valid")
-        else:
-            console.print(f"✅ Removed {removed_count} corrupted profiles")
-
-    # Original helper functions (preserved from the original main function)
-    def _list_groups_and_exit(self, processor: UnifiedProcessor) -> None:
-        """List discovered groups and exit."""
-        sources_to_process, real_groups, virtual_groups = processor._collect_sources()
-
-        console.print(Panel("[bold green]📋 Discovered Groups[/bold green]"))
-
-        if real_groups:
-            console.print("\n[bold yellow]📱 Real Groups (from WhatsApp):[/bold yellow]")
-            for slug, source in real_groups.items():
-                date_range = f"{source.earliest_date} → {source.latest_date}"
-                console.print(f"  • {source.name} ({slug}): {date_range}")
-
-        if virtual_groups:
-            console.print("\n[bold cyan]🔗 Virtual Groups (merged):[/bold cyan]")
-            for slug, config in virtual_groups.items():
-                console.print(f"  • {config.name} ({slug}): merges {len(config.source_groups)} groups")
-
-        console.print(f"\n[dim]Total: {len(sources_to_process)} group(s) to process[/dim]")
+            self._error_panel(f"❌ An error occurred: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Network connectivity issues\n• API key problems\n• Insufficient disk space", "⚠️ Processing Error")
+            raise  # Preserve traceback for debugging
 
     def _dry_run_and_exit(
         self,
@@ -626,7 +430,17 @@ class EgregoraCLI:
                     )
                 )
 
+        except FileNotFoundError:
+            # Skip quota estimation if file doesn't exist - will be caught later
+            pass
+        except IsADirectoryError:
+            # Skip quota estimation if directory instead of ZIP - will be caught later
+            pass
+        except zipfile.BadZipFile:
+            # Skip quota estimation if invalid ZIP - will be caught later  
+            pass
         except Exception as exc:
+            # Only log other unexpected errors
             logger.exception("Failed to estimate quota usage before processing")
             console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
 
@@ -654,13 +468,17 @@ class EgregoraCLI:
 
         console.print(table)
 
+    def _error_panel(self, content: str, title: str) -> None:
+        """Render a standardized Rich error panel."""
+        console.print(Panel(content, title=title, border_style="red"))
 
-def main():
-    """Entry point for the Fire CLI."""
+
+def main() -> None:
+    """CLI entry point."""
     fire.Fire(EgregoraCLI)
 
 
-def run():
+def run() -> None:
     """Entry point used by the console script."""
     main()
 

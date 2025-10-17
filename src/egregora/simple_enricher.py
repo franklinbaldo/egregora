@@ -73,8 +73,6 @@ Use clear, analytical, and factual language — avoid personal opinions or embel
 ## Context
 
 (Explain the background and circumstances:
-
-* Where the content comes from — e.g., article, link, video, image
 * Why it is relevant or noteworthy
 * The central topic and the audience potentially affected)
 
@@ -82,7 +80,7 @@ Use clear, analytical, and factual language — avoid personal opinions or embel
 
 ## Key Takeaways
 
-(List 3–5 concise, factual points summarizing what was observed or learned.
+(List 3–5 concise answers to the question "Why someone would share this media?" summarizing what was observed or learned. 
 Each bullet should represent a self-contained, explanatory idea.)
 
 *

@@ -67,7 +67,7 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
-per-file-ignores = {"src/egregora/__main__.py" = ["PLR0913"]}
+per-file-ignores = {"src/egregora/__main__.py" = ["PLR0911", "PLR0912", "PLR0913", "PLR0915"]}
 
 [tool.mypy]
 python_version = "3.11"
