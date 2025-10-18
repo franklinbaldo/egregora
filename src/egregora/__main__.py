@@ -106,7 +106,6 @@ class EgregoraCLI:
         to_date: str | None = None,
         disable_enrichment: bool | None = None,
         disable_cache: bool | None = None,
-        dry_run: bool = False,
         link_member_profiles: bool | None = None,
         profile_base_url: str | None = None,
         safety_threshold: str | None = None,
@@ -133,7 +132,6 @@ class EgregoraCLI:
             to_date: End date (YYYY-MM-DD, incompatible with days).
             disable_enrichment: Disable AI enrichment.
             disable_cache: Disable persistent cache.
-            dry_run: Show what would be generated without creating files.
             link_member_profiles: Link member mentions to profile pages.
             profile_base_url: Base URL for profile links.
             safety_threshold: Gemini safety threshold.
@@ -299,18 +297,6 @@ class EgregoraCLI:
 
         # Create processor instance
         processor = UnifiedProcessor(config)
-
-        # Dry run mode
-        # if dry_run:
-        #     try:
-        #         self._dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
-        #         return
-        #     except FileNotFoundError as e:
-        #         self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
-        #         return
-        #     except Exception as e:
-        #         self._error_panel(f"❌ An error occurred during dry run: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Corrupted WhatsApp export\n• Permission issues", "⚠️ Dry Run Error")
-        #         return
 
         # Process normally
         try:
