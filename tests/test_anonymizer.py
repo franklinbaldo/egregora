@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 
 import polars as pl
@@ -9,8 +10,8 @@ UUID_FULL_LENGTH = 36
 UUID_SHORT_LENGTH = 8
 
 
-def test_normalize_phone_adds_country_code() -> None:
-    assert Anonymizer.normalize_phone("(11) 98765-4321") == "+5511987654321"
+def test_normalize_phone_strips_non_digits() -> None:
+    assert Anonymizer.normalize_phone("(11) 98765-4321") == "11987654321"
 
 
 def test_anonymize_phone_is_deterministic() -> None:
@@ -30,6 +31,10 @@ def test_anonymize_nickname_uses_member_prefix() -> None:
 
     assert token_a == token_b
     assert token_a.startswith("Member-")
+
+
+def test_anonymize_author_treats_short_numbers_as_nicknames() -> None:
+    assert Anonymizer.anonymize_author("12345") == Anonymizer.anonymize_nickname("12345")
 
 
 def test_get_uuid_variants_returns_human_identifier() -> None:
@@ -57,5 +62,5 @@ def test_anonymize_dataframe_replaces_authors() -> None:
     anonymized_df = Anonymizer.anonymize_dataframe(df, format="full")
     authors = anonymized_df["author"].to_list()
 
-    assert all(name.startswith("Member-") for name in authors)
     assert all(len(name) == UUID_FULL_LENGTH for name in authors)
+    assert all(uuid.UUID(name) for name in authors)
