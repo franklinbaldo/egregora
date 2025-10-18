@@ -24,6 +24,14 @@ _PHONE_PATTERNS: tuple[_PrivacyPattern, ...] = (
         description="international phone number",
         regex=re.compile(r"\+\d{2}\s?\d{2}\s?\d{4,5}-?\d{4}"),
     ),
+    _PrivacyPattern(
+        description="local phone number with hyphen",
+        regex=re.compile(r"\b\d{4,5}-\d{4}\b"),
+    ),
+    _PrivacyPattern(
+        description="parenthesized short number",
+        regex=re.compile(r"\(\s*\d{3,5}\s*\)"),
+    ),
 )
 
 

@@ -6,7 +6,6 @@ import asyncio
 import logging
 import re
 import textwrap
-import time
 import unicodedata
 import uuid
 import zipfile
@@ -102,23 +101,33 @@ def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
 
 def _cleanup_cache(cache: Cache, max_age_days: int) -> None:
     """Remove cache entries older than max_age_days."""
-    cutoff_time = time.time() - (max_age_days * 24 * 60 * 60)
+
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
     try:
         for key in list(cache):
             try:
-                # Get the access time for the key
-                access_time = cache.get(key, expire_time=True, tag=True, read=False)[
-                    1
-                ]  # get expire time
-                if access_time is not None and access_time < cutoff_time:
+                entry = cache.get(key)
+            except Exception:
+                continue
+
+            if not isinstance(entry, dict):
+                continue
+
+            last_used = _coerce_timestamp(entry.get("last_used"))
+            if last_used is None:
+                payload = entry.get("payload")
+                if isinstance(payload, dict):
+                    last_used = _coerce_timestamp(payload.get("last_used"))
+
+            if last_used is not None and last_used < cutoff:
+                try:
                     cache.delete(key)
-            except (KeyError, TypeError):
-                continue  # Skip keys that can't be processed
-        # Also do size-based cleanup
+                except Exception:
+                    continue
+
         cache.cull()
     except Exception:
-        # Fallback to just size-based cleanup if age-based fails
         cache.cull()
 
 

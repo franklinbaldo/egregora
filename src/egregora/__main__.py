@@ -213,6 +213,7 @@ class EgregoraCLI:
         # Handle API key
         if gemini_key:
             os.environ["GOOGLE_API_KEY"] = gemini_key
+            os.environ["GEMINI_API_KEY"] = gemini_key
         elif not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):
             self._error_panel(
                 "[red]❌ Google Gemini API key is required![/red]\n\n"

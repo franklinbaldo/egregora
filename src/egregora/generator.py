@@ -297,9 +297,9 @@ class PostGenerator:
     def _create_client(self) -> GeminiClient:
         """Instantiate the Gemini client."""
         self._require_google_dependency()
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
-            raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
+            raise RuntimeError("Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente.")
         return genai.Client(api_key=api_key)
 
     @property
