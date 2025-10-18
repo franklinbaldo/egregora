@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-
-import logging
 
 from chromadb.utils import embedding_functions
 from diskcache import Cache
@@ -53,7 +52,7 @@ class _FallbackEmbedding:
         features: Counter[str] = Counter(tokens)
         features[lowered] += 1
 
-        for first, second in zip(tokens, tokens[1:]):
+        for first, second in zip(tokens, tokens[1:], strict=False):
             features[f"{first} {second}"] += 1
 
         for token in tokens:
@@ -162,9 +161,7 @@ class CachedGeminiEmbedding:
                 self._store_cache(text, vector)
                 results[position] = vector
 
-        return [
-            entry if entry is not None else [0.0] * self._dimension for entry in results
-        ]
+        return [entry if entry is not None else [0.0] * self._dimension for entry in results]
 
     @staticmethod
     def _build_cache_namespace(*, model_name: str, dimension: int, using_fallback: bool) -> str:

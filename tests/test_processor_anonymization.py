@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import polars as pl
@@ -73,7 +72,9 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
 
     generator = MagicMock()
     generator.generate.return_value = "Generated post"
-    monkeypatch.setattr("egregora.processor.PostGenerator", lambda config, gemini_manager: generator)
+    monkeypatch.setattr(
+        "egregora.processor.PostGenerator", lambda config, gemini_manager: generator
+    )
 
     source = GroupSource(
         slug=GroupSlug("test"),

@@ -63,6 +63,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
 
     return ensure_message_schema(pl.concat(frames).sort("timestamp"))
 
+
 # Pattern captures optional date, mandatory time, separator (dash/en dash),
 # author, and the message content. WhatsApp exports vary the separator and may
 # include date prefixes (DD/MM/YYYY or locale variants) as well as AM/PM markers.
@@ -83,6 +84,7 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
     {"dayfirst": False},
 )
 
+
 def _parse_message_date(token: str) -> date | None:
     """Parse ``token`` into a ``date`` in UTC, returning ``None`` when invalid."""
 
@@ -101,6 +103,7 @@ def _normalize_text(value: str) -> str:
     normalized = normalized.replace("\u202f", " ")
     normalized = _INVISIBLE_MARKS.sub("", normalized)
     return normalized
+
 
 def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     """Parse messages from an iterable of strings."""
@@ -172,7 +175,7 @@ def _normalise_parsed_date(parsed: datetime) -> date:
     return parsed.date()
 
 
-def _prepare_line(raw_line: str) -> "_PreparedLine":
+def _prepare_line(raw_line: str) -> _PreparedLine:
     stripped = raw_line.rstrip("\n")
     normalized = _normalize_text(stripped)
     return _PreparedLine(original=stripped, normalized=normalized, trimmed=normalized.strip())
@@ -206,7 +209,7 @@ def _start_message_builder(
     author: str,
     initial_message: str,
     original_line: str,
-) -> "_MessageBuilder":
+) -> _MessageBuilder:
     builder = _MessageBuilder(
         timestamp=datetime.combine(msg_date, msg_time),
         date=msg_date,

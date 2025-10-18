@@ -89,7 +89,9 @@ class PromptLoader:
 
         try:
             content = (
-                resources.files(__package__).joinpath(f"prompts/{filename}").read_text(encoding="utf-8")
+                resources.files(__package__)
+                .joinpath(f"prompts/{filename}")
+                .read_text(encoding="utf-8")
             )
         except FileNotFoundError:
             if allow_missing:
@@ -196,8 +198,14 @@ class LLMInputBuilder:
         sections: list[str] = []
         sections.extend(self._build_metadata_sections(context))
         sections.extend(self._build_previous_post_section(context))
-        sections.extend(self._build_optional_section(self.templates.enrichment_header, context.enrichment_section))
-        sections.extend(self._build_optional_section(self.templates.rag_header, context.rag_context))
+        sections.extend(
+            self._build_optional_section(
+                self.templates.enrichment_header, context.enrichment_section
+            )
+        )
+        sections.extend(
+            self._build_optional_section(self.templates.rag_header, context.rag_context)
+        )
         sections.extend(self._build_transcript_section(transcripts))
         return "\n\n".join(sections)
 
@@ -289,9 +297,9 @@ class PostGenerator:
     def _create_client(self) -> GeminiClient:
         """Instantiate the Gemini client."""
         self._require_google_dependency()
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
-            raise RuntimeError("Defina GEMINI_API_KEY no ambiente.")
+            raise RuntimeError("Defina GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente.")
         return genai.Client(api_key=api_key)
 
     @property
@@ -321,7 +329,9 @@ class PostGenerator:
                 prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
             except FileNotFoundError:
                 # Fallback to base prompt if multigroup prompt is missing
-                logger.warning(f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only")
+                logger.warning(
+                    f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only"
+                )
                 prompt_text = base_prompt
         else:
             prompt_text = base_prompt

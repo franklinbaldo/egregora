@@ -18,9 +18,7 @@ def _render_profile_markdown(profile: ParticipantProfile) -> str:
     markdown = profile.to_markdown().strip()
     markdown = format_markdown(markdown)
     if not markdown:
-        markdown = (
-            f"# Perfil Analítico: {profile.member_id}\n\n(Conteúdo indisponível no momento.)"
-        )
+        markdown = f"# Perfil Analítico: {profile.member_id}\n\n(Conteúdo indisponível no momento.)"
     disclaimer = (
         "> [!NOTE]\n"
         "> Perfil gerado automaticamente pelo pipeline Egregora.\n"

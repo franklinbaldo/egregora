@@ -17,8 +17,12 @@ def test_system_instruction_includes_privacy_rules(monkeypatch):
     )
 
     monkeypatch.setattr("egregora.generator.GeminiManager", MagicMock())
-    monkeypatch.setattr("egregora.generator.PromptLoader.load_text", lambda self, name: f"PROMPT: {name}")
-    monkeypatch.setattr("egregora.generator.load_prompt_templates", lambda language, loader: templates)
+    monkeypatch.setattr(
+        "egregora.generator.PromptLoader.load_text", lambda self, name: f"PROMPT: {name}"
+    )
+    monkeypatch.setattr(
+        "egregora.generator.load_prompt_templates", lambda language, loader: templates
+    )
 
     generator = PostGenerator(PipelineConfig())
 

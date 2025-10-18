@@ -196,11 +196,7 @@ def _extract_retry_delay(exc: Exception) -> float | None:
 
 def _word_count_expression() -> pl.Expr:
     return (
-        pl.col("message")
-        .cast(pl.Utf8)
-        .fill_null("")
-        .str.count_matches(r"\S+")
-        .alias("word_count")
+        pl.col("message").cast(pl.Utf8).fill_null("").str.count_matches(r"\S+").alias("word_count")
     )
 
 
@@ -272,7 +268,9 @@ class AgentProfiler:
     model: str
     llm: ProfileLLMClient
 
-    async def plan(self, client: genai.Client, context: ProfileAgentContext) -> list[AgentProfileAction]:
+    async def plan(
+        self, client: genai.Client, context: ProfileAgentContext
+    ) -> list[AgentProfileAction]:
         prompt = self._build_prompt(context)
         response = await self.llm.generate(
             client,
@@ -381,7 +379,9 @@ class ProfileUpdater:
         gemini_client: genai.Client,
     ) -> tuple[bool, str, list[str], list[str]]:
         messages = _extract_member_messages_from_text(member_id, full_conversation)
-        meaningful = [msg for msg in messages if _is_meaningful_message(msg, self.min_words_per_message)]
+        meaningful = [
+            msg for msg in messages if _is_meaningful_message(msg, self.min_words_per_message)
+        ]
         if len(meaningful) < self.min_messages:
             return False, "Participação mínima hoje", [], []
         if not current_profile or not current_profile.worldview_summary:
@@ -406,7 +406,12 @@ class ProfileUpdater:
         payload = json.loads(raw)
         highlights = _ensure_str_list(payload.get("participation_highlights"))
         insights = _ensure_str_list(payload.get("interaction_insights"))
-        return bool(payload.get("should_update", True)), str(payload.get("reasoning", "")), highlights, insights
+        return (
+            bool(payload.get("should_update", True)),
+            str(payload.get("reasoning", "")),
+            highlights,
+            insights,
+        )
 
     def _apply_actions(
         self,
@@ -450,7 +455,9 @@ class ProfileUpdater:
                         heading = str(item.get("heading") or "").strip()
                         content = str(item.get("content") or "").strip()
                         if heading and content:
-                            markdown = format_markdown(_replace_section_in_markdown(markdown, heading, content))
+                            markdown = format_markdown(
+                                _replace_section_in_markdown(markdown, heading, content)
+                            )
                             changed = True
             elif tool == "set_summary":
                 summary_candidate = str(payload.get("summary") or "").strip()
