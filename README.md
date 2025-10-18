@@ -43,7 +43,7 @@ graph TD
 
     subgraph "🧠 Collective Memory"
         H(Evolving Member Profiles)
-        I(RAG Vector Index - ChromaDB)
+        I(RAG Vector Index - DuckDB)
     end
 
     E --> H;

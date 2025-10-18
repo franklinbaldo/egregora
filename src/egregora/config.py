@@ -22,15 +22,7 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from .anonymizer import FormatType
 from .models import MergeConfig
-from .rag.config import (
-    ChunkingSettings,
-    EmbeddingSettings,
-    MessageContextSettings,
-    QuerySettings,
-    RAGConfig,
-    RetrievalSettings,
-    VectorStoreSettings,
-)
+from .rag.config import RAGConfig
 from .types import GroupSlug
 from .zip_utils import ZipValidationLimits
 
@@ -45,35 +37,6 @@ DEFAULT_GROUP_NAME_PATTERNS: tuple[str, ...] = (
     r"WhatsApp Chat with (.+)",
     r"Chat de WhatsApp con (.+)",
 )
-
-LEGACY_RAG_KEY_ALIASES: Mapping[str, str] = {
-    "vector_store_path": "persist_dir",
-    "vector_store_dir": "persist_dir",
-    "chunkSize": "chunk_size",
-    "chunkOverlap": "chunk_overlap",
-    "topK": "top_k",
-    "minSimilarity": "min_similarity",
-    "keywordStopWords": "keyword_stop_words",
-    "embeddingExportPath": "embedding_export_path",
-    "cacheDir": "cache_dir",
-    "postsDir": "posts_dir",
-}
-
-_RAG_NAMESPACE_MODELS: Mapping[str, type[BaseModel]] = {
-    "retrieval": RetrievalSettings,
-    "query": QuerySettings,
-    "chunking": ChunkingSettings,
-    "embedding": EmbeddingSettings,
-    "vector_store": VectorStoreSettings,
-    "messages": MessageContextSettings,
-}
-
-_RAG_FIELD_NAMESPACE: dict[str, tuple[str, str]] = {
-    field_name: (namespace, field_name)
-    for namespace, model in _RAG_NAMESPACE_MODELS.items()
-    for field_name in model.model_fields
-}
-
 
 class LLMConfig(BaseModel):
     """Configuration options for the language model."""
@@ -263,24 +226,6 @@ class ProfilesConfig(BaseModel):
         if fvalue < 0:
             raise ValueError("minimum_retry_seconds must be non-negative")
         return fvalue
-
-
-def sanitize_rag_config_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """Normalise legacy ``[rag]`` payloads to match :class:`RAGConfig`."""
-
-    normalized: dict[str, Any] = {}
-
-    for raw_key, raw_value in raw.items():
-        key = str(raw_key)
-        canonical = LEGACY_RAG_KEY_ALIASES.get(key, key)
-        namespace_entry = _RAG_FIELD_NAMESPACE.get(canonical)
-        if namespace_entry is not None:
-            namespace, field_name = namespace_entry
-            normalized.setdefault(namespace, {})[field_name] = raw_value
-        else:
-            normalized[canonical] = raw_value
-
-    return normalized
 
 
 class PipelineConfig(BaseModel):

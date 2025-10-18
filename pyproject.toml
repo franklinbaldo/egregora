@@ -7,9 +7,11 @@ authors = [{ name = "Egregora" }]
 requires-python = ">=3.11"
 dependencies = [
     "google-genai>=0.3.0",
-    "chromadb>=0.5.0",
+    "duckdb>=0.9.2,<1.0",
     "pyyaml>=6.0",
     "polars>=0.20",
+    "ibis-framework[duckdb]>=9.0.0",
+    "numpy>=1.26",
     "rich>=13.7.0",
     "diskcache>=5.6.3",
     "python-dateutil>=2.9",

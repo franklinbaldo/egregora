@@ -31,9 +31,7 @@ from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
-from .rag.chromadb_rag import ChromadbRAG
-from .rag.keyword_utils import build_llm_keyword_provider
-from .rag.query_gen import QueryGenerator
+from .rag.duckdb_simple import DuckDBSimpleRAG
 from .schema import ensure_message_schema
 from .transcript import (
     get_available_dates,
@@ -1107,43 +1105,59 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = ChromadbRAG(config=self.config.rag, source=source)
-
-                # Index raw messages in the vector store without storing plaintext
+                rag: DuckDBSimpleRAG | None = None
                 try:
-                    rag.upsert_messages(df_day, group_slug=source.slug)
-                # FIXME: Catching a broad `Exception` can hide bugs. This should be
-                # replaced with more specific exception types from the ChromaDB library.
-                except Exception as exc:  # pragma: no cover - defensive: vector store errors
-                    logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
-
-                # Index all generated posts before searching
-                rag.index_files(daily_dir, group_slug=source.slug)
-
-                keyword_provider = None
-                try:
-                    keyword_provider = build_llm_keyword_provider(
-                        self.generator.client,
-                        model=self.config.model,
-                    )
+                    rag = DuckDBSimpleRAG(config=self.config.rag.to_duckdb_config())
                 except Exception as exc:  # pragma: no cover - optional dependency
-                    logger.warning(
-                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
-                        exc,
-                    )
+                    logger.warning("    [RAG] Falha ao inicializar DuckDB RAG: %s", exc)
+                else:
+                    try:
+                        documents: list[str] = []
+                        for row in df_day.iter_rows(named=True):
+                            message = str(row.get("message") or "").strip()
+                            if not message:
+                                continue
+                            author = str(row.get("author") or "?").strip() or "?"
+                            timestamp = row.get("timestamp")
+                            if isinstance(timestamp, datetime):
+                                timestamp_text = timestamp.isoformat()
+                            else:
+                                timestamp_text = str(timestamp)
+                            entry = f"[{timestamp_text}] {author}: {message}".strip()
+                            if entry:
+                                documents.append(entry)
 
-                if keyword_provider is not None:
-                    query_gen = QueryGenerator(
-                        self.config.rag,
-                        keyword_provider=keyword_provider,
-                    )
-                    query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query, group_slug=source.slug)
-                    if search_results and search_results["documents"]:
-                        rag_context = "\n\n".join(
-                            f"<<<CONTEXTO_{i}>>>\n{doc}"
-                            for i, doc in enumerate(search_results["documents"][0], 1)
-                        )
+                        for post_path in sorted(daily_dir.glob("*.md")):
+                            try:
+                                content = post_path.read_text(encoding="utf-8").strip()
+                            except OSError as exc:  # pragma: no cover - filesystem edge cases
+                                logger.debug(
+                                    "    [RAG] Não foi possível ler o post '%s': %s",
+                                    post_path,
+                                    exc,
+                                )
+                                continue
+                            if content:
+                                documents.append(content)
+
+                        if documents:
+                            rag.ingest(documents)
+                            query_text = transcript[:2000] if transcript else f"Resumo {target_date}"
+                            results = rag.retrieve(query_text, top_k=self.config.rag.top_k)
+                            if results:
+                                rag_context = "\n\n".join(
+                                    f"<<<CONTEXTO_{i}>>>\n{doc.strip()}"
+                                    for i, doc in enumerate(results, 1)
+                                    if str(doc).strip()
+                                ) or None
+                    except Exception as exc:  # pragma: no cover - defensive logging
+                        logger.warning("    [RAG] Falha ao executar consulta RAG: %s", exc)
+                    finally:
+                        if rag is not None:
+                            try:
+                                rag.close()
+                            except Exception:  # pragma: no cover - best effort cleanup
+                                pass
 
             context = PostContext(
                 group_name=source.name,

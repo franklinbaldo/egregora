@@ -8,7 +8,7 @@ flowchart TD
     UnifiedProcessor -->|Anonymize| Anonymizer
     UnifiedProcessor -->|Media| MediaExtractor
     UnifiedProcessor -->|Enrichment| Enrichment[ContentEnricher]
-    UnifiedProcessor -->|RAG| ChromadbRAG
+    UnifiedProcessor -->|RAG| DuckDBSimpleRAG
     UnifiedProcessor -->|Prompts| PostGenerator
     PostGenerator --> Posts[Markdown posts]
     UnifiedProcessor --> ProfileRepo[ProfileRepository]
@@ -27,7 +27,7 @@ flowchart LR
         D[Anonymizer]
         E[MediaExtractor]
         F[ContentEnricher]
-        G[ChromadbRAG]
+        G[DuckDBSimpleRAG]
         H[ProfileRepository]
         I[PostGenerator]
     end
@@ -130,7 +130,7 @@ flowchart LR
     VectorStore --> ProcessorCore
 ```
 
-*Goal:* break down long-running enrichment functions (`ContentEnricher`) and Chromadb indexing TODOs by offloading to background workers with explicit queues.
+*Goal:* break down long-running enrichment functions (`ContentEnricher`) and DuckDB indexing TODOs by offloading to background workers with explicit queues.
 
 ### Configurable Profile Prompt Pipeline
 
