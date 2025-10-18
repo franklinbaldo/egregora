@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Callable
 
 try:  # pragma: no cover - optional dependency
     from google import genai  # type: ignore
@@ -18,7 +18,13 @@ except ModuleNotFoundError:  # pragma: no cover - allows importing without depen
     genai_errors = None  # type: ignore[assignment]
 
 import polars as pl
+from pydantic import ValidationError
 
+from ..agents import (
+    PROFILE_DECISION_AGENT,
+    PROFILE_PLAN_AGENT,
+    build_profile_plan_prompt,
+)
 from ..markdown_utils import format_markdown
 from .profile import ParticipantProfile
 from .prompts import UPDATE_DECISION_PROMPT
@@ -179,6 +185,102 @@ def _replace_section_in_markdown(markdown: str, heading: str, content: str) -> s
     return "\n".join(lines).rstrip() + "\n"
 
 
+@dataclass(slots=True)
+class ProfileDraft:
+    """Mutable view of a participant profile while agent tools run."""
+
+    markdown: str
+    summary: str
+    values: list[str]
+    arguments: list[str]
+    changed: bool = False
+
+
+def tool_create_profile(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    markdown = format_markdown(str(payload.get("markdown", "") or ""))
+    if not markdown:
+        return
+
+    summary = _extract_summary_from_markdown(markdown)
+    draft.markdown = markdown
+    if summary:
+        draft.summary = summary
+    draft.changed = True
+
+
+def tool_append_sections(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    sections = payload.get("sections")
+    if not isinstance(sections, Sequence):
+        return
+
+    updates: list[tuple[str, str]] = []
+    for item in sections:
+        if isinstance(item, Mapping):
+            heading = str(item.get("heading", "") or "").strip()
+            content = str(item.get("content", "") or "").strip()
+            if heading and content:
+                updates.append((heading, content))
+
+    if not updates:
+        return
+
+    updated = format_markdown(_apply_updates_to_markdown(draft.markdown, updates))
+    if updated != draft.markdown:
+        draft.markdown = updated
+        draft.changed = True
+
+
+def tool_replace_sections(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    sections = payload.get("sections")
+    if not isinstance(sections, Sequence):
+        return
+
+    new_markdown = draft.markdown
+    for item in sections:
+        if isinstance(item, Mapping):
+            heading = str(item.get("heading", "") or "").strip()
+            content = str(item.get("content", "") or "").strip()
+            if heading and content:
+                new_markdown = format_markdown(
+                    _replace_section_in_markdown(new_markdown, heading, content)
+                )
+
+    if new_markdown != draft.markdown:
+        draft.markdown = new_markdown
+        draft.changed = True
+
+
+def tool_set_summary(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    summary_candidate = str(payload.get("summary", "") or "").strip()
+    if summary_candidate and summary_candidate != draft.summary:
+        draft.summary = summary_candidate
+        draft.changed = True
+
+
+def tool_set_values(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    merged = _merge_lists(draft.values, _ensure_str_list(payload.get("values")))
+    if merged != draft.values:
+        draft.values = merged
+        draft.changed = True
+
+
+def tool_set_argument_patterns(draft: ProfileDraft, payload: Mapping[str, object]) -> None:
+    merged = _merge_lists(draft.arguments, _ensure_str_list(payload.get("patterns")))
+    if merged != draft.arguments:
+        draft.arguments = merged
+        draft.changed = True
+
+
+PROFILE_ACTION_TOOLS: dict[str, Callable[[ProfileDraft, Mapping[str, object]], None]] = {
+    "create_profile": tool_create_profile,
+    "append_sections": tool_append_sections,
+    "replace_sections": tool_replace_sections,
+    "set_summary": tool_set_summary,
+    "set_values": tool_set_values,
+    "set_argument_patterns": tool_set_argument_patterns,
+}
+
+
 def _extract_retry_delay(exc: Exception) -> float | None:
     if genai_errors is not None and isinstance(exc, genai_errors.ResourceExhausted):
         message = str(exc)
@@ -271,7 +373,13 @@ class AgentProfiler:
     async def plan(
         self, client: genai.Client, context: ProfileAgentContext
     ) -> list[AgentProfileAction]:
-        prompt = self._build_prompt(context)
+        existing_profile = context.current_markdown or "(Perfil inexistente)"
+        recent = _format_recent_conversations(context.recent_conversations)
+        prompt = build_profile_plan_prompt(
+            existing_profile=existing_profile,
+            formatted_recent=recent,
+            full_conversation=context.full_conversation,
+        )
         response = await self.llm.generate(
             client,
             model=self.model,
@@ -288,51 +396,17 @@ class AgentProfiler:
         if not raw_text:
             raise ValueError("Resposta vazia do modelo ao planejar atualização de perfil.")
 
-        payload = json.loads(raw_text)
-        actions_raw = payload.get("actions") or []
-        actions: list[AgentProfileAction] = []
-        for item in actions_raw:
-            if not isinstance(item, dict):
-                continue
-            tool = str(item.get("tool") or "").strip()
-            if not tool:
-                continue
-            data = item.get("payload")
-            if not isinstance(data, dict):
-                data = {k: v for k, v in item.items() if k != "tool"}
-            actions.append(AgentProfileAction(tool=tool, payload=data))
-        return actions
+        try:
+            payload = PROFILE_PLAN_AGENT.output_type.model_validate_json(raw_text)
+        except ValidationError as exc:
+            raise ValueError(
+                "Resposta fora do formato esperado ao planejar atualização de perfil."
+            ) from exc
 
-    def _build_prompt(self, context: ProfileAgentContext) -> str:
-        existing_profile = context.current_markdown or "(Perfil inexistente)"
-        recent = _format_recent_conversations(context.recent_conversations)
-        tools_description = """
-Ferramentas disponíveis (use quantas precisar, ou nenhuma se não houver ação):
-1. create_profile{markdown: string} — Cria o perfil completo em Markdown.
-2. append_sections{sections: [{heading: string, content: string}]} — Acrescenta conteúdo em headings existentes ou cria novos se necessário.
-3. replace_sections{sections: [{heading: string, content: string}]} — Substitui o conteúdo de headings existentes.
-4. set_summary{summary: string} — Atualiza o resumo principal do perfil.
-
-Retorne APENAS um JSON válido no formato:
-{
-  "actions": [
-    {"tool": "create_profile", "payload": {"markdown": "..."}},
-    {"tool": "append_sections", "payload": {"sections": [{"heading": "## ...", "content": "..."}]}}
-  ]
-}
-"""
-        instructions = """
-Analise a conversa e o perfil atual. Decida se precisa criar, editar ou apenas registrar que nenhuma ação é necessária.
-Só use as ferramentas necessárias. Se optar por não alterar nada, retorne {"actions": []}.
-"""
-        return (
-            f"Você é um assistente encarregado de manter perfis analíticos de membros.\n\n"
-            f"{tools_description}\n\n"
-            f"{instructions}\n\n"
-            f"Perfil atual (Markdown):\n```markdown\n{existing_profile}\n```\n\n"
-            f"Trechos recentes:\n{recent}\n\n"
-            f"Conversa completa:\n{context.full_conversation.strip()}\n"
-        )
+        return [
+            AgentProfileAction(tool=action.tool, payload=action.payload)
+            for action in payload.actions
+        ]
 
 
 @dataclass(slots=True)
@@ -403,14 +477,16 @@ class ProfileUpdater:
         raw = getattr(response, "text", "") or ""
         if not raw:
             return True, "Perfil elegível para atualização", [], []
-        payload = json.loads(raw)
-        highlights = _ensure_str_list(payload.get("participation_highlights"))
-        insights = _ensure_str_list(payload.get("interaction_insights"))
+        try:
+            payload = PROFILE_DECISION_AGENT.output_type.model_validate_json(raw)
+        except ValidationError:
+            return True, "Perfil elegível para atualização", [], []
+
         return (
-            bool(payload.get("should_update", True)),
-            str(payload.get("reasoning", "")),
-            highlights,
-            insights,
+            payload.should_update,
+            payload.reasoning,
+            payload.participation_highlights,
+            payload.interaction_insights,
         )
 
     def _apply_actions(
@@ -422,56 +498,25 @@ class ProfileUpdater:
         if not actions:
             return current_profile
 
-        profile = current_profile
-        markdown = current_profile.to_markdown() if current_profile else ""
-        summary = current_profile.worldview_summary if current_profile else ""
-        values = list(current_profile.values_and_priorities) if current_profile else []
-        arguments = list(current_profile.argument_patterns) if current_profile else []
-        changed = False
+        draft = ProfileDraft(
+            markdown=current_profile.to_markdown() if current_profile else "",
+            summary=current_profile.worldview_summary if current_profile else "",
+            values=list(current_profile.values_and_priorities) if current_profile else [],
+            arguments=list(current_profile.argument_patterns) if current_profile else [],
+        )
 
         for action in actions:
-            tool = action.tool.lower()
-            payload = action.payload
-            if tool == "create_profile":
-                markdown = format_markdown(str(payload.get("markdown", "")))
-                summary = _extract_summary_from_markdown(markdown) or summary
-                changed = True
-            elif tool == "append_sections":
-                sections = payload.get("sections") or []
-                updates = []
-                for item in sections:
-                    if isinstance(item, dict):
-                        heading = str(item.get("heading") or "").strip()
-                        content = str(item.get("content") or "").strip()
-                        if heading and content:
-                            updates.append((heading, content))
-                if updates:
-                    markdown = format_markdown(_apply_updates_to_markdown(markdown, updates))
-                    changed = True
-            elif tool == "replace_sections":
-                sections = payload.get("sections") or []
-                for item in sections:
-                    if isinstance(item, dict):
-                        heading = str(item.get("heading") or "").strip()
-                        content = str(item.get("content") or "").strip()
-                        if heading and content:
-                            markdown = format_markdown(
-                                _replace_section_in_markdown(markdown, heading, content)
-                            )
-                            changed = True
-            elif tool == "set_summary":
-                summary_candidate = str(payload.get("summary") or "").strip()
-                if summary_candidate:
-                    summary = summary_candidate
-                    changed = True
-            elif tool == "set_values":
-                values = _merge_lists(values, _ensure_str_list(payload.get("values")))
-                changed = True
-            elif tool == "set_argument_patterns":
-                arguments = _merge_lists(arguments, _ensure_str_list(payload.get("patterns")))
-                changed = True
+            handler = PROFILE_ACTION_TOOLS.get(action.tool.lower())
+            if handler is None:
+                continue
+            payload: Mapping[str, object]
+            if isinstance(action.payload, Mapping):
+                payload = action.payload
+            else:
+                payload = {}
+            handler(draft, payload)
 
-        if not changed:
+        if not draft.changed:
             return current_profile
 
         analysis_version = (current_profile.analysis_version if current_profile else 0) + 1
@@ -479,19 +524,23 @@ class ProfileUpdater:
         if current_profile is None:
             profile = ParticipantProfile(
                 member_id=member_id,
-                worldview_summary=summary or "Resumo não fornecido.",
-                values_and_priorities=values,
-                argument_patterns=arguments,
-                markdown_document=markdown,
+                worldview_summary=draft.summary or "Resumo não fornecido.",
+                values_and_priorities=draft.values,
+                argument_patterns=draft.arguments,
+                markdown_document=draft.markdown,
                 analysis_version=analysis_version,
             )
         else:
             profile = replace(
                 current_profile,
-                worldview_summary=summary or current_profile.worldview_summary,
-                values_and_priorities=values or list(current_profile.values_and_priorities),
-                argument_patterns=arguments or list(current_profile.argument_patterns),
-                markdown_document=markdown or current_profile.markdown_document,
+                worldview_summary=draft.summary or current_profile.worldview_summary,
+                values_and_priorities=draft.values
+                if draft.values
+                else list(current_profile.values_and_priorities),
+                argument_patterns=draft.arguments
+                if draft.arguments
+                else list(current_profile.argument_patterns),
+                markdown_document=draft.markdown or current_profile.markdown_document,
                 analysis_version=analysis_version,
             )
         profile.update_timestamp()

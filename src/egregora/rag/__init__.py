@@ -1,4 +1,4 @@
-"""Public interface for RAG utilities with lazy imports."""
+"""Public interface for the simplified RAG utilities."""
 
 from __future__ import annotations
 
@@ -7,31 +7,16 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from .config import RAGConfig  # noqa: F401
-    from .embeddings import CachedGeminiEmbedding  # noqa: F401
-    from .index import IndexStats, PostRAG  # noqa: F401
-    from .query_gen import QueryGenerator  # noqa: F401
+    from .duckdb_simple import DuckDBSimpleConfig, DuckDBSimpleRAG  # noqa: F401
 
-
-__all__ = [
-    "CachedGeminiEmbedding",
-    "IndexStats",
-    "PostRAG",
-    "QueryGenerator",
-    "RAGConfig",
-]
+__all__ = ["DuckDBSimpleConfig", "DuckDBSimpleRAG", "RAGConfig"]
 
 
 def __getattr__(name: str):  # pragma: no cover
     if name == "RAGConfig":
         module = import_module("egregora.rag.config")
         return getattr(module, name)
-    if name in {"CachedGeminiEmbedding"}:
-        module = import_module("egregora.rag.embeddings")
-        return getattr(module, name)
-    if name in {"IndexStats", "PostRAG"}:
-        module = import_module("egregora.rag.index")
-        return getattr(module, name)
-    if name == "QueryGenerator":
-        module = import_module("egregora.rag.query_gen")
+    if name in {"DuckDBSimpleRAG", "DuckDBSimpleConfig"}:
+        module = import_module("egregora.rag.duckdb_simple")
         return getattr(module, name)
     raise AttributeError(name)
