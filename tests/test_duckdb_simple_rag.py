@@ -44,6 +44,13 @@ def test_split_documents_respects_chunking() -> None:
     assert all(len(chunk) <= 120 for chunk in chunks[:-1])
 
 
+def test_split_documents_progress_with_large_overlap() -> None:
+    long_text = "A" * 100
+    chunks = split_documents([long_text], chunk_size=20, overlap=25)
+    assert len(chunks) == 5
+    assert "".join(chunks) == long_text
+
+
 @pytest.mark.parametrize("db_filename", ["rag.duckdb", ":memory:"])
 def test_duckdb_rag_roundtrip(tmp_path: Path, db_filename: str) -> None:
     db_path = ":memory:" if db_filename == ":memory:" else str(tmp_path / db_filename)
