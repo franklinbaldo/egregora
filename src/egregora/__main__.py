@@ -29,9 +29,9 @@ from .site_scaffolding import ensure_mkdocs_project
 
 # Constants and console setup as in original
 MAX_POSTS_TO_SHOW = 3
-MAX_DATES_TO_SHOW = 10
-QUOTA_WARNING_THRESHOLD = 200
-QUOTA_WARNING_THRESHOLD_ENRICH = 15
+# MAX_DATES_TO_SHOW = 10
+# QUOTA_WARNING_THRESHOLD = 200
+# QUOTA_WARNING_THRESHOLD_ENRICH = 15
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -62,36 +62,36 @@ class EgregoraCLI:
         self.auto_cleanup_days: int = 90
         self.enable_rag: bool = False
 
-    def init(self, output_dir: str) -> None:
-        """Initialize a new MkDocs site scaffold in the specified directory.
+    # def init(self, output_dir: str) -> None:
+    #     """Initialize a new MkDocs site scaffold in the specified directory.
 
-        Args:
-            output_dir: The directory path for the new site (e.g., 'my-blog').
-        """
-        site_root = Path(output_dir).resolve()
-        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
-        if mkdocs_created:
-            console.print(Panel(
-                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
-                f"📁 Site root: {site_root}\n"
-                f"📝 Docs directory: {docs_dir}\n\n"
-                f"[bold]Next steps:[/bold]\n"
-                f"• Run [cyan]cd {site_root}[/cyan]\n"
-                f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
-                f"• Process exports: [cyan]egregora process --zip_files=export.zip --output={output_dir}[/cyan]",
-                title="🛠️ Initialization Complete",
-                border_style="green"
-            ))
-        else:
-            console.print(Panel(
-                f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
-                f"📁 Using existing setup:\n"
-                f"• Docs directory: {docs_dir}\n\n"
-                f"[bold]To update or regenerate:[/bold]\n"
-                f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
-                title="📁 Site Exists",
-                border_style="yellow"
-            ))
+    #     Args:
+    #         output_dir: The directory path for the new site (e.g., 'my-blog').
+    #     """
+    #     site_root = Path(output_dir).resolve()
+    #     docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+    #     if mkdocs_created:
+    #         console.print(Panel(
+    #             f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+    #             f"📁 Site root: {site_root}\n"
+    #             f"📝 Docs directory: {docs_dir}\n\n"
+    #             f"[bold]Next steps:[/bold]\n"
+    #             f"• Run [cyan]cd {site_root}[/cyan]\n"
+    #             f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
+    #             f"• Process exports: [cyan]egregora process --zip_files=export.zip --output={output_dir}[/cyan]",
+    #             title="🛠️ Initialization Complete",
+    #             border_style="green"
+    #         ))
+    #     else:
+    #         console.print(Panel(
+    #             f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
+    #             f"📁 Using existing setup:\n"
+    #             f"• Docs directory: {docs_dir}\n\n"
+    #             f"[bold]To update or regenerate:[/bold]\n"
+    #             f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
+    #             title="📁 Site Exists",
+    #             border_style="yellow"
+    #         ))
 
     def process(
         self,
@@ -301,16 +301,16 @@ class EgregoraCLI:
         processor = UnifiedProcessor(config)
 
         # Dry run mode
-        if dry_run:
-            try:
-                self._dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
-                return
-            except FileNotFoundError as e:
-                self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
-                return
-            except Exception as e:
-                self._error_panel(f"❌ An error occurred during dry run: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Corrupted WhatsApp export\n• Permission issues", "⚠️ Dry Run Error")
-                return
+        # if dry_run:
+        #     try:
+        #         self._dry_run_and_exit(processor, days_to_process, from_date_obj, to_date_obj)
+        #         return
+        #     except FileNotFoundError as e:
+        #         self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
+        #         return
+        #     except Exception as e:
+        #         self._error_panel(f"❌ An error occurred during dry run: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Corrupted WhatsApp export\n• Permission issues", "⚠️ Dry Run Error")
+        #         return
 
         # Process normally
         try:
@@ -331,81 +331,81 @@ class EgregoraCLI:
             self._error_panel(f"❌ An error occurred: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Network connectivity issues\n• API key problems\n• Insufficient disk space", "⚠️ Processing Error")
             raise  # Preserve traceback for debugging
 
-    def _dry_run_and_exit(
-        self,
-        processor: UnifiedProcessor,
-        days: int | None,
-        from_date: date | None,
-        to_date: date | None,
-    ) -> None:
-        """Execute dry run and exit."""
-        console.print(
-            Panel(
-                "[bold blue]🔍 DRY RUN Mode[/bold blue]\nShowing what would be processed without executing",
-                border_style="blue",
-            )
-        )
+    # def _dry_run_and_exit(
+    #     self,
+    #     processor: UnifiedProcessor,
+    #     days: int | None,
+    #     from_date: date | None,
+    #     to_date: date | None,
+    # ) -> None:
+    #     """Execute dry run and exit."""
+    #     console.print(
+    #         Panel(
+    #             "[bold blue]🔍 DRY RUN Mode[/bold blue]\nShowing what would be processed without executing",
+    #             border_style="blue",
+    #         )
+    #     )
 
-        plans = processor.plan_runs(days=days, from_date=from_date, to_date=to_date)
-        if not plans:
-            console.print("[yellow]No groups found with current filters.[/yellow]")
-            console.print("Adjust EGREGORA__POSTS_DIR or put exports in data/whatsapp_zips/.\n")
-            return
+    #     plans = processor.plan_runs(days=days, from_date=from_date, to_date=to_date)
+    #     if not plans:
+    #         console.print("[yellow]No groups found with current filters.[/yellow]")
+    #         console.print("Adjust EGREGORA__POSTS_DIR or put exports in data/whatsapp_zips/.\n")
+    #         return
 
-        total_posts = 0
-        for plan in plans:
-            icon = "📺" if plan.is_virtual else "📝"
-            console.print(f"\n[cyan]{icon} {plan.name}[/cyan] ([dim]{plan.slug}[/dim])")
-            console.print(f"   Available exports: {plan.export_count}")
+    #     total_posts = 0
+    #     for plan in plans:
+    #         icon = "📺" if plan.is_virtual else "📝"
+    #         console.print(f"\n[cyan]{icon} {plan.name}[/cyan] ([dim]{plan.slug}[/dim])")
+    #         console.print(f"   Available exports: {plan.export_count}")
 
-            if plan.is_virtual and plan.merges:
-                console.print(f"   Combined groups: {', '.join(plan.merges)}")
+    #         if plan.is_virtual and plan.merges:
+    #             console.print(f"   Combined groups: {', '.join(plan.merges)}")
 
-            if plan.available_dates:
-                console.print(
-                    f"   Available range: {plan.available_dates[0]} → {plan.available_dates[-1]}"
-                )
-            else:
-                console.print("   No dates available in exports")
+    #         if plan.available_dates:
+    #             console.print(
+    #                 f"   Available range: {plan.available_dates[0]} → {plan.available_dates[-1]}"
+    #             )
+    #         else:
+    #             console.print("   No dates available in exports")
 
-            if plan.target_dates:
-                if len(plan.target_dates) <= MAX_DATES_TO_SHOW:
-                    formatted_dates = ", ".join(str(d) for d in plan.target_dates)
-                else:
-                    first_5 = ", ".join(str(d) for d in plan.target_dates[:5])
-                    last_5 = ", ".join(str(d) for d in plan.target_dates[-5:])
-                    formatted_dates = f"{first_5}, ..., {last_5}"
-                console.print(f"   Will generate for {len(plan.target_dates)} day(s): {formatted_dates}")
-                total_posts += len(plan.target_dates)
-            else:
-                console.print("   No posts would be generated (no recent data)")
+    #         if plan.target_dates:
+    #             if len(plan.target_dates) <= MAX_DATES_TO_SHOW:
+    #                 formatted_dates = ", ".join(str(d) for d in plan.target_dates)
+    #             else:
+    #                 first_5 = ", ".join(str(d) for d in plan.target_dates[:5])
+    #                 last_5 = ", ".join(str(d) for d in plan.target_dates[-5:])
+    #                 formatted_dates = f"{first_5}, ..., {last_5}"
+    #             console.print(f"   Will generate for {len(plan.target_dates)} day(s): {formatted_dates}")
+    #             total_posts += len(plan.target_dates)
+    #         else:
+    #             console.print("   No posts would be generated (no recent data)")
 
-        console.print(f"\nSummary: {len(plans)} group(s) would generate up to {total_posts} post(s).")
+    #     console.print(f"\nSummary: {len(plans)} group(s) would generate up to {total_posts} post(s).")
 
-        # Show quota estimation
-        try:
-            quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
-            console.print("\n📊 API Usage Estimation:")
-            console.print(f"   Calls for posts: {quota_info['post_generation_calls']}")
-            console.print(f"   Calls for enrichment: {quota_info['enrichment_calls']}")
-            console.print(f"   Total calls: {quota_info['total_api_calls']}")
-            console.print(
-                f"   Estimated time (free tier): {quota_info['estimated_time_minutes']:.1f} minutes"
-            )
+    #     # Show quota estimation
+    #     try:
+    #         quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
+    #         console.print("\n📊 API Usage Estimation:")
+    #         console.print(f"   Calls for posts: {quota_info['post_generation_calls']}")
+    #         console.print(f"   Calls for enrichment: {quota_info['enrichment_calls']}")
+    #         console.print(f"   Total calls: {quota_info['total_api_calls']}")
+    #         console.print(
+    #             f"   Estimated time (free tier): {quota_info['estimated_time_minutes']:.1f} minutes"
+    #         )
 
-            if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD:
-                console.print(
-                    "\n[yellow]⚠️ This operation may exceed Gemini's free quota[/yellow]"
-                )
-                console.print(
-                    "[dim]Free tier: 15 calls/minute. Consider processing in smaller batches.[/dim]"
-                )
+    #         if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD:
+    #             console.print(
+    #                 "\n[yellow]⚠️ This operation may exceed Gemini's free quota[/yellow]"
+    #             )
+    #             console.print(
+    #                 "[dim]Free tier: 15 calls/minute. Consider processing in smaller batches.[/dim]"
+    #             )
 
-        except Exception as exc:
-            logger.exception("Failed to estimate quota usage")
-            console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
+    #     except Exception as exc:
+    #         logger.exception("Failed to estimate quota usage")
+    #         console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
 
-        console.print()
+    #     console.print()
 
     def _process_and_display(
         self,
@@ -418,34 +418,34 @@ class EgregoraCLI:
         """Process groups and show formatted result."""
 
         # Show quota estimation before processing
-        try:
-            quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
-            if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD_ENRICH:
-                console.print(
-                    Panel(
-                        f"[yellow]⚠️ This operation will make {quota_info['total_api_calls']} API calls[/yellow]\n"
-                        f"Estimated time (free tier): {quota_info['estimated_time_minutes']:.1f} minutes\n"
-                        f"[dim]Processing may be interrupted by quota limits.[/dim]",
-                        border_style="yellow",
-                        title="Quota Estimation",
-                    )
-                )
+        # try:
+        #     quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
+        #     if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD_ENRICH:
+        #         console.print(
+        #             Panel(
+        #                 f"[yellow]⚠️ This operation will make {quota_info['total_api_calls']} API calls[/yellow]\n"
+        #                 f"Estimated time (free tier): {quota_info['estimated_time_minutes']:.1f} minutes\n"
+        #                 f"[dim]Processing may be interrupted by quota limits.[/dim]",
+        #                 border_style="yellow",
+        #                 title="Quota Estimation",
+        #             )
+        #         )
 
-        except FileNotFoundError:
-            # Skip quota estimation if file doesn't exist - will be caught later
-            pass
-        except IsADirectoryError:
-            # Skip quota estimation if directory instead of ZIP - will be caught later
-            pass
-        except zipfile.BadZipFile:
-            # Skip quota estimation if invalid ZIP - will be caught later  
-            pass
-        except Exception as exc:
-            # Only log other unexpected errors
-            logger.exception("Failed to estimate quota usage before processing")
-            console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
+        # except FileNotFoundError:
+        #     # Skip quota estimation if file doesn't exist - will be caught later
+        #     pass
+        # except IsADirectoryError:
+        #     # Skip quota estimation if directory instead of ZIP - will be caught later
+        #     pass
+        # except zipfile.BadZipFile:
+        #     # Skip quota estimation if invalid ZIP - will be caught later
+        #     pass
+        # except Exception as exc:
+        #     # Only log other unexpected errors
+        #     logger.exception("Failed to estimate quota usage before processing")
+        #     console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
 
-        console.print()
+        # console.print()
 
         console.print(Panel("[bold green]🚀 Processing Groups[/bold green]"))
 
