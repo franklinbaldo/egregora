@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 try:  # pragma: no cover - optional dependency
     import mdformat  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     mdformat = None  # type: ignore[assignment]
 
 FRONT_MATTER_DELIMITER = "---"
+
+logger = logging.getLogger(__name__)
 
 
 def _split_front_matter(text: str) -> tuple[str, str]:
@@ -28,11 +32,15 @@ def _split_front_matter(text: str) -> tuple[str, str]:
     remainder = stripped[end_index:]
     return prefix + front_matter + "\n", remainder
 
-#TODO: If mdformat is not installed, the function will just return the original text. It would be better to log a warning message to the user.
+
 def format_markdown(text: str, *, assume_front_matter: bool = False) -> str:
     """Return ``text`` formatted with mdformat when available."""
 
-    if not text or mdformat is None:
+    if not text:
+        return text
+
+    if mdformat is None:
+        logger.warning("mdformat is not installed. Skipping Markdown formatting.")
         return text
 
     if assume_front_matter:
@@ -51,7 +59,8 @@ def format_markdown(text: str, *, assume_front_matter: bool = False) -> str:
 def _format_markdown_block(block: str) -> str:
     try:
         formatted = mdformat.text(block, options={"wrap": 88})
-    except Exception:  # pragma: no cover - defensive fallback
+    except Exception as e:  # pragma: no cover - defensive fallback
+        logger.warning(f"Failed to format Markdown: {e}")
         return block
     return formatted
 

@@ -28,6 +28,8 @@ def _format_mapping(mapping: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# TODO: This dataclass could be converted to a Pydantic model to simplify
+# deserialization and improve validation.
 @dataclass(slots=True)
 class ParticipantProfile:
     """Analytical profile for a group participant."""
@@ -121,6 +123,8 @@ class ParticipantProfile:
             analysis_version=int(data.get("analysis_version", 0)),
         )
 
+    # TODO: The Markdown structure is hardcoded here. It would be better to use
+    # a Jinja2 template to generate the Markdown.
     def to_markdown(self) -> str:
         """Return a human friendly Markdown representation."""
 

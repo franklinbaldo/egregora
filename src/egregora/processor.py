@@ -1,4 +1,4 @@
-"Unified processor with Polars-based message manipulation."
+"""Unified processor with Polars-based message manipulation."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ import logging
 import re
 import textwrap
 import unicodedata
+import uuid
 import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path, PurePosixPath
@@ -32,33 +34,53 @@ from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.chromadb_rag import ChromadbRAG
 from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
+from .schema import ensure_message_schema
 from .transcript import (
     get_available_dates,
     load_source_dataframe,
     render_transcript,
 )
 from .types import GroupSlug
+from .zip_utils import ZipValidationLimits, configure_default_limits
 
 try:  # pragma: no cover - optional dependency
     from google.genai import errors as genai_errors
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     genai_errors = None  # type: ignore[assignment]
 
+try:  # Simple enricher imports for enrichment functionality
+    from .simple_enricher import (
+        save_media_enrichment,
+        save_simple_enrichment,
+        simple_enrich_media_with_cache,
+        simple_enrich_url_with_cache,
+    )
+except ImportError:  # pragma: no cover - optional dependency
+    simple_enrich_url_with_cache = None  # type: ignore[assignment]
+    save_simple_enrichment = None  # type: ignore[assignment]
+    save_media_enrichment = None  # type: ignore[assignment]
+    simple_enrich_media_with_cache = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
-    pass
+    from .enrichment import EnrichmentResult
 
 logger = logging.getLogger(__name__)
 
 YAML_DELIMITER = "---"
-QUOTA_WARNING_THRESHOLD = 15
-MIN_YAML_PARTS = 3
+# QUOTA_WARNING_THRESHOLD = 15
 _TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 MAX_MEDIA_CAPTION_LENGTH = 160
+_FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+_CODE_BLOCK_FRONT_MATTER_PATTERN = re.compile(
+    r"```(?:yaml)?\s*\n---\s*\n(.*?)\n---\s*\n```\s*\n?",
+    re.DOTALL,
+)
 
 
 def _is_transient_gemini_error(exc: Exception) -> bool:
     """Return ``True`` when *exc* looks like a temporary Gemini outage."""
-
+    # FIXME: String matching on error messages is brittle. This should be updated
+    # if the Gemini library provides more specific exception types or error codes.
     message = str(exc)
     if "UNAVAILABLE" in message or "model is overloaded" in message:
         return True
@@ -75,6 +97,38 @@ def _create_cache(directory: Path, size_limit_mb: int | None) -> Cache:
     directory.mkdir(parents=True, exist_ok=True)
     size_limit_bytes = 0 if size_limit_mb is None else max(0, int(size_limit_mb)) * 1024 * 1024
     return Cache(directory=str(directory), size_limit=size_limit_bytes)
+
+
+def _cleanup_cache(cache: Cache, max_age_days: int) -> None:
+    """Remove cache entries older than max_age_days."""
+
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+
+    try:
+        for key in list(cache):
+            try:
+                entry = cache.get(key)
+            except Exception:
+                continue
+
+            if not isinstance(entry, dict):
+                continue
+
+            last_used = _coerce_timestamp(entry.get("last_used"))
+            if last_used is None:
+                payload = entry.get("payload")
+                if isinstance(payload, dict):
+                    last_used = _coerce_timestamp(payload.get("last_used"))
+
+            if last_used is not None and last_used < cutoff:
+                try:
+                    cache.delete(key)
+                except Exception:
+                    continue
+
+        cache.cull()
+    except Exception:
+        cache.cull()
 
 
 def _coerce_timestamp(value: Any) -> datetime | None:
@@ -96,32 +150,6 @@ def _coerce_timestamp(value: Any) -> datetime | None:
     return None
 
 
-def _cleanup_cache(cache: Cache, days: int) -> int:
-    threshold = datetime.now(UTC) - timedelta(days=max(0, int(days)))
-    removed = 0
-
-    for key in list(cache.iterkeys()):
-        entry = cache.get(key)
-        if not isinstance(entry, dict):
-            cache.delete(key)
-            continue
-
-        last_used = _coerce_timestamp(entry.get("last_used"))
-        if last_used is None:
-            continue
-
-        if last_used < threshold:
-            cache.delete(key)
-            removed += 1
-            continue
-
-        if not isinstance(entry.get("last_used"), datetime):
-            entry["last_used"] = last_used
-            cache.set(key, entry)
-
-    return removed
-
-
 def _build_post_metadata(
     source: GroupSource, target_date: date, config: PipelineConfig
 ) -> dict[str, object]:
@@ -140,66 +168,45 @@ def _build_post_metadata(
         "tags": tags,
     }
 
-#TODO: This function has some complex logic for handling front matter. It could be simplified and made more robust.
+
+def _safe_load_mapping(raw_yaml: str) -> dict[str, Any]:
+    try:
+        loaded = yaml.safe_load(raw_yaml) or {}
+    except yaml.YAMLError:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _extract_front_matter(text: str) -> tuple[dict[str, Any], str]:
+    stripped = text.lstrip()
+    metadata: dict[str, Any] = {}
+    remaining = stripped
+
+    match = _FRONT_MATTER_PATTERN.match(stripped)
+    if match:
+        metadata = _safe_load_mapping(match.group(1))
+        remaining = stripped[match.end() :]
+
+    cleaned = _CODE_BLOCK_FRONT_MATTER_PATTERN.sub("", remaining)
+    return metadata, cleaned.lstrip()
+
+
 def _ensure_blog_front_matter(
     text: str, *, source: GroupSource, target_date: date, config: PipelineConfig
 ) -> str:
     """Merge Gemini-generated frontmatter with programmatic metadata."""
 
-    stripped = text.lstrip()
+    user_metadata, body = _extract_front_matter(text)
+    programmatic = _build_post_metadata(source, target_date, config)
+    merged_metadata = {**programmatic, **user_metadata}
 
-    # Check if content has frontmatter (including wrapped in code blocks)
-    if stripped.startswith("```\n---") or stripped.startswith("---"):
-        yaml_content = ""
-        remaining_content = stripped
-
-        # Handle normal frontmatter first
-        if stripped.startswith(YAML_DELIMITER):
-            parts = stripped.split(YAML_DELIMITER, 2)
-            if len(parts) >= MIN_YAML_PARTS:
-                yaml_content = parts[1]
-                remaining_content = parts[2].lstrip()
-
-        # Remove any wrapped frontmatter blocks from remaining content
-        while f"```\n{YAML_DELIMITER}" in remaining_content or f"```yaml\n{YAML_DELIMITER}" in remaining_content:
-            # Check for both plain and yaml-labeled code blocks
-            patterns = [f"```\n{YAML_DELIMITER}", f"```yaml\n{YAML_DELIMITER}"]
-            for pattern in patterns:
-                if pattern in remaining_content:
-                    start_idx = remaining_content.find(pattern)
-                    # Look for closing pattern
-                    end_pattern = f"{YAML_DELIMITER}\n```"
-                    end_idx = remaining_content.find(end_pattern, start_idx)
-                    if end_idx > start_idx:
-                        # Remove the entire wrapped block
-                        remaining_content = (
-                            remaining_content[:start_idx]
-                            + remaining_content[end_idx + len(end_pattern):]
-                        ).strip()
-                        break  # Process one at a time
-            else:
-                break  # No more patterns found
-
-        # Parse existing YAML and merge with programmatic metadata
-        try:
-            existing_metadata = yaml.safe_load(yaml_content) or {}
-        except yaml.YAMLError:
-            existing_metadata = {}
-
-        # Get programmatic metadata and merge
-        programmatic_metadata = _build_post_metadata(source, target_date, config)
-        merged_metadata = {**programmatic_metadata, **existing_metadata}
-
-        # Generate clean frontmatter
-        front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
-        return f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{remaining_content}"
-
-    # No frontmatter found, add programmatic one
-    metadata = _build_post_metadata(source, target_date, config)
-    front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
-    prefix_len = len(text) - len(stripped)
-    prefix = text[:prefix_len]
-    return f"{prefix}{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{stripped}"
+    front_matter = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True).strip()
+    content = body.lstrip()
+    return (
+        f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{content}"
+        if content
+        else f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n"
+    )
 
 
 def _add_member_profile_links(
@@ -216,7 +223,7 @@ def _add_member_profile_links(
 
     # FIXME: The regex could be improved to be more specific and avoid false positives.
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-    
+
     markdown_with_uuid = re.compile(
         rf"(?P<link>\[[^]]+\]\([^)]+\))\s*(?P<uuid>{uuid_pattern})",
         re.IGNORECASE,
@@ -224,10 +231,7 @@ def _add_member_profile_links(
     # Match UUIDs in parentheses that are NOT in media section or file paths
     paren_uuid = re.compile(rf"\((?P<uuid>{uuid_pattern})\)", re.IGNORECASE)
     # Match bare UUIDs that are NOT followed by file extensions
-    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![[\w-])", re.IGNORECASE)
-
-    workspace_root = Path.cwd().parent if Path.cwd().name == "egregora" else Path.cwd() #TODO: THIS IS A HACKY AND BAD UX, THE USER MUST GIVE THE OUTPUT PATH WE SHOULD NOT GUESS IT
-    site_profiles_dir = workspace_root / "egregora-site" / source.slug / "profiles"
+    bare_uuid = re.compile(rf"(?<![\w-])(?P<uuid>{uuid_pattern})(?![\w-])", re.IGNORECASE)
 
     profile_files: dict[str, Path] = {}
     if repository is not None:
@@ -240,11 +244,14 @@ def _add_member_profile_links(
         except Exception:
             pass
 
-    if site_profiles_dir.exists():
-        for profile_file in site_profiles_dir.glob("*.md"):
-            if profile_file.name.lower() == "index.md":
-                continue
-            profile_files[profile_file.stem.lower()] = profile_file
+    for extra_dir in config.profiles.link_directories:
+        try:
+            for profile_file in extra_dir.glob("*.md"):
+                if profile_file.name.lower() == "index.md":
+                    continue
+                profile_files[profile_file.stem.lower()] = profile_file
+        except Exception:
+            continue
 
     def _resolve_profile(uuid_value: str) -> str | None:
         identifier = uuid_value.lower()
@@ -275,12 +282,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section (rough heuristic)
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         emoji = _format_link(resolved) if resolved else "🪪"
         return emoji
@@ -290,12 +297,12 @@ def _add_member_profile_links(
         uuid_str = match.group("uuid")
         full_match = match.group(0)
         start_pos = match.start()
-        
+
         # Check if we're in a media section
-        before_context = text[max(0, start_pos-100):start_pos]
+        before_context = text[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
-            
+
         resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
@@ -418,6 +425,14 @@ class UnifiedProcessor:
             )
             self._profile_limit_per_run = self.config.profiles.max_profiles_per_run
 
+        configure_default_limits(
+            ZipValidationLimits(
+                max_total_size=self.config.zip_validation.max_total_size,
+                max_member_size=self.config.zip_validation.max_member_size,
+                max_member_count=self.config.zip_validation.max_member_count,
+            )
+        )
+
     @property
     def gemini_manager(self) -> GeminiManager:
         """Lazily instantiate the optional Gemini manager."""
@@ -439,64 +454,89 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
-    #TODO: The estimation is very rough and could be improved.
-    def estimate_api_usage(
-        self,
-        *,
-        days: int | None = None,
-        from_date: date | None = None,
-        to_date: date | None = None,
-    ) -> dict[str, Any]:
-        """Estimate API quota usage for the planned processing."""
-        sources_to_process, _, _ = self._collect_sources()
+    # def estimate_api_usage(
+    #     self,
+    #     *,
+    #     days: int | None = None,
+    #     from_date: date | None = None,
+    #     to_date: date | None = None,
+    # ) -> dict[str, Any]:
+    #     """Estimate API quota usage for the planned processing."""
+    #     sources_to_process, _, _ = self._collect_sources()
 
-        total_posts = 0
-        total_enrichment_calls = 0
-        group_estimates = {}
+    #     total_posts = 0
+    #     total_enrichment_calls = 0
+    #     group_estimates = {}
 
-        for slug, source in sources_to_process.items():
-            available_dates = list(get_available_dates(source))
-            target_dates = _filter_target_dates(
-                available_dates,
-                from_date=from_date,
-                to_date=to_date,
-                days=days,
-            )
+    #     for slug, source in sources_to_process.items():
+    #         frame = load_source_dataframe(source)
+    #         if frame.is_empty():
+    #             group_estimates[slug] = {"posts": 0, "enrichment_calls": 0, "date_range": None}
+    #             continue
 
-            group_posts = len(target_dates)
-            total_posts += group_posts
+    #         available_dates = sorted(frame.get_column("date").unique().to_list())
+    #         target_dates = _filter_target_dates(
+    #             available_dates,
+    #             from_date=from_date,
+    #             to_date=to_date,
+    #             days=days,
+    #         )
 
-            # Estimate enrichment calls (rough estimate)
-            enrichment_calls = 0
-            if self.config.enrichment.enabled:
-                # Rough estimate: 1-3 enrichment calls per day on average
-                enrichment_calls = group_posts * 2  # Conservative estimate
+    #         group_posts = len(target_dates)
+    #         total_posts += group_posts
 
-            total_enrichment_calls += enrichment_calls
+    #         enrichment_calls = 0
+    #         if self.config.enrichment.enabled and group_posts:
+    #             max_links = max(1, int(self.config.enrichment.max_links))
+    #             for current_date in target_dates:
+    #                 df_day = frame.filter(pl.col("date") == current_date)
+    #                 if df_day.is_empty():
+    #                     continue
+    #                 message_col = pl.col("message").cast(pl.Utf8, strict=False).fill_null("")
+    #                 url_hits = int(
+    #                     df_day.select(
+    #                         message_col.str.contains(r"https?://", literal=False)
+    #                         .cast(pl.Int32)
+    #                         .sum()
+    #                     ).item()
+    #                 )
+    #                 media_hits = int(
+    #                     df_day.select(
+    #                         message_col.str.contains("mídia oculta", literal=False)
+    #                         .cast(pl.Int32)
+    #                         .sum()
+    #                     ).item()
+    #                 )
+    #                 references = url_hits + media_hits
+    #                 if references == 0:
+    #                     references = 1
+    #                 enrichment_calls += min(max_links, references)
 
-            group_estimates[slug] = {
-                "posts": group_posts,
-                "enrichment_calls": enrichment_calls,
-                "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
-            }
+    #         total_enrichment_calls += enrichment_calls
 
-        # Free tier limits (based on the issue description)
-        free_tier_limit = 15  # requests per minute
-        estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
+    #         group_estimates[slug] = {
+    #             "posts": group_posts,
+    #             "enrichment_calls": enrichment_calls,
+    #             "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
+    #         }
 
-        return {
-            "total_api_calls": total_posts + total_enrichment_calls,
-            "post_generation_calls": total_posts,
-            "enrichment_calls": total_enrichment_calls,
-            "estimated_time_minutes": estimated_minutes,
-            "free_tier_minutes_needed": estimated_minutes,
-            "groups": group_estimates,
-            "warning": (
-                "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
-                if total_posts + total_enrichment_calls > QUOTA_WARNING_THRESHOLD
-                else None
-            ),
-        }
+    #     # Free tier limits (based on the issue description)
+    #     free_tier_limit = 15  # requests per minute
+    #     estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
+
+    #     return {
+    #         "total_api_calls": total_posts + total_enrichment_calls,
+    #         "post_generation_calls": total_posts,
+    #         "enrichment_calls": total_enrichment_calls,
+    #         "estimated_time_minutes": estimated_minutes,
+    #         "free_tier_minutes_needed": estimated_minutes,
+    #         "groups": group_estimates,
+    #         "warning": (
+    #             "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
+    #             if total_posts + total_enrichment_calls > QUOTA_WARNING_THRESHOLD
+    #             else None
+    #         ),
+    #     }
 
     def process_all(
         self,
@@ -526,45 +566,44 @@ class UnifiedProcessor:
 
         return results
 
-    def plan_runs(
-        self,
-        *,
-        days: int | None = None,
-        from_date: date | None = None,
-        to_date: date | None = None,
-    ) -> list[DryRunPlan]:
-        """Return a preview of what would be processed."""
+    # def plan_runs(
+    #     self,
+    #     *,
+    #     days: int | None = None,
+    #     from_date: date | None = None,
+    #     to_date: date | None = None,
+    # ) -> list[DryRunPlan]:
+    #     """Return a preview of what would be processed."""
 
-        sources_to_process, _, _ = self._collect_sources()
+    #     sources_to_process, _, _ = self._collect_sources()
 
-        plans: list[DryRunPlan] = []
-        for slug, source in sources_to_process.items():
-            available_dates = list(get_available_dates(source))
-            target_dates = _filter_target_dates(
-                available_dates,
-                from_date=from_date,
-                to_date=to_date,
-                days=days,
-            )
+    #     plans: list[DryRunPlan] = []
+    #     for slug, source in sources_to_process.items():
+    #         available_dates = list(get_available_dates(source))
+    #         target_dates = _filter_target_dates(
+    #             available_dates,
+    #             from_date=from_date,
+    #             to_date=to_date,
+    #             days=days,
+    #         )
 
-            plans.append(
-                DryRunPlan(
-                    slug=slug,
-                    name=source.name,
-                    is_virtual=source.is_virtual,
-                    export_count=len(source.exports),
-                    available_dates=available_dates,
-                    target_dates=target_dates,
-                    merges=(
-                        list(source.merge_config.source_groups)
-                        if source.is_virtual and source.merge_config
-                        else None
-                    ),
-                )
-            )
-        return sorted(plans, key=lambda plan: plan.slug)
+    #         plans.append(
+    #             DryRunPlan(
+    #                 slug=slug,
+    #                 name=source.name,
+    #                 is_virtual=source.is_virtual,
+    #                 export_count=len(source.exports),
+    #                 available_dates=available_dates,
+    #                 target_dates=target_dates,
+    #                 merges=(
+    #                     list(source.merge_config.source_groups)
+    #                     if source.is_virtual and source.merge_config
+    #                     else None
+    #                 ),
+    #             )
+    #         )
+    #     return sorted(plans, key=lambda plan: plan.slug)
 
-    #TODO: This function uses a list of hardcoded patterns to extract the group name. This could be made more configurable.
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
         # Pattern: "Conversa do WhatsApp com GROUP_NAME.txt"
@@ -572,25 +611,17 @@ class UnifiedProcessor:
         # Remove file extension
         base_name = chat_filename.replace(".txt", "")
 
-        # Common patterns in WhatsApp exports
-        patterns = [
-            r"Conversa do WhatsApp com (.+)",  # Portuguese
-            r"WhatsApp Chat with (.+)",  # English
-            r"Chat de WhatsApp con (.+)",  # Spanish
-        ]
-
-        for pattern in patterns:
+        for pattern in self.config.group_name_patterns:
             match = re.search(pattern, base_name, re.IGNORECASE)
             if match:
                 group_name = match.group(1).strip()
                 # Remove common suffixes like dates, emojis at the end
-                group_name = re.sub(r"\s*[🀀-🟿]+\s*$", "", group_name).strip()
+                group_name = re.sub(r"\s*[\U0001f000-\U0001f0ff]+\s*$", "", group_name).strip()
                 return group_name
 
         # Fallback: use the whole filename without extension
         return base_name
 
-    #TODO: This function generates a slug from the group name. It could be improved to handle more edge cases.
     def _generate_group_slug(self, group_name: str) -> str:
         """Generate a URL-friendly slug from group name."""
 
@@ -605,6 +636,11 @@ class UnifiedProcessor:
         # Remove leading/trailing hyphens
         slug = slug.strip("-")
 
+        if not slug:
+            fallback = re.sub(r"[^\da-zA-Z]+", "-", group_name.lower()).strip("-")
+            slug = fallback or f"whatsapp-group-{abs(hash(group_name)) & 0xFFFF:04x}"
+
+        slug = slug[:64].strip("-")
         return slug or "whatsapp-group"
 
     def _collect_sources(
@@ -774,7 +810,9 @@ class UnifiedProcessor:
         if not posts_dir.exists():
             return []
 
-        return [path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"]
+        return [
+            path for path in posts_dir.glob("*.md") if path.is_file() and path.name != "index.md"
+        ]
 
     def _write_group_index(
         self,
@@ -783,13 +821,15 @@ class UnifiedProcessor:
         post_paths: list[Path],
     ) -> None:
         """Update the blog index with generated posts. With Material blog plugin, this is mostly handled automatically."""
-        
+
         # The blog plugin handles post indexing automatically, so we just ensure
         # the posts directory structure is correct
         posts_dir = site_root / "posts"
         if not posts_dir.exists():
             posts_dir.mkdir(parents=True, exist_ok=True)
 
+    # TODO: This function is too long and complex. It should be refactored into
+    # smaller, more manageable functions.
     def _process_source(  # noqa: PLR0912, PLR0915
         self,
         source: GroupSource,
@@ -896,10 +936,8 @@ class UnifiedProcessor:
             _, previous_post = _load_previous_post(daily_dir, target_date)
 
             # Simple enrichment - add enrichments as messages to dataframe
-            if self.config.enrichment.enabled:
+            if self.config.enrichment.enabled and simple_enrich_url_with_cache is not None:
                 try:
-                    from .simple_enricher import simple_enrich_url_with_cache, save_simple_enrichment
-                    
                     # Setup cache
                     cache: Cache | None = None
                     if self.config.cache.enabled:
@@ -912,117 +950,125 @@ class UnifiedProcessor:
                                 _cleanup_cache(cache, self.config.cache.auto_cleanup_days)
                         except Exception:
                             cache = None
-                    
+
                     # Extract URLs from the day's messages
-                    urls_df = df_day.filter(
-                        pl.col("message").str.contains(r"https?://[^\s>)]+")
-                    ).with_columns(
-                        pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
-                    ).explode("urls").filter(
-                        pl.col("urls").is_not_null() & (pl.col("urls") != "")
+                    urls_df = (
+                        df_day.filter(pl.col("message").str.contains(r"https?://[^\s>)]+"))
+                        .with_columns(
+                            pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
+                        )
+                        .explode("urls")
+                        .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
                     )
-                    
+
                     enriched_rows = []
                     processed_urls = set()
-                    
+
                     for row in urls_df.iter_rows(named=True):
                         url = row["urls"]
                         if url in processed_urls:
                             continue  # Skip duplicate URLs
                         processed_urls.add(url)
-                        
-                        original_message = row["message"] 
+
+                        original_message = row["message"]
                         original_timestamp = row["timestamp"]
                         original_author = row["author"]
-                        
+
                         # Get enrichment (with cache)
                         enrichment_text = asyncio.run(
                             simple_enrich_url_with_cache(url, original_message, cache)
                         )
-                        
+
                         # Save as markdown file with media info
                         save_simple_enrichment(
                             url=url,
                             enrichment_text=enrichment_text,
                             media_dir=media_dir,
                             sender=original_author,
-                            timestamp=original_timestamp.strftime("%H:%M") if original_timestamp else None,
+                            timestamp=original_timestamp.strftime("%H:%M")
+                            if original_timestamp
+                            else None,
                             date_str=target_date.isoformat(),
                             message=original_message,
                             media_path=None,  # URLs don't have local media
                             media_type=None,
                         )
-                        
+
                         # Add as message to dataframe (match full schema and timezone)
-                        enriched_rows.append({
-                            "timestamp": original_timestamp,
-                            "date": target_date,
-                            "author": "egregora",
-                            "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
-                            "original_line": None,
-                            "tagged_line": None,
-                        })
-                    
+                        enriched_rows.append(
+                            {
+                                "timestamp": original_timestamp,
+                                "date": target_date,
+                                "author": "egregora",
+                                "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
+                                "original_line": None,
+                                "tagged_line": None,
+                            }
+                        )
+
                     # Process media files for enrichment
                     for media_key, media_file in all_media.items():
                         # Ensure we use the actual UUID, not the original filename
-                        actual_media_uuid = getattr(media_file, 'uuid', media_key)
-                        if hasattr(media_file, 'dest_path') and media_file.dest_path:
+                        actual_media_uuid = getattr(media_file, "uuid", media_key)
+                        if hasattr(media_file, "dest_path") and media_file.dest_path:
                             # Extract UUID from dest_path filename if available
                             dest_filename = media_file.dest_path.stem  # filename without extension
                             # Check if dest_filename is a valid UUID format
                             try:
-                                import uuid
                                 uuid.UUID(dest_filename)
                                 actual_media_uuid = dest_filename
                             except ValueError:
                                 # If not a UUID, use the original media_key
                                 pass
                         # Get enrichment from LLM for media files
-                        from .simple_enricher import save_media_enrichment, simple_enrich_media_with_cache
-                        
+
                         # Find the message that references this media
                         media_message_row = None
                         for row in df_day.iter_rows(named=True):
                             if media_key in str(row.get("message", "")):
                                 media_message_row = row
                                 break
-                        
+
                         # Get LLM analysis of the media
-                        media_path = getattr(media_file, 'dest_path', Path("unknown"))
-                        media_type = getattr(media_file, 'media_type', 'unknown')
-                        context_message = media_message_row.get("message") if media_message_row else ""
-                        
+                        media_path = getattr(media_file, "dest_path", Path("unknown"))
+                        media_type = getattr(media_file, "media_type", "unknown")
+                        context_message = (
+                            media_message_row.get("message") if media_message_row else ""
+                        )
+
                         media_enrichment = asyncio.run(
                             simple_enrich_media_with_cache(
                                 media_path=media_path,
                                 media_type=media_type,
                                 context_message=context_message,
-                                cache=cache
+                                cache=cache,
                             )
                         )
-                        
+
                         save_media_enrichment(
                             media_key=actual_media_uuid,
-                            media_path=getattr(media_file, 'dest_path', Path("unknown")),
-                            media_type=getattr(media_file, 'media_type', 'unknown'),
+                            media_path=getattr(media_file, "dest_path", Path("unknown")),
+                            media_type=getattr(media_file, "media_type", "unknown"),
                             enrichment_text=media_enrichment,
                             media_dir=media_dir,
                             sender=media_message_row.get("author") if media_message_row else None,
-                            timestamp=media_message_row.get("timestamp").strftime("%H:%M") if media_message_row and media_message_row.get("timestamp") else None,
+                            timestamp=media_message_row.get("timestamp").strftime("%H:%M")
+                            if media_message_row and media_message_row.get("timestamp")
+                            else None,
                             date_str=target_date.isoformat(),
                             message=media_message_row.get("message") if media_message_row else None,
                         )
-                    
+
                     # Add enriched messages to dataframe
                     if enriched_rows:
                         enrichment_df = pl.DataFrame(enriched_rows)
                         # Ensure schemas match exactly
-                        from .schema import ensure_message_schema
-                        enrichment_df = ensure_message_schema(enrichment_df, timezone=self.config.timezone)
+                        enrichment_df = ensure_message_schema(
+                            enrichment_df, timezone=self.config.timezone
+                        )
                         df_day = pl.concat([df_day, enrichment_df], how="diagonal")
                         df_day = df_day.sort("timestamp")
-                        
+
                         logger.info(f"    🔍 Added {len(enriched_rows)} enrichments as messages")
 
                 except Exception as exc:
@@ -1066,6 +1112,8 @@ class UnifiedProcessor:
                 # Index raw messages in the vector store without storing plaintext
                 try:
                     rag.upsert_messages(df_day, group_slug=source.slug)
+                # FIXME: Catching a broad `Exception` can hide bugs. This should be
+                # replaced with more specific exception types from the ChromaDB library.
                 except Exception as exc:  # pragma: no cover - defensive: vector store errors
                     logger.warning("    [RAG] Falha ao indexar mensagens no ChromaDB: %s", exc)
 
@@ -1182,7 +1230,7 @@ class UnifiedProcessor:
                 logger.info(f"    ✅ {output_path}")
 
         self._write_group_index(source, site_root, results)
-        
+
         # Regenerate profile index after all days have been processed
         # This ensures the index reflects all profiles even if the last day had no updates
         if profile_repository:
@@ -1191,9 +1239,11 @@ class UnifiedProcessor:
                 logger.info("  📋 Profile index regenerated after processing %d days", len(results))
             except Exception as exc:
                 logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
-        
+
         return results
 
+    # TODO: This function is too long and complex. It should be refactored into
+    # smaller, more manageable functions.
     def _update_profiles_for_day(  # noqa: PLR0912, PLR0915
         self,
         *,
@@ -1262,7 +1312,7 @@ class UnifiedProcessor:
                 continue
 
             try:
-                should_update, reasoning, highlights, insights = asyncio.run(
+                should_update, reasoning, _, _ = asyncio.run(
                     updater.should_update_profile(
                         member_id=member_uuid,
                         current_profile=current_profile,
@@ -1293,13 +1343,10 @@ class UnifiedProcessor:
                 profile = asyncio.run(
                     self._async_update_profile(
                         updater=updater,
-                        member_label=member_label,
                         member_uuid=member_uuid,
                         current_profile=current_profile,
-                        highlights=highlights,
-                        insights=insights,
                         conversation=conversation,
-                        context_block=context_block,
+                        recent_conversations=[context_block],
                         client=client,
                     )
                 )
@@ -1333,35 +1380,23 @@ class UnifiedProcessor:
         if updates_made:
             repository.write_index()
 
-    async def _async_update_profile(  # noqa: PLR0913
+    # TODO: This function has too many arguments. It should be refactored,
+    # perhaps by using a dataclass for the arguments.
+    async def _async_update_profile(
         self,
         *,
         updater: ProfileUpdater,
-        member_label: str,
         member_uuid: str,
-        current_profile,
-        highlights,
-        insights,
+        current_profile: ParticipantProfile | None,
         conversation: str,
-        context_block: str,
+        recent_conversations: Sequence[str],
         client,
     ) -> ParticipantProfile | None:
-        if current_profile is None:
-            return await updater.rewrite_profile(
-                member_id=member_uuid,
-                old_profile=None,
-                recent_conversations=[context_block],
-                participation_highlights=highlights,
-                interaction_insights=insights,
-                gemini_client=client,
-            )
-
-        return await updater.append_profile(
+        return await updater.update_profile_with_agent(
             member_id=member_uuid,
             current_profile=current_profile,
-            recent_conversations=[context_block],
-            participation_highlights=highlights,
-            interaction_insights=insights,
+            full_conversation=conversation,
+            recent_conversations=recent_conversations,
             gemini_client=client,
         )
 
@@ -1404,6 +1439,10 @@ class UnifiedProcessor:
     def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
+        # TODO: The `discover_groups` function is commented out and `real_groups`
+        # is initialized to an empty dict. This might be dead code or a feature
+        # that is currently disabled. This should be clarified and either
+        # removed or re-enabled.
         # real_groups = discover_groups(self.config.zips_dir)
         real_groups = {}
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)

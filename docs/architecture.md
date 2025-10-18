@@ -81,3 +81,66 @@ classDiagram
     ProfileRepository --> ProfileStorage
     ProfileRepository --> ProfileIndexWriter
 ```
+
+## Alternative Pipelines for TODO Cleanup
+
+### Split Media Extraction Stages
+
+```mermaid
+flowchart LR
+    RawZIP -->|metadata only| ZIPScanner
+    RawZIP -->|media only| MediaUnpacker
+    ZIPScanner --> MessageParser
+    MediaUnpacker --> MediaCatalog
+    MessageParser --> TranscriptNormalizer
+    MediaCatalog --> MediaLinker
+    TranscriptNormalizer --> MediaLinker
+    MediaLinker --> ProcessorCore
+```
+
+*Goal:* tackle the `MediaExtractor` TODOs by separating metadata scanning from actual media extraction, reducing branching and making unit tests easier.
+
+### Profile Updater Service Decomposition
+
+```mermaid
+flowchart TD
+    Conversations --> ParticipationCollector
+    ParticipationCollector --> DecisionEngine
+    DecisionEngine -->|no update| ProfileRepository
+    DecisionEngine -->|update| PromptBuilder
+    PromptBuilder --> LLM
+    LLM --> ProfileDiffAnalyzer
+    ProfileDiffAnalyzer --> MarkdownRenderer
+    MarkdownRenderer --> ProfileRepository
+```
+
+*Goal:* address the monolithic `ProfileUpdater` TODOs by splitting the logic into decision, prompt building, diffing, and rendering stages.
+
+### Streaming Enrichment & RAG Queue
+
+```mermaid
+flowchart LR
+    Transcript --> ReferenceExtractor
+    ReferenceExtractor --> Queue[(Enrichment Queue)]
+    Queue -->|worker| EnrichmentWorker
+    Queue -->|worker| RAGIndexer
+    EnrichmentWorker --> EnrichmentCache
+    RAGIndexer --> VectorStore
+    EnrichmentCache --> ProcessorCore
+    VectorStore --> ProcessorCore
+```
+
+*Goal:* break down long-running enrichment functions (`ContentEnricher`) and Chromadb indexing TODOs by offloading to background workers with explicit queues.
+
+### Configurable Profile Prompt Pipeline
+
+```mermaid
+flowchart TD
+    PromptTemplates --> PromptLoader
+    PromptLoader --> PromptRegistry
+    ProfileUpdater --> PromptRegistry
+    LocaleSwitch --> PromptRegistry
+    PromptRegistry --> LLM
+```
+
+*Goal:* remove hardcoded prompts, enabling locale-specific templates and future prompt overrides that address the TODOs in `profiles/prompts.py`.

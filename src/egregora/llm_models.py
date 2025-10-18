@@ -46,8 +46,6 @@ class SummaryResponse(BaseModel):
 
         topics: list[str] = []
         for topic in self.topics:
-            if not isinstance(topic, str):
-                continue
             cleaned = topic.strip()
             if cleaned:
                 topics.append(cleaned)
@@ -58,8 +56,6 @@ class SummaryResponse(BaseModel):
 
         valid: list[ActionItem] = []
         for item in self.actions:
-            if not isinstance(item, ActionItem):
-                continue
             description = item.description.strip()
             if description:
                 valid.append(item.model_copy(update={"description": description}))

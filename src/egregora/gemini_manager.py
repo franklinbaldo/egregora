@@ -113,6 +113,8 @@ class GeminiManager:
                 if limit:
                     limit.consume()
                 return response
+            # FIXME: This is a broad exception. It would be better to catch more
+            # specific exceptions from the `google.genai` library if they exist.
             except Exception as exc:  # pragma: no cover - API dependent
                 last_exc = exc
                 retry_delay = self._parse_retry_delay(exc)
@@ -135,6 +137,9 @@ class GeminiManager:
                 f"Limite de chamadas atingido para '{subsystem}' (máximo {limit.max_calls})."
             )
 
+    # FIXME: Parsing the retry delay from the error message is brittle. A more
+    # robust solution would be to check if the exception object itself has a
+    # `retry_delay` attribute.
     @staticmethod
     def _parse_retry_delay(exc: Exception) -> float | None:
         message = str(exc)
