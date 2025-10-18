@@ -78,7 +78,10 @@ def split_documents(
             chunks.append(chunk.strip())
             if end >= length:
                 break
-            start = max(0, end - overlap)
+            next_start = max(0, end - overlap)
+            if next_start <= start:
+                next_start = end
+            start = next_start
     return chunks
 
 
