@@ -854,6 +854,9 @@ class UnifiedProcessor:
                 docs_dir=profiles_base,
             )
 
+        # Collect all unique authors for .authors.yml generation
+        all_authors: set[str] = set()
+
         try:
             full_df = load_source_dataframe(source)
         except ValueError as exc:
@@ -1077,6 +1080,11 @@ class UnifiedProcessor:
                 all_media,
                 public_paths=public_paths,
             )
+
+            # Collect unique authors (already anonymized if config.anonymization.enabled)
+            day_authors = df_render.get_column("author").unique().to_list()
+            all_authors.update(day_authors)
+
             transcript = render_transcript(
                 df_render,
                 use_tagged=source.is_virtual,
@@ -1231,6 +1239,36 @@ class UnifiedProcessor:
                 logger.info("  📋 Profile index regenerated after processing %d days", len(results))
             except Exception as exc:
                 logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
+
+        # Generate .authors.yml for mkdocs-material blog plugin
+        if all_authors:
+            try:
+                authors_file_path = site_root / ".authors.yml"
+                authors_data = {}
+                for author_id in sorted(all_authors):
+                    # If anonymization is enabled, author_id is already a UUID
+                    # Use it as-is for the key, and extract a human-readable label
+                    if self.config.anonymization.enabled:
+                        # Extract first 4 chars of UUID as human-readable identifier
+                        author_uuid = str(author_id)
+                        short_id = author_uuid.split("-")[0][:4].upper()
+                        author_name = f"Member-{short_id}"
+                    else:
+                        # If not anonymized, use author_id directly
+                        author_name = str(author_id)
+                        author_uuid = str(author_id)
+
+                    authors_data[author_uuid] = {
+                        "name": author_name,
+                        "description": "Membro do grupo",
+                    }
+
+                with authors_file_path.open("w", encoding="utf-8") as f:
+                    yaml.dump(authors_data, f, allow_unicode=True, sort_keys=False)
+
+                logger.info("  👤 Generated .authors.yml with %d authors", len(authors_data))
+            except Exception as exc:
+                logger.warning("  ⚠️ Failed to generate .authors.yml: %s", exc)
 
         return results
 
