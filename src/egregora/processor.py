@@ -36,7 +36,6 @@ from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
 from .schema import ensure_message_schema
 from .transcript import (
-    get_available_dates,
     load_source_dataframe,
     render_transcript,
 )
@@ -806,7 +805,7 @@ class UnifiedProcessor:
     def _existing_daily_posts(self, site_root: Path) -> list[Path]:
         """Return existing daily posts for *site_root* if they are present."""
 
-        posts_dir = site_root / "posts"
+        posts_dir = site_root / self.config.site.full_blog_path
         if not posts_dir.exists():
             return []
 
@@ -824,7 +823,7 @@ class UnifiedProcessor:
 
         # The blog plugin handles post indexing automatically, so we just ensure
         # the posts directory structure is correct
-        posts_dir = site_root / "posts"
+        posts_dir = site_root / self.config.site.full_blog_path
         if not posts_dir.exists():
             posts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -844,15 +843,16 @@ class UnifiedProcessor:
         site_root = self.config.posts_dir
         site_root.mkdir(parents=True, exist_ok=True)
 
-        # Posts go directly into posts/ directory
-        daily_dir = site_root / "posts"
+        # Posts go into blog/posts/ directory using SiteConfig
+        daily_dir = site_root / self.config.site.full_blog_path
         daily_dir.mkdir(parents=True, exist_ok=True)
 
-        # Media and profiles at root level
-        media_dir = site_root / "media"
+        # Media and profiles at root level (relative to output directory, not docs dir)
+        output_root = site_root.parent if site_root.name == self.config.site.docs_dir else site_root
+        media_dir = output_root / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
 
-        profiles_base = site_root / "profiles"
+        profiles_base = output_root / "profiles"
         profiles_base.mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
@@ -861,6 +861,9 @@ class UnifiedProcessor:
                 data_dir=profiles_base / "json",
                 docs_dir=profiles_base,
             )
+
+        # Collect all unique authors for .authors.yml generation
+        all_authors: set[str] = set()
 
         try:
             full_df = load_source_dataframe(source)
@@ -1085,6 +1088,11 @@ class UnifiedProcessor:
                 all_media,
                 public_paths=public_paths,
             )
+
+            # Collect unique authors (already anonymized if config.anonymization.enabled)
+            day_authors = df_render.get_column("author").unique().to_list()
+            all_authors.update(day_authors)
+
             transcript = render_transcript(
                 df_render,
                 use_tagged=source.is_virtual,
@@ -1239,6 +1247,36 @@ class UnifiedProcessor:
                 logger.info("  📋 Profile index regenerated after processing %d days", len(results))
             except Exception as exc:
                 logger.warning("  ⚠️ Failed to regenerate profile index: %s", exc)
+
+        # Generate .authors.yml for mkdocs-material blog plugin
+        if all_authors:
+            try:
+                authors_file_path = site_root / ".authors.yml"
+                authors_data = {}
+                for author_id in sorted(all_authors):
+                    # If anonymization is enabled, author_id is already a UUID
+                    # Use it as-is for the key, and extract a human-readable label
+                    if self.config.anonymization.enabled:
+                        # Extract first 4 chars of UUID as human-readable identifier
+                        author_uuid = str(author_id)
+                        short_id = author_uuid.split("-")[0][:4].upper()
+                        author_name = f"Member-{short_id}"
+                    else:
+                        # If not anonymized, use author_id directly
+                        author_name = str(author_id)
+                        author_uuid = str(author_id)
+
+                    authors_data[author_uuid] = {
+                        "name": author_name,
+                        "description": "Membro do grupo",
+                    }
+
+                with authors_file_path.open("w", encoding="utf-8") as f:
+                    yaml.dump(authors_data, f, allow_unicode=True, sort_keys=False)
+
+                logger.info("  👤 Generated .authors.yml with %d authors", len(authors_data))
+            except Exception as exc:
+                logger.warning("  ⚠️ Failed to generate .authors.yml: %s", exc)
 
         return results
 

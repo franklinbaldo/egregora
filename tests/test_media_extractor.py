@@ -23,7 +23,7 @@ def test_extract_media_from_zip_creates_files(tmp_path) -> None:
     assert "IMG-20251002-WA0004.jpg" in media_files
     media = media_files["IMG-20251002-WA0004.jpg"]
     assert media.dest_path.exists()
-    expected_path = PurePosixPath("grupo-teste", "media", media.dest_path.name)
+    expected_path = PurePosixPath("grupo-teste", "media", "images", media.dest_path.name)
     assert media.relative_path == expected_path.as_posix()
 
 

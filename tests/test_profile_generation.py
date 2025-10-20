@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.config import PipelineConfig
+from egregora.config import AnonymizationConfig, PipelineConfig
 from egregora.processor import UnifiedProcessor
 
 HAS_GEMINI_KEY = bool(os.getenv("GEMINI_API_KEY"))
@@ -36,6 +36,7 @@ def test_pipeline_generates_post_with_live_gemini() -> None:
     config = PipelineConfig(
         zip_files=[zip_path],
         posts_dir=posts_dir,
+        anonymization=AnonymizationConfig(enabled=True),
     )
 
     processor = UnifiedProcessor(config)

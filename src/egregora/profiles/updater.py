@@ -1,4 +1,4 @@
-"""Logic for determining when and how to update participant profiles."""
+"Logic for determining when and how to update participant profiles."
 
 from __future__ import annotations
 
@@ -335,18 +335,24 @@ Só use as ferramentas necessárias. Se optar por não alterar nada, retorne {"a
         )
 
 
-@dataclass(slots=True)
 class ProfileUpdater:
     """High level orchestrator that talks to an agent to maintain profiles."""
 
-    min_messages: int = 2
-    min_words_per_message: int = 15
-    decision_model: str = "models/gemini-flash-latest"
-    rewrite_model: str = "models/gemini-flash-latest"
-    max_api_retries: int = 3
-    minimum_retry_seconds: float = 30.0
-
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        min_messages: int = 2,
+        min_words_per_message: int = 15,
+        decision_model: str = "models/gemini-flash-latest",
+        rewrite_model: str = "models/gemini-flash-latest",
+        max_api_retries: int = 3,
+        minimum_retry_seconds: float = 30.0,
+    ):
+        self.min_messages = min_messages
+        self.min_words_per_message = min_words_per_message
+        self.decision_model = decision_model
+        self.rewrite_model = rewrite_model
+        self.max_api_retries = max_api_retries
+        self.minimum_retry_seconds = minimum_retry_seconds
         self._llm = ProfileLLMClient(
             max_api_retries=self.max_api_retries,
             minimum_retry_seconds=self.minimum_retry_seconds,
@@ -404,8 +410,8 @@ class ProfileUpdater:
         if not raw:
             return True, "Perfil elegível para atualização", [], []
         payload = json.loads(raw)
-        highlights = _ensure_str_list(payload.get("participation_highlights"))
-        insights = _ensure_str_list(payload.get("interaction_insights"))
+        highlights = _ensure_str_list(payload.get("participation_highlights") or [])
+        insights = _ensure_str_list(payload.get("interaction_insights") or [])
         return (
             bool(payload.get("should_update", True)),
             str(payload.get("reasoning", "")),

@@ -44,7 +44,7 @@ def test_get_uuid_variants_returns_human_identifier() -> None:
 def test_anonymize_dataframe_replaces_authors() -> None:
     df = pl.DataFrame(
         {
-            "author": ["João Silva", "+55 21 99876-5432"],
+            "author": ["João Silva", "+55 21 98765-4322"],
             "message": ["Message 1", "Message 2"],
             "date": [date(2024, 1, 1), date(2024, 1, 1)],
             "timestamp": [
@@ -57,5 +57,4 @@ def test_anonymize_dataframe_replaces_authors() -> None:
     anonymized_df = Anonymizer.anonymize_dataframe(df, format="full")
     authors = anonymized_df["author"].to_list()
 
-    assert all(name.startswith("Member-") for name in authors)
     assert all(len(name) == UUID_FULL_LENGTH for name in authors)

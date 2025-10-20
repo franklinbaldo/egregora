@@ -67,6 +67,10 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
         def build_public_paths(*_, **__):
             return {}
 
+        @staticmethod
+        def format_media_section(*_, **__):
+            return ""
+
     monkeypatch.setattr("egregora.processor.MediaExtractor", StubExtractor)
     monkeypatch.setattr("egregora.processor.load_source_dataframe", lambda source: sample_dataframe)
 

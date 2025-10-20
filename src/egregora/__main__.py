@@ -22,6 +22,7 @@ from .config import (
     LLMConfig,
     PipelineConfig,
     ProfilesConfig,
+    SiteConfig,
 )
 from .processor import UnifiedProcessor
 from .rag.config import RAGConfig
@@ -62,36 +63,41 @@ class EgregoraCLI:
         self.auto_cleanup_days: int = 90
         self.enable_rag: bool = False
 
-    # def init(self, output_dir: str) -> None:
-    #     """Initialize a new MkDocs site scaffold in the specified directory.
+    def init(self, output_dir: str) -> None:
+        """Initialize a new MkDocs site scaffold in the specified directory.
 
-    #     Args:
-    #         output_dir: The directory path for the new site (e.g., 'my-blog').
-    #     """
-    #     site_root = Path(output_dir).resolve()
-    #     docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
-    #     if mkdocs_created:
-    #         console.print(Panel(
-    #             f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
-    #             f"📁 Site root: {site_root}\n"
-    #             f"📝 Docs directory: {docs_dir}\n\n"
-    #             f"[bold]Next steps:[/bold]\n"
-    #             f"• Run [cyan]cd {site_root}[/cyan]\n"
-    #             f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
-    #             f"• Process exports: [cyan]egregora process --zip_files=export.zip --output={output_dir}[/cyan]",
-    #             title="🛠️ Initialization Complete",
-    #             border_style="green"
-    #         ))
-    #     else:
-    #         console.print(Panel(
-    #             f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
-    #             f"📁 Using existing setup:\n"
-    #             f"• Docs directory: {docs_dir}\n\n"
-    #             f"[bold]To update or regenerate:[/bold]\n"
-    #             f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
-    #             title="📁 Site Exists",
-    #             border_style="yellow"
-    #         ))
+        Args:
+            output_dir: The directory path for the new site (e.g., 'my-blog').
+        """
+        site_root = Path(output_dir).resolve()
+        site_config = SiteConfig()
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_config)
+        if mkdocs_created:
+            console.print(
+                Panel(
+                    f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+                    f"📁 Site root: {site_root}\n"
+                    f"📝 Docs directory: {docs_dir}\n\n"
+                    f"[bold]Next steps:[/bold]\n"
+                    f"• Run [cyan]cd {site_root}[/cyan]\n"
+                    f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
+                    f"• Process exports: [cyan]egregora process --zip_files=export.zip --output={output_dir}[/cyan]",
+                    title="🛠️ Initialization Complete",
+                    border_style="green",
+                )
+            )
+        else:
+            console.print(
+                Panel(
+                    f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
+                    f"📁 Using existing setup:\n"
+                    f"• Docs directory: {docs_dir}\n\n"
+                    f"[bold]To update or regenerate:[/bold]\n"
+                    f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
+                    title="📁 Site Exists",
+                    border_style="yellow",
+                )
+            )
 
     def process(
         self,
@@ -204,7 +210,7 @@ class EgregoraCLI:
                 "[cyan]egregora process --zip_files=whatsapp-export.zip --gemini_key=YOUR_KEY --output=./my-group-blog[/cyan]\n\n"
                 "[bold green]To view your blog:[/bold green]\n"
                 "[cyan]cd ./my-group-blog && mkdocs serve[/cyan]",
-                "📱 WhatsApp Export Required"
+                "📱 WhatsApp Export Required",
             )
             return
         zip_files_list: list[Path] = [Path(p.strip()) for p in zip_files.split(",")]
@@ -224,13 +230,16 @@ class EgregoraCLI:
                 "• Use --gemini_key flag: [cyan]egregora process --gemini_key=YOUR_KEY[/cyan]\n"
                 "• Set environment variable: [cyan]export GOOGLE_API_KEY=YOUR_KEY[/cyan]\n"
                 "• Add to .env file: [cyan]GOOGLE_API_KEY=YOUR_KEY[/cyan]",
-                "🔑 API Key Required"
+                "🔑 API Key Required",
             )
             return
 
         # Mutual exclusivity validation
         if days is not None and (from_date is not None or to_date is not None):
-            self._error_panel("❌ The --days option cannot be used with --from_date or --to_date.", "Invalid Options")
+            self._error_panel(
+                "❌ The --days option cannot be used with --from_date or --to_date.",
+                "Invalid Options",
+            )
             return
 
         # Date parsing and validation
@@ -240,13 +249,17 @@ class EgregoraCLI:
             try:
                 from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
             except ValueError:
-                self._error_panel(f"❌ Invalid start date: '{from_date}'. Use YYYY-MM-DD.", "Invalid Date")
+                self._error_panel(
+                    f"❌ Invalid start date: '{from_date}'. Use YYYY-MM-DD.", "Invalid Date"
+                )
                 return
         if to_date:
             try:
                 to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
             except ValueError:
-                self._error_panel(f"❌ Invalid end date: '{to_date}'. Use YYYY-MM-DD.", "Invalid Date")
+                self._error_panel(
+                    f"❌ Invalid end date: '{to_date}'. Use YYYY-MM-DD.", "Invalid Date"
+                )
                 return
         if from_date_obj and to_date_obj and from_date_obj > to_date_obj:
             self._error_panel("❌ Start date must be before end date.", "Invalid Date Range")
@@ -257,26 +270,30 @@ class EgregoraCLI:
         # Build nested configuration objects
         llm_config = LLMConfig(
             safety_threshold=safety_threshold or self.safety_threshold,
-            thinking_budget=thinking_budget or self.thinking_budget
+            thinking_budget=thinking_budget or self.thinking_budget,
         )
         enrichment_config = EnrichmentConfig(
             enabled=not (disable_enrichment or self.disable_enrichment),
             max_links=max_links or self.max_links,
-            relevance_threshold=relevance_threshold or self.relevance_threshold
+            relevance_threshold=relevance_threshold or self.relevance_threshold,
         )
         cache_config = CacheConfig(
             enabled=not (disable_cache or self.disable_cache),
             cache_dir=Path(cache_dir) if cache_dir else self.cache_dir,
-            auto_cleanup_days=auto_cleanup_days or self.auto_cleanup_days
+            auto_cleanup_days=auto_cleanup_days or self.auto_cleanup_days,
         )
         profiles_config = ProfilesConfig(
             link_members_in_posts=link_member_profiles or self.link_member_profiles,
-            profile_base_url=profile_base_url or self.profile_base_url
+            profile_base_url=profile_base_url or self.profile_base_url,
         )
 
         # Prepare MkDocs scaffold
         site_root = (Path(output) if output else Path("data")).resolve()
-        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+
+        # Create site config
+        site_config = SiteConfig()
+
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_config)
         if mkdocs_created:
             console.print(f"🛠️  mkdocs.yml created at {site_root / 'mkdocs.yml'}")
         elif docs_dir != site_root:
@@ -295,6 +312,7 @@ class EgregoraCLI:
             profiles=profiles_config,
             anonymization=AnonymizationConfig(),
             rag=RAGConfig(enabled=enable_rag or self.enable_rag),
+            site=site_config,
         )
 
         # Create processor instance
@@ -314,21 +332,38 @@ class EgregoraCLI:
 
         # Process normally
         try:
-            self._process_and_display(processor, days=days_to_process, from_date=from_date_obj, to_date=to_date_obj)
+            self._process_and_display(
+                processor, days=days_to_process, from_date=from_date_obj, to_date=to_date_obj
+            )
         except FileNotFoundError as e:
-            self._error_panel(f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file", "📁 File Error")
+            self._error_panel(
+                f"❌ File not found: {str(e).split(': ')[-1]}\n\n[yellow]Please check that:[/yellow]\n• The ZIP file path is correct\n• The file exists and is accessible\n• You have permission to read the file",
+                "📁 File Error",
+            )
             return
         except IsADirectoryError as e:
-            self._error_panel(f"❌ Path is a directory, not a ZIP file: {str(e).split(': ')[-1]}\n\n[yellow]Please provide:[/yellow]\n• A path to a .zip file, not a directory\n• The WhatsApp export ZIP file specifically", "📁 Directory Error")
+            self._error_panel(
+                f"❌ Path is a directory, not a ZIP file: {str(e).split(': ')[-1]}\n\n[yellow]Please provide:[/yellow]\n• A path to a .zip file, not a directory\n• The WhatsApp export ZIP file specifically",
+                "📁 Directory Error",
+            )
             return
         except zipfile.BadZipFile as e:
-            self._error_panel(f"❌ Invalid ZIP file: {str(e)}\n\n[yellow]Make sure the file is a valid WhatsApp export ZIP[/yellow]", "📁 ZIP Error")
+            self._error_panel(
+                f"❌ Invalid ZIP file: {str(e)}\n\n[yellow]Make sure the file is a valid WhatsApp export ZIP[/yellow]",
+                "📁 ZIP Error",
+            )
             return
         except PermissionError as e:
-            self._error_panel(f"❌ Permission denied: {str(e).split(': ')[-1]}\n\n[yellow]Check file permissions or try running with appropriate access[/yellow]", "🔒 Permission Error")
+            self._error_panel(
+                f"❌ Permission denied: {str(e).split(': ')[-1]}\n\n[yellow]Check file permissions or try running with appropriate access[/yellow]",
+                "🔒 Permission Error",
+            )
             return
         except Exception as e:
-            self._error_panel(f"❌ An error occurred: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Network connectivity issues\n• API key problems\n• Insufficient disk space", "⚠️ Processing Error")
+            self._error_panel(
+                f"❌ An error occurred: {str(e)}\n\n[yellow]This might be due to:[/yellow]\n• Invalid ZIP file format\n• Network connectivity issues\n• API key problems\n• Insufficient disk space",
+                "⚠️ Processing Error",
+            )
             raise  # Preserve traceback for debugging
 
     # def _dry_run_and_exit(
