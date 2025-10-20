@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from jinja2 import Environment, PackageLoader, select_autoescape
 import yaml
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 if TYPE_CHECKING:
     from egregora.config import SiteConfig
@@ -17,7 +17,9 @@ DEFAULT_BLOG_DIR = "blog"
 DEFAULT_DOCS_DIR = "docs"
 
 
-def ensure_mkdocs_project(site_root: Path, site_config: SiteConfig | None = None) -> tuple[Path, bool]:
+def ensure_mkdocs_project(
+    site_root: Path, site_config: SiteConfig | None = None
+) -> tuple[Path, bool]:
     """Ensure *site_root* contains an MkDocs configuration.
 
     Returns the directory where documentation content should be written and a flag
@@ -104,6 +106,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path, site_config: Site
     # This ensures compatibility but we don't make it fail the build
     try:
         from mkdocs.config import load_config
+
         loaded_config = load_config(str(mkdocs_path))
         # Validation successful - config is compatible with MkDocs
     except ImportError:
@@ -113,9 +116,8 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path, site_config: Site
         # Log warning but don't fail - template might have valid YAML
         # that MkDocs doesn't fully understand yet
         import logging
-        logging.getLogger(__name__).warning(
-            f"Generated mkdocs.yml validation warning: {e}"
-        )
+
+        logging.getLogger(__name__).warning(f"Generated mkdocs.yml validation warning: {e}")
 
     # Create pyproject.toml from template
     pyproject_path = site_root / "pyproject.toml"

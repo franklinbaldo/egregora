@@ -52,16 +52,12 @@ def test_embedding_cache_wrapper(cache_dir: Path) -> None:
 def test_cached_gemini_embedding_hits_cache(
     monkeypatch: pytest.MonkeyPatch, cache_dir: Path
 ) -> None:
-    calls: list[str] = []
+    calls: list[list[str]] = []
 
     class StubEmbedding:
-        def get_text_embedding(self, text: str) -> list[float]:
+        def __call__(self, text: list[str]) -> list[list[float]]:
             calls.append(text)
-            return [1.0, 0.0]
-
-        def get_query_embedding(self, text: str) -> list[float]:
-            calls.append(f"query:{text}")
-            return [0.5, 0.5]
+            return [[1.0, 0.0]] * len(text)
 
     embedding = CachedGeminiEmbedding(
         model_name="models/gemini-test",
@@ -72,14 +68,14 @@ def test_cached_gemini_embedding_hits_cache(
     # Override fallback model with stub to count calls.
     object.__setattr__(embedding, "_embed_model", StubEmbedding())
 
-    first = embedding._get_text_embedding("hello")
-    second = embedding._get_text_embedding("hello")
-    assert first == [1.0, 0.0]
-    assert second == [1.0, 0.0]
-    assert calls == ["hello"]
+    first = embedding(["hello"])
+    second = embedding(["hello"])
+    assert first == [[1.0, 0.0]]
+    assert second == [[1.0, 0.0]]
+    assert calls == [["hello"]]
 
-    query_first = embedding._get_query_embedding("what")
-    query_second = embedding._get_query_embedding("what")
-    assert query_first == [0.5, 0.5]
-    assert query_second == [0.5, 0.5]
-    assert calls == ["hello", "query:what"]
+    query_first = embedding(["what"])
+    query_second = embedding(["what"])
+    assert query_first == [[1.0, 0.0]]
+    assert query_second == [[1.0, 0.0]]
+    assert calls == [["hello"], ["what"]]

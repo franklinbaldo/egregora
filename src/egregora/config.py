@@ -295,7 +295,9 @@ class SiteConfig(BaseModel):
 
     # Site metadata
     site_name: str = "Egregora Archive"
-    site_description: str | None = None  # Defaults to "Diários da consciência coletiva - {site_name}"
+    site_description: str | None = (
+        None  # Defaults to "Diários da consciência coletiva - {site_name}"
+    )
 
     # Theme configuration
     theme_name: str = "material"

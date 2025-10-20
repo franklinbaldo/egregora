@@ -36,7 +36,6 @@ from .rag.keyword_utils import build_llm_keyword_provider
 from .rag.query_gen import QueryGenerator
 from .schema import ensure_message_schema
 from .transcript import (
-    get_available_dates,
     load_source_dataframe,
     render_transcript,
 )
