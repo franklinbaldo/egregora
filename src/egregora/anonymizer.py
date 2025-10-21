@@ -223,15 +223,10 @@ class Anonymizer:
             pseudonym = Anonymizer.anonymize_author(label, format)
             display = f"{prefix}{pseudonym}" if prefix else pseudonym
 
-            if profile_link_base:
-                full_uuid = Anonymizer.anonymize_author(label, "full")
-                base = profile_link_base.rstrip("/")
-                if not base:
-                    base = "/"
-                link = f"{base}/{full_uuid}"
-                return f"[{display}]({link})"
-
-            return display
+            # Always create link to profiles/{user_uuid}.md
+            full_uuid = Anonymizer.anonymize_author(label, "full")
+            link = f"profiles/{full_uuid}.md"
+            return f"[{display}]({link})"
 
         sanitized = Anonymizer._MENTION_PATTERN.sub(_replace, text)
         return sanitized.replace("\u2068", "").replace("\u2069", "")
