@@ -1,4 +1,4 @@
-"""Unified processor with Polars-based message manipulation."""
+"Unified processor with Polars-based message manipulation."
 
 from __future__ import annotations
 
@@ -629,14 +629,14 @@ class UnifiedProcessor:
         slug = slug.encode("ascii", "ignore").decode("ascii")
 
         # Convert to lowercase and replace spaces/special chars with hyphens
-        slug = re.sub(r"[^\\w\\s-]", "", slug.lower())
-        slug = re.sub(r"[-\\s]+", "-", slug)
+        slug = re.sub(r"[^\\w\s-]", "", slug.lower())
+        slug = re.sub(r"[-\s]+", "-", slug)
 
         # Remove leading/trailing hyphens
         slug = slug.strip("-")
 
         if not slug:
-            fallback = re.sub(r"[^\da-zA-Z]+", "-", group_name.lower()).strip("-")
+            fallback = re.sub(r"[^ -]+", "-", group_name.lower()).strip("-")
             slug = fallback or f"whatsapp-group-{abs(hash(group_name)) & 0xFFFF:04x}"
 
         slug = slug[:64].strip("-")
@@ -871,6 +871,7 @@ class UnifiedProcessor:
             logger.warning("  Unable to load messages for %s: %s", source.slug, exc)
             return []
 
+        print(f"Anonymization enabled: {self.config.anonymization.enabled}")
         if self.config.anonymization.enabled:
             profile_link_base = (
                 self.config.profiles.profile_base_url
@@ -956,9 +957,9 @@ class UnifiedProcessor:
 
                     # Extract URLs from the day's messages
                     urls_df = (
-                        df_day.filter(pl.col("message").str.contains(r"https?://[^\s>)]+"))
+                        df_day.filter(pl.col("message").str.contains(r"https?://[^ ->)]+"))
                         .with_columns(
-                            pl.col("message").str.extract_all(r"(https?://[^\s>)]+)").alias("urls")
+                            pl.col("message").str.extract_all(r"(https?://[^ ->)]+)").alias("urls")
                         )
                         .explode("urls")
                         .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
