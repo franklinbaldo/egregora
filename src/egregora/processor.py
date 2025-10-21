@@ -1180,6 +1180,13 @@ class UnifiedProcessor:
                             for i, doc in enumerate(search_results["documents"][0], 1)
                         )
 
+                # Export embeddings to parquet file in docs/
+                try:
+                    embeddings_path = site_root / "embeddings.parquet"
+                    rag.export_embeddings_to_parquet(embeddings_path)
+                except Exception as exc:
+                    logger.warning("    [RAG] Failed to export embeddings: %s", exc)
+
             context = PostContext(
                 group_name=source.name,
                 transcript=transcript,

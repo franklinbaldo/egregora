@@ -421,5 +421,40 @@ class ChromadbRAG:
         self._daily_frames.set(key, frame)
         return self._daily_frames.get(key)
 
+    def export_embeddings_to_parquet(self, output_path: Path) -> None:
+        """Export all embeddings from ChromaDB to a parquet file."""
+        import polars as pl
+        from pathlib import Path
+        
+        try:
+            # Get all documents and embeddings from ChromaDB
+            collection = self.collection
+            results = collection.get(include=["documents", "embeddings", "metadatas"])
+            
+            if not results["documents"]:
+                print("No embeddings found in ChromaDB")
+                return
+                
+            # Create a polars dataframe with embeddings and metadata
+            data = {
+                "id": results["ids"],
+                "document": results["documents"],
+                "embedding": results["embeddings"],
+                "metadata": results["metadatas"]
+            }
+            
+            # Convert to polars DataFrame
+            df = pl.DataFrame(data)
+            
+            # Ensure output directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Export to parquet
+            df.write_parquet(output_path)
+            print(f"✅ Exported {len(results['documents'])} embeddings to {output_path}")
+            
+        except Exception as e:
+            print(f"❌ Failed to export embeddings: {e}")
+
 
 __all__ = ["ChromadbRAG"]
