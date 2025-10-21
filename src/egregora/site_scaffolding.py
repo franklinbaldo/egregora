@@ -146,7 +146,7 @@ def _create_site_structure(site_root: Path, site_config: SiteConfig) -> None:
     docs_dir = site_root / site_config.docs_dir
     blog_dir = docs_dir / site_config.blog_dir
     blog_posts_dir = blog_dir / site_config.posts_subdir
-    profiles_dir = site_root / "profiles"
+    profiles_dir = docs_dir / "profiles"  # Place profiles inside docs/ for proper linking
     media_dir = site_root / "media"
 
     for directory in [docs_dir, blog_dir, blog_posts_dir, profiles_dir, media_dir]:

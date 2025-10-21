@@ -276,16 +276,11 @@ def _add_member_profile_links(
         identifier = uuid_value.lower()
         candidate_path = profile_files.get(identifier)
         if candidate_path is not None and candidate_path.exists():
-            rel = PurePosixPath("../../profiles") / candidate_path.name
-            return rel.as_posix()
+            # Use consistent relative path format: profiles/{uuid}.md
+            return f"profiles/{identifier}.md"
 
-        base = (config.profiles.profile_base_url or "").strip()
-        if base:
-            base_clean = base.rstrip("/") or "/"
-            rel = PurePosixPath(f"{base_clean}/{identifier}")
-            return rel.as_posix()
-
-        return None
+        # Always use consistent relative path format
+        return f"profiles/{identifier}.md"
 
     def _format_link(resolved: str) -> str:
         return f"[🪪]({resolved})"
@@ -872,7 +867,8 @@ class UnifiedProcessor:
         media_dir = output_root / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
 
-        profiles_base = output_root / "profiles"
+        # Place profiles inside docs/ directory for proper relative linking
+        profiles_base = site_root / "profiles"  
         profiles_base.mkdir(parents=True, exist_ok=True)
 
         profile_repository = None
@@ -1295,6 +1291,7 @@ class UnifiedProcessor:
                     authors_data[author_uuid] = {
                         "name": author_name,
                         "description": "Membro do grupo",
+                        "url": f"profiles/{author_uuid}.md",  # Link to profile markdown
                     }
 
                 with authors_file_path.open("w", encoding="utf-8") as f:
