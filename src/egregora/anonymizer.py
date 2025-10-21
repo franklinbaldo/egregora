@@ -145,17 +145,20 @@ class Anonymizer:
             )
         )
 
-        def _map_mentions(value: str | None) -> str | None:
-            return Anonymizer.anonymize_mentions(
+        def _map_content(value: str | None) -> str | None:
+            # First anonymize mentions
+            text = Anonymizer.anonymize_mentions(
                 value,
                 format=format,
                 profile_link_base=profile_link_base,
             )
+            # Then anonymize phone numbers in content
+            return Anonymizer.anonymize_phone_numbers_in_text(text, format=format)
 
         for column in ("message", "original_line", "tagged_line"):
             if column in result.columns:
                 result = result.with_columns(
-                    pl.col(column).map_elements(_map_mentions, return_dtype=pl.String).alias(column)
+                    pl.col(column).map_elements(_map_content, return_dtype=pl.String).alias(column)
                 )
 
         return result
@@ -171,6 +174,36 @@ class Anonymizer:
             lambda author: Anonymizer.anonymize_author(author, format),
             return_dtype=pl.String,
         )
+
+    @staticmethod
+    def anonymize_phone_numbers_in_text(
+        text: str | None,
+        *,
+        format: FormatType = "full",
+    ) -> str | None:
+        """Replace phone numbers in text content with anonymized equivalents."""
+        
+        if text is None or not isinstance(text, str):
+            return text
+            
+        # Patterns to match phone numbers in text content
+        phone_patterns = [
+            r'\+\d{2}\s?\d{2}\s?\d{4,5}-?\d{4}',  # Brazilian format like +55 11 98594-0512
+            r'\+\d{1,4}\s?\(\d{3,4}\)\s?\d{3,4}-\d{4}',  # US format like +1 (415) 656-5918
+            r'\+\d{2}\s?\d{4}\s?\d{6}',  # UK format like +44 7502 313434
+            r'\+\d{1,4}\s?\d{3,4}\s?\d{3,4}\s?\d{3,4}',  # General international format
+            r'\b\d{4,5}-\d{4}\b',  # Local format like 98594-0512
+        ]
+        
+        result = text
+        for pattern in phone_patterns:
+            def _replace_phone(match: re.Match[str]) -> str:
+                phone_number = match.group(0)
+                return Anonymizer.anonymize_phone(phone_number, format)
+            
+            result = re.sub(pattern, _replace_phone, result)
+        
+        return result
 
     @staticmethod
     def anonymize_mentions(
