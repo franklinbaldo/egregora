@@ -14,6 +14,8 @@ from pathlib import Path
 from chromadb.utils import embedding_functions
 from diskcache import Cache
 
+from .batch_api import GeminiBatchClient, create_embedding_batch_requests
+
 
 class _FallbackEmbedding:
     """Deterministic, offline-friendly embedding used when Gemini is unavailable."""
@@ -75,10 +77,16 @@ class CachedGeminiEmbedding:
         dimension: int,
         cache_dir: Path | None = None,
         api_key: str | None = None,
+        use_batch_api: bool = False,
+        batch_threshold: int = 50,
+        batch_client: object | None = None,
     ) -> None:
         self._model_name = model_name
         self._dimension = dimension
         self._api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        self._use_batch_api = use_batch_api
+        self._batch_threshold = batch_threshold
+        self._batch_client_obj = batch_client
 
         using_fallback = not self._api_key
         self._using_fallback = using_fallback
@@ -155,13 +163,96 @@ class CachedGeminiEmbedding:
                 pending.append((index, text))
 
         if pending:
-            embeddings = self._embed_model([text for _, text in pending])
+            # Use batch API for large requests to avoid 503 errors
+            if (self._use_batch_api and 
+                len(pending) >= self._batch_threshold and 
+                self._batch_client_obj is not None and
+                not self._using_fallback):
+                embeddings = self._embed_batch([text for _, text in pending])
+            else:
+                embeddings = self._embed_model([text for _, text in pending])
+                
             for (position, text), embedding in zip(pending, embeddings, strict=False):
                 vector = [float(value) for value in embedding]
                 self._store_cache(text, vector)
                 results[position] = vector
 
         return [entry if entry is not None else [0.0] * self._dimension for entry in results]
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Embed texts using Gemini Batch API."""
+        logger = logging.getLogger(__name__)
+        logger.info("Using Gemini Batch API for %d embeddings", len(texts))
+        
+        try:
+            batch_client = GeminiBatchClient(
+                self._batch_client_obj,
+                model=self._model_name.replace("models/", "")
+            )
+            
+            # Create batch requests
+            requests = create_embedding_batch_requests(
+                texts, 
+                model=self._model_name,
+                batch_size=len(texts)
+            )
+            
+            # Submit batch job
+            job_name = batch_client.create_batch_job(
+                requests,
+                display_name=f"embedding_batch_{len(texts)}_items"
+            )
+            
+            # Wait for completion
+            completed_job = batch_client.wait_for_completion(
+                job_name,
+                timeout_seconds=1800,  # 30 minutes
+                poll_interval_seconds=10
+            )
+            
+            if completed_job.state.value != "COMPLETED":
+                logger.error("Batch job failed with state: %s", completed_job.state.value)
+                # Fallback to regular embedding
+                return self._embed_model(texts)
+            
+            # Get responses
+            responses = batch_client.get_batch_responses(job_name)
+            
+            # Extract embeddings in original order
+            embeddings = [None] * len(texts)
+            for response in responses:
+                if response.error:
+                    logger.warning("Batch response error for %s: %s", response.custom_id, response.error)
+                    continue
+                    
+                # Extract index from custom_id (e.g., "embedding_5")
+                try:
+                    index = int(response.custom_id.split("_")[1])
+                    if "embedding" in response.response:
+                        embedding_data = response.response["embedding"]
+                        if "values" in embedding_data:
+                            embeddings[index] = embedding_data["values"]
+                except (ValueError, KeyError, IndexError) as exc:
+                    logger.warning("Failed to parse batch response %s: %s", response.custom_id, exc)
+            
+            # Fill missing embeddings with fallback
+            result = []
+            for i, embedding in enumerate(embeddings):
+                if embedding is not None:
+                    result.append([float(x) for x in embedding])
+                else:
+                    logger.warning("Missing embedding for index %d, using fallback", i)
+                    # Use regular model as fallback for this single text
+                    fallback = self._embed_model([texts[i]])
+                    result.append([float(x) for x in fallback[0]])
+            
+            return result
+            
+        except Exception as exc:
+            logger.error("Batch embedding failed: %s", exc)
+            logger.info("Falling back to regular embedding")
+            # Fallback to regular embedding
+            return self._embed_model(texts)
 
     @staticmethod
     def _build_cache_namespace(*, model_name: str, dimension: int, using_fallback: bool) -> str:

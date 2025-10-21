@@ -25,15 +25,13 @@ from .gemini_manager import GeminiManager
 from .generator import PostContext, PostGenerator
 from .markdown_utils import format_markdown
 
-# from .group_discovery import discover_groups
+
 from .media_extractor import MediaExtractor, MediaFile
 from .merger import create_virtual_groups, get_merge_stats
 from .models import GroupSource, WhatsAppExport
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 from .profiles import ParticipantProfile, ProfileRepository, ProfileUpdater
 from .rag.chromadb_rag import ChromadbRAG
-from .rag.keyword_utils import build_llm_keyword_provider
-from .rag.query_gen import QueryGenerator
 from .schema import ensure_message_schema
 from .transcript import (
     load_source_dataframe,
@@ -66,7 +64,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 YAML_DELIMITER = "---"
-# QUOTA_WARNING_THRESHOLD = 15
+
 _TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 MAX_MEDIA_CAPTION_LENGTH = 160
 _FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
@@ -468,89 +466,7 @@ class UnifiedProcessor:
             self._generator = PostGenerator(self.config, gemini_manager=gemini_manager)
         return self._generator
 
-    # def estimate_api_usage(
-    #     self,
-    #     *,
-    #     days: int | None = None,
-    #     from_date: date | None = None,
-    #     to_date: date | None = None,
-    # ) -> dict[str, Any]:
-    #     """Estimate API quota usage for the planned processing."""
-    #     sources_to_process, _, _ = self._collect_sources()
 
-    #     total_posts = 0
-    #     total_enrichment_calls = 0
-    #     group_estimates = {}
-
-    #     for slug, source in sources_to_process.items():
-    #         frame = load_source_dataframe(source)
-    #         if frame.is_empty():
-    #             group_estimates[slug] = {"posts": 0, "enrichment_calls": 0, "date_range": None}
-    #             continue
-
-    #         available_dates = sorted(frame.get_column("date").unique().to_list())
-    #         target_dates = _filter_target_dates(
-    #             available_dates,
-    #             from_date=from_date,
-    #             to_date=to_date,
-    #             days=days,
-    #         )
-
-    #         group_posts = len(target_dates)
-    #         total_posts += group_posts
-
-    #         enrichment_calls = 0
-    #         if self.config.enrichment.enabled and group_posts:
-    #             max_links = max(1, int(self.config.enrichment.max_links))
-    #             for current_date in target_dates:
-    #                 df_day = frame.filter(pl.col("date") == current_date)
-    #                 if df_day.is_empty():
-    #                     continue
-    #                 message_col = pl.col("message").cast(pl.Utf8, strict=False).fill_null("")
-    #                 url_hits = int(
-    #                     df_day.select(
-    #                         message_col.str.contains(r"https?://", literal=False)
-    #                         .cast(pl.Int32)
-    #                         .sum()
-    #                     ).item()
-    #                 )
-    #                 media_hits = int(
-    #                     df_day.select(
-    #                         message_col.str.contains("mídia oculta", literal=False)
-    #                         .cast(pl.Int32)
-    #                         .sum()
-    #                     ).item()
-    #                 )
-    #                 references = url_hits + media_hits
-    #                 if references == 0:
-    #                     references = 1
-    #                 enrichment_calls += min(max_links, references)
-
-    #         total_enrichment_calls += enrichment_calls
-
-    #         group_estimates[slug] = {
-    #             "posts": group_posts,
-    #             "enrichment_calls": enrichment_calls,
-    #             "date_range": (target_dates[0], target_dates[-1]) if target_dates else None,
-    #         }
-
-    #     # Free tier limits (based on the issue description)
-    #     free_tier_limit = 15  # requests per minute
-    #     estimated_minutes = (total_posts + total_enrichment_calls) / free_tier_limit
-
-    #     return {
-    #         "total_api_calls": total_posts + total_enrichment_calls,
-    #         "post_generation_calls": total_posts,
-    #         "enrichment_calls": total_enrichment_calls,
-    #         "estimated_time_minutes": estimated_minutes,
-    #         "free_tier_minutes_needed": estimated_minutes,
-    #         "groups": group_estimates,
-    #         "warning": (
-    #             "⚠️ Esta operação pode exceder a quota gratuita do Gemini"
-    #             if total_posts + total_enrichment_calls > QUOTA_WARNING_THRESHOLD
-    #             else None
-    #         ),
-    #     }
 
     def process_all(
         self,
@@ -580,43 +496,7 @@ class UnifiedProcessor:
 
         return results
 
-    # def plan_runs(
-    #     self,
-    #     *,
-    #     days: int | None = None,
-    #     from_date: date | None = None,
-    #     to_date: date | None = None,
-    # ) -> list[DryRunPlan]:
-    #     """Return a preview of what would be processed."""
 
-    #     sources_to_process, _, _ = self._collect_sources()
-
-    #     plans: list[DryRunPlan] = []
-    #     for slug, source in sources_to_process.items():
-    #         available_dates = list(get_available_dates(source))
-    #         target_dates = _filter_target_dates(
-    #             available_dates,
-    #             from_date=from_date,
-    #             to_date=to_date,
-    #             days=days,
-    #         )
-
-    #         plans.append(
-    #             DryRunPlan(
-    #                 slug=slug,
-    #                 name=source.name,
-    #                 is_virtual=source.is_virtual,
-    #                 export_count=len(source.exports),
-    #                 available_dates=available_dates,
-    #                 target_dates=target_dates,
-    #                 merges=(
-    #                     list(source.merge_config.source_groups)
-    #                     if source.is_virtual and source.merge_config
-    #                     else None
-    #                 ),
-    #             )
-    #         )
-    #     return sorted(plans, key=lambda plan: plan.slug)
 
     def _extract_group_name_from_chat_file(self, chat_filename: str) -> str:
         """Extract group name from WhatsApp chat filename."""
@@ -1142,7 +1022,7 @@ class UnifiedProcessor:
             # RAG
             rag_context = None
             if self.config.rag.enabled:
-                rag = ChromadbRAG(config=self.config.rag, source=source)
+                rag = ChromadbRAG(config=self.config.rag, source=source, batch_client=self.generator.client)
 
                 # Index raw messages in the vector store without storing plaintext
                 try:
@@ -1155,30 +1035,16 @@ class UnifiedProcessor:
                 # Index all generated posts before searching
                 rag.index_files(daily_dir, group_slug=source.slug)
 
-                keyword_provider = None
+                # Search using whole transcript directly (no keyword extraction)
                 try:
-                    keyword_provider = build_llm_keyword_provider(
-                        self.generator.client,
-                        model=self.config.model,
-                    )
-                except Exception as exc:  # pragma: no cover - optional dependency
-                    logger.warning(
-                        "    [RAG] Falha ao inicializar extrator de palavras-chave: %s",
-                        exc,
-                    )
-
-                if keyword_provider is not None:
-                    query_gen = QueryGenerator(
-                        self.config.rag,
-                        keyword_provider=keyword_provider,
-                    )
-                    query = query_gen.generate(transcript)
-                    search_results = rag.search(query.search_query, group_slug=source.slug)
+                    search_results = rag.search(transcript, group_slug=source.slug)
                     if search_results and search_results["documents"]:
                         rag_context = "\n\n".join(
                             f"<<<CONTEXTO_{i}>>>\n{doc}"
                             for i, doc in enumerate(search_results["documents"][0], 1)
                         )
+                except Exception as exc:  # pragma: no cover - defensive: RAG search errors
+                    logger.warning("    [RAG] Falha ao buscar contexto: %s", exc)
 
                 # Export embeddings to parquet file in docs/
                 try:
@@ -1507,11 +1373,6 @@ class UnifiedProcessor:
     def list_groups(self) -> dict[GroupSlug, dict[str, object]]:
         """List discovered groups."""
 
-        # TODO: The `discover_groups` function is commented out and `real_groups`
-        # is initialized to an empty dict. This might be dead code or a feature
-        # that is currently disabled. This should be clarified and either
-        # removed or re-enabled.
-        # real_groups = discover_groups(self.config.zips_dir)
         real_groups = {}
         virtual_groups = create_virtual_groups(real_groups, self.config.merges)
 

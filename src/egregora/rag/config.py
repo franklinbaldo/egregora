@@ -16,26 +16,6 @@ from pydantic import (
 )
 
 
-def _default_keyword_stop_words() -> tuple[str, ...]:
-    return (
-        "about",
-        "and",
-        "are",
-        "but",
-        "com",
-        "for",
-        "from",
-        "http",
-        "https",
-        "not",
-        "that",
-        "the",
-        "this",
-        "was",
-        "were",
-        "with",
-        "you",
-    )
 
 
 class RetrievalSettings(BaseModel):
@@ -73,13 +53,12 @@ class RetrievalSettings(BaseModel):
 
 
 class QuerySettings(BaseModel):
-    """LLM-assisted query generation settings."""
+    """Query generation settings."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     max_context_chars: int = 1200
-    max_keywords: int = 8
-    keyword_stop_words: tuple[str, ...] | None = Field(default_factory=_default_keyword_stop_words)
+    # Keyword extraction removed - now using whole blog posts directly
     classifier_max_llm_calls: int | None = 200
     classifier_token_budget: int | None = 20000
 
@@ -91,26 +70,6 @@ class QuerySettings(BaseModel):
             raise ValueError("max_context_chars must be greater than zero")
         return ivalue
 
-    @field_validator("max_keywords")
-    @classmethod
-    def _validate_max_keywords(cls, value: Any) -> int:
-        ivalue = int(value)
-        if ivalue < 1:
-            raise ValueError("max_keywords must be greater than zero")
-        return ivalue
-
-    @field_validator("keyword_stop_words", mode="before")
-    @classmethod
-    def _coerce_stop_words(cls, value: Any) -> tuple[str, ...] | None:
-        if value in (None, "", []):
-            return None
-        if isinstance(value, str):
-            items = [part.strip().lower() for part in value.split(",") if part.strip()]
-            return tuple(items) or None
-        if isinstance(value, Sequence):
-            cleaned = [str(item).strip().lower() for item in value if str(item).strip()]
-            return tuple(cleaned) or None
-        return None
 
     @field_validator("classifier_max_llm_calls", "classifier_token_budget")
     @classmethod

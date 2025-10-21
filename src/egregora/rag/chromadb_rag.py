@@ -233,13 +233,16 @@ class _SearchHydrator:
 class ChromadbRAG:
     """Handles RAG operations for posts using ChromaDB directly."""
 
-    def __init__(self, config: RAGConfig, *, source: GroupSource | None = None):
+    def __init__(self, config: RAGConfig, *, source: GroupSource | None = None, batch_client: object | None = None):
         self.config = config
         self.source = source
         self.embed_model = CachedGeminiEmbedding(
             model_name=self.config.embedding_model,
             dimension=self.config.embedding_dimension,
             cache_dir=self.config.cache_dir,
+            use_batch_api=True,  # Enable batch API by default
+            batch_threshold=20,  # Use batch API for 20+ embeddings
+            batch_client=batch_client,
         )
         self.client = chromadb.PersistentClient(path=str(self.config.persist_dir))
         self.collection = self.client.get_or_create_collection(
