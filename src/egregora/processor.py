@@ -208,6 +208,26 @@ def _ensure_blog_front_matter(
     )
 
 
+def _mark_post_as_draft(post_text: str, privacy_reason: str) -> str:
+    """Mark a post as draft due to privacy violation."""
+    
+    metadata, body = _extract_front_matter(post_text)
+    
+    # Add draft flag and privacy note
+    metadata["draft"] = True
+    metadata["privacy_warning"] = f"DRAFT - Privacy issue detected: {privacy_reason}"
+    
+    # Regenerate post with updated metadata
+    front_matter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
+    content = body.lstrip()
+    
+    return (
+        f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n\n{content}"
+        if content
+        else f"{YAML_DELIMITER}\n{front_matter}\n{YAML_DELIMITER}\n"
+    )
+
+
 def _add_member_profile_links(
     text: str,
     *,
@@ -1186,12 +1206,16 @@ class UnifiedProcessor:
                     continue
                 raise
 
+            # Check for privacy violations and mark as draft if found
             try:
                 validate_newsletter_privacy(post)
             except PrivacyViolationError as exc:
-                raise PrivacyViolationError(
-                    f"Privacy violation detected for {source.slug} on {target_date:%Y-%m-%d}: {exc}"
-                ) from exc
+                logger.warning(
+                    "    ⚠️ Privacy violation detected for %s on %s: %s - marking as draft", 
+                    source.slug, target_date, exc
+                )
+                # Mark post as draft by adding draft: true to front matter
+                post = _mark_post_as_draft(post, privacy_reason=str(exc))
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
