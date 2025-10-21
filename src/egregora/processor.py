@@ -897,7 +897,8 @@ class UnifiedProcessor:
         )
 
         results = []
-        extractor = MediaExtractor(site_root, group_slug=source.slug)
+        # Use the unified media directory instead of site_root/media
+        extractor = MediaExtractor(output_root, group_slug=source.slug)
 
         # Simplified approach: since we only have one export per group in the new CLI,
         # we can extract media from all exports for any target date
