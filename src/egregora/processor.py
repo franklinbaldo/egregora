@@ -1121,6 +1121,15 @@ class UnifiedProcessor:
                 prefer_original_line=False,
             )
 
+            # Validate privacy BEFORE sending to LLM
+            try:
+                validate_newsletter_privacy(transcript)
+            except PrivacyViolationError as exc:
+                raise PrivacyViolationError(
+                    f"Privacy violation detected in transcript for {source.slug} on {target_date:%Y-%m-%d}: {exc}. "
+                    f"Check anonymization - sensitive data should not reach LLM."
+                ) from exc
+
             stats = {
                 "message_count": df_day.height,
                 "participant_count": df_day.get_column("author").n_unique(),
@@ -1206,16 +1215,7 @@ class UnifiedProcessor:
                     continue
                 raise
 
-            # Check for privacy violations and mark as draft if found
-            try:
-                validate_newsletter_privacy(post)
-            except PrivacyViolationError as exc:
-                logger.warning(
-                    "    ⚠️ Privacy violation detected for %s on %s: %s - marking as draft", 
-                    source.slug, target_date, exc
-                )
-                # Mark post as draft by adding draft: true to front matter
-                post = _mark_post_as_draft(post, privacy_reason=str(exc))
+            # Privacy validation now happens BEFORE LLM call to prevent sending sensitive data
 
             media_section = MediaExtractor.format_media_section(
                 all_media,
