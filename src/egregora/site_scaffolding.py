@@ -142,12 +142,12 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path, site_config: Site
 def _create_site_structure(site_root: Path, site_config: SiteConfig) -> None:
     """Create essential directories and index files for the blog structure."""
 
-    # Create directories using SiteConfig
+    # Create directories using SiteConfig - unified structure inside docs/
     docs_dir = site_root / site_config.docs_dir
     blog_dir = docs_dir / site_config.blog_dir
     blog_posts_dir = blog_dir / site_config.posts_subdir
     profiles_dir = docs_dir / "profiles"  # Place profiles inside docs/ for proper linking
-    media_dir = site_root / "media"
+    media_dir = docs_dir / "media"  # Place media inside docs/ for unified structure
 
     for directory in [docs_dir, blog_dir, blog_posts_dir, profiles_dir, media_dir]:
         directory.mkdir(parents=True, exist_ok=True)

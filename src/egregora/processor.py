@@ -862,9 +862,9 @@ class UnifiedProcessor:
         daily_dir = site_root / self.config.site.full_blog_path
         daily_dir.mkdir(parents=True, exist_ok=True)
 
-        # Media and profiles at root level (relative to output directory, not docs dir)
+        # Unified structure: place both media and profiles inside docs/ directory
         output_root = site_root.parent if site_root.name == self.config.site.docs_dir else site_root
-        media_dir = output_root / "media"
+        media_dir = site_root / "media"  # Move media inside docs/
         media_dir.mkdir(parents=True, exist_ok=True)
 
         # Place profiles inside docs/ directory for proper relative linking
@@ -913,8 +913,8 @@ class UnifiedProcessor:
         )
 
         results = []
-        # Use the unified media directory instead of site_root/media
-        extractor = MediaExtractor(output_root, group_slug=source.slug)
+        # Use the unified media directory inside docs/
+        extractor = MediaExtractor(site_root, group_slug=source.slug)
 
         # Simplified approach: since we only have one export per group in the new CLI,
         # we can extract media from all exports for any target date
