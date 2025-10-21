@@ -336,7 +336,7 @@ class ChromadbRAG:
             query_embeddings=[query_embedding],
             n_results=self.config.top_k,
             where=where,
-            include=["documents", "metadatas", "ids", "distances"],
+            include=["documents", "metadatas", "distances"],
         )
 
         return self._hydrator.enrich(results)
