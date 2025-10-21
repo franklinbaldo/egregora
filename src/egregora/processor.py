@@ -636,7 +636,7 @@ class UnifiedProcessor:
         slug = slug.strip("-")
 
         if not slug:
-            fallback = re.sub(r"[^ -]+", "-", group_name.lower()).strip("-")
+            fallback = re.sub(r"[^-]+", "-", group_name.lower()).strip("-")
             slug = fallback or f"whatsapp-group-{abs(hash(group_name)) & 0xFFFF:04x}"
 
         slug = slug[:64].strip("-")
@@ -957,9 +957,9 @@ class UnifiedProcessor:
 
                     # Extract URLs from the day's messages
                     urls_df = (
-                        df_day.filter(pl.col("message").str.contains(r"https?://[^ ->)]+"))
+                        df_day.filter(pl.col("message").str.contains(r"https?://[^->)]+"))
                         .with_columns(
-                            pl.col("message").str.extract_all(r"(https?://[^ ->)]+)").alias("urls")
+                            pl.col("message").str.extract_all(r"(https?://[^->)]+)").alias("urls")
                         )
                         .explode("urls")
                         .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
