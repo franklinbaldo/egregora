@@ -30,9 +30,7 @@ from .site_scaffolding import ensure_mkdocs_project
 
 # Constants and console setup as in original
 MAX_POSTS_TO_SHOW = 3
-# MAX_DATES_TO_SHOW = 10
-# QUOTA_WARNING_THRESHOLD = 200
-# QUOTA_WARNING_THRESHOLD_ENRICH = 15
+
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -369,35 +367,7 @@ class EgregoraCLI:
     ) -> None:
         """Process groups and show formatted result."""
 
-        # Show quota estimation before processing
-        # try:
-        #     quota_info = processor.estimate_api_usage(days=days, from_date=from_date, to_date=to_date)
-        #     if quota_info["total_api_calls"] > QUOTA_WARNING_THRESHOLD_ENRICH:
-        #         console.print(
-        #             Panel(
-        #                 f"[yellow]⚠️ This operation will make {quota_info['total_api_calls']} API calls[/yellow]\n"
-        #                 f"Estimated time (free tier): {quota_info['estimated_time_minutes']:.1f} minutes\n"
-        #                 f"[dim]Processing may be interrupted by quota limits.[/dim]",
-        #                 border_style="yellow",
-        #                 title="Quota Estimation",
-        #             )
-        #         )
 
-        # except FileNotFoundError:
-        #     # Skip quota estimation if file doesn't exist - will be caught later
-        #     pass
-        # except IsADirectoryError:
-        #     # Skip quota estimation if directory instead of ZIP - will be caught later
-        #     pass
-        # except zipfile.BadZipFile:
-        #     # Skip quota estimation if invalid ZIP - will be caught later
-        #     pass
-        # except Exception as exc:
-        #     # Only log other unexpected errors
-        #     logger.exception("Failed to estimate quota usage before processing")
-        #     console.print(f"\n[yellow]Could not estimate API usage: {exc}[/yellow]")
-
-        # console.print()
 
         console.print(Panel("[bold green]🚀 Processing Groups[/bold green]"))
 

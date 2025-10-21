@@ -11,10 +11,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 if TYPE_CHECKING:
     from egregora.config import SiteConfig
 
-# Deprecated constants: use SiteConfig instead
-DEFAULT_SITE_NAME = "Egregora Archive"
-DEFAULT_BLOG_DIR = "blog"
-DEFAULT_DOCS_DIR = "docs"
+
 
 
 def ensure_mkdocs_project(
