@@ -239,18 +239,34 @@ class RAGConfig(BaseModel):
         return self
 
     def __getattr__(self, item: str) -> Any:
-        for namespace_name in self._NAMESPACES:
-            namespace = super().__getattribute__(namespace_name)
-            if hasattr(namespace, item):
-                return getattr(namespace, item)
-        raise AttributeError(item)
+        # Avoid recursion by using object.__getattribute__ directly
+        try:
+            namespaces = object.__getattribute__(self, "_NAMESPACES")
+        except AttributeError:
+            # Fallback if _NAMESPACES is not set yet
+            namespaces = ("retrieval", "query", "chunking", "embedding", "vector_store", "messages")
+        
+        for namespace_name in namespaces:
+            try:
+                namespace = object.__getattribute__(self, namespace_name)
+                if hasattr(namespace, item):
+                    return getattr(namespace, item)
+            except AttributeError:
+                continue
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
 
     def __setattr__(self, name: str, value: Any) -> None:
-        core_fields = {"enabled", *self._NAMESPACES}
+        # Avoid recursion by using object.__getattribute__ directly
+        try:
+            namespaces = object.__getattribute__(self, "_NAMESPACES")
+        except AttributeError:
+            namespaces = ("retrieval", "query", "chunking", "embedding", "vector_store", "messages")
+        
+        core_fields = {"enabled", *namespaces}
         if name in core_fields or name.startswith("__"):
             super().__setattr__(name, value)
             return
-        for namespace_name in self._NAMESPACES:
+        for namespace_name in namespaces:
             try:
                 namespace = super().__getattribute__(namespace_name)
             except AttributeError:
