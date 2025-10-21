@@ -186,11 +186,12 @@ class Anonymizer:
             
         # Patterns to match phone numbers in text content
         phone_patterns = [
+            r'\(\d{2,3}\)\s?\d{3,5}-\d{4}',  # Local format like (11) 98594-0512
             r'\+\d{2}\s?\d{2}\s?\d{4,5}-?\d{4}',  # Brazilian format like +55 11 98594-0512
             r'\+\d{1,4}\s?\(\d{3,4}\)\s?\d{3,4}-\d{4}',  # US format like +1 (415) 656-5918
             r'\+\d{2}\s?\d{4}\s?\d{6}',  # UK format like +44 7502 313434
             r'\+\d{1,4}\s?\d{3,4}\s?\d{3,4}\s?\d{3,4}',  # General international format
-            r'\b\d{4,5}-\d{4}\b',  # Local format like 98594-0512
+            r'\b\d{3,5}-\d{4}\b',  # Local format like 98594-0512
         ]
         
         result = text

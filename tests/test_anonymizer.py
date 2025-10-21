@@ -58,3 +58,11 @@ def test_anonymize_dataframe_replaces_authors() -> None:
     authors = anonymized_df["author"].to_list()
 
     assert all(len(name) == UUID_FULL_LENGTH for name in authors)
+
+
+def test_anonymize_phone_numbers_in_text_handles_parentheses() -> None:
+    text = "Meu número é (11) 91234-5678."
+    sanitized = Anonymizer.anonymize_phone_numbers_in_text(text, format="human")
+
+    assert "(11)" not in sanitized
+    assert "91234-5678" not in sanitized
