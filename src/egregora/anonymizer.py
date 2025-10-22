@@ -136,28 +136,145 @@ class Anonymizer:
         if "author" not in df.columns:
             raise KeyError("DataFrame must have 'author' column")
 
-        result = df.with_columns(
-            pl.col("author").map_elements(
-                lambda author: Anonymizer.anonymize_author(author, format),
-                return_dtype=pl.String,
+        authors = df.select(pl.col("author")).unique()
+        author_values = authors.get_column("author").to_list()
+
+        author_tokens = {value for value in author_values if value is not None}
+
+        content_columns = [
+            column
+            for column in ("message", "original_line", "tagged_line")
+            if column in df.columns
+        ]
+
+        if not content_columns:
+            result = df.join(
+                authors.with_columns(
+                    pl.Series(
+                        "__author_display__",
+                        [
+                            Anonymizer.anonymize_author(value, format) if value is not None else None
+                            for value in author_values
+                        ],
+                    )
+                ),
+                on="author",
+                how="left",
             )
+            result = result.with_columns(
+                pl.when(pl.col("author").is_null())
+                .then(pl.lit(None, dtype=pl.String))
+                .otherwise(
+                    pl.coalesce(
+                        [
+                            pl.format("{}", pl.col("__author_display__")),
+                            pl.format("{}", pl.col("author")),
+                        ]
+                    )
+                )
+                .alias("author")
+            ).drop("__author_display__")
+
+            return result
+
+        mention_pattern = r"@?\u2068(.*?)\u2069"
+        mention_labels: set[str] = set()
+        for column in content_columns:
+            matches_series = (
+                df.select(pl.col(column).cast(pl.Utf8).str.extract_all(mention_pattern).alias("labels"))
+                .get_column("labels")
+                .to_list()
+            )
+            for matches in matches_series:
+                if matches:
+                    mention_labels.update(label for label in matches if label)
+
+        author_tokens.update(mention_labels)
+        token_display_map = {
+            token: Anonymizer.anonymize_author(token, format) for token in author_tokens
+        }
+        token_full_map = {
+            token: Anonymizer.anonymize_author(token, "full") for token in author_tokens
+        }
+
+        result = df.join(
+            authors.with_columns(
+                pl.Series(
+                    "__author_display__",
+                    [
+                        token_display_map.get(value) if value is not None else None
+                        for value in author_values
+                    ],
+                )
+            ),
+            on="author",
+            how="left",
+        )
+        result = result.with_columns(
+            pl.when(pl.col("author").is_null())
+            .then(pl.lit(None, dtype=pl.String))
+            .otherwise(
+                pl.coalesce(
+                    [
+                        pl.format("{}", pl.col("__author_display__")),
+                        pl.format("{}", pl.col("author")),
+                    ]
+                )
+            )
+            .alias("author")
+        ).drop("__author_display__")
+
+        phone_pattern = (
+            r"(?:\+\d{2}\s?\d{2}\s?\d{4,5}-?\d{4}"
+            r"|\+\d{1,4}\s?\(\d{3,4}\)\s?\d{3,4}-\d{4}"
+            r"|\+\d{2}\s?\d{4}\s?\d{6}"
+            r"|\+\d{1,4}\s?\d{3,4}\s?\d{3,4}\s?\d{3,4}"
+            r"|\b\d{4,5}-\d{4}\b)"
         )
 
-        def _map_content(value: str | None) -> str | None:
-            # First anonymize mentions
-            text = Anonymizer.anonymize_mentions(
-                value,
-                format=format,
-                profile_link_base=profile_link_base,
+        phone_numbers: set[str] = set()
+        for column in content_columns:
+            numbers_series = (
+                df.select(pl.col(column).cast(pl.Utf8).str.extract_all(phone_pattern).alias("numbers"))
+                .get_column("numbers")
+                .to_list()
             )
-            # Then anonymize phone numbers in content
-            return Anonymizer.anonymize_phone_numbers_in_text(text, format=format)
+            for matches in numbers_series:
+                if matches:
+                    phone_numbers.update(number for number in matches if number)
 
-        for column in ("message", "original_line", "tagged_line"):
-            if column in result.columns:
-                result = result.with_columns(
-                    pl.col(column).map_elements(_map_content, return_dtype=pl.String).alias(column)
-                )
+        phone_display_map = {
+            number: Anonymizer.anonymize_phone(number, format) for number in phone_numbers
+        }
+
+        link_base = (profile_link_base.rstrip("/") if profile_link_base else "profiles")
+
+        def build_content_expr(column: str) -> pl.Expr:
+            expr = pl.col(column).cast(pl.Utf8)
+
+            if mention_labels:
+                for label in sorted(mention_labels, key=len, reverse=True):
+                    pattern = rf"@?\u2068{re.escape(label)}\u2069"
+                    pseudonym = token_display_map[label]
+                    uuid_full = token_full_map[label]
+                    replacement = f"[@{pseudonym}]({link_base}/{uuid_full}.md)"
+                    expr = expr.str.replace_all(pattern, replacement)
+
+            if phone_numbers:
+                for number in sorted(phone_numbers, key=len, reverse=True):
+                    pseudonym = phone_display_map[number]
+                    expr = expr.str.replace_all(re.escape(number), pseudonym)
+
+            expr = expr.str.replace_all("\u2068", "").str.replace_all("\u2069", "")
+
+            return (
+                pl.when(pl.col(column).is_null())
+                .then(pl.lit(None, dtype=pl.String))
+                .otherwise(expr)
+                .alias(column)
+            )
+
+        result = result.with_columns([build_content_expr(column) for column in content_columns])
 
         return result
 
@@ -168,10 +285,8 @@ class Anonymizer:
     ) -> pl.Series:
         """Return a new Polars series with anonymized author names."""
 
-        return series.map_elements(
-            lambda author: Anonymizer.anonymize_author(author, format),
-            return_dtype=pl.String,
-        )
+        dataframe = pl.DataFrame({"author": series})
+        return Anonymizer.anonymize_dataframe(dataframe, format=format)["author"]
 
     @staticmethod
     def anonymize_phone_numbers_in_text(
@@ -225,7 +340,8 @@ class Anonymizer:
 
             # Always create link to profiles/{user_uuid}.md
             full_uuid = Anonymizer.anonymize_author(label, "full")
-            link = f"profiles/{full_uuid}.md"
+            base_path = profile_link_base.rstrip("/") if profile_link_base else "profiles"
+            link = f"{base_path}/{full_uuid}.md"
             return f"[{display}]({link})"
 
         sanitized = Anonymizer._MENTION_PATTERN.sub(_replace, text)
