@@ -1188,79 +1188,6 @@ def extract_urls_from_dataframe(df: pl.DataFrame) -> pl.DataFrame:
 def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.DataFrame:
     """Extract URLs with surrounding context from a conversation DataFrame."""
 
-    if df.is_empty() or "urls" not in df.columns:
-        return pl.DataFrame(
-            {
-                "url": [],
-                "timestamp": [],
-                "author": [],
-                "message": [],
-                "context_before": [],
-                "context_after": [],
-            },
-            schema={
-                "url": pl.String,
-                "timestamp": pl.Datetime,
-                "author": pl.String,
-                "message": pl.String,
-                "context_before": pl.String,
-                "context_after": pl.String,
-            },
-        )
-
-    df_sorted = df.sort("timestamp").with_row_index(name="row_index")
-    rows = df_sorted.to_dicts()
-    formatted_messages = [
-        f"{row.get('time')} — {row.get('author')}: {row.get('message')}".strip() for row in rows
-    ]
-
-    results: list[dict[str, object]] = []
-    row_count = len(rows)
-
-    for row in rows:
-        urls = row.get("urls") or []
-        if not urls:
-            continue
-
-        idx = int(row.get("row_index", 0))
-        start_before = max(0, idx - context_window)
-        end_after = min(row_count, idx + context_window + 1)
-
-        context_before = "\n".join(formatted_messages[start_before:idx])
-        context_after = "\n".join(formatted_messages[idx + 1 : end_after])
-
-        for url in urls:
-            results.append(
-                {
-                    "url": url,
-                    "timestamp": row.get("timestamp"),
-                    "author": row.get("author"),
-                    "message": row.get("message"),
-                    "context_before": context_before,
-                    "context_after": context_after,
-                }
-            )
-
-    if not results:
-        return pl.DataFrame(
-            {
-                "url": [],
-                "timestamp": [],
-                "author": [],
-                "message": [],
-                "context_before": [],
-                "context_after": [],
-            },
-            schema={
-                "url": pl.String,
-                "timestamp": pl.Datetime,
-                "author": pl.String,
-                "message": pl.String,
-                "context_before": pl.String,
-                "context_after": pl.String,
-            },
-        )
-
     schema = {
         "url": pl.String,
         "timestamp": pl.Datetime,
@@ -1269,17 +1196,83 @@ def get_url_contexts_dataframe(df: pl.DataFrame, context_window: int = 3) -> pl.
         "context_before": pl.String,
         "context_after": pl.String,
     }
+    empty_result = pl.DataFrame(
+        {name: [] for name in schema},
+        schema=schema,
+    )
 
-    return pl.DataFrame(results, schema=schema).select(
+    if df.is_empty() or "urls" not in df.columns:
+        return empty_result
+
+    window = max(int(context_window), 0)
+    frame = df
+
+    if "time" not in frame.columns:
+        frame = frame.with_columns(
+            pl.col("timestamp").dt.strftime("%H:%M").fill_null("").alias("time")
+        )
+
+    formatted_template = "{time} — {author}: {message}"
+    formatted_expr = pl.format(
+        formatted_template.format(time="{}", author="{}", message="{}"),
+        pl.col("time").cast(pl.Utf8, strict=False).fill_null(""),
+        pl.col("author").cast(pl.Utf8, strict=False).fill_null(""),
+        pl.col("message").cast(pl.Utf8, strict=False).fill_null(""),
+    ).str.strip_chars().alias("__formatted_message")
+
+    frame = frame.sort("timestamp").with_columns(formatted_expr)
+
+    if window > 0:
+        before_exprs = [pl.col("__formatted_message").shift(i) for i in range(window, 0, -1)]
+        after_exprs = [pl.col("__formatted_message").shift(-i) for i in range(1, window + 1)]
+        frame = frame.with_columns(
+            [
+                pl.concat_list(before_exprs).alias("__context_before_list"),
+                pl.concat_list(after_exprs).alias("__context_after_list"),
+            ]
+        )
+    else:
+        frame = frame.with_columns(
+            [
+                pl.lit([]).cast(pl.List(pl.Utf8)).alias("__context_before_list"),
+                pl.lit([]).cast(pl.List(pl.Utf8)).alias("__context_after_list"),
+            ]
+        )
+
+    frame = frame.with_columns(
         [
-            "url",
-            "timestamp",
-            "author",
-            "message",
-            "context_before",
-            "context_after",
+            pl.col("__context_before_list")
+            .list.drop_nulls()
+            .list.join("\n")
+            .fill_null("")
+            .alias("context_before"),
+            pl.col("__context_after_list")
+            .list.drop_nulls()
+            .list.join("\n")
+            .fill_null("")
+            .alias("context_after"),
         ]
     )
+
+    result = (
+        frame.explode("urls")
+        .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
+        .select(
+            [
+                pl.col("urls").alias("url"),
+                pl.col("timestamp"),
+                pl.col("author"),
+                pl.col("message"),
+                pl.col("context_before"),
+                pl.col("context_after"),
+            ]
+        )
+    )
+
+    if result.is_empty():
+        return empty_result
+
+    return result
 
 
 __all__ = [
