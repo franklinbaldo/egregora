@@ -907,6 +907,14 @@ class UnifiedProcessor:
                             }
                         )
 
+                    # Prepare normalized message text for media matching
+                    df_day_text = df_day.with_columns(
+                        pl.col("message")
+                        .cast(pl.Utf8)
+                        .fill_null("")
+                        .alias("__message_text")
+                    )
+
                     # Process media files for enrichment
                     for media_key, media_file in all_media.items():
                         # Ensure we use the actual UUID, not the original filename
@@ -924,11 +932,15 @@ class UnifiedProcessor:
                         # Get enrichment from LLM for media files
 
                         # Find the message that references this media
-                        media_message_row = None
-                        for row in df_day.iter_rows(named=True):
-                            if media_key in str(row.get("message", "")):
-                                media_message_row = row
-                                break
+                        matching = df_day_text.filter(
+                            pl.col("__message_text").str.contains(re.escape(media_key))
+                        )
+                        if matching.height > 0:
+                            media_message_row = matching.drop("__message_text").row(
+                                0, named=True
+                            )
+                        else:
+                            media_message_row = None
 
                         # Get LLM analysis of the media
                         media_path = getattr(media_file, "dest_path", Path("unknown"))
@@ -959,6 +971,9 @@ class UnifiedProcessor:
                             date_str=target_date.isoformat(),
                             message=media_message_row.get("message") if media_message_row else None,
                         )
+
+                    # Drop auxiliary matching column after processing
+                    df_day_text = df_day_text.drop("__message_text")
 
                     # Add enriched messages to dataframe
                     if enriched_rows:
