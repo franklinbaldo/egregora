@@ -8,6 +8,7 @@ import pytest
 
 from egregora.config import PipelineConfig
 from egregora.generator import PostContext, PostGenerator
+from egregora.tools import sanitize_slug
 
 
 @pytest.fixture
@@ -44,6 +45,7 @@ def test_generate_posts_with_tools_mode(mock_gemini_manager, mock_prompt_loader)
     fc1.name = "write_post"
     fc1.args = {
         "title": "First Thread",
+        "slug": "first-thread",
         "content": "---\ndate: 2025-01-01\n---\n\nContent of first thread",
         "participants": ["uuid1", "uuid2"],
     }
@@ -55,6 +57,7 @@ def test_generate_posts_with_tools_mode(mock_gemini_manager, mock_prompt_loader)
     fc2.name = "write_post"
     fc2.args = {
         "title": "Second Thread",
+        "slug": "second-thread",
         "content": "---\ndate: 2025-01-01\n---\n\nContent of second thread",
         "participants": ["uuid3", "uuid4"],
     }
@@ -87,10 +90,12 @@ def test_generate_posts_with_tools_mode(mock_gemini_manager, mock_prompt_loader)
     # Assert
     assert len(posts) == 2
     assert posts[0]["title"] == "First Thread"
+    assert posts[0]["slug"] == "first-thread"
     assert "Content of first thread" in posts[0]["content"]
     assert posts[0]["participants"] == ["uuid1", "uuid2"]
 
     assert posts[1]["title"] == "Second Thread"
+    assert posts[1]["slug"] == "second-thread"
     assert "Content of second thread" in posts[1]["content"]
     assert posts[1]["participants"] == ["uuid3", "uuid4"]
 
@@ -129,6 +134,7 @@ def test_generate_posts_fallback_without_function_calls(mock_gemini_manager, moc
     # Assert fallback behavior
     assert len(posts) == 1
     assert posts[0]["title"] == "Daily Post"
+    assert posts[0]["slug"] == "daily-post"
     assert "Single post content" in posts[0]["content"]
 
 
@@ -166,3 +172,40 @@ def test_generate_legacy_mode_returns_string(mock_gemini_manager, mock_prompt_lo
     # Assert returns string
     assert isinstance(post_text, str)
     assert "Legacy post content" in post_text
+
+
+def test_sanitize_slug():
+    """Test slug sanitization function."""
+    # Basic sanitization
+    assert sanitize_slug("A Pacificação Social") == "a-pacificacao-social"
+    assert sanitize_slug("Frameworks vs Simplicidade") == "frameworks-vs-simplicidade"
+
+    # Remove special characters
+    assert sanitize_slug("Frameworks vs Simplicidade!!!") == "frameworks-vs-simplicidade"
+    assert sanitize_slug("Test@#$%Post") == "testpost"
+
+    # Replace spaces and underscores with hyphens
+    assert sanitize_slug("Artigo_sobre_IA") == "artigo-sobre-ia"
+    assert sanitize_slug("Test   Multiple   Spaces") == "test-multiple-spaces"
+
+    # Remove accents
+    assert sanitize_slug("São Paulo Ação") == "sao-paulo-acao"
+    assert sanitize_slug("Café com Açúcar") == "cafe-com-acucar"
+
+    # Lowercase
+    assert sanitize_slug("UPPERCASE TEXT") == "uppercase-text"
+
+    # Truncate long slugs
+    long_slug = "a" * 100
+    result = sanitize_slug(long_slug)
+    assert len(result) <= 50
+
+    # Empty string fallback
+    assert sanitize_slug("") == "post"
+    assert sanitize_slug("@#$%") == "post"
+
+    # Multiple consecutive hyphens
+    assert sanitize_slug("test---multiple---hyphens") == "test-multiple-hyphens"
+
+    # Leading/trailing hyphens
+    assert sanitize_slug("-test-slug-") == "test-slug"

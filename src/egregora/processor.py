@@ -1130,13 +1130,14 @@ class UnifiedProcessor:
 
                 post = format_markdown(post, assume_front_matter=True)
 
-                # Generate unique filename for each post
+                # Generate unique filename: date-sequence-slug.md
+                slug = post_data.get("slug", "post")
                 if len(generated_posts) == 1:
-                    # Single post: use date-based naming
-                    post_path = daily_dir / f"{target_date}.md"
+                    # Single post: date-slug.md
+                    post_path = daily_dir / f"{target_date}-{slug}.md"
                 else:
-                    # Multiple posts: use date + index
-                    post_path = daily_dir / f"{target_date}_{idx + 1:02d}.md"
+                    # Multiple posts: date-sequence-slug.md
+                    post_path = daily_dir / f"{target_date}-{idx + 1:02d}-{slug}.md"
 
                 logger.info(f"    💾 Saving post {idx + 1}/{len(generated_posts)} to {post_path.name}")
                 post_path.write_text(post, encoding="utf-8")

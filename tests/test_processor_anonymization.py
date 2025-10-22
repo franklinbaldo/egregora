@@ -79,7 +79,7 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
     generator = MagicMock()
     generator.generate.return_value = "Generated post"
     generator.generate_posts.return_value = [
-        {"title": "Test Post", "content": "Generated post", "participants": []}
+        {"title": "Test Post", "slug": "test-post", "content": "Generated post", "participants": []}
     ]
     monkeypatch.setattr(
         "egregora.processor.PostGenerator", lambda config, gemini_manager: generator
@@ -216,7 +216,7 @@ def test_media_enrichment_uses_first_matching_message(monkeypatch, tmp_path):
             return "Generated post"
 
         def generate_posts(self, *_args, **_kwargs):
-            return [{"title": "Test Post", "content": "Generated post", "participants": []}]
+            return [{"title": "Test Post", "slug": "test-post", "content": "Generated post", "participants": []}]
 
     monkeypatch.setattr("egregora.processor.PostGenerator", StubGenerator)
     monkeypatch.setattr("egregora.processor.GeminiManager", lambda *_, **__: None)

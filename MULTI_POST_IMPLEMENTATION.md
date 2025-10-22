@@ -58,8 +58,14 @@ The tool is automatically provided to the LLM during generation when `use_tools=
    - Save with unique filename
 
 **Filename strategy**:
-- Single post: `{date}.md` (e.g., `2025-01-15.md`)
-- Multiple posts: `{date}_{index:02d}.md` (e.g., `2025-01-15_01.md`, `2025-01-15_02.md`)
+- Single post: `{date}-{slug}.md` (e.g., `2025-01-15-pacificacao-social.md`)
+- Multiple posts: `{date}-{sequence:02d}-{slug}.md` (e.g., `2025-01-15-01-frameworks-debate.md`, `2025-01-15-02-ia-article.md`)
+
+The LLM generates a URL-friendly slug for each post, which is then sanitized to ensure:
+- Lowercase only
+- Hyphens instead of spaces
+- No accents or special characters
+- Maximum 50 characters
 
 ### 5. Tests (`tests/test_multi_post.py`)
 
@@ -103,11 +109,11 @@ docs/blog/posts/
 ### After (Multiple Posts Per Day)
 ```
 docs/blog/posts/
-  2025-01-15_01.md    # Thread 1: Framework discussion
-  2025-01-15_02.md    # Thread 2: Product launch
-  2025-01-15_03.md    # Thread 3: AI article
-  2025-01-16_01.md
-  2025-01-16_02.md
+  2025-01-15-01-frameworks-debate.md      # Thread 1: Framework discussion
+  2025-01-15-02-product-launch.md         # Thread 2: Product launch
+  2025-01-15-03-ia-article.md             # Thread 3: AI article
+  2025-01-16-01-pacificacao-social.md
+  2025-01-16-02-velocidade-qualidade.md
 ```
 
 ## LLM Behavior
@@ -117,6 +123,7 @@ The LLM will:
 2. **Identify** distinct conversation threads (usually 1-10 per day)
 3. **Call `write_post`** once for each thread with:
    - Descriptive title
+   - URL-friendly slug (sanitized automatically)
    - Complete markdown content (including YAML front matter)
    - List of participant UUIDs
 4. Each post follows the same style rules (Scott Alexander-inspired, concrete hooks, etc.)

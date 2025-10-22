@@ -20,7 +20,7 @@ except ModuleNotFoundError:
     types = None
 
 from .gemini_manager import GeminiManager, GeminiQuotaError
-from .tools import get_available_tools
+from .tools import get_available_tools, sanitize_slug
 
 if TYPE_CHECKING:
     from datetime import tzinfo
@@ -393,7 +393,7 @@ class PostGenerator:
         else:
             # Legacy mode: single post
             post_text = self._execute_generation(model, contents, generation_config)
-            return [{"title": "Daily Post", "content": post_text, "participants": []}]
+            return [{"title": "Daily Post", "slug": "daily-post", "content": post_text, "participants": []}]
 
     def _prepare_transcripts(self, context: PostContext) -> Sequence[tuple[date, str]]:
         return [(context.target_date, context.transcript)]
@@ -492,13 +492,17 @@ class PostGenerator:
                     if fc.name == "write_post":
                         # Extract arguments
                         args = fc.args
+                        raw_slug = args.get("slug", "")
+                        # Sanitize slug to ensure URL-friendliness
+                        safe_slug = sanitize_slug(raw_slug) if raw_slug else "post"
                         post_data = {
                             "title": args.get("title", "Untitled"),
+                            "slug": safe_slug,
                             "content": args.get("content", ""),
                             "participants": args.get("participants", []),
                         }
                         posts.append(post_data)
-                        logger.debug(f"Collected post: {post_data['title']}")
+                        logger.debug(f"Collected post: {post_data['title']} (slug: {safe_slug})")
 
         if not posts:
             logger.warning(
@@ -507,6 +511,6 @@ class PostGenerator:
             # Fallback: treat text response as single post
             text = response.text.strip() if getattr(response, "text", None) else ""
             if text:
-                posts.append({"title": "Daily Post", "content": text, "participants": []})
+                posts.append({"title": "Daily Post", "slug": "daily-post", "content": text, "participants": []})
 
         return posts

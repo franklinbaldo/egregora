@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +40,15 @@ def get_write_post_declaration():  # type: ignore[no-untyped-def]
                     "type": "string",
                     "description": "Título do fio (ex: 'A Pacificação Social')",
                 },
+                "slug": {
+                    "type": "string",
+                    "description": (
+                        "URL-friendly slug derivado do título (ex: 'pacificacao-social'). "
+                        "Use apenas letras minúsculas, números e hífens. "
+                        "Máximo 50 caracteres. "
+                        "Exemplos: 'frameworks-vs-simplicidade', 'debate-velocidade-qualidade', 'ia-artigo-shared'"
+                    ),
+                },
                 "content": {
                     "type": "string",
                     "description": (
@@ -60,9 +71,57 @@ def get_write_post_declaration():  # type: ignore[no-untyped-def]
                     "description": "Lista de UUIDs dos participantes deste fio específico",
                 },
             },
-            "required": ["title", "content", "participants"],
+            "required": ["title", "slug", "content", "participants"],
         },
     )
+
+
+def sanitize_slug(slug: str, max_length: int = 50) -> str:
+    """Sanitize and validate a slug to be URL-friendly.
+
+    Args:
+        slug: Raw slug from LLM
+        max_length: Maximum length for the slug (default 50)
+
+    Returns:
+        Sanitized slug that is URL-friendly
+
+    Examples:
+        >>> sanitize_slug("A Pacificação Social")
+        'a-pacificacao-social'
+        >>> sanitize_slug("Frameworks vs Simplicidade!!!")
+        'frameworks-vs-simplicidade'
+        >>> sanitize_slug("Artigo_sobre_IA")
+        'artigo-sobre-ia'
+    """
+    # Normalize unicode characters (remove accents)
+    slug = unicodedata.normalize("NFKD", slug)
+    slug = slug.encode("ascii", "ignore").decode("ascii")
+
+    # Convert to lowercase
+    slug = slug.lower()
+
+    # Replace spaces and underscores with hyphens
+    slug = re.sub(r"[\s_]+", "-", slug)
+
+    # Remove any character that isn't alphanumeric or hyphen
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
+
+    # Replace multiple consecutive hyphens with single hyphen
+    slug = re.sub(r"-+", "-", slug)
+
+    # Remove leading/trailing hyphens
+    slug = slug.strip("-")
+
+    # Truncate to max_length
+    if len(slug) > max_length:
+        slug = slug[:max_length].rstrip("-")
+
+    # Fallback if slug is empty after sanitization
+    if not slug:
+        slug = "post"
+
+    return slug
 
 
 def get_available_tools():  # type: ignore[no-untyped-def]

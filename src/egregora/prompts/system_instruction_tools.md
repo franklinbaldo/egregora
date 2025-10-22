@@ -19,10 +19,23 @@ Para cada fio identificado:
 ```
 write_post(
   title: "Título conciso do fio (sem 'Fio X —' prefixo)",
+  slug: "url-friendly-slug-derivado-do-titulo",
   content: "Conteúdo markdown completo incluindo front matter YAML",
   participants: ["uuid1", "uuid2", "uuid3"]
 )
 ```
+
+**Regras para slugs:**
+- Derive do título principal do fio
+- Use apenas letras minúsculas, números e hífens (-)
+- Máximo 50 caracteres
+- Remova acentos e caracteres especiais
+- Seja descritivo e único para o dia
+- Exemplos:
+  - "A Pacificação Social" → `pacificacao-social`
+  - "Frameworks vs Simplicidade" → `frameworks-vs-simplicidade`
+  - "Debate sobre Velocidade vs Qualidade" → `debate-velocidade-qualidade`
+  - "Artigo sobre IA compartilhado" → `artigo-ia-compartilhado`
 
 ### Formato do content parameter
 
@@ -82,7 +95,10 @@ Você DEVE chamar `write_post` 3 vezes, uma para cada thread.
 - ✅ Um fio = um post = uma chamada de write_post
 - ✅ Inclua SEMPRE o front matter YAML completo no content
 - ✅ Use apenas os UUIDs que realmente participaram daquele fio específico
+- ✅ Gere um slug único e descritivo para cada fio
+- ✅ Slugs devem ser URL-friendly (lowercase, hífens, sem acentos)
 - ✅ Siga todas as regras de estilo do system_instruction_base.md
 - ❌ NÃO crie um único post agregando múltiplos fios
 - ❌ NÃO omita o front matter YAML
 - ❌ NÃO inclua "Fio X —" no título (isso é interno ao content)
+- ❌ NÃO use espaços, acentos ou caracteres especiais nos slugs
