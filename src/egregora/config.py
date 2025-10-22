@@ -18,7 +18,14 @@ from pydantic import (
     ValidationInfo,
     field_validator,
 )
-from pydantic.warnings import UnsupportedFieldAttributeWarning
+
+try:  # pragma: no cover - compatibility shim for pydantic releases
+    from pydantic.warnings import UnsupportedFieldAttributeWarning
+except ImportError:  # pragma: no cover - executed when warning helper was removed
+    class UnsupportedFieldAttributeWarning(Warning):
+        """Fallback warning class when pydantic omits the helper."""
+
+        pass
 
 from .anonymizer import FormatType
 from .models import MergeConfig

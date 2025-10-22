@@ -72,13 +72,11 @@ class _MessageEmbeddingBuilder:
         *,
         config: RAGConfig,
         group_slug: str,
-        line_formatter,
         message_uuid,
         timestamp_formatter,
     ) -> None:
         self._config = config
         self._group_slug = group_slug
-        self._line_formatter = line_formatter
         self._message_uuid = message_uuid
         self._timestamp_formatter = timestamp_formatter
         self._radius_before = max(0, config.message_context_radius_before)
@@ -93,78 +91,174 @@ class _MessageEmbeddingBuilder:
         if not partitions:
             partitions = [sorted_frame]
 
-        ids: list[str] = []
-        inputs: list[str] = []
-        metadatas: list[dict[str, Any]] = []
+        prepared_partitions: list[pl.DataFrame] = []
         cache_entries: dict[tuple[str, str], pl.DataFrame] = {}
 
         for partition in partitions:
-            annotated = partition.sort("timestamp").with_row_count(_ROW_INDEX_COLUMN)
-            if annotated.is_empty():
+            base = partition.sort("timestamp").with_row_index(_ROW_INDEX_COLUMN)
+            if base.is_empty():
                 continue
-            iso_date = str(annotated.get_column("date")[0])
-            cache_entries[(self._group_slug, iso_date)] = annotated
 
-            height = annotated.height
-            for row in annotated.iter_rows(named=True):
-                index = int(row[_ROW_INDEX_COLUMN])
-                segment = self._slice_context(annotated, index, height)
-                embedding_text = self._render_segment(segment, focus_index=index)
-                metadata = self._build_metadata(row, index, segment)
+            iso_date = str(base.get_column("date")[0])
+            cache_entries[(self._group_slug, iso_date)] = base
 
-                ids.append(
-                    self._message_uuid(
-                        group_slug=self._group_slug,
-                        timestamp=row.get("timestamp"),
-                        author=row.get("author") or "",
-                        message=row.get("message") or "",
-                    )
-                )
-                inputs.append(embedding_text)
-                metadatas.append(metadata | {"date": iso_date})
+            annotated = self._annotate_context_windows(base)
+            prepared = self._prepare_segments(annotated).with_columns(
+                pl.lit(iso_date).alias("date"),
+            )
 
-        return _MessageEmbeddingBatch(ids, inputs, metadatas, cache_entries)
+            if not prepared.is_empty():
+                prepared_partitions.append(prepared)
 
-    def _slice_context(
-        self,
-        frame: pl.DataFrame,
-        index: int,
-        height: int,
-    ) -> pl.DataFrame:
-        start = max(0, index - self._radius_before)
-        end = min(height - 1, index + self._radius_after)
-        length = end - start + 1
-        return frame.slice(start, length)
+        if not prepared_partitions:
+            return _MessageEmbeddingBatch([], [], [], cache_entries)
 
-    def _render_segment(self, segment: pl.DataFrame, *, focus_index: int) -> str:
-        lines: list[str] = []
-        for row in segment.iter_rows(named=True):
-            row_index = int(row.get(_ROW_INDEX_COLUMN, -1))
-            lines.append(
-                self._line_formatter(
-                    row,
-                    highlight=row_index == focus_index,
+        combined = pl.concat(prepared_partitions, how="vertical")
+
+        ids = (
+            combined
+            .select(
+                pl.struct(
+                    pl.lit(self._group_slug).alias("group_slug"),
+                    pl.col("timestamp"),
+                    pl.col("author"),
+                    pl.col("message"),
+                ).map_elements(
+                    lambda row: self._message_uuid(
+                        group_slug=row["group_slug"],
+                        timestamp=row["timestamp"],
+                        author=row["author"] or "",
+                        message=row["message"] or "",
+                    ),
+                    return_dtype=pl.Utf8,
                 )
             )
-        rendered = "\n".join(lines).strip()
-        return rendered or "<target_message></target_message>"
+            .to_series()
+            .to_list()
+        )
 
-    def _build_metadata(
-        self,
-        row: dict[str, Any],
-        index: int,
-        segment: pl.DataFrame,
-    ) -> dict[str, Any]:
-        start = int(segment.get_column(_ROW_INDEX_COLUMN)[0])
-        end = int(segment.get_column(_ROW_INDEX_COLUMN)[-1])
-        return {
-            "kind": "message",
-            "group_slug": self._group_slug,
-            "timestamp": self._timestamp_formatter(row.get("timestamp")),
-            "message_index": index,
-            "context_start": start,
-            "context_end": end,
-        }
+        inputs = combined.get_column("segment_text").to_list()
+
+        metadata = (
+            combined
+            .select(
+                pl.lit("message").alias("kind"),
+                pl.lit(self._group_slug).alias("group_slug"),
+                pl.col("timestamp")
+                .map_elements(self._timestamp_formatter, return_dtype=pl.Utf8)
+                .alias("timestamp"),
+                pl.col(_ROW_INDEX_COLUMN).alias("message_index"),
+                pl.col("context_start"),
+                pl.col("context_end"),
+                pl.col("date"),
+            )
+            .to_dicts()
+        )
+
+        return _MessageEmbeddingBatch(ids, inputs, metadata, cache_entries)
+
+    def _annotate_context_windows(self, frame: pl.DataFrame) -> pl.DataFrame:
+        if frame.is_empty():
+            return frame
+
+        max_index = frame.height - 1
+        row_index = pl.col(_ROW_INDEX_COLUMN).cast(pl.Int64)
+        annotated = frame.with_columns(
+            row_index
+            .sub(self._radius_before)
+            .clip(lower_bound=0)
+            .alias("context_start"),
+            row_index
+            .add(self._radius_after)
+            .clip(upper_bound=max_index)
+            .alias("context_end"),
+        )
+
+        return annotated.with_columns(
+            pl.int_ranges(
+                pl.col("context_start"),
+                pl.col("context_end") + 1,
+            ).alias("context_indices")
+        )
+
+    def _prepare_segments(self, frame: pl.DataFrame) -> pl.DataFrame:
+        if frame.is_empty():
+            return frame
+
+        context_lookup = frame.select(
+            pl.col(_ROW_INDEX_COLUMN).cast(pl.Int64).alias("context_index"),
+            pl.col("timestamp").alias("context_timestamp"),
+            pl.col("author").alias("context_author"),
+            pl.col("message").alias("context_message"),
+        ).with_columns(
+            pl.col("context_timestamp")
+            .map_elements(ChromadbRAG._format_time, return_dtype=pl.Utf8)
+            .alias("context_time_display"),
+            pl.when(
+                pl.col("context_author").is_null()
+                | (pl.col("context_author") == "")
+            )
+            .then(pl.lit("(autor desconhecido)"))
+            .otherwise(pl.col("context_author"))
+            .alias("context_author_display"),
+            pl.col("context_message").fill_null("").alias("context_message_display"),
+        )
+
+        window = (
+            frame
+            .with_columns(pl.col("context_indices"))
+            .explode("context_indices")
+            .rename({"context_indices": "context_index"})
+            .with_columns(pl.col("context_index").cast(pl.Int64))
+            .join(context_lookup, on="context_index", how="left")
+            .with_columns(
+                (pl.col("context_index") == pl.col(_ROW_INDEX_COLUMN)).alias("context_highlight"),
+            )
+            .with_columns(
+                self._render_segment().alias("context_line"),
+            )
+            .sort([_ROW_INDEX_COLUMN, "context_index"])
+        )
+
+        aggregated = window.group_by(_ROW_INDEX_COLUMN).agg(
+            pl.col("context_index").min().alias("context_start"),
+            pl.col("context_index").max().alias("context_end"),
+            pl.col("context_line").implode().alias("_context_lines"),
+        )
+
+        return (
+            aggregated.join(frame, on=_ROW_INDEX_COLUMN, how="left")
+            .with_columns(
+                pl.col("_context_lines")
+                .map_elements(
+                    lambda values: "\n".join(
+                        item
+                        for value in values
+                        for item in (
+                            value.to_list()
+                            if isinstance(value, pl.Series)
+                            else (value if isinstance(value, list) else [value])
+                        )
+                    ),
+                    return_dtype=pl.Utf8,
+                )
+                .fill_null("<target_message></target_message>")
+                .alias("segment_text"),
+            )
+            .drop("_context_lines", "context_indices")
+        )
+
+    @staticmethod
+    def _render_segment() -> pl.Expr:
+        base_line = pl.format(
+            "{} — {}: {}",
+            pl.col("context_time_display"),
+            pl.col("context_author_display"),
+            pl.col("context_message_display"),
+        )
+        return pl.when(pl.col("context_highlight")).then(
+            pl.format("<target_message>{}</target_message>", base_line)
+        ).otherwise(base_line)
 
 
 class _SearchHydrator:
@@ -306,7 +400,6 @@ class ChromadbRAG:
         builder = _MessageEmbeddingBuilder(
             config=self.config,
             group_slug=group_slug,
-            line_formatter=self._format_context_line,
             message_uuid=self._message_uuid,
             timestamp_formatter=self._timestamp_to_iso,
         )
