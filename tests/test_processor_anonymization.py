@@ -1,9 +1,32 @@
 from datetime import date, datetime
-from types import SimpleNamespace
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+import sys
 from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
+
+_chromadb_module = ModuleType("chromadb")
+_chromadb_utils = ModuleType("chromadb.utils")
+
+
+class _DummyEmbeddingFunction:
+    def __init__(self, *_, **__):
+        pass
+
+    def __call__(self, inputs):
+        return [[0.0] for _ in inputs]
+
+
+_chromadb_utils.embedding_functions = SimpleNamespace(
+    GoogleGenerativeAiEmbeddingFunction=_DummyEmbeddingFunction
+)
+_chromadb_module.utils = _chromadb_utils
+_chromadb_module.PersistentClient = SimpleNamespace
+
+sys.modules.setdefault("chromadb", _chromadb_module)
+sys.modules.setdefault("chromadb.utils", _chromadb_utils)
 
 from egregora.config import (
     AnonymizationConfig,
@@ -75,6 +98,9 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
 
     monkeypatch.setattr("egregora.processor.MediaExtractor", StubExtractor)
     monkeypatch.setattr("egregora.processor.load_source_dataframe", lambda source: sample_dataframe)
+    monkeypatch.setattr(
+        "egregora.processor.validate_newsletter_privacy", lambda *_args, **_kwargs: None
+    )
 
     generator = MagicMock()
     generator.generate.return_value = "Generated post"
@@ -236,3 +262,176 @@ def test_media_enrichment_uses_first_matching_message(monkeypatch, tmp_path):
     first_message = messages[0]
     assert captured_calls[0]["context_message"] == first_message
     assert saved_enrichments[0]["message"] == first_message
+
+
+def test_url_enrichment_deduplicates_and_uses_cache(monkeypatch, tmp_path):
+    target_date = date(2024, 1, 1)
+    repeated_url = "http://alpha.test"
+    unique_url = "https://beta.test"
+    sample_df = pl.DataFrame(
+        {
+            "author": ["Alice", "Bob", "Carla", "Daniel"],
+            "message": [
+                f"Primeira menção {repeated_url}",
+                f"Reforçando {repeated_url} novamente",
+                f"Outro link {unique_url}",
+                f"Mensagem tardia {repeated_url}",
+            ],
+            "date": [target_date] * 4,
+            "timestamp": [
+                datetime(2024, 1, 1, 8, 0),
+                datetime(2024, 1, 1, 9, 0),
+                datetime(2024, 1, 1, 10, 0),
+                datetime(2024, 1, 1, 11, 0),
+            ],
+        }
+    )
+
+    sample_df = sample_df.with_columns(
+        pl.col("timestamp")
+        .dt.replace_time_zone("America/Porto_Velho")
+        .dt.cast_time_unit("ns")
+    )
+
+    zip_path = tmp_path / "dummy.zip"
+    zip_path.write_bytes(b"")
+
+    config = PipelineConfig(
+        zip_files=[zip_path],
+        posts_dir=tmp_path / "docs",
+        enrichment=EnrichmentConfig(enabled=True),
+        cache=CacheConfig(
+            enabled=True,
+            cache_dir=Path("tests/tmp/cache"),
+            auto_cleanup_days=None,
+        ),
+        profiles=ProfilesConfig(enabled=False),
+        anonymization=AnonymizationConfig(enabled=False),
+        skip_existing_posts=False,
+    )
+
+    processor = UnifiedProcessor(config)
+
+    monkeypatch.setattr(
+        "egregora.processor.load_source_dataframe", lambda source: sample_df
+    )
+
+    class StubExtractor:
+        def __init__(self, *_, **__):
+            pass
+
+        @staticmethod
+        def find_attachment_names_dataframe(_df):
+            return set()
+
+        def extract_specific_media_from_zip(self, *_args, **_kwargs):
+            return {}
+
+        @staticmethod
+        def replace_media_references_dataframe(df, *_, **__):
+            return df
+
+        @staticmethod
+        def build_public_paths(*_, **__):
+            return {}
+
+        @staticmethod
+        def format_media_section(*_, **__):
+            return ""
+
+    monkeypatch.setattr("egregora.processor.MediaExtractor", StubExtractor)
+
+    class FakeCache:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+            self.get_calls: list[str] = []
+            self.set_calls: list[tuple[str, str]] = []
+
+        def get(self, key: str) -> str | None:
+            self.get_calls.append(key)
+            return self.store.get(key)
+
+        def set(self, key: str, value: str) -> None:
+            self.set_calls.append((key, value))
+            self.store[key] = value
+
+    fake_cache = FakeCache()
+
+    monkeypatch.setattr("egregora.processor._create_cache", lambda *_: fake_cache)
+
+    saved_enrichments: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "egregora.processor.save_simple_enrichment",
+        lambda **payload: saved_enrichments.append(payload),
+    )
+
+    call_args: list[tuple[str, str]] = []
+
+    async def fake_simple_enrich_url_with_cache(
+        url: str, context_message: str, cache
+    ) -> str:
+        call_args.append((url, context_message))
+        assert cache is fake_cache
+        cached = cache.get(url)
+        if cached is not None:
+            return cached
+        summary = f"summary:{url.split('//', 1)[-1]}"
+        cache.set(url, summary)
+        return summary
+
+    monkeypatch.setattr(
+        "egregora.processor.simple_enrich_url_with_cache",
+        fake_simple_enrich_url_with_cache,
+    )
+
+    monkeypatch.setattr(
+        "egregora.processor.PostGenerator",
+        lambda *_args, **_kwargs: SimpleNamespace(generate=lambda *_, **__: "Generated"),
+    )
+    monkeypatch.setattr("egregora.processor.GeminiManager", lambda *_, **__: None)
+    captured_frames: list[pl.DataFrame] = []
+
+    monkeypatch.setattr(
+        "egregora.processor.render_transcript",
+        lambda df, *_, **__: (captured_frames.append(df), "Transcript")[1],
+    )
+
+    source = GroupSource(
+        slug=GroupSlug("test"),
+        name="Test Group",
+        exports=[
+            WhatsAppExport(
+                zip_path=zip_path,
+                group_name="Test Group",
+                group_slug=GroupSlug("test"),
+                export_date=target_date,
+                chat_file="chat.txt",
+                media_files=[],
+            )
+        ],
+    )
+
+    processor._process_source(source, days=None, from_date=None, to_date=None)
+
+    assert call_args == [
+        (repeated_url, sample_df.get_column("message")[0]),
+        (unique_url, sample_df.get_column("message")[2]),
+    ]
+    assert [payload["url"] for payload in saved_enrichments] == [
+        repeated_url,
+        unique_url,
+    ]
+    assert fake_cache.get_calls == [repeated_url, unique_url]
+    assert [key for key, _ in fake_cache.set_calls] == [repeated_url, unique_url]
+
+    assert captured_frames, "expected transcript rendering to capture a dataframe"
+    enriched_messages = captured_frames[0].filter(pl.col("author") == "egregora")
+    assert enriched_messages.height == 2
+    assert all(
+        msg.startswith("📊 Análise de") and url in msg
+        for msg, url in zip(
+            enriched_messages.get_column("message").to_list(),
+            [repeated_url, unique_url],
+            strict=False,
+        )
+    )

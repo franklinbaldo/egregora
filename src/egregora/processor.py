@@ -852,59 +852,121 @@ class UnifiedProcessor:
                         except Exception:
                             cache = None
 
-                    # Extract URLs from the day's messages
-                    urls_df = (
-                        df_day.filter(pl.col("message").str.contains(r"https?://[^->)]+"))
-                        .with_columns(
-                            pl.col("message").str.extract_all(r"(https?://[^->)]+)").alias("urls")
+                    # Extract and sanitize URLs from the day's messages using a declarative flow
+                    url_matches = (
+                        df_day.select(
+                            "timestamp",
+                            "author",
+                            "message",
+                            pl.col("message")
+                            .cast(pl.Utf8)
+                            .fill_null("")
+                            .str.extract_all(r"(https?://[^->)]+)")
+                            .alias("__urls"),
                         )
-                        .explode("urls")
-                        .filter(pl.col("urls").is_not_null() & (pl.col("urls") != ""))
+                        .explode("__urls")
+                        .rename({"__urls": "url"})
+                        .drop_nulls("url")
+                        .with_columns(
+                            pl.col("url")
+                            .str.replace(r"\s+.*$", "")
+                            .str.strip_chars()
+                            .alias("url")
+                        )
+                        .filter(pl.col("url") != "")
+                        .sort("timestamp")
                     )
 
-                    enriched_rows = []
-                    processed_urls = set()
-
-                    for row in urls_df.iter_rows(named=True):
-                        url = row["urls"]
-                        if url in processed_urls:
-                            continue  # Skip duplicate URLs
-                        processed_urls.add(url)
-
-                        original_message = row["message"]
-                        original_timestamp = row["timestamp"]
-                        original_author = row["author"]
-
-                        # Get enrichment (with cache)
-                        enrichment_text = asyncio.run(
-                            simple_enrich_url_with_cache(url, original_message, cache)
-                        )
-
-                        # Save as markdown file with media info
-                        save_simple_enrichment(
-                            url=url,
-                            enrichment_text=enrichment_text,
-                            media_dir=media_dir,
-                            sender=original_author,
-                            timestamp=original_timestamp.strftime("%H:%M")
-                            if original_timestamp
-                            else None,
-                            date_str=target_date.isoformat(),
-                            message=original_message,
-                            media_path=None,  # URLs don't have local media
-                            media_type=None,
-                        )
-
-                        # Add as message to dataframe (match full schema and timezone)
-                        enriched_rows.append(
-                            {
-                                "timestamp": original_timestamp,
-                                "date": target_date,
-                                "author": "egregora",
-                                "message": f"📊 Análise de {url}:\n\n{enrichment_text}",
-                                "original_line": None,
-                                "tagged_line": None,
+                    if url_matches.is_empty():
+                        deduped_urls = pl.DataFrame(
+                            schema={
+                                "urls": pl.Utf8,
+                                "timestamp": df_day.schema.get(
+                                    "timestamp", pl.Datetime(time_unit="us")
+                                ),
+                                "author": pl.Utf8,
+                                "message": pl.Utf8,
                             }
+                        )
+                    else:
+                        deduped_urls = (
+                            url_matches.group_by("url", maintain_order=True)
+                            .agg(
+                                pl.col("timestamp").first().alias("timestamp"),
+                                pl.col("author").first().alias("author"),
+                                pl.col("message").first().alias("message"),
+                            )
+                            .rename({"url": "urls"})
+                        )
+
+                    enrichment_df: pl.DataFrame | None = None
+
+                    if not deduped_urls.is_empty():
+                        request_structs = (
+                            deduped_urls.with_columns(
+                                pl.struct(["urls", "message", "author", "timestamp"]).alias(
+                                    "__request"
+                                )
+                            )
+                            .get_column("__request")
+                            .to_list()
+                        )
+
+                        async def _gather_url_enrichments() -> list[str]:
+                            if not request_structs:
+                                return []
+                            return await asyncio.gather(
+                                *[
+                                    simple_enrich_url_with_cache(
+                                        req["urls"],
+                                        req["message"],
+                                        cache,
+                                    )
+                                    for req in request_structs
+                                ]
+                            )
+
+                        enrichment_texts = asyncio.run(_gather_url_enrichments())
+
+                        for request, enrichment_text in zip(
+                            request_structs, enrichment_texts, strict=False
+                        ):
+                            timestamp = request["timestamp"]
+                            save_simple_enrichment(
+                                url=request["urls"],
+                                enrichment_text=enrichment_text,
+                                media_dir=media_dir,
+                                sender=request["author"],
+                                timestamp=timestamp.strftime("%H:%M") if timestamp else None,
+                                date_str=target_date.isoformat(),
+                                message=request["message"],
+                                media_path=None,
+                                media_type=None,
+                            )
+
+                        enrichment_df = (
+                            deduped_urls.with_columns(
+                                pl.Series("__enrichment_text", enrichment_texts),
+                                pl.lit(target_date).alias("date"),
+                                pl.lit("egregora").alias("author"),
+                                pl.lit(None, dtype=pl.Utf8).alias("original_line"),
+                                pl.lit(None, dtype=pl.Utf8).alias("tagged_line"),
+                            )
+                            .with_columns(
+                                pl.format(
+                                    "📊 Análise de {}:\n\n{}",
+                                    pl.col("urls"),
+                                    pl.col("__enrichment_text"),
+                                ).alias("message")
+                            )
+                            .select(
+                                "timestamp",
+                                "date",
+                                "author",
+                                "message",
+                                "original_line",
+                                "tagged_line",
+                            )
                         )
 
                     # Prepare normalized message text for media matching
@@ -976,16 +1038,16 @@ class UnifiedProcessor:
                     df_day_text = df_day_text.drop("__message_text")
 
                     # Add enriched messages to dataframe
-                    if enriched_rows:
-                        enrichment_df = pl.DataFrame(enriched_rows)
-                        # Ensure schemas match exactly
+                    if enrichment_df is not None and not enrichment_df.is_empty():
                         enrichment_df = ensure_message_schema(
                             enrichment_df, timezone=self.config.timezone
                         )
                         df_day = pl.concat([df_day, enrichment_df], how="diagonal")
                         df_day = df_day.sort("timestamp")
 
-                        logger.info(f"    🔍 Added {len(enriched_rows)} enrichments as messages")
+                        logger.info(
+                            f"    🔍 Added {enrichment_df.height} enrichments as messages"
+                        )
 
                 except Exception as exc:
                     logger.warning("    ⚠️ Failed to perform simple enrichment: %s", exc)
