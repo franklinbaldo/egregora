@@ -113,3 +113,59 @@ def test_extract_media_renames_to_uuid_and_updates_reference(tmp_path) -> None:
     assert media.filename in rendered
     assert expected_markdown_link in rendered
     assert "_(arquivo anexado)_" in rendered
+
+
+def test_find_attachment_names_dataframe_handles_multiline_and_languages() -> None:
+    df = pl.DataFrame(
+        {
+            "timestamp": [datetime(2024, 12, 12, 12, 0)],
+            "author": ["Alice"],
+            "message": [
+                (
+                    "12/12/2024, 12:00 - Alice: \u200eIMG-20241212-WA0001.jpg (arquivo anexado)\n"
+                    "Vídeo Final.MP4 (File Attached)\n"
+                    "Notas Apresentação.pptx (archivo adjunto)"
+                )
+            ],
+        }
+    )
+
+    attachments = MediaExtractor.find_attachment_names_dataframe(df)
+
+    assert attachments == {
+        "IMG-20241212-WA0001.jpg",
+        "Vídeo Final.MP4",
+        "Notas Apresentação.pptx",
+    }
+
+
+def test_find_attachment_names_dataframe_uses_tagged_and_original_lines() -> None:
+    df = pl.DataFrame(
+        {
+            "timestamp": [datetime(2024, 7, 10, 9, 15), datetime(2024, 7, 10, 9, 16)],
+            "author": ["Bob", "Carlos"],
+            "message": [None, "Sem anexo"],
+            "tagged_line": [
+                (
+                    "Bob: Documento Assinado.sig (arquivo anexado)\n"
+                    "Bob: Reunião.opus (File Attached)"
+                ),
+                None,
+            ],
+            "original_line": [
+                None,
+                (
+                    "Carlos: Relatório Final.pdf (Archivo Adjunto)\n"
+                    "Linha sem anexo"
+                ),
+            ],
+        }
+    )
+
+    attachments = MediaExtractor.find_attachment_names_dataframe(df)
+
+    assert attachments == {
+        "Documento Assinado.sig",
+        "Reunião.opus",
+        "Relatório Final.pdf",
+    }

@@ -359,18 +359,63 @@ class MediaExtractor:
 
         lines = frame.with_columns(pl.coalesce(*candidates).alias("__line"))
 
-        attachments: set[str] = set()
-        for value in lines.get_column("__line").to_list():
-            if not isinstance(value, str):
-                continue
-            for part in value.splitlines():
-                extracted = cls._extract_attachment_segment(part)
-                if extracted is None:
-                    continue
-                sanitized_name, _, _ = extracted
-                if sanitized_name:
-                    attachments.add(sanitized_name)
-        return attachments
+        pattern = cls._attachment_pattern.pattern
+        if cls._attachment_pattern.flags & re.IGNORECASE:
+            pattern = f"(?i){pattern}"
+
+        marker_group = "|".join(re.escape(marker) for marker in cls._ATTACHMENT_MARKERS)
+        marker_pattern = f"(?i)\\s*(?:{marker_group})$"
+        directional_pattern = "[\\u200e\\u200f\\u202a\\u202b\\u202c\\u202d\\u202e]"
+
+        processed = (
+            lines.with_columns(pl.col("__line").str.split("\n").alias("__line_segments"))
+            .explode("__line_segments")
+            .filter(pl.col("__line_segments").is_not_null())
+            .with_columns(
+                pl.col("__line_segments").str.extract_all(pattern).alias("__attachment_segments")
+            )
+            .explode("__attachment_segments")
+            .filter(pl.col("__attachment_segments").is_not_null())
+            .with_columns(
+                pl.col("__attachment_segments")
+                .str.replace(marker_pattern, "", literal=False)
+                .str.strip_chars()
+                .alias("__prefix"),
+            )
+            .with_columns(
+                pl.when(pl.col("__prefix").str.contains(": "))
+                .then(
+                    pl.col("__prefix").str.replace(r"^.*:\s*", "", literal=False)
+                )
+                .otherwise(
+                    pl.when(pl.col("__prefix").str.contains(":"))
+                    .then(pl.col("__prefix").str.replace(r"^.*:", "", literal=False))
+                    .otherwise(pl.col("__prefix"))
+                )
+                .str.strip_chars()
+                .alias("__raw_name"),
+            )
+            .with_columns(
+                pl.col("__raw_name")
+                .str.replace_all(directional_pattern, "", literal=False)
+                .str.strip_chars()
+                .alias("__sanitized"),
+            )
+            .with_columns(
+                pl.when(pl.col("__sanitized").str.len_chars() > 0)
+                .then(pl.col("__sanitized"))
+                .otherwise(pl.col("__raw_name"))
+                .str.strip_chars()
+                .alias("__clean_name"),
+            )
+            .filter(
+                pl.col("__clean_name").is_not_null()
+                & (pl.col("__clean_name").str.len_chars() > 0)
+            )
+        )
+
+        unique_clean = processed.select(pl.col("__clean_name").unique())
+        return set(unique_clean["__clean_name"].to_list())
 
     @staticmethod
     def format_media_section(
