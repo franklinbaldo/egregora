@@ -1,8 +1,9 @@
 from datetime import date, datetime
 
 import polars as pl
+import pytest
 
-from egregora.anonymizer import Anonymizer
+from egregora.anonymizer import Anonymizer, FormatType
 
 ANON_SUFFIX_LENGTH = 4
 UUID_FULL_LENGTH = 36
@@ -58,3 +59,59 @@ def test_anonymize_dataframe_replaces_authors() -> None:
     authors = anonymized_df["author"].to_list()
 
     assert all(len(name) == UUID_FULL_LENGTH for name in authors)
+
+
+@pytest.mark.parametrize("format_", ["human", "short", "full"])
+def test_anonymize_dataframe_replaces_mentions_and_phones(format_: FormatType) -> None:
+    df = pl.DataFrame(
+        {
+            "author": ["João Silva"],
+            "message": [
+                "Olá \u2068Maria\u2069! Ligue 12345-6789 e fale com @\u2068José\u2069.",
+            ],
+            "original_line": [
+                "Contatos: +55 11 91234-5678 e \u2068Maria\u2069",
+            ],
+        }
+    )
+
+    anonymized_df = Anonymizer.anonymize_dataframe(df, format=format_)
+
+    message = anonymized_df["message"][0]
+    original_line = anonymized_df["original_line"][0]
+
+    maria_display = Anonymizer.anonymize_author("Maria", format_)
+    maria_full = Anonymizer.anonymize_author("Maria", "full")
+    jose_display = Anonymizer.anonymize_author("José", format_)
+    jose_full = Anonymizer.anonymize_author("José", "full")
+
+    assert "\u2068" not in message
+    assert "\u2069" not in message
+    assert f"[@{maria_display}](profiles/{maria_full}.md)" in message
+    assert f"[@{jose_display}](profiles/{jose_full}.md)" in message
+
+    phone_inline = Anonymizer.anonymize_phone("12345-6789", format=format_)
+    phone_with_prefix = Anonymizer.anonymize_phone("+55 11 91234-5678", format=format_)
+
+    assert "12345-6789" not in message
+    assert phone_inline in message
+    assert "+55 11 91234-5678" not in original_line
+    assert phone_with_prefix in original_line
+
+
+def test_anonymize_dataframe_uses_custom_profile_link_base() -> None:
+    df = pl.DataFrame({
+        "author": ["Ana"],
+        "message": ["Olá @\u2068Bruno\u2069"],
+    })
+
+    anonymized_df = Anonymizer.anonymize_dataframe(
+        df,
+        format="human",
+        profile_link_base="team/profiles/",
+    )
+
+    bruno_display = Anonymizer.anonymize_author("Bruno", "human")
+    bruno_full = Anonymizer.anonymize_author("Bruno", "full")
+
+    assert f"[@{bruno_display}](team/profiles/{bruno_full}.md)" in anonymized_df["message"][0]
