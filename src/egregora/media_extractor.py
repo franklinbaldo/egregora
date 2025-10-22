@@ -368,7 +368,12 @@ class MediaExtractor:
         directional_pattern = "[\\u200e\\u200f\\u202a\\u202b\\u202c\\u202d\\u202e]"
 
         processed = (
-            lines.with_columns(pl.col("__line").str.split("\n").alias("__line_segments"))
+            lines.with_columns(
+                pl.col("__line")
+                .str.replace_all("\r", "")
+                .str.split("\n")
+                .alias("__line_segments")
+            )
             .explode("__line_segments")
             .filter(pl.col("__line_segments").is_not_null())
             .with_columns(
