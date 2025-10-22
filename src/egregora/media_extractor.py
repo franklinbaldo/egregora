@@ -243,39 +243,132 @@ class MediaExtractor:
             raise KeyError(f"Column '{target_column}' not found in DataFrame")
 
         paths = public_paths or cls.build_public_paths(media_files)
-        pattern = cls._attachment_pattern
+        media_frame = cls._media_dataframe(media_files, paths)
+        if media_frame.is_empty():
+            return df.clone()
 
-        def _replace(text: str | None) -> str:
-            if not text:
-                return ""
+        marker_group = "|".join(re.escape(marker) for marker in cls._ATTACHMENT_MARKERS)
+        marker_pattern = rf"(?i)\s*(?:{marker_group})$"
+        marker_capture_pattern = rf"(?i)({marker_group})\s*$"
+        directional_pattern = "[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]"
 
-            def replacement(match: re.Match[str]) -> str:
-                segment = match.group(0)
-                extracted = cls._extract_attachment_segment(segment)
-                if extracted is None:
-                    return segment
-
-                sanitized_name, original_segment, marker_text = extracted
-                key, media = cls._lookup_media(sanitized_name, media_files)
-                if media is None:
-                    return segment
-
-                path = paths.get(key) if key and key in paths else None
-                if path is None:
-                    path = media.relative_path
-
-                markdown = cls._format_markdown_reference(media, path)
-                marker_display = marker_text.strip() or cls._DEFAULT_ATTACHMENT_LABEL
-                return segment.replace(original_segment, f"{markdown} _{marker_display}_")
-
-            return pattern.sub(replacement, text)
-
-        return df.with_columns(
-            pl.col(target_column)
-            .cast(pl.String)
-            .map_elements(_replace, return_dtype=pl.String)
-            .alias(target_column)
+        base = df.with_columns(
+            pl.arange(0, pl.len(), eager=False).alias("__row_id"),
+            pl.col(target_column).cast(pl.String).alias(target_column),
         )
+
+        lines = (
+            base.with_columns(pl.col(target_column).str.split("\n").alias("__line"))
+            .explode("__line")
+            .with_columns(
+                pl.when(pl.col("__line").is_null())
+                .then(pl.lit(""))
+                .otherwise(pl.col("__line"))
+                .alias("__line"),
+                (pl.col("__line").cum_count().over("__row_id") - 1).alias("__line_order"),
+                pl.col("__line").alias("__original_line"),
+                pl.col("__line").str.extract(marker_capture_pattern).alias("__marker"),
+                pl.col("__line").str.replace(marker_pattern, "", literal=False).alias("__prefix"),
+            )
+            .with_columns(
+                pl.when(pl.col("__prefix").str.contains(": "))
+                .then(pl.col("__prefix").str.replace(r"^.*:\s*", "", literal=False))
+                .otherwise(
+                    pl.when(pl.col("__prefix").str.contains(":"))
+                    .then(pl.col("__prefix").str.replace(r"^.*:", "", literal=False))
+                    .otherwise(pl.col("__prefix"))
+                )
+                .str.strip_chars()
+                .alias("__raw_name"),
+            )
+            .with_columns(
+                pl.col("__raw_name")
+                .str.replace_all(directional_pattern, "", literal=False)
+                .str.strip_chars()
+                .alias("__sanitized"),
+            )
+            .with_columns(
+                pl.when(pl.col("__sanitized").str.len_chars() > 0)
+                .then(pl.col("__sanitized"))
+                .otherwise(pl.col("__raw_name"))
+                .str.strip_chars()
+                .alias("__clean_name"),
+                pl.col("__marker").str.strip_chars().fill_null("").alias("__marker_display"),
+            )
+            .with_columns(
+                pl.col("__clean_name").str.to_lowercase().alias("__clean_name_lower"),
+                pl.when(pl.col("__marker_display").str.len_chars() > 0)
+                .then(pl.col("__marker_display"))
+                .otherwise(pl.lit(cls._DEFAULT_ATTACHMENT_LABEL))
+                .alias("__marker_display"),
+            )
+            .join(
+                media_frame,
+                left_on="__clean_name_lower",
+                right_on="sanitized_lower",
+                how="left",
+            )
+            .with_columns(
+                pl.when(
+                    (
+                        pl.col("__prefix").str.len_chars().cast(pl.Int64)
+                        - pl.col("__raw_name").str.len_chars().cast(pl.Int64)
+                    )
+                    < 0
+                )
+                .then(pl.lit(0, dtype=pl.Int64))
+                .otherwise(
+                    pl.col("__prefix").str.len_chars().cast(pl.Int64)
+                    - pl.col("__raw_name").str.len_chars().cast(pl.Int64)
+                )
+                .alias("__leading_length"),
+            )
+            .with_columns(
+                pl.col("__prefix")
+                .str.slice(0, pl.col("__leading_length"))
+                .alias("__leading"),
+            )
+            .with_columns(
+                pl.when(
+                    pl.col("markdown").is_not_null()
+                    & pl.col("__marker").is_not_null()
+                    & (pl.col("__raw_name").str.len_chars() > 0)
+                )
+                .then(
+                    pl.format(
+                        "{}{} _{}_",
+                        pl.col("__leading"),
+                        pl.col("markdown"),
+                        pl.col("__marker_display"),
+                    )
+                )
+                .otherwise(pl.col("__original_line"))
+                .alias("__rendered_line"),
+            )
+        )
+
+        rebuilt = (
+            lines.select("__row_id", "__line_order", "__rendered_line")
+            .group_by("__row_id", maintain_order=True)
+            .agg(pl.col("__rendered_line").sort_by("__line_order"))
+            .with_columns(
+                pl.col("__rendered_line").list.join("\n").alias(target_column)
+            )
+            .select("__row_id", target_column)
+        )
+
+        updated = (
+            base.join(rebuilt.rename({target_column: "__updated"}), on="__row_id", how="left")
+            .with_columns(
+                pl.when(pl.col("__updated").is_not_null())
+                .then(pl.col("__updated"))
+                .otherwise(pl.col(target_column))
+                .alias(target_column)
+            )
+            .drop(["__row_id", "__updated"])
+        )
+
+        return updated
 
     @classmethod
     def replace_media_references(
@@ -495,6 +588,43 @@ class MediaExtractor:
             results[key] = media.relative_path
 
         return results
+
+    @classmethod
+    def _media_dataframe(
+        cls,
+        media_files: dict[str, MediaFile],
+        paths: dict[str, str],
+    ) -> pl.DataFrame:
+        records: list[dict[str, str]] = []
+        for key, media in media_files.items():
+            sanitized = cls._clean_attachment_name(Path(key).name)
+            if not sanitized:
+                sanitized = key.strip()
+            sanitized_lower = sanitized.casefold()
+            path = paths.get(key) if key in paths else media.relative_path
+            markdown = cls._format_markdown_reference(media, path)
+            records.append(
+                {
+                    "original_key": key,
+                    "sanitized": sanitized,
+                    "sanitized_lower": sanitized_lower,
+                    "path": path,
+                    "markdown": markdown,
+                }
+            )
+
+        if not records:
+            return pl.DataFrame(
+                {
+                    "original_key": pl.Series([], dtype=pl.Utf8),
+                    "sanitized": pl.Series([], dtype=pl.Utf8),
+                    "sanitized_lower": pl.Series([], dtype=pl.Utf8),
+                    "path": pl.Series([], dtype=pl.Utf8),
+                    "markdown": pl.Series([], dtype=pl.Utf8),
+                }
+            )
+
+        return pl.DataFrame(records)
 
     @staticmethod
     def _lookup_media(

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import polars as pl
 import pytest
 
-from egregora.media_extractor import MediaExtractor
+from egregora.media_extractor import MediaExtractor, MediaFile
 
 
 def test_extract_media_from_zip_creates_files(tmp_path) -> None:
@@ -113,6 +113,102 @@ def test_extract_media_renames_to_uuid_and_updates_reference(tmp_path) -> None:
     assert media.filename in rendered
     assert expected_markdown_link in rendered
     assert "_(arquivo anexado)_" in rendered
+
+
+def test_replace_media_references_dataframe_handles_multiple_attachments(tmp_path) -> None:
+    dest_image = tmp_path / "media" / "images" / "img-1.jpg"
+    dest_image.parent.mkdir(parents=True, exist_ok=True)
+    dest_image.touch()
+
+    dest_doc = tmp_path / "media" / "documents" / "doc-1.pdf"
+    dest_doc.parent.mkdir(parents=True, exist_ok=True)
+    dest_doc.touch()
+
+    media_files = {
+        "IMG-20250101-WA0001.jpg": MediaFile(
+            filename="11111111-1111-1111-1111-111111111111.jpg",
+            media_type="image",
+            source_path="IMG-20250101-WA0001.jpg",
+            dest_path=dest_image,
+            relative_path="grupo/media/images/11111111-1111-1111-1111-111111111111.jpg",
+        ),
+        "Relatorio Final.pdf": MediaFile(
+            filename="22222222-2222-2222-2222-222222222222.pdf",
+            media_type="document",
+            source_path="Relatorio Final.pdf",
+            dest_path=dest_doc,
+            relative_path="grupo/media/documents/22222222-2222-2222-2222-222222222222.pdf",
+        ),
+    }
+
+    df = pl.DataFrame(
+        {
+            "message": [
+                (
+                    "01/01/2025 08:30 - Alice: \u200eIMG-20250101-WA0001.jpg (arquivo anexado)\n"
+                    "Relatorio Final.pdf (Archivo Adjunto)"
+                )
+            ]
+        }
+    )
+
+    updated_df = MediaExtractor.replace_media_references_dataframe(df, media_files)
+    rendered = updated_df.get_column("message")[0]
+
+    expected_image = (
+        "![11111111-1111-1111-1111-111111111111.jpg]"
+        "(grupo/media/images/11111111-1111-1111-1111-111111111111.jpg)"
+    )
+    expected_document = (
+        "[📄 22222222-2222-2222-2222-222222222222.pdf]"
+        "(grupo/media/documents/22222222-2222-2222-2222-222222222222.pdf)"
+    )
+
+    assert "IMG-20250101-WA0001.jpg" not in rendered
+    assert "Relatorio Final.pdf (Archivo Adjunto)" not in rendered
+    assert expected_image in rendered
+    assert expected_document in rendered
+    assert "_(arquivo anexado)_" in rendered
+    assert "_(Archivo Adjunto)_" in rendered
+
+
+def test_replace_media_references_dataframe_preserves_unknown_attachments(tmp_path) -> None:
+    dest_audio = tmp_path / "media" / "audio" / "aud-1.opus"
+    dest_audio.parent.mkdir(parents=True, exist_ok=True)
+    dest_audio.touch()
+
+    known_media = MediaFile(
+        filename="33333333-3333-3333-3333-333333333333.opus",
+        media_type="audio",
+        source_path="Audio.opus",
+        dest_path=dest_audio,
+        relative_path="grupo/media/audio/33333333-3333-3333-3333-333333333333.opus",
+    )
+
+    media_files = {"Audio.opus": known_media}
+
+    df = pl.DataFrame(
+        {
+            "message": [
+                (
+                    "02/02/2025 10:00 - Bruno: Audio.opus (Arquivo Anexado)\n"
+                    "Documento Secreto.pdf (arquivo anexado)"
+                )
+            ]
+        }
+    )
+
+    updated_df = MediaExtractor.replace_media_references_dataframe(df, media_files)
+    rendered = updated_df.get_column("message")[0]
+
+    expected_audio = (
+        "[🔊 33333333-3333-3333-3333-333333333333.opus]"
+        "(grupo/media/audio/33333333-3333-3333-3333-333333333333.opus)"
+    )
+
+    assert expected_audio in rendered
+    assert "Audio.opus (Arquivo Anexado)" not in rendered
+    assert "Documento Secreto.pdf (arquivo anexado)" in rendered
 
 
 def test_find_attachment_names_dataframe_handles_multiline_and_languages() -> None:
