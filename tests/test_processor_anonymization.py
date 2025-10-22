@@ -78,6 +78,9 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
 
     generator = MagicMock()
     generator.generate.return_value = "Generated post"
+    generator.generate_posts.return_value = [
+        {"title": "Test Post", "content": "Generated post", "participants": []}
+    ]
     monkeypatch.setattr(
         "egregora.processor.PostGenerator", lambda config, gemini_manager: generator
     )
@@ -101,7 +104,8 @@ def test_unified_processor_anonymizes_dataframe(monkeypatch, tmp_path, sample_da
 
     assert post_paths, "Expected at least one generated post"
 
-    args, kwargs = generator.generate.call_args
+    # Check that generate_posts was called (new multi-post API)
+    args, kwargs = generator.generate_posts.call_args
     context = args[1]
     assert sanitized_author in context.transcript
 
@@ -210,6 +214,9 @@ def test_media_enrichment_uses_first_matching_message(monkeypatch, tmp_path):
 
         def generate(self, *_args, **_kwargs):
             return "Generated post"
+
+        def generate_posts(self, *_args, **_kwargs):
+            return [{"title": "Test Post", "content": "Generated post", "participants": []}]
 
     monkeypatch.setattr("egregora.processor.PostGenerator", StubGenerator)
     monkeypatch.setattr("egregora.processor.GeminiManager", lambda *_, **__: None)

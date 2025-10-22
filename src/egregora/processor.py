@@ -1078,8 +1078,9 @@ class UnifiedProcessor:
             )
             # Progressive processing: handle quota errors gracefully
             try:
-                logger.info(f"    🤖 Generating post with Gemini for {target_date}...")
-                post = self.generator.generate(source, context)
+                logger.info(f"    🤖 Generating posts with Gemini for {target_date}...")
+                generated_posts = self.generator.generate_posts(source, context, use_tools=True)
+                logger.info(f"    📝 LLM created {len(generated_posts)} post(s)")
             except RuntimeError as exc:
                 if "Quota de API do Gemini esgotada" in str(exc):
                     logger.warning(
@@ -1093,7 +1094,7 @@ class UnifiedProcessor:
             except Exception as exc:  # noqa: BLE001
                 if _is_transient_gemini_error(exc):
                     logger.warning(
-                        "    ⚠️ Gemini indisponível ao gerar post de %s; seguindo para a próxima data.",
+                        "    ⚠️ Gemini indisponível ao gerar posts de %s; seguindo para a próxima data.",
                         target_date,
                     )
                     continue
@@ -1105,34 +1106,54 @@ class UnifiedProcessor:
                 all_media,
                 public_paths=public_paths,
             )
-            if media_section:
-                post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
-            # Merge Gemini-generated frontmatter with programmatic metadata
-            post = _ensure_blog_front_matter(
-                post, source=source, target_date=target_date, config=self.config
-            )
+            # Process each generated post
+            for idx, post_data in enumerate(generated_posts):
+                post = post_data["content"]
 
-            # Add profile links to member mentions
-            post = _add_member_profile_links(
-                post,
-                config=self.config,
-                source=source,
-                repository=profile_repository,
-            )
+                # Add media section if this is the first/only post
+                if media_section and idx == 0:
+                    post = f"{post.rstrip()}\n\n## Mídias Compartilhadas\n{media_section}\n"
 
-            post = format_markdown(post, assume_front_matter=True)
+                # Merge Gemini-generated frontmatter with programmatic metadata
+                post = _ensure_blog_front_matter(
+                    post, source=source, target_date=target_date, config=self.config
+                )
 
-            logger.info(f"    💾 Saving post to {output_path.name}")
-            output_path.write_text(post, encoding="utf-8")
+                # Add profile links to member mentions
+                post = _add_member_profile_links(
+                    post,
+                    config=self.config,
+                    source=source,
+                    repository=profile_repository,
+                )
 
+                post = format_markdown(post, assume_front_matter=True)
+
+                # Generate unique filename for each post
+                if len(generated_posts) == 1:
+                    # Single post: use date-based naming
+                    post_path = daily_dir / f"{target_date}.md"
+                else:
+                    # Multiple posts: use date + index
+                    post_path = daily_dir / f"{target_date}_{idx + 1:02d}.md"
+
+                logger.info(f"    💾 Saving post {idx + 1}/{len(generated_posts)} to {post_path.name}")
+                post_path.write_text(post, encoding="utf-8")
+                results.append(post_path)
+
+            # Update profiles once per day (using all posts combined)
             if profile_repository and self._profile_updater:
                 try:
+                    # Combine all posts for profile context
+                    combined_posts = "\n\n---\n\n".join(
+                        p["content"] for p in generated_posts
+                    )
                     self._update_profiles_for_day(
                         repository=profile_repository,
                         source=source,
                         target_date=target_date,
-                        post_text=post,
+                        post_text=combined_posts,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -1141,11 +1162,12 @@ class UnifiedProcessor:
                         exc,
                     )
 
-            results.append(output_path)
-            try:
-                logger.info(f"    ✅ {output_path.relative_to(Path.cwd())}")
-            except ValueError:
-                logger.info(f"    ✅ {output_path}")
+            # Log completion for all posts
+            for post_path in results[-len(generated_posts):]:
+                try:
+                    logger.info(f"    ✅ {post_path.relative_to(Path.cwd())}")
+                except ValueError:
+                    logger.info(f"    ✅ {post_path}")
 
         self._write_group_index(source, site_root, results)
 

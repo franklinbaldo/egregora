@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import yaml
 
@@ -20,6 +20,7 @@ except ModuleNotFoundError:
     types = None
 
 from .gemini_manager import GeminiManager, GeminiQuotaError
+from .tools import get_available_tools
 
 if TYPE_CHECKING:
     from datetime import tzinfo
@@ -268,6 +269,7 @@ class PostContext:
 
 _BASE_PROMPT_NAME = "system_instruction_base.md"
 _MULTIGROUP_PROMPT_NAME = "system_instruction_multigroup.md"
+_TOOLS_PROMPT_NAME = "system_instruction_tools.md"
 
 
 class PostGenerator:
@@ -319,22 +321,33 @@ class PostGenerator:
             self._client = self._create_client()
         return self._client
 
-    def _build_system_instruction(self, has_group_tags: bool = False) -> list[types.Part]:
+    def _build_system_instruction(self, has_group_tags: bool = False, use_tools: bool = False) -> list[types.Part]:
         """Return the validated system prompt."""
         self._require_google_dependency()
         base_prompt = self._prompt_loader.load_text(_BASE_PROMPT_NAME)
+
+        prompt_parts = [base_prompt]
+
         if has_group_tags:
             try:
                 multigroup_prompt = self._prompt_loader.load_text(_MULTIGROUP_PROMPT_NAME)
-                prompt_text = f"{base_prompt}\n\n{multigroup_prompt}"
+                prompt_parts.append(multigroup_prompt)
             except FileNotFoundError:
                 # Fallback to base prompt if multigroup prompt is missing
                 logger.warning(
                     f"Multigroup prompt file '{_MULTIGROUP_PROMPT_NAME}' not found, using base prompt only"
                 )
-                prompt_text = base_prompt
-        else:
-            prompt_text = base_prompt
+
+        if use_tools:
+            try:
+                tools_prompt = self._prompt_loader.load_text(_TOOLS_PROMPT_NAME)
+                prompt_parts.append(tools_prompt)
+            except FileNotFoundError:
+                logger.warning(
+                    f"Tools prompt file '{_TOOLS_PROMPT_NAME}' not found, tools mode may not work correctly"
+                )
+
+        prompt_text = "\n\n".join(prompt_parts)
         return [types.Part.from_text(text=prompt_text)]
 
     def _build_llm_input(
@@ -347,15 +360,40 @@ class PostGenerator:
         return self._input_builder.build(context=context, transcripts=transcripts)
 
     def generate(self, source: GroupSource, context: PostContext) -> str:
-        """Generate post for a specific date."""
+        """Generate single post for a specific date (legacy mode)."""
+        return self.generate_posts(source, context, use_tools=False)[0]["content"]
+
+    def generate_posts(
+        self, source: GroupSource, context: PostContext, use_tools: bool = True
+    ) -> list[dict[str, str]]:
+        """Generate one or more posts for a specific date using function calling.
+
+        Args:
+            source: Group source being processed
+            context: Post generation context
+            use_tools: If True, use function calling to create multiple posts
+
+        Returns:
+            List of dicts with 'title', 'content', 'participants' keys
+        """
         transcripts = self._prepare_transcripts(context)
         llm_input = self._build_llm_input(context, transcripts)
-        system_instruction = self._build_system_instruction(has_group_tags=source.is_virtual)
+        system_instruction = self._build_system_instruction(
+            has_group_tags=source.is_virtual, use_tools=use_tools
+        )
         model = self._select_model(source)
         contents = self._build_contents(llm_input)
         safety_settings = self._build_safety_settings()
-        generation_config = self._build_generation_config(system_instruction, safety_settings)
-        return self._execute_generation(model, contents, generation_config)
+        generation_config = self._build_generation_config(
+            system_instruction, safety_settings, tools=get_available_tools() if use_tools else None
+        )
+
+        if use_tools:
+            return self._execute_generation_with_tools(model, contents, generation_config)
+        else:
+            # Legacy mode: single post
+            post_text = self._execute_generation(model, contents, generation_config)
+            return [{"title": "Daily Post", "content": post_text, "participants": []}]
 
     def _prepare_transcripts(self, context: PostContext) -> Sequence[tuple[date, str]]:
         return [(context.target_date, context.transcript)]
@@ -385,14 +423,18 @@ class PostGenerator:
         self,
         system_instruction: list[types.Part],
         safety_settings: list[types.SafetySetting],
+        tools: Union[list[types.Tool], None] = None,
     ) -> types.GenerateContentConfig:
         self._require_google_dependency()
-        return types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
-            safety_settings=safety_settings,
-            system_instruction=system_instruction,
-            response_mime_type="text/plain",
-        )
+        config_params = {
+            "thinking_config": types.ThinkingConfig(thinking_budget=self.config.llm.thinking_budget),
+            "safety_settings": safety_settings,
+            "system_instruction": system_instruction,
+            "response_mime_type": "text/plain",
+        }
+        if tools:
+            config_params["tools"] = tools
+        return types.GenerateContentConfig(**config_params)
 
     def _execute_generation(
         self,
@@ -416,3 +458,55 @@ class PostGenerator:
             ) from exc
 
         return response.text.strip() if getattr(response, "text", None) else ""
+
+    def _execute_generation_with_tools(
+        self,
+        model: str,
+        contents: Sequence[types.Content],
+        config: types.GenerateContentConfig,
+    ) -> list[dict[str, str]]:
+        """Execute generation with function calling and collect all write_post calls."""
+        self._require_google_dependency()
+
+        posts = []
+        try:
+            response = asyncio.run(
+                self.gemini_manager.generate_content(
+                    subsystem="post_generation",
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
+            )
+        except GeminiQuotaError as exc:
+            raise RuntimeError(
+                f"⚠️ Quota de API do Gemini esgotada durante geração de posts. "
+                f"Tente novamente mais tarde ou ajuste as configurações. Detalhes: {exc}"
+            ) from exc
+
+        # Extract function calls from response
+        for candidate in response.candidates:
+            for part in candidate.content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    if fc.name == "write_post":
+                        # Extract arguments
+                        args = fc.args
+                        post_data = {
+                            "title": args.get("title", "Untitled"),
+                            "content": args.get("content", ""),
+                            "participants": args.get("participants", []),
+                        }
+                        posts.append(post_data)
+                        logger.debug(f"Collected post: {post_data['title']}")
+
+        if not posts:
+            logger.warning(
+                "LLM did not call write_post tool. Falling back to text response."
+            )
+            # Fallback: treat text response as single post
+            text = response.text.strip() if getattr(response, "text", None) else ""
+            if text:
+                posts.append({"title": "Daily Post", "content": text, "participants": []})
+
+        return posts
