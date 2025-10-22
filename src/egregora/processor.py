@@ -238,6 +238,17 @@ def _add_member_profile_links(
     if not config.profiles.link_members_in_posts:
         return text
 
+    # Split into front matter and body to avoid modifying YAML
+    parts = text.split("---\n", 2)
+    if len(parts) == 3:
+        # Has front matter: parts[0] is empty, parts[1] is YAML, parts[2] is body
+        front_matter = f"---\n{parts[1]}---\n"
+        body = parts[2]
+    else:
+        # No front matter
+        front_matter = ""
+        body = text
+
     # FIXME: The regex could be improved to be more specific and avoid false positives.
     uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 
@@ -296,7 +307,7 @@ def _add_member_profile_links(
         start_pos = match.start()
 
         # Check if we're in a media section (rough heuristic)
-        before_context = text[max(0, start_pos - 100) : start_pos]
+        before_context = body[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
 
@@ -311,17 +322,19 @@ def _add_member_profile_links(
         start_pos = match.start()
 
         # Check if we're in a media section
-        before_context = text[max(0, start_pos - 100) : start_pos]
+        before_context = body[max(0, start_pos - 100) : start_pos]
         if "## Mídias Compartilhadas" in before_context or "../media/" in before_context:
             return full_match  # Don't convert media UUIDs
 
         resolved = _resolve_profile(uuid_str)
         return _format_link(resolved) if resolved else "🪪"
 
-    text = markdown_with_uuid.sub(_replace_markdown, text)
-    text = paren_uuid.sub(_replace_paren, text)
-    text = bare_uuid.sub(_replace_bare, text)
-    return text
+    # Apply replacements only to body (not front matter)
+    body = markdown_with_uuid.sub(_replace_markdown, body)
+    body = paren_uuid.sub(_replace_paren, body)
+    body = bare_uuid.sub(_replace_bare, body)
+
+    return front_matter + body
 
 
 def _apply_media_captions_from_enrichment(
