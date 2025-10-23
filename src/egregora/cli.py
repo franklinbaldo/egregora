@@ -10,6 +10,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 
 from .pipeline import process_whatsapp_export
+from .site_scaffolding import ensure_mkdocs_project
 
 
 console = Console()
@@ -18,6 +19,51 @@ logger = logging.getLogger(__name__)
 
 class EgregoraCLI:
     """Egregora v2 - Ultra-simple WhatsApp to blog pipeline"""
+
+    def init(self, output_dir: str):
+        """
+        Initialize a new MkDocs site scaffold for serving Egregora posts.
+
+        Creates:
+        - mkdocs.yml with Material theme + blog plugin
+        - Directory structure (docs/, posts/, profiles/, media/)
+        - README.md with quick start instructions
+        - .gitignore for Python and MkDocs
+        - Starter pages (homepage, about, profiles index)
+
+        Args:
+            output_dir: Directory path for the new site (e.g., 'my-blog')
+        """
+        site_root = Path(output_dir).resolve()
+        docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+
+        if mkdocs_created:
+            console.print(
+                Panel(
+                    f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+                    f"📁 Site root: {site_root}\n"
+                    f"📝 Docs directory: {docs_dir}\n\n"
+                    f"[bold]Next steps:[/bold]\n"
+                    f"• Install MkDocs: [cyan]pip install 'mkdocs-material[imaging]'[/cyan]\n"
+                    f"• Change to site directory: [cyan]cd {output_dir}[/cyan]\n"
+                    f"• Serve the site: [cyan]mkdocs serve[/cyan]\n"
+                    f"• Process WhatsApp export: [cyan]egregora process --zip_file=export.zip --output={output_dir}[/cyan]",
+                    title="🛠️ Initialization Complete",
+                    border_style="green",
+                )
+            )
+        else:
+            console.print(
+                Panel(
+                    f"[bold yellow]⚠️ MkDocs site already exists at {site_root}[/bold yellow]\n\n"
+                    f"📁 Using existing setup:\n"
+                    f"• Docs directory: {docs_dir}\n\n"
+                    f"[bold]To update or regenerate:[/bold]\n"
+                    f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
+                    title="📁 Site Exists",
+                    border_style="yellow",
+                )
+            )
 
     def process(
         self,

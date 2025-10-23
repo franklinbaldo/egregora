@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 import polars as pl
+import yaml
 from google import genai
 from pydantic import BaseModel
 from .write_post import write_post
@@ -21,6 +22,87 @@ class PostMetadata(BaseModel):
     summary: str = ""
     authors: list[str] = []
     category: str | None = None
+
+
+def load_site_config(output_dir: Path) -> dict:
+    """
+    Load egregora configuration from mkdocs.yml if it exists.
+
+    Reads the `extra.egregora` section from mkdocs.yml in the output directory.
+    Returns empty dict if no config found.
+
+    Args:
+        output_dir: Output directory (will look for mkdocs.yml in parent/root)
+
+    Returns:
+        Dict with egregora config (writer_prompt, rag settings, etc.)
+    """
+    # Try to find mkdocs.yml in parent directory (site root)
+    mkdocs_path = output_dir.parent / "mkdocs.yml"
+
+    # If not found, try in output_dir itself
+    if not mkdocs_path.exists():
+        mkdocs_path = output_dir / "mkdocs.yml"
+
+    if not mkdocs_path.exists():
+        logger.debug("No mkdocs.yml found, using default config")
+        return {}
+
+    try:
+        config = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8"))
+        egregora_config = config.get("extra", {}).get("egregora", {})
+        logger.info(f"Loaded site config from {mkdocs_path}")
+        return egregora_config
+    except Exception as e:
+        logger.warning(f"Could not load site config from {mkdocs_path}: {e}")
+        return {}
+
+
+def load_markdown_extensions(output_dir: Path) -> str:
+    """
+    Load markdown_extensions section from mkdocs.yml and format for LLM.
+
+    The LLM understands these extension names and knows how to use them.
+    We just pass the YAML config directly.
+
+    Args:
+        output_dir: Output directory (will look for mkdocs.yml in parent/root)
+
+    Returns:
+        Formatted YAML string with markdown_extensions section
+    """
+    # Try to find mkdocs.yml in parent directory (site root)
+    mkdocs_path = output_dir.parent / "mkdocs.yml"
+
+    # If not found, try in output_dir itself
+    if not mkdocs_path.exists():
+        mkdocs_path = output_dir / "mkdocs.yml"
+
+    if not mkdocs_path.exists():
+        logger.debug("No mkdocs.yml found, no custom markdown extensions")
+        return ""
+
+    try:
+        config = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8"))
+        extensions = config.get("markdown_extensions", [])
+
+        if not extensions:
+            return ""
+
+        # Format as YAML for the LLM
+        yaml_section = yaml.dump(
+            {"markdown_extensions": extensions},
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False,
+        )
+
+        logger.info(f"Loaded {len(extensions)} markdown extensions from {mkdocs_path}")
+        return yaml_section
+
+    except Exception as e:
+        logger.warning(f"Could not load markdown extensions from {mkdocs_path}: {e}")
+        return ""
 
 
 def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
@@ -140,8 +222,39 @@ async def write_posts_for_period(
 
         logger.info(f"Profiles context: {len(profiles_context)} characters")
 
-    prompt = f"""You are a blog editor reviewing WhatsApp group messages from {date}.
+    # Load site configuration from mkdocs.yml
+    site_config = load_site_config(output_dir)
+    custom_writer_prompt = site_config.get("writer_prompt", "")
 
+    # Load markdown extensions from mkdocs.yml
+    markdown_extensions_yaml = load_markdown_extensions(output_dir)
+
+    # Build markdown features section for prompt
+    markdown_features_section = ""
+    if markdown_extensions_yaml:
+        markdown_features_section = f"""
+## Available Markdown Features
+
+This MkDocs site has the following extensions configured:
+
+```yaml
+{markdown_extensions_yaml}```
+
+Use these features appropriately in your posts. You understand how each extension works.
+"""
+
+    # Build custom instructions section
+    custom_instructions = ""
+    if custom_writer_prompt:
+        custom_instructions = f"""
+## Custom Writing Instructions
+
+{custom_writer_prompt}
+"""
+
+    prompt = f"""You are a blog editor reviewing WhatsApp group messages from {date}.
+{custom_instructions}
+{markdown_features_section}
 Messages (anonymized, with enriched context):
 {markdown_table}
 
