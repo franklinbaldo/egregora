@@ -1,7 +1,7 @@
 [project]
 name = "egregora"
 version = "2.0.0"
-description = "Agent-based pipeline to generate blog posts from WhatsApp exports."
+description = "Ultra-simple pipeline to generate blog posts from WhatsApp exports."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
 requires-python = ">=3.11"
@@ -42,7 +42,7 @@ lint = [
 ]
 
 [project.scripts]
-egregora = "egregora.cli_new:main"
+egregora = "egregora.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]

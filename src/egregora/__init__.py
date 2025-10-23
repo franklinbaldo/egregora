@@ -1,14 +1,9 @@
-"""Egregora v2: Agent-based WhatsApp to blog pipeline."""
+"""Egregora v2: Ultra-simple WhatsApp to blog pipeline."""
 
-from .core.models import Message, Topic, Post, Profile
-from .pipeline import Pipeline
+from .pipeline import process_whatsapp_export
 
 __version__ = "2.0.0"
 
 __all__ = [
-    "Message",
-    "Topic",
-    "Post",
-    "Profile",
-    "Pipeline",
+    "process_whatsapp_export",
 ]
