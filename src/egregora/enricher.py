@@ -146,6 +146,84 @@ def extract_media_from_zip(
     return extracted
 
 
+def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir: Path) -> str:
+    """
+    Replace WhatsApp media filenames with new UUID5 paths.
+
+    "Check this IMG-20250101-WA0001.jpg (file attached)"
+    → "Check this ![Image](media/images/abc123def.jpg)"
+    """
+    if not text or not media_mapping:
+        return text
+
+    result = text
+
+    for original_filename, new_path in media_mapping.items():
+        # Get relative path from output_dir
+        try:
+            relative_path = new_path.relative_to(output_dir)
+        except ValueError:
+            # Fallback to name if can't get relative path
+            relative_path = new_path
+
+        # Determine if it's an image for markdown rendering
+        ext = new_path.suffix.lower()
+        is_image = ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+
+        # Create markdown link
+        if is_image:
+            replacement = f"![Image]({relative_path.as_posix()})"
+        else:
+            replacement = f"[{new_path.name}]({relative_path.as_posix()})"
+
+        # Replace all occurrences with any attachment marker
+        for marker in ATTACHMENT_MARKERS:
+            pattern = re.escape(original_filename) + r'\s*' + re.escape(marker)
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+
+        # Also replace bare filename (without marker)
+        result = re.sub(r'\b' + re.escape(original_filename) + r'\b', replacement, result)
+
+    return result
+
+
+def extract_and_replace_media(
+    df: pl.DataFrame,
+    zip_path: Path,
+    output_dir: Path,
+    group_slug: str = "shared",
+) -> tuple[pl.DataFrame, dict[str, Path]]:
+    """
+    Extract media from ZIP and replace mentions in DataFrame.
+
+    Returns:
+        - Updated DataFrame with new media paths
+        - Media mapping (original → extracted path)
+    """
+    # Step 1: Find all media references
+    all_media = set()
+    for row in df.iter_rows(named=True):
+        message = row.get("message", "")
+        media_refs = find_media_references(message)
+        all_media.update(media_refs)
+
+    # Step 2: Extract from ZIP
+    media_mapping = extract_media_from_zip(zip_path, all_media, output_dir, group_slug)
+
+    if not media_mapping:
+        return df, {}
+
+    # Step 3: Replace mentions in DataFrame
+    def replace_in_message(message: str) -> str:
+        return replace_media_mentions(message, media_mapping, output_dir)
+
+    updated_df = df.with_columns(
+        pl.col("message").map_elements(replace_in_message, return_dtype=pl.Utf8)
+    )
+
+    return updated_df, media_mapping
+
+
 async def describe_url(url: str, client: genai.Client) -> str:
     """Ask LLM to describe a URL's content."""
     try:
@@ -180,45 +258,31 @@ async def describe_media_file(file_path: Path, client: genai.Client) -> str:
 
 async def enrich_dataframe(
     df: pl.DataFrame,
-    zip_path: Path,
+    media_mapping: dict[str, Path],
     client: genai.Client,
-    output_dir: Path,
-    group_slug: str = "shared",
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
 ) -> pl.DataFrame:
     """
-    Add enrichment rows to DataFrame for URLs and media.
+    Add LLM-generated enrichment rows to DataFrame for URLs and media.
 
-    1. Find all media references in messages
-    2. Extract those files from ZIP to media/ folder
-    3. Send files to LLM for description
-    4. Add descriptions as new DataFrame rows
+    Note: Media must already be extracted and replaced in df.
+    Use extract_and_replace_media() first.
+
+    Args:
+        df: DataFrame with media paths already replaced
+        media_mapping: Mapping of original filenames to extracted paths
+        client: Gemini client
+        enable_url: Add URL descriptions
+        enable_media: Add media descriptions
+        max_enrichments: Maximum enrichments to add
 
     Returns new DataFrame with additional rows authored by 'egregora'.
     """
     if df.is_empty():
         return df
 
-    # Step 1: Collect all media references
-    all_media = set()
-    for row in df.iter_rows(named=True):
-        message = row.get("message", "")
-        media_refs = find_media_references(message)
-        all_media.update(media_refs)
-
-    # Step 2: Extract media files from ZIP
-    extracted_media = {}
-    if enable_media and all_media:
-        extracted_media = extract_media_from_zip(
-            zip_path,
-            all_media,
-            output_dir,
-            group_slug,
-        )
-
-    # Step 3: Enrich messages
     new_rows = []
     enrichment_count = 0
 
@@ -244,21 +308,20 @@ async def enrich_dataframe(
                 })
                 enrichment_count += 1
 
-        # Enrich media
-        if enable_media:
-            media_refs = find_media_references(message)
-            for media_ref in media_refs[:2]:  # Max 2 media per message
-                if enrichment_count >= max_enrichments:
-                    break
+        # Enrich media (use the already-extracted files)
+        if enable_media and media_mapping:
+            # Find media files in this message (by checking the mapping values)
+            for original_filename, file_path in media_mapping.items():
+                # Check if this media is referenced in this message
+                if original_filename in message or file_path.name in message:
+                    if enrichment_count >= max_enrichments:
+                        break
 
-                # Get extracted file path
-                file_path = extracted_media.get(media_ref)
-                if file_path:
                     description = await describe_media_file(file_path, client)
                     new_rows.append({
                         "timestamp": timestamp + timedelta(seconds=1),
                         "author": "egregora",
-                        "message": f"[Media Description] {description}\nFile: {file_path.name}",
+                        "message": f"[Media Description] {description}",
                     })
                     enrichment_count += 1
 

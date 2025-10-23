@@ -9,7 +9,7 @@ from google import genai
 from .parser import parse_export
 from .models import WhatsAppExport
 from .types import GroupSlug
-from .enricher import enrich_dataframe
+from .enricher import extract_and_replace_media, enrich_dataframe
 from .writer import write_posts_for_period
 
 
@@ -116,8 +116,18 @@ async def process_whatsapp_export(
         media_files=[],
     )
 
+    # Parse and anonymize
     df = parse_export(export)
 
+    # Extract media from ZIP and replace mentions BEFORE grouping
+    df, media_mapping = extract_and_replace_media(
+        df,
+        zip_path,
+        output_dir,
+        str(group_slug),
+    )
+
+    # Group by period (after media replacement)
     periods = group_by_period(df, period)
 
     results = {}
@@ -125,13 +135,12 @@ async def process_whatsapp_export(
     for period_key, period_df in periods.items():
         enriched_df = period_df
 
+        # Optionally add LLM-generated enrichment rows
         if enable_enrichment:
             enriched_df = await enrich_dataframe(
                 period_df,
-                zip_path,
+                media_mapping,
                 client,
-                output_dir,
-                str(group_slug),
             )
 
         enriched_dir = output_dir / "enriched"
