@@ -7,11 +7,12 @@ from datetime import datetime
 import polars as pl
 from google import genai
 
-from .parser import parse_export
+from .parser import parse_export, extract_commands
 from .models import WhatsAppExport
 from .types import GroupSlug
 from .enricher import extract_and_replace_media, enrich_dataframe
 from .writer import write_posts_for_period
+from .profiler import process_commands
 
 
 logger = logging.getLogger(__name__)
@@ -134,6 +135,13 @@ async def process_whatsapp_export(
 
     # Parse and anonymize
     df = parse_export(export)
+
+    # Extract and process egregora commands (before grouping)
+    commands = extract_commands(df)
+    if commands:
+        profiles_dir = output_dir / "profiles"
+        process_commands(commands, profiles_dir)
+        logger.info(f"Processed {len(commands)} egregora commands")
 
     # Extract media from ZIP and replace mentions BEFORE grouping
     df, media_mapping = extract_and_replace_media(
