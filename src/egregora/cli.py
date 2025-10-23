@@ -11,6 +11,7 @@ from rich.panel import Panel
 
 from .pipeline import process_whatsapp_export
 from .site_scaffolding import ensure_mkdocs_project
+from .ranking_agent.agent import run_ranking
 
 
 console = Console()
@@ -199,6 +200,64 @@ class EgregoraCLI:
                 os.getenv("GOOGLE_API_KEY"),
             )
         )
+
+    def rank(
+        self,
+        site_dir: str,
+        gemini_key: str | None = None,
+        debug: bool = False,
+    ):
+        """
+        Run the ELO rating agent on the blog posts.
+        """
+        if debug:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(message)s",
+                handlers=[RichHandler(console=console)],
+            )
+        else:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(message)s",
+                handlers=[RichHandler(console=console, show_path=False)],
+            )
+
+        if gemini_key:
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+        elif not os.getenv("GOOGLE_API_KEY"):
+            console.print(
+                Panel(
+                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
+                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
+                    "Then either:\n"
+                    "• Use --gemini_key flag\n"
+                    "• Set GOOGLE_API_KEY environment variable",
+                    title="API Key Required",
+                    border_style="red",
+                )
+            )
+            return
+
+        asyncio.run(
+            self._run_ranking(
+                Path(site_dir) / "posts",
+                Path(site_dir) / "profiles",
+                Path(site_dir) / "rankings",
+                os.getenv("GOOGLE_API_KEY"),
+            )
+        )
+
+    async def _run_ranking(
+        self,
+        posts_dir: Path,
+        profiles_dir: Path,
+        output_dir: Path,
+        api_key: str,
+    ):
+        """Run the async ranking agent."""
+        output_dir.mkdir(exist_ok=True)
+        await run_ranking(posts_dir, profiles_dir, output_dir, api_key)
 
     async def _run_pipeline(
         self,
