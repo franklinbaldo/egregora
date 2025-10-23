@@ -126,7 +126,13 @@ async def process_whatsapp_export(
         enriched_df = period_df
 
         if enable_enrichment:
-            enriched_df = await enrich_dataframe(period_df, client)
+            enriched_df = await enrich_dataframe(
+                period_df,
+                zip_path,
+                client,
+                output_dir,
+                str(group_slug),
+            )
 
         enriched_dir = output_dir / "enriched"
         enriched_dir.mkdir(parents=True, exist_ok=True)
