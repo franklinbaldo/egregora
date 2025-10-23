@@ -103,6 +103,8 @@ async def process_whatsapp_export(
     output_dir: Path = Path("output"),
     period: str = "day",
     enable_enrichment: bool = True,
+    from_date = None,
+    to_date = None,
     gemini_api_key: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
@@ -113,6 +115,8 @@ async def process_whatsapp_export(
         output_dir: Where to save posts and profiles
         period: "day", "week", or "month"
         enable_enrichment: Add URL/media context
+        from_date: Only process messages from this date onwards (date object)
+        to_date: Only process messages up to this date (date object)
         gemini_api_key: Google Gemini API key
 
     Returns:
@@ -151,6 +155,31 @@ async def process_whatsapp_export(
     df, removed_count = filter_opted_out_authors(df, profiles_dir)
     if removed_count > 0:
         logger.warning(f"⚠️  Total: {removed_count} messages removed from opted-out users")
+
+    # Filter by date range if specified
+    if from_date or to_date:
+        original_count = len(df)
+
+        if from_date and to_date:
+            df = df.filter(
+                (pl.col("timestamp").dt.date() >= from_date) &
+                (pl.col("timestamp").dt.date() <= to_date)
+            )
+            logger.info(f"📅 Filtering messages from {from_date} to {to_date}")
+        elif from_date:
+            df = df.filter(pl.col("timestamp").dt.date() >= from_date)
+            logger.info(f"📅 Filtering messages from {from_date} onwards")
+        elif to_date:
+            df = df.filter(pl.col("timestamp").dt.date() <= to_date)
+            logger.info(f"📅 Filtering messages up to {to_date}")
+
+        filtered_count = len(df)
+        removed_by_date = original_count - filtered_count
+
+        if removed_by_date > 0:
+            logger.info(f"🗓️  Filtered out {removed_by_date} messages by date (kept {filtered_count})")
+        else:
+            logger.info(f"✓ All {filtered_count} messages are within the specified date range")
 
     # Extract media from ZIP and replace mentions BEFORE grouping
     df, media_mapping = extract_and_replace_media(

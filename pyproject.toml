@@ -43,6 +43,12 @@ egregora = "egregora.cli:main"
 requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
 
+[tool.hatchling.build.targets.wheel]
+packages = ["src/egregora"]
+
+[tool.hatchling.build.targets.wheel.force-include]
+"src/egregora/templates" = "egregora/templates"
+
 [tool.uv]
 managed = true
 

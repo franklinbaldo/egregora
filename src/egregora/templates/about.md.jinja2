@@ -1,41 +1,57 @@
 ---
-title: Sobre o Projeto
-description: Como funciona a geração automática dos diários da Egregora
+title: Sobre a Egregora
+description: Como funciona a consciência coletiva do grupo
 ---
 
-# Sobre o Projeto
+# Sobre a Egregora
 
 ## O que é a Egregora?
 
-A **Egregora** é um sistema de IA que analisa conversas do grupo WhatsApp e produz diários analíticos estruturados. O nome vem do conceito esotérico de **egregora** — uma entidade coletiva formada pelos pensamentos e energia de um grupo.
+A Egregora é um sistema que transforma conversas do WhatsApp em posts analíticos de blog. Usando inteligência artificial (LLM), ela:
 
-## Como Funciona
+1. **Analisa** as conversas do grupo
+2. **Identifica** tópicos e narrativas emergentes
+3. **Sintetiza** discussões em posts estruturados
+4. **Preserva** a complexidade e divergências do pensamento coletivo
 
-1. **Exportação**: Conversas são exportadas do WhatsApp
-2. **Processamento**: IA analisa mensagens, links e mídia
-3. **Síntese**: Gera posts no estilo Scott Alexander/LessWrong
-4. **Publicação**: Posts são organizados cronologicamente neste site
+## Como funciona?
 
-## Estilo Narrativo
+### Pipeline Ultra-Simples
 
-### Tom Conversacional
-- Fala diretamente com o leitor ("você percebe que...")
-- Usa experimentos mentais ("Considere dois mundos...")
-- Combina análise rigorosa com acessibilidade
+```
+WhatsApp ZIP → Parse → Anonimizar → Agrupar → Enriquecer → LLM → Posts
+```
 
-### Estrutura dos Posts
-- **Fios narrativos** - Cada tópico vira uma seção
-- **Ganchos concretos** - Começam com links, citações ou mídia
-- **Participantes** - UUIDs preservam anonimato
-- **Divergências** - Apresentadas como trade-offs analíticos
+### Privacidade em Primeiro Lugar
+
+- **Anonimização automática**: Todos os nomes são convertidos em pseudônimos UUID5
+- **Determinístico**: A mesma pessoa sempre recebe o mesmo UUID
+- **Opt-out completo**: Qualquer participante pode sair com `/egregora opt-out`
+- **Aliases opcionais**: `/egregora set alias "Nome"` para identidade humanizada
+
+Ver [ALIASES.md](https://github.com/franklinbaldo/egregora/blob/main/ALIASES.md) para detalhes.
+
+### Controle Editorial do LLM
+
+O LLM (Gemini) tem controle total sobre:
+
+- ✅ **O que vale escrever** (filtra ruído automaticamente)
+- ✅ **Quantos posts** (0-N por período)
+- ✅ **Todos os metadados** (título, slug, tags, resumo)
+- ✅ **Qualidade do conteúdo** (julgamento editorial)
 
 ## Tecnologia
 
-- **Processamento**: Python + Polars + Gemini AI
-- **Site**: MkDocs Material com blog plugin
-- **Anonimização**: UUIDs para preservar privacidade
-- **Mídia**: Extraída e hospedada localmente
+- **Parsing**: Python + Polars (DataFrames)
+- **LLM**: Google Gemini (multi-turn tool calling)
+- **RAG**: DuckDB VSS + Parquet (3072-dim embeddings)
+- **Site**: MkDocs Material
+- **Privacidade**: UUID5 + opt-out + filtragem
+
+## Código Aberto
+
+Este projeto é open source: [github.com/franklinbaldo/egregora](https://github.com/franklinbaldo/egregora)
 
 ---
 
-*A Egregora não é apenas uma ferramenta — é uma experiência de consciência coletiva digitalizada.*
+*Egregora v2 - Ultra-simple WhatsApp → Blog pipeline*
