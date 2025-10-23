@@ -1,0 +1,21 @@
+{
+  "doc_id": "2025-10-23-groupA-post-42",
+  "version": 4,
+  "meta": {
+    "title": "Post title here",
+    "slug": "2025-10-23-groupa-post-42",
+    "authors": [
+      "a3f8c2b1",
+      "b4e9d3c2"
+    ],
+    "style": "house-lesswrong"
+  },
+  "lines": {
+    "0": "# Today we learned",
+    "1": "",
+    "2": "This is a test.",
+    "3": "> \u201cI still think Y matters.\u201d \u2014 a3f8c2b1",
+    "4": "",
+    "5": "Next steps: we will test Z."
+  }
+}

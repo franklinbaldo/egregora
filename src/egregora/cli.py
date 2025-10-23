@@ -9,16 +9,59 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
+import json
 from .pipeline import process_whatsapp_export
 from .site_scaffolding import ensure_mkdocs_project
+from .editor import DocumentSnapshot, Editor
 
 
 console = Console()
 logger = logging.getLogger(__name__)
 
 
+class EditorCLI:
+    """A minimal, line-based editing protocol for Egregora."""
+
+    def __init__(self, doc_path: str = "dummy_doc.json"):
+        self.doc_path = doc_path
+        with open(self.doc_path, 'r') as f:
+            data = json.load(f)
+        self.snapshot = DocumentSnapshot(**data)
+        self.editor = Editor(self.snapshot)
+
+    def _save_snapshot(self):
+        """Saves the current snapshot back to the file."""
+        with open(self.doc_path, 'w') as f:
+            json.dump(self.snapshot.model_dump(), f, indent=2)
+
+    def edit_line(self, expect_version: int, index: int, new: str):
+        """Replaces a single line in the document."""
+        result = self.editor.edit_line(expect_version, index, new)
+        if result.get("ok"):
+            self._save_snapshot()
+        console.print(result)
+
+    def full_rewrite(self, expect_version: int, content: str):
+        """Replaces the entire document content."""
+        result = self.editor.full_rewrite(expect_version, content)
+        if result.get("ok"):
+            self._save_snapshot()
+        console.print(result)
+
+    def finish(self, expect_version: int, decision: str, notes: str):
+        """Marks the document for the publish queue or holds it."""
+        result = self.editor.finish(expect_version, decision, notes)
+        if result.get("ok"):
+            self._save_snapshot()
+            console.print(f"Document '{self.snapshot.doc_id}' marked as '{decision}'. Notes: {notes}")
+        console.print(result)
+
+
 class EgregoraCLI:
     """Egregora v2 - Ultra-simple WhatsApp to blog pipeline"""
+
+    def __init__(self):
+        self.edit = EditorCLI()
 
     def init(self, output_dir: str):
         """
