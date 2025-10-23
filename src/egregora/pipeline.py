@@ -1,5 +1,6 @@
 """Ultra-simple pipeline: parse → anonymize → group → enrich → write."""
 
+import logging
 import zipfile
 from pathlib import Path
 from datetime import datetime
@@ -11,6 +12,9 @@ from .models import WhatsAppExport
 from .types import GroupSlug
 from .enricher import extract_and_replace_media, enrich_dataframe
 from .writer import write_posts_for_period
+
+
+logger = logging.getLogger(__name__)
 
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
@@ -34,6 +38,18 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
                 return Path(member).stem, member
 
     raise ValueError(f"No WhatsApp chat file found in {zip_path}")
+
+
+def period_has_posts(period_key: str, posts_dir: Path) -> bool:
+    """Check if posts already exist for this period."""
+    if not posts_dir.exists():
+        return False
+
+    # Look for files matching {period_key}-*.md
+    pattern = f"{period_key}-*.md"
+    existing_posts = list(posts_dir.glob(pattern))
+
+    return len(existing_posts) > 0
 
 
 def group_by_period(df: pl.DataFrame, period: str = "day") -> dict[str, pl.DataFrame]:
@@ -131,8 +147,18 @@ async def process_whatsapp_export(
     periods = group_by_period(df, period)
 
     results = {}
+    posts_dir = output_dir / "posts"
 
     for period_key, period_df in periods.items():
+        # Early exit: skip if posts already exist for this period
+        if period_has_posts(period_key, posts_dir):
+            logger.info(f"Skipping {period_key} - posts already exist")
+            existing_posts = list(posts_dir.glob(f"{period_key}-*.md"))
+            results[period_key] = [str(p) for p in existing_posts]
+            continue
+
+        logger.info(f"Processing {period_key}...")
+
         enriched_df = period_df
 
         # Optionally add LLM-generated enrichment rows
@@ -148,7 +174,6 @@ async def process_whatsapp_export(
         enriched_path = enriched_dir / f"{period_key}-enriched.csv"
         enriched_df.write_csv(enriched_path)
 
-        posts_dir = output_dir / "posts"
         saved_posts = await write_posts_for_period(
             enriched_df,
             period_key,
