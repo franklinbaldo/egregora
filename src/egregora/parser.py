@@ -56,6 +56,11 @@ def parse_egregora_command(message: str) -> dict | None:
             'command': 'opt-out'
         }
     """
+    # Normalize curly quotes to straight quotes (English only, as requested)
+    # This handles copy-paste from phones/messaging apps
+    message = message.replace('"', '"').replace('"', '"')
+    message = message.replace("'", "'").replace("'", "'")
+
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
     if simple_cmd == '/egregora opt-out':
@@ -173,8 +178,17 @@ def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
     return filtered_df, removed_count
 
 
-def parse_export(export: WhatsAppExport) -> pl.DataFrame:
-    """Parse an individual export into a Polars ``DataFrame``."""
+def parse_export(export: WhatsAppExport, timezone=None) -> pl.DataFrame:
+    """
+    Parse an individual export into a Polars ``DataFrame``.
+
+    Args:
+        export: WhatsApp export metadata
+        timezone: ZoneInfo timezone object (phone's timezone)
+
+    Returns:
+        Parsed and anonymized DataFrame with correct timezone
+    """
 
     with zipfile.ZipFile(export.zip_path) as zf:
         validate_zip_contents(zf)
@@ -194,7 +208,7 @@ def parse_export(export: WhatsAppExport) -> pl.DataFrame:
         return pl.DataFrame()
 
     df = pl.DataFrame(rows).sort("timestamp")
-    df = ensure_message_schema(df)
+    df = ensure_message_schema(df, timezone=timezone)
     df = anonymize_dataframe(df)
     return df
 
