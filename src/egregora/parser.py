@@ -38,6 +38,8 @@ def parse_egregora_command(message: str) -> dict | None:
     - /egregora set bio "I love Python"
     - /egregora set twitter "@franklindev"
     - /egregora set website "https://franklin.dev"
+    - /egregora opt-out
+    - /egregora opt-in
 
     Args:
         message: Message text to parse
@@ -49,7 +51,18 @@ def parse_egregora_command(message: str) -> dict | None:
             'target': 'alias',
             'value': 'Franklin'
         }
+        or
+        {
+            'command': 'opt-out'
+        }
     """
+    # Check for simple commands first (no args)
+    simple_cmd = message.strip().lower()
+    if simple_cmd == '/egregora opt-out':
+        return {'command': 'opt-out'}
+    elif simple_cmd == '/egregora opt-in':
+        return {'command': 'opt-in'}
+
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
         return None

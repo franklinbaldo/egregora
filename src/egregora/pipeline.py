@@ -12,7 +12,7 @@ from .models import WhatsAppExport
 from .types import GroupSlug
 from .enricher import extract_and_replace_media, enrich_dataframe
 from .writer import write_posts_for_period
-from .profiler import process_commands
+from .profiler import process_commands, filter_opted_out_authors
 
 
 logger = logging.getLogger(__name__)
@@ -142,6 +142,12 @@ async def process_whatsapp_export(
         profiles_dir = output_dir / "profiles"
         process_commands(commands, profiles_dir)
         logger.info(f"Processed {len(commands)} egregora commands")
+
+    # Filter out opted-out authors EARLY (before any processing)
+    profiles_dir = output_dir / "profiles"
+    df, removed_count = filter_opted_out_authors(df, profiles_dir)
+    if removed_count > 0:
+        logger.warning(f"⚠️  Total: {removed_count} messages removed from opted-out users")
 
     # Extract media from ZIP and replace mentions BEFORE grouping
     df, media_mapping = extract_and_replace_media(

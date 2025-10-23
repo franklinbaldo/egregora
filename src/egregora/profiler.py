@@ -162,6 +162,24 @@ def apply_command_to_profile(
         )
         logger.info(f"Set website for {author_uuid}")
 
+    elif cmd_type == 'opt-out':
+        content = _update_profile_metadata(
+            content,
+            "Privacy Preferences",
+            "opted-out",
+            f'- Status: OPTED OUT (on {timestamp})\n- All messages will be excluded from processing'
+        )
+        logger.warning(f"⚠️  User {author_uuid} OPTED OUT - all messages will be removed")
+
+    elif cmd_type == 'opt-in':
+        content = _update_profile_metadata(
+            content,
+            "Privacy Preferences",
+            "opted-out",
+            f'- Status: Opted in (on {timestamp})\n- Messages will be included in processing'
+        )
+        logger.info(f"User {author_uuid} opted back in")
+
     # Save updated profile
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
@@ -272,3 +290,95 @@ def process_commands(
             logger.error(f"Failed to process command for {author_uuid}: {e}")
 
     return len(commands)
+
+
+def is_opted_out(author_uuid: str, profiles_dir: Path = Path("output/profiles")) -> bool:
+    """
+    Check if an author has opted out of processing.
+
+    Args:
+        author_uuid: The anonymized author UUID
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        True if opted out, False otherwise
+    """
+    profile = read_profile(author_uuid, profiles_dir)
+
+    if not profile:
+        return False
+
+    # Check for opt-out status in Privacy Preferences
+    return 'Status: OPTED OUT' in profile
+
+
+def get_opted_out_authors(profiles_dir: Path = Path("output/profiles")) -> set[str]:
+    """
+    Get set of all authors who have opted out.
+
+    Scans all profiles to find opted-out users.
+
+    Args:
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        Set of author UUIDs who have opted out
+    """
+    if not profiles_dir.exists():
+        return set()
+
+    opted_out = set()
+
+    for profile_path in profiles_dir.glob("*.md"):
+        author_uuid = profile_path.stem
+        if is_opted_out(author_uuid, profiles_dir):
+            opted_out.add(author_uuid)
+
+    return opted_out
+
+
+def filter_opted_out_authors(
+    df: Any,
+    profiles_dir: Path = Path("output/profiles"),
+) -> tuple[Any, int]:
+    """
+    Remove all messages from opted-out authors.
+
+    This should be called EARLY in the pipeline, BEFORE anonymization,
+    enrichment, or any processing.
+
+    Args:
+        df: Polars DataFrame with 'author' column
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        (filtered_df, num_removed_messages)
+    """
+    if df.is_empty():
+        return df, 0
+
+    # Get opted-out authors
+    opted_out = get_opted_out_authors(profiles_dir)
+
+    if not opted_out:
+        return df, 0
+
+    logger.info(f"Found {len(opted_out)} opted-out authors")
+
+    # Count messages before filtering
+    original_count = len(df)
+
+    # Filter out opted-out authors
+    import polars as pl
+    filtered_df = df.filter(~pl.col("author").is_in(list(opted_out)))
+
+    removed_count = original_count - len(filtered_df)
+
+    if removed_count > 0:
+        logger.warning(f"⚠️  Removed {removed_count} messages from {len(opted_out)} opted-out users")
+        for author in opted_out:
+            author_msg_count = df.filter(pl.col("author") == author).height
+            if author_msg_count > 0:
+                logger.warning(f"   - {author}: {author_msg_count} messages removed")
+
+    return filtered_df, removed_count

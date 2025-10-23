@@ -1,15 +1,49 @@
-# Alias System - User-Controlled Identity
+# Privacy & Identity System - User-Controlled Preferences
 
-Egregora supports opt-in aliases that allow participants to choose display names while maintaining privacy-safe, immutable post content.
+Egregora supports user-controlled privacy and identity preferences through in-band commands sent in the WhatsApp group.
 
-## Core Principle
+## Core Principles
 
-**Storage**: Posts ALWAYS use UUIDs (immutable, privacy-safe)
-**Display**: Aliases resolved at render time (ephemeral, revocable)
+1. **Privacy by Default**: All users anonymous (UUID) by default
+2. **Opt-In Identity**: Aliases are optional and revocable
+3. **Complete Opt-Out**: Users can remove ALL their data
+4. **Social Transparency**: Commands visible to the whole group
+5. **Immutable Storage**: Posts always use UUIDs (privacy-safe)
 
 ## Commands
 
-Participants can send commands in the WhatsApp group to set their preferences:
+Participants can send commands in the WhatsApp group to control their data and identity:
+
+### 🚫 Complete Opt-Out (Right to be Forgotten)
+```
+/egregora opt-out
+```
+**REMOVES ALL YOUR MESSAGES** from processing. This is immediate and persistent:
+- All your messages filtered out BEFORE any processing
+- Applies to current and future runs
+- Your data never reaches LLM, enrichment, or posts
+- Profile marked as "OPTED OUT"
+- Reversible with `/egregora opt-in`
+
+**When to use:**
+- You don't want your messages in the blog
+- GDPR-style "right to be forgotten"
+- Privacy concerns
+
+**Example Flow:**
+```
+User: /egregora opt-out
+Pipeline: ⚠️ User a3f8c2b1 OPTED OUT - 47 messages removed
+Result: Zero traces of you in posts
+```
+
+### ✅ Opt Back In
+```
+/egregora opt-in
+```
+Reverses opt-out. Your messages will be included in future runs.
+
+---
 
 ### Set Alias
 ```
