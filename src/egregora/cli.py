@@ -71,6 +71,8 @@ class EgregoraCLI:
         output: str = "output",
         period: str = "day",
         enable_enrichment: bool = True,
+        from_date: str | None = None,
+        to_date: str | None = None,
         gemini_key: str | None = None,
         debug: bool = False,
     ):
@@ -88,6 +90,8 @@ class EgregoraCLI:
             output: Output directory
             period: Group by "day", "week", or "month"
             enable_enrichment: Add URL/media context
+            from_date: Only process messages from this date onwards (YYYY-MM-DD)
+            to_date: Only process messages up to this date (YYYY-MM-DD)
             gemini_key: Google Gemini API key
             debug: Enable debug logging
         """
@@ -121,12 +125,77 @@ class EgregoraCLI:
             )
             return
 
+        # Parse and validate date filters
+        from datetime import datetime
+
+        from_date_obj = None
+        to_date_obj = None
+
+        if from_date:
+            try:
+                from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+            except ValueError:
+                console.print(
+                    Panel(
+                        f"[red]Invalid --from_date: '{from_date}'[/red]\n\n"
+                        "Use format: YYYY-MM-DD (e.g., 2025-01-01)",
+                        title="Invalid Date",
+                        border_style="red",
+                    )
+                )
+                return
+
+        if to_date:
+            try:
+                to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+            except ValueError:
+                console.print(
+                    Panel(
+                        f"[red]Invalid --to_date: '{to_date}'[/red]\n\n"
+                        "Use format: YYYY-MM-DD (e.g., 2025-12-31)",
+                        title="Invalid Date",
+                        border_style="red",
+                    )
+                )
+                return
+
+        # Validate date range
+        if from_date_obj and to_date_obj and from_date_obj > to_date_obj:
+            console.print(
+                Panel(
+                    "[red]Invalid date range![/red]\n\n"
+                    f"--from_date ({from_date}) is after --to_date ({to_date})\n\n"
+                    "The start date must be before or equal to the end date.",
+                    title="Invalid Date Range",
+                    border_style="red",
+                )
+            )
+            return
+
+        # Warning when no date filters are set
+        if not from_date_obj and not to_date_obj:
+            console.print(
+                Panel(
+                    "[yellow]⚠️  No date filters specified - processing ALL messages![/yellow]\n\n"
+                    "[bold]This may be expensive and time-intensive.[/bold]\n\n"
+                    "Consider using date filters to reduce cost:\n"
+                    f"• --from_date=YYYY-MM-DD  (process from this date onwards)\n"
+                    f"• --to_date=YYYY-MM-DD    (process up to this date)\n\n"
+                    "Example: Process only messages from January 2025:\n"
+                    f"[cyan]egregora process --zip_file={zip_file} --from_date=2025-01-01 --to_date=2025-01-31[/cyan]",
+                    title="💰 Cost Warning",
+                    border_style="yellow",
+                )
+            )
+
         asyncio.run(
             self._run_pipeline(
                 Path(zip_file),
                 Path(output),
                 period,
                 enable_enrichment,
+                from_date_obj,
+                to_date_obj,
                 os.getenv("GOOGLE_API_KEY"),
             )
         )
@@ -137,11 +206,22 @@ class EgregoraCLI:
         output_dir: Path,
         period: str,
         enable_enrichment: bool,
+        from_date,
+        to_date,
         api_key: str,
     ):
         """Run the async pipeline."""
 
-        console.print(f"\n[cyan]Processing {zip_path}...[/cyan]\n")
+        # Build filter message
+        filter_msg = ""
+        if from_date and to_date:
+            filter_msg = f" (filtering: {from_date} to {to_date})"
+        elif from_date:
+            filter_msg = f" (filtering: from {from_date} onwards)"
+        elif to_date:
+            filter_msg = f" (filtering: up to {to_date})"
+
+        console.print(f"\n[cyan]Processing {zip_path}{filter_msg}...[/cyan]\n")
 
         try:
             results = await process_whatsapp_export(
@@ -149,6 +229,8 @@ class EgregoraCLI:
                 output_dir=output_dir,
                 period=period,
                 enable_enrichment=enable_enrichment,
+                from_date=from_date,
+                to_date=to_date,
                 gemini_api_key=api_key,
             )
 
