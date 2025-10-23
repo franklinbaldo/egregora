@@ -23,6 +23,35 @@ class PostMetadata(BaseModel):
     category: str | None = None
 
 
+def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
+    """
+    Get top N active authors by message count.
+
+    Args:
+        df: DataFrame with 'author' column
+        limit: Max number of authors (default 20)
+
+    Returns:
+        List of author UUIDs (most active first)
+    """
+    # Filter out system and enrichment entries
+    author_counts = (
+        df
+        .filter(pl.col("author").is_in(["system", "egregora"]).not_())
+        .filter(pl.col("author").is_not_null())
+        .filter(pl.col("author") != "")
+        .group_by("author")
+        .count()
+        .sort("count", descending=True)
+        .head(limit)
+    )
+
+    if author_counts.is_empty():
+        return []
+
+    return author_counts["author"].to_list()
+
+
 async def write_posts_for_period(
     df: pl.DataFrame,
     date: str,
@@ -89,24 +118,61 @@ async def write_posts_for_period(
         except Exception as e:
             logger.warning(f"RAG query failed: {e}")
 
+    # Load profiles for top active authors (for style/context awareness)
+    profiles_context = ""
+    top_authors = get_top_authors(df, limit=20)
+
+    if top_authors:
+        logger.info(f"Loading profiles for {len(top_authors)} active authors")
+        profiles_context = "\n\n## Active Participants (Profiles):\n"
+        profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+
+        for author_uuid in top_authors:
+            profile_content = read_profile(author_uuid, profiles_dir)
+
+            if profile_content:
+                profiles_context += f"### Author: {author_uuid}\n"
+                profiles_context += f"{profile_content}\n\n"
+            else:
+                # No profile yet (first time seeing this author)
+                profiles_context += f"### Author: {author_uuid}\n"
+                profiles_context += "(No profile yet - first appearance)\n\n"
+
+        logger.info(f"Profiles context: {len(profiles_context)} characters")
+
     prompt = f"""You are a blog editor reviewing WhatsApp group messages from {date}.
 
 Messages (anonymized, with enriched context):
 {markdown_table}
 
 Active authors in this period: {', '.join(active_authors)}
+{profiles_context}
 {rag_context}
 Your job:
 1. Analyze these messages
-2. Write quality blog posts (0-N)
-3. Reference and link to related previous posts when relevant
-4. Update author profiles based on new contributions
+2. **Consider the participants' writing styles, interests, and expertise from their profiles**
+3. Write posts that reflect the group's collective voice and intentions
+4. Match the tone and style of the active participants
+5. Reference and link to related previous posts when relevant
+6. Update author profiles based on new contributions
 
 BLOG POSTS:
 Use write_post tool 0-N times:
 - 0 times if it's all noise/spam
 - 1 time for a single coherent daily summary
 - Multiple times for distinct topics
+
+When writing posts, consider participant profiles:
+- Match the tone and style of the active participants
+- Consider their areas of expertise and interests
+- Reflect the group's collective voice and intentions
+- Use profiles to understand conversation context
+- Write content that aligns with their communication style
+
+Examples:
+- If profiles show technical interests → Write detailed technical posts
+- If profiles show casual style → Write conversational posts
+- If profiles show diverse expertise → Create multi-perspective posts
 
 For each post, provide:
 - title: Engaging post title
