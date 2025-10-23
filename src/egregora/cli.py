@@ -73,6 +73,7 @@ class EgregoraCLI:
         enable_enrichment: bool = True,
         from_date: str | None = None,
         to_date: str | None = None,
+        timezone: str | None = None,
         gemini_key: str | None = None,
         debug: bool = False,
     ):
@@ -92,6 +93,7 @@ class EgregoraCLI:
             enable_enrichment: Add URL/media context
             from_date: Only process messages from this date onwards (YYYY-MM-DD)
             to_date: Only process messages up to this date (YYYY-MM-DD)
+            timezone: IANA timezone (e.g., "America/Sao_Paulo", "America/New_York")
             gemini_key: Google Gemini API key
             debug: Enable debug logging
         """
@@ -125,8 +127,49 @@ class EgregoraCLI:
             )
             return
 
-        # Parse and validate date filters
+        # Validate and handle timezone
         from datetime import datetime
+        from zoneinfo import ZoneInfo, available_timezones
+
+        timezone_obj = None
+        if timezone:
+            # Validate timezone
+            try:
+                timezone_obj = ZoneInfo(timezone)
+                logger.info(f"Using timezone: {timezone}")
+            except Exception:
+                console.print(
+                    Panel(
+                        f"[red]Invalid timezone: '{timezone}'[/red]\n\n"
+                        "Use IANA timezone names (e.g., 'America/Sao_Paulo', 'America/New_York', 'Europe/London')\n\n"
+                        f"Find your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+                        title="Invalid Timezone",
+                        border_style="red",
+                    )
+                )
+                return
+        else:
+            # Show warning when timezone not specified
+            console.print(
+                Panel(
+                    "[yellow]⚠️  No timezone specified - using UTC![/yellow]\n\n"
+                    "[bold]WhatsApp exports use your phone's local timezone[/bold]\n\n"
+                    "Without the correct timezone:\n"
+                    "• Messages may be grouped into wrong dates\n"
+                    "• Timestamps will be misinterpreted\n"
+                    "• Date filters (--from_date/--to_date) may be inaccurate\n\n"
+                    "Examples:\n"
+                    f"• Brazil (São Paulo): [cyan]--timezone='America/Sao_Paulo'[/cyan]\n"
+                    f"• USA (New York): [cyan]--timezone='America/New_York'[/cyan]\n"
+                    f"• UK (London): [cyan]--timezone='Europe/London'[/cyan]\n\n"
+                    f"Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+                    title="⏰ Timezone Warning",
+                    border_style="yellow",
+                )
+            )
+            timezone_obj = ZoneInfo("UTC")
+
+        # Parse and validate date filters
 
         from_date_obj = None
         to_date_obj = None
@@ -196,6 +239,7 @@ class EgregoraCLI:
                 enable_enrichment,
                 from_date_obj,
                 to_date_obj,
+                timezone_obj,
                 os.getenv("GOOGLE_API_KEY"),
             )
         )
@@ -208,6 +252,7 @@ class EgregoraCLI:
         enable_enrichment: bool,
         from_date,
         to_date,
+        timezone_obj,
         api_key: str,
     ):
         """Run the async pipeline."""
@@ -231,6 +276,7 @@ class EgregoraCLI:
                 enable_enrichment=enable_enrichment,
                 from_date=from_date,
                 to_date=to_date,
+                timezone=timezone_obj,
                 gemini_api_key=api_key,
             )
 

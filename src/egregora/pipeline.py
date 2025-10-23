@@ -105,6 +105,7 @@ async def process_whatsapp_export(
     enable_enrichment: bool = True,
     from_date = None,
     to_date = None,
+    timezone = None,
     gemini_api_key: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
@@ -117,6 +118,7 @@ async def process_whatsapp_export(
         enable_enrichment: Add URL/media context
         from_date: Only process messages from this date onwards (date object)
         to_date: Only process messages up to this date (date object)
+        timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
         gemini_api_key: Google Gemini API key
 
     Returns:
@@ -137,8 +139,8 @@ async def process_whatsapp_export(
         media_files=[],
     )
 
-    # Parse and anonymize
-    df = parse_export(export)
+    # Parse and anonymize (with timezone from phone)
+    df = parse_export(export, timezone=timezone)
 
     # Extract and process egregora commands (before filtering)
     commands = extract_commands(df)
