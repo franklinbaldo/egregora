@@ -103,19 +103,19 @@ async def process_whatsapp_export(
     period: str = "day",
     enable_enrichment: bool = True,
     gemini_api_key: str | None = None,
-) -> dict[str, list[str]]:
+) -> dict[str, dict[str, list[str]]]:
     """
-    Complete pipeline: ZIP → posts.
+    Complete pipeline: ZIP → posts + profiles.
 
     Args:
         zip_path: WhatsApp export ZIP file
-        output_dir: Where to save posts
+        output_dir: Where to save posts and profiles
         period: "day", "week", or "month"
         enable_enrichment: Add URL/media context
         gemini_api_key: Google Gemini API key
 
     Returns:
-        Dict mapping period to list of saved post paths
+        Dict mapping period to {'posts': [...], 'profiles': [...]}
     """
 
     client = genai.Client(api_key=gemini_api_key)
@@ -148,13 +148,14 @@ async def process_whatsapp_export(
 
     results = {}
     posts_dir = output_dir / "posts"
+    profiles_dir = output_dir / "profiles"
 
     for period_key, period_df in periods.items():
         # Early exit: skip if posts already exist for this period
         if period_has_posts(period_key, posts_dir):
             logger.info(f"Skipping {period_key} - posts already exist")
             existing_posts = list(posts_dir.glob(f"{period_key}-*.md"))
-            results[period_key] = [str(p) for p in existing_posts]
+            results[period_key] = {"posts": [str(p) for p in existing_posts], "profiles": []}
             continue
 
         logger.info(f"Processing {period_key}...")
@@ -174,13 +175,14 @@ async def process_whatsapp_export(
         enriched_path = enriched_dir / f"{period_key}-enriched.csv"
         enriched_df.write_csv(enriched_path)
 
-        saved_posts = await write_posts_for_period(
+        result = await write_posts_for_period(
             enriched_df,
             period_key,
             client,
             posts_dir,
+            profiles_dir,
         )
 
-        results[period_key] = saved_posts
+        results[period_key] = result
 
     return results

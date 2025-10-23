@@ -5,6 +5,7 @@ import polars as pl
 from google import genai
 from pydantic import BaseModel
 from .write_post import write_post
+from .profiler import read_profile, write_profile, get_active_authors
 
 
 class PostMetadata(BaseModel):
@@ -23,29 +24,34 @@ async def write_posts_for_period(
     date: str,
     client: genai.Client,
     output_dir: Path = Path("output/posts"),
+    profiles_dir: Path = Path("output/profiles"),
     model: str = "gemini-2.0-flash-exp",
-) -> list[str]:
+) -> dict[str, list[str]]:
     """
-    Let LLM analyze period's messages and write 0-N posts.
+    Let LLM analyze period's messages, write 0-N posts, and update author profiles.
 
-    The LLM has full editorial control via write_post tool:
-    - Decides if content is worth writing about
-    - Decides how many posts (0-N)
-    - Creates all metadata (title, slug, tags, etc)
+    The LLM has full editorial control via tools:
+    - write_post: Create blog posts with metadata
+    - read_profile: Read existing author profiles
+    - write_profile: Update author profiles
 
     Args:
         df: DataFrame with messages for the period (already enriched)
         date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         output_dir: Where to save posts
+        profiles_dir: Where to save author profiles
         model: Which LLM model to use
 
     Returns:
-        List of file paths where posts were saved
+        Dict with 'posts' and 'profiles' lists of saved file paths
     """
 
     if df.is_empty():
-        return []
+        return {"posts": [], "profiles": []}
+
+    # Get active authors for profiling context
+    active_authors = get_active_authors(df)
 
     markdown_table = df.write_csv(separator="|")
 
@@ -54,13 +60,15 @@ async def write_posts_for_period(
 Messages (anonymized, with enriched context):
 {markdown_table}
 
+Active authors in this period: {', '.join(active_authors)}
+
 Your job:
 1. Analyze these messages
-2. Decide if there's anything worth writing about
-3. Identify coherent topics/themes
-4. Write quality blog posts
+2. Write quality blog posts (0-N)
+3. Update author profiles based on new contributions
 
-You have the write_post tool. Call it 0-N times:
+BLOG POSTS:
+Use write_post tool 0-N times:
 - 0 times if it's all noise/spam
 - 1 time for a single coherent daily summary
 - Multiple times for distinct topics
@@ -73,6 +81,19 @@ For each post, provide:
 - summary: 1-2 sentence summary
 - authors: List of anonymized author IDs who contributed
 - content: Full markdown post content
+
+AUTHOR PROFILES:
+After writing posts, update author profiles:
+1. Use read_profile(author_uuid) to read current profile
+2. Analyze author's contributions in this period
+3. Use write_profile(author_uuid, content) to update profile
+
+Profile format (markdown):
+- Writing style and voice
+- Topics of interest
+- Expertise areas
+- Communication patterns
+- Notable contributions
 
 Be editorial. Only write quality content. Skip trivial conversations.
 """
@@ -104,31 +125,129 @@ Be editorial. Only write quality content. Skip trivial conversations.
                 },
                 "required": ["content", "metadata"]
             }
+        },
+        {
+            "name": "read_profile",
+            "description": "Read the current profile for an author",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "author_uuid": {
+                        "type": "string",
+                        "description": "The anonymized author UUID"
+                    }
+                },
+                "required": ["author_uuid"]
+            }
+        },
+        {
+            "name": "write_profile",
+            "description": "Write or update an author's profile",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "author_uuid": {
+                        "type": "string",
+                        "description": "The anonymized author UUID"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Profile content in markdown format"
+                    }
+                },
+                "required": ["author_uuid", "content"]
+            }
         }
     ]
 
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=prompt,
-        config={
-            "tools": tools,
-            "temperature": 0.7,
-        }
-    )
+    # Multi-turn conversation for tool calling
+    messages = [{"role": "user", "parts": [{"text": prompt}]}]
+    saved_posts = []
+    saved_profiles = []
+    max_turns = 10  # Prevent infinite loops
 
-    saved_paths = []
+    for turn in range(max_turns):
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=messages,
+            config={
+                "tools": tools,
+                "temperature": 0.7,
+            }
+        )
 
-    for part in response.candidates[0].content.parts:
-        if hasattr(part, 'function_call') and part.function_call:
-            if part.function_call.name == "write_post":
-                args = part.function_call.args
-                content = args.get("content", "")
-                metadata = args.get("metadata", {})
+        # Check if there are tool calls
+        has_tool_calls = False
+        tool_responses = []
 
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, 'function_call') and part.function_call:
+                has_tool_calls = True
+                fn_call = part.function_call
+                fn_name = fn_call.name
+                fn_args = fn_call.args
+
+                # Execute the tool
                 try:
-                    path = write_post(content, metadata, output_dir)
-                    saved_paths.append(path)
-                except Exception as e:
-                    print(f"Failed to write post: {e}")
+                    if fn_name == "write_post":
+                        content = fn_args.get("content", "")
+                        metadata = fn_args.get("metadata", {})
+                        path = write_post(content, metadata, output_dir)
+                        saved_posts.append(path)
+                        tool_responses.append({
+                            "function_call": fn_call,
+                            "function_response": {
+                                "name": fn_name,
+                                "response": {"status": "success", "path": path}
+                            }
+                        })
 
-    return saved_paths
+                    elif fn_name == "read_profile":
+                        author_uuid = fn_args.get("author_uuid", "")
+                        profile_content = read_profile(author_uuid, profiles_dir)
+                        tool_responses.append({
+                            "function_call": fn_call,
+                            "function_response": {
+                                "name": fn_name,
+                                "response": {"content": profile_content or "No profile exists yet."}
+                            }
+                        })
+
+                    elif fn_name == "write_profile":
+                        author_uuid = fn_args.get("author_uuid", "")
+                        content = fn_args.get("content", "")
+                        path = write_profile(author_uuid, content, profiles_dir)
+                        saved_profiles.append(path)
+                        tool_responses.append({
+                            "function_call": fn_call,
+                            "function_response": {
+                                "name": fn_name,
+                                "response": {"status": "success", "path": path}
+                            }
+                        })
+
+                except Exception as e:
+                    tool_responses.append({
+                        "function_call": fn_call,
+                        "function_response": {
+                            "name": fn_name,
+                            "response": {"status": "error", "error": str(e)}
+                        }
+                    })
+
+        # If no tool calls, we're done
+        if not has_tool_calls:
+            break
+
+        # Add assistant response and tool responses to conversation
+        messages.append({"role": "model", "parts": response.candidates[0].content.parts})
+
+        for tool_resp in tool_responses:
+            messages.append({
+                "role": "user",
+                "parts": [{
+                    "function_response": tool_resp["function_response"]
+                }]
+            })
+
+    return {"posts": saved_posts, "profiles": saved_profiles}

@@ -29,12 +29,13 @@ class EgregoraCLI:
         debug: bool = False,
     ):
         """
-        Process WhatsApp export and generate blog posts.
+        Process WhatsApp export and generate blog posts + author profiles.
 
         The LLM decides:
         - What's worth writing about (filters noise automatically)
         - How many posts per period (0-N)
         - All metadata (title, slug, tags, summary, etc)
+        - Which author profiles to update based on contributions
 
         Args:
             zip_file: Path to WhatsApp export ZIP
@@ -105,27 +106,39 @@ class EgregoraCLI:
                 gemini_api_key=api_key,
             )
 
-            total_posts = sum(len(posts) for posts in results.values())
+            total_posts = sum(len(result["posts"]) for result in results.values())
+            total_profiles = sum(len(result["profiles"]) for result in results.values())
 
             console.print(
                 Panel(
                     f"[bold green]✓ Processing complete![/bold green]\n\n"
                     f"Periods processed: {len(results)}\n"
-                    f"Posts created: {total_posts}\n\n"
+                    f"Posts created: {total_posts}\n"
+                    f"Profiles updated: {total_profiles}\n\n"
                     f"Output directory: {output_dir}/posts/\n"
+                    f"Profiles directory: {output_dir}/profiles/\n"
                     f"Enriched data: {output_dir}/enriched/",
                     title="Success",
                     border_style="green",
                 )
             )
 
-            if total_posts > 0:
-                console.print("\n[bold]Posts created:[/bold]")
-                for period_key, posts in results.items():
-                    if posts:
-                        console.print(f"\n[cyan]{period_key}:[/cyan]")
-                        for post in posts:
-                            console.print(f"  • {Path(post).name}")
+            if total_posts > 0 or total_profiles > 0:
+                if total_posts > 0:
+                    console.print("\n[bold]Posts created:[/bold]")
+                    for period_key, result in results.items():
+                        if result["posts"]:
+                            console.print(f"\n[cyan]{period_key}:[/cyan]")
+                            for post in result["posts"]:
+                                console.print(f"  • {Path(post).name}")
+
+                if total_profiles > 0:
+                    console.print("\n[bold]Profiles updated:[/bold]")
+                    unique_profiles = set()
+                    for result in results.values():
+                        unique_profiles.update(result["profiles"])
+                    for profile in sorted(unique_profiles):
+                        console.print(f"  • {Path(profile).name}")
 
         except Exception as e:
             console.print(
