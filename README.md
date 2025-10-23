@@ -33,10 +33,20 @@ python run_v2.py process \
 ### Pipeline Flow
 
 ```
-WhatsApp ZIP → Parse → Curator → Enricher → Writer → Post
-                          ↓
-                      Profiler → Profiles
+WhatsApp ZIP → Parse → Anonymize → Curator → Enricher → Writer → Post
+                          ↑            ↓
+                    PII removed    Profiler → Profiles
 ```
+
+### 🔒 Privacy-First Design
+
+- **Automatic anonymization**: All names replaced with UUID5 pseudonyms before LLM
+- **Deterministic**: Same author always gets same pseudonym (e.g., "João" → `a1b2c3d4`)
+- **WhatsApp mentions**: Unicode markers detected and anonymized
+- **Privacy validation**: Scans output for phone numbers and PII leaks
+- **Early application**: Real names NEVER reach the LLM or agents
+
+See [ANONYMIZATION.md](ANONYMIZATION.md) for details.
 
 ## 🧩 Architecture
 
