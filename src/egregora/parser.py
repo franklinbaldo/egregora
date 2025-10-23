@@ -21,6 +21,158 @@ from .anonymizer import anonymize_dataframe
 logger = logging.getLogger(__name__)
 
 
+# Pattern for egregora commands: /egregora <command> <args>
+EGREGORA_COMMAND_PATTERN = re.compile(
+    r'^/egregora\s+(\w+)\s+(.+)$',
+    re.IGNORECASE
+)
+
+
+def parse_egregora_command(message: str) -> dict | None:
+    """
+    Parse egregora commands from message text.
+
+    Supported commands:
+    - /egregora set alias "Franklin"
+    - /egregora remove alias
+    - /egregora set bio "I love Python"
+    - /egregora set twitter "@franklindev"
+    - /egregora set website "https://franklin.dev"
+    - /egregora opt-out
+    - /egregora opt-in
+
+    Args:
+        message: Message text to parse
+
+    Returns:
+        Command dict or None if not a command:
+        {
+            'command': 'set',
+            'target': 'alias',
+            'value': 'Franklin'
+        }
+        or
+        {
+            'command': 'opt-out'
+        }
+    """
+    # Check for simple commands first (no args)
+    simple_cmd = message.strip().lower()
+    if simple_cmd == '/egregora opt-out':
+        return {'command': 'opt-out'}
+    elif simple_cmd == '/egregora opt-in':
+        return {'command': 'opt-in'}
+
+    match = EGREGORA_COMMAND_PATTERN.match(message.strip())
+    if not match:
+        return None
+
+    action = match.group(1).lower()
+    args = match.group(2).strip()
+
+    # Parse "set alias 'Franklin'"
+    if action == 'set':
+        parts = args.split(maxsplit=1)
+        if len(parts) == 2:
+            target = parts[0].lower()
+            value = parts[1].strip('"\'')
+            return {
+                'command': 'set',
+                'target': target,
+                'value': value
+            }
+
+    # Parse "remove alias"
+    elif action == 'remove':
+        return {
+            'command': 'remove',
+            'target': args.lower(),
+            'value': None
+        }
+
+    return None
+
+
+def extract_commands(df: pl.DataFrame) -> list[dict]:
+    """
+    Extract egregora commands from parsed DataFrame.
+
+    Commands are messages starting with /egregora that set user preferences
+    like aliases, bios, links, etc.
+
+    Args:
+        df: Parsed DataFrame with columns: timestamp, author, message
+
+    Returns:
+        List of command dicts:
+        [{
+            'author': 'a3f8c2b1',
+            'timestamp': '2025-01-15 14:32:00',
+            'command': {...}
+        }]
+    """
+    if df.is_empty():
+        return []
+
+    commands = []
+
+    for row in df.iter_rows(named=True):
+        message = row.get('message', '')
+        if not message:
+            continue
+
+        cmd = parse_egregora_command(message)
+        if cmd:
+            commands.append({
+                'author': row['author'],
+                'timestamp': row['timestamp'],
+                'command': cmd
+            })
+
+    if commands:
+        logger.info(f"Found {len(commands)} egregora commands")
+
+    return commands
+
+
+def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
+    """
+    Remove all messages starting with /egregora from DataFrame.
+
+    This serves dual purposes:
+    1. Remove command spam from content (clean posts)
+    2. Allow users to mark specific messages as excluded
+
+    Users can use /egregora prefix to exclude any message:
+    - /egregora This is private, don't include
+    - /egregora [sensitive discussion]
+    - /egregora opt-out (command)
+    - /egregora set alias "Name" (command)
+
+    Args:
+        df: Polars DataFrame with 'message' column
+
+    Returns:
+        (filtered_df, num_removed)
+    """
+    if df.is_empty():
+        return df, 0
+
+    original_count = len(df)
+
+    # Filter out messages starting with /egregora (case-insensitive)
+    filtered_df = df.filter(
+        ~pl.col("message").str.to_lowercase().str.starts_with("/egregora")
+    )
+
+    removed_count = original_count - len(filtered_df)
+
+    if removed_count > 0:
+        logger.info(f"Removed {removed_count} /egregora messages from DataFrame")
+
+    return filtered_df, removed_count
+
+
 def parse_export(export: WhatsAppExport) -> pl.DataFrame:
     """Parse an individual export into a Polars ``DataFrame``."""
 

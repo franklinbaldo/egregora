@@ -174,6 +174,18 @@ Examples:
 - If profiles show casual style → Write conversational posts
 - If profiles show diverse expertise → Create multi-perspective posts
 
+**CRITICAL - Author References in Post Content:**
+- ALWAYS reference authors by their UUID (e.g., "Author a3f8c2b1 discussed...")
+- NEVER use aliases or real names in post content
+- Posts must be privacy-safe and immutable
+- Aliases are for display/rendering only, not for storage
+
+Example:
+✅ "Author a3f8c2b1 shared insights about Python optimization..."
+✅ "The discussion between b4e9d3c2 and c5f7e4d3 revealed..."
+❌ "Franklin shared insights..." (NEVER use alias in content)
+❌ "The discussion between Sarah and John..." (NEVER use alias in content)
+
 For each post, provide:
 - title: Engaging post title
 - slug: URL-friendly slug (lowercase, hyphens)
