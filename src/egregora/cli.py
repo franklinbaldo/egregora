@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+import random
 import fire
 from rich.console import Console
 from rich.logging import RichHandler
@@ -11,6 +12,8 @@ from rich.panel import Panel
 
 from .pipeline import process_whatsapp_export
 from .site_scaffolding import ensure_mkdocs_project
+from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
+from .ranking.agent import run_comparison
 
 
 console = Console()
@@ -324,6 +327,195 @@ class EgregoraCLI:
             )
             if logger.level == logging.DEBUG:
                 raise
+
+    def rank(
+        self,
+        site_dir: str,
+        comparisons: int = 1,
+        gemini_key: str | None = None,
+        debug: bool = False,
+    ):
+        """
+        Run ranking comparisons to build ELO scores for blog posts.
+
+        Uses a three-turn conversation protocol:
+        1. Agent chooses winner between two posts
+        2. Agent comments on Post A (with existing comments as context)
+        3. Agent comments on Post B (with existing comments as context)
+
+        Each comparison randomly selects a profile to impersonate, creating
+        diverse perspectives on post quality.
+
+        Args:
+            site_dir: Root directory of MkDocs site (contains posts/ and profiles/)
+            comparisons: Number of comparisons to run (default: 1)
+            gemini_key: Google Gemini API key
+            debug: Enable debug logging
+        """
+        if debug:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(message)s",
+                handlers=[RichHandler(console=console)],
+            )
+        else:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(message)s",
+                handlers=[RichHandler(console=console, show_path=False)],
+            )
+
+        if gemini_key:
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+        elif not os.getenv("GOOGLE_API_KEY"):
+            console.print(
+                Panel(
+                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
+                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
+                    "Then either:\n"
+                    "• Use --gemini_key flag\n"
+                    "• Set GOOGLE_API_KEY environment variable",
+                    title="API Key Required",
+                    border_style="red",
+                )
+            )
+            return
+
+        site_path = Path(site_dir).resolve()
+        posts_dir = site_path / "posts"
+        profiles_dir = site_path / "profiles"
+        rankings_dir = site_path / "rankings"
+
+        # Validate directories
+        if not posts_dir.exists():
+            console.print(
+                Panel(
+                    f"[red]Posts directory not found: {posts_dir}[/red]\n\n"
+                    f"Make sure you're pointing to a valid MkDocs site root.",
+                    title="Directory Not Found",
+                    border_style="red",
+                )
+            )
+            return
+
+        if not profiles_dir.exists():
+            console.print(
+                Panel(
+                    f"[red]Profiles directory not found: {profiles_dir}[/red]\n\n"
+                    f"Make sure you've processed at least one WhatsApp export first.",
+                    title="Directory Not Found",
+                    border_style="red",
+                )
+            )
+            return
+
+        # Get list of profiles
+        profile_files = list(profiles_dir.glob("*.md"))
+        if not profile_files:
+            console.print(
+                Panel(
+                    f"[red]No profiles found in {profiles_dir}[/red]\n\n"
+                    f"Process a WhatsApp export first to create author profiles.",
+                    title="No Profiles",
+                    border_style="red",
+                )
+            )
+            return
+
+        # Initialize ratings if needed
+        try:
+            ratings_path = initialize_ratings(posts_dir, rankings_dir)
+            console.print(f"[dim]Using ratings file: {ratings_path}[/dim]\n")
+        except ValueError as e:
+            console.print(
+                Panel(
+                    f"[red]{str(e)}[/red]",
+                    title="Initialization Failed",
+                    border_style="red",
+                )
+            )
+            return
+
+        # Run comparisons
+        api_key = os.getenv("GOOGLE_API_KEY")
+
+        for i in range(comparisons):
+            console.print(
+                Panel(
+                    f"[bold cyan]Comparison {i + 1} of {comparisons}[/bold cyan]",
+                    border_style="cyan",
+                )
+            )
+
+            try:
+                # Select posts to compare (prioritize posts with fewest games)
+                post_a_id, post_b_id = get_posts_to_compare(rankings_dir)
+                console.print(f"\n[bold]Comparing:[/bold]")
+                console.print(f"  Post A: [cyan]{post_a_id}[/cyan]")
+                console.print(f"  Post B: [cyan]{post_b_id}[/cyan]")
+
+                # Randomly select a profile to impersonate
+                profile_path = random.choice(profile_files)
+                console.print(f"  Judge: [magenta]{profile_path.stem[:8]}...[/magenta]\n")
+
+                # Run three-turn comparison
+                result = run_comparison(
+                    site_dir=site_path,
+                    post_a_id=post_a_id,
+                    post_b_id=post_b_id,
+                    profile_path=profile_path,
+                    api_key=api_key,
+                )
+
+                # Update ELO ratings
+                new_rating_a, new_rating_b = update_ratings(
+                    rankings_dir=rankings_dir,
+                    post_a=post_a_id,
+                    post_b=post_b_id,
+                    winner=result["winner"],
+                )
+
+                console.print(
+                    Panel(
+                        f"[green]✓ Comparison complete![/green]\n\n"
+                        f"Winner: Post {result['winner']}\n\n"
+                        f"[bold]Updated ELO ratings:[/bold]\n"
+                        f"  Post A: [cyan]{new_rating_a:.0f}[/cyan]\n"
+                        f"  Post B: [cyan]{new_rating_b:.0f}[/cyan]",
+                        border_style="green",
+                    )
+                )
+
+                # Show some space between comparisons
+                if i < comparisons - 1:
+                    console.print("\n")
+
+            except Exception as e:
+                console.print(
+                    Panel(
+                        f"[red]Error during comparison: {str(e)}[/red]",
+                        title="Comparison Failed",
+                        border_style="red",
+                    )
+                )
+                if logger.level == logging.DEBUG:
+                    raise
+                continue
+
+        # Show summary
+        console.print("\n")
+        console.print(
+            Panel(
+                f"[bold green]✓ Ranking session complete![/bold green]\n\n"
+                f"Comparisons completed: {comparisons}\n"
+                f"Rankings stored in: {rankings_dir}\n\n"
+                f"[bold]Files:[/bold]\n"
+                f"• elo_ratings.parquet - Current ELO scores\n"
+                f"• elo_history.parquet - Full comparison history with comments",
+                title="Session Complete",
+                border_style="green",
+            )
+        )
 
 
 def main():
