@@ -181,6 +181,7 @@ async def process_whatsapp_export(
             client,
             posts_dir,
             profiles_dir,
+            output_dir / "rag",
         )
 
         results[period_key] = result

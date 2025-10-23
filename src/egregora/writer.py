@@ -1,11 +1,15 @@
 """Simple writer: LLM with write_post tool for editorial control."""
 
+import logging
 from pathlib import Path
 import polars as pl
 from google import genai
 from pydantic import BaseModel
 from .write_post import write_post
 from .profiler import read_profile, write_profile, get_active_authors
+from .rag import VectorStore, query_similar_posts, index_post
+
+logger = logging.getLogger(__name__)
 
 
 class PostMetadata(BaseModel):
@@ -25,7 +29,9 @@ async def write_posts_for_period(
     client: genai.Client,
     output_dir: Path = Path("output/posts"),
     profiles_dir: Path = Path("output/profiles"),
+    rag_dir: Path = Path("output/rag"),
     model: str = "gemini-2.0-flash-exp",
+    enable_rag: bool = True,
 ) -> dict[str, list[str]]:
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
@@ -35,13 +41,17 @@ async def write_posts_for_period(
     - read_profile: Read existing author profiles
     - write_profile: Update author profiles
 
+    RAG system provides context from previous posts for continuity.
+
     Args:
         df: DataFrame with messages for the period (already enriched)
         date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         output_dir: Where to save posts
         profiles_dir: Where to save author profiles
+        rag_dir: Where RAG vector store is saved
         model: Which LLM model to use
+        enable_rag: Whether to use RAG for context
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
@@ -55,17 +65,42 @@ async def write_posts_for_period(
 
     markdown_table = df.write_csv(separator="|")
 
+    # Query RAG for similar previous posts (for continuity)
+    rag_context = ""
+    if enable_rag:
+        try:
+            store = VectorStore(rag_dir / "chunks.parquet")
+            similar_posts = await query_similar_posts(
+                df, client, store, top_k=5, deduplicate=True
+            )
+
+            if not similar_posts.is_empty():
+                logger.info(f"Found {len(similar_posts)} similar previous posts")
+                rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
+                rag_context += "You can reference these posts in your writing to maintain conversation continuity.\n\n"
+
+                for row in similar_posts.iter_rows(named=True):
+                    rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
+                    rag_context += f"{row['content'][:400]}...\n"
+                    rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
+                    rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
+            else:
+                logger.info("No similar previous posts found")
+        except Exception as e:
+            logger.warning(f"RAG query failed: {e}")
+
     prompt = f"""You are a blog editor reviewing WhatsApp group messages from {date}.
 
 Messages (anonymized, with enriched context):
 {markdown_table}
 
 Active authors in this period: {', '.join(active_authors)}
-
+{rag_context}
 Your job:
 1. Analyze these messages
 2. Write quality blog posts (0-N)
-3. Update author profiles based on new contributions
+3. Reference and link to related previous posts when relevant
+4. Update author profiles based on new contributions
 
 BLOG POSTS:
 Use write_post tool 0-N times:
@@ -249,5 +284,15 @@ Be editorial. Only write quality content. Skip trivial conversations.
                     "function_response": tool_resp["function_response"]
                 }]
             })
+
+    # Index newly created posts in RAG
+    if enable_rag and saved_posts:
+        try:
+            store = VectorStore(rag_dir / "chunks.parquet")
+            for post_path in saved_posts:
+                await index_post(Path(post_path), client, store)
+            logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
+        except Exception as e:
+            logger.error(f"Failed to index posts in RAG: {e}")
 
     return {"posts": saved_posts, "profiles": saved_profiles}
