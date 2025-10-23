@@ -67,18 +67,40 @@ def _normalise_timestamp(
     frame: pl.DataFrame,
     desired_dtype: pl.Datetime,
 ) -> pl.Expr:
-    """
-    Return a ``pl.Expr`` that yields a timestamp in the desired dtype.
+    """Return a ``pl.Expr`` that yields a timestamp in the desired dtype."""
 
-    This uses a single `cast` operation, which correctly handles all cases:
-    - Naive timestamps (from strings, objects) are stamped with the target timezone.
-    - Aware timestamps are converted to the target timezone.
-    - The time unit is correctly normalized in all cases.
-    """
-    if frame.schema.get("timestamp") is None:
+    current_dtype = frame.schema.get("timestamp")
+    if current_dtype is None:
         raise ValueError("DataFrame is missing required 'timestamp' column")
 
-    return pl.col("timestamp").cast(desired_dtype)
+    desired_time_unit = desired_dtype.time_unit
+    desired_timezone = desired_dtype.time_zone
+
+    expr = pl.col("timestamp")
+
+    if isinstance(current_dtype, DateTimeType):
+        if current_dtype.time_unit != desired_time_unit:
+            expr = expr.dt.cast_time_unit(desired_time_unit)
+        current_timezone = current_dtype.time_zone
+    else:
+        expr = expr.cast(pl.Datetime(time_unit=desired_time_unit))
+        current_timezone = None
+
+    if desired_timezone is None:
+        # ``desired_dtype`` always defines a timezone today, but keep the guard to
+        # avoid surprising behaviour if the schema ever changes.
+        if isinstance(current_dtype, DateTimeType):
+            expr = expr.dt.cast_time_unit(desired_time_unit)
+        return expr.alias("timestamp")
+
+    if current_timezone is None:
+        expr = expr.dt.replace_time_zone(desired_timezone)
+    elif current_timezone != desired_timezone:
+        expr = expr.dt.convert_time_zone(desired_timezone)
+
+    expr = expr.dt.cast_time_unit(desired_time_unit)
+
+    return expr.alias("timestamp")
 
 
 def _ensure_date_column(frame: pl.DataFrame) -> pl.DataFrame:
