@@ -16,6 +16,7 @@ from dateutil import parser as date_parser
 from .models import WhatsAppExport
 from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from .anonymizer import anonymize_dataframe
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,9 @@ def parse_export(export: WhatsAppExport) -> pl.DataFrame:
         return pl.DataFrame()
 
     df = pl.DataFrame(rows).sort("timestamp")
-    return ensure_message_schema(df)
+    df = ensure_message_schema(df)
+    df = anonymize_dataframe(df)
+    return df
 
 
 def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:

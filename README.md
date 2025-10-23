@@ -1,194 +1,263 @@
-# 🧠 Egregora
+# 🧠 Egregora v2
 
-> **Egregora is a collective-intelligence compiler—a system that listens to your group chats, extracts their meaning, and rewrites them as if the group itself were speaking.**
+> **Ultra-simple LLM-powered pipeline: WhatsApp → Blog Posts**
 
-It transforms the chaotic, fragmented stream of daily conversation into a coherent, searchable, and permanent archive of your group's shared mind. It’s not just a tool; it’s a philosophy: the universe doesn’t just compute numbers—it computes meaning. Egregora is an attempt to do the same for our digital communities.
-
----
-
-## ⚡ From Chaos to Clarity
-
-Imagine a typical WhatsApp conversation—a mix of links, ideas, and side-chatter:
-
-> **14:02 — Ana:** vamos postar esse link sobre IA aberta, parece importante: https://example.com/ai-dilemma
-> **14:04 — João:** boa! isso toca no ponto que o Pedro levantou ontem sobre os riscos de coordenação.
-> **14:05 — Bia:** exato. a abertura total pode ser um "Moloch" tecnológico.
-> **14:07 — Ana:** vou adicionar isso nas notas.
-
-Egregora ingests this raw export and produces a clean, anonymized, and enriched narrative:
-
-> ### **Thread 3: The Open AI Dilemma**
->
-> We discussed the complexities of open-source AI, prompted by an article on its coordination risks. The conversation highlighted the potential for unintended negative consequences, referencing the concept of a "Moloch" scenario where individual incentives lead to collective failure (*Member-A0B2*, *Member-C4E1*). This connects to our ongoing dialogue about technological ethics.
->
-> **Enriched Link:**
-> - **[The AI Dilemma](https://example.com/ai-dilemma):** The article argues that while open AI fosters innovation, it also creates coordination problems that could lead to unsafe deployments. Key themes include game theory, systemic risk, and the ethics of public-domain models.
-
-This is the core loop: from fragmented data to collective insight.
+Give the LLM your WhatsApp messages. It decides what's worth writing, creates posts with full metadata, and saves them. That's it.
 
 ---
 
-## 🧩 Architecture: The Mind's Assembly Line
-
-Egregora is built on a modular pipeline that mirrors a cognitive process: from perception to memory.
-
-```mermaid
-graph TD
-    A[Raw Chat Exports (.zip)] --> B{1. Parse & Structure};
-    B --> C[Anonymized Polars DataFrame];
-    C --> D{2. Enrich & Analyze};
-    D --> E[Content with Context (Links, Media)];
-    E --> F{3. Generate Collective Narrative};
-    F --> G[Daily Markdown Posts];
-
-    subgraph "🧠 Collective Memory"
-        H(Evolving Member Profiles)
-        I(RAG Vector Index - ChromaDB)
-    end
-
-    E --> H;
-    G --> I;
-
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style D fill:#ccf,stroke:#333,stroke-width:2px
-    style F fill:#9f9,stroke:#333,stroke-width:2px
-
-```
-
-1.  **Parse & Structure:** WhatsApp exports are parsed into clean, structured Polars DataFrames. Participants are anonymized with deterministic UUIDs to protect privacy while preserving conversational flow.
-2.  **Enrich & Analyze:** The system analyzes links and media using Google Gemini, extracting summaries and key themes. This enriched data provides the intellectual context for each day's conversation.
-3.  **Generate Collective Narrative:** A powerful prompt engine synthesizes the day's messages into a coherent story, written from the group's perspective ("we discussed," "we explored").
-4.  **Update Collective Memory:** The system continuously updates individual member profiles with their intellectual contributions and indexes the final posts in a local RAG (Retrieval-Augmented Generation) vector store, creating a searchable long-term memory.
-
----
-
-## 🧰 Quickstart
-
-**Goal:** Go from a raw WhatsApp `.zip` export to your first generated post in under 5 minutes.
-
-### Prerequisites
-
-*   **Python 3.11+**
-*   **[uv](https://docs.astral.sh/uv/)** for dependency management
-*   **Gemini API Key** (free tier available at [Google AI Studio](https://aistudio.google.com/app/apikey))
-
-### Installation & Setup
+## 🚀 Quick Start
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/franklinbaldo/egregora.git
-cd egregora
-
-# 2. Install dependencies
-uv sync
-
-# 3. Set your API key
-export GEMINI_API_KEY="your-api-key-here"
+python run_v2.py process \
+  --zip_file=whatsapp-export.zip \
+  --output=./blog \
+  --gemini_key=YOUR_KEY
 ```
 
-### Run Your First Process
+**Done.** Check `./blog/posts/` for your blog posts.
+
+## ⚡ What It Does
+
+### The Pipeline
+
+```
+WhatsApp ZIP → Parse → Anonymize → Group by Period → Enrich → LLM → Posts
+                          ↓                             ↓       ↓
+                    Privacy-first              Add context  Editorial control
+```
+
+### LLM Has Full Control
+
+The LLM is your editor. It decides:
+- ✅ **What's worth writing** (ignores noise automatically)
+- ✅ **How many posts** (0-N per period)
+- ✅ **All metadata** (title, slug, tags, summary, authors)
+- ✅ **Content quality** (editorial judgment)
+
+### Example
+
+**Input:** 100 WhatsApp messages from Jan 1, 2025
+
+**LLM decides:** "2 posts worth creating"
+
+**Output:**
+```
+output/posts/
+├── 2025-01-01-ai-ethics-discussion.md
+└── 2025-01-01-weekend-meetup.md
+```
+
+Each with full front matter:
+```yaml
+---
+title: AI Ethics Discussion
+slug: ai-ethics-discussion
+date: 2025-01-01
+tags: [AI, ethics, coordination]
+summary: Group discusses open AI risks and coordination failures
+authors: [a1b2c3d4, e5f6g7h8]
+---
+
+# Content here...
+```
+
+## 🔒 Privacy-First
+
+- **Automatic anonymization**: All names → UUID5 pseudonyms BEFORE LLM
+- **Deterministic**: Same person → same pseudonym (e.g., "João" → `a1b2c3d4`)
+- **WhatsApp mentions**: Auto-detected and anonymized
+- **Privacy validation**: Scans output for phone numbers
+- **Early application**: Real names NEVER reach the LLM
+
+See [ANONYMIZATION.md](ANONYMIZATION.md) for details.
+
+## 📖 Usage
+
+### Basic
 
 ```bash
-# 1. Place your WhatsApp export in a known directory
-# (e.g., /path/to/your/chat.zip)
-
-# 2. Run the pipeline for the last 3 days
-uv run egregora process /path/to/your/chat.zip --days 3
-
-# 3. Check the output
-ls -R data/
+python run_v2.py process \
+  --zip_file=export.zip \
+  --output=./blog \
+  --gemini_key=YOUR_KEY
 ```
 
-Your first anonymized, enriched, and collectively narrated posts are now in `data/{group-name}/posts/daily/`.
+### Weekly Posts
+
+```bash
+python run_v2.py process \
+  --zip_file=export.zip \
+  --period=week \
+  --gemini_key=YOUR_KEY
+```
+
+### Disable Enrichment
+
+```bash
+python run_v2.py process \
+  --zip_file=export.zip \
+  --enable_enrichment=False \
+  --gemini_key=YOUR_KEY
+```
+
+### Debug Mode
+
+```bash
+python run_v2.py process \
+  --zip_file=export.zip \
+  --debug \
+  --gemini_key=YOUR_KEY
+```
+
+## 🧩 Architecture
+
+### Ultra-Simple Design
+
+```
+src/egregora/
+├── parser.py          # ZIP → DataFrame
+├── anonymizer.py      # Privacy (UUID5)
+├── enricher.py        # Media/URL → LLM → Context rows
+├── write_post.py      # Save posts with front matter (CMS tool)
+├── writer.py          # LLM with write_post tool
+├── pipeline.py        # Orchestrate: parse → enrich → write
+├── cli.py             # CLI interface
+├── privacy.py         # Privacy validation
+└── rag/               # Optional RAG (future)
+```
+
+**That's it.** ~500 lines of actual code.
+
+### What We Deleted
+
+Compared to "v2 agent-based" we deleted **80%** of the code:
+
+- ❌ CuratorAgent (LLM filters automatically)
+- ❌ EnricherAgent (simple function now)
+- ❌ WriterAgent (simple function now)
+- ❌ ProfilerAgent (unnecessary)
+- ❌ Message/Topic/Post classes (work with DataFrames)
+- ❌ Tool registry (over-engineered)
+- ❌ Agent base classes (complexity)
+
+### Key Insights
+
+1. **LLM decides quality** - Don't filter with dumb heuristics
+2. **LLM clusters topics** - Don't overthink with agents
+3. **DataFrames all the way** - No object conversions
+4. **Enrichment = DataFrame rows** - Add context as data
+5. **write_post tool** - LLM as CMS user
+
+## 🛠️ How It Works
+
+### 1. Parse & Anonymize
+
+```python
+df = parse_export(zip_file)  # WhatsApp → DataFrame
+df = anonymize_dataframe(df)  # Privacy-first
+```
+
+### 2. Group by Period
+
+```python
+# Daily, weekly, or monthly
+periods = group_by_period(df, period="day")
+# {"2025-01-01": DataFrame, "2025-01-02": DataFrame, ...}
+```
+
+### 3. Enrich (Optional)
+
+```python
+# Add URL/media context as new DataFrame rows
+enriched = await enrich_dataframe(df, client)
+
+# Original:
+# | 10:00 | a1b2c3d4 | Check this https://example.com |
+
+# Enriched:
+# | 10:00    | a1b2c3d4 | Check this https://example.com |
+# | 10:00:01 | egregora | [URL Context] Article about AI ethics... |
+```
+
+### 4. LLM Writes (with write_post tool)
+
+```python
+prompt = f"""
+You're a blog editor reviewing messages from {date}.
+
+Messages:
+{dataframe_as_markdown}
+
+Decide:
+- Is this worth writing about?
+- How many posts (0-N)?
+- What metadata for each?
+
+Use write_post tool to save posts.
+"""
+
+# LLM calls write_post 0-N times
+await llm.generate(prompt, tools=[write_post])
+```
+
+### 5. Output
+
+```
+output/
+├── posts/
+│   ├── 2025-01-01-ai-ethics.md
+│   └── 2025-01-01-meetup.md
+└── enriched/
+    └── 2025-01-01-enriched.csv  (for debugging)
+```
+
+## 💡 Philosophy
+
+### Before: Micromanage the LLM
+
+```python
+# We decide what's good
+filtered = [m for m in messages if len(m) > 15]
+
+# We cluster
+topics = cluster_agent.execute(filtered)
+
+# We enrich
+enriched = enricher_agent.execute(topics)
+
+# Finally LLM writes
+post = writer_agent.execute(enriched)
+```
+
+**Problem:** We're treating the LLM like a dumb template engine.
+
+### After: Trust the LLM
+
+```python
+# Just give it the data
+markdown = dataframe.write_markdown()
+
+# LLM does everything
+posts = llm.generate(f"Write posts from:\n{markdown}", tools=[write_post])
+```
+
+**Key:** The LLM is smarter than our heuristics. Let it decide.
+
+## 📚 Documentation
+
+- [ANONYMIZATION.md](ANONYMIZATION.md) - Privacy implementation
+- [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md) - Design decisions
+- [QUICKSTART_V2.md](QUICKSTART_V2.md) - Detailed guide
+
+## 🤝 Contributing
+
+This is the ultra-simple refactor. Keep it simple. If you're adding complexity, you're doing it wrong.
+
+## 📄 License
+
+MIT
 
 ---
 
-## ✨ Core Features
-
-| Feature                 | Description                                                                                                                              |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 🧠 **Collective Narration** | Rewrites daily conversations from the group's perspective ("we"), creating a unified, coherent voice.                                  |
-| 👥 **Evolving Profiles**    | Automatically tracks the intellectual contributions and patterns of each member, creating dynamic profiles of their thought.           |
-| 🔍 **RAG Memory**           | Indexes all generated posts into a local vector store, allowing you to search and query your group's entire conversational history.    |
-| 📡 **AI Enrichment**        | Analyzes links and media with Google Gemini, providing summaries and context that become part of the permanent archive.              |
-| 💾 **Local-First & Private**  | All processing and data storage happens locally. Your conversations are never sent to a third-party server.                          |
-| 🔒 **Deterministic Anonymization** | Protects privacy with consistent, unique identifiers for each participant, preserving conversational flow without revealing identities. |
-
----
-
-## 📖 Usage Guide
-
-### Basic Commands
-
-```bash
-# Process all ZIP files for the last 3 days
-uv run egregora process /path/to/zips/*.zip --days 3
-
-# Process a specific date range
-uv run egregora process /path/to/zips/*.zip --from-date 2024-01-01 --to-date 2024-01-31
-
-# Preview the processing without writing files
-uv run egregora process /path/to/zips/*.zip --dry-run
-```
-
-### Profile Management
-
-```bash
-# List all generated member profiles
-uv run egregora profiles list
-
-# Show the detailed profile for a specific member
-uv run egregora profiles show <member-id>
-```
-
----
-
-## 🧬 Extending & Integrating
-
-Egregora is designed to be modular. Key integration points include:
-
-*   **Adding new LLM models:** The `PostGenerator` class in `src/egregora/generator.py` can be adapted to support other models like Llama or Claude.
-*   **Custom Enrichment Modules:** The `EnrichmentEngine` in `src/egregora/enrichment.py` can be extended with new analysis tools.
-*   **Connecting Chat Sources:** The parsers in `src/egregora/parsers/` can be expanded to support other platforms like Telegram or Signal.
-*   **MkDocs Publishing:** The output Markdown is structured for seamless integration with [MkDocs](https://www.mkdocs.org/) to publish your group's archive as a static site.
-
----
-
-## ⚙️ Development & Contribution
-
-### Setup
-
-```bash
-# Install with all development dependencies (tests, linting, docs)
-uv sync --all-extras
-
-# Install pre-commit hooks for code quality
-uv run pre-commit install
-```
-
-### Running Tests
-
-```bash
-# Run the full test suite
-uv run pytest -q
-
-# Run tests with verbose output
-uv run pytest -v
-
-# Run only tests related to a specific feature (e.g., "anonymization")
-uv run pytest -k "anonymization"
-```
-
-### Contribution Flow
-
-1.  **Fork the repository.**
-2.  **Create a feature branch.**
-3.  **Make your changes and add tests.**
-4.  **Ensure all tests and pre-commit hooks pass.**
-5.  **Submit a pull request.**
-
----
-
-## 📜 License
-
-Egregora is released under the MIT License. See [LICENSE](LICENSE) for details. It relies on the amazing work of projects like [Polars](https://pola.rs/), [LlamaIndex](https://www.llamaindex.ai/), [Diskcache](http://www.grantjenks.com/docs/diskcache/), and [Google Gemini](https://deepmind.google/technologies/gemini/).
+**Egregora v2** - Stop overthinking. Let the LLM do its job.

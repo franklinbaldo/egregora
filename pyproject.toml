@@ -1,13 +1,14 @@
 [project]
 name = "egregora"
-version = "0.2.0"
-description = "Pipeline para gerar posts diárias a partir de exports do WhatsApp."
+version = "2.0.0"
+description = "Ultra-simple pipeline to generate blog posts from WhatsApp exports."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
 requires-python = ">=3.11"
 dependencies = [
     "google-genai>=0.3.0",
-    "chromadb>=0.5.0",
+    "duckdb>=0.10.0",
+    "python-frontmatter>=1.0.0",
     "pyyaml>=6.0",
     "polars>=0.20",
     "rich>=13.7.0",
@@ -42,7 +43,7 @@ lint = [
 ]
 
 [project.scripts]
-egregora = "egregora.__main__:run"
+egregora = "egregora.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]
@@ -67,7 +68,6 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
-per-file-ignores = {"src/egregora/__main__.py" = ["PLR0911", "PLR0912", "PLR0913", "PLR0915"]}
 
 [tool.mypy]
 python_version = "3.11"
@@ -76,16 +76,3 @@ warn_redundant_casts = true
 check_untyped_defs = true
 disallow_untyped_defs = false
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
-"src/egregora/prompts/generator_pt-BR.yaml" = "egregora/prompts/generator_pt-BR.yaml"
-"src/egregora/profiles/prompt_templates/update_decision_prompt.md" = "egregora/profiles/prompt_templates/update_decision_prompt.md"
-"src/egregora/profiles/prompt_templates/profile_rewrite_prompt.md" = "egregora/profiles/prompt_templates/profile_rewrite_prompt.md"
-"src/egregora/profiles/prompt_templates/profile_append_prompt.md" = "egregora/profiles/prompt_templates/profile_append_prompt.md"
-
-[tool.hatch.build.targets.sdist.force-include]
-"src/egregora/prompts/system_instruction_base.md" = "egregora/prompts/system_instruction_base.md"
-"src/egregora/prompts/generator_pt-BR.yaml" = "egregora/prompts/generator_pt-BR.yaml"
-"src/egregora/profiles/prompt_templates/update_decision_prompt.md" = "egregora/profiles/prompt_templates/update_decision_prompt.md"
-"src/egregora/profiles/prompt_templates/profile_rewrite_prompt.md" = "egregora/profiles/prompt_templates/profile_rewrite_prompt.md"
-"src/egregora/profiles/prompt_templates/profile_append_prompt.md" = "egregora/profiles/prompt_templates/profile_append_prompt.md"
