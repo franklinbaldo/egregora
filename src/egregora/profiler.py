@@ -82,6 +82,46 @@ def get_active_authors(df: Any) -> list[str]:
     ]
 
 
+def _validate_alias(alias: str) -> str | None:
+    """
+    Validate and sanitize alias input.
+
+    Args:
+        alias: Raw alias from user command
+
+    Returns:
+        Sanitized alias or None if invalid
+    """
+    if not alias:
+        return None
+
+    # Strip whitespace and quotes
+    alias = alias.strip().strip('"\'')
+
+    # Length check (1-40 characters)
+    if not (1 <= len(alias) <= 40):
+        logger.warning(f"Alias length invalid: {len(alias)} chars (must be 1-40)")
+        return None
+
+    # Escape dangerous characters (code injection, HTML, markdown)
+    # Remove control characters (ASCII < 32)
+    if any(ord(c) < 32 for c in alias):
+        logger.warning("Alias contains control characters (rejected)")
+        return None
+
+    # Escape HTML special characters
+    alias = alias.replace('&', '&amp;')
+    alias = alias.replace('<', '&lt;')
+    alias = alias.replace('>', '&gt;')
+    alias = alias.replace('"', '&quot;')
+    alias = alias.replace("'", '&#x27;')
+
+    # Escape backticks (prevent markdown code injection)
+    alias = alias.replace('`', '&#96;')
+
+    return alias
+
+
 def apply_command_to_profile(
     author_uuid: str,
     command: dict,
@@ -118,13 +158,19 @@ def apply_command_to_profile(
     value = command.get('value')
 
     if cmd_type == 'set' and target == 'alias':
+        # Validate and sanitize alias
+        value = _validate_alias(value)
+        if not value:
+            logger.warning(f"Invalid alias for {author_uuid} (rejected)")
+            return str(profile_path)
+
         content = _update_profile_metadata(
             content,
             "Display Preferences",
             "alias",
             f'- Alias: "{value}" (set on {timestamp})\n- Public: true'
         )
-        logger.info(f"Set alias '{value}' for {author_uuid}")
+        logger.info(f"Set alias for {author_uuid}")  # No PII in logs
 
     elif cmd_type == 'remove' and target == 'alias':
         content = _update_profile_metadata(
@@ -194,7 +240,17 @@ def _update_profile_metadata(
     """
     Update a metadata section in profile content.
 
-    Creates section if it doesn't exist.
+    Creates section if it doesn't exist. Replaces entire section content
+    to ensure idempotence (no duplicate accumulation).
+
+    Args:
+        content: Current profile markdown content
+        section_name: Section header (e.g., "Display Preferences")
+        key: Metadata key (used for logging, not for matching)
+        new_value: New content for the section
+
+    Returns:
+        Updated profile content
     """
     section_pattern = rf'(## {section_name}\s*\n)(.*?)(?=\n## |\Z)'
 
@@ -202,13 +258,9 @@ def _update_profile_metadata(
     match = re.search(section_pattern, content, re.DOTALL)
 
     if match:
-        # Section exists, update it
-        section_content = match.group(2)
-        # Remove old value for this key if exists
-        key_pattern = rf'^- {key.capitalize()}:.*$'
-        section_content = re.sub(key_pattern, '', section_content, flags=re.MULTILINE)
-        # Add new value
-        updated_section = f"{match.group(1)}{new_value}\n{section_content}"
+        # Section exists - replace entire section content
+        # This ensures idempotence (no duplicate accumulation)
+        updated_section = f"{match.group(1)}{new_value}\n"
         content = content[:match.start()] + updated_section + content[match.end():]
     else:
         # Section doesn't exist, create it
@@ -237,13 +289,15 @@ def get_author_display_name(
     Returns alias if set and public, otherwise returns UUID.
 
     NOTE: This is for RENDERING only. Post content should ALWAYS use UUIDs.
+    The alias is already HTML-escaped during storage (_validate_alias),
+    so it's safe to use in HTML templates.
 
     Args:
         author_uuid: The anonymized author UUID
         profiles_dir: Where profiles are stored
 
     Returns:
-        Alias (if set) or UUID
+        Alias (if set, pre-escaped) or UUID
     """
     profile = read_profile(author_uuid, profiles_dir)
 
@@ -251,6 +305,7 @@ def get_author_display_name(
         return author_uuid
 
     # Parse alias from Display Preferences section
+    # Alias is already HTML-escaped during storage (_validate_alias)
     alias_match = re.search(r'Alias: "([^"]+)".*Public: true', profile, re.DOTALL)
     if alias_match:
         return alias_match.group(1)
@@ -266,6 +321,7 @@ def process_commands(
     Process a batch of egregora commands.
 
     Updates author profiles based on commands extracted from messages.
+    Commands are processed in timestamp order to ensure deterministic results.
 
     Args:
         commands: List of command dicts from extract_commands()
@@ -279,7 +335,11 @@ def process_commands(
 
     logger.info(f"Processing {len(commands)} egregora commands")
 
-    for cmd_data in commands:
+    # Sort commands by timestamp for deterministic processing
+    # (multiple commands in same export must be applied in order)
+    sorted_commands = sorted(commands, key=lambda c: c['timestamp'])
+
+    for cmd_data in sorted_commands:
         author_uuid = cmd_data['author']
         timestamp = str(cmd_data['timestamp'])
         command = cmd_data['command']

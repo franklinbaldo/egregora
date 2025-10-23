@@ -8,14 +8,39 @@ Give the LLM your WhatsApp messages. It decides what's worth writing, creates po
 
 ## 🚀 Quick Start
 
+### 1. Install
+
 ```bash
-python run_v2.py process \
+pip install egregora
+```
+
+### 2. Initialize Site
+
+```bash
+egregora init my-blog
+cd my-blog
+pip install 'mkdocs-material[imaging]'
+```
+
+### 3. Process WhatsApp Export
+
+```bash
+egregora process \
   --zip_file=whatsapp-export.zip \
-  --output=./blog \
+  --output=. \
+  --timezone='America/Sao_Paulo' \
+  --from_date=2025-01-01 \
+  --to_date=2025-01-31 \
   --gemini_key=YOUR_KEY
 ```
 
-**Done.** Check `./blog/posts/` for your blog posts.
+### 4. Preview
+
+```bash
+mkdocs serve
+```
+
+**Done.** Check `posts/` for your blog posts.
 
 ## ⚡ What It Does
 
@@ -69,46 +94,131 @@ authors: [a1b2c3d4, e5f6g7h8]
 - **WhatsApp mentions**: Auto-detected and anonymized
 - **Privacy validation**: Scans output for phone numbers
 - **Early application**: Real names NEVER reach the LLM
+- **User control**: In-chat commands for aliases and opt-out
 
 See [ANONYMIZATION.md](ANONYMIZATION.md) for details.
 
+### User Control Commands
+
+Users can control their data directly from WhatsApp:
+
+```
+/egregora set alias "Franklin"         - Set display name
+/egregora set bio "I love Python"      - Set bio
+/egregora set twitter "@franklindev"   - Add social link
+/egregora set website "https://..."    - Add website
+/egregora remove alias                 - Remove alias
+/egregora opt-out                      - Exclude from future posts
+/egregora opt-in                       - Rejoin (after opt-out)
+```
+
+**Important**: Commands affect **new posts only**. Existing published posts are not modified.
+
+### Removing Your Data from Existing Posts
+
+**Opt-out semantics**: The `/egregora opt-out` command only affects **NEW posts** generated after the command. It does not modify or delete existing published posts.
+
+To remove your content from existing published posts:
+
+1. **Delete published posts containing your content**:
+   ```bash
+   rm posts/2025-01-15-*.md  # Delete specific posts
+   ```
+
+2. **Regenerate affected periods**:
+   ```bash
+   egregora process \
+     --zip_file=export.zip \
+     --from_date=2025-01-15 \
+     --to_date=2025-01-15 \
+     --output=my-blog \
+     --gemini_key=YOUR_KEY
+   ```
+   The regenerated posts will respect your opt-out status.
+
+3. **Or contact the blog administrator** to manually edit/remove your content from posts.
+
+**Why this design?**: Egregora is a pipeline tool for content generation, not a content management system. Opt-out controls future processing. Historical content management (editing, deletion) is handled at the file/site level.
+
 ## 📖 Usage
 
-### Basic
+### Initialize New Site
 
 ```bash
-python run_v2.py process \
+egregora init my-blog
+```
+
+Creates a complete MkDocs site structure with:
+- `mkdocs.yml` - Single config source for MkDocs + Egregora
+- `docs/` - Documentation pages
+- `posts/` - Blog posts directory
+- `profiles/` - Author profiles
+- `media/` - Images, videos, audio
+
+### Process WhatsApp Export
+
+#### Basic (All Messages)
+
+```bash
+egregora process \
   --zip_file=export.zip \
-  --output=./blog \
+  --output=./my-blog \
+  --timezone='America/Sao_Paulo' \
   --gemini_key=YOUR_KEY
 ```
 
-### Weekly Posts
+⚠️ **Warning**: Processing all messages can be expensive. Use date filters for cost control.
+
+#### Date-Filtered (Recommended)
 
 ```bash
-python run_v2.py process \
+egregora process \
   --zip_file=export.zip \
+  --output=./my-blog \
+  --from_date=2025-01-01 \
+  --to_date=2025-01-31 \
+  --timezone='America/Sao_Paulo' \
+  --gemini_key=YOUR_KEY
+```
+
+#### Weekly Posts
+
+```bash
+egregora process \
+  --zip_file=export.zip \
+  --output=./my-blog \
   --period=week \
+  --timezone='Europe/London' \
   --gemini_key=YOUR_KEY
 ```
 
-### Disable Enrichment
+#### Disable Enrichment
 
 ```bash
-python run_v2.py process \
+egregora process \
   --zip_file=export.zip \
+  --output=./my-blog \
   --enable_enrichment=False \
   --gemini_key=YOUR_KEY
 ```
 
-### Debug Mode
+#### Debug Mode
 
 ```bash
-python run_v2.py process \
+egregora process \
   --zip_file=export.zip \
+  --output=./my-blog \
   --debug \
   --gemini_key=YOUR_KEY
 ```
+
+### Important Flags
+
+- `--timezone` - **Critical**: WhatsApp exports use your phone's local timezone. Without this, messages may be grouped into wrong dates. Find your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  - Examples: `America/Sao_Paulo`, `America/New_York`, `Europe/London`
+- `--from_date` / `--to_date` - Filter messages by date (YYYY-MM-DD) for cost control
+- `--period` - Group by `day` (default), `week`, or `month`
+- `--enable_enrichment` - Add URL/media context (default: `True`)
 
 ## 🧩 Architecture
 
