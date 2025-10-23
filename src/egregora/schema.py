@@ -67,30 +67,18 @@ def _normalise_timestamp(
     frame: pl.DataFrame,
     desired_dtype: pl.Datetime,
 ) -> pl.Expr:
-    """Return a ``pl.Expr`` that yields a timestamp in the desired dtype."""
+    """
+    Return a ``pl.Expr`` that yields a timestamp in the desired dtype.
 
-    tz_name = desired_dtype.time_zone
-    if tz_name is None:
-        raise ValueError("desired_dtype must have a timezone")
-
-    timestamp_dtype = frame.schema.get("timestamp")
-    if timestamp_dtype is None:
+    This uses a single `cast` operation, which correctly handles all cases:
+    - Naive timestamps (from strings, objects) are stamped with the target timezone.
+    - Aware timestamps are converted to the target timezone.
+    - The time unit is correctly normalized in all cases.
+    """
+    if frame.schema.get("timestamp") is None:
         raise ValueError("DataFrame is missing required 'timestamp' column")
 
-    if timestamp_dtype == desired_dtype:
-        return pl.col("timestamp")
-
-    if isinstance(timestamp_dtype, DateTimeType):
-        expr = pl.col("timestamp").dt.cast_time_unit(desired_dtype.time_unit)
-        if timestamp_dtype.time_zone is None:
-            return expr.dt.replace_time_zone(tz_name)
-        return expr.dt.convert_time_zone(tz_name)
-
-    return (
-        pl.col("timestamp")
-        .str.strptime(pl.Datetime(time_unit=desired_dtype.time_unit))
-        .dt.replace_time_zone(tz_name)
-    )
+    return pl.col("timestamp").cast(desired_dtype)
 
 
 def _ensure_date_column(frame: pl.DataFrame) -> pl.DataFrame:
