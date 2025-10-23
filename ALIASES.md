@@ -52,22 +52,33 @@ Participants can send commands in the WhatsApp group to control their data and i
 ```
 **REMOVES ALL YOUR MESSAGES** from processing. This is immediate and persistent:
 - All your messages filtered out BEFORE any processing
-- Applies to current and future runs
+- Applies to current and **future runs** (new posts only)
 - Your data never reaches LLM, enrichment, or posts
 - Profile marked as "OPTED OUT"
 - Reversible with `/egregora opt-in`
 
+**⚠️ IMPORTANT - Scope Limitation:**
+- **Opt-out only affects NEW posts** generated after the command
+- **Existing published posts are NOT automatically modified**
+- To remove your content from already-published posts, contact the blog administrator
+- This is a pipeline-level control, not a content management system
+
 **When to use:**
-- You don't want your messages in the blog
-- GDPR-style "right to be forgotten"
-- Privacy concerns
+- You don't want your messages in future blog posts
+- GDPR-style "right to be forgotten" for new content
+- Privacy concerns going forward
 
 **Example Flow:**
 ```
 User: /egregora opt-out
 Pipeline: ⚠️ User a3f8c2b1 OPTED OUT - 47 messages removed
-Result: Zero traces of you in posts
+Result: Zero traces of you in NEW posts (existing posts unaffected)
 ```
+
+**For removal from existing posts:**
+Contact the blog administrator. They will need to:
+1. Delete or edit the published posts manually
+2. Regenerate posts with your opt-out in effect (if applicable)
 
 ### ✅ Opt Back In
 ```
