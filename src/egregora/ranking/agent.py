@@ -3,11 +3,11 @@
 from pathlib import Path
 from datetime import datetime, timezone
 import uuid
-import polars as pl
 import google.generativeai as genai
 from rich.console import Console
 
 from ..profiler import get_author_display_name
+from .store import RankingStore
 
 console = Console()
 
@@ -133,37 +133,21 @@ def load_profile(profile_path: Path) -> dict:
     return profile
 
 
-def load_comments_for_post(post_id: str, rankings_dir: Path) -> str | None:
+def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     """
-    Load all existing comments for a post from elo_history.parquet.
+    Load all existing comments for a post from DuckDB.
     Format as markdown for agent context.
     """
-    history_path = rankings_dir / "elo_history.parquet"
+    comments_df = store.get_comments_for_post(post_id)
 
-    if not history_path.exists():
-        return None
-
-    history_df = pl.read_parquet(history_path)
-
-    # Get all comparisons involving this post
-    comments_a = history_df.filter(pl.col("post_a") == post_id).select([
-        "profile_id", "timestamp", "comment_a", "stars_a"
-    ]).rename({"comment_a": "comment", "stars_a": "stars"})
-
-    comments_b = history_df.filter(pl.col("post_b") == post_id).select([
-        "profile_id", "timestamp", "comment_b", "stars_b"
-    ]).rename({"comment_b": "comment", "stars_b": "stars"})
-
-    all_comments = pl.concat([comments_a, comments_b])
-
-    if len(all_comments) == 0:
+    if len(comments_df) == 0:
         return None
 
     # Format as markdown
     lines = []
-    for row in all_comments.iter_rows(named=True):
-        # Get profile alias (assuming profiles are in standard location)
-        profile_name = row["profile_id"][:8]  # Use short UUID for now
+    for row in comments_df.iter_rows(named=True):
+        # Get profile alias (use short UUID for now)
+        profile_name = row["profile_id"][:8]
         stars = "⭐" * row["stars"]
         timestamp = row["timestamp"].strftime("%Y-%m-%d")
 
@@ -175,7 +159,7 @@ def load_comments_for_post(post_id: str, rankings_dir: Path) -> str | None:
 
 
 def save_comparison(
-    rankings_dir: Path,
+    store: RankingStore,
     profile_id: str,
     post_a: str,
     post_b: str,
@@ -185,31 +169,21 @@ def save_comparison(
     comment_b: str,
     stars_b: int,
 ):
-    """Save comparison result to elo_history.parquet."""
-    history_path = rankings_dir / "elo_history.parquet"
-
+    """Save comparison result to DuckDB."""
     comparison_data = {
-        "comparison_id": [str(uuid.uuid4())],
-        "timestamp": [datetime.now(timezone.utc)],
-        "profile_id": [profile_id],
-        "post_a": [post_a],
-        "post_b": [post_b],
-        "winner": [winner],
-        "comment_a": [comment_a],
-        "stars_a": [stars_a],
-        "comment_b": [comment_b],
-        "stars_b": [stars_b],
+        "comparison_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc),
+        "profile_id": profile_id,
+        "post_a": post_a,
+        "post_b": post_b,
+        "winner": winner,
+        "comment_a": comment_a,
+        "stars_a": stars_a,
+        "comment_b": comment_b,
+        "stars_b": stars_b,
     }
 
-    new_row = pl.DataFrame(comparison_data)
-
-    # Append to existing history or create new
-    if history_path.exists():
-        existing = pl.read_parquet(history_path)
-        combined = pl.concat([existing, new_row])
-        combined.write_parquet(history_path)
-    else:
-        new_row.write_parquet(history_path)
+    store.save_comparison(comparison_data)
 
 
 def run_comparison(
@@ -234,7 +208,9 @@ def run_comparison(
     """
     posts_dir = site_dir / "posts"
     rankings_dir = site_dir / "rankings"
-    rankings_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create ranking store
+    store = RankingStore(rankings_dir)
 
     # Load posts
     post_a_path = posts_dir / f"{post_a_id}.md"
@@ -252,8 +228,8 @@ def run_comparison(
     profile = load_profile(profile_path)
 
     # Load existing comments
-    existing_comments_a = load_comments_for_post(post_a_id, rankings_dir)
-    existing_comments_b = load_comments_for_post(post_b_id, rankings_dir)
+    existing_comments_a = load_comments_for_post(post_a_id, store)
+    existing_comments_b = load_comments_for_post(post_b_id, store)
 
     # Configure Gemini
     genai.configure(api_key=api_key)
@@ -390,7 +366,7 @@ Use the comment_post_B tool to:
 
     # Save comparison to history
     save_comparison(
-        rankings_dir=rankings_dir,
+        store=store,
         profile_id=profile["uuid"],
         post_a=post_a_id,
         post_b=post_b_id,

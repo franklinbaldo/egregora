@@ -1,8 +1,7 @@
 """ELO rating system for blog post quality ranking."""
 
 from pathlib import Path
-from datetime import datetime, timezone
-import polars as pl
+from .store import RankingStore
 
 
 DEFAULT_ELO = 1500
@@ -52,44 +51,33 @@ def calculate_elo_update(
     return new_rating_a, new_rating_b
 
 
-def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> Path:
+def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
     """
     Initialize ELO ratings for all posts.
 
-    Creates elo_ratings.parquet with default scores for all posts.
+    Creates DuckDB database with default scores for all posts.
 
     Args:
         posts_dir: Directory containing blog posts
         rankings_dir: Directory to store ranking data
 
     Returns:
-        Path to elo_ratings.parquet
+        RankingStore instance
     """
-    rankings_dir.mkdir(parents=True, exist_ok=True)
-    ratings_path = rankings_dir / "elo_ratings.parquet"
-
-    # If ratings already exist, don't overwrite
-    if ratings_path.exists():
-        return ratings_path
-
     # Find all markdown posts
     post_files = list(posts_dir.glob("*.md"))
 
     if not post_files:
         raise ValueError(f"No posts found in {posts_dir}")
 
-    # Create initial ratings DataFrame
-    data = {
-        "post_id": [p.stem for p in post_files],
-        "elo_global": [DEFAULT_ELO] * len(post_files),
-        "games_played": [0] * len(post_files),
-        "last_updated": [datetime.now(timezone.utc)] * len(post_files),
-    }
+    # Create store
+    store = RankingStore(rankings_dir)
 
-    df = pl.DataFrame(data)
-    df.write_parquet(ratings_path)
+    # Initialize ratings for all posts
+    post_ids = [p.stem for p in post_files]
+    store.initialize_ratings(post_ids)
 
-    return ratings_path
+    return store
 
 
 def update_ratings(
@@ -110,63 +98,25 @@ def update_ratings(
     Returns:
         (new_rating_a, new_rating_b): Updated ELO ratings
     """
-    ratings_path = rankings_dir / "elo_ratings.parquet"
-
-    if not ratings_path.exists():
-        raise ValueError(f"Ratings file not found: {ratings_path}")
-
-    # Load ratings
-    df = pl.read_parquet(ratings_path)
+    store = RankingStore(rankings_dir)
 
     # Get current ratings
-    rating_a_row = df.filter(pl.col("post_id") == post_a)
-    rating_b_row = df.filter(pl.col("post_id") == post_b)
+    rating_a_data = store.get_rating(post_a)
+    rating_b_data = store.get_rating(post_b)
 
-    if len(rating_a_row) == 0:
+    if not rating_a_data:
         raise ValueError(f"Post not found in ratings: {post_a}")
-    if len(rating_b_row) == 0:
+    if not rating_b_data:
         raise ValueError(f"Post not found in ratings: {post_b}")
 
-    current_a = rating_a_row["elo_global"][0]
-    current_b = rating_b_row["elo_global"][0]
+    current_a = rating_a_data['elo_global']
+    current_b = rating_b_data['elo_global']
 
     # Calculate new ratings
     new_rating_a, new_rating_b = calculate_elo_update(current_a, current_b, winner)
 
-    # Update DataFrame
-    now = datetime.now(timezone.utc)
-
-    df = df.with_columns([
-        pl.when(pl.col("post_id") == post_a)
-        .then(new_rating_a)
-        .otherwise(pl.col("elo_global"))
-        .alias("elo_global"),
-
-        pl.when(pl.col("post_id") == post_a)
-        .then(pl.col("games_played") + 1)
-        .when(pl.col("post_id") == post_b)
-        .then(pl.col("games_played") + 1)
-        .otherwise(pl.col("games_played"))
-        .alias("games_played"),
-
-        pl.when(pl.col("post_id") == post_a)
-        .then(now)
-        .when(pl.col("post_id") == post_b)
-        .then(now)
-        .otherwise(pl.col("last_updated"))
-        .alias("last_updated"),
-    ])
-
-    # Also need to update post_b's rating
-    df = df.with_columns([
-        pl.when(pl.col("post_id") == post_b)
-        .then(new_rating_b)
-        .otherwise(pl.col("elo_global"))
-        .alias("elo_global"),
-    ])
-
-    # Write back
-    df.write_parquet(ratings_path)
+    # Update in store
+    store.update_ratings(post_a, post_b, new_rating_a, new_rating_b)
 
     return new_rating_a, new_rating_b
 
@@ -182,25 +132,10 @@ def get_posts_to_compare(rankings_dir: Path, strategy: str = "fewest_games") -> 
     Returns:
         (post_a_id, post_b_id): IDs of posts to compare
     """
-    ratings_path = rankings_dir / "elo_ratings.parquet"
+    store = RankingStore(rankings_dir)
+    posts = store.get_posts_to_compare(strategy=strategy, n=2)
 
-    if not ratings_path.exists():
-        raise ValueError(f"Ratings file not found: {ratings_path}")
+    if len(posts) < 2:
+        raise ValueError("Need at least 2 posts to compare")
 
-    df = pl.read_parquet(ratings_path)
-
-    if strategy == "fewest_games":
-        # Sort by games played (ascending), then randomly
-        sorted_df = df.sort("games_played")
-
-        # Take top 2
-        if len(sorted_df) < 2:
-            raise ValueError("Need at least 2 posts to compare")
-
-        post_a = sorted_df["post_id"][0]
-        post_b = sorted_df["post_id"][1]
-
-        return post_a, post_b
-
-    else:
-        raise ValueError(f"Unknown strategy: {strategy}")
+    return posts[0], posts[1]

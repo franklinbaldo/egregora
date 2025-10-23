@@ -332,6 +332,7 @@ class EgregoraCLI:
         self,
         site_dir: str,
         comparisons: int = 1,
+        export_parquet: bool = False,
         gemini_key: str | None = None,
         debug: bool = False,
     ):
@@ -346,9 +347,13 @@ class EgregoraCLI:
         Each comparison randomly selects a profile to impersonate, creating
         diverse perspectives on post quality.
 
+        Rankings are stored in DuckDB for fast updates and queries. Optionally
+        export to Parquet for sharing/external analytics.
+
         Args:
             site_dir: Root directory of MkDocs site (contains posts/ and profiles/)
             comparisons: Number of comparisons to run (default: 1)
+            export_parquet: Export rankings to Parquet after comparisons (default: False)
             gemini_key: Google Gemini API key
             debug: Enable debug logging
         """
@@ -424,8 +429,8 @@ class EgregoraCLI:
 
         # Initialize ratings if needed
         try:
-            ratings_path = initialize_ratings(posts_dir, rankings_dir)
-            console.print(f"[dim]Using ratings file: {ratings_path}[/dim]\n")
+            store = initialize_ratings(posts_dir, rankings_dir)
+            console.print(f"[dim]Using rankings database: {store.db_path}[/dim]\n")
         except ValueError as e:
             console.print(
                 Panel(
@@ -502,16 +507,37 @@ class EgregoraCLI:
                     raise
                 continue
 
+        # Export to Parquet if requested
+        if export_parquet:
+            console.print("\n[cyan]Exporting rankings to Parquet...[/cyan]")
+            store.export_to_parquet()
+            console.print("[green]✓ Exported to Parquet[/green]")
+
         # Show summary
         console.print("\n")
+
+        summary_text = (
+            f"[bold green]✓ Ranking session complete![/bold green]\n\n"
+            f"Comparisons completed: {comparisons}\n"
+            f"Rankings stored in: {rankings_dir}\n\n"
+            f"[bold]Primary storage:[/bold]\n"
+            f"• rankings.duckdb - DuckDB database (fast updates/queries)"
+        )
+
+        if export_parquet:
+            summary_text += (
+                f"\n\n[bold]Parquet exports:[/bold]\n"
+                f"• elo_ratings.parquet - Current ELO scores\n"
+                f"• elo_history.parquet - Full comparison history"
+            )
+        else:
+            summary_text += (
+                f"\n\n[dim]Tip: Use --export_parquet to create Parquet files for sharing/analytics[/dim]"
+            )
+
         console.print(
             Panel(
-                f"[bold green]✓ Ranking session complete![/bold green]\n\n"
-                f"Comparisons completed: {comparisons}\n"
-                f"Rankings stored in: {rankings_dir}\n\n"
-                f"[bold]Files:[/bold]\n"
-                f"• elo_ratings.parquet - Current ELO scores\n"
-                f"• elo_history.parquet - Full comparison history with comments",
+                summary_text,
                 title="Session Complete",
                 border_style="green",
             )

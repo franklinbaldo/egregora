@@ -2,10 +2,12 @@
 
 from .elo import calculate_elo_update, initialize_ratings, update_ratings
 from .agent import run_comparison
+from .store import RankingStore
 
 __all__ = [
     "calculate_elo_update",
     "initialize_ratings",
     "update_ratings",
     "run_comparison",
+    "RankingStore",
 ]
