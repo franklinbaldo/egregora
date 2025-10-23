@@ -135,6 +135,44 @@ def extract_commands(df: pl.DataFrame) -> list[dict]:
     return commands
 
 
+def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
+    """
+    Remove all messages starting with /egregora from DataFrame.
+
+    This serves dual purposes:
+    1. Remove command spam from content (clean posts)
+    2. Allow users to mark specific messages as excluded
+
+    Users can use /egregora prefix to exclude any message:
+    - /egregora This is private, don't include
+    - /egregora [sensitive discussion]
+    - /egregora opt-out (command)
+    - /egregora set alias "Name" (command)
+
+    Args:
+        df: Polars DataFrame with 'message' column
+
+    Returns:
+        (filtered_df, num_removed)
+    """
+    if df.is_empty():
+        return df, 0
+
+    original_count = len(df)
+
+    # Filter out messages starting with /egregora (case-insensitive)
+    filtered_df = df.filter(
+        ~pl.col("message").str.to_lowercase().str.starts_with("/egregora")
+    )
+
+    removed_count = original_count - len(filtered_df)
+
+    if removed_count > 0:
+        logger.info(f"Removed {removed_count} /egregora messages from DataFrame")
+
+    return filtered_df, removed_count
+
+
 def parse_export(export: WhatsAppExport) -> pl.DataFrame:
     """Parse an individual export into a Polars ``DataFrame``."""
 

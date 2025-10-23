@@ -10,6 +10,38 @@ Egregora supports user-controlled privacy and identity preferences through in-ba
 4. **Social Transparency**: Commands visible to the whole group
 5. **Immutable Storage**: Posts always use UUIDs (privacy-safe)
 
+## The `/egregora` Prefix - Exclude Anything
+
+**ANY message starting with `/egregora` is automatically excluded** from processing.
+
+This serves dual purposes:
+1. **Commands** - Control your privacy and identity
+2. **Ad-hoc exclusion** - Mark specific messages as "don't include this"
+
+### 💬 Ad-Hoc Message Exclusion
+
+Prefix any message with `/egregora` to exclude it from blog posts:
+
+```
+User: /egregora This is private, don't include it in the blog
+User: /egregora [sensitive financial discussion]
+User: /egregora Just testing, ignore this
+```
+
+**These messages are removed from the DataFrame BEFORE any processing:**
+- Never reach LLM
+- Never in enrichment
+- Never in posts
+- Removed immediately, no persistence needed
+
+**Use cases:**
+- Private discussions you don't want in blog
+- Sensitive topics (finances, health, personal)
+- Meta-discussions about the blog itself
+- Testing or debugging
+
+---
+
 ## Commands
 
 Participants can send commands in the WhatsApp group to control their data and identity:

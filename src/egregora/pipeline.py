@@ -7,7 +7,7 @@ from datetime import datetime
 import polars as pl
 from google import genai
 
-from .parser import parse_export, extract_commands
+from .parser import parse_export, extract_commands, filter_egregora_messages
 from .models import WhatsAppExport
 from .types import GroupSlug
 from .enricher import extract_and_replace_media, enrich_dataframe
@@ -136,12 +136,15 @@ async def process_whatsapp_export(
     # Parse and anonymize
     df = parse_export(export)
 
-    # Extract and process egregora commands (before grouping)
+    # Extract and process egregora commands (before filtering)
     commands = extract_commands(df)
     if commands:
         profiles_dir = output_dir / "profiles"
         process_commands(commands, profiles_dir)
         logger.info(f"Processed {len(commands)} egregora commands")
+
+    # Remove ALL /egregora messages (commands + ad-hoc exclusions)
+    df, egregora_removed = filter_egregora_messages(df)
 
     # Filter out opted-out authors EARLY (before any processing)
     profiles_dir = output_dir / "profiles"
