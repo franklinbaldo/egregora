@@ -7,9 +7,10 @@ from zoneinfo import ZoneInfo
 import polars as pl
 from polars.datatypes import Datetime as DateTimeType
 
-from .config import DEFAULT_TIMEZONE
-
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
+
+# Default timezone for WhatsApp exports (no timezone in export files)
+DEFAULT_TIMEZONE = "UTC"
 
 MESSAGE_SCHEMA: dict[str, pl.DataType] = {
     "timestamp": pl.Datetime(time_unit="ns", time_zone=DEFAULT_TIMEZONE),
