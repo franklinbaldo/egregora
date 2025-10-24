@@ -49,7 +49,7 @@ egregora process \
   --timezone='America/Sao_Paulo' \
   --from-date=2025-01-01 \
   --to-date=2025-01-31 \
-  --enable-enrichment=True
+  --enable-enrichment
 
 # Step 4: Show results
 echo ""
