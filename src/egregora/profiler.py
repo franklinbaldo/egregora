@@ -104,9 +104,7 @@ def _validate_alias(alias: str) -> str | None:
 
     # Length check (1-MAX_ALIAS_LENGTH characters)
     if not (1 <= len(alias) <= MAX_ALIAS_LENGTH):
-        logger.warning(
-            f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})"
-        )
+        logger.warning(f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})")
         return None
 
     # Escape dangerous characters (code injection, HTML, markdown)

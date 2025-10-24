@@ -137,6 +137,21 @@ def _writer_tools() -> list[genai_types.Tool]:
     ]
 
 
+def _find_mkdocs_file(output_dir: Path) -> Path | None:
+    """Find the mkdocs.yml file in the output directory or its parent."""
+    # Try to find mkdocs.yml in parent directory (site root)
+    mkdocs_path = output_dir.parent / "mkdocs.yml"
+
+    # If not found, try in output_dir itself
+    if not mkdocs_path.exists():
+        mkdocs_path = output_dir / "mkdocs.yml"
+
+    if not mkdocs_path.exists():
+        return None
+
+    return mkdocs_path
+
+
 def load_site_config(output_dir: Path) -> dict:
     """
     Load egregora configuration from mkdocs.yml if it exists.
@@ -150,14 +165,8 @@ def load_site_config(output_dir: Path) -> dict:
     Returns:
         Dict with egregora config (writer_prompt, rag settings, etc.)
     """
-    # Try to find mkdocs.yml in parent directory (site root)
-    mkdocs_path = output_dir.parent / "mkdocs.yml"
-
-    # If not found, try in output_dir itself
-    if not mkdocs_path.exists():
-        mkdocs_path = output_dir / "mkdocs.yml"
-
-    if not mkdocs_path.exists():
+    mkdocs_path = _find_mkdocs_file(output_dir)
+    if not mkdocs_path:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
 
@@ -184,14 +193,8 @@ def load_markdown_extensions(output_dir: Path) -> str:
     Returns:
         Formatted YAML string with markdown_extensions section
     """
-    # Try to find mkdocs.yml in parent directory (site root)
-    mkdocs_path = output_dir.parent / "mkdocs.yml"
-
-    # If not found, try in output_dir itself
-    if not mkdocs_path.exists():
-        mkdocs_path = output_dir / "mkdocs.yml"
-
-    if not mkdocs_path.exists():
+    mkdocs_path = _find_mkdocs_file(output_dir)
+    if not mkdocs_path:
         logger.debug("No mkdocs.yml found, no custom markdown extensions")
         return ""
 

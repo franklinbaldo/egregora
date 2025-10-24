@@ -231,6 +231,7 @@ async def run_editor_session(  # noqa: PLR0912, PLR0915
     model_config: ModelConfig,
     rag_dir: Path,
     context: dict | None = None,
+    max_turns: int = 15,
 ) -> EditorResult:
     """
     Run a full editing session on a post using LLM with editor tools.
@@ -276,7 +277,6 @@ async def run_editor_session(  # noqa: PLR0912, PLR0915
     ]
 
     model = model_config.get_model("editor")
-    max_turns = 15
     tool_calls_log = []
 
     logger.info(f"Starting editor session for {post_path.name}")
