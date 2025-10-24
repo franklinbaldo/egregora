@@ -118,7 +118,7 @@ def _validate_and_run_process(config: ProcessConfig):
             process_whatsapp_export(
                 zip_path=config.zip_file,
                 output_dir=config.output_dir,
-                api_key=api_key,
+                gemini_api_key=api_key,
                 period=config.period,
                 enable_enrichment=config.enable_enrichment,
                 from_date=from_date_obj,
