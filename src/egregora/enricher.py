@@ -8,6 +8,9 @@ from datetime import timedelta
 from pathlib import Path
 import polars as pl
 from google import genai
+from google.genai import types as genai_types
+
+from .genai_utils import call_with_retries
 
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
@@ -226,12 +229,20 @@ def extract_and_replace_media(
 
 async def describe_url(url: str, client: genai.Client) -> str:
     """Ask LLM to describe a URL's content."""
+    prompt = f"Briefly describe what this URL is about (1-2 sentences): {url}"
     try:
-        response = await client.aio.models.generate_content(
+        response = await call_with_retries(
+            client.aio.models.generate_content,
             model="gemini-2.0-flash-lite",
-            contents=f"Briefly describe what this URL is about (1-2 sentences): {url}"
+            contents=[
+                genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part(text=prompt)],
+                )
+            ],
+            config=genai_types.GenerateContentConfig(temperature=0.2),
         )
-        return response.text.strip()
+        return (response.text or "").strip()
     except Exception as e:
         return f"[Failed to fetch URL: {str(e)}]"
 
@@ -240,18 +251,43 @@ async def describe_media_file(file_path: Path, client: genai.Client) -> str:
     """Ask LLM to describe media file using vision/audio capabilities."""
     try:
         # Upload file to Gemini
-        uploaded_file = await client.aio.files.upload(path=str(file_path))
-
-        # Generate description
-        response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=[
-                "Describe this media file in 2-3 sentences. What does it show/contain?",
-                uploaded_file,
-            ]
+        uploaded_file = await call_with_retries(
+            client.aio.files.upload,
+            path=str(file_path),
         )
 
-        return response.text.strip()
+        file_part = None
+        if getattr(uploaded_file, "uri", None):
+            file_part = genai_types.Part(
+                file_data=genai_types.FileData(
+                    file_uri=uploaded_file.uri,
+                    mime_type=getattr(uploaded_file, "mime_type", None),
+                    display_name=file_path.name,
+                )
+            )
+
+        # Generate description
+        parts = [
+            genai_types.Part(
+                text="Describe this media file in 2-3 sentences. What does it show/contain?"
+            )
+        ]
+
+        if file_part is not None:
+            parts.append(file_part)
+
+        response = await call_with_retries(
+            client.aio.models.generate_content,
+            model="gemini-2.0-flash-exp",
+            contents=[
+                genai_types.Content(
+                    role="user",
+                    parts=parts,
+                )
+            ],
+        )
+
+        return (response.text or "").strip()
     except Exception as e:
         return f"[Media: {file_path.name}]"
 
@@ -301,10 +337,14 @@ async def enrich_dataframe(
                     break
 
                 description = await describe_url(url, client)
+                enrichment_timestamp = timestamp + timedelta(seconds=1)
                 new_rows.append({
-                    "timestamp": timestamp + timedelta(seconds=1),
+                    "timestamp": enrichment_timestamp,
+                    "date": enrichment_timestamp.date(),
                     "author": "egregora",
                     "message": f"[URL Context] {url}\n{description}",
+                    "original_line": "",
+                    "tagged_line": "",
                 })
                 enrichment_count += 1
 
@@ -318,17 +358,28 @@ async def enrich_dataframe(
                         break
 
                     description = await describe_media_file(file_path, client)
+                    enrichment_timestamp = timestamp + timedelta(seconds=1)
                     new_rows.append({
-                        "timestamp": timestamp + timedelta(seconds=1),
+                        "timestamp": enrichment_timestamp,
+                        "date": enrichment_timestamp.date(),
                         "author": "egregora",
                         "message": f"[Media Description] {description}",
+                        "original_line": "",
+                        "tagged_line": "",
                     })
                     enrichment_count += 1
 
     if not new_rows:
         return df
 
-    enrichment_df = pl.DataFrame(new_rows)
+    base_row = {column: None for column in df.columns}
+    normalized_rows = []
+    for row in new_rows:
+        normalized = base_row.copy()
+        normalized.update(row)
+        normalized_rows.append(normalized)
+
+    enrichment_df = pl.DataFrame(normalized_rows, schema=df.schema, strict=False)
     combined = pl.concat([df, enrichment_df])
     combined = combined.sort("timestamp")
 

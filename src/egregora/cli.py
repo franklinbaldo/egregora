@@ -12,8 +12,9 @@ from rich.panel import Panel
 
 from .pipeline import process_whatsapp_export
 from .site_scaffolding import ensure_mkdocs_project
-from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
-from .ranking.agent import run_comparison
+# Lazy load ranking to avoid import errors if dependencies missing
+# from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
+# from .ranking.agent import run_comparison
 
 
 console = Console()
@@ -357,6 +358,9 @@ class EgregoraCLI:
             gemini_key: Google Gemini API key
             debug: Enable debug logging
         """
+        # Lazy import ranking modules
+        from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
+        from .ranking.agent import run_comparison
         if debug:
             logging.basicConfig(
                 level=logging.DEBUG,
