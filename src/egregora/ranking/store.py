@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
-import polars as pl
+import ibis
+from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +237,7 @@ class RankingStore:
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
-    def get_comments_for_post(self, post_id: str) -> pl.DataFrame:
+    def get_comments_for_post(self, post_id: str) -> Table:
         """
         Get all comments for a specific post.
 
@@ -244,7 +245,7 @@ class RankingStore:
             post_id: Post ID
 
         Returns:
-            DataFrame with columns: profile_id, timestamp, comment, stars
+            Ibis Table with columns: profile_id, timestamp, comment, stars
         """
         result = self.conn.execute(
             """
@@ -260,29 +261,18 @@ class RankingStore:
             [post_id, post_id, post_id, post_id],
         ).fetchall()
 
-        # Convert to Polars DataFrame, handling empty results
+        # Convert to Ibis Table, handling empty results
         if not result:
-            return pl.DataFrame(
-                schema={
-                    "profile_id": pl.Utf8,
-                    "timestamp": pl.Datetime,
-                    "comment": pl.Utf8,
-                    "stars": pl.Int64,
-                }
-            )
+            return ibis.memtable([])
 
-        return pl.DataFrame(
-            result,
-            schema={
-                "profile_id": pl.Utf8,
-                "timestamp": pl.Datetime,
-                "comment": pl.Utf8,
-                "stars": pl.Int64,
-            },
-            orient="row",
-        )
+        # Convert to list of dicts for Ibis
+        rows = [
+            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]}
+            for r in result
+        ]
+        return ibis.memtable(rows)
 
-    def get_top_posts(self, n: int = 10, min_games: int = 5) -> pl.DataFrame:
+    def get_top_posts(self, n: int = 10, min_games: int = 5) -> Table:
         """
         Get top-rated posts.
 
@@ -291,7 +281,7 @@ class RankingStore:
             min_games: Minimum number of games for confidence
 
         Returns:
-            DataFrame with post_id, elo_global, games_played, last_updated
+            Ibis Table with post_id, elo_global, games_played, last_updated
         """
         result = self.conn.execute(
             """
@@ -303,27 +293,27 @@ class RankingStore:
             [min_games, n],
         ).arrow()
 
-        return pl.from_arrow(result)
+        return ibis.memtable(result.to_pydict())
 
-    def get_all_ratings(self) -> pl.DataFrame:
+    def get_all_ratings(self) -> Table:
         """
-        Get all ratings as DataFrame.
+        Get all ratings as Ibis Table.
 
         Returns:
-            DataFrame with all elo_ratings data
+            Ibis Table with all elo_ratings data
         """
         result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
-        return pl.from_arrow(result)
+        return ibis.memtable(result.to_pydict())
 
-    def get_all_history(self) -> pl.DataFrame:
+    def get_all_history(self) -> Table:
         """
-        Get all comparison history as DataFrame.
+        Get all comparison history as Ibis Table.
 
         Returns:
-            DataFrame with all elo_history data
+            Ibis Table with all elo_history data
         """
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
-        return pl.from_arrow(result)
+        return ibis.memtable(result.to_pydict())
 
     def export_to_parquet(self):
         """

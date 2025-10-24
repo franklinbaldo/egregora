@@ -3,8 +3,9 @@
 import logging
 from pathlib import Path
 
-import polars as pl
+import ibis
 from google import genai
+from ibis.expr.types import Table
 
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
@@ -69,7 +70,7 @@ async def index_post(
             }
         )
 
-    chunks_df = pl.DataFrame(rows)
+    chunks_df = ibis.memtable(rows)
 
     # Add to store
     store.add(chunks_df)
@@ -80,12 +81,12 @@ async def index_post(
 
 
 async def query_similar_posts(
-    df: pl.DataFrame,
+    df: Table,
     client: genai.Client,
     store: VectorStore,
     top_k: int = 5,
     deduplicate: bool = True,
-) -> pl.DataFrame:
+) -> Table:
     """
     Find similar previous blog posts for a period's DataFrame.
 

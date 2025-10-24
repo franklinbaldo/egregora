@@ -6,8 +6,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-import polars as pl
+import ibis
 from google import genai
+from ibis.expr.types import Table
 
 from .enricher import enrich_dataframe, extract_and_replace_media
 from .model_config import ModelConfig, load_site_config
@@ -48,44 +49,43 @@ def period_has_posts(period_key: str, posts_dir: Path) -> bool:
     return len(existing_posts) > 0
 
 
-def group_by_period(df: pl.DataFrame, period: str = "day") -> dict[str, pl.DataFrame]:
+def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
     """
-    Group DataFrame by time period.
+    Group Table by time period.
 
     Args:
-        df: DataFrame with timestamp column
+        df: Table with timestamp column
         period: "day", "week", or "month"
 
     Returns:
-        Dict mapping period string to DataFrame
+        Dict mapping period string to Table
     """
-    if df.is_empty():
+    if df.count().execute() == 0:
         return {}
 
     if period == "day":
-        df = df.with_columns(pl.col("timestamp").dt.date().cast(pl.Utf8).alias("period"))
+        df = df.mutate(period=df.timestamp.date().cast("string"))
     elif period == "week":
-        df = df.with_columns(
-            (
-                pl.col("timestamp").dt.year().cast(pl.Utf8)
-                + "-W"
-                + pl.col("timestamp").dt.week().cast(pl.Utf8)
-            ).alias("period")
-        )
+        # ISO week format: YYYY-Wnn
+        year_str = df.timestamp.year().cast("string")
+        week_str = df.timestamp.week_of_year().cast("string")
+        df = df.mutate(period=year_str + "-W" + week_str)
     elif period == "month":
-        df = df.with_columns(
-            (
-                pl.col("timestamp").dt.year().cast(pl.Utf8)
-                + "-"
-                + pl.col("timestamp").dt.month().cast(pl.Utf8).str.zfill(2)
-            ).alias("period")
-        )
+        # Format: YYYY-MM
+        year_str = df.timestamp.year().cast("string")
+        month_num = df.timestamp.month()
+        # Zero-pad month: use lpad to ensure 2 digits
+        month_str = ibis.case().when(month_num < 10, "0" + month_num.cast("string")).else_(month_num.cast("string")).end()
+        df = df.mutate(period=year_str + "-" + month_str)
     else:
         raise ValueError(f"Unknown period: {period}")
 
     grouped = {}
-    for period_value in df["period"].unique().sort():
-        period_df = df.filter(pl.col("period") == period_value).drop("period")
+    # Get unique period values, sorted
+    period_values = sorted(df.period.distinct().execute().tolist())
+
+    for period_value in period_values:
+        period_df = df.filter(df.period == period_value).drop("period")
         grouped[period_value] = period_df
 
     return grouped
@@ -160,22 +160,22 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         # Filter by date range if specified
         if from_date or to_date:
-            original_count = len(df)
+            original_count = df.count().execute()
 
             if from_date and to_date:
                 df = df.filter(
-                    (pl.col("timestamp").dt.date() >= from_date)
-                    & (pl.col("timestamp").dt.date() <= to_date)
+                    (df.timestamp.date() >= from_date)
+                    & (df.timestamp.date() <= to_date)
                 )
                 logger.info(f"📅 Filtering messages from {from_date} to {to_date}")
             elif from_date:
-                df = df.filter(pl.col("timestamp").dt.date() >= from_date)
+                df = df.filter(df.timestamp.date() >= from_date)
                 logger.info(f"📅 Filtering messages from {from_date} onwards")
             elif to_date:
-                df = df.filter(pl.col("timestamp").dt.date() <= to_date)
+                df = df.filter(df.timestamp.date() <= to_date)
                 logger.info(f"📅 Filtering messages up to {to_date}")
 
-            filtered_count = len(df)
+            filtered_count = df.count().execute()
             removed_by_date = original_count - filtered_count
 
             if removed_by_date > 0:
@@ -230,7 +230,8 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             enriched_dir = output_dir / "enriched"
             enriched_dir.mkdir(parents=True, exist_ok=True)
             enriched_path = enriched_dir / f"{period_key}-enriched.csv"
-            enriched_df.write_csv(enriched_path)
+            # Write CSV using Ibis - need to execute to pandas first
+            enriched_df.execute().to_csv(enriched_path, index=False)
 
             result = await write_posts_for_period(
                 enriched_df,

@@ -1,32 +1,33 @@
-"""Shared Polars schema definitions for the content pipeline."""
+"""Shared Ibis schema definitions for the content pipeline."""
 
 from __future__ import annotations
 
 from zoneinfo import ZoneInfo
 
-import polars as pl
-from polars.datatypes import Datetime as DateTimeType
+import ibis
+import ibis.expr.datatypes as dt
+from ibis.expr.types import Table
 
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
 
 # Default timezone for WhatsApp exports (no timezone in export files)
 DEFAULT_TIMEZONE = "UTC"
 
-MESSAGE_SCHEMA: dict[str, pl.DataType] = {
-    "timestamp": pl.Datetime(time_unit="ns", time_zone=DEFAULT_TIMEZONE),
-    "date": pl.Date,
-    "author": pl.String,
-    "message": pl.String,
-    "original_line": pl.String,
-    "tagged_line": pl.String,
+MESSAGE_SCHEMA: dict[str, dt.DataType] = {
+    "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),  # nanosecond precision
+    "date": dt.Date(),
+    "author": dt.String(),
+    "message": dt.String(),
+    "original_line": dt.String(),
+    "tagged_line": dt.String(),
 }
 
 
 def ensure_message_schema(
-    df: pl.DataFrame,
+    df: Table,
     *,
     timezone: str | ZoneInfo | None = None,
-) -> pl.DataFrame:
+) -> Table:
     """Return ``df`` cast to the canonical :data:`MESSAGE_SCHEMA`.
 
     The pipeline relies on consistent dtypes so schema validation is performed
@@ -43,76 +44,67 @@ def ensure_message_schema(
     else:
         tz_name = str(tz)
 
-    desired_dtype = pl.Datetime(time_unit="ns", time_zone=tz_name)
-    target_schema["timestamp"] = desired_dtype
+    # Update target schema with the desired timezone
+    target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
 
-    if df.is_empty():
-        return pl.DataFrame(schema=target_schema)
+    # Handle empty DataFrame
+    if df.count().execute() == 0:
+        # Create empty table with correct schema
+        conn = ibis.get_backend(df)
+        return conn.create_table(
+            "_temp_empty",
+            schema=ibis.schema(target_schema),
+            temp=True,
+            overwrite=True,
+        )
 
-    casts = {
-        name: dtype
-        for name, dtype in target_schema.items()
-        if name != "timestamp" and name in df.columns
-    }
+    # Start with the input table
+    result = df
 
-    frame = df.cast(casts, strict=False) if casts else df.clone()
+    # Cast columns to target types (except timestamp which needs special handling)
+    for name, dtype in target_schema.items():
+        if name == "timestamp":
+            continue  # Handle separately below
 
-    frame = frame.with_columns(_normalise_timestamp(frame, desired_dtype))
-    frame = _ensure_date_column(frame)
-    frame = _ensure_text_columns(frame, ("author", "message", "original_line", "tagged_line"))
-    return frame
+        if name in result.columns:
+            # Cast existing column
+            result = result.mutate(**{name: result[name].cast(dtype)})
+        else:
+            # Add missing column with nulls
+            result = result.mutate(**{name: ibis.null().cast(dtype)})
+
+    # Handle timestamp column with timezone normalization
+    if "timestamp" not in result.columns:
+        raise ValueError("DataFrame is missing required 'timestamp' column")
+
+    result = _normalise_timestamp(result, tz_name)
+    result = _ensure_date_column(result)
+
+    return result
 
 
 def _normalise_timestamp(
-    frame: pl.DataFrame,
-    desired_dtype: pl.Datetime,
-) -> pl.Expr:
-    """Return a ``pl.Expr`` that yields a timestamp in the desired dtype."""
+    table: Table,
+    desired_timezone: str,
+) -> Table:
+    """Normalize timestamp column to desired timezone."""
 
-    current_dtype = frame.schema.get("timestamp")
-    if current_dtype is None:
-        raise ValueError("DataFrame is missing required 'timestamp' column")
+    # Get current timestamp column
+    ts_col = table["timestamp"]
 
-    desired_time_unit = desired_dtype.time_unit
-    desired_timezone = desired_dtype.time_zone
+    # Cast to timestamp with desired timezone
+    # Ibis handles timezone conversion automatically
+    normalized_ts = ts_col.cast(dt.Timestamp(timezone=desired_timezone, scale=9))
 
-    expr = pl.col("timestamp")
-
-    if isinstance(current_dtype, DateTimeType):
-        if current_dtype.time_unit != desired_time_unit:
-            expr = expr.dt.cast_time_unit(desired_time_unit)
-        current_timezone = current_dtype.time_zone
-    else:
-        expr = expr.cast(pl.Datetime(time_unit=desired_time_unit))
-        current_timezone = None
-
-    if desired_timezone is None:
-        # ``desired_dtype`` always defines a timezone today, but keep the guard to
-        # avoid surprising behaviour if the schema ever changes.
-        if isinstance(current_dtype, DateTimeType):
-            expr = expr.dt.cast_time_unit(desired_time_unit)
-        return expr.alias("timestamp")
-
-    if current_timezone is None:
-        expr = expr.dt.replace_time_zone(desired_timezone)
-    elif current_timezone != desired_timezone:
-        expr = expr.dt.convert_time_zone(desired_timezone)
-
-    expr = expr.dt.cast_time_unit(desired_time_unit)
-
-    return expr.alias("timestamp")
+    return table.mutate(timestamp=normalized_ts)
 
 
-def _ensure_date_column(frame: pl.DataFrame) -> pl.DataFrame:
-    if "date" in frame.columns:
-        return frame.with_columns(pl.col("date").cast(pl.Date).alias("date"))
-    return frame.with_columns(pl.col("timestamp").dt.date().alias("date"))
+def _ensure_date_column(table: Table) -> Table:
+    """Ensure date column exists, deriving from timestamp if needed."""
 
+    if "date" in table.columns:
+        # Cast existing date column
+        return table.mutate(date=table["date"].cast(dt.Date()))
 
-def _ensure_text_columns(frame: pl.DataFrame, columns: tuple[str, ...]) -> pl.DataFrame:
-    for name in columns:
-        if name in frame.columns:
-            frame = frame.with_columns(pl.col(name).cast(pl.String).alias(name))
-        else:
-            frame = frame.with_columns(pl.lit(None, dtype=pl.String).alias(name))
-    return frame
+    # Derive date from timestamp
+    return table.mutate(date=table["timestamp"].date())
