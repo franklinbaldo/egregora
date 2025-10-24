@@ -11,7 +11,9 @@ from google.genai import types as genai_types
 from pydantic import BaseModel
 
 from .genai_utils import call_with_retries
+from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
+from .prompt_templates import render_writer_prompt
 from .rag import VectorStore, index_post, query_similar_posts
 from .write_post import write_post
 
@@ -274,8 +276,6 @@ async def write_posts_for_period(
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
-    from .model_config import ModelConfig
-
     if df.is_empty():
         return {"posts": [], "profiles": []}
 
@@ -355,8 +355,6 @@ Use these features appropriately in your posts. You understand how each extensio
 """
 
     # Render prompt from Jinja template
-    from .prompt_templates import render_writer_prompt
-
     prompt = render_writer_prompt(
         date=date,
         markdown_table=markdown_table,

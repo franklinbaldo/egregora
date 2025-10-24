@@ -6,6 +6,7 @@ from .store import RankingStore
 
 DEFAULT_ELO = 1500
 K_FACTOR = 32
+MIN_POSTS_TO_COMPARE = 2
 
 
 def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, float]:
@@ -127,9 +128,9 @@ def get_posts_to_compare(rankings_dir: Path, strategy: str = "fewest_games") -> 
         (post_a_id, post_b_id): IDs of posts to compare
     """
     store = RankingStore(rankings_dir)
-    posts = store.get_posts_to_compare(strategy=strategy, n=2)
+    posts = store.get_posts_to_compare(strategy=strategy, n=MIN_POSTS_TO_COMPARE)
 
-    if len(posts) < 2:
-        raise ValueError("Need at least 2 posts to compare")
+    if len(posts) < MIN_POSTS_TO_COMPARE:
+        raise ValueError(f"Need at least {MIN_POSTS_TO_COMPARE} posts to compare")
 
     return posts[0], posts[1]

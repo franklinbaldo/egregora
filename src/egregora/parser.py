@@ -18,6 +18,9 @@ from .models import WhatsAppExport
 from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
+# Constants
+SET_COMMAND_PARTS = 2
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +78,7 @@ def parse_egregora_command(message: str) -> dict | None:
     # Parse "set alias 'Franklin'"
     if action == "set":
         parts = args.split(maxsplit=1)
-        if len(parts) == 2:
+        if len(parts) == SET_COMMAND_PARTS:
             target = parts[0].lower()
             value = parts[1].strip("\"'")
             return {"command": "set", "target": target, "value": value}

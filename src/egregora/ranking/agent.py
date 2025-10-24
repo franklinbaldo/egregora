@@ -12,6 +12,11 @@ from .store import RankingStore
 
 console = Console()
 
+# Constants
+FRONTMATTER_PARTS = 3
+MAX_COMMENT_LENGTH = 250
+COMMENT_TRUNCATE_SUFFIX = "..."
+
 
 # Tool definitions for Gemini function calling (new SDK format)
 CHOOSE_WINNER_TOOL = genai_types.Tool(
@@ -92,7 +97,7 @@ def load_post_content(post_path: Path) -> str:
     # Skip front matter if present
     if content.startswith("---"):
         parts = content.split("---", 2)
-        if len(parts) >= 3:
+        if len(parts) >= FRONTMATTER_PARTS:
             return parts[2].strip()
 
     return content.strip()
@@ -316,9 +321,10 @@ Use the comment_post_A tool to:
     if not comment_a or not stars_a:
         raise ValueError("Agent did not call comment_post_A tool")
 
-    # Truncate comment to 250 chars
-    if len(comment_a) > 250:
-        comment_a = comment_a[:247] + "..."
+    # Truncate comment to max length
+    if len(comment_a) > MAX_COMMENT_LENGTH:
+        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
+        comment_a = comment_a[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
 
     console.print(f"[yellow]Comment A: {comment_a}[/yellow]")
     console.print(f"[yellow]Stars A: {'⭐' * stars_a}[/yellow]")
@@ -364,9 +370,10 @@ Use the comment_post_B tool to:
     if not comment_b or not stars_b:
         raise ValueError("Agent did not call comment_post_B tool")
 
-    # Truncate comment to 250 chars
-    if len(comment_b) > 250:
-        comment_b = comment_b[:247] + "..."
+    # Truncate comment to max length
+    if len(comment_b) > MAX_COMMENT_LENGTH:
+        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
+        comment_b = comment_b[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
 
     console.print(f"[yellow]Comment B: {comment_b}[/yellow]")
     console.print(f"[yellow]Stars B: {'⭐' * stars_b}[/yellow]")

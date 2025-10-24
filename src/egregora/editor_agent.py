@@ -10,6 +10,8 @@ from google.genai import types as genai_types
 from .editor import DocumentSnapshot, Editor
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
+from .prompt_templates import render_editor_prompt
+from .rag import query_similar_posts
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +169,6 @@ async def _query_rag_tool(
     model_config: ModelConfig,
 ) -> str:
     """RAG search returning formatted context string."""
-    from .rag import query_similar_posts
-
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 
@@ -245,8 +245,6 @@ async def run_editor_session(
     Returns:
         EditorResult with final content, decision, and edit log
     """
-    from .prompt_templates import render_editor_prompt
-
     # Load post content
     if not post_path.exists():
         raise FileNotFoundError(f"Post not found: {post_path}")

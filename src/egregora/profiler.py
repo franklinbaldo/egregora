@@ -5,7 +5,13 @@ import re
 from pathlib import Path
 from typing import Any
 
+import polars as pl
+
 logger = logging.getLogger(__name__)
+
+# Constants for alias validation
+MAX_ALIAS_LENGTH = 40
+ASCII_CONTROL_CHARS_THRESHOLD = 32
 
 
 def read_profile(
@@ -96,14 +102,16 @@ def _validate_alias(alias: str) -> str | None:
     # Strip whitespace and quotes
     alias = alias.strip().strip("\"'")
 
-    # Length check (1-40 characters)
-    if not (1 <= len(alias) <= 40):
-        logger.warning(f"Alias length invalid: {len(alias)} chars (must be 1-40)")
+    # Length check (1-MAX_ALIAS_LENGTH characters)
+    if not (1 <= len(alias) <= MAX_ALIAS_LENGTH):
+        logger.warning(
+            f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})"
+        )
         return None
 
     # Escape dangerous characters (code injection, HTML, markdown)
-    # Remove control characters (ASCII < 32)
-    if any(ord(c) < 32 for c in alias):
+    # Remove control characters (ASCII < ASCII_CONTROL_CHARS_THRESHOLD)
+    if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
         logger.warning("Alias contains control characters (rejected)")
         return None
 
@@ -413,8 +421,6 @@ def filter_opted_out_authors(
     original_count = len(df)
 
     # Filter out opted-out authors
-    import polars as pl
-
     filtered_df = df.filter(~pl.col("author").is_in(list(opted_out)))
 
     removed_count = original_count - len(filtered_df)

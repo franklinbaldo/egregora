@@ -4,20 +4,22 @@ import asyncio
 import logging
 import os
 import random
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import fire
+from google import genai
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
+from .editor_agent import run_editor_session
+from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
+from .ranking.agent import run_comparison
+from .ranking.elo import get_posts_to_compare, initialize_ratings, update_ratings
 from .site_scaffolding import ensure_mkdocs_project
-
-# Lazy load ranking to avoid import errors if dependencies missing
-# from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
-# from .ranking.agent import run_comparison
-
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -136,9 +138,6 @@ class EgregoraCLI:
             return
 
         # Validate and handle timezone
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
         timezone_obj = None
         if timezone:
             # Validate timezone
@@ -367,10 +366,6 @@ class EgregoraCLI:
             model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
             debug: Enable debug logging
         """
-        # Lazy import ranking modules
-        from .ranking.agent import run_comparison
-        from .ranking.elo import get_posts_to_compare, initialize_ratings, update_ratings
-
         if debug:
             logging.basicConfig(
                 level=logging.DEBUG,
@@ -459,8 +454,6 @@ class EgregoraCLI:
         api_key = os.getenv("GOOGLE_API_KEY")
 
         # Load site config and create model config for ranking
-        from .model_config import ModelConfig, load_site_config
-
         site_config = load_site_config(site_path)
         model_config = ModelConfig(cli_model=model, site_config=site_config)
         ranking_model = model_config.get_model("ranking")
@@ -583,11 +576,6 @@ class EgregoraCLI:
             site_dir: Site directory (for finding RAG database). If not provided, uses post_path parent.
             model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
         """
-        from google import genai
-
-        from .editor_agent import run_editor_session
-        from .model_config import ModelConfig, load_site_config
-
         post_file = Path(post_path).resolve()
         if not post_file.exists():
             console.print(f"[red]Post not found: {post_file}[/red]")

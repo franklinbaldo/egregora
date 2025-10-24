@@ -1,6 +1,7 @@
 """Ultra-simple pipeline: parse → anonymize → group → enrich → write."""
 
 import logging
+import re
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
-    import re
 
     with zipfile.ZipFile(zip_path) as zf:
         for member in zf.namelist():

@@ -12,6 +12,11 @@ from google import genai
 from google.genai import types as genai_types
 
 from .genai_utils import call_with_retries
+from .model_config import ModelConfig
+from .prompt_templates import (
+    render_media_enrichment_detailed_prompt,
+    render_url_enrichment_detailed_prompt,
+)
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
@@ -263,8 +268,6 @@ async def enrich_url(
 
     Returns: Path to saved enrichment file
     """
-    from .prompt_templates import render_url_enrichment_detailed_prompt
-
     # Generate UUID for enrichment file
     hashlib.md5(url.encode()).hexdigest()
     enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
@@ -323,8 +326,6 @@ async def enrich_media(
 
     Returns: Path to saved enrichment file
     """
-    from .prompt_templates import render_media_enrichment_detailed_prompt
-
     # Determine media type
     media_type = detect_media_type(file_path)
     if not media_type:
@@ -428,8 +429,6 @@ async def enrich_dataframe(
 
     Returns new DataFrame with additional rows authored by 'egregora'.
     """
-    from .model_config import ModelConfig
-
     # Get model names from config
     if model_config is None:
         model_config = ModelConfig()
