@@ -240,7 +240,7 @@ def run_comparison(
     existing_comments_b = load_comments_for_post(post_b_id, store)
 
     # Create Gemini client (new SDK)
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key) if api_key else genai.Client()
 
     # TURN 1: Choose winner
     console.print("\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")

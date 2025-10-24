@@ -126,7 +126,7 @@ async def process_whatsapp_export(
         Dict mapping period to {'posts': [...], 'profiles': [...]}
     """
 
-    client = genai.Client(api_key=gemini_api_key)
+    client = genai.Client(api_key=gemini_api_key) if gemini_api_key else genai.Client()
 
     # Load site config and create model config
     site_config = load_site_config(output_dir)

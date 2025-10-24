@@ -123,19 +123,6 @@ class EgregoraCLI:
 
         if gemini_key:
             os.environ["GOOGLE_API_KEY"] = gemini_key
-        elif not os.getenv("GOOGLE_API_KEY"):
-            console.print(
-                Panel(
-                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
-                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
-                    "Then either:\n"
-                    "• Use --gemini_key flag\n"
-                    "• Set GOOGLE_API_KEY environment variable",
-                    title="API Key Required",
-                    border_style="red",
-                )
-            )
-            return
 
         # Validate and handle timezone
         timezone_obj = None
@@ -381,19 +368,6 @@ class EgregoraCLI:
 
         if gemini_key:
             os.environ["GOOGLE_API_KEY"] = gemini_key
-        elif not os.getenv("GOOGLE_API_KEY"):
-            console.print(
-                Panel(
-                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
-                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
-                    "Then either:\n"
-                    "• Use --gemini_key flag\n"
-                    "• Set GOOGLE_API_KEY environment variable",
-                    title="API Key Required",
-                    border_style="red",
-                )
-            )
-            return
 
         site_path = Path(site_dir).resolve()
         posts_dir = site_path / "posts"
@@ -594,9 +568,6 @@ class EgregoraCLI:
 
         # Get API key
         api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            console.print("[red]Error: GEMINI_API_KEY environment variable not set[/red]")
-            return
 
         console.print(
             Panel(
@@ -610,7 +581,7 @@ class EgregoraCLI:
         )
 
         async def _run():
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=api_key) if api_key else genai.Client()
             try:
                 result = await run_editor_session(
                     post_path=post_file,
