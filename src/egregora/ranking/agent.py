@@ -192,6 +192,7 @@ def run_comparison(
     post_b_id: str,
     profile_path: Path,
     api_key: str,
+    model: str = "models/gemini-flash-latest",
 ) -> dict:
     """
     Run a three-turn comparison between two posts.
@@ -202,6 +203,7 @@ def run_comparison(
         post_b_id: Post ID (filename stem) for post B
         profile_path: Path to profile to impersonate
         api_key: Gemini API key
+        model: Model name to use (default: models/gemini-flash-latest)
 
     Returns:
         dict with comparison results
@@ -233,8 +235,8 @@ def run_comparison(
 
     # Configure Gemini
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+    model_turn1 = genai.GenerativeModel(
+        model_name=model,
         tools=[CHOOSE_WINNER_TOOL],
     )
 
@@ -255,7 +257,7 @@ Read these two blog posts and decide which one is better overall.
 
 Use the choose_winner tool to declare the winner."""
 
-    turn1_response = model.generate_content(turn1_prompt)
+    turn1_response = model_turn1.generate_content(turn1_prompt)
 
     # Parse winner from function call
     winner = None
@@ -274,7 +276,7 @@ Use the choose_winner tool to declare the winner."""
     console.print(f"\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
 
     model_turn2 = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+        model_name=model,
         tools=[COMMENT_POST_A_TOOL],
     )
 
@@ -321,7 +323,7 @@ Use the comment_post_A tool to:
     console.print(f"\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
 
     model_turn3 = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+        model_name=model,
         tools=[COMMENT_POST_B_TOOL],
     )
 

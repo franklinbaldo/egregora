@@ -340,6 +340,7 @@ class EgregoraCLI:
         comparisons: int = 1,
         export_parquet: bool = False,
         gemini_key: str | None = None,
+        model: str | None = None,
         debug: bool = False,
     ):
         """
@@ -361,6 +362,7 @@ class EgregoraCLI:
             comparisons: Number of comparisons to run (default: 1)
             export_parquet: Export rankings to Parquet after comparisons (default: False)
             gemini_key: Google Gemini API key
+            model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
             debug: Enable debug logging
         """
         # Lazy import ranking modules
@@ -453,6 +455,12 @@ class EgregoraCLI:
         # Run comparisons
         api_key = os.getenv("GOOGLE_API_KEY")
 
+        # Load site config and create model config for ranking
+        from .model_config import ModelConfig, load_site_config
+        site_config = load_site_config(site_path)
+        model_config = ModelConfig(cli_model=model, site_config=site_config)
+        ranking_model = model_config.get_model("ranking")
+
         for i in range(comparisons):
             console.print(
                 Panel(
@@ -479,6 +487,7 @@ class EgregoraCLI:
                     post_b_id=post_b_id,
                     profile_path=profile_path,
                     api_key=api_key,
+                    model=ranking_model,
                 )
 
                 # Update ELO ratings
