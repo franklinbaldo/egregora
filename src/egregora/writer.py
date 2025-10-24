@@ -19,6 +19,9 @@ from .write_post import write_post
 
 logger = logging.getLogger(__name__)
 
+# Constants
+MAX_CONVERSATION_TURNS = 10
+
 
 class PostMetadata(BaseModel):
     """Metadata schema for write_post tool."""
@@ -246,7 +249,199 @@ def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
     return author_counts["author"].to_list()
 
 
-async def write_posts_for_period(
+async def _query_rag_for_context(
+    df: pl.DataFrame, client: genai.Client, rag_dir: Path
+) -> str:
+    """Query RAG system for similar previous posts."""
+    try:
+        store = VectorStore(rag_dir / "chunks.parquet")
+        similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
+
+        if similar_posts.is_empty():
+            logger.info("No similar previous posts found")
+            return ""
+
+        logger.info(f"Found {len(similar_posts)} similar previous posts")
+        rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
+        rag_context += (
+            "You can reference these posts in your writing to maintain conversation continuity.\n\n"
+        )
+
+        for row in similar_posts.iter_rows(named=True):
+            rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
+            rag_context += f"{row['content'][:400]}...\n"
+            rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
+            rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
+
+        return rag_context
+    except Exception as e:
+        logger.warning(f"RAG query failed: {e}")
+        return ""
+
+
+def _load_profiles_context(df: pl.DataFrame, profiles_dir: Path) -> str:
+    """Load profiles for top active authors."""
+    top_authors = get_top_authors(df, limit=20)
+    if not top_authors:
+        return ""
+
+    logger.info(f"Loading profiles for {len(top_authors)} active authors")
+    profiles_context = "\n\n## Active Participants (Profiles):\n"
+    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+
+    for author_uuid in top_authors:
+        profile_content = read_profile(author_uuid, profiles_dir)
+
+        if profile_content:
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += f"{profile_content}\n\n"
+        else:
+            # No profile yet (first time seeing this author)
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += "(No profile yet - first appearance)\n\n"
+
+    logger.info(f"Profiles context: {len(profiles_context)} characters")
+    return profiles_context
+
+
+def _handle_write_post_tool(
+    fn_args: dict, fn_call, output_dir: Path, saved_posts: list[str]
+) -> genai_types.Content:
+    """Handle write_post tool call."""
+    content = fn_args.get("content", "")
+    metadata = fn_args.get("metadata", {})
+    path = write_post(content, metadata, output_dir)
+    saved_posts.append(path)
+
+    return genai_types.Content(
+        role="user",
+        parts=[
+            genai_types.Part(
+                function_response=genai_types.FunctionResponse(
+                    id=getattr(fn_call, "id", None),
+                    name="write_post",
+                    response={"status": "success", "path": path},
+                )
+            )
+        ],
+    )
+
+
+def _handle_read_profile_tool(fn_args: dict, fn_call, profiles_dir: Path) -> genai_types.Content:
+    """Handle read_profile tool call."""
+    author_uuid = fn_args.get("author_uuid", "")
+    profile_content = read_profile(author_uuid, profiles_dir)
+
+    return genai_types.Content(
+        role="user",
+        parts=[
+            genai_types.Part(
+                function_response=genai_types.FunctionResponse(
+                    id=getattr(fn_call, "id", None),
+                    name="read_profile",
+                    response={"content": profile_content or "No profile exists yet."},
+                )
+            )
+        ],
+    )
+
+
+def _handle_write_profile_tool(
+    fn_args: dict, fn_call, profiles_dir: Path, saved_profiles: list[str]
+) -> genai_types.Content:
+    """Handle write_profile tool call."""
+    author_uuid = fn_args.get("author_uuid", "")
+    content = fn_args.get("content", "")
+    path = write_profile(author_uuid, content, profiles_dir)
+    saved_profiles.append(path)
+
+    return genai_types.Content(
+        role="user",
+        parts=[
+            genai_types.Part(
+                function_response=genai_types.FunctionResponse(
+                    id=getattr(fn_call, "id", None),
+                    name="write_profile",
+                    response={"status": "success", "path": path},
+                )
+            )
+        ],
+    )
+
+
+def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.Content:
+    """Handle tool execution error."""
+    return genai_types.Content(
+        role="user",
+        parts=[
+            genai_types.Part(
+                function_response=genai_types.FunctionResponse(
+                    id=getattr(fn_call, "id", None),
+                    name=fn_name,
+                    response={"status": "error", "error": str(error)},
+                )
+            )
+        ],
+    )
+
+
+def _process_tool_calls(
+    candidate,
+    output_dir: Path,
+    profiles_dir: Path,
+    saved_posts: list[str],
+    saved_profiles: list[str],
+) -> tuple[bool, list[genai_types.Content]]:
+    """Process all tool calls from LLM response."""
+    has_tool_calls = False
+    tool_responses: list[genai_types.Content] = []
+
+    if not candidate or not candidate.content or not candidate.content.parts:
+        return False, []
+
+    for part in candidate.content.parts:
+        if not hasattr(part, "function_call") or not part.function_call:
+            continue
+
+        has_tool_calls = True
+        fn_call = part.function_call
+        fn_name = fn_call.name
+        fn_args = fn_call.args or {}
+
+        try:
+            if fn_name == "write_post":
+                tool_responses.append(
+                    _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
+                )
+            elif fn_name == "read_profile":
+                tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
+            elif fn_name == "write_profile":
+                tool_responses.append(
+                    _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
+                )
+        except Exception as e:
+            tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
+
+    return has_tool_calls, tool_responses
+
+
+async def _index_posts_in_rag(
+    saved_posts: list[str], client: genai.Client, rag_dir: Path
+) -> None:
+    """Index newly created posts in RAG system."""
+    if not saved_posts:
+        return
+
+    try:
+        store = VectorStore(rag_dir / "chunks.parquet")
+        for post_path in saved_posts:
+            await index_post(Path(post_path), client, store)
+        logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
+    except Exception as e:
+        logger.error(f"Failed to index posts in RAG: {e}")
+
+
+async def write_posts_for_period(  # noqa: PLR0913
     df: pl.DataFrame,
     date: str,
     client: genai.Client,
@@ -279,71 +474,27 @@ async def write_posts_for_period(
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
+    # Early return for empty input
     if df.is_empty():
         return {"posts": [], "profiles": []}
 
-    # Get model name from config
+    # Setup
     if model_config is None:
-        model_config = ModelConfig()  # Use defaults
+        model_config = ModelConfig()
     model = model_config.get_model("writer")
 
-    # Get active authors for profiling context
     active_authors = get_active_authors(df)
-
     markdown_table = df.write_csv(separator="|")
 
-    # Query RAG for similar previous posts (for continuity)
-    rag_context = ""
-    if enable_rag:
-        try:
-            store = VectorStore(rag_dir / "chunks.parquet")
-            similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
+    # Query RAG and load profiles for context
+    rag_context = await _query_rag_for_context(df, client, rag_dir) if enable_rag else ""
+    profiles_context = _load_profiles_context(df, profiles_dir)
 
-            if not similar_posts.is_empty():
-                logger.info(f"Found {len(similar_posts)} similar previous posts")
-                rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
-                rag_context += "You can reference these posts in your writing to maintain conversation continuity.\n\n"
-
-                for row in similar_posts.iter_rows(named=True):
-                    rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
-                    rag_context += f"{row['content'][:400]}...\n"
-                    rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
-                    rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
-            else:
-                logger.info("No similar previous posts found")
-        except Exception as e:
-            logger.warning(f"RAG query failed: {e}")
-
-    # Load profiles for top active authors (for style/context awareness)
-    profiles_context = ""
-    top_authors = get_top_authors(df, limit=20)
-
-    if top_authors:
-        logger.info(f"Loading profiles for {len(top_authors)} active authors")
-        profiles_context = "\n\n## Active Participants (Profiles):\n"
-        profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
-
-        for author_uuid in top_authors:
-            profile_content = read_profile(author_uuid, profiles_dir)
-
-            if profile_content:
-                profiles_context += f"### Author: {author_uuid}\n"
-                profiles_context += f"{profile_content}\n\n"
-            else:
-                # No profile yet (first time seeing this author)
-                profiles_context += f"### Author: {author_uuid}\n"
-                profiles_context += "(No profile yet - first appearance)\n\n"
-
-        logger.info(f"Profiles context: {len(profiles_context)} characters")
-
-    # Load site configuration from mkdocs.yml
+    # Load site config and markdown extensions
     site_config = load_site_config(output_dir)
     custom_writer_prompt = site_config.get("writer_prompt", "")
-
-    # Load markdown extensions from mkdocs.yml
     markdown_extensions_yaml = load_markdown_extensions(output_dir)
 
-    # Build markdown features section for prompt
     markdown_features_section = ""
     if markdown_extensions_yaml:
         markdown_features_section = f"""
@@ -357,7 +508,7 @@ This MkDocs site has the following extensions configured:
 Use these features appropriately in your posts. You understand how each extension works.
 """
 
-    # Render prompt from Jinja template
+    # Build prompt
     prompt = render_writer_prompt(
         date=date,
         markdown_table=markdown_table,
@@ -368,19 +519,19 @@ Use these features appropriately in your posts. You understand how each extensio
         rag_context=rag_context,
     )
 
+    # Setup conversation
     config = genai_types.GenerateContentConfig(
         tools=_writer_tools(),
         temperature=0.7,
     )
-
     messages: list[genai_types.Content] = [
         genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
     ]
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
-    max_turns = 10  # Prevent infinite loops
 
-    for _ in range(max_turns):
+    # Conversation loop
+    for _ in range(MAX_CONVERSATION_TURNS):
         try:
             response = await call_with_retries(
                 client.aio.models.generate_content,
@@ -392,122 +543,28 @@ Use these features appropriately in your posts. You understand how each extensio
             logger.error("Writer generation failed: %s", exc)
             raise
 
-        # Check if there are tool calls
-        has_tool_calls = False
-        tool_responses: list[genai_types.Content] = []
-
-        # Defensive checks for response structure
+        # Check for valid response
         if not response or not response.candidates:
             logger.warning("No candidates in response, ending conversation")
             break
 
         candidate = response.candidates[0]
-        if not candidate or not candidate.content or not candidate.content.parts:
-            logger.warning("No content parts in response, ending conversation")
-            break
 
-        for part in candidate.content.parts:
-            if hasattr(part, "function_call") and part.function_call:
-                has_tool_calls = True
-                fn_call = part.function_call
-                fn_name = fn_call.name
-                fn_args = fn_call.args or {}
+        # Process tool calls
+        has_tool_calls, tool_responses = _process_tool_calls(
+            candidate, output_dir, profiles_dir, saved_posts, saved_profiles
+        )
 
-                # Execute the tool
-                try:
-                    if fn_name == "write_post":
-                        content = fn_args.get("content", "")
-                        metadata = fn_args.get("metadata", {})
-                        path = write_post(content, metadata, output_dir)
-                        saved_posts.append(path)
-                        tool_responses.append(
-                            genai_types.Content(
-                                role="user",
-                                parts=[
-                                    genai_types.Part(
-                                        function_response=genai_types.FunctionResponse(
-                                            id=getattr(fn_call, "id", None),
-                                            name=fn_name,
-                                            response={"status": "success", "path": path},
-                                        )
-                                    )
-                                ],
-                            )
-                        )
-
-                    elif fn_name == "read_profile":
-                        author_uuid = fn_args.get("author_uuid", "")
-                        profile_content = read_profile(author_uuid, profiles_dir)
-                        tool_responses.append(
-                            genai_types.Content(
-                                role="user",
-                                parts=[
-                                    genai_types.Part(
-                                        function_response=genai_types.FunctionResponse(
-                                            id=getattr(fn_call, "id", None),
-                                            name=fn_name,
-                                            response={
-                                                "content": profile_content
-                                                or "No profile exists yet."
-                                            },
-                                        )
-                                    )
-                                ],
-                            )
-                        )
-
-                    elif fn_name == "write_profile":
-                        author_uuid = fn_args.get("author_uuid", "")
-                        content = fn_args.get("content", "")
-                        path = write_profile(author_uuid, content, profiles_dir)
-                        saved_profiles.append(path)
-                        tool_responses.append(
-                            genai_types.Content(
-                                role="user",
-                                parts=[
-                                    genai_types.Part(
-                                        function_response=genai_types.FunctionResponse(
-                                            id=getattr(fn_call, "id", None),
-                                            name=fn_name,
-                                            response={"status": "success", "path": path},
-                                        )
-                                    )
-                                ],
-                            )
-                        )
-
-                except Exception as e:
-                    tool_responses.append(
-                        genai_types.Content(
-                            role="user",
-                            parts=[
-                                genai_types.Part(
-                                    function_response=genai_types.FunctionResponse(
-                                        id=getattr(fn_call, "id", None),
-                                        name=fn_name,
-                                        response={"status": "error", "error": str(e)},
-                                    )
-                                )
-                            ],
-                        )
-                    )
-
-        # If no tool calls, we're done
+        # Exit if no more tools to call
         if not has_tool_calls:
             break
 
-        # Add assistant response and tool responses to conversation
+        # Continue conversation
         messages.append(candidate.content)
         messages.extend(tool_responses)
 
-    # Index newly created posts in RAG
-    if enable_rag and saved_posts:
-        try:
-            store = VectorStore(rag_dir / "chunks.parquet")
-            for post_path in saved_posts:
-                await index_post(Path(post_path), client, store)
-            logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
-        except Exception as e:
-            logger.error(f"Failed to index posts in RAG: {e}")
+    # Index new posts in RAG
+    if enable_rag:
+        await _index_posts_in_rag(saved_posts, client, rag_dir)
 
     return {"posts": saved_posts, "profiles": saved_profiles}

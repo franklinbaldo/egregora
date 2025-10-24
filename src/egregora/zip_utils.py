@@ -34,7 +34,7 @@ _DEFAULT_LIMITS: ZipValidationLimits = ZipValidationLimits()
 def configure_default_limits(limits: ZipValidationLimits) -> None:
     """Override module-wide validation limits."""
 
-    global _DEFAULT_LIMITS
+    global _DEFAULT_LIMITS  # noqa: PLW0603
     _DEFAULT_LIMITS = limits
 
 

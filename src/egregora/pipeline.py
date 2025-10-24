@@ -91,7 +91,7 @@ def group_by_period(df: pl.DataFrame, period: str = "day") -> dict[str, pl.DataF
     return grouped
 
 
-async def process_whatsapp_export(
+async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",
