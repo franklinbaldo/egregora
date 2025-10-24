@@ -1,0 +1,57 @@
+Generate a complete markdown enrichment file for this URL shared in a group conversation.
+
+## URL to Analyze
+{{ url }}
+
+## Context
+**Original Message:** {{ original_message }}
+**Author:** {{ sender_uuid }}
+**Date:** {{ date }} {{ time }}
+
+## Output Format
+
+Generate a complete markdown document following this structure:
+
+```markdown
+# Enrichment: [URL]
+
+## Metadata
+- **Date:** {{ date }}
+- **Time:** {{ time }}
+- **Sender:** {{ sender_uuid }}
+- **URL:** {{ url }}
+
+## Original Message
+> {{ original_message }}
+
+## Content
+
+### URL Preview
+<iframe src="{{ url }}" width="100%" height="500" frameborder="0" loading="lazy"></iframe>
+
+[Open in new tab]({{ url }})
+
+## Analysis
+
+---
+
+## Summary
+[2-3 paragraph comprehensive summary of the URL's content]
+
+---
+
+## Context
+[How this URL relates to the conversation. Why was it shared? What does it illustrate?]
+
+---
+
+## Key Takeaways
+[Markdown bullet list of 3-5 key insights]
+
+---
+
+## Metadata
+[Markdown bullet list: title, author, publication date, source, etc.]
+```
+
+Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.

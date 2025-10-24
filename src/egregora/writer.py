@@ -1,20 +1,28 @@
 """Simple writer: LLM with write_post tool for editorial control."""
 
 import logging
+from functools import lru_cache
 from pathlib import Path
+
 import polars as pl
 import yaml
 from google import genai
+from google.genai import types as genai_types
 from pydantic import BaseModel
+
+from .genai_utils import call_with_retries
+from .model_config import ModelConfig
+from .profiler import get_active_authors, read_profile, write_profile
+from .prompt_templates import render_writer_prompt
+from .rag import VectorStore, index_post, query_similar_posts
 from .write_post import write_post
-from .profiler import read_profile, write_profile, get_active_authors
-from .rag import VectorStore, query_similar_posts, index_post
 
 logger = logging.getLogger(__name__)
 
 
 class PostMetadata(BaseModel):
     """Metadata schema for write_post tool."""
+
     title: str
     slug: str
     date: str
@@ -22,6 +30,108 @@ class PostMetadata(BaseModel):
     summary: str = ""
     authors: list[str] = []
     category: str | None = None
+
+
+@lru_cache(maxsize=1)
+def _writer_tools() -> list[genai_types.Tool]:
+    """Return tool definitions compatible with the google.genai SDK."""
+    metadata_schema = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={
+            "title": genai_types.Schema(
+                type=genai_types.Type.STRING,
+                description="Engaging post title",
+            ),
+            "slug": genai_types.Schema(
+                type=genai_types.Type.STRING,
+                description="URL-friendly slug (lowercase, hyphenated)",
+            ),
+            "date": genai_types.Schema(
+                type=genai_types.Type.STRING,
+                description="Publication date YYYY-MM-DD",
+            ),
+            "tags": genai_types.Schema(
+                type=genai_types.Type.ARRAY,
+                description="Relevant topic tags",
+                items=genai_types.Schema(type=genai_types.Type.STRING),
+            ),
+            "summary": genai_types.Schema(
+                type=genai_types.Type.STRING,
+                description="Short summary (1-2 sentences)",
+            ),
+            "authors": genai_types.Schema(
+                type=genai_types.Type.ARRAY,
+                description="List of anonymized author UUIDs",
+                items=genai_types.Schema(type=genai_types.Type.STRING),
+            ),
+            "category": genai_types.Schema(
+                type=genai_types.Type.STRING,
+                description="Optional category slug",
+                nullable=True,
+            ),
+        },
+        required=["title", "slug", "date"],
+    )
+
+    write_post_decl = genai_types.FunctionDeclaration(
+        name="write_post",
+        description="Save a blog post with metadata (CMS tool)",
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "content": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Markdown post content",
+                ),
+                "metadata": metadata_schema,
+            },
+            required=["content", "metadata"],
+        ),
+    )
+
+    read_profile_decl = genai_types.FunctionDeclaration(
+        name="read_profile",
+        description="Read the current profile for an author",
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "author_uuid": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="The anonymized author UUID",
+                )
+            },
+            required=["author_uuid"],
+        ),
+    )
+
+    write_profile_decl = genai_types.FunctionDeclaration(
+        name="write_profile",
+        description="Write or update an author's profile",
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "author_uuid": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="The anonymized author UUID",
+                ),
+                "content": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Profile content in markdown format",
+                ),
+            },
+            required=["author_uuid", "content"],
+        ),
+    )
+
+    return [
+        genai_types.Tool(
+            function_declarations=[
+                write_post_decl,
+                read_profile_decl,
+                write_profile_decl,
+            ]
+        )
+    ]
 
 
 def load_site_config(output_dir: Path) -> dict:
@@ -118,8 +228,7 @@ def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
     """
     # Filter out system and enrichment entries
     author_counts = (
-        df
-        .filter(pl.col("author").is_in(["system", "egregora"]).not_())
+        df.filter(pl.col("author").is_in(["system", "egregora"]).not_())
         .filter(pl.col("author").is_not_null())
         .filter(pl.col("author") != "")
         .group_by("author")
@@ -141,7 +250,7 @@ async def write_posts_for_period(
     output_dir: Path = Path("output/posts"),
     profiles_dir: Path = Path("output/profiles"),
     rag_dir: Path = Path("output/rag"),
-    model: str = "gemini-2.0-flash-exp",
+    model_config=None,
     enable_rag: bool = True,
 ) -> dict[str, list[str]]:
     """
@@ -161,15 +270,19 @@ async def write_posts_for_period(
         output_dir: Where to save posts
         profiles_dir: Where to save author profiles
         rag_dir: Where RAG vector store is saved
-        model: Which LLM model to use
+        model_config: Model configuration object (contains model selection logic)
         enable_rag: Whether to use RAG for context
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
-
     if df.is_empty():
         return {"posts": [], "profiles": []}
+
+    # Get model name from config
+    if model_config is None:
+        model_config = ModelConfig()  # Use defaults
+    model = model_config.get_model("writer")
 
     # Get active authors for profiling context
     active_authors = get_active_authors(df)
@@ -181,9 +294,7 @@ async def write_posts_for_period(
     if enable_rag:
         try:
             store = VectorStore(rag_dir / "chunks.parquet")
-            similar_posts = await query_similar_posts(
-                df, client, store, top_k=5, deduplicate=True
-            )
+            similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
 
             if not similar_posts.is_empty():
                 logger.info(f"Found {len(similar_posts)} similar previous posts")
@@ -243,175 +354,61 @@ This MkDocs site has the following extensions configured:
 Use these features appropriately in your posts. You understand how each extension works.
 """
 
-    # Build custom instructions section
-    custom_instructions = ""
-    if custom_writer_prompt:
-        custom_instructions = f"""
-## Custom Writing Instructions
+    # Render prompt from Jinja template
+    prompt = render_writer_prompt(
+        date=date,
+        markdown_table=markdown_table,
+        active_authors=", ".join(active_authors),
+        custom_instructions=custom_writer_prompt or "",
+        markdown_features=markdown_features_section,
+        profiles_context=profiles_context,
+        rag_context=rag_context,
+    )
 
-{custom_writer_prompt}
-"""
+    config = genai_types.GenerateContentConfig(
+        tools=_writer_tools(),
+        temperature=0.7,
+    )
 
-    prompt = f"""You are a blog editor reviewing WhatsApp group messages from {date}.
-{custom_instructions}
-{markdown_features_section}
-Messages (anonymized, with enriched context):
-{markdown_table}
-
-Active authors in this period: {', '.join(active_authors)}
-{profiles_context}
-{rag_context}
-Your job:
-1. Analyze these messages
-2. **Consider the participants' writing styles, interests, and expertise from their profiles**
-3. Write posts that reflect the group's collective voice and intentions
-4. Match the tone and style of the active participants
-5. Reference and link to related previous posts when relevant
-6. Update author profiles based on new contributions
-
-BLOG POSTS:
-Use write_post tool 0-N times:
-- 0 times if it's all noise/spam
-- 1 time for a single coherent daily summary
-- Multiple times for distinct topics
-
-When writing posts, consider participant profiles:
-- Match the tone and style of the active participants
-- Consider their areas of expertise and interests
-- Reflect the group's collective voice and intentions
-- Use profiles to understand conversation context
-- Write content that aligns with their communication style
-
-Examples:
-- If profiles show technical interests → Write detailed technical posts
-- If profiles show casual style → Write conversational posts
-- If profiles show diverse expertise → Create multi-perspective posts
-
-**CRITICAL - Author References in Post Content:**
-- ALWAYS reference authors by their UUID (e.g., "Author a3f8c2b1 discussed...")
-- NEVER use aliases or real names in post content
-- Posts must be privacy-safe and immutable
-- Aliases are for display/rendering only, not for storage
-
-Example:
-✅ "Author a3f8c2b1 shared insights about Python optimization..."
-✅ "The discussion between b4e9d3c2 and c5f7e4d3 revealed..."
-❌ "Franklin shared insights..." (NEVER use alias in content)
-❌ "The discussion between Sarah and John..." (NEVER use alias in content)
-
-For each post, provide:
-- title: Engaging post title
-- slug: URL-friendly slug (lowercase, hyphens)
-- date: "{date}"
-- tags: Relevant topic tags
-- summary: 1-2 sentence summary
-- authors: List of anonymized author IDs who contributed
-- content: Full markdown post content
-
-AUTHOR PROFILES:
-After writing posts, update author profiles:
-1. Use read_profile(author_uuid) to read current profile
-2. Analyze author's contributions in this period
-3. Use write_profile(author_uuid, content) to update profile
-
-Profile format (markdown):
-- Writing style and voice
-- Topics of interest
-- Expertise areas
-- Communication patterns
-- Notable contributions
-
-Be editorial. Only write quality content. Skip trivial conversations.
-"""
-
-    tools = [
-        {
-            "name": "write_post",
-            "description": "Save a blog post with metadata (CMS tool)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": "Markdown post content"
-                    },
-                    "metadata": {
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"},
-                            "slug": {"type": "string"},
-                            "date": {"type": "string"},
-                            "tags": {"type": "array", "items": {"type": "string"}},
-                            "summary": {"type": "string"},
-                            "authors": {"type": "array", "items": {"type": "string"}},
-                            "category": {"type": "string"}
-                        },
-                        "required": ["title", "slug", "date"]
-                    }
-                },
-                "required": ["content", "metadata"]
-            }
-        },
-        {
-            "name": "read_profile",
-            "description": "Read the current profile for an author",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "author_uuid": {
-                        "type": "string",
-                        "description": "The anonymized author UUID"
-                    }
-                },
-                "required": ["author_uuid"]
-            }
-        },
-        {
-            "name": "write_profile",
-            "description": "Write or update an author's profile",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "author_uuid": {
-                        "type": "string",
-                        "description": "The anonymized author UUID"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Profile content in markdown format"
-                    }
-                },
-                "required": ["author_uuid", "content"]
-            }
-        }
+    messages: list[genai_types.Content] = [
+        genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
     ]
-
-    # Multi-turn conversation for tool calling
-    messages = [{"role": "user", "parts": [{"text": prompt}]}]
-    saved_posts = []
-    saved_profiles = []
+    saved_posts: list[str] = []
+    saved_profiles: list[str] = []
     max_turns = 10  # Prevent infinite loops
 
-    for turn in range(max_turns):
-        response = await client.aio.models.generate_content(
-            model=model,
-            contents=messages,
-            config={
-                "tools": tools,
-                "temperature": 0.7,
-            }
-        )
+    for _ in range(max_turns):
+        try:
+            response = await call_with_retries(
+                client.aio.models.generate_content,
+                model=model,
+                contents=messages,
+                config=config,
+            )
+        except Exception as exc:
+            logger.error("Writer generation failed: %s", exc)
+            raise
 
         # Check if there are tool calls
         has_tool_calls = False
-        tool_responses = []
+        tool_responses: list[genai_types.Content] = []
 
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'function_call') and part.function_call:
+        # Defensive checks for response structure
+        if not response or not response.candidates:
+            logger.warning("No candidates in response, ending conversation")
+            break
+
+        candidate = response.candidates[0]
+        if not candidate or not candidate.content or not candidate.content.parts:
+            logger.warning("No content parts in response, ending conversation")
+            break
+
+        for part in candidate.content.parts:
+            if hasattr(part, "function_call") and part.function_call:
                 has_tool_calls = True
                 fn_call = part.function_call
                 fn_name = fn_call.name
-                fn_args = fn_call.args
+                fn_args = fn_call.args or {}
 
                 # Execute the tool
                 try:
@@ -420,61 +417,85 @@ Be editorial. Only write quality content. Skip trivial conversations.
                         metadata = fn_args.get("metadata", {})
                         path = write_post(content, metadata, output_dir)
                         saved_posts.append(path)
-                        tool_responses.append({
-                            "function_call": fn_call,
-                            "function_response": {
-                                "name": fn_name,
-                                "response": {"status": "success", "path": path}
-                            }
-                        })
+                        tool_responses.append(
+                            genai_types.Content(
+                                role="user",
+                                parts=[
+                                    genai_types.Part(
+                                        function_response=genai_types.FunctionResponse(
+                                            id=getattr(fn_call, "id", None),
+                                            name=fn_name,
+                                            response={"status": "success", "path": path},
+                                        )
+                                    )
+                                ],
+                            )
+                        )
 
                     elif fn_name == "read_profile":
                         author_uuid = fn_args.get("author_uuid", "")
                         profile_content = read_profile(author_uuid, profiles_dir)
-                        tool_responses.append({
-                            "function_call": fn_call,
-                            "function_response": {
-                                "name": fn_name,
-                                "response": {"content": profile_content or "No profile exists yet."}
-                            }
-                        })
+                        tool_responses.append(
+                            genai_types.Content(
+                                role="user",
+                                parts=[
+                                    genai_types.Part(
+                                        function_response=genai_types.FunctionResponse(
+                                            id=getattr(fn_call, "id", None),
+                                            name=fn_name,
+                                            response={
+                                                "content": profile_content
+                                                or "No profile exists yet."
+                                            },
+                                        )
+                                    )
+                                ],
+                            )
+                        )
 
                     elif fn_name == "write_profile":
                         author_uuid = fn_args.get("author_uuid", "")
                         content = fn_args.get("content", "")
                         path = write_profile(author_uuid, content, profiles_dir)
                         saved_profiles.append(path)
-                        tool_responses.append({
-                            "function_call": fn_call,
-                            "function_response": {
-                                "name": fn_name,
-                                "response": {"status": "success", "path": path}
-                            }
-                        })
+                        tool_responses.append(
+                            genai_types.Content(
+                                role="user",
+                                parts=[
+                                    genai_types.Part(
+                                        function_response=genai_types.FunctionResponse(
+                                            id=getattr(fn_call, "id", None),
+                                            name=fn_name,
+                                            response={"status": "success", "path": path},
+                                        )
+                                    )
+                                ],
+                            )
+                        )
 
                 except Exception as e:
-                    tool_responses.append({
-                        "function_call": fn_call,
-                        "function_response": {
-                            "name": fn_name,
-                            "response": {"status": "error", "error": str(e)}
-                        }
-                    })
+                    tool_responses.append(
+                        genai_types.Content(
+                            role="user",
+                            parts=[
+                                genai_types.Part(
+                                    function_response=genai_types.FunctionResponse(
+                                        id=getattr(fn_call, "id", None),
+                                        name=fn_name,
+                                        response={"status": "error", "error": str(e)},
+                                    )
+                                )
+                            ],
+                        )
+                    )
 
         # If no tool calls, we're done
         if not has_tool_calls:
             break
 
         # Add assistant response and tool responses to conversation
-        messages.append({"role": "model", "parts": response.candidates[0].content.parts})
-
-        for tool_resp in tool_responses:
-            messages.append({
-                "role": "user",
-                "parts": [{
-                    "function_response": tool_resp["function_response"]
-                }]
-            })
+        messages.append(candidate.content)
+        messages.extend(tool_responses)
 
     # Index newly created posts in RAG
     if enable_rag and saved_posts:

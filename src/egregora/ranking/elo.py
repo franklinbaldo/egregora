@@ -1,11 +1,12 @@
 """ELO rating system for blog post quality ranking."""
 
 from pathlib import Path
-from .store import RankingStore
 
+from .store import RankingStore
 
 DEFAULT_ELO = 1500
 K_FACTOR = 32
+MIN_POSTS_TO_COMPARE = 2
 
 
 def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, float]:
@@ -21,10 +22,7 @@ def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, f
 
 
 def calculate_elo_update(
-    rating_a: float,
-    rating_b: float,
-    winner: str,
-    k_factor: int = K_FACTOR
+    rating_a: float, rating_b: float, winner: str, k_factor: int = K_FACTOR
 ) -> tuple[float, float]:
     """
     Calculate new ELO ratings after a comparison.
@@ -81,10 +79,7 @@ def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
 
 
 def update_ratings(
-    rankings_dir: Path,
-    post_a: str,
-    post_b: str,
-    winner: str
+    rankings_dir: Path, post_a: str, post_b: str, winner: str
 ) -> tuple[float, float]:
     """
     Update ELO ratings after a comparison.
@@ -109,8 +104,8 @@ def update_ratings(
     if not rating_b_data:
         raise ValueError(f"Post not found in ratings: {post_b}")
 
-    current_a = rating_a_data['elo_global']
-    current_b = rating_b_data['elo_global']
+    current_a = rating_a_data["elo_global"]
+    current_b = rating_b_data["elo_global"]
 
     # Calculate new ratings
     new_rating_a, new_rating_b = calculate_elo_update(current_a, current_b, winner)
@@ -133,9 +128,9 @@ def get_posts_to_compare(rankings_dir: Path, strategy: str = "fewest_games") -> 
         (post_a_id, post_b_id): IDs of posts to compare
     """
     store = RankingStore(rankings_dir)
-    posts = store.get_posts_to_compare(strategy=strategy, n=2)
+    posts = store.get_posts_to_compare(strategy=strategy, n=MIN_POSTS_TO_COMPARE)
 
-    if len(posts) < 2:
-        raise ValueError("Need at least 2 posts to compare")
+    if len(posts) < MIN_POSTS_TO_COMPARE:
+        raise ValueError(f"Need at least {MIN_POSTS_TO_COMPARE} posts to compare")
 
     return posts[0], posts[1]

@@ -4,6 +4,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
+
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -41,14 +42,14 @@ def chunk_markdown(
         List of text chunks
     """
     # Split into paragraphs
-    paragraphs = content.split('\n\n')
+    paragraphs = content.split("\n\n")
 
     chunks = []
     current_chunk = []
     current_tokens = 0
 
-    for para in paragraphs:
-        para = para.strip()
+    for paragraph in paragraphs:
+        para = paragraph.strip()
         if not para:
             continue
 
@@ -57,7 +58,7 @@ def chunk_markdown(
         # Check if adding this paragraph exceeds limit
         if current_tokens + para_tokens > max_tokens and current_chunk:
             # Save current chunk
-            chunk_text = '\n\n'.join(current_chunk)
+            chunk_text = "\n\n".join(current_chunk)
             chunks.append(chunk_text)
 
             # Start new chunk with overlap (keep last few paragraphs)
@@ -80,7 +81,7 @@ def chunk_markdown(
 
     # Add final chunk
     if current_chunk:
-        chunk_text = '\n\n'.join(current_chunk)
+        chunk_text = "\n\n".join(current_chunk)
         chunks.append(chunk_text)
 
     return chunks
@@ -93,33 +94,33 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
     Returns:
         (metadata_dict, content_string)
     """
-    with open(post_path, 'r', encoding='utf-8') as f:
+    with open(post_path, encoding="utf-8") as f:
         post = frontmatter.load(f)
 
     metadata = dict(post.metadata)
 
     # Extract slug from filename if not in metadata
-    if 'slug' not in metadata:
+    if "slug" not in metadata:
         # Filename format: YYYY-MM-DD-slug.md
         filename = post_path.stem
-        match = re.match(r'\d{4}-\d{2}-\d{2}-(.+)', filename)
+        match = re.match(r"\d{4}-\d{2}-\d{2}-(.+)", filename)
         if match:
-            metadata['slug'] = match.group(1)
+            metadata["slug"] = match.group(1)
         else:
-            metadata['slug'] = filename
+            metadata["slug"] = filename
 
     # Ensure required fields
-    if 'title' not in metadata:
-        metadata['title'] = metadata['slug'].replace('-', ' ').title()
+    if "title" not in metadata:
+        metadata["title"] = metadata["slug"].replace("-", " ").title()
 
-    if 'date' not in metadata:
+    if "date" not in metadata:
         # Try to extract from filename
         filename = post_path.stem
-        match = re.match(r'(\d{4}-\d{2}-\d{2})', filename)
+        match = re.match(r"(\d{4}-\d{2}-\d{2})", filename)
         if match:
-            metadata['date'] = match.group(1)
+            metadata["date"] = match.group(1)
         else:
-            metadata['date'] = None
+            metadata["date"] = None
 
     return metadata, post.content
 
@@ -152,13 +153,15 @@ def chunk_document(
     # Build chunk objects
     chunks = []
     for i, chunk_text in enumerate(text_chunks):
-        chunks.append({
-            'content': chunk_text,
-            'chunk_index': i,
-            'post_slug': metadata['slug'],
-            'post_title': metadata['title'],
-            'metadata': metadata,
-        })
+        chunks.append(
+            {
+                "content": chunk_text,
+                "chunk_index": i,
+                "post_slug": metadata["slug"],
+                "post_title": metadata["title"],
+                "metadata": metadata,
+            }
+        )
 
     logger.info(f"Chunked {post_path.name} into {len(chunks)} chunks")
 

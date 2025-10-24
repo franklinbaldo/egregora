@@ -3,18 +3,23 @@
 import asyncio
 import logging
 import os
-from pathlib import Path
 import random
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
 import fire
+from google import genai
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
+from .editor_agent import run_editor_session
+from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
-from .site_scaffolding import ensure_mkdocs_project
-from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
 from .ranking.agent import run_comparison
-
+from .ranking.elo import get_posts_to_compare, initialize_ratings, update_ratings
+from .site_scaffolding import ensure_mkdocs_project
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -78,6 +83,7 @@ class EgregoraCLI:
         to_date: str | None = None,
         timezone: str | None = None,
         gemini_key: str | None = None,
+        model: str | None = None,
         debug: bool = False,
     ):
         """
@@ -98,6 +104,7 @@ class EgregoraCLI:
             to_date: Only process messages up to this date (YYYY-MM-DD)
             timezone: IANA timezone (e.g., "America/Sao_Paulo", "America/New_York")
             gemini_key: Google Gemini API key
+            model: Gemini model to use (default: gemini-flash, configurable in mkdocs.yml)
             debug: Enable debug logging
         """
 
@@ -131,9 +138,6 @@ class EgregoraCLI:
             return
 
         # Validate and handle timezone
-        from datetime import datetime
-        from zoneinfo import ZoneInfo, available_timezones
-
         timezone_obj = None
         if timezone:
             # Validate timezone
@@ -162,10 +166,10 @@ class EgregoraCLI:
                     "• Timestamps will be misinterpreted\n"
                     "• Date filters (--from_date/--to_date) may be inaccurate\n\n"
                     "Examples:\n"
-                    f"• Brazil (São Paulo): [cyan]--timezone='America/Sao_Paulo'[/cyan]\n"
-                    f"• USA (New York): [cyan]--timezone='America/New_York'[/cyan]\n"
-                    f"• UK (London): [cyan]--timezone='Europe/London'[/cyan]\n\n"
-                    f"Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+                    "• Brazil (São Paulo): [cyan]--timezone='America/Sao_Paulo'[/cyan]\n"
+                    "• USA (New York): [cyan]--timezone='America/New_York'[/cyan]\n"
+                    "• UK (London): [cyan]--timezone='Europe/London'[/cyan]\n\n"
+                    "Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
                     title="⏰ Timezone Warning",
                     border_style="yellow",
                 )
@@ -244,6 +248,7 @@ class EgregoraCLI:
                 to_date_obj,
                 timezone_obj,
                 os.getenv("GOOGLE_API_KEY"),
+                model,
             )
         )
 
@@ -257,6 +262,7 @@ class EgregoraCLI:
         to_date,
         timezone_obj,
         api_key: str,
+        model: str | None,
     ):
         """Run the async pipeline."""
 
@@ -281,6 +287,7 @@ class EgregoraCLI:
                 to_date=to_date,
                 timezone=timezone_obj,
                 gemini_api_key=api_key,
+                model=model,
             )
 
             total_posts = sum(len(result["posts"]) for result in results.values())
@@ -334,6 +341,7 @@ class EgregoraCLI:
         comparisons: int = 1,
         export_parquet: bool = False,
         gemini_key: str | None = None,
+        model: str | None = None,
         debug: bool = False,
     ):
         """
@@ -355,6 +363,7 @@ class EgregoraCLI:
             comparisons: Number of comparisons to run (default: 1)
             export_parquet: Export rankings to Parquet after comparisons (default: False)
             gemini_key: Google Gemini API key
+            model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
             debug: Enable debug logging
         """
         if debug:
@@ -444,6 +453,11 @@ class EgregoraCLI:
         # Run comparisons
         api_key = os.getenv("GOOGLE_API_KEY")
 
+        # Load site config and create model config for ranking
+        site_config = load_site_config(site_path)
+        model_config = ModelConfig(cli_model=model, site_config=site_config)
+        ranking_model = model_config.get_model("ranking")
+
         for i in range(comparisons):
             console.print(
                 Panel(
@@ -455,7 +469,7 @@ class EgregoraCLI:
             try:
                 # Select posts to compare (prioritize posts with fewest games)
                 post_a_id, post_b_id = get_posts_to_compare(rankings_dir)
-                console.print(f"\n[bold]Comparing:[/bold]")
+                console.print("\n[bold]Comparing:[/bold]")
                 console.print(f"  Post A: [cyan]{post_a_id}[/cyan]")
                 console.print(f"  Post B: [cyan]{post_b_id}[/cyan]")
 
@@ -470,6 +484,7 @@ class EgregoraCLI:
                     post_b_id=post_b_id,
                     profile_path=profile_path,
                     api_key=api_key,
+                    model=ranking_model,
                 )
 
                 # Update ELO ratings
@@ -526,14 +541,12 @@ class EgregoraCLI:
 
         if export_parquet:
             summary_text += (
-                f"\n\n[bold]Parquet exports:[/bold]\n"
-                f"• elo_ratings.parquet - Current ELO scores\n"
-                f"• elo_history.parquet - Full comparison history"
+                "\n\n[bold]Parquet exports:[/bold]\n"
+                "• elo_ratings.parquet - Current ELO scores\n"
+                "• elo_history.parquet - Full comparison history"
             )
         else:
-            summary_text += (
-                f"\n\n[dim]Tip: Use --export_parquet to create Parquet files for sharing/analytics[/dim]"
-            )
+            summary_text += "\n\n[dim]Tip: Use --export_parquet to create Parquet files for sharing/analytics[/dim]"
 
         console.print(
             Panel(
@@ -542,6 +555,98 @@ class EgregoraCLI:
                 border_style="green",
             )
         )
+
+    def edit_post(
+        self,
+        post_path: str,
+        site_dir: str | None = None,
+        model: str | None = None,
+    ):
+        """
+        Run editor agent on a blog post using LLM with RAG and meta-LLM tools.
+
+        The editor can:
+        - Query RAG for related past posts
+        - Ask a separate LLM for ideas/facts/metaphors
+        - Make targeted edits or full rewrites
+        - Publish immediately if post is already good
+
+        Args:
+            post_path: Path to the post markdown file
+            site_dir: Site directory (for finding RAG database). If not provided, uses post_path parent.
+            model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
+        """
+        post_file = Path(post_path).resolve()
+        if not post_file.exists():
+            console.print(f"[red]Post not found: {post_file}[/red]")
+            return
+
+        # Determine site directory
+        if site_dir:
+            site_path = Path(site_dir).resolve()
+        else:
+            # Assume post is in docs/posts/ -> site root is docs/..
+            site_path = post_file.parent.parent
+
+        # Load configuration
+        site_config = load_site_config(site_path / "docs")
+        model_config = ModelConfig(cli_model=model, site_config=site_config)
+
+        # Get API key
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            console.print("[red]Error: GEMINI_API_KEY environment variable not set[/red]")
+            return
+
+        console.print(
+            Panel(
+                f"[bold]Editing Post with LLM Agent[/bold]\n\n"
+                f"Post: {post_file.name}\n"
+                f"Model: {model_config.get_model('editor')}\n"
+                f"RAG: {site_path / 'docs' / 'rag'}\n",
+                title="Editor Session",
+                border_style="cyan",
+            )
+        )
+
+        async def _run():
+            client = genai.Client(api_key=api_key)
+            try:
+                result = await run_editor_session(
+                    post_path=post_file,
+                    client=client,
+                    model_config=model_config,
+                    rag_dir=site_path / "docs" / "rag",
+                    context={},
+                )
+
+                # Save edited post
+                post_file.write_text(result.final_content, encoding="utf-8")
+
+                # Display results
+                status_color = "green" if result.decision == "publish" else "yellow"
+                console.print(
+                    Panel(
+                        f"[bold {status_color}]Decision: {result.decision.upper()}[/bold {status_color}]\n\n"
+                        f"Edits made: {'Yes' if result.edits_made else 'No'}\n"
+                        f"Tool calls: {len(result.tool_calls)}\n"
+                        f"Notes: {result.notes}\n\n"
+                        f"Post saved: {post_file}",
+                        title="Editor Complete",
+                        border_style=status_color,
+                    )
+                )
+
+                # Show tool call log
+                if result.tool_calls:
+                    console.print("\n[bold]Tool Calls:[/bold]")
+                    for i, call in enumerate(result.tool_calls, 1):
+                        console.print(f"  {i}. {call['tool']}({list(call['args'].keys())})")
+
+            finally:
+                client.close()
+
+        asyncio.run(_run())
 
 
 def main():

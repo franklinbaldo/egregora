@@ -1,6 +1,7 @@
 """Embedding generation using Gemini."""
 
 import logging
+
 from google import genai
 from google.genai.types import EmbedContentConfig
 
@@ -41,7 +42,7 @@ async def embed_chunks(
     # Process in batches of 100 (API limit)
     batch_size = 100
     for i in range(0, len(chunks), batch_size):
-        batch = chunks[i:i + batch_size]
+        batch = chunks[i : i + batch_size]
 
         logger.debug(f"Embedding batch {i // batch_size + 1} ({len(batch)} chunks)")
 
