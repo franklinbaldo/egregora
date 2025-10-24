@@ -118,7 +118,7 @@ def _validate_and_run_process(config: ProcessConfig):
             process_whatsapp_export(
                 zip_path=config.zip_file,
                 output_dir=config.output_dir,
-                api_key=api_key,
+                gemini_api_key=api_key,
                 period=config.period,
                 enable_enrichment=config.enable_enrichment,
                 from_date=from_date_obj,
@@ -412,6 +412,7 @@ def edit(
     client = genai.Client(api_key=api_key)
 
     # Run editor session
+    result = None
     try:
         result = asyncio.run(
             run_editor_session(
@@ -421,6 +422,8 @@ def edit(
                 rag_dir=rag_dir,
             )
         )
+
+        post_file.write_text(result.final_content, encoding="utf-8")
 
         console.print(
             Panel(
@@ -436,6 +439,8 @@ def edit(
     except Exception as e:
         console.print(f"[red]Editor session failed: {e}[/red]")
         raise typer.Exit(1) from e
+    finally:
+        client.close()
 
 
 def main():
