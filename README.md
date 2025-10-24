@@ -87,6 +87,30 @@ authors: [a1b2c3d4, e5f6g7h8]
 # Content here...
 ```
 
+## 📚 Documentation
+
+**New to Egregora?**
+- 📖 [Full Documentation](docs/README.md) - Complete guide
+- 🚀 [5-Minute Quickstart](docs/getting-started/quickstart.md) - Your first blog
+- 💡 [Core Concepts](docs/getting-started/concepts.md) - How it works
+
+**Key Features:**
+- 🔒 [Privacy & Anonymization](docs/features/anonymization.md) - UUID5-based privacy
+- ⚙️ [User Commands](docs/features/privacy-commands.md) - Control your data
+- ⭐ [Post Ranking](docs/features/ranking.md) - ELO-based quality system
+- 🧠 [RAG Enrichment](docs/features/rag.md) - Context-aware posts
+- ✏️ [AI Editor](docs/features/editor.md) - Autonomous post improvement
+
+**Reference:**
+- 💻 [CLI Reference](docs/reference/cli.md) - All commands
+- 🔧 [API Reference](docs/reference/api.md) - Python API
+- 🎯 [Configuration](docs/guides/configuration.md) - Customize everything
+- 🐛 [Troubleshooting](docs/guides/troubleshooting.md) - Common issues
+
+**For Developers:**
+- 🏗️ [Architecture](docs/guides/architecture.md) - System design
+- 🤝 [Contributing](docs/contributing/development.md) - Development guide
+
 ## 🔒 Privacy-First
 
 - **Automatic anonymization**: All names → UUID5 pseudonyms BEFORE LLM
@@ -96,7 +120,7 @@ authors: [a1b2c3d4, e5f6g7h8]
 - **Early application**: Real names NEVER reach the LLM
 - **User control**: In-chat commands for aliases and opt-out
 
-See [ANONYMIZATION.md](ANONYMIZATION.md) for details.
+See [Privacy Documentation](docs/features/anonymization.md) for details.
 
 ### User Control Commands
 
@@ -354,11 +378,15 @@ posts = llm.generate(f"Write posts from:\n{markdown}", tools=[write_post])
 
 **Key:** The LLM is smarter than our heuristics. Let it decide.
 
-## 📚 Documentation
+## 📚 More Information
 
-- [ANONYMIZATION.md](ANONYMIZATION.md) - Privacy implementation
-- [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md) - Design decisions
-- [QUICKSTART_V2.md](QUICKSTART_V2.md) - Detailed guide
+For complete documentation, see [docs/README.md](docs/README.md).
+
+**Quick Links:**
+- [Installation Guide](docs/getting-started/installation.md)
+- [Full Quickstart](docs/getting-started/quickstart.md)
+- [Architecture Overview](docs/guides/architecture.md)
+- [All Features](docs/features/)
 
 ## 🤝 Contributing
 

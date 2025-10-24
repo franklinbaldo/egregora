@@ -1,4 +1,13 @@
-"""LLM-powered editor agent with RAG and meta-LLM capabilities."""
+"""LLM-powered editor agent with RAG and meta-LLM capabilities.
+
+Autonomous post editing with line-by-line precision, RAG context queries,
+and meta-LLM consultation for creative suggestions.
+
+Documentation:
+- Editor Feature: docs/features/editor.md
+- API Reference: docs/reference/api.md#editor-agent
+- CLI Reference: docs/reference/cli.md#egregora-edit
+"""
 
 import logging
 from dataclasses import dataclass

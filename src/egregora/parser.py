@@ -1,4 +1,13 @@
-"""WhatsApp chat parser that converts ZIP exports to Polars DataFrames."""
+"""WhatsApp chat parser that converts ZIP exports to Polars DataFrames.
+
+This module handles parsing of WhatsApp export files into structured data.
+It automatically anonymizes all author names before returning data.
+
+Documentation:
+- Architecture: docs/guides/architecture.md
+- Core Concepts: docs/getting-started/concepts.md
+- API Reference: docs/reference/api.md
+"""
 
 from __future__ import annotations
 

@@ -1,0 +1,380 @@
+# RAG (Retrieval-Augmented Generation)
+
+Egregora includes an optional RAG system that enriches new posts with context from your blog's history.
+
+## What is RAG?
+
+RAG (Retrieval-Augmented Generation) allows the LLM to:
+- Search your existing blog posts for relevant context
+- Reference previous discussions on similar topics
+- Maintain consistency across posts
+- Create cross-post references
+
+**Example:**
+When writing a new post about AI ethics, the RAG system finds:
+- Previous posts about AI
+- Related discussions about ethics
+- Relevant quotes and arguments
+
+The LLM uses this context to write more informed, connected posts.
+
+## How It Works
+
+### 1. Indexing Phase
+
+When you enable RAG, Egregora:
+
+1. **Chunks** each existing blog post into ~1800 token segments
+2. **Embeds** each chunk using Google's text-embedding-004 model (3072 dimensions)
+3. **Stores** embeddings in a DuckDB vector database
+4. **Indexes** for fast similarity search
+
+**Storage location:** `{output_dir}/rag/vectors.duckdb`
+
+### 2. Retrieval Phase
+
+When generating a new post:
+
+1. **Embeds** the new messages as a query
+2. **Searches** for similar chunks (cosine similarity)
+3. **Returns** top-k most relevant contexts
+4. **Provides** to LLM alongside new messages
+
+### 3. Generation Phase
+
+The LLM receives:
+- New messages (today's conversation)
+- Retrieved context (relevant past posts)
+- Author profiles
+- Custom instructions
+
+It uses all this to write a post that:
+- References relevant past discussions
+- Maintains consistent terminology
+- Builds on previous arguments
+- Creates narrative continuity
+
+## Usage
+
+### Enable RAG During Processing
+
+```bash
+egregora process \
+  --zip_file=export.zip \
+  --output=./my-blog \
+  --enable_enrichment=True
+```
+
+**Note:** RAG is part of the enrichment system and is enabled by default when `--enable_enrichment=True`.
+
+### Disable RAG
+
+```bash
+egregora process \
+  --zip_file=export.zip \
+  --output=./my-blog \
+  --enable_enrichment=False
+```
+
+This skips both URL enrichment and RAG retrieval (faster, cheaper).
+
+## RAG Database
+
+### Storage Format
+
+Egregora uses **DuckDB** for vector storage:
+
+**File:** `{output_dir}/rag/vectors.duckdb`
+
+**Schema:**
+```sql
+CREATE TABLE embeddings (
+    chunk_id VARCHAR PRIMARY KEY,
+    post_path VARCHAR,
+    chunk_index INTEGER,
+    content TEXT,
+    embedding DOUBLE[3072],
+    metadata JSON,
+    created_at TIMESTAMP
+);
+```
+
+### Why DuckDB?
+
+- **Fast similarity search** - Built-in vector operations
+- **ACID transactions** - Safe concurrent access
+- **No external dependencies** - Embedded database
+- **SQL interface** - Easy querying and debugging
+- **Compressed storage** - Efficient on disk
+
+### Inspect the Database
+
+```bash
+# Connect to the database
+duckdb my-blog/rag/vectors.duckdb
+
+# Count indexed chunks
+SELECT COUNT(*) FROM embeddings;
+
+# See indexed posts
+SELECT DISTINCT post_path FROM embeddings;
+
+# View a chunk
+SELECT chunk_id, content, metadata
+FROM embeddings
+LIMIT 1;
+```
+
+## Embedding Model
+
+Egregora uses **Google's text-embedding-004**:
+
+- **Dimensions:** 3072
+- **Task type:** RETRIEVAL_DOCUMENT (for indexing), RETRIEVAL_QUERY (for searching)
+- **Output dimensionality:** Configurable (3072 for best quality)
+- **Cost:** ~$0.000025 per 1000 tokens
+
+### Why text-embedding-004?
+
+- State-of-the-art quality (as of Jan 2025)
+- Seamless integration with Gemini API
+- Task-specific embeddings (document vs query)
+- High dimensionality for better precision
+
+## Configuration
+
+### Chunk Size
+
+Default: 1800 tokens per chunk
+
+Adjust in code if needed:
+```python
+chunks = chunk_document(post_path, max_tokens=1800)
+```
+
+### Retrieval Count
+
+Default: Top-5 most similar chunks
+
+Adjust in code:
+```python
+results = await query_similar_posts(query, client, store, top_k=5)
+```
+
+### Similarity Threshold
+
+Only chunks with similarity > threshold are returned.
+
+Default: No hard threshold (uses top-k)
+
+## API Reference
+
+### Index a Post
+
+```python
+from pathlib import Path
+from google import genai
+from egregora.rag import VectorStore, index_post
+
+# Setup
+client = genai.Client(api_key="...")
+store = VectorStore(Path("my-blog/rag"))
+
+# Index a post
+post_path = Path("my-blog/posts/2025-01-15-ai-ethics.md")
+num_chunks = await index_post(post_path, client, store)
+print(f"Indexed {num_chunks} chunks")
+```
+
+### Query for Similar Posts
+
+```python
+from egregora.rag import query_similar_posts
+
+# Search
+query = "What have we discussed about AI alignment?"
+results = await query_similar_posts(
+    query=query,
+    client=client,
+    store=store,
+    top_k=5
+)
+
+for result in results:
+    print(f"Post: {result['post_path']}")
+    print(f"Similarity: {result['similarity']:.3f}")
+    print(f"Content: {result['content'][:200]}...")
+```
+
+### Direct Store Access
+
+```python
+from egregora.rag import VectorStore
+
+store = VectorStore(Path("my-blog/rag"))
+
+# Get all embeddings as DataFrame
+df = store.get_all_embeddings()
+print(df)
+
+# Search with raw embedding
+embedding = [0.1, 0.2, ...]  # 3072-dim vector
+results = store.search(embedding, top_k=10)
+```
+
+## Performance
+
+### Indexing Speed
+
+- **~2-5 chunks per post** (depends on post length)
+- **~0.5 seconds per chunk** (embedding API call)
+- **~1-3 seconds per post** (total)
+
+For a blog with 100 posts:
+- **~300 chunks** (average)
+- **~2-5 minutes** (total indexing time)
+
+### Storage Size
+
+- **~12 KB per chunk** (3072 doubles + metadata)
+- **~100 posts × 3 chunks** = ~3.6 MB
+
+Very efficient for local storage.
+
+### Query Speed
+
+- **~0.5 seconds** (embedding query)
+- **~0.1 seconds** (similarity search in DuckDB)
+- **~0.6 seconds total** per query
+
+Fast enough for real-time generation.
+
+## Use Cases
+
+### 1. Topic Consistency
+
+**Scenario:** Your group uses different terms for the same concept.
+
+**Without RAG:**
+- Posts use inconsistent terminology
+- No cross-references
+- Readers confused by naming
+
+**With RAG:**
+- LLM sees past usage
+- Adopts consistent terms
+- References previous discussions
+
+### 2. Building on Previous Arguments
+
+**Scenario:** Today's discussion extends yesterday's topic.
+
+**Without RAG:**
+- Each post is isolated
+- No narrative continuity
+- Repetitive explanations
+
+**With RAG:**
+- LLM references previous posts
+- Builds on past arguments
+- Creates story arcs
+
+### 3. Avoiding Redundancy
+
+**Scenario:** Group discusses the same topic twice.
+
+**Without RAG:**
+- Duplicate content
+- Wasted API tokens
+- Boring for readers
+
+**With RAG:**
+- LLM detects similarity
+- Either skips post or adds new angle
+- Focuses on novel insights
+
+## Limitations
+
+### 1. Cold Start Problem
+
+RAG only works after you have existing posts:
+- **First run:** No RAG context (nothing indexed yet)
+- **Subsequent runs:** RAG improves over time
+
+**Solution:** Process historical data first to build up the index.
+
+### 2. API Costs
+
+Embeddings cost money:
+- **Indexing:** One-time cost per post
+- **Querying:** Cost per new post generated
+
+**Mitigation:** Incremental indexing (only new posts).
+
+### 3. Relevance Precision
+
+Similarity search isn't perfect:
+- May retrieve tangentially related content
+- May miss relevant posts with different wording
+
+**Mitigation:** Use top-5 instead of top-1 to provide diverse context.
+
+## Troubleshooting
+
+### "No RAG database found"
+
+**Problem:** Trying to query before indexing
+
+**Solution:**
+```bash
+# Index existing posts first
+egregora process --enable_enrichment=True ...
+```
+
+### Slow Indexing
+
+**Problem:** Indexing 1000+ posts takes too long
+
+**Solution:**
+- Index in batches
+- Use async/await for parallel embedding
+- Consider reducing chunk size
+
+### Poor Retrieval Quality
+
+**Problem:** RAG retrieves irrelevant content
+
+**Solution:**
+- Increase chunk size for more context
+- Adjust top-k (try 3 or 10 instead of 5)
+- Ensure post content is high-quality
+
+## Future Enhancements
+
+### Planned Features
+
+1. **Incremental indexing** - Only index new/changed posts
+2. **Multi-modal RAG** - Index images, videos, audio
+3. **Cross-lingual search** - Retrieve across languages
+4. **Temporal weighting** - Prefer recent posts
+5. **Author filtering** - Retrieve posts by specific authors
+
+### Experimental Features
+
+- **Graph RAG** - Build knowledge graph from posts
+- **Hybrid search** - Combine vector + keyword search
+- **Reranking** - LLM-based relevance scoring
+
+## Related Documentation
+
+- [Architecture Overview](../guides/architecture.md) - How RAG fits in the pipeline
+- [Enrichment System](anonymization.md) - Privacy implications of RAG
+- [Configuration Guide](../guides/configuration.md) - RAG settings
+
+## Code Reference
+
+**Source:** `src/egregora/rag/`
+- `retriever.py` - High-level indexing and querying
+- `store.py` - DuckDB vector store
+- `embedder.py` - Gemini embedding calls
+- `chunker.py` - Document chunking logic
