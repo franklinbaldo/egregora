@@ -229,6 +229,7 @@ async def process_whatsapp_export(
                     period_df,
                     media_mapping,
                     client,
+                    output_dir,
                     model_config,
                 )
 

@@ -227,11 +227,47 @@ def extract_and_replace_media(
     return updated_df, media_mapping
 
 
-async def describe_url(url: str, client: genai.Client, model: str = "models/gemini-flash-latest") -> str:
-    """Ask LLM to describe a URL's content."""
-    from .prompt_templates import render_url_enrichment_prompt
+def detect_media_type(file_path: Path) -> str | None:
+    """Detect media type from file extension."""
+    ext = file_path.suffix.lower()
+    for extension, media_type in MEDIA_EXTENSIONS.items():
+        if ext == extension:
+            return media_type
+    return None
 
-    prompt = render_url_enrichment_prompt(url)
+
+async def enrich_url(
+    url: str,
+    original_message: str,
+    sender_uuid: str,
+    timestamp,
+    client: genai.Client,
+    output_dir: Path,
+    model: str = "models/gemini-flash-latest"
+) -> str:
+    """
+    Generate detailed enrichment for URL and save as .md file.
+
+    Returns: Path to saved enrichment file
+    """
+    from .prompt_templates import render_url_enrichment_detailed_prompt
+
+    # Generate UUID for enrichment file
+    url_hash = hashlib.md5(url.encode()).hexdigest()
+    enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
+
+    # Prepare context
+    date_str = timestamp.strftime("%Y-%m-%d")
+    time_str = timestamp.strftime("%H:%M")
+
+    prompt = render_url_enrichment_detailed_prompt(
+        url=url,
+        original_message=original_message,
+        sender_uuid=sender_uuid,
+        date=date_str,
+        time=time_str,
+    )
+
     try:
         response = await call_with_retries(
             client.aio.models.generate_content,
@@ -242,19 +278,70 @@ async def describe_url(url: str, client: genai.Client, model: str = "models/gemi
                     parts=[genai_types.Part(text=prompt)],
                 )
             ],
-            config=genai_types.GenerateContentConfig(temperature=0.2),
+            config=genai_types.GenerateContentConfig(temperature=0.3),
         )
-        return (response.text or "").strip()
+
+        markdown_content = (response.text or "").strip()
+
+        # Save to media/urls/
+        urls_dir = output_dir / "media" / "urls"
+        urls_dir.mkdir(parents=True, exist_ok=True)
+
+        enrichment_path = urls_dir / f"{enrichment_id}.md"
+        enrichment_path.write_text(markdown_content, encoding="utf-8")
+
+        return str(enrichment_path)
+
     except Exception as e:
-        return f"[Failed to fetch URL: {str(e)}]"
+        return f"[Failed to enrich URL: {str(e)}]"
 
 
-async def describe_media_file(file_path: Path, client: genai.Client, model: str = "models/gemini-flash-latest") -> str:
-    """Ask LLM to describe media file using vision/audio capabilities."""
-    from .prompt_templates import render_media_enrichment_prompt
+async def enrich_media(
+    file_path: Path,
+    original_message: str,
+    sender_uuid: str,
+    timestamp,
+    client: genai.Client,
+    output_dir: Path,
+    model: str = "models/gemini-flash-latest"
+) -> str:
+    """
+    Generate detailed enrichment for media file and save as .md file.
+
+    Returns: Path to saved enrichment file
+    """
+    from .prompt_templates import render_media_enrichment_detailed_prompt
+
+    # Determine media type
+    media_type = detect_media_type(file_path)
+    if not media_type:
+        return f"[Unknown media type: {file_path.name}]"
+
+    # Generate UUID for enrichment file (based on file path)
+    enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path)))
+
+    # Get relative path from output_dir
+    try:
+        media_path = file_path.relative_to(output_dir)
+    except ValueError:
+        media_path = file_path
+
+    # Prepare context
+    date_str = timestamp.strftime("%Y-%m-%d")
+    time_str = timestamp.strftime("%H:%M")
+
+    prompt = render_media_enrichment_detailed_prompt(
+        media_type=media_type,
+        media_filename=file_path.name,
+        media_path=str(media_path),
+        original_message=original_message,
+        sender_uuid=sender_uuid,
+        date=date_str,
+        time=time_str,
+    )
 
     try:
-        # Upload file to Gemini
+        # Upload file to Gemini (for vision/audio analysis)
         uploaded_file = await call_with_retries(
             client.aio.files.upload,
             path=str(file_path),
@@ -270,10 +357,8 @@ async def describe_media_file(file_path: Path, client: genai.Client, model: str 
                 )
             )
 
-        # Generate description
-        prompt = render_media_enrichment_prompt()
+        # Generate enrichment
         parts = [genai_types.Part(text=prompt)]
-
         if file_part is not None:
             parts.append(file_part)
 
@@ -288,15 +373,26 @@ async def describe_media_file(file_path: Path, client: genai.Client, model: str 
             ],
         )
 
-        return (response.text or "").strip()
+        markdown_content = (response.text or "").strip()
+
+        # Save to media/enrichments/
+        enrichments_dir = output_dir / "media" / "enrichments"
+        enrichments_dir.mkdir(parents=True, exist_ok=True)
+
+        enrichment_path = enrichments_dir / f"{enrichment_id}.md"
+        enrichment_path.write_text(markdown_content, encoding="utf-8")
+
+        return str(enrichment_path)
+
     except Exception as e:
-        return f"[Media: {file_path.name}]"
+        return f"[Failed to enrich media: {str(e)}]"
 
 
 async def enrich_dataframe(
     df: pl.DataFrame,
     media_mapping: dict[str, Path],
     client: genai.Client,
+    output_dir: Path,
     model_config=None,
     enable_url: bool = True,
     enable_media: bool = True,
@@ -338,6 +434,7 @@ async def enrich_dataframe(
 
         message = row.get("message", "")
         timestamp = row["timestamp"]
+        author = row.get("author", "unknown")
 
         # Enrich URLs
         if enable_url:
@@ -346,13 +443,24 @@ async def enrich_dataframe(
                 if enrichment_count >= max_enrichments:
                     break
 
-                description = await describe_url(url, client, url_model)
+                # Generate enrichment .md file
+                enrichment_path = await enrich_url(
+                    url=url,
+                    original_message=message,
+                    sender_uuid=author,
+                    timestamp=timestamp,
+                    client=client,
+                    output_dir=output_dir,
+                    model=url_model,
+                )
+
+                # Add reference to DataFrame
                 enrichment_timestamp = timestamp + timedelta(seconds=1)
                 new_rows.append({
                     "timestamp": enrichment_timestamp,
                     "date": enrichment_timestamp.date(),
                     "author": "egregora",
-                    "message": f"[URL Context] {url}\n{description}",
+                    "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
                     "original_line": "",
                     "tagged_line": "",
                 })
@@ -367,13 +475,24 @@ async def enrich_dataframe(
                     if enrichment_count >= max_enrichments:
                         break
 
-                    description = await describe_media_file(file_path, client, vision_model)
+                    # Generate enrichment .md file
+                    enrichment_path = await enrich_media(
+                        file_path=file_path,
+                        original_message=message,
+                        sender_uuid=author,
+                        timestamp=timestamp,
+                        client=client,
+                        output_dir=output_dir,
+                        model=vision_model,
+                    )
+
+                    # Add reference to DataFrame
                     enrichment_timestamp = timestamp + timedelta(seconds=1)
                     new_rows.append({
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": f"[Media Description] {description}",
+                        "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
                         "original_line": "",
                         "tagged_line": "",
                     })
