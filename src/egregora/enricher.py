@@ -9,6 +9,7 @@ Documentation:
 """
 
 import hashlib
+import logging
 import re
 import uuid
 import zipfile
@@ -26,6 +27,8 @@ from .prompt_templates import (
     render_media_enrichment_detailed_prompt,
     render_url_enrichment_detailed_prompt,
 )
+
+logger = logging.getLogger(__name__)
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
@@ -189,6 +192,19 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
     result = text
 
     for original_filename, new_path in media_mapping.items():
+        # Check if media file still exists (might be deleted due to PII)
+        if not new_path.exists():
+            replacement = "[Media removed: privacy protection]"
+
+            # Replace all occurrences with privacy notice
+            for marker in ATTACHMENT_MARKERS:
+                pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
+                result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+
+            # Also replace bare filename
+            result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
+            continue
+
         # Get relative path from output_dir
         try:
             relative_path = new_path.relative_to(output_dir)
@@ -394,6 +410,25 @@ async def enrich_media(
 
         markdown_content = (response.text or "").strip()
 
+        # Check for PII code word
+        contains_pii = "PII_DETECTED" in markdown_content
+
+        if contains_pii:
+            logger.warning(
+                f"PII detected in media: {file_path.name}. "
+                f"Media will be deleted, but keeping redacted description."
+            )
+
+            # Remove code word from description (clean it up)
+            markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+
+            # Delete the media file from disk
+            try:
+                file_path.unlink()
+                logger.info(f"Deleted media file containing PII: {file_path}")
+            except Exception as delete_error:
+                logger.error(f"Failed to delete {file_path}: {delete_error}")
+
         # Save to media/enrichments/
         enrichments_dir = config.output_dir / "media" / "enrichments"
         enrichments_dir.mkdir(parents=True, exist_ok=True)
@@ -444,6 +479,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
 
     new_rows = []
     enrichment_count = 0
+    pii_detected_count = 0
 
     for row in df.iter_rows(named=True):
         if enrichment_count >= max_enrichments:
@@ -511,6 +547,10 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                         config=enrichment_config,
                     )
 
+                    # Check if media file was deleted due to PII
+                    if not file_path.exists():
+                        pii_detected_count += 1
+
                     # Add reference to DataFrame
                     enrichment_timestamp = timestamp + timedelta(seconds=1)
                     new_rows.append(
@@ -538,5 +578,11 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     enrichment_df = pl.DataFrame(normalized_rows, schema=df.schema, strict=False)
     combined = pl.concat([df, enrichment_df])
     combined = combined.sort("timestamp")
+
+    # Log PII detection summary
+    if pii_detected_count > 0:
+        logger.info(
+            f"Privacy summary: {pii_detected_count} media file(s) deleted due to PII detection"
+        )
 
     return combined

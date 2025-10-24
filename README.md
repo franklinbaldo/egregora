@@ -119,6 +119,7 @@ authors: [a1b2c3d4, e5f6g7h8]
 - **Privacy validation**: Scans output for phone numbers
 - **Early application**: Real names NEVER reach the LLM
 - **User control**: In-chat commands for aliases and opt-out
+- **PII detection in media**: LLM automatically scans images, videos, and audio for personally identifiable information (faces, IDs, license plates, addresses, etc.) and removes media containing PII while keeping redacted descriptions
 
 See [Privacy Documentation](docs/features/anonymization.md) for details.
 
