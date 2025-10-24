@@ -145,3 +145,31 @@ def render_media_enrichment_detailed_prompt(
     )
 
 
+def render_editor_prompt(
+    post_content: str,
+    doc_id: str,
+    version: int,
+    lines: dict[int, str],
+    context: dict | None = None,
+) -> str:
+    """
+    Render editor system prompt from Jinja template.
+
+    Args:
+        post_content: Full markdown content of the post
+        doc_id: Document identifier (usually file path)
+        version: Current document version
+        lines: Line-indexed dictionary of post content
+        context: Optional context (ELO, ranking comments, etc.)
+
+    Returns:
+        Rendered prompt string
+    """
+    template = env.get_template("editor_system.jinja")
+    return template.render(
+        post_content=post_content,
+        doc_id=doc_id,
+        version=version,
+        lines=lines,
+        context=context or {},
+    )

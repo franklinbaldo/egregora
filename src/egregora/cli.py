@@ -561,6 +561,98 @@ class EgregoraCLI:
             )
         )
 
+    def edit_post(
+        self,
+        post_path: str,
+        site_dir: str | None = None,
+        model: str | None = None,
+    ):
+        """
+        Run editor agent on a blog post using LLM with RAG and meta-LLM tools.
+
+        The editor can:
+        - Query RAG for related past posts
+        - Ask a separate LLM for ideas/facts/metaphors
+        - Make targeted edits or full rewrites
+        - Publish immediately if post is already good
+
+        Args:
+            post_path: Path to the post markdown file
+            site_dir: Site directory (for finding RAG database). If not provided, uses post_path parent.
+            model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
+        """
+        from google import genai
+        from .editor_agent import run_editor_session
+        from .model_config import ModelConfig, load_site_config
+
+        post_file = Path(post_path).resolve()
+        if not post_file.exists():
+            console.print(f"[red]Post not found: {post_file}[/red]")
+            return
+
+        # Determine site directory
+        if site_dir:
+            site_path = Path(site_dir).resolve()
+        else:
+            # Assume post is in docs/posts/ -> site root is docs/..
+            site_path = post_file.parent.parent
+
+        # Load configuration
+        site_config = load_site_config(site_path / "docs")
+        model_config = ModelConfig(cli_model=model, site_config=site_config)
+
+        # Get API key
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            console.print("[red]Error: GEMINI_API_KEY environment variable not set[/red]")
+            return
+
+        console.print(Panel(
+            f"[bold]Editing Post with LLM Agent[/bold]\n\n"
+            f"Post: {post_file.name}\n"
+            f"Model: {model_config.get_model('editor')}\n"
+            f"RAG: {site_path / 'docs' / 'rag'}\n",
+            title="Editor Session",
+            border_style="cyan"
+        ))
+
+        async def _run():
+            client = genai.Client(api_key=api_key)
+            try:
+                result = await run_editor_session(
+                    post_path=post_file,
+                    client=client,
+                    model_config=model_config,
+                    rag_dir=site_path / "docs" / "rag",
+                    context={},
+                )
+
+                # Save edited post
+                post_file.write_text(result.final_content, encoding="utf-8")
+
+                # Display results
+                status_color = "green" if result.decision == "publish" else "yellow"
+                console.print(Panel(
+                    f"[bold {status_color}]Decision: {result.decision.upper()}[/bold {status_color}]\n\n"
+                    f"Edits made: {'Yes' if result.edits_made else 'No'}\n"
+                    f"Tool calls: {len(result.tool_calls)}\n"
+                    f"Notes: {result.notes}\n\n"
+                    f"Post saved: {post_file}",
+                    title="Editor Complete",
+                    border_style=status_color
+                ))
+
+                # Show tool call log
+                if result.tool_calls:
+                    console.print("\n[bold]Tool Calls:[/bold]")
+                    for i, call in enumerate(result.tool_calls, 1):
+                        console.print(f"  {i}. {call['tool']}({list(call['args'].keys())})")
+
+            finally:
+                client.close()
+
+        asyncio.run(_run())
+
 
 def main():
     fire.Fire(EgregoraCLI)

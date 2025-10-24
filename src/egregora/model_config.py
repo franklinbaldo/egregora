@@ -15,9 +15,10 @@ DEFAULT_WRITER_MODEL = "models/gemini-flash-latest"
 DEFAULT_ENRICHER_MODEL = "models/gemini-flash-latest"
 DEFAULT_ENRICHER_VISION_MODEL = "models/gemini-flash-latest"
 DEFAULT_RANKING_MODEL = "models/gemini-flash-latest"
+DEFAULT_EDITOR_MODEL = "models/gemini-flash-latest"
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 
-ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "embedding"]
+ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
 
 
 class ModelConfig:
@@ -78,6 +79,7 @@ class ModelConfig:
             "enricher": DEFAULT_ENRICHER_MODEL,
             "enricher_vision": DEFAULT_ENRICHER_VISION_MODEL,
             "ranking": DEFAULT_RANKING_MODEL,
+            "editor": DEFAULT_EDITOR_MODEL,
             "embedding": DEFAULT_EMBEDDING_MODEL,
         }
         model = defaults[model_type]
