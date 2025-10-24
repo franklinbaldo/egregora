@@ -227,13 +227,13 @@ def extract_and_replace_media(
     return updated_df, media_mapping
 
 
-async def describe_url(url: str, client: genai.Client) -> str:
+async def describe_url(url: str, client: genai.Client, model: str = "gemini-flash") -> str:
     """Ask LLM to describe a URL's content."""
     prompt = f"Briefly describe what this URL is about (1-2 sentences): {url}"
     try:
         response = await call_with_retries(
             client.aio.models.generate_content,
-            model="gemini-2.0-flash-lite",
+            model=model,
             contents=[
                 genai_types.Content(
                     role="user",
@@ -247,7 +247,7 @@ async def describe_url(url: str, client: genai.Client) -> str:
         return f"[Failed to fetch URL: {str(e)}]"
 
 
-async def describe_media_file(file_path: Path, client: genai.Client) -> str:
+async def describe_media_file(file_path: Path, client: genai.Client, model: str = "gemini-flash") -> str:
     """Ask LLM to describe media file using vision/audio capabilities."""
     try:
         # Upload file to Gemini
@@ -278,7 +278,7 @@ async def describe_media_file(file_path: Path, client: genai.Client) -> str:
 
         response = await call_with_retries(
             client.aio.models.generate_content,
-            model="gemini-2.0-flash-exp",
+            model=model,
             contents=[
                 genai_types.Content(
                     role="user",
@@ -296,6 +296,7 @@ async def enrich_dataframe(
     df: pl.DataFrame,
     media_mapping: dict[str, Path],
     client: genai.Client,
+    model_config=None,
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
@@ -310,12 +311,20 @@ async def enrich_dataframe(
         df: DataFrame with media paths already replaced
         media_mapping: Mapping of original filenames to extracted paths
         client: Gemini client
+        model_config: Model configuration object
         enable_url: Add URL descriptions
         enable_media: Add media descriptions
         max_enrichments: Maximum enrichments to add
 
     Returns new DataFrame with additional rows authored by 'egregora'.
     """
+    from .model_config import ModelConfig
+
+    # Get model names from config
+    if model_config is None:
+        model_config = ModelConfig()
+    url_model = model_config.get_model("enricher")
+    vision_model = model_config.get_model("enricher_vision")
     if df.is_empty():
         return df
 
@@ -336,7 +345,7 @@ async def enrich_dataframe(
                 if enrichment_count >= max_enrichments:
                     break
 
-                description = await describe_url(url, client)
+                description = await describe_url(url, client, url_model)
                 enrichment_timestamp = timestamp + timedelta(seconds=1)
                 new_rows.append({
                     "timestamp": enrichment_timestamp,
@@ -357,7 +366,7 @@ async def enrich_dataframe(
                     if enrichment_count >= max_enrichments:
                         break
 
-                    description = await describe_media_file(file_path, client)
+                    description = await describe_media_file(file_path, client, vision_model)
                     enrichment_timestamp = timestamp + timedelta(seconds=1)
                     new_rows.append({
                         "timestamp": enrichment_timestamp,

@@ -79,6 +79,7 @@ class EgregoraCLI:
         to_date: str | None = None,
         timezone: str | None = None,
         gemini_key: str | None = None,
+        model: str | None = None,
         debug: bool = False,
     ):
         """
@@ -99,6 +100,7 @@ class EgregoraCLI:
             to_date: Only process messages up to this date (YYYY-MM-DD)
             timezone: IANA timezone (e.g., "America/Sao_Paulo", "America/New_York")
             gemini_key: Google Gemini API key
+            model: Gemini model to use (default: gemini-flash, configurable in mkdocs.yml)
             debug: Enable debug logging
         """
 
@@ -245,6 +247,7 @@ class EgregoraCLI:
                 to_date_obj,
                 timezone_obj,
                 os.getenv("GOOGLE_API_KEY"),
+                model,
             )
         )
 
@@ -258,6 +261,7 @@ class EgregoraCLI:
         to_date,
         timezone_obj,
         api_key: str,
+        model: str | None,
     ):
         """Run the async pipeline."""
 
@@ -282,6 +286,7 @@ class EgregoraCLI:
                 to_date=to_date,
                 timezone=timezone_obj,
                 gemini_api_key=api_key,
+                model=model,
             )
 
             total_posts = sum(len(result["posts"]) for result in results.values())

@@ -13,6 +13,7 @@ from .types import GroupSlug
 from .enricher import extract_and_replace_media, enrich_dataframe
 from .writer import write_posts_for_period
 from .profiler import process_commands, filter_opted_out_authors
+from .model_config import ModelConfig, load_site_config
 
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,7 @@ async def process_whatsapp_export(
     to_date = None,
     timezone = None,
     gemini_api_key: str | None = None,
+    model: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Complete pipeline: ZIP → posts + profiles.
@@ -120,12 +122,17 @@ async def process_whatsapp_export(
         to_date: Only process messages up to this date (date object)
         timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
         gemini_api_key: Google Gemini API key
+        model: Gemini model to use (overrides mkdocs.yml config)
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
     """
 
     client = genai.Client(api_key=gemini_api_key)
+
+    # Load site config and create model config
+    site_config = load_site_config(output_dir)
+    model_config = ModelConfig(cli_model=model, site_config=site_config)
 
     try:
         group_name, chat_file = discover_chat_file(zip_path)
@@ -222,6 +229,7 @@ async def process_whatsapp_export(
                     period_df,
                     media_mapping,
                     client,
+                    model_config,
                 )
 
             enriched_dir = output_dir / "enriched"
@@ -236,6 +244,7 @@ async def process_whatsapp_export(
                 posts_dir,
                 profiles_dir,
                 output_dir / "rag",
+                model_config,
             )
 
             results[period_key] = result
