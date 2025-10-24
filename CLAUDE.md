@@ -91,8 +91,9 @@ uvx --from requests python .claude/skills/jules-api/jules_client.py create \
   franklinbaldo egregora feature/my-branch
 
 # 3. Continue other work while Jules works asynchronously
+# ⏱️  Jules typically completes tasks in ~10 minutes
 
-# 4. Later, check Jules' progress
+# 4. Check back after ~10 minutes
 python .claude/skills/jules-api/jules_client.py get <session-id>
 ```
 

@@ -91,9 +91,16 @@ Claude: "I'll create a Jules session to review your authentication code.
          Session ID: 123456789
          URL: https://jules.google.com/session/123456789
 
-         You can continue other work while Jules reviews. Check back in
-         5-10 minutes, and I can help you integrate Jules' suggestions."
+         ⏱️  Jules typically completes tasks in ~10 minutes.
+         You can continue other work while Jules reviews. I can check
+         the status in ~10 minutes and help you integrate the changes."
 ```
+
+**Important timing notes:**
+- Jules sessions typically complete in **~10 minutes**
+- Claude should check session status after ~10 minutes
+- Use this time for other work - don't wait synchronously
+- Jules will create a PR when done (AUTO_CREATE_PR mode)
 
 ## Base Configuration
 
