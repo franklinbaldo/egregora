@@ -35,6 +35,13 @@ class Editor:
                 "current_version": self.snapshot.version,
             }
 
+        if index not in self.snapshot.lines:
+            return {
+                "ok": False,
+                "reason": "index_out_of_bounds",
+                "max_index": len(self.snapshot.lines) - 1,
+            }
+
         self.snapshot.lines[index] = new
         self.snapshot.version += 1
         return {"ok": True, "new_version": self.snapshot.version}
@@ -49,6 +56,9 @@ class Editor:
                 "reason": "version_mismatch",
                 "current_version": self.snapshot.version,
             }
+
+        if not content:
+            return {"ok": False, "reason": "content_empty"}
 
         lines = content.split("\n")
         self.snapshot.lines = {i: line for i, line in enumerate(lines)}

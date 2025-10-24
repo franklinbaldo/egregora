@@ -28,6 +28,27 @@ logger = logging.getLogger(__name__)
 EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
 
+def _parse_set_command(args: str) -> dict | None:
+    """Parse a 'set' command."""
+    parts = args.split(maxsplit=1)
+    if len(parts) == SET_COMMAND_PARTS:
+        target = parts[0].lower()
+        value = parts[1].strip("\"'")
+        return {"command": "set", "target": target, "value": value}
+    return None
+
+
+def _parse_remove_command(args: str) -> dict:
+    """Parse a 'remove' command."""
+    return {"command": "remove", "target": args.lower(), "value": None}
+
+
+COMMAND_REGISTRY = {
+    "set": _parse_set_command,
+    "remove": _parse_remove_command,
+}
+
+
 def parse_egregora_command(message: str) -> dict | None:
     """
     Parse egregora commands from message text.
@@ -75,17 +96,8 @@ def parse_egregora_command(message: str) -> dict | None:
     action = match.group(1).lower()
     args = match.group(2).strip()
 
-    # Parse "set alias 'Franklin'"
-    if action == "set":
-        parts = args.split(maxsplit=1)
-        if len(parts) == SET_COMMAND_PARTS:
-            target = parts[0].lower()
-            value = parts[1].strip("\"'")
-            return {"command": "set", "target": target, "value": value}
-
-    # Parse "remove alias"
-    elif action == "remove":
-        return {"command": "remove", "target": args.lower(), "value": None}
+    if action in COMMAND_REGISTRY:
+        return COMMAND_REGISTRY[action](args)
 
     return None
 
@@ -358,7 +370,7 @@ def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
         return None
 
 
-def _start_message_builder(
+def _start_message_builder(  # noqa: PLR0913
     *,
     export: WhatsAppExport,
     msg_date: date,

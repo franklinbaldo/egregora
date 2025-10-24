@@ -26,17 +26,11 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     with zipfile.ZipFile(zip_path) as zf:
         for member in zf.namelist():
             if member.endswith(".txt") and not member.startswith("__"):
-                patterns = [
-                    r"Conversa do WhatsApp com (.+)\.txt",
-                    r"WhatsApp Chat with (.+)\.txt",
-                    r"Chat de WhatsApp con (.+)\.txt",
-                ]
-
-                for pattern in patterns:
-                    match = re.match(pattern, Path(member).name)
-                    if match:
-                        return match.group(1), member
-
+                # Generic pattern to capture group name from WhatsApp chat files
+                pattern = r"WhatsApp(?: Chat with|.*) (.+)\.txt"
+                match = re.match(pattern, Path(member).name)
+                if match:
+                    return match.group(1), member
                 return Path(member).stem, member
 
     raise ValueError(f"No WhatsApp chat file found in {zip_path}")
@@ -97,7 +91,7 @@ def group_by_period(df: pl.DataFrame, period: str = "day") -> dict[str, pl.DataF
     return grouped
 
 
-async def process_whatsapp_export(
+async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",

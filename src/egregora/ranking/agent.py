@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
 
+from .elo import calculate_elo_update
 from .store import RankingStore
 
 console = Console()
@@ -164,7 +165,7 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     return "\n".join(lines)
 
 
-def save_comparison(
+def save_comparison(  # noqa: PLR0913
     store: RankingStore,
     profile_id: str,
     post_a: str,
@@ -192,7 +193,184 @@ def save_comparison(
     store.save_comparison(comparison_data)
 
 
-def run_comparison(
+def _load_comparison_posts(
+    site_dir: Path, post_a_id: str, post_b_id: str
+) -> tuple[str, str]:
+    """Load content for both posts."""
+    posts_dir = site_dir / "posts"
+
+    post_a_path = posts_dir / f"{post_a_id}.md"
+    post_b_path = posts_dir / f"{post_b_id}.md"
+
+    if not post_a_path.exists():
+        raise ValueError(f"Post not found: {post_a_path}")
+    if not post_b_path.exists():
+        raise ValueError(f"Post not found: {post_b_path}")
+
+    content_a = load_post_content(post_a_path)
+    content_b = load_post_content(post_b_path)
+
+    return content_a, content_b
+
+
+def _extract_tool_call_result(response, tool_name: str, arg_names: list[str]) -> dict | None:
+    """Extract tool call arguments from LLM response."""
+    if not response.candidates[0].content.parts:
+        return None
+
+    for part in response.candidates[0].content.parts:
+        if hasattr(part, "function_call") and part.function_call.name == tool_name:
+            return {arg: part.function_call.args[arg] for arg in arg_names}
+
+    return None
+
+
+def _run_turn1_choose_winner(  # noqa: PLR0913
+    client: genai.Client,
+    model: str,
+    profile: dict,
+    post_a_id: str,
+    post_b_id: str,
+    content_a: str,
+    content_b: str,
+) -> str:
+    """Run turn 1: Choose winner."""
+    console.print("\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")
+
+    turn1_prompt = f"""You are {profile.get("alias") or profile["uuid"]}, impersonating their reading style and preferences.
+
+Profile bio: {profile.get("bio") or "No bio available"}
+
+Read these two blog posts and decide which one is better overall.
+
+# Post A: {post_a_id}
+{content_a}
+
+# Post B: {post_b_id}
+{content_b}
+
+Use the choose_winner tool to declare the winner."""
+
+    turn1_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn1_prompt)])],
+        config=genai_types.GenerateContentConfig(tools=[CHOOSE_WINNER_TOOL]),
+    )
+
+    result = _extract_tool_call_result(turn1_response, "choose_winner", ["winner"])
+    if not result:
+        raise ValueError("Agent did not call choose_winner tool")
+
+    winner = result["winner"]
+    console.print(f"[green]Winner: Post {winner}[/green]")
+    return winner
+
+
+def _run_turn2_comment_post_a(  # noqa: PLR0913
+    client: genai.Client,
+    model: str,
+    winner: str,
+    post_a_id: str,
+    content_a: str,
+    existing_comments_a: str,
+) -> tuple[str, int]:
+    """Run turn 2: Comment on Post A."""
+    console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
+
+    comments_display = existing_comments_a or "No comments yet. Be the first!"
+
+    turn2_prompt = f"""You chose Post {winner} as the winner.
+
+Now provide detailed feedback on Post A.
+
+# Post A: {post_a_id}
+{content_a}
+
+# What others have said about Post A:
+{comments_display}
+
+Use the comment_post_A tool to:
+- Rate it (1-5 stars)
+- Write a comment (max 250 chars, markdown supported)
+- Reference existing comments if relevant"""
+
+    turn2_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn2_prompt)])],
+        config=genai_types.GenerateContentConfig(tools=[COMMENT_POST_A_TOOL]),
+    )
+
+    result = _extract_tool_call_result(turn2_response, "comment_post_A", ["comment", "stars"])
+    if not result:
+        raise ValueError("Agent did not call comment_post_A tool")
+
+    comment_a = result["comment"]
+    stars_a = int(result["stars"])
+
+    # Truncate comment
+    if len(comment_a) > MAX_COMMENT_LENGTH:
+        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
+        comment_a = comment_a[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
+
+    console.print(f"[yellow]Comment A: {comment_a}[/yellow]")
+    console.print(f"[yellow]Stars A: {'⭐' * stars_a}[/yellow]")
+
+    return comment_a, stars_a
+
+
+def _run_turn3_comment_post_b(  # noqa: PLR0913
+    client: genai.Client,
+    model: str,
+    winner: str,
+    post_b_id: str,
+    content_b: str,
+    existing_comments_b: str,
+) -> tuple[str, int]:
+    """Run turn 3: Comment on Post B."""
+    console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
+
+    comments_display = existing_comments_b or "No comments yet. Be the first!"
+
+    turn3_prompt = f"""You chose Post {winner} as the winner.
+
+Now provide detailed feedback on Post B.
+
+# Post B: {post_b_id}
+{content_b}
+
+# What others have said about Post B:
+{comments_display}
+
+Use the comment_post_B tool to:
+- Rate it (1-5 stars)
+- Write a comment (max 250 chars, markdown supported)
+- Reference existing comments if relevant"""
+
+    turn3_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn3_prompt)])],
+        config=genai_types.GenerateContentConfig(tools=[COMMENT_POST_B_TOOL]),
+    )
+
+    result = _extract_tool_call_result(turn3_response, "comment_post_B", ["comment", "stars"])
+    if not result:
+        raise ValueError("Agent did not call comment_post_B tool")
+
+    comment_b = result["comment"]
+    stars_b = int(result["stars"])
+
+    # Truncate comment
+    if len(comment_b) > MAX_COMMENT_LENGTH:
+        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
+        comment_b = comment_b[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
+
+    console.print(f"[yellow]Comment B: {comment_b}[/yellow]")
+    console.print(f"[yellow]Stars B: {'⭐' * stars_b}[/yellow]")
+
+    return comment_b, stars_b
+
+
+def run_comparison(  # noqa: PLR0913
     site_dir: Path,
     post_a_id: str,
     post_b_id: str,
@@ -214,171 +392,32 @@ def run_comparison(
     Returns:
         dict with comparison results
     """
-    posts_dir = site_dir / "posts"
+    # Setup
     rankings_dir = site_dir / "rankings"
-
-    # Create ranking store
     store = RankingStore(rankings_dir)
+    client = genai.Client(api_key=api_key)
 
-    # Load posts
-    post_a_path = posts_dir / f"{post_a_id}.md"
-    post_b_path = posts_dir / f"{post_b_id}.md"
+    # Load data
+    content_a, content_b = _load_comparison_posts(site_dir, post_a_id, post_b_id)
 
-    if not post_a_path.exists():
-        raise ValueError(f"Post not found: {post_a_path}")
-    if not post_b_path.exists():
-        raise ValueError(f"Post not found: {post_b_path}")
-
-    content_a = load_post_content(post_a_path)
-    content_b = load_post_content(post_b_path)
-
-    # Load profile
     profile = load_profile(profile_path)
-
-    # Load existing comments
     existing_comments_a = load_comments_for_post(post_a_id, store)
     existing_comments_b = load_comments_for_post(post_b_id, store)
 
-    # Create Gemini client (new SDK)
-    client = genai.Client(api_key=api_key)
-
-    # TURN 1: Choose winner
-    console.print("\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")
-
-    turn1_prompt = f"""You are {profile.get("alias") or profile["uuid"]}, impersonating their reading style and preferences.
-
-Profile bio: {profile.get("bio") or "No bio available"}
-
-Read these two blog posts and decide which one is better overall.
-
-# Post A: {post_a_id}
-{content_a}
-
-# Post B: {post_b_id}
-{content_b}
-
-Use the choose_winner tool to declare the winner."""
-
-    turn1_response = client.models.generate_content(
-        model=model,
-        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn1_prompt)])],
-        config=genai_types.GenerateContentConfig(
-            tools=[CHOOSE_WINNER_TOOL],
-        ),
+    # Run three-turn comparison
+    winner = _run_turn1_choose_winner(
+        client, model, profile, post_a_id, post_b_id, content_a, content_b
     )
 
-    # Parse winner from function call
-    winner = None
-    if turn1_response.candidates[0].content.parts:
-        for part in turn1_response.candidates[0].content.parts:
-            if hasattr(part, "function_call") and part.function_call.name == "choose_winner":
-                winner = part.function_call.args["winner"]
-                break
-
-    if not winner:
-        raise ValueError("Agent did not call choose_winner tool")
-
-    console.print(f"[green]Winner: Post {winner}[/green]")
-
-    # TURN 2: Comment on Post A
-    console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
-
-    comments_a_display = existing_comments_a or "No comments yet. Be the first!"
-
-    turn2_prompt = f"""You chose Post {winner} as the winner.
-
-Now provide detailed feedback on Post A.
-
-# Post A: {post_a_id}
-{content_a}
-
-# What others have said about Post A:
-{comments_a_display}
-
-Use the comment_post_A tool to:
-- Rate it (1-5 stars)
-- Write a comment (max 250 chars, markdown supported)
-- Reference existing comments if relevant"""
-
-    turn2_response = client.models.generate_content(
-        model=model,
-        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn2_prompt)])],
-        config=genai_types.GenerateContentConfig(
-            tools=[COMMENT_POST_A_TOOL],
-        ),
+    comment_a, stars_a = _run_turn2_comment_post_a(
+        client, model, winner, post_a_id, content_a, existing_comments_a
     )
 
-    # Parse comment from function call
-    comment_a = None
-    stars_a = None
-    if turn2_response.candidates[0].content.parts:
-        for part in turn2_response.candidates[0].content.parts:
-            if hasattr(part, "function_call") and part.function_call.name == "comment_post_A":
-                comment_a = part.function_call.args["comment"]
-                stars_a = int(part.function_call.args["stars"])
-                break
-
-    if not comment_a or not stars_a:
-        raise ValueError("Agent did not call comment_post_A tool")
-
-    # Truncate comment to max length
-    if len(comment_a) > MAX_COMMENT_LENGTH:
-        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
-        comment_a = comment_a[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
-
-    console.print(f"[yellow]Comment A: {comment_a}[/yellow]")
-    console.print(f"[yellow]Stars A: {'⭐' * stars_a}[/yellow]")
-
-    # TURN 3: Comment on Post B
-    console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
-
-    comments_b_display = existing_comments_b or "No comments yet. Be the first!"
-
-    turn3_prompt = f"""You chose Post {winner} as the winner.
-
-Now provide detailed feedback on Post B.
-
-# Post B: {post_b_id}
-{content_b}
-
-# What others have said about Post B:
-{comments_b_display}
-
-Use the comment_post_B tool to:
-- Rate it (1-5 stars)
-- Write a comment (max 250 chars, markdown supported)
-- Reference existing comments if relevant"""
-
-    turn3_response = client.models.generate_content(
-        model=model,
-        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn3_prompt)])],
-        config=genai_types.GenerateContentConfig(
-            tools=[COMMENT_POST_B_TOOL],
-        ),
+    comment_b, stars_b = _run_turn3_comment_post_b(
+        client, model, winner, post_b_id, content_b, existing_comments_b
     )
 
-    # Parse comment from function call
-    comment_b = None
-    stars_b = None
-    if turn3_response.candidates[0].content.parts:
-        for part in turn3_response.candidates[0].content.parts:
-            if hasattr(part, "function_call") and part.function_call.name == "comment_post_B":
-                comment_b = part.function_call.args["comment"]
-                stars_b = int(part.function_call.args["stars"])
-                break
-
-    if not comment_b or not stars_b:
-        raise ValueError("Agent did not call comment_post_B tool")
-
-    # Truncate comment to max length
-    if len(comment_b) > MAX_COMMENT_LENGTH:
-        truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
-        comment_b = comment_b[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
-
-    console.print(f"[yellow]Comment B: {comment_b}[/yellow]")
-    console.print(f"[yellow]Stars B: {'⭐' * stars_b}[/yellow]")
-
-    # Save comparison to history
+    # Save results
     save_comparison(
         store=store,
         profile_id=profile["uuid"],
@@ -390,6 +429,19 @@ Use the comment_post_B tool to:
         comment_b=comment_b,
         stars_b=stars_b,
     )
+
+    # Update ELO ratings
+    rating_a = store.get_rating(post_a_id)
+    rating_b = store.get_rating(post_b_id)
+
+    if rating_a is None or rating_b is None:
+        msg = "Missing ratings for posts despite initialization"
+        raise ValueError(msg)
+
+    new_elo_a, new_elo_b = calculate_elo_update(
+        rating_a["elo_global"], rating_b["elo_global"], winner
+    )
+    store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
 
     return {
         "winner": winner,

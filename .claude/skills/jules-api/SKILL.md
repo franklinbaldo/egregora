@@ -254,55 +254,55 @@ To use the Jules API, you need an API key:
 ## Python Example
 
 ```python
+import os
 import requests
-import subprocess
 
-def get_access_token():
-    result = subprocess.run(
-        ['gcloud', 'auth', 'print-access-token'],
-        capture_output=True,
-        text=True
-    )
-    return result.stdout.strip()
+# It's recommended to set the JULES_API_KEY environment variable
+API_KEY = os.environ.get("JULES_API_KEY")
+BASE_URL = "https://jules.googleapis.com/v1alpha"
 
 def create_jules_session(prompt, owner, repo, branch='main'):
-    url = 'https://jules.googleapis.com/v1alpha/sessions'
+    url = f'{BASE_URL}/sessions'
     headers = {
-        'Authorization': f'Bearer {get_access_token()}',
+        'X-Goog-Api-Key': API_KEY,
         'Content-Type': 'application/json'
     }
     data = {
         'prompt': prompt,
         'sourceContext': {
-            'githubRepository': {
-                'owner': owner,
-                'name': repo,
-                'branch': branch
+            'source': f'sources/github/{owner}/{repo}',
+            'githubRepoContext': {
+                'startingBranch': branch
             }
         }
     }
     response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
     return response.json()
 
 def get_session_status(session_id):
-    url = f'https://jules.googleapis.com/v1alpha/sessions/{session_id}'
+    url = f'{BASE_URL}/sessions/{session_id}'
     headers = {
-        'Authorization': f'Bearer {get_access_token()}'
+        'X-Goog-Api-Key': API_KEY
     }
     response = requests.get(url, headers=headers)
+    response.raise_for_status()
     return response.json()
 
 # Usage
-session = create_jules_session(
-    prompt='Add error handling to API endpoints',
-    owner='myorg',
-    repo='myproject'
-)
-print(f"Created session: {session['id']}")
+if API_KEY:
+    session = create_jules_session(
+        prompt='Add error handling to API endpoints',
+        owner='myorg',
+        repo='myproject'
+    )
+    print(f"Created session: {session['id']}")
 
-# Check status
-status = get_session_status(session['id'])
-print(f"Status: {status['state']}")
+    # Check status
+    status = get_session_status(session['id'])
+    print(f"Status: {status['state']}")
+else:
+    print("Please set the JULES_API_KEY environment variable.")
 ```
 
 ## Best Practices
