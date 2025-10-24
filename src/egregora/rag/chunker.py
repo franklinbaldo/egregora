@@ -48,8 +48,8 @@ def chunk_markdown(
     current_chunk = []
     current_tokens = 0
 
-    for para in paragraphs:
-        para = para.strip()
+    for paragraph in paragraphs:
+        para = paragraph.strip()
         if not para:
             continue
 

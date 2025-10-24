@@ -96,7 +96,7 @@ async def call_with_retries(
                 attempt,
                 max_attempts,
                 delay,
-                ". Server suggested %.2fs. Details: %s" % (recommended_delay, exc)
+                f". Server suggested {recommended_delay:.2f}s. Details: {exc}"
                 if recommended_delay is not None
                 else f": {exc}",
             )

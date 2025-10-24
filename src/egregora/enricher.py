@@ -266,7 +266,7 @@ async def enrich_url(
     from .prompt_templates import render_url_enrichment_detailed_prompt
 
     # Generate UUID for enrichment file
-    url_hash = hashlib.md5(url.encode()).hexdigest()
+    hashlib.md5(url.encode()).hexdigest()
     enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
 
     # Prepare context
