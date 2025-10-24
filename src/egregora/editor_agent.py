@@ -1,8 +1,8 @@
 """LLM-powered editor agent with RAG and meta-LLM capabilities."""
 
 import logging
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 from google import genai
 from google.genai import types as genai_types
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EditorResult:
     """Result of an editor session."""
+
     final_content: str
     decision: str  # "publish" or "hold"
     notes: str
@@ -35,19 +36,13 @@ EDIT_LINE_TOOL = genai_types.Tool(
                 "properties": {
                     "expect_version": {
                         "type": "integer",
-                        "description": "Expected document version (for optimistic concurrency)"
+                        "description": "Expected document version (for optimistic concurrency)",
                     },
-                    "index": {
-                        "type": "integer",
-                        "description": "Line index to edit (0-based)"
-                    },
-                    "new": {
-                        "type": "string",
-                        "description": "New content for this line"
-                    }
+                    "index": {"type": "integer", "description": "Line index to edit (0-based)"},
+                    "new": {"type": "string", "description": "New content for this line"},
                 },
-                "required": ["expect_version", "index", "new"]
-            }
+                "required": ["expect_version", "index", "new"],
+            },
         )
     ]
 )
@@ -62,15 +57,12 @@ FULL_REWRITE_TOOL = genai_types.Tool(
                 "properties": {
                     "expect_version": {
                         "type": "integer",
-                        "description": "Expected document version"
+                        "description": "Expected document version",
                     },
-                    "content": {
-                        "type": "string",
-                        "description": "New complete document content"
-                    }
+                    "content": {"type": "string", "description": "New complete document content"},
                 },
-                "required": ["expect_version", "content"]
-            }
+                "required": ["expect_version", "content"],
+            },
         )
     ]
 )
@@ -85,16 +77,16 @@ QUERY_RAG_TOOL = genai_types.Tool(
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')"
+                        "description": "Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')",
                     },
                     "max_results": {
                         "type": "integer",
                         "description": "Maximum results to return (default 5)",
-                        "default": 5
-                    }
+                        "default": 5,
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         )
     ]
 )
@@ -116,13 +108,10 @@ Use cases:
             parameters={
                 "type": "object",
                 "properties": {
-                    "question": {
-                        "type": "string",
-                        "description": "Question to ask the LLM"
-                    }
+                    "question": {"type": "string", "description": "Question to ask the LLM"}
                 },
-                "required": ["question"]
-            }
+                "required": ["question"],
+            },
         )
     ]
 )
@@ -137,20 +126,20 @@ FINISH_TOOL = genai_types.Tool(
                 "properties": {
                     "expect_version": {
                         "type": "integer",
-                        "description": "Expected document version"
+                        "description": "Expected document version",
                     },
                     "decision": {
                         "type": "string",
                         "enum": ["publish", "hold"],
-                        "description": "publish: post is ready | hold: needs human review"
+                        "description": "publish: post is ready | hold: needs human review",
                     },
                     "notes": {
                         "type": "string",
-                        "description": "Summary of changes made or reason for holding"
-                    }
+                        "description": "Summary of changes made or reason for holding",
+                    },
                 },
-                "required": ["expect_version", "decision", "notes"]
-            }
+                "required": ["expect_version", "decision", "notes"],
+            },
         )
     ]
 )
@@ -158,19 +147,16 @@ FINISH_TOOL = genai_types.Tool(
 
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
     """Convert markdown content to DocumentSnapshot."""
-    lines = content.split('\n')
+    lines = content.split("\n")
     return DocumentSnapshot(
-        doc_id=doc_id,
-        version=1,
-        meta={},
-        lines={i: line for i, line in enumerate(lines)}
+        doc_id=doc_id, version=1, meta={}, lines={i: line for i, line in enumerate(lines)}
     )
 
 
 def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
     """Convert DocumentSnapshot back to markdown."""
     sorted_lines = [snapshot.lines[i] for i in sorted(snapshot.lines.keys())]
-    return '\n'.join(sorted_lines)
+    return "\n".join(sorted_lines)
 
 
 async def _query_rag_tool(
@@ -280,12 +266,7 @@ async def run_editor_session(
     )
 
     # Initialize conversation
-    conversation_history = [
-        genai_types.Content(
-            role="user",
-            parts=[genai_types.Part(text=prompt)]
-        )
-    ]
+    conversation_history = [genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])]
 
     # All tools available
     tools = [
@@ -325,7 +306,7 @@ async def run_editor_session(
 
             if response.candidates and response.candidates[0].content.parts:
                 for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'function_call') and part.function_call:
+                    if hasattr(part, "function_call") and part.function_call:
                         fc = part.function_call
                         fc_name = fc.name
                         fc_args = dict(fc.args)
@@ -394,20 +375,14 @@ async def run_editor_session(
                         tool_responses.append(
                             genai_types.Part(
                                 function_response=genai_types.FunctionResponse(
-                                    name=fc_name,
-                                    response={"result": result_str}
+                                    name=fc_name, response={"result": result_str}
                                 )
                             )
                         )
 
             # Add all tool responses to conversation
             if tool_responses:
-                conversation_history.append(
-                    genai_types.Content(
-                        role="user",
-                        parts=tool_responses
-                    )
-                )
+                conversation_history.append(genai_types.Content(role="user", parts=tool_responses))
             else:
                 # No tool calls and no finish - might be stuck
                 logger.warning(f"Turn {turn + 1}: No tool calls detected")

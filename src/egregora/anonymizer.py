@@ -2,6 +2,7 @@
 
 import re
 import uuid
+
 import polars as pl
 
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -32,19 +33,21 @@ def anonymize_mentions(text: str) -> str:
 def anonymize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """Anonymize author column and mentions in message column using vectorial operations."""
 
-    anonymized = df.with_columns([
-        pl.col("author").map_elements(
-            lambda x: anonymize_author(x) if x else "system",
-            return_dtype=pl.Utf8
-        ).alias("author")
-    ])
+    anonymized = df.with_columns(
+        [
+            pl.col("author")
+            .map_elements(lambda x: anonymize_author(x) if x else "system", return_dtype=pl.Utf8)
+            .alias("author")
+        ]
+    )
 
     if "message" in anonymized.columns:
-        anonymized = anonymized.with_columns([
-            pl.col("message").map_elements(
-                lambda x: anonymize_mentions(x) if x else "",
-                return_dtype=pl.Utf8
-            ).alias("message")
-        ])
+        anonymized = anonymized.with_columns(
+            [
+                pl.col("message")
+                .map_elements(lambda x: anonymize_mentions(x) if x else "", return_dtype=pl.Utf8)
+                .alias("message")
+            ]
+        )
 
     return anonymized

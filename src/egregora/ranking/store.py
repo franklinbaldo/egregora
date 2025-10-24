@@ -1,8 +1,9 @@
 """DuckDB-backed ranking store for efficient updates and queries."""
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
+
 import duckdb
 import polars as pl
 
@@ -95,15 +96,18 @@ class RankingStore:
         if not post_ids:
             return 0
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         inserted = 0
 
         for post_id in post_ids:
-            result = self.conn.execute("""
+            result = self.conn.execute(
+                """
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
                 VALUES (?, 1500, 0, ?)
                 ON CONFLICT (post_id) DO NOTHING
-            """, [post_id, now])
+            """,
+                [post_id, now],
+            )
             inserted += result.fetchone()[0]  # Returns number of rows inserted
 
         if inserted > 0:
@@ -121,20 +125,19 @@ class RankingStore:
         Returns:
             dict with elo_global and games_played, or None if not found
         """
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             SELECT elo_global, games_played FROM elo_ratings WHERE post_id = ?
-        """, [post_id]).fetchone()
+        """,
+            [post_id],
+        ).fetchone()
 
         if result:
-            return {'elo_global': result[0], 'games_played': result[1]}
+            return {"elo_global": result[0], "games_played": result[1]}
         return None
 
     def update_ratings(
-        self,
-        post_a: str,
-        post_b: str,
-        new_elo_a: float,
-        new_elo_b: float
+        self, post_a: str, post_b: str, new_elo_a: float, new_elo_b: float
     ) -> tuple[float, float]:
         """
         Update ELO ratings after a comparison.
@@ -148,19 +151,25 @@ class RankingStore:
         Returns:
             (new_elo_a, new_elo_b)
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             UPDATE elo_ratings
             SET elo_global = ?, games_played = games_played + 1, last_updated = ?
             WHERE post_id = ?
-        """, [new_elo_a, now, post_a])
+        """,
+            [new_elo_a, now, post_a],
+        )
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             UPDATE elo_ratings
             SET elo_global = ?, games_played = games_played + 1, last_updated = ?
             WHERE post_id = ?
-        """, [new_elo_b, now, post_b])
+        """,
+            [new_elo_b, now, post_b],
+        )
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")
 
@@ -183,20 +192,23 @@ class RankingStore:
                 - comment_b: str
                 - stars_b: int
         """
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            comparison_data['comparison_id'],
-            comparison_data['timestamp'],
-            comparison_data['profile_id'],
-            comparison_data['post_a'],
-            comparison_data['post_b'],
-            comparison_data['winner'],
-            comparison_data['comment_a'],
-            comparison_data['stars_a'],
-            comparison_data['comment_b'],
-            comparison_data['stars_b'],
-        ])
+        """,
+            [
+                comparison_data["comparison_id"],
+                comparison_data["timestamp"],
+                comparison_data["profile_id"],
+                comparison_data["post_a"],
+                comparison_data["post_b"],
+                comparison_data["winner"],
+                comparison_data["comment_a"],
+                comparison_data["stars_a"],
+                comparison_data["comment_b"],
+                comparison_data["stars_b"],
+            ],
+        )
 
         logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
 
@@ -212,11 +224,14 @@ class RankingStore:
             List of post IDs
         """
         if strategy == "fewest_games":
-            result = self.conn.execute("""
+            result = self.conn.execute(
+                """
                 SELECT post_id FROM elo_ratings
                 ORDER BY games_played ASC, RANDOM()
                 LIMIT ?
-            """, [n]).fetchall()
+            """,
+                [n],
+            ).fetchall()
             return [row[0] for row in result]
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
@@ -231,7 +246,8 @@ class RankingStore:
         Returns:
             DataFrame with columns: profile_id, timestamp, comment, stars
         """
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             SELECT
                 profile_id,
                 timestamp,
@@ -240,7 +256,9 @@ class RankingStore:
             FROM elo_history
             WHERE post_a = ? OR post_b = ?
             ORDER BY timestamp
-        """, [post_id, post_id, post_id, post_id]).arrow()
+        """,
+            [post_id, post_id, post_id, post_id],
+        ).arrow()
 
         return pl.from_arrow(result)
 
@@ -255,12 +273,15 @@ class RankingStore:
         Returns:
             DataFrame with post_id, elo_global, games_played, last_updated
         """
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             SELECT * FROM elo_ratings
             WHERE games_played >= ?
             ORDER BY elo_global DESC
             LIMIT ?
-        """, [min_games, n]).arrow()
+        """,
+            [min_games, n],
+        ).arrow()
 
         return pl.from_arrow(result)
 
@@ -314,17 +335,26 @@ class RankingStore:
         ratings_count = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()[0]
         comparisons_count = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()[0]
 
-        avg_games = self.conn.execute("""
+        avg_games = (
+            self.conn.execute("""
             SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()[0] or 0
+        """).fetchone()[0]
+            or 0
+        )
 
-        top_elo = self.conn.execute("""
+        top_elo = (
+            self.conn.execute("""
             SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()[0] or 1500
+        """).fetchone()[0]
+            or 1500
+        )
 
-        bottom_elo = self.conn.execute("""
+        bottom_elo = (
+            self.conn.execute("""
             SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()[0] or 1500
+        """).fetchone()[0]
+            or 1500
+        )
 
         return {
             "total_posts": ratings_count,

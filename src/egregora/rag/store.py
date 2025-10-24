@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+
 import duckdb
 import polars as pl
 
@@ -167,6 +168,8 @@ class VectorStore:
             "date_range": (
                 df["post_date"].min(),
                 df["post_date"].max(),
-            ) if len(df) > 0 else (None, None),
+            )
+            if len(df) > 0
+            else (None, None),
             "total_tags": df["tags"].explode().n_unique() if len(df) > 0 else 0,
         }

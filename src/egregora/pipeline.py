@@ -2,19 +2,19 @@
 
 import logging
 import zipfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 import polars as pl
 from google import genai
 
-from .parser import parse_export, extract_commands, filter_egregora_messages
-from .models import WhatsAppExport
-from .types import GroupSlug
-from .enricher import extract_and_replace_media, enrich_dataframe
-from .writer import write_posts_for_period
-from .profiler import process_commands, filter_opted_out_authors
+from .enricher import enrich_dataframe, extract_and_replace_media
 from .model_config import ModelConfig, load_site_config
-
+from .models import WhatsAppExport
+from .parser import extract_commands, filter_egregora_messages, parse_export
+from .profiler import filter_opted_out_authors, process_commands
+from .types import GroupSlug
+from .writer import write_posts_for_period
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +69,7 @@ def group_by_period(df: pl.DataFrame, period: str = "day") -> dict[str, pl.DataF
         return {}
 
     if period == "day":
-        df = df.with_columns(
-            pl.col("timestamp").dt.date().cast(pl.Utf8).alias("period")
-        )
+        df = df.with_columns(pl.col("timestamp").dt.date().cast(pl.Utf8).alias("period"))
     elif period == "week":
         df = df.with_columns(
             (
@@ -104,9 +102,9 @@ async def process_whatsapp_export(
     output_dir: Path = Path("output"),
     period: str = "day",
     enable_enrichment: bool = True,
-    from_date = None,
-    to_date = None,
-    timezone = None,
+    from_date=None,
+    to_date=None,
+    timezone=None,
     gemini_api_key: str | None = None,
     model: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
@@ -172,8 +170,8 @@ async def process_whatsapp_export(
 
             if from_date and to_date:
                 df = df.filter(
-                    (pl.col("timestamp").dt.date() >= from_date) &
-                    (pl.col("timestamp").dt.date() <= to_date)
+                    (pl.col("timestamp").dt.date() >= from_date)
+                    & (pl.col("timestamp").dt.date() <= to_date)
                 )
                 logger.info(f"📅 Filtering messages from {from_date} to {to_date}")
             elif from_date:
@@ -187,7 +185,9 @@ async def process_whatsapp_export(
             removed_by_date = original_count - filtered_count
 
             if removed_by_date > 0:
-                logger.info(f"🗓️  Filtered out {removed_by_date} messages by date (kept {filtered_count})")
+                logger.info(
+                    f"🗓️  Filtered out {removed_by_date} messages by date (kept {filtered_count})"
+                )
             else:
                 logger.info(f"✓ All {filtered_count} messages are within the specified date range")
 

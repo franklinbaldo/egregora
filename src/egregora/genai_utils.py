@@ -9,7 +9,6 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
-
 logger = logging.getLogger(__name__)
 
 _RateLimitFn = TypeVar("_RateLimitFn", bound=Callable[..., Awaitable[Any]])
@@ -97,7 +96,7 @@ async def call_with_retries(
                 attempt,
                 max_attempts,
                 delay,
-                f". Server suggested %.2fs. Details: %s" % (recommended_delay, exc)
+                ". Server suggested %.2fs. Details: %s" % (recommended_delay, exc)
                 if recommended_delay is not None
                 else f": {exc}",
             )

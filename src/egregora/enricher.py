@@ -6,12 +6,12 @@ import uuid
 import zipfile
 from datetime import timedelta
 from pathlib import Path
+
 import polars as pl
 from google import genai
 from google.genai import types as genai_types
 
 from .genai_utils import call_with_retries
-
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
@@ -26,13 +26,26 @@ ATTACHMENT_MARKERS = (
 # Media type detection by extension
 MEDIA_EXTENSIONS = {
     # Images
-    ".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image", ".webp": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".png": "image",
+    ".gif": "image",
+    ".webp": "image",
     # Videos
-    ".mp4": "video", ".mov": "video", ".3gp": "video", ".avi": "video",
+    ".mp4": "video",
+    ".mov": "video",
+    ".3gp": "video",
+    ".avi": "video",
     # Audio
-    ".opus": "audio", ".ogg": "audio", ".mp3": "audio", ".m4a": "audio", ".aac": "audio",
+    ".opus": "audio",
+    ".ogg": "audio",
+    ".mp3": "audio",
+    ".m4a": "audio",
+    ".aac": "audio",
     # Documents
-    ".pdf": "document", ".doc": "document", ".docx": "document",
+    ".pdf": "document",
+    ".doc": "document",
+    ".docx": "document",
 }
 
 
@@ -76,13 +89,13 @@ def find_media_references(text: str) -> list[str]:
     # Pattern 1: filename before attachment marker
     # "IMG-20250101-WA0001.jpg (file attached)"
     for marker in ATTACHMENT_MARKERS:
-        pattern = r'([\w\-\.]+\.\w+)\s*' + re.escape(marker)
+        pattern = r"([\w\-\.]+\.\w+)\s*" + re.escape(marker)
         matches = re.findall(pattern, text, re.IGNORECASE)
         media_files.extend(matches)
 
     # Pattern 2: WhatsApp standard filenames (without marker)
     # "IMG-20250101-WA0001.jpg"
-    wa_pattern = r'\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b'
+    wa_pattern = r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b"
     wa_matches = re.findall(wa_pattern, text)
     media_files.extend(wa_matches)
 
@@ -171,7 +184,7 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
 
         # Determine if it's an image for markdown rendering
         ext = new_path.suffix.lower()
-        is_image = ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        is_image = ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
         # Create markdown link
         if is_image:
@@ -181,11 +194,11 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
 
         # Replace all occurrences with any attachment marker
         for marker in ATTACHMENT_MARKERS:
-            pattern = re.escape(original_filename) + r'\s*' + re.escape(marker)
+            pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
         # Also replace bare filename (without marker)
-        result = re.sub(r'\b' + re.escape(original_filename) + r'\b', replacement, result)
+        result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
 
     return result
 
@@ -243,7 +256,7 @@ async def enrich_url(
     timestamp,
     client: genai.Client,
     output_dir: Path,
-    model: str = "models/gemini-flash-latest"
+    model: str = "models/gemini-flash-latest",
 ) -> str:
     """
     Generate detailed enrichment for URL and save as .md file.
@@ -303,7 +316,7 @@ async def enrich_media(
     timestamp,
     client: genai.Client,
     output_dir: Path,
-    model: str = "models/gemini-flash-latest"
+    model: str = "models/gemini-flash-latest",
 ) -> str:
     """
     Generate detailed enrichment for media file and save as .md file.
@@ -456,14 +469,16 @@ async def enrich_dataframe(
 
                 # Add reference to DataFrame
                 enrichment_timestamp = timestamp + timedelta(seconds=1)
-                new_rows.append({
-                    "timestamp": enrichment_timestamp,
-                    "date": enrichment_timestamp.date(),
-                    "author": "egregora",
-                    "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
-                    "original_line": "",
-                    "tagged_line": "",
-                })
+                new_rows.append(
+                    {
+                        "timestamp": enrichment_timestamp,
+                        "date": enrichment_timestamp.date(),
+                        "author": "egregora",
+                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
+                        "original_line": "",
+                        "tagged_line": "",
+                    }
+                )
                 enrichment_count += 1
 
         # Enrich media (use the already-extracted files)
@@ -488,14 +503,16 @@ async def enrich_dataframe(
 
                     # Add reference to DataFrame
                     enrichment_timestamp = timestamp + timedelta(seconds=1)
-                    new_rows.append({
-                        "timestamp": enrichment_timestamp,
-                        "date": enrichment_timestamp.date(),
-                        "author": "egregora",
-                        "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
-                        "original_line": "",
-                        "tagged_line": "",
-                    })
+                    new_rows.append(
+                        {
+                            "timestamp": enrichment_timestamp,
+                            "date": enrichment_timestamp.date(),
+                            "author": "egregora",
+                            "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
+                            "original_line": "",
+                            "tagged_line": "",
+                        }
+                    )
                     enrichment_count += 1
 
     if not new_rows:

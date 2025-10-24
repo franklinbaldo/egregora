@@ -1,8 +1,8 @@
 """ELO rating system for blog post quality ranking."""
 
 from pathlib import Path
-from .store import RankingStore
 
+from .store import RankingStore
 
 DEFAULT_ELO = 1500
 K_FACTOR = 32
@@ -21,10 +21,7 @@ def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, f
 
 
 def calculate_elo_update(
-    rating_a: float,
-    rating_b: float,
-    winner: str,
-    k_factor: int = K_FACTOR
+    rating_a: float, rating_b: float, winner: str, k_factor: int = K_FACTOR
 ) -> tuple[float, float]:
     """
     Calculate new ELO ratings after a comparison.
@@ -81,10 +78,7 @@ def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
 
 
 def update_ratings(
-    rankings_dir: Path,
-    post_a: str,
-    post_b: str,
-    winner: str
+    rankings_dir: Path, post_a: str, post_b: str, winner: str
 ) -> tuple[float, float]:
     """
     Update ELO ratings after a comparison.
@@ -109,8 +103,8 @@ def update_ratings(
     if not rating_b_data:
         raise ValueError(f"Post not found in ratings: {post_b}")
 
-    current_a = rating_a_data['elo_global']
-    current_b = rating_b_data['elo_global']
+    current_a = rating_a_data["elo_global"]
+    current_b = rating_b_data["elo_global"]
 
     # Calculate new ratings
     new_rating_a, new_rating_b = calculate_elo_update(current_a, current_b, winner)

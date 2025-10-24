@@ -1,87 +1,88 @@
 """LLM-based ranking agent using three-turn conversation protocol."""
 
-from pathlib import Path
-from datetime import datetime, timezone
 import uuid
-import google.generativeai as genai
+from datetime import UTC, datetime
+from pathlib import Path
+
+from google import genai
+from google.genai import types as genai_types
 from rich.console import Console
 
-from ..profiler import get_author_display_name
 from .store import RankingStore
 
 console = Console()
 
 
-# Tool definitions for Gemini function calling
-CHOOSE_WINNER_TOOL = {
-    "function_declarations": [
-        {
-            "name": "choose_winner",
-            "description": "Declare which post is better overall",
-            "parameters": {
+# Tool definitions for Gemini function calling (new SDK format)
+CHOOSE_WINNER_TOOL = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="choose_winner",
+            description="Declare which post is better overall",
+            parameters={
                 "type": "object",
                 "properties": {
                     "winner": {
                         "type": "string",
                         "enum": ["A", "B"],
-                        "description": "Which post is better: A or B"
+                        "description": "Which post is better: A or B",
                     }
                 },
-                "required": ["winner"]
-            }
-        }
+                "required": ["winner"],
+            },
+        )
     ]
-}
+)
 
-COMMENT_POST_A_TOOL = {
-    "function_declarations": [
-        {
-            "name": "comment_post_A",
-            "description": "Provide detailed feedback on Post A",
-            "parameters": {
+COMMENT_POST_A_TOOL = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="comment_post_A",
+            description="Provide detailed feedback on Post A",
+            parameters={
                 "type": "object",
                 "properties": {
                     "comment": {
                         "type": "string",
-                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant."
+                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant.",
                     },
                     "stars": {
                         "type": "integer",
                         "description": "Star rating 1-5",
                         "minimum": 1,
-                        "maximum": 5
-                    }
+                        "maximum": 5,
+                    },
                 },
-                "required": ["comment", "stars"]
-            }
-        }
+                "required": ["comment", "stars"],
+            },
+        )
     ]
-}
+)
 
-COMMENT_POST_B_TOOL = {
-    "function_declarations": [
-        {
-            "name": "comment_post_B",
-            "description": "Provide detailed feedback on Post B",
-            "parameters": {
+COMMENT_POST_B_TOOL = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="comment_post_B",
+            description="Provide detailed feedback on Post B",
+            parameters={
                 "type": "object",
                 "properties": {
                     "comment": {
                         "type": "string",
-                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant."
+                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant.",
                     },
                     "stars": {
                         "type": "integer",
                         "description": "Star rating 1-5",
                         "minimum": 1,
-                        "maximum": 5
-                    }
+                        "maximum": 5,
+                    },
                 },
-                "required": ["comment", "stars"]
-            }
-        }
+                "required": ["comment", "stars"],
+            },
+        )
     ]
-}
+)
 
 
 def load_post_content(post_path: Path) -> str:
@@ -172,7 +173,7 @@ def save_comparison(
     """Save comparison result to DuckDB."""
     comparison_data = {
         "comparison_id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": datetime.now(UTC),
         "profile_id": profile_id,
         "post_a": post_a,
         "post_b": post_b,
@@ -233,19 +234,15 @@ def run_comparison(
     existing_comments_a = load_comments_for_post(post_a_id, store)
     existing_comments_b = load_comments_for_post(post_b_id, store)
 
-    # Configure Gemini
-    genai.configure(api_key=api_key)
-    model_turn1 = genai.GenerativeModel(
-        model_name=model,
-        tools=[CHOOSE_WINNER_TOOL],
-    )
+    # Create Gemini client (new SDK)
+    client = genai.Client(api_key=api_key)
 
     # TURN 1: Choose winner
-    console.print(f"\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")
+    console.print("\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")
 
-    turn1_prompt = f"""You are {profile.get('alias') or profile['uuid']}, impersonating their reading style and preferences.
+    turn1_prompt = f"""You are {profile.get("alias") or profile["uuid"]}, impersonating their reading style and preferences.
 
-Profile bio: {profile.get('bio') or 'No bio available'}
+Profile bio: {profile.get("bio") or "No bio available"}
 
 Read these two blog posts and decide which one is better overall.
 
@@ -257,13 +254,19 @@ Read these two blog posts and decide which one is better overall.
 
 Use the choose_winner tool to declare the winner."""
 
-    turn1_response = model_turn1.generate_content(turn1_prompt)
+    turn1_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn1_prompt)])],
+        config=genai_types.GenerateContentConfig(
+            tools=[CHOOSE_WINNER_TOOL],
+        ),
+    )
 
     # Parse winner from function call
     winner = None
     if turn1_response.candidates[0].content.parts:
         for part in turn1_response.candidates[0].content.parts:
-            if hasattr(part, 'function_call') and part.function_call.name == "choose_winner":
+            if hasattr(part, "function_call") and part.function_call.name == "choose_winner":
                 winner = part.function_call.args["winner"]
                 break
 
@@ -273,12 +276,7 @@ Use the choose_winner tool to declare the winner."""
     console.print(f"[green]Winner: Post {winner}[/green]")
 
     # TURN 2: Comment on Post A
-    console.print(f"\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
-
-    model_turn2 = genai.GenerativeModel(
-        model_name=model,
-        tools=[COMMENT_POST_A_TOOL],
-    )
+    console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
 
     comments_a_display = existing_comments_a or "No comments yet. Be the first!"
 
@@ -297,14 +295,20 @@ Use the comment_post_A tool to:
 - Write a comment (max 250 chars, markdown supported)
 - Reference existing comments if relevant"""
 
-    turn2_response = model_turn2.generate_content(turn2_prompt)
+    turn2_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn2_prompt)])],
+        config=genai_types.GenerateContentConfig(
+            tools=[COMMENT_POST_A_TOOL],
+        ),
+    )
 
     # Parse comment from function call
     comment_a = None
     stars_a = None
     if turn2_response.candidates[0].content.parts:
         for part in turn2_response.candidates[0].content.parts:
-            if hasattr(part, 'function_call') and part.function_call.name == "comment_post_A":
+            if hasattr(part, "function_call") and part.function_call.name == "comment_post_A":
                 comment_a = part.function_call.args["comment"]
                 stars_a = int(part.function_call.args["stars"])
                 break
@@ -320,12 +324,7 @@ Use the comment_post_A tool to:
     console.print(f"[yellow]Stars A: {'⭐' * stars_a}[/yellow]")
 
     # TURN 3: Comment on Post B
-    console.print(f"\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
-
-    model_turn3 = genai.GenerativeModel(
-        model_name=model,
-        tools=[COMMENT_POST_B_TOOL],
-    )
+    console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
 
     comments_b_display = existing_comments_b or "No comments yet. Be the first!"
 
@@ -344,14 +343,20 @@ Use the comment_post_B tool to:
 - Write a comment (max 250 chars, markdown supported)
 - Reference existing comments if relevant"""
 
-    turn3_response = model_turn3.generate_content(turn3_prompt)
+    turn3_response = client.models.generate_content(
+        model=model,
+        contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn3_prompt)])],
+        config=genai_types.GenerateContentConfig(
+            tools=[COMMENT_POST_B_TOOL],
+        ),
+    )
 
     # Parse comment from function call
     comment_b = None
     stars_b = None
     if turn3_response.candidates[0].content.parts:
         for part in turn3_response.candidates[0].content.parts:
-            if hasattr(part, 'function_call') and part.function_call.name == "comment_post_B":
+            if hasattr(part, "function_call") and part.function_call.name == "comment_post_B":
                 comment_b = part.function_call.args["comment"]
                 stars_b = int(part.function_call.args["stars"])
                 break

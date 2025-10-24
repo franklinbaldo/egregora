@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+
 import polars as pl
 from google import genai
 
@@ -38,7 +39,7 @@ async def index_post(
         return 0
 
     # Extract content for embedding
-    chunk_texts = [chunk['content'] for chunk in chunks]
+    chunk_texts = [chunk["content"] for chunk in chunks]
 
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
     embeddings = await embed_chunks(
@@ -50,21 +51,23 @@ async def index_post(
 
     # Build DataFrame for storage
     rows = []
-    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-        metadata = chunk['metadata']
+    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
+        metadata = chunk["metadata"]
 
-        rows.append({
-            "chunk_id": f"{chunk['post_slug']}_{i}",
-            "post_slug": chunk['post_slug'],
-            "post_title": chunk['post_title'],
-            "post_date": metadata.get('date'),
-            "chunk_index": i,
-            "content": chunk['content'],
-            "embedding": embedding,
-            "tags": metadata.get('tags', []),
-            "authors": metadata.get('authors', []),
-            "category": metadata.get('category'),
-        })
+        rows.append(
+            {
+                "chunk_id": f"{chunk['post_slug']}_{i}",
+                "post_slug": chunk["post_slug"],
+                "post_title": chunk["post_title"],
+                "post_date": metadata.get("date"),
+                "chunk_index": i,
+                "content": chunk["content"],
+                "embedding": embedding,
+                "tags": metadata.get("tags", []),
+                "authors": metadata.get("authors", []),
+                "category": metadata.get("category"),
+            }
+        )
 
     chunks_df = pl.DataFrame(rows)
 
@@ -128,8 +131,7 @@ async def query_similar_posts(
     # Deduplicate: keep only best chunk per post
     if deduplicate:
         results = (
-            results
-            .sort("similarity", descending=True)
+            results.sort("similarity", descending=True)
             .group_by("post_slug")
             .first()
             .sort("similarity", descending=True)

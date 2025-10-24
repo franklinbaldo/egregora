@@ -3,8 +3,9 @@
 import asyncio
 import logging
 import os
-from pathlib import Path
 import random
+from pathlib import Path
+
 import fire
 from rich.console import Console
 from rich.logging import RichHandler
@@ -12,6 +13,7 @@ from rich.panel import Panel
 
 from .pipeline import process_whatsapp_export
 from .site_scaffolding import ensure_mkdocs_project
+
 # Lazy load ranking to avoid import errors if dependencies missing
 # from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
 # from .ranking.agent import run_comparison
@@ -135,7 +137,7 @@ class EgregoraCLI:
 
         # Validate and handle timezone
         from datetime import datetime
-        from zoneinfo import ZoneInfo, available_timezones
+        from zoneinfo import ZoneInfo
 
         timezone_obj = None
         if timezone:
@@ -165,10 +167,10 @@ class EgregoraCLI:
                     "• Timestamps will be misinterpreted\n"
                     "• Date filters (--from_date/--to_date) may be inaccurate\n\n"
                     "Examples:\n"
-                    f"• Brazil (São Paulo): [cyan]--timezone='America/Sao_Paulo'[/cyan]\n"
-                    f"• USA (New York): [cyan]--timezone='America/New_York'[/cyan]\n"
-                    f"• UK (London): [cyan]--timezone='Europe/London'[/cyan]\n\n"
-                    f"Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+                    "• Brazil (São Paulo): [cyan]--timezone='America/Sao_Paulo'[/cyan]\n"
+                    "• USA (New York): [cyan]--timezone='America/New_York'[/cyan]\n"
+                    "• UK (London): [cyan]--timezone='Europe/London'[/cyan]\n\n"
+                    "Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
                     title="⏰ Timezone Warning",
                     border_style="yellow",
                 )
@@ -366,8 +368,9 @@ class EgregoraCLI:
             debug: Enable debug logging
         """
         # Lazy import ranking modules
-        from .ranking.elo import initialize_ratings, get_posts_to_compare, update_ratings
         from .ranking.agent import run_comparison
+        from .ranking.elo import get_posts_to_compare, initialize_ratings, update_ratings
+
         if debug:
             logging.basicConfig(
                 level=logging.DEBUG,
@@ -457,6 +460,7 @@ class EgregoraCLI:
 
         # Load site config and create model config for ranking
         from .model_config import ModelConfig, load_site_config
+
         site_config = load_site_config(site_path)
         model_config = ModelConfig(cli_model=model, site_config=site_config)
         ranking_model = model_config.get_model("ranking")
@@ -472,7 +476,7 @@ class EgregoraCLI:
             try:
                 # Select posts to compare (prioritize posts with fewest games)
                 post_a_id, post_b_id = get_posts_to_compare(rankings_dir)
-                console.print(f"\n[bold]Comparing:[/bold]")
+                console.print("\n[bold]Comparing:[/bold]")
                 console.print(f"  Post A: [cyan]{post_a_id}[/cyan]")
                 console.print(f"  Post B: [cyan]{post_b_id}[/cyan]")
 
@@ -544,14 +548,12 @@ class EgregoraCLI:
 
         if export_parquet:
             summary_text += (
-                f"\n\n[bold]Parquet exports:[/bold]\n"
-                f"• elo_ratings.parquet - Current ELO scores\n"
-                f"• elo_history.parquet - Full comparison history"
+                "\n\n[bold]Parquet exports:[/bold]\n"
+                "• elo_ratings.parquet - Current ELO scores\n"
+                "• elo_history.parquet - Full comparison history"
             )
         else:
-            summary_text += (
-                f"\n\n[dim]Tip: Use --export_parquet to create Parquet files for sharing/analytics[/dim]"
-            )
+            summary_text += "\n\n[dim]Tip: Use --export_parquet to create Parquet files for sharing/analytics[/dim]"
 
         console.print(
             Panel(
@@ -582,6 +584,7 @@ class EgregoraCLI:
             model: Gemini model to use (default: models/gemini-flash-latest, configurable in mkdocs.yml)
         """
         from google import genai
+
         from .editor_agent import run_editor_session
         from .model_config import ModelConfig, load_site_config
 
@@ -607,14 +610,16 @@ class EgregoraCLI:
             console.print("[red]Error: GEMINI_API_KEY environment variable not set[/red]")
             return
 
-        console.print(Panel(
-            f"[bold]Editing Post with LLM Agent[/bold]\n\n"
-            f"Post: {post_file.name}\n"
-            f"Model: {model_config.get_model('editor')}\n"
-            f"RAG: {site_path / 'docs' / 'rag'}\n",
-            title="Editor Session",
-            border_style="cyan"
-        ))
+        console.print(
+            Panel(
+                f"[bold]Editing Post with LLM Agent[/bold]\n\n"
+                f"Post: {post_file.name}\n"
+                f"Model: {model_config.get_model('editor')}\n"
+                f"RAG: {site_path / 'docs' / 'rag'}\n",
+                title="Editor Session",
+                border_style="cyan",
+            )
+        )
 
         async def _run():
             client = genai.Client(api_key=api_key)
@@ -632,15 +637,17 @@ class EgregoraCLI:
 
                 # Display results
                 status_color = "green" if result.decision == "publish" else "yellow"
-                console.print(Panel(
-                    f"[bold {status_color}]Decision: {result.decision.upper()}[/bold {status_color}]\n\n"
-                    f"Edits made: {'Yes' if result.edits_made else 'No'}\n"
-                    f"Tool calls: {len(result.tool_calls)}\n"
-                    f"Notes: {result.notes}\n\n"
-                    f"Post saved: {post_file}",
-                    title="Editor Complete",
-                    border_style=status_color
-                ))
+                console.print(
+                    Panel(
+                        f"[bold {status_color}]Decision: {result.decision.upper()}[/bold {status_color}]\n\n"
+                        f"Edits made: {'Yes' if result.edits_made else 'No'}\n"
+                        f"Tool calls: {len(result.tool_calls)}\n"
+                        f"Notes: {result.notes}\n\n"
+                        f"Post saved: {post_file}",
+                        title="Editor Complete",
+                        border_style=status_color,
+                    )
+                )
 
                 # Show tool call log
                 if result.tool_calls:

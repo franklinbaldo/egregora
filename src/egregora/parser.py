@@ -13,19 +13,16 @@ from datetime import UTC, date, datetime
 import polars as pl
 from dateutil import parser as date_parser
 
+from .anonymizer import anonymize_dataframe
 from .models import WhatsAppExport
 from .schema import ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
-from .anonymizer import anonymize_dataframe
 
 logger = logging.getLogger(__name__)
 
 
 # Pattern for egregora commands: /egregora <command> <args>
-EGREGORA_COMMAND_PATTERN = re.compile(
-    r'^/egregora\s+(\w+)\s+(.+)$',
-    re.IGNORECASE
-)
+EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
 
 def parse_egregora_command(message: str) -> dict | None:
@@ -63,10 +60,10 @@ def parse_egregora_command(message: str) -> dict | None:
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
-    if simple_cmd == '/egregora opt-out':
-        return {'command': 'opt-out'}
-    elif simple_cmd == '/egregora opt-in':
-        return {'command': 'opt-in'}
+    if simple_cmd == "/egregora opt-out":
+        return {"command": "opt-out"}
+    elif simple_cmd == "/egregora opt-in":
+        return {"command": "opt-in"}
 
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
@@ -76,24 +73,16 @@ def parse_egregora_command(message: str) -> dict | None:
     args = match.group(2).strip()
 
     # Parse "set alias 'Franklin'"
-    if action == 'set':
+    if action == "set":
         parts = args.split(maxsplit=1)
         if len(parts) == 2:
             target = parts[0].lower()
-            value = parts[1].strip('"\'')
-            return {
-                'command': 'set',
-                'target': target,
-                'value': value
-            }
+            value = parts[1].strip("\"'")
+            return {"command": "set", "target": target, "value": value}
 
     # Parse "remove alias"
-    elif action == 'remove':
-        return {
-            'command': 'remove',
-            'target': args.lower(),
-            'value': None
-        }
+    elif action == "remove":
+        return {"command": "remove", "target": args.lower(), "value": None}
 
     return None
 
@@ -122,17 +111,15 @@ def extract_commands(df: pl.DataFrame) -> list[dict]:
     commands = []
 
     for row in df.iter_rows(named=True):
-        message = row.get('message', '')
+        message = row.get("message", "")
         if not message:
             continue
 
         cmd = parse_egregora_command(message)
         if cmd:
-            commands.append({
-                'author': row['author'],
-                'timestamp': row['timestamp'],
-                'command': cmd
-            })
+            commands.append(
+                {"author": row["author"], "timestamp": row["timestamp"], "command": cmd}
+            )
 
     if commands:
         logger.info(f"Found {len(commands)} egregora commands")
@@ -166,9 +153,7 @@ def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
     original_count = len(df)
 
     # Filter out messages starting with /egregora (case-insensitive)
-    filtered_df = df.filter(
-        ~pl.col("message").str.to_lowercase().str.starts_with("/egregora")
-    )
+    filtered_df = df.filter(~pl.col("message").str.to_lowercase().str.starts_with("/egregora"))
 
     removed_count = original_count - len(filtered_df)
 

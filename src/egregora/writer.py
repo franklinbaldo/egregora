@@ -3,21 +3,24 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
+
 import polars as pl
 import yaml
 from google import genai
 from google.genai import types as genai_types
 from pydantic import BaseModel
+
 from .genai_utils import call_with_retries
+from .profiler import get_active_authors, read_profile, write_profile
+from .rag import VectorStore, index_post, query_similar_posts
 from .write_post import write_post
-from .profiler import read_profile, write_profile, get_active_authors
-from .rag import VectorStore, query_similar_posts, index_post
 
 logger = logging.getLogger(__name__)
 
 
 class PostMetadata(BaseModel):
     """Metadata schema for write_post tool."""
+
     title: str
     slug: str
     date: str
@@ -223,8 +226,7 @@ def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
     """
     # Filter out system and enrichment entries
     author_counts = (
-        df
-        .filter(pl.col("author").is_in(["system", "egregora"]).not_())
+        df.filter(pl.col("author").is_in(["system", "egregora"]).not_())
         .filter(pl.col("author").is_not_null())
         .filter(pl.col("author") != "")
         .group_by("author")
@@ -292,9 +294,7 @@ async def write_posts_for_period(
     if enable_rag:
         try:
             store = VectorStore(rag_dir / "chunks.parquet")
-            similar_posts = await query_similar_posts(
-                df, client, store, top_k=5, deduplicate=True
-            )
+            similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
 
             if not similar_posts.is_empty():
                 logger.info(f"Found {len(similar_posts)} similar previous posts")
@@ -360,7 +360,7 @@ Use these features appropriately in your posts. You understand how each extensio
     prompt = render_writer_prompt(
         date=date,
         markdown_table=markdown_table,
-        active_authors=', '.join(active_authors),
+        active_authors=", ".join(active_authors),
         custom_instructions=custom_writer_prompt or "",
         markdown_features=markdown_features_section,
         profiles_context=profiles_context,
@@ -406,7 +406,7 @@ Use these features appropriately in your posts. You understand how each extensio
             break
 
         for part in candidate.content.parts:
-            if hasattr(part, 'function_call') and part.function_call:
+            if hasattr(part, "function_call") and part.function_call:
                 has_tool_calls = True
                 fn_call = part.function_call
                 fn_name = fn_call.name
