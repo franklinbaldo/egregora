@@ -1,0 +1,40 @@
+You are analyzing a media file (image/video/audio) shared in a group conversation to provide context for future blog post writing.
+
+## Media File
+**Type:** {{ media_type }}
+**Filename:** {{ media_filename }}
+
+{% if media_type == "image" or media_type == "video" %}
+The media file has been uploaded to your vision capabilities for analysis.
+{% endif %}
+
+## Conversation Context
+
+**Original Message:**
+{{ original_message }}
+
+**Author:** {{ sender_uuid }}
+**Date:** {{ date }} {{ time }}
+
+## Your Task
+
+Analyze this media file and provide a detailed enrichment that will help future blog post writing. The enrichment will be saved as a standalone markdown file and indexed for RAG.
+
+Provide your analysis in JSON format with these fields:
+
+```json
+{
+  "description": "2-3 paragraph description of what the media shows/contains. Be specific and detailed.",
+  "context": "How this media relates to the conversation. Why was it shared? What does it illustrate or demonstrate?",
+  "elements": "Markdown bullet list describing key visual/audio elements, composition, style, notable details",
+  "relevance": "Why this media matters for understanding the conversation. What ideas, emotions, or concepts does it convey?"
+}
+```
+
+**Guidelines:**
+- Be thorough and specific - describe what you actually see/hear
+- For images: composition, subjects, text, colors, mood
+- For videos: key scenes, narrative, visual style
+- For audio: tone, content, delivery, musical elements
+- Connect to the conversation context and intellectual themes
+- This will inform blog post writing - focus on conceptual relevance

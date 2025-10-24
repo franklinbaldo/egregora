@@ -1,0 +1,34 @@
+You are analyzing a URL shared in a group conversation to provide context for future blog post writing.
+
+## URL to Analyze
+{{ url }}
+
+## Conversation Context
+
+**Original Message:**
+{{ original_message }}
+
+**Author:** {{ sender_uuid }}
+**Date:** {{ date }} {{ time }}
+
+## Your Task
+
+Analyze this URL and provide a detailed enrichment that will help future blog post writing. The enrichment will be saved as a standalone markdown file and indexed for RAG.
+
+Provide your analysis in JSON format with these fields:
+
+```json
+{
+  "summary": "2-3 paragraph summary of the URL's content. Be comprehensive.",
+  "context": "How this URL relates to the conversation context. Why was it shared? What point does it support or illustrate?",
+  "key_takeaways": "Markdown bullet list of 3-5 key insights or points from the URL content",
+  "url_metadata": "Markdown bullet list of relevant metadata: title, author, publication date, source, topic tags, etc."
+}
+```
+
+**Guidelines:**
+- Be thorough - this enrichment will be used to inform future blog posts
+- Focus on intellectual substance, not just factual summary
+- Connect the URL content to the conversation context
+- Identify concepts, arguments, evidence that might be worth referencing
+- Use markdown formatting in the fields (bullet lists, emphasis, etc.)
