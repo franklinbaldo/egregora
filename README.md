@@ -47,6 +47,11 @@ pip install uv
 uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
 
+# Provide your Gemini API key (required)
+export GOOGLE_API_KEY="your-google-gemini-api-key"
+#   • On Windows (PowerShell): $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+#   • Alternatively, pass --gemini-key "your-google-gemini-api-key" to the command below
+
 # Process your WhatsApp export
 uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
   whatsapp-export.zip --output=. --timezone='America/New_York'
