@@ -111,7 +111,7 @@ def extract_media_from_zip(
     zip_path: Path,
     filenames: set[str],
     output_dir: Path,
-    group_slug: str = "shared",
+    group_slug: str,
 ) -> dict[str, Path]:
     """
     Extract media files from ZIP and save to output_dir/media/.
