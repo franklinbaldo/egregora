@@ -82,7 +82,8 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
 
     grouped = {}
     # Get unique period values, sorted
-    period_values = sorted(df.period.distinct().execute().tolist())
+    # .distinct().execute() returns a DataFrame, need to extract the column
+    period_values = sorted(df.period.distinct().execute()["period"].tolist())
 
     for period_value in period_values:
         period_df = df.filter(df.period == period_value).drop("period")

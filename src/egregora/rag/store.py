@@ -166,15 +166,22 @@ class VectorStore:
             return {"total_chunks": 0, "total_posts": 0}
 
         df = self.get_all()
+        total_chunks = df.count().execute()
+
+        if total_chunks == 0:
+            return {
+                "total_chunks": 0,
+                "total_posts": 0,
+                "date_range": (None, None),
+                "total_tags": 0,
+            }
 
         return {
-            "total_chunks": len(df),
-            "total_posts": df["post_slug"].n_unique(),
+            "total_chunks": total_chunks,
+            "total_posts": df.post_slug.nunique().execute(),
             "date_range": (
-                df["post_date"].min(),
-                df["post_date"].max(),
-            )
-            if len(df) > 0
-            else (None, None),
-            "total_tags": df["tags"].explode().n_unique() if len(df) > 0 else 0,
+                df.post_date.min().execute(),
+                df.post_date.max().execute(),
+            ),
+            "total_tags": df.tags.unnest().nunique().execute(),
         }
