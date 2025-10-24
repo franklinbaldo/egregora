@@ -263,12 +263,22 @@ class RankingStore:
         # Convert to Polars DataFrame, handling empty results
         if not result:
             return pl.DataFrame(
-                schema={"profile_id": pl.Utf8, "timestamp": pl.Datetime, "comment": pl.Utf8, "stars": pl.Int64}
+                schema={
+                    "profile_id": pl.Utf8,
+                    "timestamp": pl.Datetime,
+                    "comment": pl.Utf8,
+                    "stars": pl.Int64,
+                }
             )
 
         return pl.DataFrame(
             result,
-            schema={"profile_id": pl.Utf8, "timestamp": pl.Datetime, "comment": pl.Utf8, "stars": pl.Int64},
+            schema={
+                "profile_id": pl.Utf8,
+                "timestamp": pl.Datetime,
+                "comment": pl.Utf8,
+                "stars": pl.Int64,
+            },
             orient="row",
         )
 

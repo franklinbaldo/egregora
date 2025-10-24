@@ -6,6 +6,7 @@ import uuid
 import polars as pl
 
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+SYSTEM_AUTHOR = "system"
 
 MENTION_PATTERN = re.compile(r"\u2068(?P<name>.*?)\u2069")
 
@@ -36,7 +37,10 @@ def anonymize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     anonymized = df.with_columns(
         [
             pl.col("author")
-            .map_elements(lambda x: anonymize_author(x) if x else "system", return_dtype=pl.Utf8)
+            .map_elements(
+                lambda x: anonymize_author(x) if x else SYSTEM_AUTHOR,
+                return_dtype=pl.Utf8,
+            )
             .alias("author")
         ]
     )

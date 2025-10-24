@@ -28,6 +28,26 @@ logger = logging.getLogger(__name__)
 class EgregoraCLI:
     """Egregora v2 - Ultra-simple WhatsApp to blog pipeline"""
 
+    def _get_api_key(self, gemini_key: str | None) -> str | None:
+        """Get Gemini API key from CLI or environment variable."""
+        if gemini_key:
+            return gemini_key
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            console.print(
+                Panel(
+                    "[red]Error: GEMINI_API_KEY required[/red]\n\n"
+                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
+                    "Then either:\n"
+                    "• Use --gemini_key flag\n"
+                    "• Set GEMINI_API_KEY environment variable",
+                    title="API Key Required",
+                    border_style="red",
+                )
+            )
+        return api_key
+
     def init(self, output_dir: str):
         """
         Initialize a new MkDocs site scaffold for serving Egregora posts.
@@ -121,20 +141,8 @@ class EgregoraCLI:
                 handlers=[RichHandler(console=console, show_path=False)],
             )
 
-        if gemini_key:
-            os.environ["GOOGLE_API_KEY"] = gemini_key
-        elif not os.getenv("GOOGLE_API_KEY"):
-            console.print(
-                Panel(
-                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
-                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
-                    "Then either:\n"
-                    "• Use --gemini_key flag\n"
-                    "• Set GOOGLE_API_KEY environment variable",
-                    title="API Key Required",
-                    border_style="red",
-                )
-            )
+        api_key = self._get_api_key(gemini_key)
+        if not api_key:
             return
 
         # Validate and handle timezone
@@ -247,7 +255,7 @@ class EgregoraCLI:
                 from_date_obj,
                 to_date_obj,
                 timezone_obj,
-                os.getenv("GOOGLE_API_KEY"),
+                api_key,
                 model,
             )
         )
@@ -379,20 +387,8 @@ class EgregoraCLI:
                 handlers=[RichHandler(console=console, show_path=False)],
             )
 
-        if gemini_key:
-            os.environ["GOOGLE_API_KEY"] = gemini_key
-        elif not os.getenv("GOOGLE_API_KEY"):
-            console.print(
-                Panel(
-                    "[red]Error: GOOGLE_API_KEY required[/red]\n\n"
-                    "Get your key: https://aistudio.google.com/app/apikey\n\n"
-                    "Then either:\n"
-                    "• Use --gemini_key flag\n"
-                    "• Set GOOGLE_API_KEY environment variable",
-                    title="API Key Required",
-                    border_style="red",
-                )
-            )
+        api_key = self._get_api_key(gemini_key)
+        if not api_key:
             return
 
         site_path = Path(site_dir).resolve()
@@ -451,8 +447,6 @@ class EgregoraCLI:
             return
 
         # Run comparisons
-        api_key = os.getenv("GOOGLE_API_KEY")
-
         # Load site config and create model config for ranking
         site_config = load_site_config(site_path)
         model_config = ModelConfig(cli_model=model, site_config=site_config)
@@ -561,6 +555,7 @@ class EgregoraCLI:
         post_path: str,
         site_dir: str | None = None,
         model: str | None = None,
+        gemini_key: str | None = None,
     ):
         """
         Run editor agent on a blog post using LLM with RAG and meta-LLM tools.
@@ -593,9 +588,8 @@ class EgregoraCLI:
         model_config = ModelConfig(cli_model=model, site_config=site_config)
 
         # Get API key
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = self._get_api_key(gemini_key)
         if not api_key:
-            console.print("[red]Error: GEMINI_API_KEY environment variable not set[/red]")
             return
 
         console.print(
