@@ -27,11 +27,13 @@ class JulesClient:
         """
         self.api_key = api_key or os.environ.get('JULES_API_KEY')
         self.access_token = None
+        self.using_oauth = False  # Track if we're using OAuth vs API key
 
     def _get_access_token(self) -> str:
         """Get authentication token - either API key or gcloud token."""
         # If API key is provided, use it directly
         if self.api_key:
+            self.using_oauth = False
             return self.api_key
 
         # Otherwise fall back to cached token or gcloud
@@ -46,6 +48,7 @@ class JulesClient:
                 check=True
             )
             self.access_token = result.stdout.strip()
+            self.using_oauth = True  # Mark that we're using OAuth
             return self.access_token
         except subprocess.CalledProcessError as e:
             raise Exception(
@@ -56,10 +59,21 @@ class JulesClient:
 
     def _get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication."""
-        return {
-            'X-Goog-Api-Key': self._get_access_token(),
-            'Content-Type': 'application/json'
-        }
+        token = self._get_access_token()
+
+        # Use correct header based on auth type
+        if self.using_oauth:
+            # OAuth tokens from gcloud use Authorization: Bearer
+            return {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+        else:
+            # API keys use X-Goog-Api-Key
+            return {
+                'X-Goog-Api-Key': token,
+                'Content-Type': 'application/json'
+            }
 
     def create_session(
         self,
