@@ -15,7 +15,7 @@ import requests
 class JulesClient:
     """Client for Google Jules API."""
 
-    BASE_URL = "https://julius.googleapis.com/v1alpha"
+    BASE_URL = "https://jules.googleapis.com/v1alpha"
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -57,7 +57,7 @@ class JulesClient:
     def _get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication."""
         return {
-            'Authorization': f'Bearer {self._get_access_token()}',
+            'X-Goog-Api-Key': self._get_access_token(),
             'Content-Type': 'application/json'
         }
 
@@ -69,7 +69,7 @@ class JulesClient:
         branch: str = 'main',
         title: Optional[str] = None,
         require_plan_approval: bool = False,
-        automation_mode: str = 'AUTO'
+        automation_mode: str = 'AUTO_CREATE_PR'
     ) -> Dict[str, Any]:
         """
         Create a new Jules session.
@@ -78,10 +78,10 @@ class JulesClient:
             prompt: The task description
             owner: GitHub repository owner
             repo: GitHub repository name
-            branch: Branch name (default: main)
+            branch: Starting branch name (default: main)
             title: Optional session title
             require_plan_approval: Whether to require manual plan approval
-            automation_mode: Automation mode (AUTO or MANUAL)
+            automation_mode: Automation mode (AUTO_CREATE_PR or MANUAL)
 
         Returns:
             Session object with id, state, etc.
@@ -90,18 +90,19 @@ class JulesClient:
         data = {
             'prompt': prompt,
             'sourceContext': {
-                'githubRepository': {
-                    'owner': owner,
-                    'name': repo,
-                    'branch': branch
+                'source': f'sources/github/{owner}/{repo}',
+                'githubRepoContext': {
+                    'startingBranch': branch
                 }
             },
-            'requirePlanApproval': require_plan_approval,
             'automationMode': automation_mode
         }
 
         if title:
             data['title'] = title
+
+        if require_plan_approval:
+            data['requirePlanApproval'] = require_plan_approval
 
         response = requests.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()

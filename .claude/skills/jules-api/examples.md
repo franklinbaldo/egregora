@@ -5,22 +5,20 @@
 ### 1. Setup Authentication
 
 ```bash
-# Install gcloud CLI if needed
-# https://cloud.google.com/sdk/docs/install
+# Get your API key from https://jules.google.com/settings#api
+# Then export it as an environment variable
+export JULES_API_KEY="your-api-key-here"
 
-# Authenticate
-gcloud auth login
-
-# Set your project
-gcloud config set project YOUR_PROJECT_ID
+# Verify it's set
+echo $JULES_API_KEY
 ```
 
 ### 2. Create Your First Session
 
 **Using curl**:
 ```bash
-curl -X POST https://julius.googleapis.com/v1alpha/sessions \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Add logging to all API endpoints",
@@ -63,8 +61,8 @@ print(f"Status: {session['state']}")
 ```bash
 # Using curl
 SESSION_ID="your-session-id"
-curl https://julius.googleapis.com/v1alpha/sessions/$SESSION_ID \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+curl https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
+  -H "X-Goog-Api-Key: $JULES_API_KEY"
 
 # Using Python client
 python .claude/skills/jules-api/jules_client.py get $SESSION_ID
@@ -253,8 +251,8 @@ fi
 while true; do
     echo "Checking session status..."
 
-    RESPONSE=$(curl -s https://julius.googleapis.com/v1alpha/sessions/$SESSION_ID \
-        -H "Authorization: Bearer $(gcloud auth print-access-token)")
+    RESPONSE=$(curl -s https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
+        -H "X-Goog-Api-Key: $JULES_API_KEY")
 
     STATE=$(echo $RESPONSE | jq -r '.state')
 
@@ -290,8 +288,8 @@ declare -a TASKS=(
 for TASK in "${TASKS[@]}"; do
     echo "Creating session for: $TASK"
 
-    curl -X POST https://julius.googleapis.com/v1alpha/sessions \
-        -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+    curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+        -H "X-Goog-Api-Key: $JULES_API_KEY" \
         -H "Content-Type: application/json" \
         -d "{
             \"prompt\": \"$TASK\",
@@ -375,8 +373,8 @@ jobs:
 
       - name: Create Jules Review Session
         run: |
-          SESSION_ID=$(curl -X POST https://julius.googleapis.com/v1alpha/sessions \
-            -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+          SESSION_ID=$(curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+            -H "X-Goog-Api-Key: $JULES_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"prompt\": \"Review PR #${{ github.event.pull_request.number }} and suggest improvements\",

@@ -18,9 +18,9 @@ The Jules API allows you to:
 
 ## Base Configuration
 
-**Base URL**: `https://julius.googleapis.com`
+**Base URL**: `https://jules.googleapis.com`
 **API Version**: v1alpha
-**Authentication**: Google Cloud API authentication (user must configure)
+**Authentication**: API Key via `X-Goog-Api-Key` header
 
 ## Core Operations
 
@@ -35,33 +35,33 @@ Create a new coding session with a prompt and repository context.
 {
   "prompt": "Your coding task description",
   "sourceContext": {
-    "githubRepository": {
-      "owner": "username",
-      "name": "repository",
-      "branch": "main"
+    "source": "sources/github/username/repository",
+    "githubRepoContext": {
+      "startingBranch": "main"
     }
   },
   "title": "Optional session title",
   "requirePlanApproval": false,
-  "automationMode": "AUTO"
+  "automationMode": "AUTO_CREATE_PR"
 }
 ```
 
 **Example using curl**:
 ```bash
-curl -X POST https://julius.googleapis.com/v1alpha/sessions \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+  -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Add unit tests for authentication module",
     "sourceContext": {
-      "githubRepository": {
-        "owner": "myorg",
-        "name": "myrepo",
-        "branch": "main"
+      "source": "sources/github/myorg/myrepo",
+      "githubRepoContext": {
+        "startingBranch": "main"
       }
     },
-    "requirePlanApproval": true
+    "title": "Add Auth Tests",
+    "requirePlanApproval": true,
+    "automationMode": "AUTO_CREATE_PR"
   }'
 ```
 
@@ -73,8 +73,8 @@ Retrieve details about a specific session.
 
 **Example**:
 ```bash
-curl https://julius.googleapis.com/v1alpha/sessions/abc123 \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+curl https://jules.googleapis.com/v1alpha/sessions/abc123 \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
 **Session States**:
@@ -95,8 +95,8 @@ Retrieve all sessions.
 
 **Example**:
 ```bash
-curl https://julius.googleapis.com/v1alpha/sessions \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+curl https://jules.googleapis.com/v1alpha/sessions \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
 ### 4. Send Message to Session
@@ -114,8 +114,8 @@ Send user feedback or additional instructions to an active session.
 
 **Example**:
 ```bash
-curl -X POST https://julius.googleapis.com/v1alpha/sessions/abc123:sendMessage \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:sendMessage \
+  -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"message": "Please add more test coverage for edge cases"}'
 ```
@@ -128,8 +128,8 @@ Approve a generated plan (when requirePlanApproval is true).
 
 **Example**:
 ```bash
-curl -X POST https://julius.googleapis.com/v1alpha/sessions/abc123:approvePlan \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:approvePlan \
+  -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -141,27 +141,29 @@ Retrieve activity logs for a session.
 
 **Example**:
 ```bash
-curl https://julius.googleapis.com/v1alpha/sessions/abc123/activities \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
 ## Authentication Setup
 
-The user must authenticate using Google Cloud:
+To use the Jules API, you need an API key:
 
-```bash
-# Install gcloud CLI
-# https://cloud.google.com/sdk/docs/install
+1. **Get your API key**:
+   - Visit https://jules.google.com/settings#api
+   - Create a new API key (max 3 keys allowed)
+   - Copy the API key
 
-# Authenticate
-gcloud auth login
+2. **Set the API key**:
+   ```bash
+   # Export as environment variable
+   export JULES_API_KEY="your-api-key-here"
 
-# Set project
-gcloud config set project YOUR_PROJECT_ID
+   # Or pass directly to JulesClient
+   client = JulesClient(api_key="your-api-key-here")
+   ```
 
-# Get access token for API calls
-gcloud auth print-access-token
-```
+**Security Note**: Keep your API key secure. Don't share it or commit it to version control.
 
 ## Python Example
 
@@ -178,7 +180,7 @@ def get_access_token():
     return result.stdout.strip()
 
 def create_jules_session(prompt, owner, repo, branch='main'):
-    url = 'https://julius.googleapis.com/v1alpha/sessions'
+    url = 'https://jules.googleapis.com/v1alpha/sessions'
     headers = {
         'Authorization': f'Bearer {get_access_token()}',
         'Content-Type': 'application/json'
@@ -197,7 +199,7 @@ def create_jules_session(prompt, owner, repo, branch='main'):
     return response.json()
 
 def get_session_status(session_id):
-    url = f'https://julius.googleapis.com/v1alpha/sessions/{session_id}'
+    url = f'https://jules.googleapis.com/v1alpha/sessions/{session_id}'
     headers = {
         'Authorization': f'Bearer {get_access_token()}'
     }
