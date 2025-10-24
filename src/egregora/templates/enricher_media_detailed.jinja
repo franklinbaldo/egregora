@@ -1,40 +1,74 @@
-You are analyzing a media file (image/video/audio) shared in a group conversation to provide context for future blog post writing.
+Generate a complete markdown enrichment file for this media shared in a group conversation.
 
 ## Media File
 **Type:** {{ media_type }}
 **Filename:** {{ media_filename }}
+**Path:** {{ media_path }}
 
 {% if media_type == "image" or media_type == "video" %}
-The media file has been uploaded to your vision capabilities for analysis.
+The media file has been uploaded for your analysis.
 {% endif %}
 
-## Conversation Context
-
-**Original Message:**
-{{ original_message }}
-
+## Context
+**Original Message:** {{ original_message }}
 **Author:** {{ sender_uuid }}
 **Date:** {{ date }} {{ time }}
 
-## Your Task
+## Output Format
 
-Analyze this media file and provide a detailed enrichment that will help future blog post writing. The enrichment will be saved as a standalone markdown file and indexed for RAG.
+Generate a complete markdown document following this structure:
 
-Provide your analysis in JSON format with these fields:
+```markdown
+# Enrichment: [Filename]
 
-```json
-{
-  "description": "2-3 paragraph description of what the media shows/contains. Be specific and detailed.",
-  "context": "How this media relates to the conversation. Why was it shared? What does it illustrate or demonstrate?",
-  "elements": "Markdown bullet list describing key visual/audio elements, composition, style, notable details",
-  "relevance": "Why this media matters for understanding the conversation. What ideas, emotions, or concepts does it convey?"
-}
+## Metadata
+- **Date:** {{ date }}
+- **Time:** {{ time }}
+- **Sender:** {{ sender_uuid }}
+- **Media Type:** {{ media_type }}
+- **File:** {{ media_path }}
+
+## Original Message
+> {{ original_message }}
+
+## Content
+
+### Media File
+{% if media_type == "image" %}
+![{{ media_filename }}](../../{{ media_path }})
+{% elif media_type == "video" %}
+<video controls width="100%">
+  <source src="../../{{ media_path }}" type="video/mp4">
+</video>
+{% elif media_type == "audio" %}
+<audio controls>
+  <source src="../../{{ media_path }}">
+</audio>
+{% endif %}
+
+[Download](../../{{ media_path }})
+
+## Analysis
+
+---
+
+## Description
+[2-3 paragraph detailed description of what you see/hear. Be specific.]
+
+---
+
+## Context
+[How this relates to the conversation. Why was it shared?]
+
+---
+
+## Visual/Audio Elements
+[Markdown bullet list of key elements, composition, style, details]
+
+---
+
+## Relevance
+[Why this matters. What ideas or concepts does it convey?]
 ```
 
-**Guidelines:**
-- Be thorough and specific - describe what you actually see/hear
-- For images: composition, subjects, text, colors, mood
-- For videos: key scenes, narrative, visual style
-- For audio: tone, content, delivery, musical elements
-- Connect to the conversation context and intellectual themes
-- This will inform blog post writing - focus on conceptual relevance
+Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
