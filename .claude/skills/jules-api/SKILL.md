@@ -1,6 +1,6 @@
 ---
 name: jules-api
-description: Use Google's Jules API to create and manage asynchronous coding sessions. Invoke when the user asks to interact with Jules, create Jules sessions, check Jules task status, or manage Jules coding tasks.
+description: Delegate asynchronous coding tasks to Jules (Google's AI coding agent) to maximize efficiency. Use for code reviews, refactoring, adding tests, bug fixes, and documentation. Proactively suggest Jules delegation when appropriate. Invoke when user asks to interact with Jules, create sessions, check task status, or when tasks are suitable for async delegation.
 ---
 
 # Jules API Integration
@@ -15,6 +15,85 @@ The Jules API allows you to:
 - Send messages and feedback to active sessions
 - Approve generated plans before execution
 - Retrieve session outputs (pull requests, artifacts)
+
+## Delegation Philosophy
+
+**KEY PRINCIPLE**: Use Jules for asynchronous tasks to maximize efficiency and free up Claude for strategic work.
+
+### When Claude Should Delegate to Jules
+
+Claude should **proactively suggest** creating Jules sessions for:
+
+1. **Code Reviews** - After pushing a branch, delegate review to Jules
+2. **Refactoring** - Improve code structure without changing behavior
+3. **Adding Tests** - Generate unit/integration tests for existing code
+4. **Bug Fixes** - Well-defined bugs with clear reproduction steps
+5. **Documentation** - Improve comments, docstrings, READMEs
+6. **Iterative Improvements** - Enhance previous work based on feedback
+
+### Effective Delegation Patterns
+
+**Pattern 1: Initial Implementation + Review**
+```
+1. Claude creates initial feature implementation
+2. Push branch to remote
+3. Claude creates Jules session: "Review and improve feature X"
+4. Jules creates PR with improvements
+5. Claude integrates feedback
+```
+
+**Pattern 2: Test Generation**
+```
+1. Claude implements feature
+2. Claude creates Jules session: "Add comprehensive tests for module X"
+3. Jules generates test suite
+4. Merge when tests pass
+```
+
+**Pattern 3: Bug Fix Delegation**
+```
+1. User reports bug
+2. Claude investigates and identifies root cause
+3. Claude creates Jules session with reproduction steps
+4. Jules fixes and adds regression tests
+```
+
+### Best Practices for Prompts
+
+**Good prompts are:**
+- ✅ **Specific**: "Add unit tests for authentication module"
+- ✅ **Contextual**: "Review PR #123, focus on error handling"
+- ✅ **Actionable**: "Refactor parser.py to use Polars instead of Pandas"
+- ✅ **Scoped**: "Fix the timezone bug in commit abc123"
+
+**Avoid vague prompts:**
+- ❌ "Improve the code"
+- ❌ "Make it better"
+- ❌ "Fix everything"
+- ❌ "Add features"
+
+### Claude's Role in Delegation
+
+When delegating to Jules, Claude should:
+
+1. **Prepare the context** - Ensure branch is pushed and up-to-date
+2. **Write clear prompts** - Specific, actionable instructions
+3. **Create the session** - Use jules_client.py or delegate via skill
+4. **Return session info** - Give user the session ID and URL
+5. **Suggest next steps** - Explain what Jules will do and when to check back
+
+**Example dialogue:**
+```
+User: "Can you review my authentication changes?"
+Claude: "I'll create a Jules session to review your authentication code.
+         Jules works asynchronously and will create a PR with feedback.
+
+         Session ID: 123456789
+         URL: https://jules.google.com/session/123456789
+
+         You can continue other work while Jules reviews. Check back in
+         5-10 minutes, and I can help you integrate Jules' suggestions."
+```
 
 ## Base Configuration
 
@@ -246,6 +325,99 @@ print(f"Status: {status['state']}")
 2. Monitor for AWAITING_USER_FEEDBACK
 3. Use sendMessage to provide feedback
 4. Continue monitoring until completion
+
+## Real-World Delegation Scenarios
+
+### Scenario 1: Feature Implementation Review
+```
+User: "I just implemented user authentication, can you review it?"
+
+Claude Action:
+1. Check if branch is pushed to remote
+2. Create Jules session with prompt:
+   "Review the user authentication implementation in feature/auth-system.
+    Check for security issues, test coverage, and code quality.
+    Suggest improvements and add missing tests."
+3. Inform user of session ID/URL
+4. User continues other work while Jules reviews
+```
+
+### Scenario 2: Adding Tests to Legacy Code
+```
+User: "We need tests for the payment processor module"
+
+Claude Action:
+1. Review payment processor to understand functionality
+2. Create Jules session:
+   "Add comprehensive unit and integration tests for the payment
+    processor module. Cover success cases, error handling, edge cases,
+    and mock external payment gateway calls."
+3. Jules generates test suite
+4. Review and merge
+```
+
+### Scenario 3: Refactoring for Performance
+```
+User: "The data parser is slow, can we optimize it?"
+
+Claude Action:
+1. Identify performance bottleneck
+2. Create Jules session:
+   "Refactor parser.py to use Polars instead of Pandas for 10x
+    performance improvement. Maintain same API and ensure all
+    existing tests pass. Add benchmarks."
+3. Jules refactors with benchmarks
+4. Review performance gains and merge
+```
+
+### Scenario 4: Bug Fix with Regression Tests
+```
+User: "There's a bug in timezone handling"
+
+Claude Action:
+1. Investigate and identify root cause in commit abc123
+2. Create Jules session:
+   "Fix timezone bug in datetime_utils.py (commit abc123).
+    The bug causes incorrect UTC conversion for dates before 1970.
+    Add regression tests to prevent future issues."
+3. Jules fixes and adds tests
+4. Verify and merge
+```
+
+### Scenario 5: Documentation Improvement
+```
+User: "Our API documentation is outdated"
+
+Claude Action:
+1. Identify outdated sections
+2. Create Jules session:
+   "Update API documentation in docs/api.md to reflect current
+    implementation. Add examples for new endpoints, update
+    parameter descriptions, and ensure all code samples work."
+3. Jules updates docs with examples
+4. Review and merge
+```
+
+## Proactive Delegation Triggers
+
+Claude should **automatically suggest** Jules delegation when:
+
+- ✅ User pushes a branch and asks "what do you think?"
+- ✅ User says "add tests" or "improve tests"
+- ✅ User mentions "review", "refactor", or "optimize"
+- ✅ Feature is complete and needs polish
+- ✅ Code works but needs improvement
+- ✅ User reports a well-defined bug
+- ✅ Documentation needs updating
+
+**Example proactive response:**
+```
+User: "Just pushed the new API endpoint to feature/api-v2"
+Claude: "Great! I can see the implementation looks solid. Would you like me to
+         create a Jules session to review it and suggest improvements? Jules
+         can check for edge cases, add tests, and optimize the code while
+         you continue working on other features."
+```
 
 ## Error Handling
 
