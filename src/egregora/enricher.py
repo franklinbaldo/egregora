@@ -227,9 +227,11 @@ def extract_and_replace_media(
     return updated_df, media_mapping
 
 
-async def describe_url(url: str, client: genai.Client, model: str = "gemini-flash") -> str:
+async def describe_url(url: str, client: genai.Client, model: str = "models/gemini-flash-latest") -> str:
     """Ask LLM to describe a URL's content."""
-    prompt = f"Briefly describe what this URL is about (1-2 sentences): {url}"
+    from .prompt_templates import render_url_enrichment_prompt
+
+    prompt = render_url_enrichment_prompt(url)
     try:
         response = await call_with_retries(
             client.aio.models.generate_content,
@@ -247,8 +249,10 @@ async def describe_url(url: str, client: genai.Client, model: str = "gemini-flas
         return f"[Failed to fetch URL: {str(e)}]"
 
 
-async def describe_media_file(file_path: Path, client: genai.Client, model: str = "gemini-flash") -> str:
+async def describe_media_file(file_path: Path, client: genai.Client, model: str = "models/gemini-flash-latest") -> str:
     """Ask LLM to describe media file using vision/audio capabilities."""
+    from .prompt_templates import render_media_enrichment_prompt
+
     try:
         # Upload file to Gemini
         uploaded_file = await call_with_retries(
@@ -267,11 +271,8 @@ async def describe_media_file(file_path: Path, client: genai.Client, model: str 
             )
 
         # Generate description
-        parts = [
-            genai_types.Part(
-                text="Describe this media file in 2-3 sentences. What does it show/contain?"
-            )
-        ]
+        prompt = render_media_enrichment_prompt()
+        parts = [genai_types.Part(text=prompt)]
 
         if file_part is not None:
             parts.append(file_part)
