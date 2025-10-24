@@ -1,0 +1,157 @@
+name: Jules Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Don't trigger on draft PRs
+    branches-ignore:
+      - 'draft/**'
+
+jobs:
+  jules-review:
+    runs-on: ubuntu-latest
+    # Only run if not a draft and not from dependabot
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Create Jules review session
+        id: jules
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          # Extract repo info
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+
+          # Create review prompt
+          REVIEW_PROMPT="Code review for PR #${PR_NUMBER}: ${PR_TITLE}
+
+          Focus areas:
+          - Code quality and maintainability
+          - Test coverage (add tests if missing)
+          - Security issues and privacy concerns
+          - Performance considerations
+          - Documentation completeness
+          - Adherence to project standards (ruff, black, mypy)
+
+          Branch: ${PR_BRANCH} → ${PR_BASE}
+
+          Please provide detailed feedback and suggest improvements. If you find critical issues, create a PR with fixes."
+
+          # Create Jules session
+          python .claude/skills/jules-api/jules_client.py create \
+            "${REVIEW_PROMPT}" \
+            "${REPO_OWNER}" \
+            "${REPO_NAME}" \
+            --branch "${PR_BRANCH}" \
+            --title "Code Review: PR #${PR_NUMBER}" \
+            --automation-mode AUTO_CREATE_PR > jules_output.json
+
+          # Extract session ID
+          SESSION_ID=$(cat jules_output.json | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "unknown")
+          echo "session_id=${SESSION_ID}" >> $GITHUB_OUTPUT
+
+          # Extract session state
+          SESSION_STATE=$(cat jules_output.json | python3 -c "import sys, json; print(json.load(sys.stdin).get('state', 'UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+          echo "session_state=${SESSION_STATE}" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: steps.jules.outputs.session_id != 'unknown'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sessionId = '${{ steps.jules.outputs.session_id }}';
+            const sessionState = '${{ steps.jules.outputs.session_state }}';
+
+            const comment = `## 🤖 Jules Code Review Started
+
+            Jules is reviewing this PR and will provide feedback shortly.
+
+            **Session ID:** \`${sessionId}\`
+            **Status:** ${sessionState}
+
+            ### What Jules will check:
+            - ✅ Code quality and maintainability
+            - ✅ Test coverage
+            - ✅ Security and privacy concerns
+            - ✅ Performance considerations
+            - ✅ Documentation
+
+            ### Next steps:
+            1. Jules will analyze your code (~10 minutes)
+            2. If improvements are suggested, Jules may create a follow-up PR
+            3. Review Jules' feedback and integrate as needed
+
+            You can check the session status:
+            \`\`\`bash
+            python .claude/skills/jules-api/jules_client.py get ${sessionId}
+            \`\`\`
+
+            ---
+            _Powered by [Jules API](https://developers.google.com/jules)_`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Handle Jules session failure
+        if: failure() || steps.jules.outputs.session_id == 'unknown'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = `## ⚠️ Jules Review Failed
+
+            Unable to create Jules code review session. This could be due to:
+            - Missing or invalid JULES_API_KEY secret
+            - Jules API quota exceeded
+            - Network connectivity issues
+
+            Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+            You can manually trigger a Jules review:
+            \`\`\`bash
+            python .claude/skills/jules-api/jules_client.py create \\
+              "Review PR #${{ github.event.pull_request.number }}" \\
+              "${{ github.repository_owner }}" \\
+              "${{ github.event.repository.name }}" \\
+              --branch "${{ github.event.pull_request.head.ref }}"
+            \`\`\``;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

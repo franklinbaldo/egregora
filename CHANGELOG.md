@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Jules Automated Code Reviews** - GitHub Actions workflow for automatic AI-powered PR reviews
+  - Triggers on every non-draft PR
+  - Reviews code quality, security, tests, and documentation
+  - Creates follow-up PRs with improvements (AUTO_CREATE_PR mode)
+  - Full documentation in `docs/guides/jules-automation.md`
 - Comprehensive documentation structure in `docs/` directory
   - Getting started guides (installation, quickstart, concepts)
   - Feature documentation (anonymization, privacy commands, ranking, RAG, editor)

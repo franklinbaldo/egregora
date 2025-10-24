@@ -110,6 +110,7 @@ authors: [a1b2c3d4, e5f6g7h8]
 **For Developers:**
 - 🏗️ [Architecture](docs/guides/architecture.md) - System design
 - 🤝 [Contributing](docs/contributing/development.md) - Development guide
+- 🤖 [Jules Automation](docs/guides/jules-automation.md) - Automated AI code reviews
 
 ## 🔒 Privacy-First
 
