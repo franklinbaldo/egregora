@@ -11,6 +11,7 @@ import polars as pl
 from google import genai
 from google.genai import types as genai_types
 
+from .config_types import EnrichmentConfig
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .prompt_templates import (
@@ -111,7 +112,7 @@ def extract_media_from_zip(
     zip_path: Path,
     filenames: set[str],
     output_dir: Path,
-    group_slug: str = "shared",
+    group_slug: str,
 ) -> dict[str, Path]:
     """
     Extract media files from ZIP and save to output_dir/media/.
@@ -259,9 +260,7 @@ async def enrich_url(
     original_message: str,
     sender_uuid: str,
     timestamp,
-    client: genai.Client,
-    output_dir: Path,
-    model: str = "models/gemini-flash-latest",
+    config: EnrichmentConfig,
 ) -> str:
     """
     Generate detailed enrichment for URL and save as .md file.
@@ -286,8 +285,8 @@ async def enrich_url(
 
     try:
         response = await call_with_retries(
-            client.aio.models.generate_content,
-            model=model,
+            config.client.aio.models.generate_content,
+            model=config.model,
             contents=[
                 genai_types.Content(
                     role="user",
@@ -300,7 +299,7 @@ async def enrich_url(
         markdown_content = (response.text or "").strip()
 
         # Save to media/urls/
-        urls_dir = output_dir / "media" / "urls"
+        urls_dir = config.output_dir / "media" / "urls"
         urls_dir.mkdir(parents=True, exist_ok=True)
 
         enrichment_path = urls_dir / f"{enrichment_id}.md"
@@ -317,9 +316,7 @@ async def enrich_media(
     original_message: str,
     sender_uuid: str,
     timestamp,
-    client: genai.Client,
-    output_dir: Path,
-    model: str = "models/gemini-flash-latest",
+    config: EnrichmentConfig,
 ) -> str:
     """
     Generate detailed enrichment for media file and save as .md file.
@@ -336,7 +333,7 @@ async def enrich_media(
 
     # Get relative path from output_dir
     try:
-        media_path = file_path.relative_to(output_dir)
+        media_path = file_path.relative_to(config.output_dir)
     except ValueError:
         media_path = file_path
 
@@ -357,7 +354,7 @@ async def enrich_media(
     try:
         # Upload file to Gemini (for vision/audio analysis)
         uploaded_file = await call_with_retries(
-            client.aio.files.upload,
+            config.client.aio.files.upload,
             path=str(file_path),
         )
 
@@ -377,8 +374,8 @@ async def enrich_media(
             parts.append(file_part)
 
         response = await call_with_retries(
-            client.aio.models.generate_content,
-            model=model,
+            config.client.aio.models.generate_content,
+            model=config.model,
             contents=[
                 genai_types.Content(
                     role="user",
@@ -390,7 +387,7 @@ async def enrich_media(
         markdown_content = (response.text or "").strip()
 
         # Save to media/enrichments/
-        enrichments_dir = output_dir / "media" / "enrichments"
+        enrichments_dir = config.output_dir / "media" / "enrichments"
         enrichments_dir.mkdir(parents=True, exist_ok=True)
 
         enrichment_path = enrichments_dir / f"{enrichment_id}.md"
@@ -402,7 +399,7 @@ async def enrich_media(
         return f"[Failed to enrich media: {str(e)}]"
 
 
-async def enrich_dataframe(
+async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     df: pl.DataFrame,
     media_mapping: dict[str, Path],
     client: genai.Client,
@@ -456,14 +453,17 @@ async def enrich_dataframe(
                     break
 
                 # Generate enrichment .md file
+                enrichment_config = EnrichmentConfig(
+                    client=client,
+                    output_dir=output_dir,
+                    model=url_model,
+                )
                 enrichment_path = await enrich_url(
                     url=url,
                     original_message=message,
                     sender_uuid=author,
                     timestamp=timestamp,
-                    client=client,
-                    output_dir=output_dir,
-                    model=url_model,
+                    config=enrichment_config,
                 )
 
                 # Add reference to DataFrame
@@ -490,14 +490,17 @@ async def enrich_dataframe(
                         break
 
                     # Generate enrichment .md file
+                    enrichment_config = EnrichmentConfig(
+                        client=client,
+                        output_dir=output_dir,
+                        model=vision_model,
+                    )
                     enrichment_path = await enrich_media(
                         file_path=file_path,
                         original_message=message,
                         sender_uuid=author,
                         timestamp=timestamp,
-                        client=client,
-                        output_dir=output_dir,
-                        model=vision_model,
+                        config=enrichment_config,
                     )
 
                     # Add reference to DataFrame

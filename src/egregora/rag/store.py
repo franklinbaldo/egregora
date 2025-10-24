@@ -110,9 +110,9 @@ class VectorStore:
                 tags,
                 authors,
                 category,
-                array_cosine_similarity(embedding, ?::FLOAT[3072]) AS similarity
+                array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) AS similarity
             FROM read_parquet('{self.parquet_path}')
-            WHERE array_cosine_similarity(embedding, ?::FLOAT[3072]) >= {min_similarity}
+            WHERE array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) >= {min_similarity}
         """
 
         # Add filters

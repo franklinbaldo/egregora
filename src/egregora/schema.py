@@ -69,28 +69,38 @@ def _normalise_timestamp(
 ) -> pl.Expr:
     """Return a ``pl.Expr`` that yields a timestamp in the desired dtype."""
 
-    tz_name = desired_dtype.time_zone
-    if tz_name is None:
-        raise ValueError("desired_dtype must have a timezone")
-
-    timestamp_dtype = frame.schema.get("timestamp")
-    if timestamp_dtype is None:
+    current_dtype = frame.schema.get("timestamp")
+    if current_dtype is None:
         raise ValueError("DataFrame is missing required 'timestamp' column")
 
-    if timestamp_dtype == desired_dtype:
-        return pl.col("timestamp")
+    desired_time_unit = desired_dtype.time_unit
+    desired_timezone = desired_dtype.time_zone
 
-    if isinstance(timestamp_dtype, DateTimeType):
-        expr = pl.col("timestamp").dt.cast_time_unit(desired_dtype.time_unit)
-        if timestamp_dtype.time_zone is None:
-            return expr.dt.replace_time_zone(tz_name)
-        return expr.dt.convert_time_zone(tz_name)
+    expr = pl.col("timestamp")
 
-    return (
-        pl.col("timestamp")
-        .str.strptime(pl.Datetime(time_unit=desired_dtype.time_unit))
-        .dt.replace_time_zone(tz_name)
-    )
+    if isinstance(current_dtype, DateTimeType):
+        if current_dtype.time_unit != desired_time_unit:
+            expr = expr.dt.cast_time_unit(desired_time_unit)
+        current_timezone = current_dtype.time_zone
+    else:
+        expr = expr.cast(pl.Datetime(time_unit=desired_time_unit))
+        current_timezone = None
+
+    if desired_timezone is None:
+        # ``desired_dtype`` always defines a timezone today, but keep the guard to
+        # avoid surprising behaviour if the schema ever changes.
+        if isinstance(current_dtype, DateTimeType):
+            expr = expr.dt.cast_time_unit(desired_time_unit)
+        return expr.alias("timestamp")
+
+    if current_timezone is None:
+        expr = expr.dt.replace_time_zone(desired_timezone)
+    elif current_timezone != desired_timezone:
+        expr = expr.dt.convert_time_zone(desired_timezone)
+
+    expr = expr.dt.cast_time_unit(desired_time_unit)
+
+    return expr.alias("timestamp")
 
 
 def _ensure_date_column(frame: pl.DataFrame) -> pl.DataFrame:

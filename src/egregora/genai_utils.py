@@ -56,7 +56,7 @@ def _extract_retry_delay(error: Exception) -> float | None:
 
 async def _respect_min_interval() -> None:
     """Wait if necessary so consecutive API calls honour `_MIN_INTERVAL_SECONDS`."""
-    global _last_call_monotonic
+    global _last_call_monotonic  # noqa: PLW0603
     async with _rate_lock:
         now = time.monotonic()
         elapsed = now - _last_call_monotonic
