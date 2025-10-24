@@ -8,7 +8,6 @@ Documentation:
 - Architecture (Privacy Boundary): docs/guides/architecture.md#2-anonymizer-anonymizerpy
 - Core Concepts: docs/getting-started/concepts.md#privacy-model
 """
-
 import re
 import uuid
 
@@ -43,24 +42,21 @@ def anonymize_mentions(text: str) -> str:
 def anonymize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """Anonymize author column and mentions in message column using vectorial operations."""
 
-    anonymized = df.with_columns(
-        [
-            pl.col("author")
-            .map_elements(
-                lambda x: anonymize_author(x) if x else SYSTEM_AUTHOR,
-                return_dtype=pl.Utf8,
-            )
-            .alias("author")
-        ]
+    # 1. Anonymize Authors
+    # Get unique author names, create a mapping, and then replace in one go.
+    unique_authors = df.select(pl.col("author").unique()).to_series().drop_nulls().to_list()
+    author_mapping = {author: anonymize_author(author) for author in unique_authors}
+
+    anonymized_df = df.with_columns(
+        pl.col("author").replace(author_mapping).fill_null(SYSTEM_AUTHOR)
     )
 
-    if "message" in anonymized.columns:
-        anonymized = anonymized.with_columns(
-            [
-                pl.col("message")
-                .map_elements(lambda x: anonymize_mentions(x) if x else "", return_dtype=pl.Utf8)
-                .alias("message")
-            ]
+    # 2. Anonymize Mentions in Messages
+    if "message" in anonymized_df.columns:
+        anonymized_df = anonymized_df.with_columns(
+            pl.col("message")
+            .map_elements(anonymize_mentions, return_dtype=pl.Utf8)
+            .alias("message")
         )
 
-    return anonymized
+    return anonymized_df
