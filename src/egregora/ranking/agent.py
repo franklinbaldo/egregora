@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
 
+from .elo import calculate_elo_update
 from .store import RankingStore
 
 console = Console()
@@ -428,6 +429,19 @@ def run_comparison(  # noqa: PLR0913
         comment_b=comment_b,
         stars_b=stars_b,
     )
+
+    # Update ELO ratings
+    rating_a = store.get_rating(post_a_id)
+    rating_b = store.get_rating(post_b_id)
+
+    if rating_a is None or rating_b is None:
+        msg = "Missing ratings for posts despite initialization"
+        raise ValueError(msg)
+
+    new_elo_a, new_elo_b = calculate_elo_update(
+        rating_a["elo_global"], rating_b["elo_global"], winner
+    )
+    store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
 
     return {
         "winner": winner,

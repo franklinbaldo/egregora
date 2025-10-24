@@ -20,7 +20,7 @@ from .editor_agent import run_editor_session
 from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
 from .ranking.agent import run_comparison
-from .ranking.elo import get_posts_to_compare, initialize_ratings
+from .ranking.elo import get_posts_to_compare
 from .ranking.store import RankingStore
 from .site_scaffolding import ensure_mkdocs_project
 
@@ -239,7 +239,7 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
         console.print("[red]No posts found to rank[/red]")
         raise typer.Exit(1)
 
-    newly_initialized = initialize_ratings(store, post_ids)
+    newly_initialized = store.initialize_ratings(post_ids)
     if newly_initialized > 0:
         console.print(f"[green]Initialized {newly_initialized} new posts with ELO 1500[/green]")
 
