@@ -1,4 +1,13 @@
-"""Simple UUID5-based anonymization for authors and mentions."""
+"""Simple UUID5-based anonymization for authors and mentions.
+
+Privacy-first approach: All author names are converted to UUID5 pseudonyms
+before any LLM interaction. This ensures real names never reach the LLM.
+
+Documentation:
+- Privacy & Anonymization: docs/features/anonymization.md
+- Architecture (Privacy Boundary): docs/guides/architecture.md#2-anonymizer-anonymizerpy
+- Core Concepts: docs/getting-started/concepts.md#privacy-model
+"""
 
 import re
 import uuid
