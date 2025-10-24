@@ -438,7 +438,7 @@ async def _index_posts_in_rag(
         logger.error(f"Failed to index posts in RAG: {e}")
 
 
-async def write_posts_for_period(
+async def write_posts_for_period(  # noqa: PLR0913
     df: pl.DataFrame,
     date: str,
     client: genai.Client,

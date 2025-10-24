@@ -18,7 +18,7 @@ env = Environment(
 )
 
 
-def render_writer_prompt(
+def render_writer_prompt(  # noqa: PLR0913
     date: str,
     markdown_table: str,
     active_authors: str,
@@ -109,7 +109,7 @@ def render_url_enrichment_detailed_prompt(
     )
 
 
-def render_media_enrichment_detailed_prompt(
+def render_media_enrichment_detailed_prompt(  # noqa: PLR0913
     media_type: str,
     media_filename: str,
     media_path: str,

@@ -225,7 +225,7 @@ async def _ask_llm_tool(
         return f"[LLM query failed: {str(e)}]"
 
 
-async def run_editor_session(
+async def run_editor_session(  # noqa: PLR0912, PLR0915
     post_path: Path,
     client: genai.Client,
     model_config: ModelConfig,

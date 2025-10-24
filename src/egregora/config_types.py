@@ -111,6 +111,15 @@ class URLEnrichmentContext:
 
 
 @dataclass
+class EnrichmentConfig:
+    """Configuration for enrichment operations."""
+
+    client: object  # genai.Client
+    output_dir: Path
+    model: str = "models/gemini-flash-latest"
+
+
+@dataclass
 class EditorContext:
     """Context for editor session setup."""
 

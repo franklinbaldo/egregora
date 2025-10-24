@@ -164,7 +164,7 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     return "\n".join(lines)
 
 
-def save_comparison(
+def save_comparison(  # noqa: PLR0913
     store: RankingStore,
     profile_id: str,
     post_a: str,
@@ -224,7 +224,7 @@ def _extract_tool_call_result(response, tool_name: str, arg_names: list[str]) ->
     return None
 
 
-def _run_turn1_choose_winner(
+def _run_turn1_choose_winner(  # noqa: PLR0913
     client: genai.Client,
     model: str,
     profile: dict,
@@ -265,7 +265,7 @@ Use the choose_winner tool to declare the winner."""
     return winner
 
 
-def _run_turn2_comment_post_a(
+def _run_turn2_comment_post_a(  # noqa: PLR0913
     client: genai.Client,
     model: str,
     winner: str,
@@ -317,7 +317,7 @@ Use the comment_post_A tool to:
     return comment_a, stars_a
 
 
-def _run_turn3_comment_post_b(
+def _run_turn3_comment_post_b(  # noqa: PLR0913
     client: genai.Client,
     model: str,
     winner: str,
@@ -369,7 +369,7 @@ Use the comment_post_B tool to:
     return comment_b, stars_b
 
 
-def run_comparison(
+def run_comparison(  # noqa: PLR0913
     site_dir: Path,
     post_a_id: str,
     post_b_id: str,
