@@ -10,7 +10,6 @@ from google import genai
 from google.genai import types as genai_types
 from pydantic import BaseModel
 
-from .config_types import WriterConfig
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile

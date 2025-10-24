@@ -1,6 +1,6 @@
 """Configuration dataclasses to reduce function parameter counts."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -14,12 +14,13 @@ class ProcessConfig:
 
     zip_file: Path
     output_dir: Path
-    days: int | None = None
+    period: str = "day"
+    enable_enrichment: bool = True
     from_date: date | None = None
+    to_date: date | None = None
     timezone: str | None = None
-    anonymize: bool = True
+    gemini_key: str | None = None
     model: str | None = None
-    config_file: Path | None = None
     debug: bool = False
 
 
