@@ -422,6 +422,11 @@ def edit(
             )
         )
 
+        # Persist edited content to disk
+        if result.edits_made:
+            post_file.write_text(result.final_content, encoding="utf-8")
+            console.print(f"[green]Saved edited content to {post_file}[/green]")
+
         console.print(
             Panel(
                 f"[bold]Editor Session Complete[/bold]\n\n"
