@@ -31,38 +31,29 @@ class JulesClient:
         self.base_url = base_url or os.environ.get('JULES_BASE_URL', "https://jules.googleapis.com/v1alpha")
         self.access_token = None
 
-    def _get_access_token(self) -> str:
-        """Get authentication token - either API key or gcloud token."""
-        # If API key is provided, use it directly
-        if self.api_key:
-            return self.api_key
-
-        # Otherwise fall back to cached token or gcloud
-        if self.access_token:
-            return self.access_token
-
-        try:
-            result = subprocess.run(
-                ['gcloud', 'auth', 'print-access-token'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            self.access_token = result.stdout.strip()
-            return self.access_token
-        except subprocess.CalledProcessError as e:
-            raise Exception(
-                "Failed to get access token. Make sure you either:\n"
-                "1. Set JULES_API_KEY environment variable, or\n"
-                "2. Authenticate with gcloud: gcloud auth login"
-            ) from e
-
     def _get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication."""
-        return {
-            'X-Goog-Api-Key': self._get_access_token(),
-            'Content-Type': 'application/json'
-        }
+        headers = {'Content-Type': 'application/json'}
+        if self.api_key:
+            headers['X-Goog-Api-Key'] = self.api_key
+        else:
+            if not self.access_token:
+                try:
+                    result = subprocess.run(
+                        ['gcloud', 'auth', 'print-access-token'],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    self.access_token = result.stdout.strip()
+                except subprocess.CalledProcessError as e:
+                    raise Exception(
+                        "Failed to get access token. Make sure you either:\n"
+                        "1. Set JULES_API_KEY environment variable, or\n"
+                        "2. Authenticate with gcloud: gcloud auth login"
+                    ) from e
+            headers['Authorization'] = f'Bearer {self.access_token}'
+        return headers
 
     def create_session(
         self,

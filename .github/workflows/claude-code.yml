@@ -7,7 +7,13 @@ on:
 jobs:
   claude:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, '@claude')
+    if: |
+      contains(github.event.comment.body, '@claude') &&
+      (
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
     permissions:
       issues: write
       pull-requests: write
