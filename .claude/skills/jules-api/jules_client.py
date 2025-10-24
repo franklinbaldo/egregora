@@ -4,28 +4,31 @@ Jules API Client Helper
 A simple Python client for interacting with Google's Jules API.
 """
 
+import argparse
 import json
 import os
 import subprocess
 import sys
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import requests
 
 
 class JulesClient:
     """Client for Google Jules API."""
 
-    BASE_URL = "https://jules.googleapis.com/v1alpha"
-
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         """
         Initialize the Jules client.
 
         Args:
             api_key: Jules API key. If not provided, will check JULES_API_KEY
                      environment variable, then fall back to gcloud auth.
+            base_url: The base URL for the Jules API. If not provided, will
+                      check JULES_BASE_URL environment variable, then fall back
+                      to the default production URL.
         """
         self.api_key = api_key or os.environ.get('JULES_API_KEY')
+        self.base_url = base_url or os.environ.get('JULES_BASE_URL', "https://jules.googleapis.com/v1alpha")
         self.access_token = None
 
     def _get_access_token(self) -> str:
@@ -86,7 +89,7 @@ class JulesClient:
         Returns:
             Session object with id, state, etc.
         """
-        url = f"{self.BASE_URL}/sessions"
+        url = f"{self.base_url}/sessions"
         data = {
             'prompt': prompt,
             'sourceContext': {
@@ -118,7 +121,7 @@ class JulesClient:
         Returns:
             Session object
         """
-        url = f"{self.BASE_URL}/sessions/{session_id}"
+        url = f"{self.base_url}/sessions/{session_id}"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
@@ -130,7 +133,7 @@ class JulesClient:
         Returns:
             List of session objects
         """
-        url = f"{self.BASE_URL}/sessions"
+        url = f"{self.base_url}/sessions"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
@@ -146,7 +149,7 @@ class JulesClient:
         Returns:
             Updated session object
         """
-        url = f"{self.BASE_URL}/sessions/{session_id}:sendMessage"
+        url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {'message': message}
         response = requests.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()
@@ -162,7 +165,7 @@ class JulesClient:
         Returns:
             Updated session object
         """
-        url = f"{self.BASE_URL}/sessions/{session_id}:approvePlan"
+        url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = requests.post(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
@@ -177,80 +180,76 @@ class JulesClient:
         Returns:
             List of activity objects
         """
-        url = f"{self.BASE_URL}/sessions/{session_id}/activities"
+        url = f"{self.base_url}/sessions/{session_id}/activities"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
 
 
-def main():
+def main(argv: Optional[List[str]] = None) -> None:
     """CLI interface for Jules API."""
-    if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python jules_client.py create <prompt> <owner> <repo> [branch]")
-        print("  python jules_client.py get <session_id>")
-        print("  python jules_client.py list")
-        print("  python jules_client.py message <session_id> <message>")
-        print("  python jules_client.py approve <session_id>")
-        print("  python jules_client.py activities <session_id>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Jules API Client Helper")
+    subparsers = parser.add_subparsers(dest='command', required=True)
 
+    # Create command
+    create_parser = subparsers.add_parser('create', help='Create a new Jules session')
+    create_parser.add_argument('prompt', help='The task description')
+    create_parser.add_argument('owner', help='GitHub repository owner')
+    create_parser.add_argument('repo', help='GitHub repository name')
+    create_parser.add_argument('--branch', default='main', help='Starting branch name')
+    create_parser.add_argument('--title', help='Optional session title')
+    create_parser.add_argument('--require-plan-approval', action='store_true', help='Require manual plan approval')
+    create_parser.add_argument('--automation-mode', default='AUTO_CREATE_PR', help='Automation mode (AUTO_CREATE_PR or MANUAL)')
+
+    # Get command
+    get_parser = subparsers.add_parser('get', help='Get details of a specific session')
+    get_parser.add_argument('session_id', help='The session ID')
+
+    # List command
+    subparsers.add_parser('list', help='List all sessions')
+
+    # Message command
+    message_parser = subparsers.add_parser('message', help='Send a message to an active session')
+    message_parser.add_argument('session_id', help='The session ID')
+    message_parser.add_argument('message', nargs='+', help='Message content')
+
+    # Approve command
+    approve_parser = subparsers.add_parser('approve-plan', help='Approve a plan for a session')
+    approve_parser.add_argument('session_id', help='The session ID')
+
+    # Activities command
+    activities_parser = subparsers.add_parser('activities', help='Get activities for a session')
+    activities_parser.add_argument('session_id', help='The session ID')
+
+    args = parser.parse_args(argv)
     client = JulesClient()
-    command = sys.argv[1]
 
     try:
-        if command == 'create':
-            if len(sys.argv) < 5:
-                print("Usage: python jules_client.py create <prompt> <owner> <repo> [branch]")
-                sys.exit(1)
-            prompt = sys.argv[2]
-            owner = sys.argv[3]
-            repo = sys.argv[4]
-            branch = sys.argv[5] if len(sys.argv) > 5 else 'main'
-
-            result = client.create_session(prompt, owner, repo, branch)
-            print(json.dumps(result, indent=2))
-
-        elif command == 'get':
-            if len(sys.argv) < 3:
-                print("Usage: python jules_client.py get <session_id>")
-                sys.exit(1)
-            session_id = sys.argv[2]
-            result = client.get_session(session_id)
-            print(json.dumps(result, indent=2))
-
-        elif command == 'list':
+        if args.command == 'create':
+            result = client.create_session(
+                prompt=args.prompt,
+                owner=args.owner,
+                repo=args.repo,
+                branch=args.branch,
+                title=args.title,
+                require_plan_approval=args.require_plan_approval,
+                automation_mode=args.automation_mode
+            )
+        elif args.command == 'get':
+            result = client.get_session(args.session_id)
+        elif args.command == 'list':
             result = client.list_sessions()
-            print(json.dumps(result, indent=2))
-
-        elif command == 'message':
-            if len(sys.argv) < 4:
-                print("Usage: python jules_client.py message <session_id> <message>")
-                sys.exit(1)
-            session_id = sys.argv[2]
-            message = ' '.join(sys.argv[3:])
-            result = client.send_message(session_id, message)
-            print(json.dumps(result, indent=2))
-
-        elif command == 'approve':
-            if len(sys.argv) < 3:
-                print("Usage: python jules_client.py approve <session_id>")
-                sys.exit(1)
-            session_id = sys.argv[2]
-            result = client.approve_plan(session_id)
-            print(json.dumps(result, indent=2))
-
-        elif command == 'activities':
-            if len(sys.argv) < 3:
-                print("Usage: python jules_client.py activities <session_id>")
-                sys.exit(1)
-            session_id = sys.argv[2]
-            result = client.get_activities(session_id)
-            print(json.dumps(result, indent=2))
-
+        elif args.command == 'message':
+            result = client.send_message(args.session_id, ' '.join(args.message))
+        elif args.command == 'approve-plan':
+            result = client.approve_plan(args.session_id)
+        elif args.command == 'activities':
+            result = client.get_activities(args.session_id)
         else:
-            print(f"Unknown command: {command}")
+            parser.print_help()
             sys.exit(1)
+
+        print(json.dumps(result, indent=2))
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
