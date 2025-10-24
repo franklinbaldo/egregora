@@ -487,7 +487,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "repomix" },
     { name = "rich" },
-    { name = "tenacity" },
 ]
 
 [package.optional-dependencies]
@@ -528,7 +527,6 @@ requires-dist = [
     { name = "repomix", specifier = ">=0.3.4" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.4" },
-    { name = "tenacity", specifier = ">=9.0.0" },
 ]
 provides-extras = ["docs", "lint"]
 

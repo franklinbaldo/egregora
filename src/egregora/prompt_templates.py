@@ -6,12 +6,12 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-# Templates directory
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+# Prompts directory
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Jinja2 environment with auto-escaping disabled (we're generating prompts, not HTML)
 env = Environment(
-    loader=FileSystemLoader(TEMPLATES_DIR),
+    loader=FileSystemLoader(PROMPTS_DIR),
     autoescape=select_autoescape(enabled_extensions=()),  # Disable autoescaping
     trim_blocks=True,
     lstrip_blocks=True,

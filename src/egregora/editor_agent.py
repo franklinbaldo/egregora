@@ -310,8 +310,10 @@ async def run_editor_session(
                 client.aio.models.generate_content,
                 model=model,
                 contents=conversation_history,
-                tools=tools,
-                config=genai_types.GenerateContentConfig(temperature=0.5),
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.5,
+                    tools=tools,
+                ),
             )
 
             # Add assistant response to history
