@@ -6,6 +6,7 @@ from pathlib import Path
 
 import duckdb
 import ibis
+import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -263,7 +264,17 @@ class RankingStore:
 
         # Convert to Ibis Table, handling empty results
         if not result:
-            return ibis.memtable([])
+            return ibis.memtable(
+                [],
+                schema=ibis.schema(
+                    {
+                        "profile_id": dt.string,
+                        "timestamp": dt.Timestamp(timezone=None),
+                        "comment": dt.string,
+                        "stars": dt.int64,
+                    }
+                ),
+            )
 
         # Convert to list of dicts for Ibis
         rows = [

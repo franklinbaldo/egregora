@@ -49,14 +49,8 @@ def ensure_message_schema(
 
     # Handle empty DataFrame
     if df.count().execute() == 0:
-        # Create empty table with correct schema
-        conn = ibis.get_backend(df)
-        return conn.create_table(
-            "_temp_empty",
-            schema=ibis.schema(target_schema),
-            temp=True,
-            overwrite=True,
-        )
+        # Create empty table with correct schema without relying on backend internals
+        return ibis.memtable([], schema=ibis.schema(target_schema))
 
     # Start with the input table
     result = df
