@@ -536,7 +536,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     ]
 
     enrichment_df = ibis.memtable(normalized_rows, schema=schema)
-    combined = df.union(enrichment_df)
+    combined = df.union(enrichment_df, distinct=False)
     combined = combined.order_by("timestamp")
 
     return combined
