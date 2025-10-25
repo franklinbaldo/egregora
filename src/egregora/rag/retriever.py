@@ -133,18 +133,12 @@ async def query_similar_posts(
 
     # Deduplicate: keep only best chunk per post
     if deduplicate:
+        window = ibis.window(group_by="post_slug", order_by=ibis.desc("similarity"))
         results = (
             results.order_by(ibis.desc("similarity"))
-            .group_by("post_slug")
-            .aggregate(
-                post_title=ibis._.post_title.first(),
-                post_date=ibis._.post_date.first(),
-                content=ibis._.content.first(),
-                tags=ibis._.tags.first(),
-                authors=ibis._.authors.first(),
-                category=ibis._.category.first(),
-                similarity=ibis._.similarity.first(),
-            )
+            .mutate(_rank=ibis.row_number().over(window))
+            .filter(lambda t: t._rank < 2)
+            .drop("_rank")
             .order_by(ibis.desc("similarity"))
             .limit(top_k)
         )
