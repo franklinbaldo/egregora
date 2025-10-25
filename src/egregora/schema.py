@@ -55,9 +55,9 @@ def ensure_message_schema(
     # Start with the input table
     result = df
 
-    # Cast columns to target types (except timestamp which needs special handling)
+    # Cast columns to target types (except timestamp/date which need special handling)
     for name, dtype in target_schema.items():
-        if name == "timestamp":
+        if name in {"timestamp", "date"}:
             continue  # Handle separately below
 
         if name in result.columns:
