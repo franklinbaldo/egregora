@@ -82,7 +82,19 @@ def get_active_authors(df: Any) -> list[str]:
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    authors = df.author.distinct().execute().tolist()
+    result = df.author.distinct().execute()
+
+    if hasattr(result, "columns"):
+        # pandas DataFrame result
+        if "author" in result.columns:
+            authors = result["author"].tolist()
+        else:
+            authors = result.iloc[:, 0].tolist()
+    elif hasattr(result, "tolist"):
+        authors = result.tolist()
+    else:
+        authors = list(result)
+
     # Filter out system and enrichment entries
     return [author for author in authors if author not in ("system", "egregora", None, "")]
 
