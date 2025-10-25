@@ -1,5 +1,9 @@
 Generate a complete markdown enrichment file for this media shared in a group conversation.
 
+This enrichment will be indexed for future retrieval, so be thorough and specific in your analysis.
+If the media is a meme, provide detailed context about what situations it would be useful for - this helps
+the writer agent find relevant memes when creating blog posts.
+
 ## Media File
 **Type:** {{ media_type }}
 **Filename:** {{ media_filename }}
@@ -123,6 +127,27 @@ Generate a complete markdown document following this structure:
 
 ## Relevance
 [Why this matters. What ideas or concepts does it convey?]
+
+---
+
+## Meme Classification
+**Is this a meme?** [Yes/No]
+
+{% if media_type == "image" or media_type == "video" %}
+If yes, provide:
+- **Meme Type:** [e.g., reaction image, advice animal, exploitable, copypasta, etc.]
+- **Template/Format:** [If it's based on a known meme template, name it]
+- **Good For:** [List 3-5 contexts, situations, or topics where this meme would be relevant/useful. Be specific about the emotions, ideas, or situations it expresses. This helps others find this meme when writing about similar topics.]
+
+Examples of "Good For":
+- Illustrating procrastination or delayed tasks
+- Expressing excitement about new technology
+- Showing confusion about complex topics
+- Representing productivity struggles
+- Conveying skepticism about claims
+
+If no, explain what type of media it is instead (photo, infographic, screenshot, chart, etc.)
+{% endif %}
 ```
 
 Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.

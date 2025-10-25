@@ -15,6 +15,7 @@ from .model_config import ModelConfig, load_site_config
 from .models import WhatsAppExport
 from .parser import extract_commands, filter_egregora_messages, parse_export
 from .profiler import filter_opted_out_authors, process_commands
+from .rag import VectorStore, index_all_media
 from .types import GroupSlug
 from .writer import write_posts_for_period
 
@@ -266,6 +267,18 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             )
 
             results[period_key] = result
+
+        # Index all media enrichments into RAG (if enrichment was enabled)
+        if enable_enrichment and results:
+            logger.info("Indexing media enrichments into RAG...")
+            try:
+                rag_dir = output_dir / "rag"
+                store = VectorStore(rag_dir / "chunks.parquet")
+                media_chunks = await index_all_media(output_dir, client, store)
+                if media_chunks > 0:
+                    logger.info(f"✓ Indexed {media_chunks} media chunks into RAG")
+            except Exception as e:
+                logger.error(f"Failed to index media into RAG: {e}")
 
         return results
     finally:
