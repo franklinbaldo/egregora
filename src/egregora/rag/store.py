@@ -94,7 +94,7 @@ class VectorStore:
         if self.parquet_path.exists():
             # Read existing and append
             existing_df = ibis.read_parquet(self.parquet_path)
-            combined_df = existing_df.union(chunks_df)
+            combined_df = existing_df.union(chunks_df, distinct=False)
             existing_count = existing_df.count().execute()
             new_count = chunks_df.count().execute()
             logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
