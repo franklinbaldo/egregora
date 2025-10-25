@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
+from ibis import udf
 from ibis.expr.types import Table
 
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
@@ -21,6 +22,20 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "original_line": dt.String(),
     "tagged_line": dt.String(),
 }
+
+
+@udf.scalar.builtin(
+    name="timezone",
+    signature=((dt.string, dt.Timestamp(timezone=None)), dt.Timestamp(timezone="UTC")),
+)
+def _builtin_timezone(_: str, __: dt.Timestamp) -> dt.Timestamp:  # pragma: no cover - builtin
+    """Bind to backend ``timezone`` scalar function.
+
+    The function body is never executed; at runtime Ibis forwards calls to the
+    backend implementation. DuckDB mirrors Polars' ``replace_time_zone``
+    semantics when a naive timestamp is paired with the export's timezone.
+    """
+    ...
 
 
 def ensure_message_schema(
@@ -83,12 +98,36 @@ def _normalise_timestamp(
 ) -> Table:
     """Normalize timestamp column to desired timezone."""
 
-    # Get current timestamp column
-    ts_col = table["timestamp"]
+    # Determine the current dtype metadata
+    schema = table.schema()
+    current_dtype = schema.get("timestamp")
+    if current_dtype is None:
+        raise ValueError("DataFrame is missing required 'timestamp' column")
 
-    # Cast to timestamp with desired timezone
-    # Ibis handles timezone conversion automatically
-    normalized_ts = ts_col.cast(dt.Timestamp(timezone=desired_timezone, scale=9))
+    desired_dtype = dt.Timestamp(timezone=desired_timezone, scale=9)
+
+    ts_col = table["timestamp"]
+    current_timezone: str | None
+
+    if isinstance(current_dtype, dt.Timestamp):
+        current_timezone = current_dtype.timezone
+        if current_dtype.scale != desired_dtype.scale:
+            ts_col = ts_col.cast(
+                dt.Timestamp(timezone=current_timezone, scale=desired_dtype.scale)
+            )
+    else:
+        ts_col = ts_col.cast(dt.Timestamp(scale=desired_dtype.scale))
+        current_timezone = None
+
+    if desired_timezone is None:
+        normalized_ts = ts_col
+    elif current_timezone is None:
+        localized = _builtin_timezone(desired_timezone, ts_col.cast(dt.Timestamp()))
+        normalized_ts = localized.cast(desired_dtype)
+    elif current_timezone == desired_timezone:
+        normalized_ts = ts_col
+    else:
+        normalized_ts = ts_col.cast(desired_dtype)
 
     return table.mutate(timestamp=normalized_ts)
 
