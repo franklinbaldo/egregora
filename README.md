@@ -1,402 +1,217 @@
-# 🧠 Egregora v2
+Egregora 🤖 → 📝
 
-> **Ultra-simple LLM-powered pipeline: WhatsApp → Blog Posts**
+Emergent Group Reflection Engine Generating Organized Relevant Articles
 
-Give the LLM your WhatsApp messages. It decides what's worth writing, creates posts with full metadata, and saves them. That's it.
+Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
 
----
+https://img.shields.io/badge/python-3.11+-blue.svg
+https://img.shields.io/badge/License-MIT-yellow.svg
+https://img.shields.io/badge/uv-powered-FF6C37.svg
 
-## 🚀 Quick Start
+✨ Why Egregora?
 
-### 1. Install
+Egregora lives up to its name as an Emergent Group Reflection Engine:
+
+· 🧠 Emergent Intelligence - Collective conversations synthesize into coherent articles
+· 👥 Group Reflection - Your community's unique voice and insights are preserved
+· ⚙️ Engine - AI-powered pipeline that works automatically
+· 📊 Organized - Smart clustering into relevant topics and threads
+· 🎯 Relevant - Filters noise, focuses on substantive discussions
+· 📝 Articles - Professional-quality blog posts ready to publish
+
+🛡️ Privacy by Design
+
+· Automatic anonymization - Real names never reach the AI
+· User-controlled data - /egregora opt-out to exclude your messages
+· Deterministic UUIDs - Same person gets same pseudonym every time
+
+🚀 Quick Start
+
+1. Install uvx
 
 ```bash
-pip install egregora
+# On macOS/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows (PowerShell):
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip (if you have Python):
+pip install uv
 ```
 
-### 2. Initialize Site
+2. Create and serve your blog (zero installation required!)
 
 ```bash
-egregora init my-blog
+# Initialize your blog site
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
-pip install 'mkdocs-material[imaging]'
+
+# Provide your Gemini API key (required)
+export GOOGLE_API_KEY="your-google-gemini-api-key"
+#   • On Windows (PowerShell): $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+#   • Alternatively, pass --gemini-key "your-google-gemini-api-key" to the command below
+
+# Process your WhatsApp export
+uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
+  whatsapp-export.zip --output=. --timezone='America/New_York'
+
+# Serve your blog (no pip install needed!)
+uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
-### 3. Process WhatsApp Export
+Open http://localhost:8000 to see your AI-generated blog!
+
+🎪 Advanced Features
+
+Rank Your Posts
 
 ```bash
-egregora process \
-  --zip_file=whatsapp-export.zip \
-  --output=. \
-  --timezone='America/Sao_Paulo' \
-  --from_date=2025-01-01 \
-  --to_date=2025-01-31 \
-  --gemini_key=YOUR_KEY
+# Run ELO comparisons to find your best content
+uvx --from git+https://github.com/franklinbaldo/egregora egregora rank --site-dir=. --comparisons=50
 ```
 
-### 4. Preview
+AI-Powered Editing
 
 ```bash
-mkdocs serve
+# Let the AI improve an existing post
+uvx --from git+https://github.com/franklinbaldo/egregora egregora edit posts/2025-01-15-ai-safety.md
 ```
 
-**Done.** Check `posts/` for your blog posts.
+User Privacy Controls
 
-## ⚡ What It Does
-
-### The Pipeline
+In your WhatsApp group, users can control their data:
 
 ```
-WhatsApp ZIP → Parse → Anonymize → Group by Period → Enrich → LLM → Posts
-                          ↓                             ↓       ↓
-                    Privacy-first              Add context  Editorial control
+/egregora set alias "Casey"      # Set display name
+/egregora set bio "AI researcher" # Add profile bio
+/egregora opt-out                # Exclude from future posts
+/egregora opt-in                 # Include in future posts
 ```
 
-### LLM Has Full Control
+⚙️ Configuration
 
-The LLM is your editor. It decides:
-- ✅ **What's worth writing** (ignores noise automatically)
-- ✅ **How many posts** (0-N per period)
-- ✅ **All metadata** (title, slug, tags, summary, authors)
-- ✅ **Content quality** (editorial judgment)
+Customize your blog via mkdocs.yml:
 
-### Example
-
-**Input:** 100 WhatsApp messages from Jan 1, 2025
-
-**LLM decides:** "2 posts worth creating"
-
-**Output:**
-```
-output/posts/
-├── 2025-01-01-ai-ethics-discussion.md
-└── 2025-01-01-weekend-meetup.md
-```
-
-Each with full front matter:
 ```yaml
+site_name: Our AI Safety Discussions
+site_url: https://our-group.blog
+
+extra:
+  egregora:
+    group_slug: ai-safety-group
+    timezone: America/New_York
+    custom_instructions: |
+      Focus on technical depth and concrete examples.
+      Adopt Scott Alexander's writing style.
+```
+
+🏗️ How the "Reflection Engine" Works
+
+```
+Group Conversations
+    → Parse & Anonymize
+    → AI Editorial Judgment ← Emergent Intelligence
+    → Multi-post Generation ← Organized & Relevant
+    → Beautiful Static Site ← Professional Articles
+```
+
+The Magic of Emergence
+
+Instead of rigid rules, Egregora trusts the AI to:
+
+· Detect emergent themes from raw conversations
+· Reflect group dynamics and collective thinking
+· Engineer coherent narratives from fragmented discussions
+· Generate organized content with proper structure
+· Surface relevant insights while filtering noise
+· Produce article-quality writing automatically
+
+📚 Example Output
+
+From messy group chat:
+
+```
+User1: did u see that AI paper?
+User2: yeah the mesa-optimizer part got me thinking
+User1: https://example.com/paper
+User3: reminds me of our convo last week about inner alignment
+```
+
+To organized, relevant article:
+
+```markdown
 ---
-title: AI Ethics Discussion
-slug: ai-ethics-discussion
-date: 2025-01-01
-tags: [AI, ethics, coordination]
-summary: Group discusses open AI risks and coordination failures
-authors: [a1b2c3d4, e5f6g7h8]
+title: "Why Mesa-Optimizers Keep Me Up at Night"
+slug: mesa-optimizers-concern
+date: 2025-01-15
+tags: [AI safety, optimization, alignment]
 ---
 
-# Content here...
+I've been thinking about mesa-optimizers again after reading the latest paper on...
+
+## The Inner Alignment Problem Revisited
+
+This connects back to our previous discussion about...
 ```
 
-## 📚 Documentation
+📊 Cost Estimation
 
-**New to Egregora?**
-- 📖 [Full Documentation](docs/README.md) - Complete guide
-- 🚀 [5-Minute Quickstart](docs/getting-started/quickstart.md) - Your first blog
-- 💡 [Core Concepts](docs/getting-started/concepts.md) - How it works
+Processing uses Google Gemini API. Approximate costs:
 
-**Key Features:**
-- 🔒 [Privacy & Anonymization](docs/features/anonymization.md) - UUID5-based privacy
-- ⚙️ [User Commands](docs/features/privacy-commands.md) - Control your data
-- ⭐ [Post Ranking](docs/features/ranking.md) - ELO-based quality system
-- 🧠 [RAG Enrichment](docs/features/rag.md) - Context-aware posts
-- ✏️ [AI Editor](docs/features/editor.md) - Autonomous post improvement
+Group Activity Messages/Day Cost/Day Cost/Month
+Small group 10-50 $0.01-0.05 $0.30-1.50
+Active group 100-500 $0.10-0.50 $3-15
+Very active 1000+ $1-5 $30-150
 
-**Reference:**
-- 💻 [CLI Reference](docs/reference/cli.md) - All commands
-- 🔧 [API Reference](docs/reference/api.md) - Python API
-- 🎯 [Configuration](docs/guides/configuration.md) - Customize everything
-- 🐛 [Troubleshooting](docs/guides/troubleshooting.md) - Common issues
+Cost-saving tips: Use --from-date and --to-date to process small ranges, disable enrichment with --enable-enrichment=False.
 
-**For Developers:**
-- 🏗️ [Architecture](docs/guides/architecture.md) - System design
-- 🤝 [Contributing](docs/contributing/development.md) - Development guide
+🛠️ Development
 
-## 🔒 Privacy-First
-
-- **Automatic anonymization**: All names → UUID5 pseudonyms BEFORE LLM
-- **Deterministic**: Same person → same pseudonym (e.g., "João" → `a1b2c3d4`)
-- **WhatsApp mentions**: Auto-detected and anonymized
-- **Privacy validation**: Scans output for phone numbers
-- **Early application**: Real names NEVER reach the LLM
-- **User control**: In-chat commands for aliases and opt-out
-- **PII detection in media**: LLM automatically scans images, videos, and audio for personally identifiable information (faces, IDs, license plates, addresses, etc.) and removes media containing PII while keeping redacted descriptions
-
-See [Privacy Documentation](docs/features/anonymization.md) for details.
-
-### User Control Commands
-
-Users can control their data directly from WhatsApp:
-
-```
-/egregora set alias "Franklin"         - Set display name
-/egregora set bio "I love Python"      - Set bio
-/egregora set twitter "@franklindev"   - Add social link
-/egregora set website "https://..."    - Add website
-/egregora remove alias                 - Remove alias
-/egregora opt-out                      - Exclude from future posts
-/egregora opt-in                       - Rejoin (after opt-out)
-```
-
-**Important**: Commands affect **new posts only**. Existing published posts are not modified.
-
-### Removing Your Data from Existing Posts
-
-**Opt-out semantics**: The `/egregora opt-out` command only affects **NEW posts** generated after the command. It does not modify or delete existing published posts.
-
-To remove your content from existing published posts:
-
-1. **Delete published posts containing your content**:
-   ```bash
-   rm posts/2025-01-15-*.md  # Delete specific posts
-   ```
-
-2. **Regenerate affected periods**:
-   ```bash
-   egregora process \
-     --zip_file=export.zip \
-     --from_date=2025-01-15 \
-     --to_date=2025-01-15 \
-     --output=my-blog \
-     --gemini_key=YOUR_KEY
-   ```
-   The regenerated posts will respect your opt-out status.
-
-3. **Or contact the blog administrator** to manually edit/remove your content from posts.
-
-**Why this design?**: Egregora is a pipeline tool for content generation, not a content management system. Opt-out controls future processing. Historical content management (editing, deletion) is handled at the file/site level.
-
-## 📖 Usage
-
-### Initialize New Site
+For Contributors
 
 ```bash
-egregora init my-blog
+git clone https://github.com/franklinbaldo/egregora.git
+cd egregora
+
+# Install with development dependencies
+uv sync
+
+# Run tests
+uv run pytest tests/
+uv run ruff check src/
 ```
 
-Creates a complete MkDocs site structure with:
-- `mkdocs.yml` - Single config source for MkDocs + Egregora
-- `docs/` - Documentation pages
-- `posts/` - Blog posts directory
-- `profiles/` - Author profiles
-- `media/` - Images, videos, audio
+Architecture Highlights
 
-### Process WhatsApp Export
+· Privacy-first: Anonymization happens before AI sees any data
+· DataFrames all the way: Built on Polars for performance
+· Functional pipeline: Simple, composable functions over complex agents
+· DuckDB storage: Fast vector operations for RAG and rankings
 
-#### Basic (All Messages)
+🤝 Community & Support
 
-```bash
-egregora process \
-  --zip_file=export.zip \
-  --output=./my-blog \
-  --timezone='America/Sao_Paulo' \
-  --gemini_key=YOUR_KEY
-```
+· Documentation: docs/ - Comprehensive guides and API reference
+· Issues: GitHub Issues - Bug reports and feature requests
+· Discussions: GitHub Discussions - Questions and community support
 
-⚠️ **Warning**: Processing all messages can be expensive. Use date filters for cost control.
+📄 License
 
-#### Date-Filtered (Recommended)
+MIT License - see LICENSE file for details.
 
-```bash
-egregora process \
-  --zip_file=export.zip \
-  --output=./my-blog \
-  --from_date=2025-01-01 \
-  --to_date=2025-01-31 \
-  --timezone='America/Sao_Paulo' \
-  --gemini_key=YOUR_KEY
-```
+🙏 Acknowledgments
 
-#### Weekly Posts
+Egregora follows the philosophy of "trusting the LLM" - instead of micromanaging with complex heuristics, we give the AI the data and let it make editorial decisions. This results in simpler code and often better outcomes.
 
-```bash
-egregora process \
-  --zip_file=export.zip \
-  --output=./my-blog \
-  --period=week \
-  --timezone='Europe/London' \
-  --gemini_key=YOUR_KEY
-```
-
-#### Disable Enrichment
-
-```bash
-egregora process \
-  --zip_file=export.zip \
-  --output=./my-blog \
-  --enable_enrichment=False \
-  --gemini_key=YOUR_KEY
-```
-
-#### Debug Mode
-
-```bash
-egregora process \
-  --zip_file=export.zip \
-  --output=./my-blog \
-  --debug \
-  --gemini_key=YOUR_KEY
-```
-
-### Important Flags
-
-- `--timezone` - **Critical**: WhatsApp exports use your phone's local timezone. Without this, messages may be grouped into wrong dates. Find your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  - Examples: `America/Sao_Paulo`, `America/New_York`, `Europe/London`
-- `--from_date` / `--to_date` - Filter messages by date (YYYY-MM-DD) for cost control
-- `--period` - Group by `day` (default), `week`, or `month`
-- `--enable_enrichment` - Add URL/media context (default: `True`)
-
-## 🧩 Architecture
-
-### Ultra-Simple Design
-
-```
-src/egregora/
-├── parser.py          # ZIP → DataFrame
-├── anonymizer.py      # Privacy (UUID5)
-├── enricher.py        # Media/URL → LLM → Context rows
-├── write_post.py      # Save posts with front matter (CMS tool)
-├── writer.py          # LLM with write_post tool
-├── pipeline.py        # Orchestrate: parse → enrich → write
-├── cli.py             # CLI interface
-├── privacy.py         # Privacy validation
-└── rag/               # Optional RAG (future)
-```
-
-**That's it.** ~500 lines of actual code.
-
-### What We Deleted
-
-Compared to "v2 agent-based" we deleted **80%** of the code:
-
-- ❌ CuratorAgent (LLM filters automatically)
-- ❌ EnricherAgent (simple function now)
-- ❌ WriterAgent (simple function now)
-- ❌ ProfilerAgent (unnecessary)
-- ❌ Message/Topic/Post classes (work with DataFrames)
-- ❌ Tool registry (over-engineered)
-- ❌ Agent base classes (complexity)
-
-### Key Insights
-
-1. **LLM decides quality** - Don't filter with dumb heuristics
-2. **LLM clusters topics** - Don't overthink with agents
-3. **DataFrames all the way** - No object conversions
-4. **Enrichment = DataFrame rows** - Add context as data
-5. **write_post tool** - LLM as CMS user
-
-## 🛠️ How It Works
-
-### 1. Parse & Anonymize
-
-```python
-df = parse_export(zip_file)  # WhatsApp → DataFrame
-df = anonymize_dataframe(df)  # Privacy-first
-```
-
-### 2. Group by Period
-
-```python
-# Daily, weekly, or monthly
-periods = group_by_period(df, period="day")
-# {"2025-01-01": DataFrame, "2025-01-02": DataFrame, ...}
-```
-
-### 3. Enrich (Optional)
-
-```python
-# Add URL/media context as new DataFrame rows
-enriched = await enrich_dataframe(df, client)
-
-# Original:
-# | 10:00 | a1b2c3d4 | Check this https://example.com |
-
-# Enriched:
-# | 10:00    | a1b2c3d4 | Check this https://example.com |
-# | 10:00:01 | egregora | [URL Context] Article about AI ethics... |
-```
-
-### 4. LLM Writes (with write_post tool)
-
-```python
-prompt = f"""
-You're a blog editor reviewing messages from {date}.
-
-Messages:
-{dataframe_as_markdown}
-
-Decide:
-- Is this worth writing about?
-- How many posts (0-N)?
-- What metadata for each?
-
-Use write_post tool to save posts.
-"""
-
-# LLM calls write_post 0-N times
-await llm.generate(prompt, tools=[write_post])
-```
-
-### 5. Output
-
-```
-output/
-├── posts/
-│   ├── 2025-01-01-ai-ethics.md
-│   └── 2025-01-01-meetup.md
-└── enriched/
-    └── 2025-01-01-enriched.csv  (for debugging)
-```
-
-## 💡 Philosophy
-
-### Before: Micromanage the LLM
-
-```python
-# We decide what's good
-filtered = [m for m in messages if len(m) > 15]
-
-# We cluster
-topics = cluster_agent.execute(filtered)
-
-# We enrich
-enriched = enricher_agent.execute(topics)
-
-# Finally LLM writes
-post = writer_agent.execute(enriched)
-```
-
-**Problem:** We're treating the LLM like a dumb template engine.
-
-### After: Trust the LLM
-
-```python
-# Just give it the data
-markdown = dataframe.write_markdown()
-
-# LLM does everything
-posts = llm.generate(f"Write posts from:\n{markdown}", tools=[write_post])
-```
-
-**Key:** The LLM is smarter than our heuristics. Let it decide.
-
-## 📚 More Information
-
-For complete documentation, see [docs/README.md](docs/README.md).
-
-**Quick Links:**
-- [Installation Guide](docs/getting-started/installation.md)
-- [Full Quickstart](docs/getting-started/quickstart.md)
-- [Architecture Overview](docs/guides/architecture.md)
-- [All Features](docs/features/)
-
-## 🤝 Contributing
-
-This is the ultra-simple refactor. Keep it simple. If you're adding complexity, you're doing it wrong.
-
-## 📄 License
-
-MIT
+Built with the amazing uv Python package manager.
 
 ---
 
-**Egregora v2** - Stop overthinking. Let the LLM do its job.
+Ready to see emergence in action?
+
+```bash
+# Install uv then run everything with zero installation
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
+```
+
+Egregora: From the Greek concept of a collective group mind or emergent consciousness.
