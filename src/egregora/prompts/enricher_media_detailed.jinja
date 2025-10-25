@@ -14,6 +14,60 @@ The media file has been uploaded for your analysis.
 **Author:** {{ sender_uuid }}
 **Date:** {{ date }} {{ time }}
 
+## Privacy Check
+
+⚠️ **CRITICAL: Check for Personally Identifiable Information (PII)**
+
+Before describing this media, scan carefully for any PII that could compromise privacy:
+
+**Visual PII (Images/Videos):**
+- Identifiable faces of real people
+- License plates on vehicles
+- Government-issued IDs (passports, driver's licenses, ID cards, health cards)
+- Credit cards, debit cards, or financial documents
+- Street addresses or house numbers visible in images
+- Handwritten signatures
+- Medical documents, prescriptions, or health records
+- Phone numbers in screenshots or visible text
+- Personal documents (contracts, legal papers, mail with addresses)
+- Screen captures showing personal information (emails, messages, etc.)
+- Name tags, badges, or identification visible on people
+
+**Audio PII (Voice recordings):**
+- Full names being spoken
+- Phone numbers mentioned
+- Street addresses mentioned
+- Social security numbers or government IDs spoken
+- Financial account numbers
+- Email addresses spoken out loud
+
+**If you find ANY PII:**
+
+1. **Start your response with the exact code word:** `PII_DETECTED` (on its own line at the very beginning)
+2. **Still provide a detailed description** BUT redact/omit the PII details
+3. **DO NOT describe identifying features** (e.g., say "a person" instead of describing facial features)
+4. **DO NOT include readable text containing PII** (e.g., say "a document" instead of transcribing ID numbers)
+5. **DO NOT mention specific names, addresses, or phone numbers** visible in the media
+6. Add a note in the Description section: `[This media contained personal information which has been redacted for privacy protection]`
+
+**Example with PII detected:**
+```
+PII_DETECTED
+
+# Enrichment: [Filename]
+...
+## Description
+This image shows a person holding an identification document in an indoor setting. The photo appears to be taken with natural lighting coming from a window. The person is standing in what looks like a home environment.
+
+[This media contained personal information which has been redacted for privacy protection]
+...
+```
+
+**If NO PII is detected:**
+- Proceed with normal detailed analysis
+- Do NOT include the `PII_DETECTED` code word
+- Describe everything normally
+
 ## Output Format
 
 Generate a complete markdown document following this structure:
