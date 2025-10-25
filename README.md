@@ -57,7 +57,7 @@ uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
   whatsapp-export.zip --output=. --timezone='America/New_York'
 
 # Serve your blog (no pip install needed!)
-uvx --with mkdocs-material --with mkdocs-blog-plugin mkdocs serve
+uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
 Open http://localhost:8000 to see your AI-generated blog!
