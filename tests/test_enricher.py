@@ -1,13 +1,67 @@
 """Tests for enricher module, focusing on PII detection."""
 
+import sys
 import tempfile
+import types
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+# Provide minimal google genai stubs so egregora package can import without optional deps.
+if "google" not in sys.modules:
+    google_module = types.ModuleType("google")
+    genai_module = types.ModuleType("google.genai")
+    genai_types_module = types.ModuleType("google.genai.types")
+
+    class DummyClient:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            self.aio = types.SimpleNamespace(
+                models=types.SimpleNamespace(generate_content=None),
+                files=types.SimpleNamespace(upload=None),
+            )
+
+    class DummyPart:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    class DummyContent:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    class DummyGenerateContentConfig:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    class DummyFileData:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    class DummyEmbedContentConfig:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    class DummyTool:  # pragma: no cover - simple stub
+        def __init__(self, *_, **__):
+            pass
+
+    genai_module.Client = DummyClient
+    genai_module.types = genai_types_module
+    genai_types_module.Part = DummyPart
+    genai_types_module.Content = DummyContent
+    genai_types_module.GenerateContentConfig = DummyGenerateContentConfig
+    genai_types_module.FileData = DummyFileData
+    genai_types_module.EmbedContentConfig = DummyEmbedContentConfig
+    genai_types_module.Tool = DummyTool
+
+    sys.modules["google"] = google_module
+    sys.modules["google.genai"] = genai_module
+    sys.modules["google.genai.types"] = genai_types_module
+    google_module.genai = genai_module
+
 from egregora.config_types import EnrichmentConfig
-from egregora.enricher import enrich_media, replace_media_mentions
+from egregora.enricher import enrich_dataframe, enrich_media, pl, replace_media_mentions
 
 
 @pytest.mark.asyncio
@@ -187,3 +241,53 @@ def test_replace_media_mentions_existing_file():
         assert "![Image]" in result
         assert "media/images/abc123.jpg" in result
         assert "IMG-123.jpg (file attached)" not in result
+
+
+@pytest.mark.asyncio
+async def test_enrich_dataframe_refreshes_deleted_media_mentions():
+    """When media is deleted for PII, messages should show privacy notice."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+
+        media_dir = output_dir / "media" / "images"
+        media_dir.mkdir(parents=True)
+        media_file = media_dir / "abc123.jpg"
+        media_file.write_bytes(b"test image")
+
+        media_mapping = {"IMG-123.jpg": media_file}
+
+        original_text = "See this IMG-123.jpg (file attached)"
+        replaced_text = replace_media_mentions(original_text, media_mapping, output_dir)
+
+        df = pl.DataFrame(
+            {
+                "timestamp": [datetime(2024, 1, 1, 12, 0, 0)],
+                "date": [date(2024, 1, 1)],
+                "author": ["alice"],
+                "message": [replaced_text],
+                "original_line": [""],
+                "tagged_line": [""],
+            }
+        )
+
+        async def mock_enrich_media(**kwargs):  # type: ignore[override]
+            if media_file.exists():
+                media_file.unlink()
+            return str(output_dir / "media" / "enrichments" / "dummy.md")
+
+        with patch("egregora.enricher.enrich_media", side_effect=mock_enrich_media):
+            result_df = await enrich_dataframe(
+                df=df,
+                media_mapping=media_mapping,
+                client=MagicMock(),
+                output_dir=output_dir,
+                enable_url=False,
+                enable_media=True,
+                max_enrichments=5,
+            )
+
+        original_rows = result_df.filter(pl.col("author") != "egregora")
+        assert original_rows.height == 1
+        message = original_rows["message"][0]
+        assert "[Media removed: privacy protection]" in message
+        assert "![Image]" not in message
