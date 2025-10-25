@@ -251,7 +251,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
     # Concatenate all frames using union
     combined = frames[0]
     for frame in frames[1:]:
-        combined = combined.union(frame)
+        combined = combined.union(frame, distinct=False)
 
     return ensure_message_schema(combined.order_by("timestamp"))
 
