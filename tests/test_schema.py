@@ -1,70 +1,85 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
-import polars as pl
-import pytest
-from polars.testing import assert_frame_equal
+import ibis
+import ibis.expr.datatypes as dt
 
-from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
+import importlib.util
+from pathlib import Path
 
-# A much simpler schema for testing, focusing only on the timestamp and text
-# columns that matter for the schema normalisation logic.
-SIMPLE_SCHEMA = {
-    "timestamp": pl.Datetime(time_unit="ns", time_zone="UTC"),
-    "author": pl.String,
-    "message": pl.String,
-}
-
-# An empty frame with the desired final schema.
-EMPTY_FRAME = pl.DataFrame(schema=SIMPLE_SCHEMA)
-
+spec = importlib.util.spec_from_file_location(
+    "egregora.schema", Path(__file__).resolve().parents[1] / "src" / "egregora" / "schema.py"
+)
+_schema = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(_schema)
+ensure_message_schema = _schema.ensure_message_schema
 
 def test_ensure_message_schema_with_datetime_objects():
-    """
-    Test that ensure_message_schema correctly handles a DataFrame
-    where the timestamp column is of type object, containing Python
-    datetime objects.
-    """
-    # Create a DataFrame with Python datetime objects
-    data = {
-        "timestamp": [datetime(2025, 1, 1, 12, 0, 0)],
-        "author": ["test"],
-        "message": ["hello"],
-    }
-    df = pl.DataFrame(data)
+    table = ibis.memtable(
+        [
+            {"timestamp": datetime(2025, 1, 1, 12, 0, 0), "author": "test", "message": "hello"}
+        ]
+    )
 
-    # Apply the schema function
-    result = ensure_message_schema(df)
+    result = ensure_message_schema(table)
 
-    # Check the timestamp column's dtype
-    assert isinstance(result["timestamp"].dtype, pl.Datetime)
-    assert result["timestamp"].dtype.time_zone == "UTC"
+    assert result.schema()["timestamp"] == dt.Timestamp(timezone="UTC", scale=9)
+    executed = result.execute()
+    assert str(executed["timestamp"].dt.tz) == "UTC"
 
 
 def test_ensure_message_schema_with_tz_aware_datetime():
-    """
-    Test that ensure_message_schema correctly handles a DataFrame
-    with a timezone-aware timestamp column, converting it to UTC
-    and nanosecond precision.
-    """
-    # Create a DataFrame with a timezone-aware timestamp column
-    data = {
-        "timestamp": [datetime(2025, 1, 1, 12, 0, 0)],
-        "author": ["test"],
-        "message": ["hello"],
-    }
-    df = pl.DataFrame(data).with_columns(
-        pl.col("timestamp").dt.replace_time_zone("Europe/Amsterdam")
+    aware = datetime(2025, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("Europe/Amsterdam"))
+    table = ibis.memtable(
+        [{"timestamp": aware, "author": "test", "message": "hello"}]
     )
 
-    # Cast to microseconds to test the time unit conversion
-    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime(time_unit="us", time_zone="Europe/Amsterdam")))
+    result = ensure_message_schema(table)
 
-    # Apply the schema function
-    result = ensure_message_schema(df)
+    assert result.schema()["timestamp"] == dt.Timestamp(timezone="UTC", scale=9)
+    executed = result.execute()
+    assert str(executed["timestamp"].dt.tz) == "UTC"
+    assert executed["timestamp"][0] == aware.astimezone(timezone.utc)
 
-    # Check the timestamp column's dtype and value
-    assert result["timestamp"].dtype == pl.Datetime(time_unit="ns", time_zone="UTC")
-    # 11:00 UTC is 12:00 in Amsterdam in January
-    assert result["timestamp"][0] == datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+
+def test_ibis_normalises_naive_timestamp_with_timezone():
+    table = ibis.memtable(
+        [
+            {
+                "timestamp": datetime(2024, 5, 1, 8, 30),
+                "author": "alice",
+                "message": "hi",
+                "original_line": "hi",
+                "tagged_line": "hi",
+            }
+        ]
+    )
+
+    normalised = ensure_message_schema(table, timezone="America/Sao_Paulo")
+    df = normalised.execute()
+
+    assert str(df["timestamp"].dt.tz) == "America/Sao_Paulo"
+    assert df["timestamp"].dt.hour.iloc[0] == 8
+
+
+def test_ibis_converts_existing_timezone_to_requested():
+    table = ibis.memtable(
+        [
+            {
+                "timestamp": datetime(2024, 5, 1, 12, 0, tzinfo=timezone.utc),
+                "author": "bob",
+                "message": "hello",
+                "original_line": "hello",
+                "tagged_line": "hello",
+            }
+        ]
+    )
+
+    normalised = ensure_message_schema(table, timezone="America/Sao_Paulo")
+    df = normalised.execute()
+
+    assert str(df["timestamp"].dt.tz) == "America/Sao_Paulo"
+    # UTC noon should map to 09:00 in Sao Paulo (-03:00) during May
+    assert df["timestamp"].dt.hour.iloc[0] == 9

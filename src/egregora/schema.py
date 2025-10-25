@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
+from ibis import udf
 from ibis.expr.types import Table
 
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
@@ -86,9 +88,14 @@ def _normalise_timestamp(
     # Get current timestamp column
     ts_col = table["timestamp"]
 
-    # Cast to timestamp with desired timezone
-    # Ibis handles timezone conversion automatically
-    normalized_ts = ts_col.cast(dt.Timestamp(timezone=desired_timezone, scale=9))
+    target_dtype = dt.Timestamp(timezone=desired_timezone, scale=9)
+
+    current_dtype = ts_col.type()
+    if isinstance(current_dtype, dt.Timestamp) and current_dtype.timezone is not None:
+        normalized_ts = ts_col.cast(target_dtype)
+    else:
+        tz_literal = ibis.literal(desired_timezone)
+        normalized_ts = _localize_to_utc(ts_col, tz_literal).cast(target_dtype)
 
     return table.mutate(timestamp=normalized_ts)
 
@@ -102,3 +109,21 @@ def _ensure_date_column(table: Table) -> Table:
 
     # Derive date from timestamp
     return table.mutate(date=table["timestamp"].date())
+
+
+@udf.scalar.python
+def _localize_to_utc(
+    ts: datetime | None, tz_name: str
+) -> dt.Timestamp(timezone="UTC"):
+    """Attach ``tz_name`` to ``ts`` and convert the instant to UTC."""
+
+    if ts is None:
+        return None
+
+    tzinfo = ZoneInfo(tz_name)
+    if ts.tzinfo is None:
+        localized = ts.replace(tzinfo=tzinfo)
+    else:
+        localized = ts.astimezone(tzinfo)
+
+    return localized.astimezone(ZoneInfo("UTC"))
