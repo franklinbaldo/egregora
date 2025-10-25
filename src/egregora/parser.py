@@ -1,4 +1,4 @@
-"""WhatsApp chat parser that converts ZIP exports to Polars DataFrames.
+"""WhatsApp chat parser that converts ZIP exports to Ibis Tables.
 
 This module handles parsing of WhatsApp export files into structured data.
 It automatically anonymizes all author names before returning data.
@@ -19,18 +19,22 @@ import zipfile
 from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
 
-import polars as pl
+import ibis
 from dateutil import parser as date_parser
+from ibis.expr.types import Table
 
 from .anonymizer import anonymize_dataframe
 from .models import WhatsAppExport
-from .schema import ensure_message_schema
+from .schema import MESSAGE_SCHEMA, ensure_message_schema
 from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
 SET_COMMAND_PARTS = 2
 
 logger = logging.getLogger(__name__)
+
+# Initialize DuckDB backend for Ibis
+ibis.set_backend("duckdb")
 
 
 # Pattern for egregora commands: /egregora <command> <args>
@@ -111,15 +115,15 @@ def parse_egregora_command(message: str) -> dict | None:
     return None
 
 
-def extract_commands(df: pl.DataFrame) -> list[dict]:
+def extract_commands(df: Table) -> list[dict]:
     """
-    Extract egregora commands from parsed DataFrame.
+    Extract egregora commands from parsed Table.
 
     Commands are messages starting with /egregora that set user preferences
     like aliases, bios, links, etc.
 
     Args:
-        df: Parsed DataFrame with columns: timestamp, author, message
+        df: Parsed Table with columns: timestamp, author, message
 
     Returns:
         List of command dicts:
@@ -129,12 +133,15 @@ def extract_commands(df: pl.DataFrame) -> list[dict]:
             'command': {...}
         }]
     """
-    if df.is_empty():
+    if df.count().execute() == 0:
         return []
 
     commands = []
 
-    for row in df.iter_rows(named=True):
+    # Convert to pandas for iteration (most efficient for small result sets)
+    rows = df.execute().to_dict("records")
+
+    for row in rows:
         message = row.get("message", "")
         if not message:
             continue
@@ -151,9 +158,9 @@ def extract_commands(df: pl.DataFrame) -> list[dict]:
     return commands
 
 
-def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
+def filter_egregora_messages(df: Table) -> tuple[Table, int]:
     """
-    Remove all messages starting with /egregora from DataFrame.
+    Remove all messages starting with /egregora from Table.
 
     This serves dual purposes:
     1. Remove command spam from content (clean posts)
@@ -166,20 +173,20 @@ def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
     - /egregora set alias "Name" (command)
 
     Args:
-        df: Polars DataFrame with 'message' column
+        df: Ibis Table with 'message' column
 
     Returns:
         (filtered_df, num_removed)
     """
-    if df.is_empty():
+    if df.count().execute() == 0:
         return df, 0
 
-    original_count = len(df)
+    original_count = df.count().execute()
 
     # Filter out messages starting with /egregora (case-insensitive)
-    filtered_df = df.filter(~pl.col("message").str.to_lowercase().str.starts_with("/egregora"))
+    filtered_df = df.filter(~df.message.lower().startswith("/egregora"))
 
-    removed_count = original_count - len(filtered_df)
+    removed_count = original_count - filtered_df.count().execute()
 
     if removed_count > 0:
         logger.info(f"Removed {removed_count} /egregora messages from DataFrame")
@@ -187,16 +194,16 @@ def filter_egregora_messages(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
     return filtered_df, removed_count
 
 
-def parse_export(export: WhatsAppExport, timezone=None) -> pl.DataFrame:
+def parse_export(export: WhatsAppExport, timezone=None) -> Table:
     """
-    Parse an individual export into a Polars ``DataFrame``.
+    Parse an individual export into an Ibis ``Table``.
 
     Args:
         export: WhatsApp export metadata
         timezone: ZoneInfo timezone object (phone's timezone)
 
     Returns:
-        Parsed and anonymized DataFrame with correct timezone
+        Parsed and anonymized Table with correct timezone
     """
 
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -214,18 +221,19 @@ def parse_export(export: WhatsAppExport, timezone=None) -> pl.DataFrame:
 
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
-        return pl.DataFrame()
+        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ensure_message_schema(empty_table, timezone=timezone)
 
-    df = pl.DataFrame(rows).sort("timestamp")
+    df = ibis.memtable(rows).order_by("timestamp")
     df = ensure_message_schema(df, timezone=timezone)
     df = anonymize_dataframe(df)
     return df
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
+def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp."""
 
-    frames: list[pl.DataFrame] = []
+    frames: list[Table] = []
 
     for export in exports:
         try:
@@ -233,13 +241,19 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> pl.DataFrame:
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
-        if not df.is_empty():
+        if df.count().execute() > 0:
             frames.append(df)
 
     if not frames:
-        return ensure_message_schema(pl.DataFrame())
+        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ensure_message_schema(empty_table)
 
-    return ensure_message_schema(pl.concat(frames).sort("timestamp"))
+    # Concatenate all frames using union
+    combined = frames[0]
+    for frame in frames[1:]:
+        combined = combined.union(frame, distinct=False)
+
+    return ensure_message_schema(combined.order_by("timestamp"))
 
 
 # Pattern captures optional date, mandatory time, separator (dash/en dash),

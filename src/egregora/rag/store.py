@@ -4,9 +4,43 @@ import logging
 from pathlib import Path
 
 import duckdb
-import polars as pl
+import ibis
+import ibis.expr.datatypes as dt
+from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+
+VECTOR_STORE_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "embedding": dt.Array(dt.float64),
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+    }
+)
+
+
+SEARCH_RESULT_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+        "similarity": dt.float64,
+    }
+)
 
 
 class VectorStore:
@@ -27,6 +61,8 @@ class VectorStore:
         self.parquet_path = parquet_path
         self.conn = duckdb.connect(":memory:")
         self._init_vss()
+        self._backend = ibis.duckdb.connect()
+        ibis.set_backend(self._backend)
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -38,14 +74,14 @@ class VectorStore:
             logger.error(f"Failed to load VSS extension: {e}")
             raise
 
-    def add(self, chunks_df: pl.DataFrame):
+    def add(self, chunks_df: Table):
         """
         Add chunks to the vector store.
 
         Appends to existing Parquet file or creates new one.
 
         Args:
-            chunks_df: DataFrame with columns:
+            chunks_df: Ibis Table with columns:
                 - chunk_id: str
                 - document_type: str ("post" or "media")
                 - document_id: str (post_slug or media_uuid)
@@ -72,16 +108,19 @@ class VectorStore:
         """
         if self.parquet_path.exists():
             # Read existing and append
-            existing_df = pl.read_parquet(self.parquet_path)
-            combined_df = pl.concat([existing_df, chunks_df])
-            logger.info(f"Appending {len(chunks_df)} chunks to existing {len(existing_df)} chunks")
+            existing_df = ibis.read_parquet(self.parquet_path)
+            combined_df = existing_df.union(chunks_df, distinct=False)
+            existing_count = existing_df.count().execute()
+            new_count = chunks_df.count().execute()
+            logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
         else:
             combined_df = chunks_df
-            logger.info(f"Creating new vector store with {len(chunks_df)} chunks")
+            chunk_count = chunks_df.count().execute()
+            logger.info(f"Creating new vector store with {chunk_count} chunks")
 
         # Write to Parquet
         self.parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        combined_df.write_parquet(self.parquet_path)
+        combined_df.execute().to_parquet(self.parquet_path)
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
@@ -94,7 +133,7 @@ class VectorStore:
         date_after: str | None = None,
         document_type: str | None = None,
         media_types: list[str] | None = None,
-    ) -> pl.DataFrame:
+    ) -> Table:
         """
         Search for similar chunks using cosine similarity.
 
@@ -108,11 +147,11 @@ class VectorStore:
             media_types: Filter by media type (e.g., ["image", "video"])
 
         Returns:
-            DataFrame with all stored columns plus similarity score
+            Ibis Table with all stored columns plus similarity score
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
-            return pl.DataFrame()
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
         # Build SQL query - select all columns plus similarity
         query = f"""
@@ -150,26 +189,27 @@ class VectorStore:
         try:
             # Execute query
             result = self.conn.execute(query, params).arrow()
-            df = pl.from_arrow(result)
+            df = ibis.memtable(result.to_pydict())
 
-            logger.info(f"Found {len(df)} similar chunks (min_similarity={min_similarity})")
+            row_count = df.count().execute()
+            logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
 
             return df
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
-            return pl.DataFrame()
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
-    def get_all(self) -> pl.DataFrame:
+    def get_all(self) -> Table:
         """
         Read entire vector store.
 
         Useful for analytics, exports, client-side usage.
         """
         if not self.parquet_path.exists():
-            return pl.DataFrame()
+            return ibis.memtable([], schema=VECTOR_STORE_SCHEMA)
 
-        return pl.read_parquet(self.parquet_path)
+        return ibis.read_parquet(self.parquet_path)
 
     def stats(self) -> dict:
         """Get vector store statistics."""
@@ -182,54 +222,73 @@ class VectorStore:
             }
 
         df = self.get_all()
+        total_chunks = df.count().execute()
+
+        if total_chunks == 0:
+            return {
+                "total_chunks": 0,
+                "total_posts": 0,
+                "date_range": (None, None),
+                "total_tags": 0,
+            }
 
         # Check if document_type column exists (for backward compatibility)
-        has_doc_type = "document_type" in df.columns
+        df_executed = df.execute()
+        has_doc_type = "document_type" in df_executed.columns
 
         stats = {
-            "total_chunks": len(df),
+            "total_chunks": total_chunks,
         }
 
         if has_doc_type:
             # New schema with document types
-            post_df = df.filter(pl.col("document_type") == "post")
-            media_df = df.filter(pl.col("document_type") == "media")
+            post_df = df.filter(df.document_type == "post")
+            media_df = df.filter(df.document_type == "media")
 
-            stats["total_posts"] = post_df["post_slug"].n_unique() if len(post_df) > 0 else 0
-            stats["total_media"] = media_df["media_uuid"].n_unique() if len(media_df) > 0 else 0
+            post_count = post_df.count().execute()
+            media_count = media_df.count().execute()
+
+            stats["total_posts"] = post_df.post_slug.nunique().execute() if post_count > 0 else 0
+            stats["total_media"] = (
+                media_df.media_uuid.nunique().execute() if media_count > 0 else 0
+            )
 
             # Media breakdown by type
-            if len(media_df) > 0:
-                media_types = media_df.group_by("media_type").agg(
-                    pl.col("media_uuid").n_unique().alias("count")
+            if media_count > 0:
+                media_types_agg = (
+                    media_df.group_by("media_type")
+                    .aggregate(count=lambda t: t.media_uuid.nunique())
+                    .execute()
                 )
                 stats["media_by_type"] = {
                     row["media_type"]: row["count"]
-                    for row in media_types.iter_rows(named=True)
+                    for _, row in media_types_agg.iterrows()
                     if row["media_type"]
                 }
+            else:
+                stats["media_by_type"] = {}
 
             # Date ranges
-            if len(post_df) > 0:
+            if post_count > 0:
                 stats["post_date_range"] = (
-                    post_df["post_date"].min(),
-                    post_df["post_date"].max(),
+                    post_df.post_date.min().execute(),
+                    post_df.post_date.max().execute(),
                 )
-            if len(media_df) > 0:
+            if media_count > 0:
                 stats["media_date_range"] = (
-                    media_df["message_date"].min(),
-                    media_df["message_date"].max(),
+                    media_df.message_date.min().execute(),
+                    media_df.message_date.max().execute(),
                 )
 
         else:
             # Old schema - all posts
-            stats["total_posts"] = df["post_slug"].n_unique() if len(df) > 0 else 0
+            stats["total_posts"] = df.post_slug.nunique().execute()
             stats["total_media"] = 0
             stats["media_by_type"] = {}
-            if len(df) > 0:
-                stats["post_date_range"] = (
-                    df["post_date"].min(),
-                    df["post_date"].max(),
-                )
+            stats["date_range"] = (
+                df.post_date.min().execute(),
+                df.post_date.max().execute(),
+            )
+            stats["total_tags"] = df.tags.unnest().nunique().execute()
 
         return stats

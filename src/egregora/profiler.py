@@ -5,7 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-import polars as pl
+import ibis
+from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,27 @@ def write_profile(
 
 def get_active_authors(df: Any) -> list[str]:
     """
-    Get list of unique authors from a DataFrame.
+    Get list of unique authors from a Table.
 
     Args:
-        df: Polars DataFrame with 'author' column
+        df: Ibis Table with 'author' column
 
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    authors = df.select("author").unique().to_series().to_list()
+    result = df.author.distinct().execute()
+
+    if hasattr(result, "columns"):
+        # pandas DataFrame result
+        if "author" in result.columns:
+            authors = result["author"].tolist()
+        else:
+            authors = result.iloc[:, 0].tolist()
+    elif hasattr(result, "tolist"):
+        authors = result.tolist()
+    else:
+        authors = list(result)
+
     # Filter out system and enrichment entries
     return [author for author in authors if author not in ("system", "egregora", None, "")]
 
@@ -398,13 +411,13 @@ def filter_opted_out_authors(
     enrichment, or any processing.
 
     Args:
-        df: Polars DataFrame with 'author' column
+        df: Ibis Table with 'author' column
         profiles_dir: Where profiles are stored
 
     Returns:
         (filtered_df, num_removed_messages)
     """
-    if df.is_empty():
+    if df.count().execute() == 0:
         return df, 0
 
     # Get opted-out authors
@@ -416,17 +429,17 @@ def filter_opted_out_authors(
     logger.info(f"Found {len(opted_out)} opted-out authors")
 
     # Count messages before filtering
-    original_count = len(df)
+    original_count = df.count().execute()
 
     # Filter out opted-out authors
-    filtered_df = df.filter(~pl.col("author").is_in(list(opted_out)))
+    filtered_df = df.filter(~df.author.isin(list(opted_out)))
 
-    removed_count = original_count - len(filtered_df)
+    removed_count = original_count - filtered_df.count().execute()
 
     if removed_count > 0:
         logger.warning(f"⚠️  Removed {removed_count} messages from {len(opted_out)} opted-out users")
         for author in opted_out:
-            author_msg_count = df.filter(pl.col("author") == author).height
+            author_msg_count = df.filter(df.author == author).count().execute()
             if author_msg_count > 0:
                 logger.warning(f"   - {author}: {author_msg_count} messages removed")
 
