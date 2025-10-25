@@ -109,6 +109,7 @@ class VectorStore:
         if self.parquet_path.exists():
             # Read existing and append
             existing_df = ibis.read_parquet(self.parquet_path)
+            existing_df, chunks_df = self._align_schemas(existing_df, chunks_df)
             combined_df = existing_df.union(chunks_df, distinct=False)
             existing_count = existing_df.count().execute()
             new_count = chunks_df.count().execute()
@@ -123,6 +124,69 @@ class VectorStore:
         combined_df.execute().to_parquet(self.parquet_path)
 
         logger.info(f"Vector store saved to {self.parquet_path}")
+
+    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+        """Ensure both tables share the same schema before unioning."""
+
+        existing_columns = set(existing_df.columns)
+        new_columns = set(new_df.columns)
+
+        # Backfill new document metadata columns for older stores (posts-only)
+        if "document_type" not in existing_columns:
+            logger.info("Backfilling document_type column on existing vector store")
+            existing_df = existing_df.mutate(document_type=ibis.literal("post"))
+            existing_columns.add("document_type")
+
+        if "document_id" not in existing_columns:
+            logger.info("Backfilling document_id column on existing vector store")
+            document_id_expr = existing_df.post_slug if "post_slug" in existing_columns else existing_df.chunk_id
+            existing_df = existing_df.mutate(document_id=document_id_expr)
+            existing_columns.add("document_id")
+
+        # Add nullable media metadata columns when missing
+        for column_name in (
+            "media_uuid",
+            "media_type",
+            "media_path",
+            "original_filename",
+            "message_date",
+            "author_uuid",
+        ):
+            if column_name not in existing_columns and column_name in new_df.schema():
+                dtype = new_df.schema()[column_name]
+                existing_df = existing_df.mutate(
+                    **{column_name: ibis.null().cast(dtype)}
+                )
+                existing_columns.add(column_name)
+
+        # Ensure new rows still have legacy columns (e.g., authors)
+        legacy_defaults = {}
+        for column_name in existing_columns - new_columns:
+            dtype = existing_df.schema()[column_name]
+            legacy_defaults[column_name] = ibis.null().cast(dtype)
+
+        if legacy_defaults:
+            new_df = new_df.mutate(**legacy_defaults)
+            new_columns.update(legacy_defaults)
+
+        # Add any new columns that only exist on the new rows to the legacy data
+        forward_defaults = {}
+        for column_name in new_columns - existing_columns:
+            dtype = new_df.schema()[column_name]
+            forward_defaults[column_name] = ibis.null().cast(dtype)
+
+        if forward_defaults:
+            existing_df = existing_df.mutate(**forward_defaults)
+            existing_columns.update(forward_defaults)
+
+        # Align column order for deterministic unions
+        ordered_columns = list(
+            dict.fromkeys(list(existing_df.columns) + list(new_df.columns))
+        )
+        existing_df = existing_df.select(ordered_columns)
+        new_df = new_df.select(ordered_columns)
+
+        return existing_df, new_df
 
     def search(  # noqa: PLR0913
         self,
