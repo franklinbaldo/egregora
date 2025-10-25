@@ -298,9 +298,7 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-async def _query_rag_for_context(
-    df: Table, client: genai.Client, rag_dir: Path
-) -> str:
+async def _query_rag_for_context(df: Table, client: genai.Client, rag_dir: Path) -> str:
     """Query RAG system for similar previous posts."""
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
@@ -548,9 +546,7 @@ async def _process_tool_calls(  # noqa: PLR0913
     return has_tool_calls, tool_responses
 
 
-async def _index_posts_in_rag(
-    saved_posts: list[str], client: genai.Client, rag_dir: Path
-) -> None:
+async def _index_posts_in_rag(saved_posts: list[str], client: genai.Client, rag_dir: Path) -> None:
     """Index newly created posts in RAG system."""
     if not saved_posts:
         return

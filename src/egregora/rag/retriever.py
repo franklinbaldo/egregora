@@ -15,6 +15,8 @@ from .store import VectorStore
 
 logger = logging.getLogger(__name__)
 
+DEDUP_MAX_RANK = 2
+
 
 async def index_post(
     post_path: Path,
@@ -146,7 +148,7 @@ async def query_similar_posts(
         results = (
             results.order_by(ibis.desc("similarity"))
             .mutate(_rank=ibis.row_number().over(window))
-            .filter(lambda t: t._rank < 2)
+            .filter(lambda t: t._rank < DEDUP_MAX_RANK)
             .drop("_rank")
             .order_by(ibis.desc("similarity"))
             .limit(top_k)
@@ -387,7 +389,7 @@ async def query_media(  # noqa: PLR0913
         results = (
             results.order_by(ibis.desc("similarity"))
             .mutate(_rank=ibis.row_number().over(window))
-            .filter(lambda t: t._rank < 2)
+            .filter(lambda t: t._rank < DEDUP_MAX_RANK)
             .drop("_rank")
             .order_by(ibis.desc("similarity"))
             .limit(top_k)

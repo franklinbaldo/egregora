@@ -21,6 +21,8 @@ from .writer import write_posts_for_period
 
 logger = logging.getLogger(__name__)
 
+SINGLE_DIGIT_THRESHOLD = 10
+
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
@@ -73,15 +75,13 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
         week_str = (
             ibis.case()
             .when(
-                week_num < 10,
+                week_num < SINGLE_DIGIT_THRESHOLD,
                 ibis.concat([ibis.literal("0"), week_num.cast("string")]),
             )
             .else_(week_num.cast("string"))
             .end()
         )
-        df = df.mutate(
-            period=ibis.concat([year_str, ibis.literal("-W"), week_str])
-        )
+        df = df.mutate(period=ibis.concat([year_str, ibis.literal("-W"), week_str]))
     elif period == "month":
         # Format: YYYY-MM
         year_str = df.timestamp.year().cast("string")
@@ -90,15 +90,13 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
         month_str = (
             ibis.case()
             .when(
-                month_num < 10,
+                month_num < SINGLE_DIGIT_THRESHOLD,
                 ibis.concat([ibis.literal("0"), month_num.cast("string")]),
             )
             .else_(month_num.cast("string"))
             .end()
         )
-        df = df.mutate(
-            period=ibis.concat([year_str, ibis.literal("-"), month_str])
-        )
+        df = df.mutate(period=ibis.concat([year_str, ibis.literal("-"), month_str]))
     else:
         raise ValueError(f"Unknown period: {period}")
 
@@ -187,8 +185,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             if from_date and to_date:
                 df = df.filter(
-                    (df.timestamp.date() >= from_date)
-                    & (df.timestamp.date() <= to_date)
+                    (df.timestamp.date() >= from_date) & (df.timestamp.date() <= to_date)
                 )
                 logger.info(f"📅 Filtering messages from {from_date} to {to_date}")
             elif from_date:

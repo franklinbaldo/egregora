@@ -139,7 +139,9 @@ class VectorStore:
 
         if "document_id" not in existing_columns:
             logger.info("Backfilling document_id column on existing vector store")
-            document_id_expr = existing_df.post_slug if "post_slug" in existing_columns else existing_df.chunk_id
+            document_id_expr = (
+                existing_df.post_slug if "post_slug" in existing_columns else existing_df.chunk_id
+            )
             existing_df = existing_df.mutate(document_id=document_id_expr)
             existing_columns.add("document_id")
 
@@ -154,9 +156,7 @@ class VectorStore:
         ):
             if column_name not in existing_columns and column_name in new_df.schema():
                 dtype = new_df.schema()[column_name]
-                existing_df = existing_df.mutate(
-                    **{column_name: ibis.null().cast(dtype)}
-                )
+                existing_df = existing_df.mutate(**{column_name: ibis.null().cast(dtype)})
                 existing_columns.add(column_name)
 
         # Ensure new rows still have legacy columns (e.g., authors)
@@ -180,9 +180,7 @@ class VectorStore:
             existing_columns.update(forward_defaults)
 
         # Align column order for deterministic unions
-        ordered_columns = list(
-            dict.fromkeys(list(existing_df.columns) + list(new_df.columns))
-        )
+        ordered_columns = list(dict.fromkeys(list(existing_df.columns) + list(new_df.columns)))
         existing_df = existing_df.select(ordered_columns)
         new_df = new_df.select(ordered_columns)
 
@@ -313,9 +311,7 @@ class VectorStore:
             media_count = media_df.count().execute()
 
             stats["total_posts"] = post_df.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = (
-                media_df.media_uuid.nunique().execute() if media_count > 0 else 0
-            )
+            stats["total_media"] = media_df.media_uuid.nunique().execute() if media_count > 0 else 0
 
             # Media breakdown by type
             if media_count > 0:

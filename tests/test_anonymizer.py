@@ -1,4 +1,3 @@
-
 import polars as pl
 from polars.testing import assert_frame_equal
 
@@ -30,10 +29,11 @@ def test_anonymize_dataframe():
 
     assert_frame_equal(anonymized_df, expected_df)
 
+
 def test_anonymize_dataframe_with_mentions():
     data = {
         "author": ["John Doe"],
-        "message": [f"Hello \u2068Jane Smith\u2069! How are you?"],
+        "message": ["Hello \u2068Jane Smith\u2069! How are you?"],
     }
     df = pl.DataFrame(data)
 
