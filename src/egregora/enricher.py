@@ -528,8 +528,14 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     if not new_rows:
         return df
 
-    # Create enrichment table and union with original
-    enrichment_df = ibis.memtable(new_rows)
+    # Create enrichment table with matching schema and union with original
+    schema = df.schema()
+    normalized_rows = [
+        {column: row.get(column) for column in schema.names}
+        for row in new_rows
+    ]
+
+    enrichment_df = ibis.memtable(normalized_rows, schema=schema)
     combined = df.union(enrichment_df)
     combined = combined.order_by("timestamp")
 
