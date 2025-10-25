@@ -46,12 +46,15 @@ def anonymize_dataframe(df: Table) -> Table:
 
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
-    unique_authors = (
-        df.author.distinct()
-        .execute()
-        .dropna()
-        .tolist()
-    )
+    unique_authors_df = df.author.distinct().execute()
+
+    # ibis executes to a pandas DataFrame; convert to Series before calling tolist()
+    if "author" in unique_authors_df.columns:
+        author_series = unique_authors_df["author"]
+    else:
+        author_series = unique_authors_df.iloc[:, 0]
+
+    unique_authors = author_series.dropna().tolist()
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
 
     # Build a CASE expression for author replacement

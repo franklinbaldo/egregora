@@ -5,9 +5,42 @@ from pathlib import Path
 
 import duckdb
 import ibis
+import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+
+VECTOR_STORE_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "embedding": dt.Array(dt.float64),
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+    }
+)
+
+
+SEARCH_RESULT_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+        "similarity": dt.float64,
+    }
+)
 
 
 class VectorStore:
@@ -100,7 +133,7 @@ class VectorStore:
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
-            return ibis.memtable([])
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
         # Build SQL query
         query = f"""
@@ -147,7 +180,7 @@ class VectorStore:
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
-            return ibis.memtable([])
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
     def get_all(self) -> Table:
         """
@@ -156,7 +189,7 @@ class VectorStore:
         Useful for analytics, exports, client-side usage.
         """
         if not self.parquet_path.exists():
-            return ibis.memtable([])
+            return ibis.memtable([], schema=VECTOR_STORE_SCHEMA)
 
         return ibis.read_parquet(self.parquet_path)
 
