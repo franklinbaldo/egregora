@@ -61,6 +61,8 @@ class VectorStore:
         self.parquet_path = parquet_path
         self.conn = duckdb.connect(":memory:")
         self._init_vss()
+        self._backend = ibis.duckdb.connect()
+        ibis.set_backend(self._backend)
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""

@@ -68,15 +68,36 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
     elif period == "week":
         # ISO week format: YYYY-Wnn
         year_str = df.timestamp.year().cast("string")
-        week_str = df.timestamp.week_of_year().cast("string")
-        df = df.mutate(period=year_str + "-W" + week_str)
+        week_num = df.timestamp.week_of_year()
+        week_str = (
+            ibis.case()
+            .when(
+                week_num < 10,
+                ibis.concat([ibis.literal("0"), week_num.cast("string")]),
+            )
+            .else_(week_num.cast("string"))
+            .end()
+        )
+        df = df.mutate(
+            period=ibis.concat([year_str, ibis.literal("-W"), week_str])
+        )
     elif period == "month":
         # Format: YYYY-MM
         year_str = df.timestamp.year().cast("string")
         month_num = df.timestamp.month()
         # Zero-pad month: use lpad to ensure 2 digits
-        month_str = ibis.case().when(month_num < 10, "0" + month_num.cast("string")).else_(month_num.cast("string")).end()
-        df = df.mutate(period=year_str + "-" + month_str)
+        month_str = (
+            ibis.case()
+            .when(
+                month_num < 10,
+                ibis.concat([ibis.literal("0"), month_num.cast("string")]),
+            )
+            .else_(month_num.cast("string"))
+            .end()
+        )
+        df = df.mutate(
+            period=ibis.concat([year_str, ibis.literal("-"), month_str])
+        )
     else:
         raise ValueError(f"Unknown period: {period}")
 
