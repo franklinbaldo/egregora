@@ -264,25 +264,13 @@ src/egregora/
 
 **That's it.** ~500 lines of actual code.
 
-### What We Deleted
+### Design Principles
 
-Compared to "v2 agent-based" we deleted **80%** of the code:
-
-- ❌ CuratorAgent (LLM filters automatically)
-- ❌ EnricherAgent (simple function now)
-- ❌ WriterAgent (simple function now)
-- ❌ ProfilerAgent (unnecessary)
-- ❌ Message/Topic/Post classes (work with DataFrames)
-- ❌ Tool registry (over-engineered)
-- ❌ Agent base classes (complexity)
-
-### Key Insights
-
-1. **LLM decides quality** - Don't filter with dumb heuristics
-2. **LLM clusters topics** - Don't overthink with agents
-3. **DataFrames all the way** - No object conversions
-4. **Enrichment = DataFrame rows** - Add context as data
-5. **write_post tool** - LLM as CMS user
+1. **LLM-driven editorial control** - The LLM decides what's worth publishing based on content quality
+2. **DataFrame-based processing** - Work with structured data throughout the pipeline
+3. **Enrichment as data** - Add context (URLs, media descriptions) as additional DataFrame rows
+4. **Tool-based output** - LLM uses the write_post tool to save posts with proper metadata
+5. **Privacy-first** - Anonymization happens before any LLM processing
 
 ## 🛠️ How It Works
 
@@ -349,35 +337,17 @@ output/
 
 ## 💡 Philosophy
 
-### Before: Micromanage the LLM
+Give the LLM the data and trust it to make editorial decisions:
 
 ```python
-# We decide what's good
-filtered = [m for m in messages if len(m) > 15]
-
-# We cluster
-topics = cluster_agent.execute(filtered)
-
-# We enrich
-enriched = enricher_agent.execute(topics)
-
-# Finally LLM writes
-post = writer_agent.execute(enriched)
-```
-
-**Problem:** We're treating the LLM like a dumb template engine.
-
-### After: Trust the LLM
-
-```python
-# Just give it the data
+# Provide structured data
 markdown = dataframe.write_markdown()
 
-# LLM does everything
+# LLM decides what's worth writing
 posts = llm.generate(f"Write posts from:\n{markdown}", tools=[write_post])
 ```
 
-**Key:** The LLM is smarter than our heuristics. Let it decide.
+**Key:** The LLM has editorial judgment. Let it decide what's worth publishing, how to structure it, and what metadata to include.
 
 ## 📚 More Information
 
