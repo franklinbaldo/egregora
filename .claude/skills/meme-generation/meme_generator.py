@@ -69,19 +69,24 @@ class MemeGenerator:
         pass
 
     def _format_text(self, text: str) -> str:
-        """
-        Format text for URL inclusion.
+        """Format text for URL inclusion following memegen rules."""
 
-        Args:
-            text: The text to format
+        replacements = {
+            " ": "_",
+            "-": "--",
+            "_": "__",
+            "?": "~q",
+            "%": "~p",
+            "#": "~h",
+            "/": "~s",
+            '"': "''",
+        }
 
-        Returns:
-            URL-safe formatted text
-        """
-        # Replace spaces with underscores
-        formatted = text.replace(" ", "_")
-        # Could add more formatting here if needed
-        return formatted
+        escaped = "".join(replacements.get(char, char) for char in text)
+
+        # Percent-encode any remaining reserved characters while preserving
+        # memegen's escape sequences and allowed characters.
+        return urllib.parse.quote(escaped, safe="-_~")
 
     def generate(
         self,
