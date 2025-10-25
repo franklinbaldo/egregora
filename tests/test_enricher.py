@@ -60,8 +60,10 @@ if "google" not in sys.modules:
     sys.modules["google.genai.types"] = genai_types_module
     google_module.genai = genai_module
 
+import ibis
+
 from egregora.config_types import EnrichmentConfig
-from egregora.enricher import enrich_dataframe, enrich_media, pl, replace_media_mentions
+from egregora.enricher import enrich_dataframe, enrich_media, replace_media_mentions
 
 
 @pytest.mark.asyncio
@@ -259,7 +261,7 @@ async def test_enrich_dataframe_refreshes_deleted_media_mentions():
         original_text = "See this IMG-123.jpg (file attached)"
         replaced_text = replace_media_mentions(original_text, media_mapping, output_dir)
 
-        df = pl.DataFrame(
+        df = ibis.memtable(
             {
                 "timestamp": [datetime(2024, 1, 1, 12, 0, 0)],
                 "date": [date(2024, 1, 1)],
@@ -286,8 +288,8 @@ async def test_enrich_dataframe_refreshes_deleted_media_mentions():
                 max_enrichments=5,
             )
 
-        original_rows = result_df.filter(pl.col("author") != "egregora")
-        assert original_rows.height == 1
-        message = original_rows["message"][0]
-        assert "[Media removed: privacy protection]" in message
-        assert "![Image]" not in message
+        original_rows = result_df.filter(result_df.author != "egregora")
+        assert original_rows.count().execute() == 1
+        message_value = original_rows.message.execute().iloc[0]
+        assert "[Media removed: privacy protection]" in message_value
+        assert "![Image]" not in message_value

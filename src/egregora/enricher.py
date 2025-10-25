@@ -17,7 +17,6 @@ from datetime import timedelta
 from pathlib import Path
 
 import ibis
-import polars as pl
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
@@ -580,12 +579,12 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                     enrichment_count += 1
 
     if pii_media_deleted:
-        df = df.with_columns(
-            pl.col("message").map_elements(
-                lambda message: replace_media_mentions(message, media_mapping, output_dir),
-                return_dtype=pl.Utf8,
-            )
-        )
+        # Create UDF to replace media mentions after PII deletion
+        @ibis.udf.scalar.python
+        def replace_media_udf(message: str) -> str:
+            return replace_media_mentions(message, media_mapping, output_dir) if message else message
+
+        df = df.mutate(message=replace_media_udf(df.message))
 
     if not new_rows:
         return df

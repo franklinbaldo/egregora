@@ -1,5 +1,6 @@
-import polars as pl
-from polars.testing import assert_frame_equal
+import ibis
+import pandas as pd
+from pandas.testing import assert_frame_equal
 
 from egregora.anonymizer import anonymize_dataframe
 
@@ -13,7 +14,7 @@ def test_anonymize_dataframe():
             "I'm good, thanks!",
         ],
     }
-    df = pl.DataFrame(data)
+    df = ibis.memtable(data)
 
     anonymized_df = anonymize_dataframe(df)
 
@@ -25,9 +26,12 @@ def test_anonymize_dataframe():
             "I'm good, thanks!",
         ],
     }
-    expected_df = pl.DataFrame(expected_data)
+    expected_df = ibis.memtable(expected_data)
 
-    assert_frame_equal(anonymized_df, expected_df)
+    # Convert to pandas for comparison
+    result_pd = anonymized_df.execute().reset_index(drop=True)
+    expected_pd = expected_df.execute().reset_index(drop=True)
+    assert_frame_equal(result_pd, expected_pd)
 
 
 def test_anonymize_dataframe_with_mentions():
@@ -35,7 +39,7 @@ def test_anonymize_dataframe_with_mentions():
         "author": ["John Doe"],
         "message": ["Hello \u2068Jane Smith\u2069! How are you?"],
     }
-    df = pl.DataFrame(data)
+    df = ibis.memtable(data)
 
     anonymized_df = anonymize_dataframe(df)
 
@@ -43,6 +47,9 @@ def test_anonymize_dataframe_with_mentions():
         "author": ["957cf4d6"],
         "message": ["Hello a54556c4! How are you?"],
     }
-    expected_df = pl.DataFrame(expected_data)
+    expected_df = ibis.memtable(expected_data)
 
-    assert_frame_equal(anonymized_df, expected_df)
+    # Convert to pandas for comparison
+    result_pd = anonymized_df.execute().reset_index(drop=True)
+    expected_pd = expected_df.execute().reset_index(drop=True)
+    assert_frame_equal(result_pd, expected_pd)
