@@ -13,10 +13,11 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-import polars as pl
+import ibis
 import yaml
 from google import genai
 from google.genai import types as genai_types
+from ibis.expr.types import Table
 from pydantic import BaseModel
 
 from .genai_utils import call_with_retries
@@ -230,12 +231,12 @@ def load_markdown_extensions(output_dir: Path) -> str:
         return ""
 
 
-def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
+def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     """
     Get top N active authors by message count.
 
     Args:
-        df: DataFrame with 'author' column
+        df: Table with 'author' column
         limit: Max number of authors (default 20)
 
     Returns:
@@ -243,40 +244,41 @@ def get_top_authors(df: pl.DataFrame, limit: int = 20) -> list[str]:
     """
     # Filter out system and enrichment entries
     author_counts = (
-        df.filter(pl.col("author").is_in(["system", "egregora"]).not_())
-        .filter(pl.col("author").is_not_null())
-        .filter(pl.col("author") != "")
+        df.filter(~df.author.isin(["system", "egregora"]))
+        .filter(df.author.notnull())
+        .filter(df.author != "")
         .group_by("author")
-        .count()
-        .sort("count", descending=True)
-        .head(limit)
+        .aggregate(count=ibis._.count())
+        .order_by(ibis.desc("count"))
+        .limit(limit)
     )
 
-    if author_counts.is_empty():
+    if author_counts.count().execute() == 0:
         return []
 
-    return author_counts["author"].to_list()
+    return author_counts.author.execute().tolist()
 
 
 async def _query_rag_for_context(
-    df: pl.DataFrame, client: genai.Client, rag_dir: Path
+    df: Table, client: genai.Client, rag_dir: Path
 ) -> str:
     """Query RAG system for similar previous posts."""
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
 
-        if similar_posts.is_empty():
+        if similar_posts.count().execute() == 0:
             logger.info("No similar previous posts found")
             return ""
 
-        logger.info(f"Found {len(similar_posts)} similar previous posts")
+        post_count = similar_posts.count().execute()
+        logger.info(f"Found {post_count} similar previous posts")
         rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
         rag_context += (
             "You can reference these posts in your writing to maintain conversation continuity.\n\n"
         )
 
-        for row in similar_posts.iter_rows(named=True):
+        for row in similar_posts.execute().to_dict("records"):
             rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
             rag_context += f"{row['content'][:400]}...\n"
             rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
@@ -288,7 +290,7 @@ async def _query_rag_for_context(
         return ""
 
 
-def _load_profiles_context(df: pl.DataFrame, profiles_dir: Path) -> str:
+def _load_profiles_context(df: Table, profiles_dir: Path) -> str:
     """Load profiles for top active authors."""
     top_authors = get_top_authors(df, limit=20)
     if not top_authors:
@@ -451,7 +453,7 @@ async def _index_posts_in_rag(
 
 
 async def write_posts_for_period(  # noqa: PLR0913
-    df: pl.DataFrame,
+    df: Table,
     date: str,
     client: genai.Client,
     output_dir: Path = Path("output/posts"),
@@ -471,7 +473,7 @@ async def write_posts_for_period(  # noqa: PLR0913
     RAG system provides context from previous posts for continuity.
 
     Args:
-        df: DataFrame with messages for the period (already enriched)
+        df: Table with messages for the period (already enriched)
         date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         output_dir: Where to save posts
@@ -484,7 +486,7 @@ async def write_posts_for_period(  # noqa: PLR0913
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
     # Early return for empty input
-    if df.is_empty():
+    if df.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
     # Setup
@@ -493,7 +495,8 @@ async def write_posts_for_period(  # noqa: PLR0913
     model = model_config.get_model("writer")
 
     active_authors = get_active_authors(df)
-    markdown_table = df.write_csv(separator="|")
+    # Convert to CSV with pipe separator (markdown table format)
+    markdown_table = df.execute().to_csv(sep="|", index=False)
 
     # Query RAG and load profiles for context
     rag_context = await _query_rag_for_context(df, client, rag_dir) if enable_rag else ""

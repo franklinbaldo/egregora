@@ -11,7 +11,9 @@ Documentation:
 import re
 import uuid
 
-import polars as pl
+import ibis
+import ibis.expr.datatypes as dt
+from ibis.expr.types import Table
 
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 SYSTEM_AUTHOR = "system"
@@ -39,24 +41,44 @@ def anonymize_mentions(text: str) -> str:
     return MENTION_PATTERN.sub(replace_mention, text)
 
 
-def anonymize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
+def anonymize_dataframe(df: Table) -> Table:
     """Anonymize author column and mentions in message column using vectorial operations."""
 
     # 1. Anonymize Authors
-    # Get unique author names, create a mapping, and then replace in one go.
-    unique_authors = df.select(pl.col("author").unique()).to_series().drop_nulls().to_list()
+    # Get unique author names, create a mapping, and then replace using CASE statements
+    unique_authors_df = df.author.distinct().execute()
+
+    # ibis executes to a pandas DataFrame; convert to Series before calling tolist()
+    if "author" in unique_authors_df.columns:
+        author_series = unique_authors_df["author"]
+    else:
+        author_series = unique_authors_df.iloc[:, 0]
+
+    unique_authors = author_series.dropna().tolist()
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
 
-    anonymized_df = df.with_columns(
-        pl.col("author").replace(author_mapping).fill_null(SYSTEM_AUTHOR)
-    )
+    # Build a CASE expression for author replacement
+    # Start with the author column
+    author_expr = df.author
+
+    # Chain .substitute() calls for each mapping
+    # Ibis has a .substitute() method that's perfect for this
+    anonymized_author = author_expr.substitute(author_mapping, else_=SYSTEM_AUTHOR)
+
+    # Apply the anonymized author column
+    anonymized_df = df.mutate(author=anonymized_author)
 
     # 2. Anonymize Mentions in Messages
     if "message" in anonymized_df.columns:
-        anonymized_df = anonymized_df.with_columns(
-            pl.col("message")
-            .map_elements(anonymize_mentions, return_dtype=pl.Utf8)
-            .alias("message")
+        # Register the anonymize_mentions function as a UDF
+        # Note: For DuckDB backend, we can use Python UDFs
+        @ibis.udf.scalar.python
+        def anonymize_mentions_udf(text: str) -> str:
+            """UDF wrapper for anonymize_mentions."""
+            return anonymize_mentions(text) if text else text
+
+        anonymized_df = anonymized_df.mutate(
+            message=anonymize_mentions_udf(anonymized_df.message)
         )
 
     return anonymized_df

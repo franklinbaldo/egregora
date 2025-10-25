@@ -4,9 +4,43 @@ import logging
 from pathlib import Path
 
 import duckdb
-import polars as pl
+import ibis
+import ibis.expr.datatypes as dt
+from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+
+VECTOR_STORE_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "embedding": dt.Array(dt.float64),
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+    }
+)
+
+
+SEARCH_RESULT_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "tags": dt.Array(dt.string),
+        "authors": dt.Array(dt.string),
+        "category": dt.String(nullable=True),
+        "similarity": dt.float64,
+    }
+)
 
 
 class VectorStore:
@@ -27,6 +61,8 @@ class VectorStore:
         self.parquet_path = parquet_path
         self.conn = duckdb.connect(":memory:")
         self._init_vss()
+        self._backend = ibis.duckdb.connect()
+        ibis.set_backend(self._backend)
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -38,14 +74,14 @@ class VectorStore:
             logger.error(f"Failed to load VSS extension: {e}")
             raise
 
-    def add(self, chunks_df: pl.DataFrame):
+    def add(self, chunks_df: Table):
         """
         Add chunks to the vector store.
 
         Appends to existing Parquet file or creates new one.
 
         Args:
-            chunks_df: DataFrame with columns:
+            chunks_df: Ibis Table with columns:
                 - chunk_id: str
                 - post_slug: str
                 - post_title: str
@@ -59,16 +95,19 @@ class VectorStore:
         """
         if self.parquet_path.exists():
             # Read existing and append
-            existing_df = pl.read_parquet(self.parquet_path)
-            combined_df = pl.concat([existing_df, chunks_df])
-            logger.info(f"Appending {len(chunks_df)} chunks to existing {len(existing_df)} chunks")
+            existing_df = ibis.read_parquet(self.parquet_path)
+            combined_df = existing_df.union(chunks_df, distinct=False)
+            existing_count = existing_df.count().execute()
+            new_count = chunks_df.count().execute()
+            logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
         else:
             combined_df = chunks_df
-            logger.info(f"Creating new vector store with {len(chunks_df)} chunks")
+            chunk_count = chunks_df.count().execute()
+            logger.info(f"Creating new vector store with {chunk_count} chunks")
 
         # Write to Parquet
         self.parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        combined_df.write_parquet(self.parquet_path)
+        combined_df.execute().to_parquet(self.parquet_path)
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
@@ -79,7 +118,7 @@ class VectorStore:
         min_similarity: float = 0.7,
         tag_filter: list[str] | None = None,
         date_after: str | None = None,
-    ) -> pl.DataFrame:
+    ) -> Table:
         """
         Search for similar chunks using cosine similarity.
 
@@ -91,12 +130,12 @@ class VectorStore:
             date_after: Filter by date (ISO format YYYY-MM-DD)
 
         Returns:
-            DataFrame with columns: chunk_id, post_slug, post_title, post_date,
+            Ibis Table with columns: chunk_id, post_slug, post_title, post_date,
                                    content, tags, authors, category, similarity
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
-            return pl.DataFrame()
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
         # Build SQL query
         query = f"""
@@ -134,26 +173,27 @@ class VectorStore:
         try:
             # Execute query
             result = self.conn.execute(query, params).arrow()
-            df = pl.from_arrow(result)
+            df = ibis.memtable(result.to_pydict())
 
-            logger.info(f"Found {len(df)} similar chunks (min_similarity={min_similarity})")
+            row_count = df.count().execute()
+            logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
 
             return df
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
-            return pl.DataFrame()
+            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
-    def get_all(self) -> pl.DataFrame:
+    def get_all(self) -> Table:
         """
         Read entire vector store.
 
         Useful for analytics, exports, client-side usage.
         """
         if not self.parquet_path.exists():
-            return pl.DataFrame()
+            return ibis.memtable([], schema=VECTOR_STORE_SCHEMA)
 
-        return pl.read_parquet(self.parquet_path)
+        return ibis.read_parquet(self.parquet_path)
 
     def stats(self) -> dict:
         """Get vector store statistics."""
@@ -161,15 +201,22 @@ class VectorStore:
             return {"total_chunks": 0, "total_posts": 0}
 
         df = self.get_all()
+        total_chunks = df.count().execute()
+
+        if total_chunks == 0:
+            return {
+                "total_chunks": 0,
+                "total_posts": 0,
+                "date_range": (None, None),
+                "total_tags": 0,
+            }
 
         return {
-            "total_chunks": len(df),
-            "total_posts": df["post_slug"].n_unique(),
+            "total_chunks": total_chunks,
+            "total_posts": df.post_slug.nunique().execute(),
             "date_range": (
-                df["post_date"].min(),
-                df["post_date"].max(),
-            )
-            if len(df) > 0
-            else (None, None),
-            "total_tags": df["tags"].explode().n_unique() if len(df) > 0 else 0,
+                df.post_date.min().execute(),
+                df.post_date.max().execute(),
+            ),
+            "total_tags": df.tags.unnest().nunique().execute(),
         }

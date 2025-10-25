@@ -3,8 +3,9 @@
 import logging
 from pathlib import Path
 
-import polars as pl
+import ibis
 from google import genai
+from ibis.expr.types import Table
 
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
@@ -69,7 +70,7 @@ async def index_post(
             }
         )
 
-    chunks_df = pl.DataFrame(rows)
+    chunks_df = ibis.memtable(rows)
 
     # Add to store
     store.add(chunks_df)
@@ -80,12 +81,12 @@ async def index_post(
 
 
 async def query_similar_posts(
-    df: pl.DataFrame,
+    df: Table,
     client: genai.Client,
     store: VectorStore,
     top_k: int = 5,
     deduplicate: bool = True,
-) -> pl.DataFrame:
+) -> Table:
     """
     Find similar previous blog posts for a period's DataFrame.
 
@@ -105,10 +106,11 @@ async def query_similar_posts(
     Returns:
         DataFrame with columns: [post_title, content, similarity, post_date, tags, ...]
     """
-    logger.info(f"Querying similar posts for period with {len(df)} messages")
+    msg_count = df.count().execute()
+    logger.info(f"Querying similar posts for period with {msg_count} messages")
 
-    # Convert DataFrame to markdown table for embedding
-    query_text = df.write_csv(separator="|")
+    # Convert Table to markdown table for embedding
+    query_text = df.execute().to_csv(sep="|", index=False)
 
     logger.debug(f"Query text length: {len(query_text)} chars")
 
@@ -122,22 +124,26 @@ async def query_similar_posts(
         min_similarity=0.7,
     )
 
-    if results.is_empty():
+    if results.count().execute() == 0:
         logger.info("No similar posts found")
         return results
 
-    logger.info(f"Found {len(results)} similar chunks")
+    result_count = results.count().execute()
+    logger.info(f"Found {result_count} similar chunks")
 
     # Deduplicate: keep only best chunk per post
     if deduplicate:
+        window = ibis.window(group_by="post_slug", order_by=ibis.desc("similarity"))
         results = (
-            results.sort("similarity", descending=True)
-            .group_by("post_slug")
-            .first()
-            .sort("similarity", descending=True)
-            .head(top_k)
+            results.order_by(ibis.desc("similarity"))
+            .mutate(_rank=ibis.row_number().over(window))
+            .filter(lambda t: t._rank < 2)
+            .drop("_rank")
+            .order_by(ibis.desc("similarity"))
+            .limit(top_k)
         )
 
-        logger.info(f"After deduplication: {len(results)} unique posts")
+        dedup_count = results.count().execute()
+        logger.info(f"After deduplication: {dedup_count} unique posts")
 
     return results

@@ -16,9 +16,10 @@ import zipfile
 from datetime import timedelta
 from pathlib import Path
 
-import polars as pl
+import ibis
 from google import genai
 from google.genai import types as genai_types
+from ibis.expr.types import Table
 
 from .config_types import EnrichmentConfig
 from .genai_utils import call_with_retries
@@ -245,21 +246,21 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
 
 
 def extract_and_replace_media(
-    df: pl.DataFrame,
+    df: Table,
     zip_path: Path,
     output_dir: Path,
     group_slug: str = "shared",
-) -> tuple[pl.DataFrame, dict[str, Path]]:
+) -> tuple[Table, dict[str, Path]]:
     """
-    Extract media from ZIP and replace mentions in DataFrame.
+    Extract media from ZIP and replace mentions in Table.
 
     Returns:
-        - Updated DataFrame with new media paths
+        - Updated Table with new media paths
         - Media mapping (original → extracted path)
     """
     # Step 1: Find all media references
     all_media = set()
-    for row in df.iter_rows(named=True):
+    for row in df.execute().to_dict("records"):
         message = row.get("message", "")
         media_refs = find_media_references(message)
         all_media.update(media_refs)
@@ -270,13 +271,12 @@ def extract_and_replace_media(
     if not media_mapping:
         return df, {}
 
-    # Step 3: Replace mentions in DataFrame
+    # Step 3: Replace mentions in Table
+    @ibis.udf.scalar.python
     def replace_in_message(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, output_dir)
+        return replace_media_mentions(message, media_mapping, output_dir) if message else message
 
-    updated_df = df.with_columns(
-        pl.col("message").map_elements(replace_in_message, return_dtype=pl.Utf8)
-    )
+    updated_df = df.mutate(message=replace_in_message(df.message))
 
     return updated_df, media_mapping
 
@@ -454,7 +454,7 @@ async def enrich_media(
 
 
 async def enrich_dataframe(  # noqa: PLR0912, PLR0913
-    df: pl.DataFrame,
+    df: Table,
     media_mapping: dict[str, Path],
     client: genai.Client,
     output_dir: Path,
@@ -462,15 +462,15 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
-) -> pl.DataFrame:
+) -> Table:
     """
-    Add LLM-generated enrichment rows to DataFrame for URLs and media.
+    Add LLM-generated enrichment rows to Table for URLs and media.
 
     Note: Media must already be extracted and replaced in df.
     Use extract_and_replace_media() first.
 
     Args:
-        df: DataFrame with media paths already replaced
+        df: Table with media paths already replaced
         media_mapping: Mapping of original filenames to extracted paths
         client: Gemini client
         model_config: Model configuration object
@@ -478,14 +478,14 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
         enable_media: Add media descriptions
         max_enrichments: Maximum enrichments to add
 
-    Returns new DataFrame with additional rows authored by 'egregora'.
+    Returns new Table with additional rows authored by 'egregora'.
     """
     # Get model names from config
     if model_config is None:
         model_config = ModelConfig()
     url_model = model_config.get_model("enricher")
     vision_model = model_config.get_model("enricher_vision")
-    if df.is_empty():
+    if df.count().execute() == 0:
         return df
 
     new_rows = []
@@ -493,7 +493,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     pii_detected_count = 0
     pii_media_deleted = False
 
-    for row in df.iter_rows(named=True):
+    for row in df.execute().to_dict("records"):
         if enrichment_count >= max_enrichments:
             break
 
@@ -522,7 +522,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                     config=enrichment_config,
                 )
 
-                # Add reference to DataFrame
+                # Add reference to Table
                 enrichment_timestamp = timestamp + timedelta(seconds=1)
                 new_rows.append(
                     {
@@ -589,16 +589,16 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     if not new_rows:
         return df
 
-    base_row = {column: None for column in df.columns}
-    normalized_rows = []
-    for row in new_rows:
-        normalized = base_row.copy()
-        normalized.update(row)
-        normalized_rows.append(normalized)
+    # Create enrichment table with matching schema and union with original
+    schema = df.schema()
+    normalized_rows = [
+        {column: row.get(column) for column in schema.names}
+        for row in new_rows
+    ]
 
-    enrichment_df = pl.DataFrame(normalized_rows, schema=df.schema, strict=False)
-    combined = pl.concat([df, enrichment_df])
-    combined = combined.sort("timestamp")
+    enrichment_df = ibis.memtable(normalized_rows, schema=schema)
+    combined = df.union(enrichment_df, distinct=False)
+    combined = combined.order_by("timestamp")
 
     # Log PII detection summary
     if pii_detected_count > 0:
