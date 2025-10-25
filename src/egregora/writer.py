@@ -9,6 +9,7 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
+import json
 import logging
 from functools import lru_cache
 from pathlib import Path
@@ -23,7 +24,7 @@ from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
 from .prompt_templates import render_writer_prompt
-from .rag import VectorStore, index_post, query_similar_posts
+from .rag import VectorStore, index_post, query_media, query_similar_posts
 from .write_post import write_post
 
 logger = logging.getLogger(__name__)
@@ -135,12 +136,50 @@ def _writer_tools() -> list[genai_types.Tool]:
         ),
     )
 
+    search_media_decl = genai_types.FunctionDeclaration(
+        name="search_media",
+        description=(
+            "Search for relevant media (images, memes, videos, audio) by description or topic. "
+            "Returns media that was previously shared in the group conversations. "
+            "Use this to find visual content to illustrate your blog posts."
+        ),
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "query": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description=(
+                        "Natural language search query describing the media you're looking for. "
+                        "Examples: 'funny meme about procrastination', 'chart about productivity', "
+                        "'image related to AI safety'"
+                    ),
+                ),
+                "media_types": genai_types.Schema(
+                    type=genai_types.Type.ARRAY,
+                    description=(
+                        "Optional filter by media type. Valid types: 'image', 'video', 'audio', 'document'. "
+                        "If not specified, searches all media types."
+                    ),
+                    items=genai_types.Schema(type=genai_types.Type.STRING),
+                    nullable=True,
+                ),
+                "limit": genai_types.Schema(
+                    type=genai_types.Type.INTEGER,
+                    description="Maximum number of results to return (default: 5)",
+                    nullable=True,
+                ),
+            },
+            required=["query"],
+        ),
+    )
+
     return [
         genai_types.Tool(
             function_declarations=[
                 write_post_decl,
                 read_profile_decl,
                 write_profile_decl,
+                search_media_decl,
             ]
         )
     ]
@@ -378,6 +417,72 @@ def _handle_write_profile_tool(
     )
 
 
+async def _handle_search_media_tool(
+    fn_args: dict,
+    fn_call,
+    client: genai.Client,
+    rag_dir: Path,
+) -> genai_types.Content:
+    """Handle search_media tool call."""
+    query = fn_args.get("query", "")
+    media_types = fn_args.get("media_types")
+    limit = fn_args.get("limit", 5)
+
+    try:
+        store = VectorStore(rag_dir / "chunks.parquet")
+        results = await query_media(
+            query=query,
+            client=client,
+            store=store,
+            media_types=media_types,
+            top_k=limit,
+        )
+
+        # Format results for LLM
+        if results.is_empty():
+            formatted_results = "No matching media found."
+        else:
+            formatted_list = []
+            for row in results.iter_rows(named=True):
+                media_info = {
+                    "media_type": row.get("media_type"),
+                    "media_path": row.get("media_path"),
+                    "original_filename": row.get("original_filename"),
+                    "description": row.get("content", "")[:500],  # Truncate long descriptions
+                    "similarity": round(row.get("similarity", 0), 2),
+                }
+                formatted_list.append(media_info)
+
+            formatted_results = json.dumps(formatted_list, indent=2)
+
+        return genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        id=getattr(fn_call, "id", None),
+                        name="search_media",
+                        response={"results": formatted_results},
+                    )
+                )
+            ],
+        )
+    except Exception as e:
+        logger.error(f"search_media failed: {e}")
+        return genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        id=getattr(fn_call, "id", None),
+                        name="search_media",
+                        response={"status": "error", "error": str(e)},
+                    )
+                )
+            ],
+        )
+
+
 def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
@@ -394,12 +499,14 @@ def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.C
     )
 
 
-def _process_tool_calls(
+async def _process_tool_calls(  # noqa: PLR0913
     candidate,
     output_dir: Path,
     profiles_dir: Path,
     saved_posts: list[str],
     saved_profiles: list[str],
+    client: genai.Client,
+    rag_dir: Path,
 ) -> tuple[bool, list[genai_types.Content]]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
@@ -428,6 +535,9 @@ def _process_tool_calls(
                 tool_responses.append(
                     _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
                 )
+            elif fn_name == "search_media":
+                response = await _handle_search_media_tool(fn_args, fn_call, client, rag_dir)
+                tool_responses.append(response)
         except Exception as e:
             tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
 
@@ -560,8 +670,8 @@ Use these features appropriately in your posts. You understand how each extensio
         candidate = response.candidates[0]
 
         # Process tool calls
-        has_tool_calls, tool_responses = _process_tool_calls(
-            candidate, output_dir, profiles_dir, saved_posts, saved_profiles
+        has_tool_calls, tool_responses = await _process_tool_calls(
+            candidate, output_dir, profiles_dir, saved_posts, saved_profiles, client, rag_dir
         )
 
         # Exit if no more tools to call
