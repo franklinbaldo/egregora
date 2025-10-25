@@ -193,9 +193,7 @@ def save_comparison(  # noqa: PLR0913
     store.save_comparison(comparison_data)
 
 
-def _load_comparison_posts(
-    site_dir: Path, post_a_id: str, post_b_id: str
-) -> tuple[str, str]:
+def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tuple[str, str]:
     """Load content for both posts."""
     posts_dir = site_dir / "posts"
 

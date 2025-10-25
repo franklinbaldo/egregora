@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
-import pytest
-from polars.testing import assert_frame_equal
 
-from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
+from egregora.schema import ensure_message_schema
 
 # A much simpler schema for testing, focusing only on the timestamp and text
 # columns that matter for the schema normalisation logic.
@@ -59,7 +57,9 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     )
 
     # Cast to microseconds to test the time unit conversion
-    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime(time_unit="us", time_zone="Europe/Amsterdam")))
+    df = df.with_columns(
+        pl.col("timestamp").cast(pl.Datetime(time_unit="us", time_zone="Europe/Amsterdam"))
+    )
 
     # Apply the schema function
     result = ensure_message_schema(df)
@@ -67,4 +67,4 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     # Check the timestamp column's dtype and value
     assert result["timestamp"].dtype == pl.Datetime(time_unit="ns", time_zone="UTC")
     # 11:00 UTC is 12:00 in Amsterdam in January
-    assert result["timestamp"][0] == datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+    assert result["timestamp"][0] == datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)

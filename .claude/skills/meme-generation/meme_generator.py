@@ -17,7 +17,6 @@ Or import as a module:
 
 import argparse
 import urllib.parse
-from typing import Optional, Dict, List
 
 
 class MemeGenerator:
@@ -88,17 +87,17 @@ class MemeGenerator:
         # memegen's escape sequences and allowed characters.
         return urllib.parse.quote(escaped, safe="-_~")
 
-    def generate(
+    def generate(  # noqa: PLR0913
         self,
         template: str,
         top_text: str = "",
         bottom_text: str = "",
         extension: str = "png",
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        layout: Optional[str] = None,
-        style: Optional[str] = None,
-        font: Optional[str] = None,
+        width: int | None = None,
+        height: int | None = None,
+        layout: str | None = None,
+        style: str | None = None,
+        font: str | None = None,
     ) -> str:
         """
         Generate a meme URL.
@@ -163,7 +162,7 @@ class MemeGenerator:
         # Default fallback
         return "buzz"
 
-    def list_templates(self) -> Dict[str, str]:
+    def list_templates(self) -> dict[str, str]:
         """
         List all available templates with descriptions.
 
@@ -173,7 +172,7 @@ class MemeGenerator:
         return self.TEMPLATES
 
     def get_markdown_image(
-        self, url: str, alt_text: str = "Meme", width: Optional[int] = None
+        self, url: str, alt_text: str = "Meme", width: int | None = None
     ) -> str:
         """
         Generate markdown for embedding the meme image.

@@ -112,9 +112,7 @@ def _normalise_timestamp(
     if isinstance(current_dtype, dt.Timestamp):
         current_timezone = current_dtype.timezone
         if current_dtype.scale != desired_dtype.scale:
-            ts_col = ts_col.cast(
-                dt.Timestamp(timezone=current_timezone, scale=desired_dtype.scale)
-            )
+            ts_col = ts_col.cast(dt.Timestamp(timezone=current_timezone, scale=desired_dtype.scale))
     else:
         ts_col = ts_col.cast(dt.Timestamp(scale=desired_dtype.scale))
         current_timezone = None

@@ -5,9 +5,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import ibis
-from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 # Constants for alias validation

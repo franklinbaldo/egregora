@@ -278,8 +278,7 @@ class RankingStore:
 
         # Convert to list of dicts for Ibis
         rows = [
-            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]}
-            for r in result
+            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result
         ]
         return ibis.memtable(rows)
 

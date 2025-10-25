@@ -8,11 +8,11 @@ Documentation:
 - Architecture (Privacy Boundary): docs/guides/architecture.md#2-anonymizer-anonymizerpy
 - Core Concepts: docs/getting-started/concepts.md#privacy-model
 """
+
 import re
 import uuid
 
 import ibis
-import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
 
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -77,8 +77,6 @@ def anonymize_dataframe(df: Table) -> Table:
             """UDF wrapper for anonymize_mentions."""
             return anonymize_mentions(text) if text else text
 
-        anonymized_df = anonymized_df.mutate(
-            message=anonymize_mentions_udf(anonymized_df.message)
-        )
+        anonymized_df = anonymized_df.mutate(message=anonymize_mentions_udf(anonymized_df.message))
 
     return anonymized_df

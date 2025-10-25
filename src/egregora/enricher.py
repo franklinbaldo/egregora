@@ -17,6 +17,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import ibis
+import polars as pl
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
@@ -591,10 +592,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
 
     # Create enrichment table with matching schema and union with original
     schema = df.schema()
-    normalized_rows = [
-        {column: row.get(column) for column in schema.names}
-        for row in new_rows
-    ]
+    normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
 
     enrichment_df = ibis.memtable(normalized_rows, schema=schema)
     combined = df.union(enrichment_df, distinct=False)

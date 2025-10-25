@@ -137,12 +137,10 @@ def _validate_and_run_process(config: ProcessConfig):
 @app.command()
 def process(  # noqa: PLR0913
     zip_file: Annotated[Path, typer.Argument(help="Path to WhatsApp export ZIP")],
-    output: Annotated[
-        Path, typer.Option(help="Output directory for generated site")
-    ] = Path("output"),
-    period: Annotated[
-        str, typer.Option(help="Grouping period: 'day' or 'week'")
-    ] = "day",
+    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path(
+        "output"
+    ),
+    period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
     enable_enrichment: Annotated[
         bool, typer.Option(help="Enable LLM enrichment for URLs/media")
     ] = True,
@@ -278,7 +276,9 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
             # Create a default profile
             default_profile = profiles_dir / "judge.md"
             default_profile.parent.mkdir(parents=True, exist_ok=True)
-            default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
+            default_profile.write_text(
+                "---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge."
+            )
             profile_files = [default_profile]
 
         profile_path = random.choice(profile_files)
@@ -323,9 +323,7 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
 def rank(  # noqa: PLR0913
     site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
     comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
-    strategy: Annotated[
-        str, typer.Option(help="Post selection strategy")
-    ] = "fewest_games",
+    strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
     export_parquet: Annotated[
         bool, typer.Option(help="Export rankings to Parquet after comparisons")
     ] = False,
