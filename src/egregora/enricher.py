@@ -196,6 +196,11 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
         if not new_path.exists():
             replacement = "[Media removed: privacy protection]"
 
+            try:
+                relative_missing_path = new_path.relative_to(output_dir).as_posix()
+            except ValueError:
+                relative_missing_path = new_path.as_posix()
+
             # Replace all occurrences with privacy notice
             for marker in ATTACHMENT_MARKERS:
                 pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
@@ -203,6 +208,12 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
 
             # Also replace bare filename
             result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
+
+            # Replace any previously generated markdown links that point to the deleted file
+            image_pattern = r"!\[[^\]]*\]\(" + re.escape(relative_missing_path) + r"\)"
+            result = re.sub(image_pattern, replacement, result)
+            link_pattern = r"\[[^\]]*\]\(" + re.escape(relative_missing_path) + r"\)"
+            result = re.sub(link_pattern, replacement, result)
             continue
 
         # Get relative path from output_dir
@@ -480,6 +491,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     new_rows = []
     enrichment_count = 0
     pii_detected_count = 0
+    pii_media_deleted = False
 
     for row in df.iter_rows(named=True):
         if enrichment_count >= max_enrichments:
@@ -550,6 +562,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                     # Check if media file was deleted due to PII
                     if not file_path.exists():
                         pii_detected_count += 1
+                        pii_media_deleted = True
 
                     # Add reference to DataFrame
                     enrichment_timestamp = timestamp + timedelta(seconds=1)
@@ -564,6 +577,14 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                         }
                     )
                     enrichment_count += 1
+
+    if pii_media_deleted:
+        df = df.with_columns(
+            pl.col("message").map_elements(
+                lambda message: replace_media_mentions(message, media_mapping, output_dir),
+                return_dtype=pl.Utf8,
+            )
+        )
 
     if not new_rows:
         return df
