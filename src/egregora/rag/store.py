@@ -200,6 +200,22 @@ class VectorStore:
         existing_df = existing_df.select(ordered_columns)
         new_df = new_df.select(ordered_columns)
 
+        # Cast to canonical schema types when available
+        existing_casts = {}
+        new_casts = {}
+        for column_name in ordered_columns:
+            if column_name in VECTOR_STORE_SCHEMA:
+                target_type = VECTOR_STORE_SCHEMA[column_name]
+                if existing_df[column_name].type() != target_type:
+                    existing_casts[column_name] = existing_df[column_name].cast(target_type)
+                if new_df[column_name].type() != target_type:
+                    new_casts[column_name] = new_df[column_name].cast(target_type)
+
+        if existing_casts:
+            existing_df = existing_df.mutate(**existing_casts)
+        if new_casts:
+            new_df = new_df.mutate(**new_casts)
+
         return existing_df, new_df
 
     def search(  # noqa: PLR0913
