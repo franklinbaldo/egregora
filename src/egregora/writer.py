@@ -60,6 +60,25 @@ def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
     candidate_path.write_text(front_matter, encoding="utf-8")
     return candidate_path
 
+
+def _load_freeform_memory(output_dir: Path) -> str:
+    """Return the latest freeform memo content (if any)."""
+
+    freeform_dir = output_dir / "freeform"
+    if not freeform_dir.exists():
+        return ""
+
+    files = sorted(freeform_dir.glob("*.md"))
+    if not files:
+        return ""
+
+    latest = max(files, key=lambda path: path.stat().st_mtime)
+    try:
+        return latest.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -629,6 +648,9 @@ async def write_posts_for_period(  # noqa: PLR0913
     rag_context = await _query_rag_for_context(df, client, rag_dir) if enable_rag else ""
     profiles_context = _load_profiles_context(df, profiles_dir)
 
+    # Load previous freeform memo (only persisted memory between periods)
+    freeform_memory = _load_freeform_memory(output_dir)
+
     # Load site config and markdown extensions
     site_config = load_site_config(output_dir)
     custom_writer_prompt = site_config.get("writer_prompt", "")
@@ -656,6 +678,7 @@ Use these features appropriately in your posts. You understand how each extensio
         markdown_features=markdown_features_section,
         profiles_context=profiles_context,
         rag_context=rag_context,
+        freeform_memory=freeform_memory,
     )
 
     # Setup conversation

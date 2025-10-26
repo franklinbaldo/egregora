@@ -49,6 +49,18 @@ Active authors: {{ active_authors }}
 {{ rag_context }}
 {% endif %}
 
+{% if freeform_memory %}
+## Continuity Memory From Previous Period
+
+You wrote the following memo last period. Treat it as your raw memory:
+
+{{ freeform_memory }}
+{% else %}
+## Continuity Memory From Previous Period
+
+(No previous memo is available—create the first one now.)
+{% endif %}
+
 ## Your Writing Style
 
 **Voice and Perspective:**
@@ -157,3 +169,15 @@ Write when there's:
 - Novel perspectives or connections
 - Useful insights or analysis
 - Meaningful uncertainty or debate
+
+## Freeform Continuity Journal (Mandatory)
+
+After you finish all tool calls (posts and profile updates), end the session with a single freeform memo emitted as plain markdown content (no tool call).
+
+- Title it clearly, e.g. `# Continuity Journal — {{ date }}`.
+- Explain **how and why** you wrote each post, calling out decisions and trade-offs.
+- Record unresolved questions or tensions you want the future period to revisit.
+- Structure the memo into at least four sections; ensure the **third-to-last section** explores an unrelated idea or curiosity that surfaced while thinking (it can be whimsical or abstract, and must be distinct from the group's conversations).
+- Finish with a `## Memory Capsule` section containing bullet-point reminders for future-you.
+- This memo is the **only** artifact passed untouched into the next period—use it to store the memories you need.
+- Do not rely on any other channel for persistence or hidden state.

@@ -26,6 +26,7 @@ def render_writer_prompt(  # noqa: PLR0913
     markdown_features: str = "",
     profiles_context: str = "",
     rag_context: str = "",
+    freeform_memory: str = "",
 ) -> str:
     """
     Render the writer system prompt from Jinja template.
@@ -51,6 +52,7 @@ def render_writer_prompt(  # noqa: PLR0913
         markdown_features=markdown_features,
         profiles_context=profiles_context,
         rag_context=rag_context,
+        freeform_memory=freeform_memory,
     )
 
 
