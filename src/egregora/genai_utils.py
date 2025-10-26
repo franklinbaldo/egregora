@@ -9,7 +9,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
+from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
+
 logger = logging.getLogger(__name__)
+_console = Console(stderr=True, soft_wrap=True)
 
 _RateLimitFn = TypeVar("_RateLimitFn", bound=Callable[..., Awaitable[Any]])
 
@@ -66,6 +70,36 @@ async def _respect_min_interval() -> None:
         _last_call_monotonic = now
 
 
+async def _sleep_with_progress(delay: float, description: str) -> None:
+    """Sleep for ``delay`` seconds, showing a progress bar when interactive."""
+
+    if delay <= 0:
+        return
+
+    if not _console.is_terminal:
+        await asyncio.sleep(delay)
+        return
+
+    progress = Progress(
+        SpinnerColumn(),
+        BarColumn(bar_width=None),
+        TimeRemainingColumn(),
+        console=_console,
+        transient=True,
+    )
+
+    start_time = time.monotonic()
+    with progress:
+        task_id = progress.add_task(description, total=delay)
+
+        while True:
+            elapsed = time.monotonic() - start_time
+            progress.update(task_id, completed=min(elapsed, delay))
+            if elapsed >= delay:
+                break
+            await asyncio.sleep(min(0.5, delay - elapsed))
+
+
 async def call_with_retries(
     async_fn: _RateLimitFn,
     *args: Any,
@@ -87,19 +121,18 @@ async def call_with_retries(
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                delay = recommended_delay + 1.0  # pad slightly beyond the server hint
+                delay = max(recommended_delay, 0.0)
             else:
-                delay = base_delay * (2 ** (attempt - 1))
-            logger.warning(
-                "Rate limit for %s (attempt %s/%s). Retrying in %.2fs%s",
+                delay = base_delay
+
+            logger.info(
+                "Rate limit for %s (attempt %s/%s). Waiting %.2fs before retry. Details: %s",
                 fn_name,
                 attempt,
                 max_attempts,
                 delay,
-                f". Server suggested {recommended_delay:.2f}s. Details: {exc}"
-                if recommended_delay is not None
-                else f": {exc}",
+                exc,
             )
 
-            await asyncio.sleep(delay)
+            await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
             attempt += 1
