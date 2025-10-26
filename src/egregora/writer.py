@@ -28,6 +28,37 @@ from .prompt_templates import render_writer_prompt
 from .rag import VectorStore, index_post, query_media, query_similar_posts
 from .write_post import write_post
 
+
+def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
+    """Persist freeform LLM responses that skipped tool calls."""
+
+    freeform_dir = output_dir / "freeform"
+    freeform_dir.mkdir(parents=True, exist_ok=True)
+
+    base_name = f"{date}-freeform"
+    candidate_path = freeform_dir / f"{base_name}.md"
+    suffix = 1
+
+    while candidate_path.exists():
+        suffix += 1
+        candidate_path = freeform_dir / f"{base_name}-{suffix}.md"
+
+    normalized_content = content.strip()
+    front_matter = "\n".join(
+        [
+            "---",
+            f"title: Freeform Response ({date})",
+            f"date: {date}",
+            "---",
+            "",
+            normalized_content,
+            "",
+        ]
+    )
+
+    candidate_path.write_text(front_matter, encoding="utf-8")
+    return candidate_path
+
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -509,41 +540,49 @@ async def _process_tool_calls(  # noqa: PLR0913
     saved_profiles: list[str],
     client: genai.Client,
     rag_dir: Path,
-) -> tuple[bool, list[genai_types.Content]]:
+) -> tuple[bool, list[genai_types.Content], list[str]]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
     tool_responses: list[genai_types.Content] = []
+    freeform_parts: list[str] = []
 
     if not candidate or not candidate.content or not candidate.content.parts:
-        return False, []
+        return False, [], []
 
     for part in candidate.content.parts:
-        if not hasattr(part, "function_call") or not part.function_call:
+        function_call = getattr(part, "function_call", None)
+
+        if function_call:
+            has_tool_calls = True
+            fn_call = function_call
+            fn_name = fn_call.name
+            fn_args = fn_call.args or {}
+
+            try:
+                if fn_name == "write_post":
+                    tool_responses.append(
+                        _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
+                    )
+                elif fn_name == "read_profile":
+                    tool_responses.append(
+                        _handle_read_profile_tool(fn_args, fn_call, profiles_dir)
+                    )
+                elif fn_name == "write_profile":
+                    tool_responses.append(
+                        _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
+                    )
+                elif fn_name == "search_media":
+                    response = await _handle_search_media_tool(fn_args, fn_call, client, rag_dir)
+                    tool_responses.append(response)
+            except Exception as e:
+                tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
 
-        has_tool_calls = True
-        fn_call = part.function_call
-        fn_name = fn_call.name
-        fn_args = fn_call.args or {}
+        text = getattr(part, "text", "")
+        if text:
+            freeform_parts.append(text)
 
-        try:
-            if fn_name == "write_post":
-                tool_responses.append(
-                    _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
-                )
-            elif fn_name == "read_profile":
-                tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
-            elif fn_name == "write_profile":
-                tool_responses.append(
-                    _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
-                )
-            elif fn_name == "search_media":
-                response = await _handle_search_media_tool(fn_args, fn_call, client, rag_dir)
-                tool_responses.append(response)
-        except Exception as e:
-            tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
-
-    return has_tool_calls, tool_responses
+    return has_tool_calls, tool_responses, freeform_parts
 
 
 async def _index_posts_in_rag(saved_posts: list[str], client: genai.Client, rag_dir: Path) -> None:
@@ -671,12 +710,21 @@ Use these features appropriately in your posts. You understand how each extensio
         candidate = response.candidates[0]
 
         # Process tool calls
-        has_tool_calls, tool_responses = await _process_tool_calls(
+        has_tool_calls, tool_responses, freeform_parts = await _process_tool_calls(
             candidate, output_dir, profiles_dir, saved_posts, saved_profiles, client, rag_dir
         )
 
         # Exit if no more tools to call
         if not has_tool_calls:
+            if freeform_parts:
+                freeform_content = "\n\n".join(
+                    part.strip() for part in freeform_parts if part and part.strip()
+                )
+                if freeform_content:
+                    freeform_path = _write_freeform_markdown(
+                        freeform_content, date, output_dir
+                    )
+                    saved_posts.append(str(freeform_path))
             break
 
         # Continue conversation
