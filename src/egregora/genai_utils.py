@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -76,7 +77,10 @@ async def _sleep_with_progress(delay: float, description: str) -> None:
     if delay <= 0:
         return
 
-    if not _console.is_terminal:
+    if (
+        not _console.is_terminal
+        or os.environ.get("EGREGORA_PROGRESS", "0").lower() not in {"1", "true", "yes"}
+    ):
         await asyncio.sleep(delay)
         return
 
