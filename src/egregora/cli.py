@@ -23,6 +23,7 @@ from .ranking.agent import run_comparison
 from .ranking.elo import get_posts_to_compare
 from .ranking.store import RankingStore
 from .site_config import resolve_site_paths
+from .site_config import find_mkdocs_file
 from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
@@ -105,6 +106,35 @@ def _validate_and_run_process(config: ProcessConfig):
     # Parse dates
     from_date_obj = config.from_date
     to_date_obj = config.to_date
+
+    # Ensure output directory has MkDocs scaffold
+    output_dir = config.output_dir.expanduser().resolve()
+    config.output_dir = output_dir
+    mkdocs_path = find_mkdocs_file(output_dir)
+    if not mkdocs_path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        warning_message = (
+            "[yellow]Warning:[/yellow] MkDocs configuration not found in "
+            f"{output_dir}. Egregora can initialize a new scaffold before processing."
+        )
+        console.print(warning_message)
+
+        proceed = True
+        if any(output_dir.iterdir()):
+            proceed = typer.confirm(
+                "The output directory is not empty and lacks mkdocs.yml. "
+                "Initialize a fresh MkDocs scaffold here?",
+                default=False,
+            )
+
+        if not proceed:
+            console.print("[red]Aborting processing at user's request.[/red]")
+            raise typer.Exit(1)
+
+        ensure_mkdocs_project(output_dir)
+        console.print(
+            "[green]Initialized MkDocs scaffold. Continuing with processing.[/green]"
+        )
 
     # Get API key
     api_key = config.gemini_key or os.getenv("GOOGLE_API_KEY")
