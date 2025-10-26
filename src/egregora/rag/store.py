@@ -14,9 +14,17 @@ logger = logging.getLogger(__name__)
 VECTOR_STORE_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
-        "post_slug": dt.string,
-        "post_title": dt.string,
-        "post_date": dt.date,
+        "document_type": dt.string,
+        "document_id": dt.string,
+        "post_slug": dt.String(nullable=True),
+        "post_title": dt.String(nullable=True),
+        "post_date": dt.String(nullable=True),
+        "media_uuid": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        "media_path": dt.String(nullable=True),
+        "original_filename": dt.String(nullable=True),
+        "message_date": dt.String(nullable=True),
+        "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
         "embedding": dt.Array(dt.float64),
@@ -30,9 +38,17 @@ VECTOR_STORE_SCHEMA = ibis.schema(
 SEARCH_RESULT_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
-        "post_slug": dt.string,
-        "post_title": dt.string,
-        "post_date": dt.date,
+        "document_type": dt.string,
+        "document_id": dt.string,
+        "post_slug": dt.String(nullable=True),
+        "post_title": dt.String(nullable=True),
+        "post_date": dt.String(nullable=True),
+        "media_uuid": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        "media_path": dt.String(nullable=True),
+        "original_filename": dt.String(nullable=True),
+        "message_date": dt.String(nullable=True),
+        "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
         "tags": dt.Array(dt.string),
@@ -250,8 +266,13 @@ class VectorStore:
 
         try:
             # Execute query
-            result = self.conn.execute(query, params).arrow()
-            df = ibis.memtable(result.to_pydict())
+            result_reader = self.conn.execute(query, params).arrow()
+            result_table = result_reader.read_all()
+            df = (
+                ibis.memtable(result_table.to_pydict(), schema=SEARCH_RESULT_SCHEMA)
+                if result_table.num_rows > 0
+                else ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+            )
 
             row_count = df.count().execute()
             logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")

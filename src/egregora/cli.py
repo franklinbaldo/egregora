@@ -145,6 +145,9 @@ def _validate_and_run_process(config: ProcessConfig):
 
     # Run pipeline
     try:
+        console.print(
+            f"[cyan]Processing {config.zip_file} → {output_dir} (period={config.period})[/cyan]"
+        )
         asyncio.run(
             process_whatsapp_export(
                 zip_path=config.zip_file,
@@ -158,6 +161,7 @@ def _validate_and_run_process(config: ProcessConfig):
                 model=config.model,
             )
         )
+        console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
         if config.debug:

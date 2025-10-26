@@ -11,7 +11,7 @@ from ibis.expr.types import Table
 
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
-from .store import VectorStore
+from .store import VECTOR_STORE_SCHEMA, VectorStore
 from ..site_config import MEDIA_DIR_NAME
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,14 @@ async def index_post(
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
         metadata = chunk["metadata"]
+        post_date = metadata.get("date")
+        authors = metadata.get("authors", [])
+        if isinstance(authors, str):
+            authors = [authors]
+
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [tags]
 
         rows.append(
             {
@@ -67,7 +75,7 @@ async def index_post(
                 "document_id": chunk["post_slug"],
                 "post_slug": chunk["post_slug"],
                 "post_title": chunk["post_title"],
-                "post_date": metadata.get("date"),
+                "post_date": post_date,
                 "media_uuid": None,
                 "media_type": None,
                 "media_path": None,
@@ -77,12 +85,13 @@ async def index_post(
                 "chunk_index": i,
                 "content": chunk["content"],
                 "embedding": embedding,
-                "tags": metadata.get("tags", []),
+                "tags": tags,
                 "category": metadata.get("category"),
+                "authors": authors,
             }
         )
 
-    chunks_df = ibis.memtable(rows)
+    chunks_df = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
 
     # Add to store
     store.add(chunks_df)
@@ -262,6 +271,10 @@ async def index_media_enrichment(
     # Build DataFrame for storage
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
+        message_date = metadata.get("message_date")
+        if message_date:
+            message_date = message_date.isoformat()
+
         rows.append(
             {
                 "chunk_id": f"{media_uuid}_{i}",
@@ -274,17 +287,18 @@ async def index_media_enrichment(
                 "media_type": metadata.get("media_type"),
                 "media_path": metadata.get("media_path"),
                 "original_filename": metadata.get("original_filename"),
-                "message_date": metadata.get("message_date"),
+                "message_date": message_date,
                 "author_uuid": metadata.get("author_uuid"),
                 "chunk_index": i,
                 "content": chunk["content"],
                 "embedding": embedding,
                 "tags": [],  # Could extract from content in future
                 "category": None,
+                "authors": [],
             }
         )
 
-    chunks_df = ibis.memtable(rows)
+    chunks_df = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
 
     # Add to store
     store.add(chunks_df)
