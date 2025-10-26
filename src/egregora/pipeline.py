@@ -72,38 +72,29 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
         # ISO week format: YYYY-Wnn
         year_str = df.timestamp.year().cast("string")
         week_num = df.timestamp.week_of_year()
-        week_str = (
-            ibis.case()
-            .when(
-                week_num < SINGLE_DIGIT_THRESHOLD,
-                ibis.concat([ibis.literal("0"), week_num.cast("string")]),
-            )
-            .else_(week_num.cast("string"))
-            .end()
+        week_str = ibis.ifelse(
+            week_num < SINGLE_DIGIT_THRESHOLD,
+            ibis.literal("0") + week_num.cast("string"),
+            week_num.cast("string")
         )
-        df = df.mutate(period=ibis.concat([year_str, ibis.literal("-W"), week_str]))
+        df = df.mutate(period=year_str + ibis.literal("-W") + week_str)
     elif period == "month":
         # Format: YYYY-MM
         year_str = df.timestamp.year().cast("string")
         month_num = df.timestamp.month()
         # Zero-pad month: use lpad to ensure 2 digits
-        month_str = (
-            ibis.case()
-            .when(
-                month_num < SINGLE_DIGIT_THRESHOLD,
-                ibis.concat([ibis.literal("0"), month_num.cast("string")]),
-            )
-            .else_(month_num.cast("string"))
-            .end()
+        month_str = ibis.ifelse(
+            month_num < SINGLE_DIGIT_THRESHOLD,
+            ibis.literal("0") + month_num.cast("string"),
+            month_num.cast("string")
         )
-        df = df.mutate(period=ibis.concat([year_str, ibis.literal("-"), month_str]))
+        df = df.mutate(period=year_str + ibis.literal("-") + month_str)
     else:
         raise ValueError(f"Unknown period: {period}")
 
     grouped = {}
     # Get unique period values, sorted
-    # .distinct().execute() returns a DataFrame, need to extract the column
-    period_values = sorted(df.period.distinct().execute()["period"].tolist())
+    period_values = sorted(df.select("period").distinct().execute()["period"].tolist())
 
     for period_value in period_values:
         period_df = df.filter(df.period == period_value).drop("period")

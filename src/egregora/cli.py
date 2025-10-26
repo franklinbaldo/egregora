@@ -364,6 +364,9 @@ def edit(
         str | None,
         typer.Option(help="Gemini model to use (default: models/gemini-flash-latest)"),
     ] = None,
+    gemini_key: Annotated[
+        str | None, typer.Option(help="Google Gemini API key (or set GOOGLE_API_KEY env var)")
+    ] = None,
 ):
     """
     Interactive LLM-powered editor with RAG and meta-LLM capabilities.
@@ -397,9 +400,10 @@ def edit(
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
 
     # Get API key
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY", gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
+        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
 
     # Load model config

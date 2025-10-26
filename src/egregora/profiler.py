@@ -79,7 +79,7 @@ def get_active_authors(df: Any) -> list[str]:
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    result = df.author.distinct().execute()
+    result = df.select("author").distinct().execute()
 
     if hasattr(result, "columns"):
         # pandas DataFrame result
