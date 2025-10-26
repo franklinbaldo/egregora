@@ -22,6 +22,7 @@ from .pipeline import process_whatsapp_export
 from .ranking.agent import run_comparison
 from .ranking.elo import get_posts_to_compare
 from .ranking.store import RankingStore
+from .site_config import resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
@@ -219,9 +220,10 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
         console.print(f"[red]Site directory not found: {site_path}[/red]")
         raise typer.Exit(1)
 
-    posts_dir = site_path / "posts"
-    rankings_dir = site_path / "rankings"
-    profiles_dir = site_path / "profiles"
+    site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir
+    rankings_dir = site_paths.rankings_dir
+    profiles_dir = site_paths.profiles_dir
 
     if not posts_dir.exists():
         console.print(f"[red]Posts directory not found: {posts_dir}[/red]")

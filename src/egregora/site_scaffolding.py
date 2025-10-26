@@ -5,9 +5,10 @@ from pathlib import Path
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .site_config import DEFAULT_BLOG_DIR, SitePaths, _ConfigLoader, resolve_site_paths
+
 DEFAULT_SITE_NAME = "Egregora Archive"
-DEFAULT_BLOG_DIR = "posts"
-DEFAULT_DOCS_DIR = "docs"
+DEFAULT_DOCS_SETTING = "docs"
 
 
 def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
@@ -35,7 +36,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
 def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Return the docs directory defined by an existing mkdocs.yml."""
     try:
-        payload = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8")) or {}
+        payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
     except yaml.YAMLError:
         payload = {}
 
@@ -61,7 +62,11 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     )
 
     # Template context
-    context = {"site_name": site_name, "blog_dir": DEFAULT_BLOG_DIR}
+    context = {
+        "site_name": site_name,
+        "blog_dir": DEFAULT_BLOG_DIR,
+        "docs_dir": DEFAULT_DOCS_SETTING,
+    }
 
     # Create mkdocs.yml from template
     mkdocs_template = env.get_template("mkdocs.yml.jinja2")
@@ -69,20 +74,20 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
 
     # Create essential directories and files
-    _create_site_structure(site_root, env, context)
+    site_paths = resolve_site_paths(site_root)
+    _create_site_structure(site_paths, env, context)
 
-    return site_root / DEFAULT_DOCS_DIR
+    return site_paths.docs_dir
 
 
-def _create_site_structure(site_root: Path, env: Environment, context: dict) -> None:
+def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict) -> None:
     """Create essential directories and index files for the blog structure."""
-    # Create directories
-    docs_dir = site_root / DEFAULT_DOCS_DIR
-    posts_dir = site_root / DEFAULT_BLOG_DIR
-    profiles_dir = site_root / "profiles"
-    media_dir = site_root / "media"
+    docs_dir = site_paths.docs_dir
+    posts_dir = site_paths.posts_dir
+    profiles_dir = site_paths.profiles_dir
+    media_dir = site_paths.media_dir
 
-    for directory in [docs_dir, posts_dir, profiles_dir, media_dir]:
+    for directory in {docs_dir, posts_dir, profiles_dir, media_dir}:
         directory.mkdir(parents=True, exist_ok=True)
 
     # Create media subdirectories with .gitkeep
@@ -92,14 +97,14 @@ def _create_site_structure(site_root: Path, env: Environment, context: dict) -> 
         (media_subdir / ".gitkeep").touch()
 
     # Create README.md
-    readme_path = site_root / "README.md"
+    readme_path = site_paths.site_root / "README.md"
     if not readme_path.exists():
         template = env.get_template("README.md.jinja2")
         content = template.render(**context)
         readme_path.write_text(content, encoding="utf-8")
 
     # Create .gitignore
-    gitignore_path = site_root / ".gitignore"
+    gitignore_path = site_paths.site_root / ".gitignore"
     if not gitignore_path.exists():
         template = env.get_template("gitignore.jinja2")
         content = template.render(**context)

@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-import yaml
+from .site_config import load_mkdocs_config
 
 logger = logging.getLogger(__name__)
 
@@ -97,22 +97,12 @@ def load_site_config(output_dir: Path) -> dict:
     Returns:
         Dict with egregora config from extra.egregora section
     """
-    # Try to find mkdocs.yml in parent directory (site root)
-    mkdocs_path = output_dir.parent / "mkdocs.yml"
+    config, mkdocs_path = load_mkdocs_config(output_dir)
 
-    # If not found, try in output_dir itself
-    if not mkdocs_path.exists():
-        mkdocs_path = output_dir / "mkdocs.yml"
-
-    if not mkdocs_path.exists():
+    if not mkdocs_path:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
 
-    try:
-        config = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8"))
-        egregora_config = config.get("extra", {}).get("egregora", {})
-        logger.debug(f"Loaded site config from {mkdocs_path}")
-        return egregora_config
-    except Exception as e:
-        logger.warning(f"Could not load site config from {mkdocs_path}: {e}")
-        return {}
+    egregora_config = config.get("extra", {}).get("egregora", {})
+    logger.debug(f"Loaded site config from {mkdocs_path}")
+    return egregora_config

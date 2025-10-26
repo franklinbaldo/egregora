@@ -26,6 +26,7 @@ from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
 from .prompt_templates import render_writer_prompt
 from .rag import VectorStore, index_post, query_media, query_similar_posts
+from .site_config import load_mkdocs_config
 from .write_post import write_post
 
 
@@ -217,21 +218,6 @@ def _writer_tools() -> list[genai_types.Tool]:
     ]
 
 
-def _find_mkdocs_file(output_dir: Path) -> Path | None:
-    """Find the mkdocs.yml file in the output directory or its parent."""
-    # Try to find mkdocs.yml in parent directory (site root)
-    mkdocs_path = output_dir.parent / "mkdocs.yml"
-
-    # If not found, try in output_dir itself
-    if not mkdocs_path.exists():
-        mkdocs_path = output_dir / "mkdocs.yml"
-
-    if not mkdocs_path.exists():
-        return None
-
-    return mkdocs_path
-
-
 def load_site_config(output_dir: Path) -> dict:
     """
     Load egregora configuration from mkdocs.yml if it exists.
@@ -245,19 +231,14 @@ def load_site_config(output_dir: Path) -> dict:
     Returns:
         Dict with egregora config (writer_prompt, rag settings, etc.)
     """
-    mkdocs_path = _find_mkdocs_file(output_dir)
+    config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
 
-    try:
-        config = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8"))
-        egregora_config = config.get("extra", {}).get("egregora", {})
-        logger.info(f"Loaded site config from {mkdocs_path}")
-        return egregora_config
-    except Exception as e:
-        logger.warning(f"Could not load site config from {mkdocs_path}: {e}")
-        return {}
+    egregora_config = config.get("extra", {}).get("egregora", {})
+    logger.info(f"Loaded site config from {mkdocs_path}")
+    return egregora_config
 
 
 def load_markdown_extensions(output_dir: Path) -> str:
@@ -273,13 +254,12 @@ def load_markdown_extensions(output_dir: Path) -> str:
     Returns:
         Formatted YAML string with markdown_extensions section
     """
-    mkdocs_path = _find_mkdocs_file(output_dir)
+    config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, no custom markdown extensions")
         return ""
 
     try:
-        config = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8"))
         extensions = config.get("markdown_extensions", [])
 
         if not extensions:

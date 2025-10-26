@@ -12,6 +12,7 @@ from ibis.expr.types import Table
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
 from .store import VectorStore
+from ..site_config import MEDIA_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
 
 async def index_media_enrichment(
     enrichment_path: Path,
-    output_dir: Path,
+    docs_dir: Path,
     client: genai.Client,
     store: VectorStore,
 ) -> int:
@@ -222,7 +223,7 @@ async def index_media_enrichment(
 
     Args:
         enrichment_path: Path to enrichment .md file
-        output_dir: Output directory (for resolving relative paths)
+        docs_dir: Docs directory (for resolving relative paths)
         client: Gemini client
         store: Vector store
 
@@ -294,7 +295,7 @@ async def index_media_enrichment(
 
 
 async def index_all_media(
-    output_dir: Path,
+    docs_dir: Path,
     client: genai.Client,
     store: VectorStore,
 ) -> int:
@@ -302,14 +303,14 @@ async def index_all_media(
     Index all media enrichment files from output/media/enrichments/.
 
     Args:
-        output_dir: Output directory
+        docs_dir: Docs directory
         client: Gemini client
         store: Vector store
 
     Returns:
         Total number of chunks indexed
     """
-    enrichments_dir = output_dir / "media" / "enrichments"
+    enrichments_dir = docs_dir / MEDIA_DIR_NAME / "enrichments"
 
     if not enrichments_dir.exists():
         logger.warning(f"Enrichments directory does not exist: {enrichments_dir}")
@@ -326,10 +327,7 @@ async def index_all_media(
     total_chunks = 0
     for enrichment_path in enrichment_files:
         chunks_count = await index_media_enrichment(
-            enrichment_path,
-            output_dir,
-            client,
-            store,
+            enrichment_path, docs_dir, client, store
         )
         total_chunks += chunks_count
 

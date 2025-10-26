@@ -9,6 +9,7 @@ Documentation:
 """
 
 import hashlib
+import os
 import logging
 import re
 import uuid
@@ -28,6 +29,7 @@ from .prompt_templates import (
     render_media_enrichment_detailed_prompt,
     render_url_enrichment_detailed_prompt,
 )
+from .site_config import MEDIA_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +125,7 @@ def find_media_references(text: str) -> list[str]:
 def extract_media_from_zip(
     zip_path: Path,
     filenames: set[str],
-    output_dir: Path,
+    docs_dir: Path,
     group_slug: str,
 ) -> dict[str, Path]:
     """
@@ -134,7 +136,7 @@ def extract_media_from_zip(
     if not filenames:
         return {}
 
-    media_dir = output_dir / "media"
+    media_dir = docs_dir / MEDIA_DIR_NAME
     media_dir.mkdir(parents=True, exist_ok=True)
 
     # Create deterministic namespace for UUID generation
@@ -175,12 +177,17 @@ def extract_media_from_zip(
             if not dest_path.exists():
                 dest_path.write_bytes(file_content)
 
-            extracted[filename] = dest_path
+            extracted[filename] = dest_path.resolve()
 
     return extracted
 
 
-def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir: Path) -> str:
+def replace_media_mentions(
+    text: str,
+    media_mapping: dict[str, Path],
+    docs_dir: Path,
+    posts_dir: Path,
+) -> str:
     """
     Replace WhatsApp media filenames with new UUID5 paths.
 
@@ -193,14 +200,18 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
     result = text
 
     for original_filename, new_path in media_mapping.items():
+        # Compute the link target we expect inside posts directory
+        try:
+            relative_link = Path(os.path.relpath(new_path, posts_dir)).as_posix()
+        except ValueError:
+            try:
+                relative_link = "/" + new_path.relative_to(docs_dir).as_posix()
+            except ValueError:
+                relative_link = new_path.as_posix()
+
         # Check if media file still exists (might be deleted due to PII)
         if not new_path.exists():
             replacement = "[Media removed: privacy protection]"
-
-            try:
-                relative_missing_path = new_path.relative_to(output_dir).as_posix()
-            except ValueError:
-                relative_missing_path = new_path.as_posix()
 
             # Replace all occurrences with privacy notice
             for marker in ATTACHMENT_MARKERS:
@@ -211,28 +222,22 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
             result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
 
             # Replace any previously generated markdown links that point to the deleted file
-            image_pattern = r"!\[[^\]]*\]\(" + re.escape(relative_missing_path) + r"\)"
+            image_pattern = r"!\[[^\]]*\]\(" + re.escape(relative_link) + r"\)"
             result = re.sub(image_pattern, replacement, result)
-            link_pattern = r"\[[^\]]*\]\(" + re.escape(relative_missing_path) + r"\)"
+            link_pattern = r"\[[^\]]*\]\(" + re.escape(relative_link) + r"\)"
             result = re.sub(link_pattern, replacement, result)
             continue
 
         # Get relative path from output_dir
-        try:
-            relative_path = new_path.relative_to(output_dir)
-        except ValueError:
-            # Fallback to name if can't get relative path
-            relative_path = new_path
-
         # Determine if it's an image for markdown rendering
         ext = new_path.suffix.lower()
         is_image = ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
         # Create markdown link
         if is_image:
-            replacement = f"![Image]({relative_path.as_posix()})"
+            replacement = f"![Image]({relative_link})"
         else:
-            replacement = f"[{new_path.name}]({relative_path.as_posix()})"
+            replacement = f"[{new_path.name}]({relative_link})"
 
         # Replace all occurrences with any attachment marker
         for marker in ATTACHMENT_MARKERS:
@@ -248,7 +253,8 @@ def replace_media_mentions(text: str, media_mapping: dict[str, Path], output_dir
 def extract_and_replace_media(
     df: Table,
     zip_path: Path,
-    output_dir: Path,
+    docs_dir: Path,
+    posts_dir: Path,
     group_slug: str = "shared",
 ) -> tuple[Table, dict[str, Path]]:
     """
@@ -266,7 +272,7 @@ def extract_and_replace_media(
         all_media.update(media_refs)
 
     # Step 2: Extract from ZIP
-    media_mapping = extract_media_from_zip(zip_path, all_media, output_dir, group_slug)
+    media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir, group_slug)
 
     if not media_mapping:
         return df, {}
@@ -274,7 +280,7 @@ def extract_and_replace_media(
     # Step 3: Replace mentions in Table
     @ibis.udf.scalar.python
     def replace_in_message(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, output_dir) if message else message
+        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
     updated_df = df.mutate(message=replace_in_message(df.message))
 
@@ -457,7 +463,8 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     df: Table,
     media_mapping: dict[str, Path],
     client: genai.Client,
-    output_dir: Path,
+    docs_dir: Path,
+    posts_dir: Path,
     model_config=None,
     enable_url: bool = True,
     enable_media: bool = True,
@@ -509,11 +516,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                     break
 
                 # Generate enrichment .md file
-                enrichment_config = EnrichmentConfig(
-                    client=client,
-                    output_dir=output_dir,
-                    model=url_model,
-                )
+                enrichment_config = EnrichmentConfig(client=client, output_dir=docs_dir, model=url_model)
                 enrichment_path = await enrich_url(
                     url=url,
                     original_message=message,
@@ -548,7 +551,7 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                     # Generate enrichment .md file
                     enrichment_config = EnrichmentConfig(
                         client=client,
-                        output_dir=output_dir,
+                        output_dir=docs_dir,
                         model=vision_model,
                     )
                     enrichment_path = await enrich_media(
@@ -582,7 +585,11 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
         # Create UDF to replace media mentions after PII deletion
         @ibis.udf.scalar.python
         def replace_media_udf(message: str) -> str:
-            return replace_media_mentions(message, media_mapping, output_dir) if message else message
+            return (
+                replace_media_mentions(message, media_mapping, docs_dir, posts_dir)
+                if message
+                else message
+            )
 
         df = df.mutate(message=replace_media_udf(df.message))
 

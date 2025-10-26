@@ -39,10 +39,20 @@ Os arquivos estáticos estarão em `site/`
 ```
 .
 ├── mkdocs.yml          # Configuração do MkDocs + Egregora
-├── docs/               # Páginas manuais (homepage, sobre)
+{% if docs_dir in [".", "./"] -%}
+├── index.md            # Página inicial
+├── about.md            # Página "Sobre"
 ├── posts/              # Posts do blog (gerados automaticamente)
 ├── profiles/           # Perfis dos participantes (gerados automaticamente)
 └── media/              # Mídia do WhatsApp (imagens, vídeos, áudio)
+{% else -%}
+├── {{ docs_dir }}/         # Conteúdo servido pelo MkDocs
+│   ├── index.md        # Página inicial
+│   ├── about.md        # Página "Sobre"
+│   ├── posts/          # Posts do blog (gerados automaticamente)
+│   ├── profiles/       # Perfis dos participantes (gerados automaticamente)
+│   └── media/          # Mídia do WhatsApp (imagens, vídeos, áudio)
+{% endif -%}
 ```
 
 ## ⚙️ Configuração
