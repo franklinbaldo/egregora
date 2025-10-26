@@ -92,6 +92,15 @@ def _validate_and_run_process(config: ProcessConfig):
             format="%(message)s",
             handlers=[RichHandler(console=console)],
         )
+    else:
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s | %(levelname)s | %(message)s",
+            )
+        else:
+            root_logger.setLevel(logging.INFO)
 
     # Validate timezone
     timezone_obj = None
@@ -131,6 +140,7 @@ def _validate_and_run_process(config: ProcessConfig):
             console.print("[red]Aborting processing at user's request.[/red]")
             raise typer.Exit(1)
 
+        logger.info("Initializing MkDocs scaffold in %s", output_dir)
         ensure_mkdocs_project(output_dir)
         console.print(
             "[green]Initialized MkDocs scaffold. Continuing with processing.[/green]"
@@ -146,7 +156,13 @@ def _validate_and_run_process(config: ProcessConfig):
     # Run pipeline
     try:
         console.print(
-            f"[cyan]Processing {config.zip_file} → {output_dir} (period={config.period})[/cyan]"
+            Panel(
+                f"[cyan]Processing:[/cyan] {config.zip_file}\n"
+                f"[cyan]Output:[/cyan] {output_dir}\n"
+                f"[cyan]Grouping:[/cyan] {config.period}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
         )
         asyncio.run(
             process_whatsapp_export(

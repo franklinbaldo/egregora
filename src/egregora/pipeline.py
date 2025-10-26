@@ -208,8 +208,10 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     try:
         client = genai.Client(api_key=gemini_api_key)
 
+        logger.info("Parsing export: %s", zip_path)
         group_name, chat_file = discover_chat_file(zip_path)
         group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+        logger.info("Discovered chat '%s' (file: %s)", group_name, chat_file)
 
         export = WhatsAppExport(
             zip_path=zip_path,
@@ -222,6 +224,8 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         # Parse and anonymize (with timezone from phone)
         df = parse_export(export, timezone=timezone)
+        total_messages = df.count().execute()
+        logger.info("Loaded %s messages after parsing", total_messages)
 
         # Ensure key directories exist and live inside docs/
         content_dirs = {
@@ -244,9 +248,13 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         if commands:
             process_commands(commands, site_paths.profiles_dir)
             logger.info(f"Processed {len(commands)} egregora commands")
+        else:
+            logger.info("No egregora commands found in this export")
 
         # Remove ALL /egregora messages (commands + ad-hoc exclusions)
         df, egregora_removed = filter_egregora_messages(df)
+        if egregora_removed:
+            logger.info("Removed %s /egregora messages", egregora_removed)
 
         # Filter out opted-out authors EARLY (before any processing)
         df, removed_count = filter_opted_out_authors(df, site_paths.profiles_dir)
@@ -280,6 +288,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 logger.info(f"✓ All {filtered_count} messages are within the specified date range")
 
         # Group by period first (media extraction handled per-period)
+        logger.info("Grouping messages by period='%s'", period)
         periods = group_by_period(df, period)
         if not periods:
             logger.info("No periods found after grouping")
@@ -291,6 +300,8 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         for period_key in sorted(periods.keys()):
             period_df = periods[period_key]
+            period_count = period_df.count().execute()
+            logger.info("Processing period %s (%s messages)", period_key, period_count)
 
             # Early exit: skip if posts already exist for this period
             if period_has_posts(period_key, posts_dir):
@@ -314,6 +325,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             # Optionally add LLM-generated enrichment rows
             if enable_enrichment:
+                logger.info("Enriching period %s", period_key)
                 enriched_df = await enrich_dataframe(
                     period_df,
                     media_mapping,
@@ -328,6 +340,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             enriched_path = enriched_dir / f"{period_key}-enriched.csv"
             # Write CSV using Ibis - need to execute to pandas first
             enriched_df.execute().to_csv(enriched_path, index=False)
+            logger.info("Saved enrichment data for %s to %s", period_key, enriched_path)
 
             result = await write_posts_for_period(
                 enriched_df,
@@ -340,6 +353,12 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             )
 
             results[period_key] = result
+            logger.info(
+                "Generated %s posts and %s profiles for %s",
+                len(result.get("posts", [])),
+                len(result.get("profiles", [])),
+                period_key,
+            )
 
         # Index all media enrichments into RAG (if enrichment was enabled)
         if enable_enrichment and results:
@@ -350,6 +369,8 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 media_chunks = await index_all_media(site_paths.docs_dir, client, store)
                 if media_chunks > 0:
                     logger.info(f"✓ Indexed {media_chunks} media chunks into RAG")
+                else:
+                    logger.info("No media enrichments to index for this run")
             except Exception as e:
                 logger.error(f"Failed to index media into RAG: {e}")
 
