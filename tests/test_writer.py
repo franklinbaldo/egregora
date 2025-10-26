@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # Needed for asyncio.run invoked in tests below.
 import sys
 from importlib import util
 from pathlib import Path
