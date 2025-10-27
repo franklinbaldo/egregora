@@ -23,7 +23,7 @@ await process_whatsapp_export(
     from_date=date(2025, 1, 1),
     to_date=date(2025, 1, 31),
     timezone=ZoneInfo("America/Sao_Paulo"),
-    model="gemini-2.0-flash-exp",
+    model="models/gemini-flash-latest",
 )
 ```
 
@@ -175,7 +175,7 @@ run_comparison(
     post_b_id="2025-01-16-coordination",
     profile_path=Path("profiles/a1b2c3d4.md"),
     api_key="YOUR_API_KEY",
-    model="gemini-2.0-flash-exp"
+    model="models/gemini-flash-latest"
 )
 ```
 
@@ -275,7 +275,7 @@ async def main():
         post_b_id=post_ids[1],
         profile_path=Path("./my-blog/profiles/a1b2c3d4.md"),
         api_key="YOUR_KEY",
-        model="gemini-2.0-flash-exp"
+        model="models/gemini-flash-latest"
     )
 
     # 4. Get top posts

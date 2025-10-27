@@ -145,7 +145,7 @@ egregora process whatsapp-export.zip \
   --period=day \
   --enable-enrichment=True \
   --gemini-key=YOUR_API_KEY \
-  --model=gemini-2.0-flash-exp \
+  --model=models/gemini-flash-latest \
   --debug
 ```
 
@@ -366,7 +366,7 @@ extra:
   egregora:
     group_slug: my-group
     timezone: America/Sao_Paulo
-    model: gemini-2.0-flash-exp
+    model: models/gemini-flash-latest
     temperature: 0.7
     custom_instructions: |
       Focus on technical depth.
