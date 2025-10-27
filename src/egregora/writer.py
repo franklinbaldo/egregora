@@ -15,10 +15,9 @@ import hashlib
 import json
 import logging
 from collections.abc import Mapping
+from datetime import timezone
 from functools import lru_cache
 from pathlib import Path
-
-from datetime import timezone
 from typing import Any
 
 import ibis
@@ -30,7 +29,8 @@ from ibis.expr.types import Table
 from pydantic import BaseModel
 
 from .annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
-from .genai_utils import call_with_retries
+from .gemini_batch import GeminiBatchClient
+from .genai_utils import call_with_retries_sync
 from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
 from .prompt_templates import render_writer_prompt
@@ -503,11 +503,26 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-async def _query_rag_for_context(df: Table, client: genai.Client, rag_dir: Path) -> str:
+def _query_rag_for_context(
+    df: Table,
+    batch_client: GeminiBatchClient,
+    rag_dir: Path,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
+) -> str:
     """Query RAG system for similar previous posts."""
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
-        similar_posts = await query_similar_posts(df, client, store, top_k=5, deduplicate=True)
+        similar_posts = query_similar_posts(
+            df,
+            batch_client,
+            store,
+            embedding_model=embedding_model,
+            top_k=5,
+            deduplicate=True,
+            output_dimensionality=embedding_output_dimensionality,
+        )
 
         if similar_posts.count().execute() == 0:
             logger.info("No similar previous posts found")
@@ -622,11 +637,14 @@ def _handle_write_profile_tool(
     )
 
 
-async def _handle_search_media_tool(
+def _handle_search_media_tool(
     fn_args: dict,
     fn_call,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     rag_dir: Path,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
 ) -> genai_types.Content:
     """Handle search_media tool call."""
     query = fn_args.get("query", "")
@@ -635,12 +653,14 @@ async def _handle_search_media_tool(
 
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
-        results = await query_media(
+        results = query_media(
             query=query,
-            client=client,
+            batch_client=batch_client,
             store=store,
             media_types=media_types,
             top_k=limit,
+            embedding_model=embedding_model,
+            output_dimensionality=embedding_output_dimensionality,
         )
 
         # Format results for LLM
@@ -762,15 +782,19 @@ def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.C
         )
 
 
-async def _process_tool_calls(  # noqa: PLR0913
+def _process_tool_calls(  # noqa: PLR0913
     candidate,
     output_dir: Path,
     profiles_dir: Path,
     saved_posts: list[str],
     saved_profiles: list[str],
     client: genai.Client,
+    batch_client: GeminiBatchClient,
     rag_dir: Path,
     annotations_store: AnnotationStore | None,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
 ) -> tuple[bool, list[genai_types.Content], list[str]]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
@@ -801,7 +825,14 @@ async def _process_tool_calls(  # noqa: PLR0913
                         _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
                     )
                 elif fn_name == "search_media":
-                    response = await _handle_search_media_tool(fn_args, fn_call, client, rag_dir)
+                    response = _handle_search_media_tool(
+                        fn_args,
+                        fn_call,
+                        batch_client,
+                        rag_dir,
+                        embedding_model=embedding_model,
+                        embedding_output_dimensionality=embedding_output_dimensionality,
+                    )
                     tool_responses.append(response)
                 elif fn_name == "annotate_conversation":
                     tool_responses.append(
@@ -818,7 +849,14 @@ async def _process_tool_calls(  # noqa: PLR0913
     return has_tool_calls, tool_responses, freeform_parts
 
 
-async def _index_posts_in_rag(saved_posts: list[str], client: genai.Client, rag_dir: Path) -> None:
+def _index_posts_in_rag(
+    saved_posts: list[str],
+    batch_client: GeminiBatchClient,
+    rag_dir: Path,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
+) -> None:
     """Index newly created posts in RAG system."""
     if not saved_posts:
         return
@@ -826,21 +864,29 @@ async def _index_posts_in_rag(saved_posts: list[str], client: genai.Client, rag_
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         for post_path in saved_posts:
-            await index_post(Path(post_path), client, store)
+            index_post(
+                Path(post_path),
+                batch_client,
+                store,
+                embedding_model=embedding_model,
+                output_dimensionality=embedding_output_dimensionality,
+            )
         logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
     except Exception as e:
         logger.error(f"Failed to index posts in RAG: {e}")
 
 
-async def write_posts_for_period(  # noqa: PLR0913
+def write_posts_for_period(  # noqa: PLR0913
     df: Table,
     date: str,
     client: genai.Client,
+    batch_client: GeminiBatchClient,
     output_dir: Path = Path("output/posts"),
     profiles_dir: Path = Path("output/profiles"),
     rag_dir: Path = Path("output/rag"),
     model_config=None,
     enable_rag: bool = True,
+    embedding_output_dimensionality: int = 3072,
 ) -> dict[str, list[str]]:
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
@@ -873,7 +919,9 @@ async def write_posts_for_period(  # noqa: PLR0913
     if model_config is None:
         model_config = ModelConfig()
     model = model_config.get_model("writer")
+    embedding_model = model_config.get_model("embedding")
     logger.info("[blue]🧠 Writer model:[/] %s", model)
+    logger.info("[blue]📚 Embedding model:[/] %s", embedding_model)
 
     annotations_store: AnnotationStore | None = None
     try:
@@ -887,7 +935,17 @@ async def write_posts_for_period(  # noqa: PLR0913
     markdown_table, _ = _build_conversation_markdown(messages_df, annotations_store)
 
     # Query RAG and load profiles for context
-    rag_context = await _query_rag_for_context(df, client, rag_dir) if enable_rag else ""
+    rag_context = (
+        _query_rag_for_context(
+            df,
+            batch_client,
+            rag_dir,
+            embedding_model=embedding_model,
+            embedding_output_dimensionality=embedding_output_dimensionality,
+        )
+        if enable_rag
+        else ""
+    )
     profiles_context = _load_profiles_context(df, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)
@@ -937,8 +995,8 @@ Use these features appropriately in your posts. You understand how each extensio
     # Conversation loop
     for _ in range(MAX_CONVERSATION_TURNS):
         try:
-            response = await call_with_retries(
-                client.aio.models.generate_content,
+            response = call_with_retries_sync(
+                client.models.generate_content,
                 model=model,
                 contents=messages,
                 config=config,
@@ -955,15 +1013,18 @@ Use these features appropriately in your posts. You understand how each extensio
         candidate = response.candidates[0]
 
         # Process tool calls
-        has_tool_calls, tool_responses, freeform_parts = await _process_tool_calls(
+        has_tool_calls, tool_responses, freeform_parts = _process_tool_calls(
             candidate,
             output_dir,
             profiles_dir,
             saved_posts,
             saved_profiles,
             client,
+            batch_client,
             rag_dir,
             annotations_store,
+            embedding_model=embedding_model,
+            embedding_output_dimensionality=embedding_output_dimensionality,
         )
 
         # Exit if no more tools to call
@@ -978,11 +1039,18 @@ Use these features appropriately in your posts. You understand how each extensio
             break
 
         # Continue conversation
-        messages.append(candidate.content)
+        if candidate.content:
+            messages.append(candidate.content)
         messages.extend(tool_responses)
 
     # Index new posts in RAG
     if enable_rag:
-        await _index_posts_in_rag(saved_posts, client, rag_dir)
+        _index_posts_in_rag(
+            saved_posts,
+            batch_client,
+            rag_dir,
+            embedding_model=embedding_model,
+            embedding_output_dimensionality=embedding_output_dimensionality,
+        )
 
     return {"posts": saved_posts, "profiles": saved_profiles}

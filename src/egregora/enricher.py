@@ -18,12 +18,14 @@ from datetime import timedelta
 from pathlib import Path
 
 import ibis
-from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from .config_types import EnrichmentConfig
-from .genai_utils import call_with_retries
+from dataclasses import dataclass
+from typing import Any
+
+from .cache import EnrichmentCache, make_enrichment_cache_key
+from .gemini_batch import BatchPromptRequest, GeminiBatchClient
 from .model_config import ModelConfig
 from .prompt_templates import (
     render_media_enrichment_detailed_prompt,
@@ -67,6 +69,53 @@ MEDIA_EXTENSIONS = {
     ".doc": "document",
     ".docx": "document",
 }
+
+
+@dataclass
+class UrlEnrichmentJob:
+    """Metadata for a URL enrichment batch item."""
+
+    key: str
+    url: str
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    markdown: str | None = None
+    cached: bool = False
+
+
+@dataclass
+class MediaEnrichmentJob:
+    """Metadata for a media enrichment batch item."""
+
+    key: str
+    original_filename: str
+    file_path: Path
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    media_type: str | None = None
+    markdown: str | None = None
+    cached: bool = False
+    upload_uri: str | None = None
+    mime_type: str | None = None
+
+
+def _ensure_datetime(value):
+    """Convert pandas/ibis timestamp objects to ``datetime``."""
+    if hasattr(value, "to_pydatetime"):
+        return value.to_pydatetime()
+    return value
+
+
+def _safe_timestamp_plus_one(timestamp) -> Any:
+    """Return timestamp + 1 second, handling pandas/ibis types."""
+    dt_value = _ensure_datetime(timestamp)
+    return dt_value + timedelta(seconds=1)
 
 
 def get_media_subfolder(file_extension: str) -> str:
@@ -300,213 +349,45 @@ def detect_media_type(file_path: Path) -> str | None:
     return None
 
 
-async def enrich_url(
-    url: str,
-    original_message: str,
-    sender_uuid: str,
-    timestamp,
-    config: EnrichmentConfig,
-) -> str:
-    """
-    Generate detailed enrichment for URL and save as .md file.
-
-    Returns: Path to saved enrichment file
-    """
-    # Generate UUID for enrichment file
-    hashlib.md5(url.encode()).hexdigest()
-    enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
-
-    # Prepare context
-    date_str = timestamp.strftime("%Y-%m-%d")
-    time_str = timestamp.strftime("%H:%M")
-
-    prompt = render_url_enrichment_detailed_prompt(
-        url=url,
-        original_message=original_message,
-        sender_uuid=sender_uuid,
-        date=date_str,
-        time=time_str,
-    )
-
-    try:
-        response = await call_with_retries(
-            config.client.aio.models.generate_content,
-            model=config.model,
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=[genai_types.Part(text=prompt)],
-                )
-            ],
-            config=genai_types.GenerateContentConfig(temperature=0.3),
-        )
-
-        markdown_content = (response.text or "").strip()
-
-        # Save to media/urls/
-        urls_dir = config.output_dir / "media" / "urls"
-        urls_dir.mkdir(parents=True, exist_ok=True)
-
-        enrichment_path = urls_dir / f"{enrichment_id}.md"
-        enrichment_path.write_text(markdown_content, encoding="utf-8")
-
-        return str(enrichment_path)
-
-    except Exception as e:
-        return f"[Failed to enrich URL: {str(e)}]"
 
 
-async def enrich_media(
-    file_path: Path,
-    original_message: str,
-    sender_uuid: str,
-    timestamp,
-    config: EnrichmentConfig,
-) -> str:
-    """
-    Generate detailed enrichment for media file and save as .md file.
-
-    Returns: Path to saved enrichment file
-    """
-    # Determine media type
-    media_type = detect_media_type(file_path)
-    if not media_type:
-        return f"[Unknown media type: {file_path.name}]"
-
-    # Generate UUID for enrichment file (based on file path)
-    enrichment_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path)))
-
-    # Get relative path from output_dir
-    try:
-        media_path = file_path.relative_to(config.output_dir)
-    except ValueError:
-        media_path = file_path
-
-    # Prepare context
-    date_str = timestamp.strftime("%Y-%m-%d")
-    time_str = timestamp.strftime("%H:%M")
-
-    prompt = render_media_enrichment_detailed_prompt(
-        media_type=media_type,
-        media_filename=file_path.name,
-        media_path=str(media_path),
-        original_message=original_message,
-        sender_uuid=sender_uuid,
-        date=date_str,
-        time=time_str,
-    )
-
-    try:
-        # Upload file to Gemini (for vision/audio analysis)
-        uploaded_file = await call_with_retries(
-            config.client.aio.files.upload,
-            path=str(file_path),
-        )
-
-        file_part = None
-        if getattr(uploaded_file, "uri", None):
-            file_part = genai_types.Part(
-                file_data=genai_types.FileData(
-                    file_uri=uploaded_file.uri,
-                    mime_type=getattr(uploaded_file, "mime_type", None),
-                    display_name=file_path.name,
-                )
-            )
-
-        # Generate enrichment
-        parts = [genai_types.Part(text=prompt)]
-        if file_part is not None:
-            parts.append(file_part)
-
-        response = await call_with_retries(
-            config.client.aio.models.generate_content,
-            model=config.model,
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=parts,
-                )
-            ],
-        )
-
-        markdown_content = (response.text or "").strip()
-
-        # Check for PII code word
-        contains_pii = "PII_DETECTED" in markdown_content
-
-        if contains_pii:
-            logger.warning(
-                f"PII detected in media: {file_path.name}. "
-                f"Media will be deleted, but keeping redacted description."
-            )
-
-            # Remove code word from description (clean it up)
-            markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
-
-            # Delete the media file from disk
-            try:
-                file_path.unlink()
-                logger.info(f"Deleted media file containing PII: {file_path}")
-            except Exception as delete_error:
-                logger.error(f"Failed to delete {file_path}: {delete_error}")
-
-        # Save to media/enrichments/
-        enrichments_dir = config.output_dir / "media" / "enrichments"
-        enrichments_dir.mkdir(parents=True, exist_ok=True)
-
-        enrichment_path = enrichments_dir / f"{enrichment_id}.md"
-        enrichment_path.write_text(markdown_content, encoding="utf-8")
-
-        return str(enrichment_path)
-
-    except Exception as e:
-        return f"[Failed to enrich media: {str(e)}]"
-
-
-async def enrich_dataframe(  # noqa: PLR0912, PLR0913
+def enrich_dataframe(
     df: Table,
     media_mapping: dict[str, Path],
-    client: genai.Client,
+    text_batch_client: GeminiBatchClient,
+    vision_batch_client: GeminiBatchClient,
+    cache: EnrichmentCache,
     docs_dir: Path,
     posts_dir: Path,
-    model_config=None,
+    model_config: ModelConfig | None = None,
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
 ) -> Table:
-    """
-    Add LLM-generated enrichment rows to Table for URLs and media.
-
-    Note: Media must already be extracted and replaced in df.
-    Use extract_and_replace_media() first.
-
-    Args:
-        df: Table with media paths already replaced
-        media_mapping: Mapping of original filenames to extracted paths
-        client: Gemini client
-        model_config: Model configuration object
-        enable_url: Add URL descriptions
-        enable_media: Add media descriptions
-        max_enrichments: Maximum enrichments to add
-
-    Returns new Table with additional rows authored by 'egregora'.
-    """
-    # Get model names from config
+    """Add LLM-generated enrichment rows to Table for URLs and media."""
     if model_config is None:
         model_config = ModelConfig()
+
     url_model = model_config.get_model("enricher")
     vision_model = model_config.get_model("enricher_vision")
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
+
     if df.count().execute() == 0:
         return df
 
-    new_rows = []
+    rows = df.execute().to_dict("records")
+    new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
     pii_detected_count = 0
     pii_media_deleted = False
+    seen_url_keys: set[str] = set()
+    seen_media_keys: set[str] = set()
 
-    for row in df.execute().to_dict("records"):
+    url_jobs: list[UrlEnrichmentJob] = []
+    media_jobs: list[MediaEnrichmentJob] = []
+
+    for row in rows:
         if enrichment_count >= max_enrichments:
             break
 
@@ -514,86 +395,267 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
         timestamp = row["timestamp"]
         author = row.get("author", "unknown")
 
-        # Enrich URLs
-        if enable_url:
+        if enable_url and message:
             urls = extract_urls(message)
-            for url in urls[:3]:  # Max 3 URLs per message
+            for url in urls[:3]:
                 if enrichment_count >= max_enrichments:
                     break
+                cache_key = make_enrichment_cache_key(kind="url", identifier=url)
+                if cache_key in seen_url_keys:
+                    continue
 
-                logger.info("[Enrichment] URL %s", url)
-
-                # Generate enrichment .md file
-                enrichment_config = EnrichmentConfig(
-                    client=client, output_dir=docs_dir, model=url_model
-                )
-                enrichment_path = await enrich_url(
+                enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
+                enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
+                job = UrlEnrichmentJob(
+                    key=cache_key,
                     url=url,
                     original_message=message,
                     sender_uuid=author,
                     timestamp=timestamp,
-                    config=enrichment_config,
+                    path=enrichment_path,
+                    tag=f"url:{cache_key}",
                 )
 
-                # Add reference to Table
-                enrichment_timestamp = timestamp + timedelta(seconds=1)
-                new_rows.append(
-                    {
-                        "timestamp": enrichment_timestamp,
-                        "date": enrichment_timestamp.date(),
-                        "author": "egregora",
-                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
-                        "original_line": "",
-                        "tagged_line": "",
-                    }
-                )
+                cache_entry = cache.load(cache_key)
+                if cache_entry:
+                    job.markdown = cache_entry.get("markdown")
+                    job.cached = True
+
+                url_jobs.append(job)
+                seen_url_keys.add(cache_key)
                 enrichment_count += 1
 
-        # Enrich media (use the already-extracted files)
         if enable_media and media_mapping:
-            # Find media files in this message (by checking the mapping values)
             for original_filename, file_path in media_mapping.items():
-                # Check if this media is referenced in this message
                 if original_filename in message or file_path.name in message:
                     if enrichment_count >= max_enrichments:
                         break
+                    cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
+                    if cache_key in seen_media_keys:
+                        continue
 
-                    # Generate enrichment .md file
-                    logger.info("[Enrichment] Media %s", original_filename)
-                    enrichment_config = EnrichmentConfig(
-                        client=client,
-                        output_dir=docs_dir,
-                        model=vision_model,
-                    )
-                    enrichment_path = await enrich_media(
+                    media_type = detect_media_type(file_path)
+                    if not media_type:
+                        logger.warning("Unsupported media type for enrichment: %s", file_path.name)
+                        continue
+
+                    enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
+                    enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
+                    job = MediaEnrichmentJob(
+                        key=cache_key,
+                        original_filename=original_filename,
                         file_path=file_path,
                         original_message=message,
                         sender_uuid=author,
                         timestamp=timestamp,
-                        config=enrichment_config,
+                        path=enrichment_path,
+                        tag=f"media:{cache_key}",
+                        media_type=media_type,
                     )
 
-                    # Check if media file was deleted due to PII
-                    if not file_path.exists():
-                        pii_detected_count += 1
-                        pii_media_deleted = True
+                    cache_entry = cache.load(cache_key)
+                    if cache_entry:
+                        job.markdown = cache_entry.get("markdown")
+                        job.cached = True
 
-                    # Add reference to DataFrame
-                    enrichment_timestamp = timestamp + timedelta(seconds=1)
-                    new_rows.append(
-                        {
-                            "timestamp": enrichment_timestamp,
-                            "date": enrichment_timestamp.date(),
-                            "author": "egregora",
-                            "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
-                            "original_line": "",
-                            "tagged_line": "",
-                        }
-                    )
+                    media_jobs.append(job)
+                    seen_media_keys.add(cache_key)
                     enrichment_count += 1
 
+    pending_url_jobs = [job for job in url_jobs if job.markdown is None]
+    if pending_url_jobs:
+        requests: list[BatchPromptRequest] = []
+        for job in pending_url_jobs:
+            ts = _ensure_datetime(job.timestamp)
+            prompt = render_url_enrichment_detailed_prompt(
+                url=job.url,
+                original_message=job.original_message,
+                sender_uuid=job.sender_uuid,
+                date=ts.strftime("%Y-%m-%d"),
+                time=ts.strftime("%H:%M"),
+            )
+            requests.append(
+                BatchPromptRequest(
+                    contents=[
+                        genai_types.Content(
+                            role="user",
+                            parts=[genai_types.Part(text=prompt)],
+                        )
+                    ],
+                    config=genai_types.GenerateContentConfig(temperature=0.3),
+                    model=url_model,
+                    tag=job.tag,
+                )
+            )
+
+        try:
+            responses = text_batch_client.generate_content(
+                requests,
+                display_name="Egregora URL Enrichment",
+            )
+        except Exception as exc:
+            logger.error("URL enrichment batch failed: %s", exc)
+            responses = []
+
+        result_map = {result.tag: result for result in responses}
+        for job in pending_url_jobs:
+            result = result_map.get(job.tag)
+            if not result or result.error or not result.response:
+                logger.warning("Failed to enrich URL %s: %s", job.url, result.error if result else "no result")
+                job.markdown = f"[Failed to enrich URL: {job.url}]"
+                continue
+
+            markdown_content = (result.response.text or "").strip()
+            if not markdown_content:
+                markdown_content = f"[No enrichment generated for URL: {job.url}]"
+
+            job.markdown = markdown_content
+            cache.store(job.key, {"markdown": markdown_content, "type": "url"})
+
+    pending_media_jobs = [job for job in media_jobs if job.markdown is None]
+    if pending_media_jobs:
+        requests: list[BatchPromptRequest] = []
+        for job in pending_media_jobs:
+            try:
+                uploaded_file = vision_batch_client.upload_file(
+                    path=str(job.file_path),
+                    display_name=job.file_path.name,
+                )
+                job.upload_uri = getattr(uploaded_file, "uri", None)
+                job.mime_type = getattr(uploaded_file, "mime_type", None)
+            except Exception as exc:
+                logger.error("Failed to upload media %s: %s", job.file_path.name, exc)
+                job.markdown = f"[Failed to upload media for enrichment: {job.file_path.name}]"
+                continue
+
+            ts = _ensure_datetime(job.timestamp)
+            try:
+                media_path = job.file_path.relative_to(docs_dir)
+            except ValueError:
+                media_path = job.file_path
+
+            prompt = render_media_enrichment_detailed_prompt(
+                media_type=job.media_type,
+                media_filename=job.file_path.name,
+                media_path=str(media_path),
+                original_message=job.original_message,
+                sender_uuid=job.sender_uuid,
+                date=ts.strftime("%Y-%m-%d"),
+                time=ts.strftime("%H:%M"),
+            )
+
+            parts = [genai_types.Part(text=prompt)]
+            if job.upload_uri:
+                parts.append(
+                    genai_types.Part(
+                        file_data=genai_types.FileData(
+                            file_uri=job.upload_uri,
+                            mime_type=job.mime_type,
+                            display_name=job.file_path.name,
+                        )
+                    )
+                )
+
+            requests.append(
+                BatchPromptRequest(
+                    contents=[
+                        genai_types.Content(
+                            role="user",
+                            parts=parts,
+                        )
+                    ],
+                    model=vision_model,
+                    tag=job.tag,
+                )
+            )
+
+        if requests:
+            try:
+                responses = vision_batch_client.generate_content(
+                    requests,
+                    display_name="Egregora Media Enrichment",
+                )
+            except Exception as exc:
+                logger.error("Media enrichment batch failed: %s", exc)
+                responses = []
+        else:
+            responses = []
+
+        result_map = {result.tag: result for result in responses}
+        for job in pending_media_jobs:
+            if job.markdown is not None:
+                continue
+
+            result = result_map.get(job.tag)
+            if not result or result.error or not result.response:
+                logger.warning(
+                    "Failed to enrich media %s: %s",
+                    job.file_path.name,
+                    result.error if result else "no result",
+                )
+                job.markdown = f"[Failed to enrich media: {job.file_path.name}]"
+                continue
+
+            markdown_content = (result.response.text or "").strip()
+            if not markdown_content:
+                markdown_content = f"[No enrichment generated for media: {job.file_path.name}]"
+
+            if "PII_DETECTED" in markdown_content:
+                logger.warning(
+                    "PII detected in media: %s. Media will be deleted after redaction.",
+                    job.file_path.name,
+                )
+                markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+                try:
+                    job.file_path.unlink()
+                    logger.info("Deleted media file containing PII: %s", job.file_path)
+                    pii_media_deleted = True
+                    pii_detected_count += 1
+                except Exception as delete_error:
+                    logger.error("Failed to delete %s: %s", job.file_path, delete_error)
+
+            job.markdown = markdown_content
+            cache.store(job.key, {"markdown": markdown_content, "type": "media"})
+
+    for job in url_jobs:
+        if not job.markdown:
+            continue
+
+        job.path.parent.mkdir(parents=True, exist_ok=True)
+        job.path.write_text(job.markdown, encoding="utf-8")
+
+        enrichment_timestamp = _safe_timestamp_plus_one(job.timestamp)
+        new_rows.append(
+            {
+                "timestamp": enrichment_timestamp,
+                "date": enrichment_timestamp.date(),
+                "author": "egregora",
+                "message": f"[URL Enrichment] {job.url}\\nEnrichment saved: {job.path}",
+                "original_line": "",
+                "tagged_line": "",
+            }
+        )
+
+    for job in media_jobs:
+        if not job.markdown:
+            continue
+
+        job.path.parent.mkdir(parents=True, exist_ok=True)
+        job.path.write_text(job.markdown, encoding="utf-8")
+
+        enrichment_timestamp = _safe_timestamp_plus_one(job.timestamp)
+        new_rows.append(
+            {
+                "timestamp": enrichment_timestamp,
+                "date": enrichment_timestamp.date(),
+                "author": "egregora",
+                "message": f"[Media Enrichment] {job.file_path.name}\\nEnrichment saved: {job.path}",
+                "original_line": "",
+                "tagged_line": "",
+            }
+        )
+
     if pii_media_deleted:
-        # Create UDF to replace media mentions after PII deletion
         @ibis.udf.scalar.python
         def replace_media_udf(message: str) -> str:
             return (
@@ -607,7 +669,6 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     if not new_rows:
         return df
 
-    # Create enrichment table with matching schema and union with original
     schema = df.schema()
     normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
 
@@ -615,10 +676,10 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
     combined = df.union(enrichment_df, distinct=False)
     combined = combined.order_by("timestamp")
 
-    # Log PII detection summary
     if pii_detected_count > 0:
         logger.info(
-            f"Privacy summary: {pii_detected_count} media file(s) deleted due to PII detection"
+            "Privacy summary: %d media file(s) deleted due to PII detection",
+            pii_detected_count,
         )
 
     return combined
