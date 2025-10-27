@@ -77,10 +77,11 @@ async def _sleep_with_progress(delay: float, description: str) -> None:
     if delay <= 0:
         return
 
-    if (
-        not _console.is_terminal
-        or os.environ.get("EGREGORA_PROGRESS", "0").lower() not in {"1", "true", "yes"}
-    ):
+    if not _console.is_terminal or os.environ.get("EGREGORA_PROGRESS", "0").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
         await asyncio.sleep(delay)
         return
 

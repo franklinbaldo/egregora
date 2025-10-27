@@ -9,10 +9,10 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
+from ..site_config import MEDIA_DIR_NAME
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
 from .store import VECTOR_STORE_SCHEMA, VectorStore
-from ..site_config import MEDIA_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -340,9 +340,7 @@ async def index_all_media(
 
     total_chunks = 0
     for enrichment_path in enrichment_files:
-        chunks_count = await index_media_enrichment(
-            enrichment_path, docs_dir, client, store
-        )
+        chunks_count = await index_media_enrichment(enrichment_path, docs_dir, client, store)
         total_chunks += chunks_count
 
     logger.info(f"Indexed {total_chunks} total chunks from {len(enrichment_files)} media files")

@@ -9,8 +9,8 @@ Documentation:
 """
 
 import hashlib
-import os
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -280,7 +280,11 @@ def extract_and_replace_media(
     # Step 3: Replace mentions in Table
     @ibis.udf.scalar.python
     def replace_in_message(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
+        return (
+            replace_media_mentions(message, media_mapping, docs_dir, posts_dir)
+            if message
+            else message
+        )
 
     updated_df = df.mutate(message=replace_in_message(df.message))
 
@@ -523,7 +527,9 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                 )
 
                 # Generate enrichment .md file
-                enrichment_config = EnrichmentConfig(client=client, output_dir=docs_dir, model=url_model)
+                enrichment_config = EnrichmentConfig(
+                    client=client, output_dir=docs_dir, model=url_model
+                )
                 enrichment_path = await enrich_url(
                     url=url,
                     original_message=message,

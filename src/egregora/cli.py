@@ -22,8 +22,7 @@ from .pipeline import process_whatsapp_export
 from .ranking.agent import run_comparison
 from .ranking.elo import get_posts_to_compare
 from .ranking.store import RankingStore
-from .site_config import resolve_site_paths
-from .site_config import find_mkdocs_file
+from .site_config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
@@ -84,30 +83,34 @@ def init(
         )
 
 
-def _validate_and_run_process(config: ProcessConfig):
+def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(message)s",
-            handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)],
+            handlers=[
+                RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
+            ],
         )
     else:
         root_logger = logging.getLogger()
         if not root_logger.handlers:
-            handler = RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
+            handler = RichHandler(
+                console=console,
+                rich_tracebacks=True,
+                show_path=False,
+                markup=True,
+            )
             handler.setFormatter(logging.Formatter("%(message)s"))
             root_logger.addHandler(handler)
         else:
-            for handler in root_logger.handlers:
-                if isinstance(handler, RichHandler):
-                    handler.markup = True
-                    handler.show_time = False
-                    handler.show_path = False
+            for existing_handler in root_logger.handlers:
+                if isinstance(existing_handler, RichHandler):
+                    existing_handler.markup = True
+                    existing_handler.show_time = False
+                    existing_handler.show_path = False
         root_logger.setLevel(logging.INFO)
-            )
-        else:
-            root_logger.setLevel(logging.INFO)
 
     # Validate timezone
     timezone_obj = None
@@ -149,9 +152,7 @@ def _validate_and_run_process(config: ProcessConfig):
 
         logger.info("Initializing MkDocs scaffold in %s", output_dir)
         ensure_mkdocs_project(output_dir)
-        console.print(
-            "[green]Initialized MkDocs scaffold. Continuing with processing.[/green]"
-        )
+        console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
 
     # Get API key
     api_key = config.gemini_key or os.getenv("GOOGLE_API_KEY")

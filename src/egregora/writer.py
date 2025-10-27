@@ -563,9 +563,7 @@ async def _process_tool_calls(  # noqa: PLR0913
                         _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
                     )
                 elif fn_name == "read_profile":
-                    tool_responses.append(
-                        _handle_read_profile_tool(fn_args, fn_call, profiles_dir)
-                    )
+                    tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
                 elif fn_name == "write_profile":
                     tool_responses.append(
                         _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
@@ -724,9 +722,7 @@ Use these features appropriately in your posts. You understand how each extensio
                     part.strip() for part in freeform_parts if part and part.strip()
                 )
                 if freeform_content:
-                    freeform_path = _write_freeform_markdown(
-                        freeform_content, date, output_dir
-                    )
+                    freeform_path = _write_freeform_markdown(freeform_content, date, output_dir)
                     saved_posts.append(str(freeform_path))
             break
 

@@ -141,7 +141,7 @@ class VectorStore:
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
-    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:  # noqa: PLR0912
         """Ensure both tables share the same schema before unioning."""
 
         existing_columns = set(existing_df.columns)

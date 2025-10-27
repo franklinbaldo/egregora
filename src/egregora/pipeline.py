@@ -1,8 +1,8 @@
 """Ultra-simple pipeline: parse → anonymize → group → enrich → write."""
 
 import logging
-import shutil
 import re
+import shutil
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -137,7 +137,7 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
         week_str = ibis.ifelse(
             week_num < SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + week_num.cast("string"),
-            week_num.cast("string")
+            week_num.cast("string"),
         )
         df = df.mutate(period=year_str + ibis.literal("-W") + week_str)
     elif period == "month":
@@ -148,7 +148,7 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
         month_str = ibis.ifelse(
             month_num < SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + month_num.cast("string"),
-            month_num.cast("string")
+            month_num.cast("string"),
         )
         df = df.mutate(period=year_str + ibis.literal("-") + month_str)
     else:
@@ -298,7 +298,9 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date (kept {filtered_count})"
                 )
             else:
-                logger.info(f"[green]✓ All[/] {filtered_count} messages are within the specified date range")
+                logger.info(
+                    f"[green]✓ All[/] {filtered_count} messages are within the specified date range"
+                )
 
         # Group by period first (media extraction handled per-period)
         logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {period}")
