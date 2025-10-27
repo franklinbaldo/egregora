@@ -9,18 +9,27 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import logging
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 
+from datetime import timezone
+from typing import Any
+
 import ibis
+import pandas as pd
 import yaml
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 from pydantic import BaseModel
 
+from .annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
@@ -77,6 +86,144 @@ def _load_freeform_memory(output_dir: Path) -> str:
         return latest.read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+def _stringify_value(value: Any) -> str:
+    """Convert values to safe strings for table rendering."""
+
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):  # type: ignore[call-arg]
+            return ""
+    except TypeError:
+        pass
+    return str(value)
+
+
+def _escape_table_cell(value: Any) -> str:
+    """Escape markdown table delimiters and normalize whitespace."""
+
+    text = _stringify_value(value)
+    text = text.replace("|", "\\|")
+    return text.replace("\n", "<br>")
+
+
+def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
+    """Derive a deterministic identifier for a conversation row."""
+
+    parts: list[str] = []
+    for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
+        value = row.get(key)
+        normalized = _stringify_value(value)
+        if normalized:
+            parts.append(normalized)
+    parts.append(str(row_index))
+    raw = "||".join(parts)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _format_annotations_for_message(annotations: list[Annotation]) -> str:
+    """Return formatted annotation text for inclusion in a table cell."""
+
+    if not annotations:
+        return ""
+
+    formatted_blocks: list[str] = []
+    for annotation in annotations:
+        timestamp = (
+            annotation.created_at.astimezone(timezone.utc)
+            if annotation.created_at.tzinfo
+            else annotation.created_at.replace(tzinfo=timezone.utc)
+        )
+        timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
+        parent_note = (
+            f" · parent #{annotation.parent_annotation_id}"
+            if getattr(annotation, "parent_annotation_id", None) is not None
+            else ""
+        )
+        commentary = _stringify_value(annotation.commentary)
+        formatted_blocks.append(
+            (
+                f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
+                f"\n{commentary}"
+            )
+        )
+
+    return "\n\n".join(formatted_blocks)
+
+
+def _merge_message_and_annotations(message_value: Any, annotations: list[Annotation]) -> str:
+    """Append annotation content after the original message text."""
+
+    message_text = _stringify_value(message_value)
+    annotations_block = _format_annotations_for_message(annotations)
+
+    if not annotations_block:
+        return message_text
+    if message_text:
+        return f"{message_text}\n\n{annotations_block}"
+    return annotations_block
+
+
+def _build_conversation_markdown(
+    dataframe: pd.DataFrame, annotations_store: AnnotationStore | None
+) -> tuple[str, pd.DataFrame]:
+    """Render conversation rows into markdown with inline annotations."""
+
+    if dataframe.empty:
+        return "", dataframe
+
+    df = dataframe.copy()
+
+    if "msg_id" not in df.columns:
+        msg_ids = [
+            _compute_message_id(index, row)
+            for index, row in enumerate(df.to_dict("records"))
+        ]
+        df.insert(0, "msg_id", msg_ids)
+    else:
+        df["msg_id"] = df["msg_id"].map(_stringify_value)
+
+    annotations_map: dict[str, list[Annotation]] = {}
+    if annotations_store is not None:
+        ordered_ids = list(dict.fromkeys(df["msg_id"].tolist()))
+        annotations_map = {
+            msg_id: annotations_store.list_annotations_for_message(msg_id)
+            for msg_id in ordered_ids
+        }
+
+    message_column = next(
+        (candidate for candidate in ("message", "content", "text") if candidate in df.columns),
+        None,
+    )
+
+    if message_column:
+        df[message_column] = [
+            _merge_message_and_annotations(value, annotations_map.get(msg_id, []))
+            for value, msg_id in zip(
+                df[message_column].tolist(), df["msg_id"].tolist()
+            )
+        ]
+    elif annotations_map:
+        df["annotations"] = [
+            _format_annotations_for_message(annotations_map.get(msg_id, []))
+            for msg_id in df["msg_id"].tolist()
+        ]
+
+    headers = [str(column) for column in df.columns]
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+
+    for _, row in df.iterrows():
+        cells = [_escape_table_cell(row[column]) for column in headers]
+        lines.append("| " + " | ".join(cells) + " |")
+
+    return "\n".join(lines), df
 
 
 logger = logging.getLogger(__name__)
@@ -225,6 +372,33 @@ def _writer_tools() -> list[genai_types.Tool]:
         ),
     )
 
+    annotate_conversation_decl = genai_types.FunctionDeclaration(
+        name="annotate_conversation",
+        description=(
+            "Store a private annotation linked to a conversation message so it can be "
+            "surfaced automatically during future writing sessions."
+        ),
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "msg_id": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Identifier of the conversation message being annotated",
+                ),
+                "my_commentary": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Commentary to remember for the specified message",
+                ),
+                "parent_annotation_id": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Optional prior annotation ID that this elaborates on",
+                    nullable=True,
+                ),
+            },
+            required=["msg_id", "my_commentary"],
+        ),
+    )
+
     return [
         genai_types.Tool(
             function_declarations=[
@@ -232,6 +406,7 @@ def _writer_tools() -> list[genai_types.Tool]:
                 read_profile_decl,
                 write_profile_decl,
                 search_media_decl,
+                annotate_conversation_decl,
             ]
         )
     ]
@@ -515,6 +690,62 @@ async def _handle_search_media_tool(
         )
 
 
+def _handle_annotate_conversation_tool(
+    fn_args: dict,
+    fn_call,
+    annotations_store: AnnotationStore | None,
+) -> genai_types.Content:
+    """Persist annotation data using the AnnotationStore."""
+
+    if annotations_store is None:
+        raise RuntimeError("Annotation store is not configured")
+
+    msg_id = _stringify_value(fn_args.get("msg_id"))
+    commentary = _stringify_value(fn_args.get("my_commentary"))
+    parent_raw = fn_args.get("parent_annotation_id")
+
+    if isinstance(parent_raw, str):
+        parent_raw = parent_raw.strip()
+
+    parent_annotation_id: int | None
+    if parent_raw in (None, ""):
+        parent_annotation_id = None
+    else:
+        try:
+            parent_annotation_id = int(parent_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("parent_annotation_id must be an integer when provided") from exc
+
+    annotation = annotations_store.save_annotation(
+        msg_id,
+        commentary,
+        parent_annotation_id=parent_annotation_id,
+    )
+
+    response_payload = {
+        "status": "ok",
+        "annotation_id": annotation.id,
+        "msg_id": annotation.msg_id,
+        "created_at": annotation.created_at.isoformat(),
+        "author": annotation.author,
+    }
+    if parent_annotation_id is not None:
+        response_payload["parent_annotation_id"] = parent_annotation_id
+
+    return genai_types.Content(
+        role="user",
+        parts=[
+            genai_types.Part(
+                function_response=genai_types.FunctionResponse(
+                    id=getattr(fn_call, "id", None),
+                    name="annotate_conversation",
+                    response=response_payload,
+                )
+            )
+        ],
+    )
+
+
 def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
@@ -528,7 +759,7 @@ def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.C
                 )
             )
         ],
-    )
+        )
 
 
 async def _process_tool_calls(  # noqa: PLR0913
@@ -539,6 +770,7 @@ async def _process_tool_calls(  # noqa: PLR0913
     saved_profiles: list[str],
     client: genai.Client,
     rag_dir: Path,
+    annotations_store: AnnotationStore | None,
 ) -> tuple[bool, list[genai_types.Content], list[str]]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
@@ -571,6 +803,10 @@ async def _process_tool_calls(  # noqa: PLR0913
                 elif fn_name == "search_media":
                     response = await _handle_search_media_tool(fn_args, fn_call, client, rag_dir)
                     tool_responses.append(response)
+                elif fn_name == "annotate_conversation":
+                    tool_responses.append(
+                        _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
+                    )
             except Exception as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
@@ -639,9 +875,16 @@ async def write_posts_for_period(  # noqa: PLR0913
     model = model_config.get_model("writer")
     logger.info("[blue]🧠 Writer model:[/] %s", model)
 
+    annotations_store: AnnotationStore | None = None
+    try:
+        annotations_path = (output_dir.parent / "annotations.duckdb").resolve()
+        annotations_store = AnnotationStore(annotations_path)
+    except Exception as exc:  # pragma: no cover - defensive path
+        logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
+
     active_authors = get_active_authors(df)
-    # Convert to CSV with pipe separator (markdown table format)
-    markdown_table = df.execute().to_csv(sep="|", index=False)
+    messages_df = df.execute()
+    markdown_table, _ = _build_conversation_markdown(messages_df, annotations_store)
 
     # Query RAG and load profiles for context
     rag_context = await _query_rag_for_context(df, client, rag_dir) if enable_rag else ""
@@ -713,7 +956,14 @@ Use these features appropriately in your posts. You understand how each extensio
 
         # Process tool calls
         has_tool_calls, tool_responses, freeform_parts = await _process_tool_calls(
-            candidate, output_dir, profiles_dir, saved_posts, saved_profiles, client, rag_dir
+            candidate,
+            output_dir,
+            profiles_dir,
+            saved_posts,
+            saved_profiles,
+            client,
+            rag_dir,
+            annotations_store,
         )
 
         # Exit if no more tools to call

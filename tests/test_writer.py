@@ -1,8 +1,78 @@
 import asyncio  # Needed for asyncio.run invoked in tests below.
 import sys
 from importlib import util
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
+
+
+def _install_ibis_stub() -> None:
+    if "ibis" in sys.modules:
+        return
+
+    fake_ibis = ModuleType("ibis")
+    fake_ibis._ = SimpleNamespace(count=lambda: None)
+    fake_ibis.desc = lambda column: column
+    sys.modules["ibis"] = fake_ibis
+
+    fake_ibis_expr = ModuleType("ibis.expr")
+    fake_ibis_expr_types = ModuleType("ibis.expr.types")
+    fake_ibis_expr_types.Table = object
+    sys.modules["ibis.expr"] = fake_ibis_expr
+    sys.modules["ibis.expr.types"] = fake_ibis_expr_types
+
+
+_install_ibis_stub()
+
+
+def _install_rich_stub() -> None:
+    if "rich" in sys.modules:
+        return
+
+    rich_module = ModuleType("rich")
+    console_module = ModuleType("rich.console")
+    progress_module = ModuleType("rich.progress")
+
+    class DummyConsole:
+        def __init__(self, *args, **kwargs):
+            self.is_terminal = False
+
+        def print(self, *args, **kwargs):  # noqa: D401 - mimic Console API
+            """No-op print for tests."""
+
+    class DummyProgress:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def add_task(self, *args, **kwargs):
+            return 1
+
+        def update(self, *args, **kwargs):
+            pass
+
+    class DummyColumn:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    console_module.Console = DummyConsole
+    progress_module.Progress = DummyProgress
+    progress_module.SpinnerColumn = DummyColumn
+    progress_module.BarColumn = DummyColumn
+    progress_module.TimeRemainingColumn = DummyColumn
+
+    sys.modules["rich"] = rich_module
+    sys.modules["rich.console"] = console_module
+    sys.modules["rich.progress"] = progress_module
+
+
+_install_rich_stub()
 
 
 def _install_google_stubs() -> None:
@@ -75,6 +145,10 @@ def _install_google_stubs() -> None:
 
 _install_google_stubs()
 
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 
 def _ensure_package_stub() -> None:
     package_name = "egregora"
@@ -82,17 +156,136 @@ def _ensure_package_stub() -> None:
         return
 
     package = ModuleType(package_name)
-    package.__path__ = [
-        str(Path(__file__).resolve().parents[1] / "src" / package_name)
-    ]
+    package.__path__ = [str(SRC_ROOT / package_name)]
+    package.__spec__ = ModuleSpec(name=package_name, loader=None, is_package=True)
+    package.__spec__.submodule_search_locations = package.__path__
     sys.modules[package_name] = package
 
 
 _ensure_package_stub()
 
+annotations_spec = util.spec_from_file_location(
+    "egregora.annotations",
+    SRC_ROOT / "egregora" / "annotations.py",
+)
+assert annotations_spec and annotations_spec.loader  # noqa: S101
+annotations_module = util.module_from_spec(annotations_spec)
+sys.modules["egregora.annotations"] = annotations_module
+annotations_spec.loader.exec_module(annotations_module)
+
+
+async def _call_with_retries(async_fn, *args, **kwargs):
+    return await async_fn(*args, **kwargs)
+
+
+genai_utils_stub = ModuleType("egregora.genai_utils")
+genai_utils_stub.call_with_retries = _call_with_retries
+sys.modules["egregora.genai_utils"] = genai_utils_stub
+
+
+model_config_stub = ModuleType("egregora.model_config")
+
+
+class _StubModelConfig:
+    def get_model(self, name: str) -> str:
+        return name
+
+
+model_config_stub.ModelConfig = _StubModelConfig
+sys.modules["egregora.model_config"] = model_config_stub
+
+
+profiler_stub = ModuleType("egregora.profiler")
+
+
+def _stub_get_active_authors(df):
+    return []
+
+
+def _stub_read_profile(author_uuid, profiles_dir=None):
+    return ""
+
+
+def _stub_write_profile(author_uuid, content, profiles_dir=None):
+    return ""
+
+
+profiler_stub.get_active_authors = _stub_get_active_authors
+profiler_stub.read_profile = _stub_read_profile
+profiler_stub.write_profile = _stub_write_profile
+sys.modules["egregora.profiler"] = profiler_stub
+
+
+prompt_templates_spec = util.spec_from_file_location(
+    "egregora.prompt_templates",
+    SRC_ROOT / "egregora" / "prompt_templates.py",
+)
+assert prompt_templates_spec and prompt_templates_spec.loader  # noqa: S101
+prompt_templates_module = util.module_from_spec(prompt_templates_spec)
+sys.modules["egregora.prompt_templates"] = prompt_templates_module
+prompt_templates_spec.loader.exec_module(prompt_templates_module)
+
+
+rag_stub = ModuleType("egregora.rag")
+
+
+class _StubVectorStore:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+async def _stub_index_post(*args, **kwargs):
+    return None
+
+
+async def _stub_query_media(*args, **kwargs):
+    raise RuntimeError("media search not available in tests")
+
+
+async def _stub_query_similar_posts(*args, **kwargs):
+    class _Empty:
+        def count(self):
+            return SimpleNamespace(execute=lambda: 0)
+
+    return _Empty()
+
+
+rag_stub.VectorStore = _StubVectorStore
+rag_stub.index_post = _stub_index_post
+rag_stub.query_media = _stub_query_media
+rag_stub.query_similar_posts = _stub_query_similar_posts
+sys.modules["egregora.rag"] = rag_stub
+
+
+site_config_stub = ModuleType("egregora.site_config")
+
+
+def _stub_load_site_config(output_dir):
+    return {}
+
+
+def _stub_load_mkdocs_config(output_dir):
+    return {}, None
+
+
+site_config_stub.load_site_config = _stub_load_site_config
+site_config_stub.load_mkdocs_config = _stub_load_mkdocs_config
+sys.modules["egregora.site_config"] = site_config_stub
+
+
+write_post_stub = ModuleType("egregora.write_post")
+
+
+def _stub_write_post(*args, **kwargs):
+    return ""
+
+
+write_post_stub.write_post = _stub_write_post
+sys.modules["egregora.write_post"] = write_post_stub
+
 SPEC = util.spec_from_file_location(
     "egregora.writer",
-    Path(__file__).resolve().parents[1] / "src" / "egregora" / "writer.py",
+    SRC_ROOT / "egregora" / "writer.py",
 )
 writer = util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader  # noqa: S101 - ensure spec is valid for mypy
@@ -173,7 +366,13 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
         def __init__(self, response_obj):
             self.aio = DummyAio(response_obj)
 
+    captured_request: dict[str, Any] = {}
+
     async def immediate_call(async_fn, *args, **kwargs):
+        if "contents" in kwargs:
+            captured_request["contents"] = kwargs["contents"]
+        elif args:
+            captured_request["contents"] = args[0]
         return await async_fn(*args, **kwargs)
 
     monkeypatch.setattr(writer, "call_with_retries", immediate_call)
@@ -206,3 +405,15 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert freeform_text in saved_content
     assert "title: Freeform Response (2024-05-01)" in saved_content
     assert "date: 2024-05-01" in saved_content
+
+    annotation_db = (output_dir.parent / "annotations.duckdb").resolve()
+    assert annotation_db.exists()
+
+    assert "contents" in captured_request
+    initial_message = captured_request["contents"][0].parts[0].text
+    assert "| msg_id |" in initial_message
+    assert "Annotation Memory Tool" in initial_message
+
+    records = df.execute().to_dict("records")
+    expected_msg_id = writer._compute_message_id(0, records[0])
+    assert expected_msg_id in initial_message
