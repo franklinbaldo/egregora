@@ -111,7 +111,7 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(_: int, row: Mapping[str, Any]) -> str:
+def _compute_message_id(row: Mapping[str, Any]) -> str:
     """Derive a deterministic identifier for a conversation row."""
 
     parts: list[str] = []
@@ -188,10 +188,7 @@ def _build_conversation_markdown(
     df = dataframe.copy()
 
     if "msg_id" not in df.columns:
-        msg_ids = [
-            _compute_message_id(index, row)
-            for index, row in enumerate(df.to_dict("records"))
-        ]
+        msg_ids = [_compute_message_id(row) for row in df.to_dict("records")]
         df.insert(0, "msg_id", msg_ids)
     else:
         df["msg_id"] = df["msg_id"].map(_stringify_value)

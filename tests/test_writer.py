@@ -415,5 +415,5 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "Annotation Memory Tool" in initial_message
 
     records = df.execute().to_dict("records")
-    expected_msg_id = writer._compute_message_id(0, records[0])
+    expected_msg_id = writer._compute_message_id(records[0])
     assert expected_msg_id in initial_message
