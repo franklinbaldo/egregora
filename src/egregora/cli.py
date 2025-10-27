@@ -312,6 +312,7 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
     site_config = load_site_config(site_path)
     model_config = ModelConfig(cli_model=config.model, site_config=site_config)
     ranking_model = model_config.get_model("ranking")
+    logger.info("[blue]⚖️  Ranking model:[/] %s", ranking_model)
 
     # Run comparisons
     for i in range(config.comparisons):

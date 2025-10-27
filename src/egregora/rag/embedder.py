@@ -39,6 +39,9 @@ async def embed_chunks(
 
     all_embeddings = []
 
+    embedding_model = "gemini-embedding-001"
+    logger.info("[blue]📚 Embedding model:[/] %s", embedding_model)
+
     # Process in batches of 100 (API limit)
     batch_size = 100
     for i in range(0, len(chunks), batch_size):
@@ -47,7 +50,7 @@ async def embed_chunks(
         logger.debug(f"Embedding batch {i // batch_size + 1} ({len(batch)} chunks)")
 
         result = await client.aio.models.embed_content(
-            model="gemini-embedding-001",
+            model=embedding_model,
             contents=batch,
             config=EmbedContentConfig(
                 task_type=task_type,

@@ -496,6 +496,8 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
         model_config = ModelConfig()
     url_model = model_config.get_model("enricher")
     vision_model = model_config.get_model("enricher_vision")
+    logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
+    logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
     if df.count().execute() == 0:
         return df
 

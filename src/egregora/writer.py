@@ -637,6 +637,7 @@ async def write_posts_for_period(  # noqa: PLR0913
     if model_config is None:
         model_config = ModelConfig()
     model = model_config.get_model("writer")
+    logger.info("[blue]🧠 Writer model:[/] %s", model)
 
     active_authors = get_active_authors(df)
     # Convert to CSV with pipe separator (markdown table format)
