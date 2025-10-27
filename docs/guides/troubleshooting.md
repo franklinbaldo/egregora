@@ -310,6 +310,26 @@ egregora process \
   --enable_enrichment=True
 ```
 
+### Legacy RAG Database After Upgrade
+
+**Problem:**
+```
+ibis.common.exceptions.SchemaError: Schema mismatch: expected column document_type
+```
+
+**Cause:** The January 2025 release introduced a new RAG search schema with
+additional metadata columns. Vector stores created by older versions are not
+compatible with this schema.
+
+**Solution:**
+
+1. Treat the upgrade as a major version change.
+2. Remove the old vector store:
+   ```bash
+   rm -rf my-blog/rag
+   ```
+3. Re-run processing to rebuild the RAG database with the new schema.
+
 ### Slow RAG Indexing
 
 **Problem:** Indexing 1000+ posts takes hours
