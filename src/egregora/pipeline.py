@@ -288,7 +288,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 logger.info(f"✓ All {filtered_count} messages are within the specified date range")
 
         # Group by period first (media extraction handled per-period)
-        logger.info("Grouping messages by period='%s'", period)
+        logger.info("🎯 Grouping messages by period='%s'", period)
         periods = group_by_period(df, period)
         if not periods:
             logger.info("No periods found after grouping")
@@ -301,11 +301,11 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         for period_key in sorted(periods.keys()):
             period_df = periods[period_key]
             period_count = period_df.count().execute()
-            logger.info("Processing period %s (%s messages)", period_key, period_count)
+            logger.info("➡️  Period %s — %s messages", period_key, period_count)
 
             # Early exit: skip if posts already exist for this period
             if period_has_posts(period_key, posts_dir):
-                logger.info(f"Skipping {period_key} - posts already exist")
+                logger.info("↺ Skipping %s — posts already exist", period_key)
                 existing_posts = list(posts_dir.glob(f"{period_key}-*.md"))
                 results[period_key] = {"posts": [str(p) for p in existing_posts], "profiles": []}
                 continue
@@ -325,7 +325,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             # Optionally add LLM-generated enrichment rows
             if enable_enrichment:
-                logger.info("Enriching period %s", period_key)
+                logger.info("✨ Enriching period %s", period_key)
                 enriched_df = await enrich_dataframe(
                     period_df,
                     media_mapping,
