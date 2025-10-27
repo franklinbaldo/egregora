@@ -515,6 +515,13 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                 if enrichment_count >= max_enrichments:
                     break
 
+                logger.info(
+                    "[Enrichment] URL %s (author=%s, timestamp=%s)",
+                    url,
+                    author,
+                    timestamp,
+                )
+
                 # Generate enrichment .md file
                 enrichment_config = EnrichmentConfig(client=client, output_dir=docs_dir, model=url_model)
                 enrichment_path = await enrich_url(
@@ -549,6 +556,12 @@ async def enrich_dataframe(  # noqa: PLR0912, PLR0913
                         break
 
                     # Generate enrichment .md file
+                    logger.info(
+                        "[Enrichment] Media %s (path=%s, author=%s)",
+                        original_filename,
+                        file_path,
+                        author,
+                    )
                     enrichment_config = EnrichmentConfig(
                         client=client,
                         output_dir=docs_dir,
