@@ -131,7 +131,7 @@ async def call_with_retries(
             if recommended_delay is not None:
                 delay = max(recommended_delay, 0.0)
             else:
-                delay = base_delay
+                delay = base_delay * (2 ** (attempt - 1))
 
             logger.info(
                 f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
