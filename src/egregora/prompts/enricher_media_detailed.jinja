@@ -14,7 +14,7 @@ The media file has been uploaded for your analysis.
 {% endif %}
 
 ## Context
-This media was shared privately on {{ date }} at {{ time }}. Preserve confidentiality—do not expose the sharer's identity or exact message.
+This media was shared privately. Preserve confidentiality—do not expose the sharer's identity, exact message, or share timestamp.
 
 ## Privacy Check
 
@@ -78,8 +78,6 @@ Generate a complete markdown document following this structure:
 # Enrichment: [Filename]
 
 ## Metadata
-- **Date:** {{ date }}
-- **Time:** {{ time }}
 - **Media Type:** {{ media_type }}
 - **File:** {{ media_path }}
 
@@ -110,7 +108,7 @@ Generate a complete markdown document following this structure:
 ---
 
 ## Context
-[Explain how this media connects to ongoing themes without quoting or identifying the private sharer.]
+[Explain how this media connects to ongoing themes without quoting or identifying the private sharer or mentioning share timestamps.]
 
 ---
 

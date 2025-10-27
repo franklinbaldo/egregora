@@ -4,7 +4,7 @@ Generate a complete markdown enrichment file for this URL shared in a group conv
 {{ url }}
 
 ## Context
-This link was shared in a private group conversation on {{ date }} at {{ time }}. The sharer's identity and exact message must remain confidential.
+This link was shared in a private group conversation. The sharer's identity, original wording, and share timestamp must remain confidential.
 
 ## Output Format
 
@@ -14,8 +14,6 @@ Generate a complete markdown document following this structure:
 # Enrichment: [URL]
 
 ## Metadata
-- **Date:** {{ date }}
-- **Time:** {{ time }}
 - **URL:** {{ url }}
 
 ## Content
@@ -35,7 +33,7 @@ Generate a complete markdown document following this structure:
 ---
 
 ## Context
-[Explain why this public content is relevant to ongoing themes without quoting or referencing the private message or sender.]
+[Explain why this public content is relevant to ongoing themes without quoting or referencing the private message, sender, or share timestamp.]
 
 ---
 
@@ -50,4 +48,4 @@ Generate a complete markdown document following this structure:
 
 Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
 
-Do not reveal or quote the original sender or private message; focus solely on the public content and inferred relevance.
+Do not reveal or quote the original sender, private message, or share timestamp; focus solely on the public content and inferred relevance.
