@@ -25,6 +25,19 @@ logger = logging.getLogger(__name__)
 
 SINGLE_DIGIT_THRESHOLD = 10
 
+PLACEHOLDER_FILES = {".gitkeep", "index.md", "README.md"}
+
+
+def _contains_real_content(directory: Path) -> bool:
+    """Check if a directory has files other than scaffold placeholders."""
+
+    for child in directory.iterdir():
+        if child.name in PLACEHOLDER_FILES or child.name.startswith("."):
+            continue
+        return True
+
+    return False
+
 
 def _migrate_directory(source: Path, target: Path, label: str) -> None:
     """Move legacy content directory into the current docs tree."""
@@ -42,7 +55,7 @@ def _migrate_directory(source: Path, target: Path, label: str) -> None:
     if not items:
         return
 
-    if target_resolved.exists() and any(target_resolved.iterdir()):
+    if target_resolved.exists() and _contains_real_content(target_resolved):
         logger.debug(
             "Skipping %s migration: target %s already contains content", label, target_resolved
         )
