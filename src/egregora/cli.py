@@ -1,6 +1,5 @@
 """Typer-based CLI for Egregora v2."""
 
-import asyncio
 import logging
 import os
 import random
@@ -172,18 +171,16 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
                 border_style="cyan",
             )
         )
-        asyncio.run(
-            process_whatsapp_export(
-                zip_path=config.zip_file,
-                output_dir=config.output_dir,
-                gemini_api_key=api_key,
-                period=config.period,
-                enable_enrichment=config.enable_enrichment,
-                from_date=from_date_obj,
-                to_date=to_date_obj,
-                timezone=timezone_obj,
-                model=config.model,
-            )
+        process_whatsapp_export(
+            zip_path=config.zip_file,
+            output_dir=config.output_dir,
+            gemini_api_key=api_key,
+            period=config.period,
+            enable_enrichment=config.enable_enrichment,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+            timezone=timezone_obj,
+            model=config.model,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:

@@ -11,7 +11,10 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
+from .cache import EnrichmentCache
+from .checkpoints import CheckpointStore
 from .enricher import enrich_dataframe, extract_and_replace_media
+from .gemini_batch import GeminiBatchClient
 from .model_config import ModelConfig, load_site_config
 from .models import WhatsAppExport
 from .parser import extract_commands, filter_egregora_messages, parse_export
@@ -199,7 +202,7 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
     return grouped
 
 
-async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
+def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",
@@ -209,6 +212,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     timezone=None,
     gemini_api_key: str | None = None,
     model: str | None = None,
+    resume: bool = True,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Complete pipeline: ZIP → posts + profiles.
@@ -230,6 +234,11 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
+
+    def _load_enriched_table(path: Path, schema: Table.schema) -> Table:
+        if not path.exists():
+            raise FileNotFoundError(path)
+        return ibis.read_csv(str(path), table_schema=schema)
 
     # Validate MkDocs scaffold exists before proceeding
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
@@ -254,6 +263,12 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     client: genai.Client | None = None
     try:
         client = genai.Client(api_key=gemini_api_key)
+        text_batch_client = GeminiBatchClient(client, model_config.get_model("enricher"))
+        vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
+        embedding_batch_client = GeminiBatchClient(client, model_config.get_model("embedding"))
+        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+        enrichment_cache = EnrichmentCache(cache_dir)
+        checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
 
         logger.info(f"[bold cyan]📦 Parsing export:[/] {zip_path}")
         group_name, chat_file = discover_chat_file(zip_path)
@@ -346,20 +361,16 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
+        site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
 
         for period_key in sorted(periods.keys()):
             period_df = periods[period_key]
             period_count = period_df.count().execute()
             logger.info(f"➡️  [bold]{period_key}[/] — {period_count} messages")
 
-            # Early exit: skip if posts already exist for this period
-            if period_has_posts(period_key, posts_dir):
-                logger.info(f"↺ [yellow]Skipping[/] {period_key} — posts already exist")
-                existing_posts = list(posts_dir.glob(f"{period_key}-*.md"))
-                results[period_key] = {"posts": [str(p) for p in existing_posts], "profiles": []}
-                continue
+            checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
+            steps_state = checkpoint_data.get("steps", {})
 
-            # Extract and replace media for this period only
             period_df, media_mapping = extract_and_replace_media(
                 period_df,
                 zip_path,
@@ -370,36 +381,75 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             logger.info(f"Processing {period_key}...")
 
-            enriched_df = period_df
+            enriched_path = site_paths.enriched_dir / f"{period_key}-enriched.csv"
 
-            # Optionally add LLM-generated enrichment rows
             if enable_enrichment:
                 logger.info(f"✨ [cyan]Enriching[/] period {period_key}")
-                enriched_df = await enrich_dataframe(
-                    period_df,
-                    media_mapping,
+                if resume and steps_state.get("enrichment") == "completed":
+                    try:
+                        enriched_df = _load_enriched_table(enriched_path, period_df.schema())
+                        logger.info("Loaded cached enrichment for %s", period_key)
+                    except FileNotFoundError:
+                        logger.info("Cached enrichment missing; regenerating %s", period_key)
+                        if resume:
+                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                        enriched_df = enrich_dataframe(
+                            period_df,
+                            media_mapping,
+                            text_batch_client,
+                            vision_batch_client,
+                            enrichment_cache,
+                            site_paths.docs_dir,
+                            posts_dir,
+                            model_config,
+                        )
+                        enriched_df.execute().to_csv(enriched_path, index=False)
+                        if resume:
+                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                else:
+                    if resume:
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                    enriched_df = enrich_dataframe(
+                        period_df,
+                        media_mapping,
+                        text_batch_client,
+                        vision_batch_client,
+                        enrichment_cache,
+                        site_paths.docs_dir,
+                        posts_dir,
+                        model_config,
+                    )
+                    enriched_df.execute().to_csv(enriched_path, index=False)
+                    if resume:
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+            else:
+                enriched_df = period_df
+                enriched_df.execute().to_csv(enriched_path, index=False)
+
+            if resume and steps_state.get("writing") == "completed":
+                logger.info("Resuming posts for %s from existing files", period_key)
+                existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
+                result = {
+                    "posts": [str(p) for p in existing_posts],
+                    "profiles": [],
+                }
+            else:
+                if resume:
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
+                result = write_posts_for_period(
+                    enriched_df,
+                    period_key,
                     client,
-                    site_paths.docs_dir,
+                    embedding_batch_client,
                     posts_dir,
+                    profiles_dir,
+                    site_paths.rag_dir,
                     model_config,
+                    enable_rag=True,
+                    embedding_output_dimensionality=3072,
                 )
-
-            enriched_dir = site_paths.enriched_dir
-            enriched_dir.mkdir(parents=True, exist_ok=True)
-            enriched_path = enriched_dir / f"{period_key}-enriched.csv"
-            # Write CSV using Ibis - need to execute to pandas first
-            enriched_df.execute().to_csv(enriched_path, index=False)
-            logger.info("Saved enrichment data for %s to %s", period_key, enriched_path)
-
-            result = await write_posts_for_period(
-                enriched_df,
-                period_key,
-                client,
-                posts_dir,
-                profiles_dir,
-                site_paths.rag_dir,
-                model_config,
-            )
+                if resume:
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
 
             results[period_key] = result
             logger.info(
@@ -412,7 +462,13 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             try:
                 rag_dir = site_paths.rag_dir
                 store = VectorStore(rag_dir / "chunks.parquet")
-                media_chunks = await index_all_media(site_paths.docs_dir, client, store)
+                media_chunks = index_all_media(
+                    site_paths.docs_dir,
+                    embedding_batch_client,
+                    store,
+                    embedding_model=embedding_batch_client.default_model,
+                    output_dimensionality=3072,
+                )
                 if media_chunks > 0:
                     logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
                 else:
@@ -422,5 +478,9 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         return results
     finally:
-        if client:
-            client.close()
+        try:
+            if 'enrichment_cache' in locals():
+                enrichment_cache.close()
+        finally:
+            if client:
+                client.close()

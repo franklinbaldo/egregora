@@ -1,14 +1,16 @@
 """High-level retrieval and indexing functions."""
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
 import ibis
-from google import genai
 from ibis.expr.types import Table
 
+from ..gemini_batch import GeminiBatchClient
 from ..site_config import MEDIA_DIR_NAME
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
@@ -19,10 +21,13 @@ logger = logging.getLogger(__name__)
 DEDUP_MAX_RANK = 2
 
 
-async def index_post(
+def index_post(
     post_path: Path,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     store: VectorStore,
+    *,
+    embedding_model: str,
+    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a blog post.
@@ -48,11 +53,12 @@ async def index_post(
     chunk_texts = [chunk["content"] for chunk in chunks]
 
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
-    embeddings = await embed_chunks(
+    embeddings = embed_chunks(
         chunk_texts,
-        client,
+        batch_client,
+        model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dim=3072,
+        output_dimensionality=output_dimensionality,
     )
 
     # Build DataFrame for storage
@@ -101,12 +107,15 @@ async def index_post(
     return len(chunks)
 
 
-async def query_similar_posts(
+def query_similar_posts(
     df: Table,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     store: VectorStore,
+    *,
+    embedding_model: str,
     top_k: int = 5,
     deduplicate: bool = True,
+    output_dimensionality: int = 3072,
 ) -> Table:
     """
     Find similar previous blog posts for a period's DataFrame.
@@ -136,7 +145,12 @@ async def query_similar_posts(
     logger.debug(f"Query text length: {len(query_text)} chars")
 
     # Embed query (use RETRIEVAL_QUERY task type)
-    query_vec = await embed_query(query_text, client, output_dim=3072)
+    query_vec = embed_query(
+        query_text,
+        batch_client,
+        model=embedding_model,
+        output_dimensionality=output_dimensionality,
+    )
 
     # Search vector store
     results = store.search(
@@ -221,11 +235,14 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         return None
 
 
-async def index_media_enrichment(
+def index_media_enrichment(
     enrichment_path: Path,
     docs_dir: Path,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     store: VectorStore,
+    *,
+    embedding_model: str,
+    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a media enrichment file.
@@ -261,11 +278,12 @@ async def index_media_enrichment(
     chunk_texts = [chunk["content"] for chunk in chunks]
 
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
-    embeddings = await embed_chunks(
+    embeddings = embed_chunks(
         chunk_texts,
-        client,
+        batch_client,
+        model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dim=3072,
+        output_dimensionality=output_dimensionality,
     )
 
     # Build DataFrame for storage
@@ -308,10 +326,13 @@ async def index_media_enrichment(
     return len(chunks)
 
 
-async def index_all_media(
+def index_all_media(
     docs_dir: Path,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     store: VectorStore,
+    *,
+    embedding_model: str,
+    output_dimensionality: int = 3072,
 ) -> int:
     """
     Index all media enrichment files from output/media/enrichments/.
@@ -340,7 +361,14 @@ async def index_all_media(
 
     total_chunks = 0
     for enrichment_path in enrichment_files:
-        chunks_count = await index_media_enrichment(enrichment_path, docs_dir, client, store)
+        chunks_count = index_media_enrichment(
+            enrichment_path,
+            docs_dir,
+            batch_client,
+            store,
+            embedding_model=embedding_model,
+            output_dimensionality=output_dimensionality,
+        )
         total_chunks += chunks_count
 
     logger.info(f"Indexed {total_chunks} total chunks from {len(enrichment_files)} media files")
@@ -348,14 +376,17 @@ async def index_all_media(
     return total_chunks
 
 
-async def query_media(  # noqa: PLR0913
+def query_media(  # noqa: PLR0913
     query: str,
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
     store: VectorStore,
     media_types: list[str] | None = None,
     top_k: int = 5,
     min_similarity: float = 0.7,
     deduplicate: bool = True,
+    *,
+    embedding_model: str,
+    output_dimensionality: int = 3072,
 ) -> Table:
     """
     Search for relevant media by description or topic.
@@ -375,7 +406,12 @@ async def query_media(  # noqa: PLR0913
     logger.info(f"Searching media for: {query}")
 
     # Embed query (use RETRIEVAL_QUERY task type)
-    query_vec = await embed_query(query, client, output_dim=3072)
+    query_vec = embed_query(
+        query,
+        batch_client,
+        model=embedding_model,
+        output_dimensionality=output_dimensionality,
+    )
 
     # Search vector store (filter to media documents only)
     results = store.search(
