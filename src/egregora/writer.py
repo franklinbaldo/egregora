@@ -14,15 +14,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 
 from datetime import timezone
+from decimal import Decimal
 from typing import Any
 
 import ibis
-import pandas as pd
 import yaml
 from google import genai
 from google.genai import types as genai_types
@@ -88,18 +89,37 @@ def _load_freeform_memory(output_dir: Path) -> str:
         return ""
 
 
+def _is_missing(value: Any) -> bool:
+    """Return True when *value* should be treated as empty."""
+
+    if value is None or value is ibis.NA:
+        return True
+
+    if isinstance(value, float):
+        return math.isnan(value)
+
+    if isinstance(value, Decimal):
+        try:
+            return value.is_nan()
+        except TypeError:
+            return False
+
+    if hasattr(value, "is_nan"):
+        try:
+            return bool(value.is_nan())
+        except TypeError:
+            return False
+
+    return False
+
+
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
         return value
-    if value is None:
+    if _is_missing(value):
         return ""
-    try:
-        if pd.isna(value):  # type: ignore[call-arg]
-            return ""
-    except TypeError:
-        pass
     return str(value)
 
 
