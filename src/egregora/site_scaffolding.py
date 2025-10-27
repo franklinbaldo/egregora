@@ -124,6 +124,13 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         content = template.render(**context)
         about_path.write_text(content, encoding="utf-8")
 
+    # Create blog index page
+    blog_index_path = posts_dir / "index.md"
+    if not blog_index_path.exists():
+        template = env.get_template("posts_index.md.jinja2")
+        content = template.render(**context)
+        blog_index_path.write_text(content, encoding="utf-8")
+
     # Create profiles index
     profiles_index_path = profiles_dir / "index.md"
     if not profiles_index_path.exists():
