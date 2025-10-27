@@ -25,7 +25,7 @@ _MIN_INTERVAL_SECONDS = 1.5  # free tier tolerates ~40 RPM, so keep a healthy ga
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
-    """Return True when ``error`` looks like a quota/rate limit failure."""
+    """Return True when ``error`` looks like a quota/rate limit or transient failure."""
     message = str(error).lower()
     return any(
         token in message
@@ -34,6 +34,9 @@ def _is_rate_limit_error(error: Exception) -> bool:
             "resource_exhausted",
             "quota",
             "rate limit",
+            "503",
+            "unavailable",
+            "overloaded",
         )
     )
 
@@ -131,7 +134,7 @@ async def call_with_retries(
                 delay = base_delay
 
             logger.info(
-                f"[yellow]⏳ Rate limit[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
                 f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
             )
 
