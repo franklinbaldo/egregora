@@ -90,14 +90,21 @@ def _validate_and_run_process(config: ProcessConfig):
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(message)s",
-            handlers=[RichHandler(console=console)],
+            handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)],
         )
     else:
         root_logger = logging.getLogger()
         if not root_logger.handlers:
-            logging.basicConfig(
-                level=logging.INFO,
-                format="%(asctime)s | %(levelname)s | %(message)s",
+            handler = RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            root_logger.addHandler(handler)
+        else:
+            for handler in root_logger.handlers:
+                if isinstance(handler, RichHandler):
+                    handler.markup = True
+                    handler.show_time = False
+                    handler.show_path = False
+        root_logger.setLevel(logging.INFO)
             )
         else:
             root_logger.setLevel(logging.INFO)

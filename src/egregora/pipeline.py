@@ -221,10 +221,10 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     try:
         client = genai.Client(api_key=gemini_api_key)
 
-        logger.info("Parsing export: %s", zip_path)
+        logger.info(f"[bold cyan]📦 Parsing export:[/] {zip_path}")
         group_name, chat_file = discover_chat_file(zip_path)
         group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
-        logger.info("Discovered chat '%s' (file: %s)", group_name, chat_file)
+        logger.info(f"[yellow]👥 Discovered chat[/]: {group_name} [dim](source: {chat_file})[/]")
 
         export = WhatsAppExport(
             zip_path=zip_path,
@@ -238,7 +238,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         # Parse and anonymize (with timezone from phone)
         df = parse_export(export, timezone=timezone)
         total_messages = df.count().execute()
-        logger.info("Loaded %s messages after parsing", total_messages)
+        logger.info(f"[green]✅ Loaded[/] {total_messages} messages after parsing")
 
         # Ensure key directories exist and live inside docs/
         content_dirs = {
@@ -260,19 +260,19 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         commands = extract_commands(df)
         if commands:
             process_commands(commands, site_paths.profiles_dir)
-            logger.info(f"Processed {len(commands)} egregora commands")
+            logger.info(f"[magenta]🧾 Processed[/] {len(commands)} /egregora commands")
         else:
-            logger.info("No egregora commands found in this export")
+            logger.info("[magenta]🧾 No /egregora commands detected in this export[/]")
 
         # Remove ALL /egregora messages (commands + ad-hoc exclusions)
         df, egregora_removed = filter_egregora_messages(df)
         if egregora_removed:
-            logger.info("Removed %s /egregora messages", egregora_removed)
+            logger.info(f"[yellow]🧹 Removed[/] {egregora_removed} /egregora messages")
 
         # Filter out opted-out authors EARLY (before any processing)
         df, removed_count = filter_opted_out_authors(df, site_paths.profiles_dir)
         if removed_count > 0:
-            logger.warning(f"⚠️  Total: {removed_count} messages removed from opted-out users")
+            logger.warning(f"⚠️  {removed_count} messages removed from opted-out users")
 
         # Filter by date range if specified
         if from_date or to_date:
@@ -282,29 +282,29 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 df = df.filter(
                     (df.timestamp.date() >= from_date) & (df.timestamp.date() <= to_date)
                 )
-                logger.info(f"📅 Filtering messages from {from_date} to {to_date}")
+                logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
                 df = df.filter(df.timestamp.date() >= from_date)
-                logger.info(f"📅 Filtering messages from {from_date} onwards")
+                logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} onwards")
             elif to_date:
                 df = df.filter(df.timestamp.date() <= to_date)
-                logger.info(f"📅 Filtering messages up to {to_date}")
+                logger.info(f"📅 [cyan]Filtering[/] messages up to {to_date}")
 
             filtered_count = df.count().execute()
             removed_by_date = original_count - filtered_count
 
             if removed_by_date > 0:
                 logger.info(
-                    f"🗓️  Filtered out {removed_by_date} messages by date (kept {filtered_count})"
+                    f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date (kept {filtered_count})"
                 )
             else:
-                logger.info(f"✓ All {filtered_count} messages are within the specified date range")
+                logger.info(f"[green]✓ All[/] {filtered_count} messages are within the specified date range")
 
         # Group by period first (media extraction handled per-period)
-        logger.info("🎯 Grouping messages by period='%s'", period)
+        logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {period}")
         periods = group_by_period(df, period)
         if not periods:
-            logger.info("No periods found after grouping")
+            logger.info("[yellow]No periods found after grouping[/]")
             return {}
 
         results = {}
@@ -314,11 +314,11 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         for period_key in sorted(periods.keys()):
             period_df = periods[period_key]
             period_count = period_df.count().execute()
-            logger.info("➡️  Period %s — %s messages", period_key, period_count)
+            logger.info(f"➡️  [bold]{period_key}[/] — {period_count} messages")
 
             # Early exit: skip if posts already exist for this period
             if period_has_posts(period_key, posts_dir):
-                logger.info("↺ Skipping %s — posts already exist", period_key)
+                logger.info(f"↺ [yellow]Skipping[/] {period_key} — posts already exist")
                 existing_posts = list(posts_dir.glob(f"{period_key}-*.md"))
                 results[period_key] = {"posts": [str(p) for p in existing_posts], "profiles": []}
                 continue
@@ -338,7 +338,7 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             # Optionally add LLM-generated enrichment rows
             if enable_enrichment:
-                logger.info("✨ Enriching period %s", period_key)
+                logger.info(f"✨ [cyan]Enriching[/] period {period_key}")
                 enriched_df = await enrich_dataframe(
                     period_df,
                     media_mapping,
@@ -367,25 +367,22 @@ async def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             results[period_key] = result
             logger.info(
-                "Generated %s posts and %s profiles for %s",
-                len(result.get("posts", [])),
-                len(result.get("profiles", [])),
-                period_key,
+                f"[green]✔ Generated[/] {len(result.get('posts', []))} posts / {len(result.get('profiles', []))} profiles for {period_key}"
             )
 
         # Index all media enrichments into RAG (if enrichment was enabled)
         if enable_enrichment and results:
-            logger.info("Indexing media enrichments into RAG...")
+            logger.info("[bold cyan]📚 Indexing media enrichments into RAG...[/]")
             try:
                 rag_dir = site_paths.rag_dir
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = await index_all_media(site_paths.docs_dir, client, store)
                 if media_chunks > 0:
-                    logger.info(f"✓ Indexed {media_chunks} media chunks into RAG")
+                    logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
                 else:
-                    logger.info("No media enrichments to index for this run")
+                    logger.info("[yellow]No media enrichments to index for this run[/]")
             except Exception as e:
-                logger.error(f"Failed to index media into RAG: {e}")
+                logger.error(f"[red]Failed to index media into RAG:[/] {e}")
 
         return results
     finally:

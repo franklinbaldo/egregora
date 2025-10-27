@@ -130,12 +130,8 @@ async def call_with_retries(
                 delay = base_delay
 
             logger.info(
-                "Rate limit for %s (attempt %s/%s). Waiting %.2fs before retry. Details: %s",
-                fn_name,
-                attempt,
-                max_attempts,
-                delay,
-                exc,
+                f"[yellow]⏳ Rate limit[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
             )
 
             await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
