@@ -111,7 +111,7 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
+def _compute_message_id(_: int, row: Mapping[str, Any]) -> str:
     """Derive a deterministic identifier for a conversation row."""
 
     parts: list[str] = []
@@ -119,8 +119,17 @@ def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
         value = row.get(key)
         normalized = _stringify_value(value)
         if normalized:
-            parts.append(normalized)
-    parts.append(str(row_index))
+            parts.append(f"{key}:{normalized}")
+    if not parts:
+        serialized = json.dumps(
+            {key: _stringify_value(value) for key, value in sorted(row.items())},
+            sort_keys=True,
+            ensure_ascii=False,
+        ).strip()
+        if serialized:
+            parts.append(serialized)
+    if not parts:
+        parts.append("<empty-row>")
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
