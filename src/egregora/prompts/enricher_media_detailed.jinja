@@ -14,9 +14,7 @@ The media file has been uploaded for your analysis.
 {% endif %}
 
 ## Context
-**Original Message:** {{ original_message }}
-**Author:** {{ sender_uuid }}
-**Date:** {{ date }} {{ time }}
+This media was shared privately on {{ date }} at {{ time }}. Preserve confidentiality—do not expose the sharer's identity or exact message.
 
 ## Privacy Check
 
@@ -82,12 +80,8 @@ Generate a complete markdown document following this structure:
 ## Metadata
 - **Date:** {{ date }}
 - **Time:** {{ time }}
-- **Sender:** {{ sender_uuid }}
 - **Media Type:** {{ media_type }}
 - **File:** {{ media_path }}
-
-## Original Message
-> {{ original_message }}
 
 ## Content
 
@@ -116,7 +110,7 @@ Generate a complete markdown document following this structure:
 ---
 
 ## Context
-[How this relates to the conversation. Why was it shared?]
+[Explain how this media connects to ongoing themes without quoting or identifying the private sharer.]
 
 ---
 
