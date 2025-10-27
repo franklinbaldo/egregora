@@ -250,7 +250,7 @@ class VectorStore:
         # Build SQL query - select all columns plus similarity
         query = f"""
             SELECT
-                *,
+                * EXCLUDE (embedding),
                 array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) AS similarity
             FROM read_parquet('{self.parquet_path}')
             WHERE array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) >= {min_similarity}
