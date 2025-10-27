@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
-import sqlite3
+import ibis
 
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
+ANNOTATIONS_TABLE = "annotations"
 
 
 @dataclass(slots=True)
@@ -27,41 +28,46 @@ class Annotation:
 
 
 class AnnotationStore:
-    """SQLite-backed storage for writer annotations."""
+    """DuckDB-backed storage for writer annotations accessed via Ibis."""
 
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._backend = ibis.duckdb.connect(str(self.db_path))
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        return conn
+    @property
+    def _connection(self):
+        """Return the underlying DuckDB connection."""
+
+        return self._backend.con
 
     def _initialize(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS annotations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    msg_id TEXT NOT NULL,
-                    author TEXT NOT NULL,
-                    commentary TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    parent_annotation_id INTEGER,
-                    FOREIGN KEY(parent_annotation_id) REFERENCES annotations(id)
-                )
-                """
+        self._backend.raw_sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
+                id BIGINT PRIMARY KEY,
+                msg_id TEXT NOT NULL,
+                author TEXT NOT NULL,
+                commentary TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                parent_annotation_id BIGINT
             )
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_annotations_msg_id_created
-                ON annotations (msg_id, created_at)
-                """
-            )
+            """
+        )
+        self._backend.raw_sql(
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_annotations_msg_id_created
+            ON {ANNOTATIONS_TABLE} (msg_id, created_at)
+            """
+        )
+
+    def _fetch_records(
+        self, query: str, params: Sequence[object] | None = None
+    ) -> list[dict[str, object]]:
+        cursor = self._connection.execute(query, params or [])
+        column_names = [description[0] for description in cursor.description]
+        return [dict(zip(column_names, row)) for row in cursor.fetchall()]
 
     def save_annotation(
         self,
@@ -85,32 +91,41 @@ class AnnotationStore:
         except PrivacyViolationError as exc:  # pragma: no cover - defensive path
             raise ValueError(str(exc)) from exc
 
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
 
-        with self._connect() as conn:
-            if parent_annotation_id is not None:
-                exists = conn.execute(
-                    "SELECT 1 FROM annotations WHERE id = ?",
-                    (parent_annotation_id,),
-                ).fetchone()
-                if not exists:
-                    raise ValueError(
-                        f"parent_annotation_id {parent_annotation_id} does not exist"
-                    )
-            cursor = conn.execute(
-                """
-                INSERT INTO annotations (msg_id, author, commentary, created_at, parent_annotation_id)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    sanitized_msg_id,
-                    ANNOTATION_AUTHOR,
-                    sanitized_commentary,
-                    created_at.isoformat(),
-                    parent_annotation_id,
-                ),
+        annotations_table = self._backend.table(ANNOTATIONS_TABLE)
+
+        if parent_annotation_id is not None:
+            parent_exists = (
+                annotations_table.filter(annotations_table.id == parent_annotation_id)
+                .limit(1)
+                .count()
+                .execute()
             )
-            annotation_id = cursor.lastrowid
+            if parent_exists == 0:
+                raise ValueError(
+                    f"parent_annotation_id {parent_annotation_id} does not exist"
+                )
+
+        next_id_cursor = self._connection.execute(
+            f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
+        )
+        annotation_id = int(next_id_cursor.fetchone()[0])
+
+        self._connection.execute(
+            f"""
+            INSERT INTO {ANNOTATIONS_TABLE} (id, msg_id, author, commentary, created_at, parent_annotation_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                annotation_id,
+                sanitized_msg_id,
+                ANNOTATION_AUTHOR,
+                sanitized_commentary,
+                created_at,
+                parent_annotation_id,
+            ],
+        )
 
         return Annotation(
             id=annotation_id,
@@ -128,39 +143,17 @@ class AnnotationStore:
         if not sanitized_msg_id:
             return []
 
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
-                FROM annotations
-                WHERE msg_id = ?
-                ORDER BY datetime(created_at) ASC, id ASC
-                """,
-                (sanitized_msg_id,),
-            ).fetchall()
+        records = self._fetch_records(
+            f"""
+            SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
+            FROM {ANNOTATIONS_TABLE}
+            WHERE msg_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            [sanitized_msg_id],
+        )
 
-        annotations: list[Annotation] = []
-        for row in rows:
-            created_at_raw = row["created_at"]
-            created_at = (
-                datetime.fromisoformat(created_at_raw)
-                if isinstance(created_at_raw, str)
-                else created_at_raw
-            )
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            annotations.append(
-                Annotation(
-                    id=row["id"],
-                    msg_id=row["msg_id"],
-                    author=row["author"],
-                    commentary=row["commentary"],
-                    created_at=created_at,
-                    parent_annotation_id=row["parent_annotation_id"],
-                )
-            )
-
-        return annotations
+        return [self._row_to_annotation(row) for row in records]
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
@@ -169,48 +162,55 @@ class AnnotationStore:
         if not sanitized_msg_id:
             return None
 
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT id FROM annotations
-                WHERE msg_id = ?
-                ORDER BY datetime(created_at) DESC, id DESC
-                LIMIT 1
-                """,
-                (sanitized_msg_id,),
-            ).fetchone()
-
-        return row["id"] if row else None
+        cursor = self._connection.execute(
+            f"""
+            SELECT id FROM {ANNOTATIONS_TABLE}
+            WHERE msg_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            [sanitized_msg_id],
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else None
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
 
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
-                FROM annotations
-                ORDER BY datetime(created_at) ASC, id ASC
-                """
-            ).fetchall()
+        records = self._fetch_records(
+            f"""
+            SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
+            FROM {ANNOTATIONS_TABLE}
+            ORDER BY created_at ASC, id ASC
+            """
+        )
 
-        for row in rows:
-            created_at_raw = row["created_at"]
-            created_at = (
-                datetime.fromisoformat(created_at_raw)
-                if isinstance(created_at_raw, str)
-                else created_at_raw
-            )
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            yield Annotation(
-                id=row["id"],
-                msg_id=row["msg_id"],
-                author=row["author"],
-                commentary=row["commentary"],
-                created_at=created_at,
-                parent_annotation_id=row["parent_annotation_id"],
-            )
+        for row in records:
+            yield self._row_to_annotation(row)
+
+    @staticmethod
+    def _row_to_annotation(row: dict[str, object]) -> Annotation:
+        created_at_obj = row["created_at"]
+        if hasattr(created_at_obj, "to_pydatetime"):
+            created_at = created_at_obj.to_pydatetime()
+        elif isinstance(created_at_obj, datetime):
+            created_at = created_at_obj
+        else:  # pragma: no cover - defensive path for unexpected types
+            created_at = datetime.fromisoformat(str(created_at_obj))
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+
+        parent_raw = row.get("parent_annotation_id")
+        parent_id = int(parent_raw) if parent_raw is not None else None
+
+        return Annotation(
+            id=int(row["id"]),
+            msg_id=str(row["msg_id"]),
+            author=str(row["author"]),
+            commentary=str(row["commentary"]),
+            created_at=created_at,
+            parent_annotation_id=parent_id,
+        )
 
 
-__all__ = ["Annotation", "AnnotationStore", "ANNOTATION_AUTHOR"]
+__all__ = ["Annotation", "AnnotationStore", "ANNOTATION_AUTHOR", "ANNOTATIONS_TABLE"]

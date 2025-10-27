@@ -26,7 +26,7 @@ AnnotationStore = annotations_module.AnnotationStore
 
 
 def test_annotation_store_persists_and_orders(tmp_path):
-    db_path = tmp_path / "annotations.sqlite3"
+    db_path = tmp_path / "annotations.duckdb"
     store = AnnotationStore(db_path)
 
     first = store.save_annotation("msg-1", "First insight")
@@ -52,7 +52,7 @@ def test_annotation_store_persists_and_orders(tmp_path):
 
 
 def test_annotation_store_rejects_missing_parent(tmp_path):
-    db_path = tmp_path / "annotations.sqlite3"
+    db_path = tmp_path / "annotations.duckdb"
     store = AnnotationStore(db_path)
 
     with pytest.raises(ValueError):

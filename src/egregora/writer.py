@@ -14,16 +14,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import math
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 
 from datetime import timezone
-from decimal import Decimal
 from typing import Any
 
 import ibis
+import pandas as pd
 import yaml
 from google import genai
 from google.genai import types as genai_types
@@ -89,37 +88,18 @@ def _load_freeform_memory(output_dir: Path) -> str:
         return ""
 
 
-def _is_missing(value: Any) -> bool:
-    """Return True when *value* should be treated as empty."""
-
-    if value is None or value is ibis.NA:
-        return True
-
-    if isinstance(value, float):
-        return math.isnan(value)
-
-    if isinstance(value, Decimal):
-        try:
-            return value.is_nan()
-        except TypeError:
-            return False
-
-    if hasattr(value, "is_nan"):
-        try:
-            return bool(value.is_nan())
-        except TypeError:
-            return False
-
-    return False
-
-
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
         return value
-    if _is_missing(value):
+    if value is None:
         return ""
+    try:
+        if pd.isna(value):  # type: ignore[call-arg]
+            return ""
+    except TypeError:
+        pass
     return str(value)
 
 
@@ -131,7 +111,7 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(row: Mapping[str, Any]) -> str:
+def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
     """Derive a deterministic identifier for a conversation row."""
 
     parts: list[str] = []
@@ -139,17 +119,8 @@ def _compute_message_id(row: Mapping[str, Any]) -> str:
         value = row.get(key)
         normalized = _stringify_value(value)
         if normalized:
-            parts.append(f"{key}:{normalized}")
-    if not parts:
-        serialized = json.dumps(
-            {key: _stringify_value(value) for key, value in sorted(row.items())},
-            sort_keys=True,
-            ensure_ascii=False,
-        ).strip()
-        if serialized:
-            parts.append(serialized)
-    if not parts:
-        parts.append("<empty-row>")
+            parts.append(normalized)
+    parts.append(str(row_index))
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -208,7 +179,10 @@ def _build_conversation_markdown(
     df = dataframe.copy()
 
     if "msg_id" not in df.columns:
-        msg_ids = [_compute_message_id(row) for row in df.to_dict("records")]
+        msg_ids = [
+            _compute_message_id(index, row)
+            for index, row in enumerate(df.to_dict("records"))
+        ]
         df.insert(0, "msg_id", msg_ids)
     else:
         df["msg_id"] = df["msg_id"].map(_stringify_value)
@@ -903,7 +877,7 @@ async def write_posts_for_period(  # noqa: PLR0913
 
     annotations_store: AnnotationStore | None = None
     try:
-        annotations_path = (output_dir.parent / "annotations.sqlite3").resolve()
+        annotations_path = (output_dir.parent / "annotations.duckdb").resolve()
         annotations_store = AnnotationStore(annotations_path)
     except Exception as exc:  # pragma: no cover - defensive path
         logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)

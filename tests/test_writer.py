@@ -406,7 +406,7 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "title: Freeform Response (2024-05-01)" in saved_content
     assert "date: 2024-05-01" in saved_content
 
-    annotation_db = (output_dir.parent / "annotations.sqlite3").resolve()
+    annotation_db = (output_dir.parent / "annotations.duckdb").resolve()
     assert annotation_db.exists()
 
     assert "contents" in captured_request
@@ -415,5 +415,5 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "Annotation Memory Tool" in initial_message
 
     records = df.execute().to_dict("records")
-    expected_msg_id = writer._compute_message_id(records[0])
+    expected_msg_id = writer._compute_message_id(0, records[0])
     assert expected_msg_id in initial_message
