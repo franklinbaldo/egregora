@@ -282,8 +282,7 @@ class VectorStore:
 
         try:
             # Execute query
-            result_reader = self.conn.execute(query, params).arrow()
-            result_table = result_reader.read_all()
+            result_table = self.conn.execute(query, params).arrow()
             df = (
                 ibis.memtable(result_table.to_pydict(), schema=SEARCH_RESULT_SCHEMA)
                 if result_table.num_rows > 0
