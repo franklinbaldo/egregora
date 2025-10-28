@@ -174,12 +174,13 @@ sys.modules["egregora.annotations"] = annotations_module
 annotations_spec.loader.exec_module(annotations_module)
 
 
-async def _call_with_retries(async_fn, *args, **kwargs):
-    return await async_fn(*args, **kwargs)
+def _call_with_retries_sync(sync_fn, *args, **kwargs):
+    return sync_fn(*args, **kwargs)
 
 
 genai_utils_stub = ModuleType("egregora.genai_utils")
-genai_utils_stub.call_with_retries = _call_with_retries
+genai_utils_stub.call_with_retries = _call_with_retries_sync
+genai_utils_stub.call_with_retries_sync = _call_with_retries_sync
 sys.modules["egregora.genai_utils"] = genai_utils_stub
 
 
@@ -353,7 +354,7 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
         def __init__(self, response_obj):
             self._response = response_obj
 
-        async def generate_content(self, *args, **kwargs):  # noqa: D401
+        def generate_content(self, *args, **kwargs):  # noqa: D401
             """Return a canned response for tests."""
 
             return self._response
@@ -368,14 +369,14 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
 
     captured_request: dict[str, Any] = {}
 
-    async def immediate_call(async_fn, *args, **kwargs):
+    def immediate_call(sync_fn, *args, **kwargs):
         if "contents" in kwargs:
             captured_request["contents"] = kwargs["contents"]
         elif args:
             captured_request["contents"] = args[0]
-        return await async_fn(*args, **kwargs)
+        return sync_fn(*args, **kwargs)
 
-    monkeypatch.setattr(writer, "call_with_retries", immediate_call)
+    monkeypatch.setattr(writer, "call_with_retries_sync", immediate_call)
     monkeypatch.setattr(writer, "get_active_authors", lambda df: ["user-1"])
     monkeypatch.setattr(writer, "_load_profiles_context", lambda df, profiles_dir: "")
 
@@ -384,16 +385,17 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     profiles_dir = tmp_path / "profiles"
     rag_dir = tmp_path / "rag"
 
-    result = asyncio.run(
-        writer.write_posts_for_period(
-            df,
-            date="2024-05-01",
-            client=client,
-            output_dir=output_dir,
-            profiles_dir=profiles_dir,
-            rag_dir=rag_dir,
-            enable_rag=False,
-        )
+    batch_client = SimpleNamespace()
+
+    result = writer.write_posts_for_period(
+        df,
+        date="2024-05-01",
+        client=client,
+        batch_client=batch_client,
+        output_dir=output_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        enable_rag=False,
     )
 
     assert len(result["posts"]) == 1
