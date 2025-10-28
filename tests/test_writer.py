@@ -366,6 +366,8 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     class DummyClient:
         def __init__(self, response_obj):
             self.aio = DummyAio(response_obj)
+            # Ensure synchronous code paths can access the same models stub.
+            self.models = self.aio.models
 
     captured_request: dict[str, Any] = {}
 
