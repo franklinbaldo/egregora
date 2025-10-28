@@ -15,6 +15,7 @@ DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 # ``ModelConfig.get_model("embedding")``.
 KNOWN_EMBEDDING_DIMENSIONS = {
     "models/text-embedding-004": 3072,
+    "models/gemini-embedding-001": 3072,
 }
 
 logger = logging.getLogger(__name__)
