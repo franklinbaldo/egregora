@@ -1,12 +1,14 @@
 """Vector store using DuckDB VSS and Parquet."""
 
 import logging
+import uuid
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+import pyarrow as pa
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -68,7 +70,12 @@ class VectorStore:
     Data lives in Parquet for portability and client-side access.
     """
 
-    def __init__(self, parquet_path: Path):
+    def __init__(
+        self,
+        parquet_path: Path,
+        *,
+        connection: duckdb.DuckDBPyConnection | None = None,
+    ):
         """
         Initialize vector store.
 
@@ -76,10 +83,10 @@ class VectorStore:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
         """
         self.parquet_path = parquet_path
-        self.conn = duckdb.connect(":memory:")
+        self._owns_connection = connection is None
+        self.conn = connection or duckdb.connect(":memory:")
         self._init_vss()
-        self._backend = ibis.duckdb.connect()
-        ibis.set_backend(self._backend)
+        self._client = ibis.duckdb.from_connection(self.conn)
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -125,7 +132,7 @@ class VectorStore:
         """
         if self.parquet_path.exists():
             # Read existing and append
-            existing_df = ibis.read_parquet(self.parquet_path)
+            existing_df = self._client.read_parquet(self.parquet_path)
             existing_df, chunks_df = self._align_schemas(existing_df, chunks_df)
             combined_df = existing_df.union(chunks_df, distinct=False)
             existing_count = existing_df.count().execute()
@@ -246,7 +253,7 @@ class VectorStore:
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
-            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
 
         embedding_dimensionality = len(query_vec)
         if embedding_dimensionality == 0:
@@ -295,10 +302,10 @@ class VectorStore:
             # Execute query
             result_table = self.conn.execute(query, params).arrow()
             if result_table.num_rows == 0:
-                return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+                return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-            prepared_data = self._prepare_search_results(result_table)
-            df = ibis.memtable(prepared_data, schema=SEARCH_RESULT_SCHEMA)
+            prepared_table = self._prepare_search_results(result_table)
+            df = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
 
             row_count = df.count().execute()
             logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
@@ -307,9 +314,9 @@ class VectorStore:
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
-            return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-    def _prepare_search_results(self, result_table) -> dict[str, list[Any]]:
+    def _prepare_search_results(self, result_table: pa.Table) -> pa.Table:
         """Normalize DuckDB arrow results to match the search schema."""
 
         data = result_table.to_pydict()
@@ -371,7 +378,46 @@ class VectorStore:
         if "chunk_index" not in data:
             data["chunk_index"] = list(range(row_count))
 
-        return data
+        schema = SEARCH_RESULT_SCHEMA.to_pyarrow()
+        arrays = []
+        for field in schema:
+            values = data.get(field.name)
+            if values is None:
+                values = [None] * row_count
+            arrays.append(pa.array(values, type=field.type))
+
+        return pa.Table.from_arrays(arrays, schema=schema)
+
+    def _table_from_arrow(self, arrow_table: pa.Table, schema: ibis.Schema) -> Table:
+        """Register an Arrow table with DuckDB and return an Ibis table."""
+
+        table_name = f"_vector_store_{uuid.uuid4().hex}"
+        table = self._client.create_table(table_name, obj=arrow_table, temp=True)
+
+        casts = {}
+        for column_name, dtype in schema.items():
+            column = table[column_name]
+            if column.type() != dtype:
+                casts[column_name] = column.cast(dtype)
+
+        if casts:
+            table = table.mutate(**casts)
+
+        return table.select(schema.names)
+
+    def _empty_table(self, schema: ibis.Schema) -> Table:
+        """Create an empty table with the given schema using the local backend."""
+
+        arrow_schema = schema.to_pyarrow()
+        arrays = [pa.array([], type=field.type) for field in arrow_schema]
+        empty_arrow = pa.Table.from_arrays(arrays, schema=arrow_schema)
+        return self._table_from_arrow(empty_arrow, schema)
+
+    def close(self) -> None:
+        """Close the DuckDB connection if owned by this store."""
+
+        if self._owns_connection:
+            self.conn.close()
 
     def get_all(self) -> Table:
         """
@@ -380,9 +426,9 @@ class VectorStore:
         Useful for analytics, exports, client-side usage.
         """
         if not self.parquet_path.exists():
-            return ibis.memtable([], schema=VECTOR_STORE_SCHEMA)
+            return self._empty_table(VECTOR_STORE_SCHEMA)
 
-        return ibis.read_parquet(self.parquet_path)
+        return self._client.read_parquet(self.parquet_path)
 
     def stats(self) -> dict:
         """Get vector store statistics."""
