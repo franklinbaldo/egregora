@@ -12,12 +12,12 @@ WhatsApp ZIP → Parse → Anonymize → Group → Enrich → LLM → Posts
                     Privacy-first   By date  Context  Editorial
 ```
 
-Each stage is a pure function operating on a Polars DataFrame. No complex agents, no event sourcing, no microservices.
+Each stage is a pure function operating on an [Ibis](https://ibis-project.org/) `Table` backed by DuckDB. No complex agents, no event sourcing, no microservices.
 
 ### 1. Parse
 
 **Input:** WhatsApp export ZIP file
-**Output:** Polars DataFrame with columns: `[timestamp, author, message, media]`
+**Output:** Ibis `Table` with columns: `[timestamp, author, message, media, media_metadata]`
 
 The parser handles:
 - WhatsApp's text format (multiple languages/date formats)
@@ -25,13 +25,34 @@ The parser handles:
 - System messages (joined, left, etc.)
 - Special characters and Unicode
 
+```python
+import ibis
+from ibis import memtable
+from egregora.parser import parse_export
+
+table = parse_export(zip_path)
+assert isinstance(table, ibis.expr.types.Table)
+
+# Create tiny in-memory tables for experiments without touching disk
+scratch = memtable([
+    {"timestamp": "2025-01-01T10:00:00", "author": "Alice", "message": "hi"}
+])
+
+# Inspect a few rows while staying inside DuckDB
+preview = table.limit(5)
+
+# Convert to pandas only when we need to hand data to libraries that
+# still expect pandas objects (for example, markdown rendering today):
+pandas_frame = preview.execute()
+```
+
 **Code:** `src/egregora/parser.py`
 **Documentation:** See source code comments
 
 ### 2. Anonymize
 
-**Input:** DataFrame with real names
-**Output:** DataFrame with UUID5 pseudonyms
+**Input:** Table with real names
+**Output:** Table with UUID5 pseudonyms
 
 **Key features:**
 - **Deterministic:** Same person → same UUID every time
@@ -40,9 +61,23 @@ The parser handles:
 - **Mention handling:** WhatsApp @mentions automatically anonymized
 
 **Example:**
-```
-João Silva → a1b2c3d4
-Maria Santos → e5f6g7h8
+```python
+from ibis import memtable
+from egregora.anonymizer import anonymize_dataframe
+
+authors = memtable(
+    [
+        {"author": "João Silva", "message": "Olá"},
+        {"author": "Maria Santos", "message": "Oi"},
+    ]
+)
+
+anonymized = anonymize_dataframe(authors)
+anonymized.execute()
+# pandas.DataFrame →
+#   author    message
+# 0  a1b2c3d4  Olá
+# 1  e5f6g7h8  Oi
 ```
 
 **Code:** `src/egregora/anonymizer.py`
@@ -50,8 +85,8 @@ Maria Santos → e5f6g7h8
 
 ### 3. Group by Period
 
-**Input:** Full DataFrame
-**Output:** Dictionary of `{date: DataFrame}` chunks
+**Input:** Full Table
+**Output:** Dictionary of `{date: Table}` chunks
 
 Messages are grouped by:
 - **Day** (default): One chunk per day
@@ -63,9 +98,9 @@ This determines how many LLM calls you'll make.
 **Example:**
 ```python
 {
-    "2025-01-01": DataFrame(100 messages),
-    "2025-01-02": DataFrame(150 messages),
-    "2025-01-03": DataFrame(80 messages),
+    "2025-01-01": Table(100 messages),
+    "2025-01-02": Table(150 messages),
+    "2025-01-03": Table(80 messages),
 }
 ```
 
@@ -73,14 +108,14 @@ This determines how many LLM calls you'll make.
 
 ### 4. Enrich (Optional)
 
-**Input:** DataFrame chunk
-**Output:** DataFrame with added context rows
+**Input:** Table chunk
+**Output:** Table with added context rows
 
 The enricher adds context for:
 - **URLs:** Fetches page content, summarizes with LLM
 - **Media:** OCR for images, transcription for audio (future)
 
-Enrichment is added as **new DataFrame rows** with author `egregora`:
+Enrichment is added as **new table rows** with author `egregora`:
 
 ```markdown
 | timestamp | author   | message                     |
@@ -96,7 +131,7 @@ The LLM sees enrichment context alongside original messages.
 
 ### 5. LLM Writer
 
-**Input:** Enriched DataFrame + date + profiles
+**Input:** Enriched Table + date + profiles
 **Output:** 0-N blog posts (LLM decides)
 
 The LLM is given:
@@ -194,7 +229,7 @@ post = llm.write(important)
 **Egregora approach (trust):**
 ```python
 # Just give it the data
-markdown = dataframe.to_markdown()
+markdown = dataframe.execute().to_markdown(index=False)
 
 # LLM does everything
 posts = llm.generate(markdown, tools=[write_post])
@@ -337,7 +372,7 @@ Egregora v2 deleted **80% of the code** by removing:
 - ❌ CuratorAgent (LLM filters automatically)
 - ❌ EnricherAgent (simple function now)
 - ❌ WriterAgent (simple function now)
-- ❌ Message/Topic/Post classes (work with DataFrames)
+- ❌ Message/Topic/Post classes (replaced by Ibis tables)
 - ❌ Tool registry (over-engineered)
 - ❌ Agent base classes (complexity)
 
@@ -347,8 +382,8 @@ Egregora v2 deleted **80% of the code** by removing:
 
 1. **LLM decides quality** - Don't filter with dumb heuristics
 2. **LLM clusters topics** - Don't overthink with algorithms
-3. **DataFrames all the way** - No object conversions
-4. **Enrichment = DataFrame rows** - Add context as data
+3. **Ibis tables all the way** - Keep processing in DuckDB, convert to pandas only when necessary
+4. **Enrichment = Table rows** - Add context as data
 5. **write_post tool** - LLM as CMS user
 
 **Documentation:** [Architecture Overview](../guides/architecture.md)

@@ -28,7 +28,7 @@ User: /egregora [sensitive financial discussion]
 User: /egregora Just testing, ignore this
 ```
 
-**These messages are removed from the DataFrame BEFORE any processing:**
+**These messages are removed from the Ibis table BEFORE any processing:**
 - Never reach LLM
 - Never in enrichment
 - Never in posts

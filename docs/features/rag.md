@@ -231,9 +231,10 @@ from egregora.rag import VectorStore
 
 store = VectorStore(Path("my-blog/rag"))
 
-# Get all embeddings as DataFrame
-df = store.get_all_embeddings()
-print(df)
+# Get all embeddings as an Ibis Table
+embeddings = store.get_all_embeddings()
+print(embeddings.schema())
+print(embeddings.limit(5).execute())  # pandas DataFrame preview
 
 # Search with raw embedding
 embedding = [0.1, 0.2, ...]  # 3072-dim vector

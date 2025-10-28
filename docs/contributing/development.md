@@ -147,14 +147,17 @@ Then create a Pull Request on GitHub.
 
 ```python
 # Good
-def parse_export(zip_path: Path) -> pl.DataFrame:
-    """Parse WhatsApp export into DataFrame.
+from ibis.expr.types import Table
+
+
+def parse_export(zip_path: Path) -> Table:
+    """Parse WhatsApp export into an Ibis table.
 
     Args:
         zip_path: Path to ZIP file
 
     Returns:
-        DataFrame with [timestamp, author, message, media]
+        Table with [timestamp, author, message, media, media_metadata]
     """
     ...
 
@@ -267,7 +270,7 @@ Update docs when adding features.
 ### Key Design Principles
 
 1. **Trust the LLM** - Let it make editorial decisions
-2. **DataFrames all the way** - Use Polars, avoid object conversions
+2. **Ibis tables all the way** - Stay in DuckDB, convert to pandas only at boundaries
 3. **Privacy first** - Anonymize before LLM sees data
 4. **Simple pipeline** - No complex agents or events
 5. **Functional style** - Pure functions where possible
@@ -326,15 +329,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 Or use `--debug` flag in CLI.
 
-### Inspect DataFrames
+### Inspect Tables
 
 ```python
-import polars as pl
+import ibis
 
-df = parse_export(zip_path)
-print(df.head())
-print(df.schema)
-print(df.describe())
+table = parse_export(zip_path)
+print(table.schema())
+print(table.limit(5).execute())  # pandas DataFrame for quick inspection
 ```
 
 ### Profile Performance
