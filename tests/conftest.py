@@ -19,25 +19,12 @@ import pytest
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
-    google_module = sys.modules.get("google")
-    if google_module is None:
-        google_module = types.ModuleType("google")
-        sys.modules["google"] = google_module
+    if "google" in sys.modules:
+        return
 
-    genai_module = sys.modules.get("google.genai")
-    if genai_module is None:
-        genai_module = types.ModuleType("google.genai")
-        sys.modules["google.genai"] = genai_module
-
-    genai_types_module = sys.modules.get("google.genai.types")
-    if genai_types_module is None:
-        genai_types_module = types.ModuleType("google.genai.types")
-        sys.modules["google.genai.types"] = genai_types_module
-
-    if not hasattr(google_module, "genai"):
-        google_module.genai = genai_module
-    if not hasattr(genai_module, "types"):
-        genai_module.types = genai_types_module
+    google_module = types.ModuleType("google")
+    genai_module = types.ModuleType("google.genai")
+    genai_types_module = types.ModuleType("google.genai.types")
 
     class _SimpleStruct:
         def __init__(self, *args, **kwargs):
@@ -90,14 +77,17 @@ def _install_google_stubs() -> None:
         "BatchJob",
         "JobError",
     ):
-        if not hasattr(genai_types_module, attr):
-            setattr(genai_types_module, attr, _SimpleStruct)
+        setattr(genai_types_module, attr, _SimpleStruct)
 
-    if not hasattr(genai_types_module, "Type"):
-        genai_types_module.Type = _DummyType
+    genai_types_module.Type = _DummyType
 
-    if not hasattr(genai_module, "Client"):
-        genai_module.Client = _DummyClient
+    google_module.genai = genai_module
+    genai_module.types = genai_types_module
+    genai_module.Client = _DummyClient
+
+    sys.modules["google"] = google_module
+    sys.modules["google.genai"] = genai_module
+    sys.modules["google.genai.types"] = genai_types_module
 
 
 _install_google_stubs()
