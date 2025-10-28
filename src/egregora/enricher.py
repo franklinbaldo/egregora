@@ -682,46 +682,45 @@ def enrich_dataframe(
                 }
             )
 
-        media_table = ibis.memtable(media_records)
-        records = _table_to_pylist(media_table)
-        requests: list[BatchPromptRequest] = []
-        for record in records:
-            parts = [genai_types.Part(text=record["prompt"])]
-            if record.get("file_uri"):
-                parts.append(
-                    genai_types.Part(
-                        file_data=genai_types.FileData(
-                            file_uri=record.get("file_uri"),
-                            mime_type=record.get("mime_type"),
-                            display_name=record.get("display_name"),
+        responses = []
+        if media_records:
+            media_table = ibis.memtable(media_records)
+            records = _table_to_pylist(media_table)
+            requests: list[BatchPromptRequest] = []
+            for record in records:
+                parts = [genai_types.Part(text=record["prompt"])]
+                if record.get("file_uri"):
+                    parts.append(
+                        genai_types.Part(
+                            file_data=genai_types.FileData(
+                                file_uri=record.get("file_uri"),
+                                mime_type=record.get("mime_type"),
+                                display_name=record.get("display_name"),
+                            )
                         )
+                    )
+
+                requests.append(
+                    BatchPromptRequest(
+                        contents=[
+                            genai_types.Content(
+                                role="user",
+                                parts=parts,
+                            )
+                        ],
+                        model=vision_model,
+                        tag=record["tag"],
                     )
                 )
 
-            requests.append(
-                BatchPromptRequest(
-                    contents=[
-                        genai_types.Content(
-                            role="user",
-                            parts=parts,
-                        )
-                    ],
-                    model=vision_model,
-                    tag=record["tag"],
-                )
-            )
-
-        if requests:
-            try:
-                responses = vision_batch_client.generate_content(
-                    requests,
-                    display_name="Egregora Media Enrichment",
-                )
-            except Exception as exc:
-                logger.error("Media enrichment batch failed: %s", exc)
-                responses = []
-        else:
-            responses = []
+            if requests:
+                try:
+                    responses = vision_batch_client.generate_content(
+                        requests,
+                        display_name="Egregora Media Enrichment",
+                    )
+                except Exception as exc:
+                    logger.error("Media enrichment batch failed: %s", exc)
 
         result_map = {result.tag: result for result in responses}
         for job in pending_media_jobs:
