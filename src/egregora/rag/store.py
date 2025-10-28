@@ -119,7 +119,7 @@ class VectorStore:
                 # Common fields
                 - chunk_index: int
                 - content: str
-                - embedding: list[float] (3072 dims)
+                - embedding: list[float] (configured dimensionality)
                 - tags: list[str]
                 - category: str | None
         """
@@ -233,7 +233,7 @@ class VectorStore:
         Search for similar chunks using cosine similarity.
 
         Args:
-            query_vec: Query embedding vector (3072 dims)
+            query_vec: Query embedding vector
             top_k: Number of results to return
             min_similarity: Minimum cosine similarity (0-1)
             tag_filter: Filter by tags (OR logic)
@@ -248,13 +248,23 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
+        embedding_dimensionality = len(query_vec)
+        if embedding_dimensionality == 0:
+            raise ValueError("Query embedding vector must not be empty")
+
         # Build SQL query - select all columns plus similarity
         query = f"""
             SELECT
                 * EXCLUDE (embedding),
-                array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) AS similarity
+                array_cosine_similarity(
+                    embedding::FLOAT[{embedding_dimensionality}],
+                    ?::FLOAT[{embedding_dimensionality}]
+                ) AS similarity
             FROM read_parquet('{self.parquet_path}')
-            WHERE array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) >= {min_similarity}
+            WHERE array_cosine_similarity(
+                embedding::FLOAT[{embedding_dimensionality}],
+                ?::FLOAT[{embedding_dimensionality}]
+            ) >= {min_similarity}
         """
 
         # Add filters
