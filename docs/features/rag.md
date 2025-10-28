@@ -26,10 +26,10 @@ When you enable RAG, Egregora:
 
 1. **Chunks** each existing blog post into ~1800 token segments
 2. **Embeds** each chunk using Google's text-embedding-004 model (3072 dimensions)
-3. **Stores** embeddings in a DuckDB vector database
-4. **Indexes** for fast similarity search
+3. **Stores** embeddings in `{output_dir}/rag/chunks.parquet`
+4. **Uses DuckDB** with the VSS extension to search the Parquet data for similar chunks
 
-**Storage location:** `{output_dir}/rag/vectors.duckdb`
+**Storage location:** `{output_dir}/rag/chunks.parquet`
 
 ### 2. Retrieval Phase
 
@@ -82,30 +82,42 @@ This skips both URL enrichment and RAG retrieval (faster, cheaper).
 
 ### Storage Format
 
-Egregora uses **DuckDB** for vector storage:
-
-**File:** `{output_dir}/rag/vectors.duckdb`
+Egregora writes all embeddings to a single **Parquet file** at
+`{output_dir}/rag/chunks.parquet`. During indexing and retrieval we attach this
+file to an in-memory DuckDB connection and run vector similarity search through
+the DuckDB VSS extension. This keeps the on-disk format portable (plain
+Parquet) while still benefiting from DuckDB's query and vector tooling.
 
 **Schema:**
 ```sql
-CREATE TABLE embeddings (
-    chunk_id VARCHAR PRIMARY KEY,
-    post_path VARCHAR,
-    chunk_index INTEGER,
-    content TEXT,
-    embedding DOUBLE[3072],
-    metadata JSON,
-    created_at TIMESTAMP
-);
+-- Logical schema stored inside the Parquet file
+chunk_id        VARCHAR
+document_type   VARCHAR
+document_id     VARCHAR
+post_slug       VARCHAR
+post_title      VARCHAR
+post_date       VARCHAR
+media_uuid      VARCHAR
+media_type      VARCHAR
+media_path      VARCHAR
+original_filename VARCHAR
+message_date    VARCHAR
+author_uuid     VARCHAR
+chunk_index     INTEGER
+content         TEXT
+embedding       DOUBLE[3072]
+tags            VARCHAR[]
+authors         VARCHAR[]
+category        VARCHAR
 ```
 
 ### Why DuckDB?
 
-- **Fast similarity search** - Built-in vector operations
-- **ACID transactions** - Safe concurrent access
-- **No external dependencies** - Embedded database
+- **Fast similarity search** - VSS extension on top of Parquet data
+- **ACID transactions** - Safe concurrent access in-memory while writing
+- **No external services** - Embedded database runtime
 - **SQL interface** - Easy querying and debugging
-- **Compressed storage** - Efficient on disk
+- **Columnar Parquet storage** - Efficient on disk and cloud friendly
 
 ### Breaking Changes and Upgrades
 
@@ -128,19 +140,23 @@ your RAG index after updating.
 ### Inspect the Database
 
 ```bash
-# Connect to the database
-duckdb my-blog/rag/vectors.duckdb
+# Open DuckDB CLI and register the Parquet file
+duckdb
+> INSTALL vss;           -- Required for similarity search
+> LOAD vss;
+> CREATE OR REPLACE VIEW embeddings AS
+      SELECT * FROM read_parquet('my-blog/rag/chunks.parquet');
 
 # Count indexed chunks
-SELECT COUNT(*) FROM embeddings;
+> SELECT COUNT(*) FROM embeddings;
 
-# See indexed posts
-SELECT DISTINCT post_path FROM embeddings;
+# See indexed documents
+> SELECT DISTINCT document_type, document_id FROM embeddings;
 
 # View a chunk
-SELECT chunk_id, content, metadata
-FROM embeddings
-LIMIT 1;
+> SELECT chunk_id, content, tags
+  FROM embeddings
+  LIMIT 1;
 ```
 
 ## Embedding Model
@@ -196,7 +212,7 @@ from egregora.rag import VectorStore, index_post
 
 # Setup
 client = genai.Client(api_key="...")
-store = VectorStore(Path("my-blog/rag"))
+store = VectorStore(Path("my-blog/rag/chunks.parquet"))
 
 # Index a post
 post_path = Path("my-blog/posts/2025-01-15-ai-ethics.md")
@@ -229,7 +245,7 @@ for result in results:
 ```python
 from egregora.rag import VectorStore
 
-store = VectorStore(Path("my-blog/rag"))
+store = VectorStore(Path("my-blog/rag/chunks.parquet"))
 
 # Get all embeddings as DataFrame
 df = store.get_all_embeddings()
@@ -339,12 +355,15 @@ Similarity search isn't perfect:
 
 ## Troubleshooting
 
-### "No RAG database found"
+### "No RAG index found"
 
 **Problem:** Trying to query before indexing
 
 **Solution:**
 ```bash
+# Verify the Parquet file exists
+ls my-blog/rag/chunks.parquet
+
 # Index existing posts first
 egregora process --enable_enrichment=True ...
 ```

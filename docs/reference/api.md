@@ -87,7 +87,7 @@ DuckDB-based vector store for RAG.
 from pathlib import Path
 from egregora.rag import VectorStore
 
-store = VectorStore(Path("./rag"))
+store = VectorStore(Path("./rag/chunks.parquet"))
 
 # Get all embeddings
 df = store.get_all_embeddings()
@@ -106,7 +106,7 @@ from google import genai
 from egregora.rag import VectorStore, index_post
 
 client = genai.Client(api_key="YOUR_KEY")
-store = VectorStore(Path("./rag"))
+store = VectorStore(Path("./rag/chunks.parquet"))
 
 # Index a post
 num_chunks = await index_post(
@@ -254,7 +254,7 @@ async def main():
 
     # 2. Query RAG for similar content
     client = genai.Client(api_key="YOUR_KEY")
-    store = VectorStore(Path("./my-blog/rag"))
+    store = VectorStore(Path("./my-blog/rag/chunks.parquet"))
 
     results = await query_similar_posts(
         query="AI alignment discussions",
