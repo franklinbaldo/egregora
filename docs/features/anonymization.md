@@ -31,16 +31,24 @@ Original: "Hey \u2068João Silva\u2069 how are you?"
 Anonymized: "Hey a1b2c3d4 how are you?"
 ```
 
-### 3. Vectorial Processing
+### 3. Columnar Processing
 
-Anonymization happens at the **Polars DataFrame level** for performance:
+Anonymization happens on **Ibis Tables** backed by DuckDB. We keep everything
+lazy and only call `.execute()` when we truly need a pandas object:
 
 ```python
-# Efficient vectorial operations
-df = df.with_columns([
-    pl.col("author").map_elements(anonymize_author),
-    pl.col("message").map_elements(anonymize_mentions),
+import ibis
+from egregora.anonymizer import anonymize_dataframe
+
+messages = ibis.memtable([
+    {"author": "João Silva", "message": "Olá"},
+    {"author": "Maria Santos", "message": "Oi @João"},
 ])
+
+anonymized = anonymize_dataframe(messages)
+
+# Conversion to pandas (still needed when rendering markdown today)
+preview = anonymized.limit(5).execute()
 ```
 
 ## Implementation
@@ -60,17 +68,20 @@ ZIP Export → Parse → Anonymize → Loader → Agents (LLM) → Post
 The `parse_export()` function automatically anonymizes:
 
 ```python
+import ibis
+
 # In parser.py
-df = pl.DataFrame(rows).sort("timestamp")
+df = ibis.memtable(rows).order_by("timestamp")
 df = anonymize_dataframe(df)  # ← PII removed HERE
 return df
 
 # In loader.py
-df = parse_export(export)  # Already anonymized
-messages = create_messages(df)  # Uses anonymized data
+df = parse_export(export)  # Already anonymized Table
+messages = create_messages(df)  # Uses anonymized data lazily
 
-# In agents/
-await self.call_llm(prompt)  # Prompt only has pseudonyms
+# In writer/
+prompt_df = df.execute()  # pandas conversion happens here today
+await llm.generate(prompt_df.to_markdown(index=False))
 ```
 
 ### Code Location
@@ -158,7 +169,7 @@ python test_anonymization.py
 This validates:
 - ✅ Author anonymization is deterministic
 - ✅ Mentions are properly replaced
-- ✅ DataFrame operations work correctly
+- ✅ Table operations work correctly
 - ✅ No PII leaks in output
 
 ## Privacy by Design

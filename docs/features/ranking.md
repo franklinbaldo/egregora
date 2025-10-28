@@ -210,19 +210,16 @@ print(top_posts)
 Filter out low-quality content:
 
 ```python
-# Get all ratings as Polars DataFrame
-import polars as pl
-
+# Get all ratings as an Ibis Table
 ratings = store.get_all_ratings()
 
 # Posts with ELO < 1400 after 5+ games are candidates for editing/archiving
-low_quality = (
-    ratings
-    .filter(
-        (pl.col("games_played") >= 5) &
-        (pl.col("elo_global") < 1400)
-    )
+low_quality = ratings.filter(
+    (ratings.games_played >= 5) & (ratings.elo_global < 1400)
 )
+
+# Convert to pandas when you need to display the result
+low_quality_pd = low_quality.execute()
 ```
 
 ### 3. Content Analytics
@@ -234,14 +231,12 @@ Analyze what makes posts successful:
 post_feedback = store.get_comments_for_post("2025-01-15-my-post")
 print(post_feedback)
 
-# Or get full history as DataFrame for complex analytics
+# Or get full history as an Ibis Table for complex analytics
 history = store.get_all_history()
 
 # See what different profiles thought
-profile_patterns = (
-    history
-    .group_by("profile_id")
-    .agg(pl.col("stars_a").mean().alias("avg_stars"))
+profile_patterns = history.group_by("profile_id").agg(
+    history.stars_a.mean().alias("avg_stars")
 )
 ```
 
@@ -251,9 +246,8 @@ Guide which posts to promote:
 
 ```python
 # High-confidence winners (10+ games, ELO > 1600)
-featured_worthy = store.get_top_posts(n=100, min_games=10).filter(
-    pl.col("elo_global") > 1600
-)
+top_candidates = store.get_top_posts(n=100, min_games=10)
+featured_worthy = top_candidates.filter(top_candidates.elo_global > 1600)
 ```
 
 ### 5. Direct SQL Queries (Advanced)

@@ -44,14 +44,18 @@ process_whatsapp_export(
 
 ### parse_export
 
-Parse WhatsApp export ZIP into DataFrame.
+Parse WhatsApp export ZIP into an Ibis table.
 
 ```python
 from pathlib import Path
+import ibis
 from egregora.parser import parse_export
 
-df = parse_export(Path("export.zip"))
-# Returns: Polars DataFrame with [timestamp, author, message, media]
+table = parse_export(Path("export.zip"))
+assert isinstance(table, ibis.expr.types.Table)
+
+# Convert to pandas DataFrame only when absolutely necessary
+pandas_df = table.limit(10).execute()
 ```
 
 **Documentation:** See code in `src/egregora/parser.py`
@@ -60,19 +64,19 @@ df = parse_export(Path("export.zip"))
 
 ### anonymize_dataframe
 
-Anonymize author names in DataFrame.
+Anonymize author names in an Ibis table.
 
 ```python
-import polars as pl
+import ibis
 from egregora.anonymizer import anonymize_dataframe
 
-df = pl.DataFrame({
-    "author": ["João Silva", "Maria Santos"],
-    "message": ["Hello", "Hi"]
-})
+table = ibis.memtable([
+    {"author": "João Silva", "message": "Hello"},
+    {"author": "Maria Santos", "message": "Hi"},
+])
 
-anonymized_df = anonymize_dataframe(df)
-# author column now contains UUIDs: ["a1b2c3d4", "e5f6g7h8"]
+anonymized_table = anonymize_dataframe(table)
+pandas_df = anonymized_table.execute()  # pandas conversion happens here today
 ```
 
 **Documentation:** `src/egregora/anonymizer.py` and [Privacy Documentation](../features/anonymization.md)
@@ -89,8 +93,9 @@ from egregora.rag import VectorStore
 
 store = VectorStore(Path("./rag"))
 
-# Get all embeddings
-df = store.get_all_embeddings()
+# Get all embeddings as an Ibis Table
+embeddings = store.get_all_embeddings()
+print(embeddings.limit(5).execute())  # pandas preview when needed
 
 # Search with embedding vector
 results = store.search(embedding=[0.1, 0.2, ...], top_k=5)

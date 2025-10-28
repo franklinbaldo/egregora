@@ -76,10 +76,10 @@ We removed all the intermediate agents and just give the LLM the data.
 
 ### 1. Parser (`parser.py`)
 
-**Purpose:** Convert WhatsApp export to structured DataFrame
+**Purpose:** Convert WhatsApp export to a structured Ibis table
 
 **Input:** ZIP file containing `_chat.txt` and media
-**Output:** Polars DataFrame with columns `[timestamp, author, message, media]`
+**Output:** Ibis `Table` with columns `[timestamp, author, message, media, media_metadata]`
 
 **Features:**
 - Handles multiple date formats
@@ -90,16 +90,31 @@ We removed all the intermediate agents and just give the LLM the data.
 **Documentation:** See code comments in `src/egregora/parser.py`
 
 ```python
-df = parse_export(zip_path)
-# Returns: DataFrame with all messages
+import ibis
+from ibis import memtable
+from egregora.parser import parse_export
+
+messages = parse_export(zip_path)
+assert isinstance(messages, ibis.expr.types.Table)
+
+# Keep everything lazy until the last responsible moment
+first_day = messages.filter(messages.timestamp.date() == "2025-01-01")
+
+# .execute() returns a pandas.DataFrame today when we need interoperability
+first_day_pd = first_day.execute()
+
+# Quick experiments without touching disk are easy too
+scratch = memtable([
+    {"timestamp": "2025-01-01T10:00:00", "author": "Alice", "message": "hi"}
+])
 ```
 
 ### 2. Anonymizer (`anonymizer.py`)
 
 **Purpose:** Privacy-first UUID5 pseudonymization
 
-**Input:** DataFrame with real names
-**Output:** DataFrame with UUIDs
+**Input:** Table with real names
+**Output:** Table with UUIDs
 
 **How it works:**
 ```python
@@ -123,8 +138,8 @@ def anonymize_author(name: str) -> str:
 
 **Purpose:** Split messages into periods for processing
 
-**Input:** Full DataFrame
-**Output:** Dictionary of `{date: DataFrame}`
+**Input:** Full Table
+**Output:** Dictionary of `{date: Table}`
 
 **Grouping strategies:**
 - **Day** (default): One chunk per day
@@ -133,8 +148,8 @@ def anonymize_author(name: str) -> str:
 
 ```python
 periods = {
-    "2025-01-01": DataFrame(100 messages),
-    "2025-01-02": DataFrame(150 messages),
+    "2025-01-01": Table(100 messages),
+    "2025-01-02": Table(150 messages),
 }
 ```
 
@@ -144,8 +159,8 @@ This determines how many LLM calls you make.
 
 **Purpose:** Add context for URLs and media (optional)
 
-**Input:** DataFrame chunk
-**Output:** DataFrame with added context rows
+**Input:** Table chunk
+**Output:** Table with added context rows
 
 **Enrichment types:**
 - **URLs:** Fetch content, summarize with LLM
@@ -153,13 +168,22 @@ This determines how many LLM calls you make.
 - **RAG:** Search past posts for related context
 
 **How it works:**
-Enrichment is added as new DataFrame rows with author `egregora`:
+Enrichment is added as new table rows with author `egregora`:
 
-```markdown
-| timestamp | author   | message                    |
-|-----------|----------|----------------------------|
-| 10:00:00  | a1b2c3d4 | Check https://example.com |
-| 10:00:01  | egregora | [URL] Article about AI... |
+```python
+import ibis
+
+enrichment_rows = ibis.memtable([
+    {
+        "timestamp": "2025-01-01T10:00:01",
+        "author": "egregora",
+        "message": "[URL] Article about AI...",
+        "media": None,
+        "media_metadata": None,
+    }
+])
+
+augmented = chunk.union(enrichment_rows, distinct=False)
 ```
 
 The LLM sees enrichment context alongside original messages.
@@ -171,7 +195,7 @@ The LLM sees enrichment context alongside original messages.
 **Purpose:** LLM generates blog posts with editorial control
 
 **Input:**
-- DataFrame (messages + enrichment)
+- Table (messages + enrichment)
 - Date
 - Author profiles
 - Custom instructions (optional)
@@ -240,7 +264,7 @@ Python enthusiast, data nerd
 
 ```
 src/egregora/
-├── parser.py           # WhatsApp → DataFrame
+├── parser.py           # WhatsApp → Ibis Table
 ├── anonymizer.py       # Privacy (UUID5)
 ├── enricher.py         # URL/media → context
 ├── writer.py           # LLM → posts
@@ -296,7 +320,7 @@ Compared to the agent-based v2 architecture, we deleted:
 
 ### ❌ Data Models (300+ lines)
 
-- `Message` class - Work with DataFrames
+- `Message` class - Work with Ibis Tables
 - `Topic` class - LLM clusters dynamically
 - `Post` class - Direct markdown output
 - Complex type hierarchies
@@ -319,20 +343,20 @@ Compared to the agent-based v2 architecture, we deleted:
 
 ## Key Design Decisions
 
-### 1. DataFrames All the Way
+### 1. Ibis Tables All the Way
 
-**Why:** No object conversion overhead
+**Why:** Keep everything in DuckDB until we absolutely need a pandas object
 
 ```python
-# Parse → DataFrame
-df = parse_export(zip_file)
+# Parse → Table
+table = parse_export(zip_file)
 
-# Anonymize → DataFrame
-df = anonymize_dataframe(df)
+# Anonymize → Table
+table = anonymize_dataframe(table)
 
-# Enrich → DataFrame (add rows)
-df = enrich_dataframe(
-    df,
+# Enrich → Table (add rows lazily)
+table = enrich_dataframe(
+    table,
     media_mapping,
     text_batch_client,
     vision_batch_client,
@@ -341,17 +365,18 @@ df = enrich_dataframe(
     posts_dir,
 )
 
-# Write → Markdown table from DataFrame
-markdown = df.write_markdown()
+# Write → Markdown table from pandas (temporary bridge)
+pandas_df = table.execute()  # pandas conversion happens here today
+markdown = pandas_df.to_markdown(index=False)
 ```
 
 Benefits:
-- Fast vectorial operations (Polars)
-- No serialization/deserialization
-- Easy to inspect and debug
-- Familiar API for data folks
+- Fast vectorial operations (DuckDB + Ibis expressions)
+- No serialization/deserialization until the boundary
+- Easy to inspect and debug with `.limit().execute()`
+- Familiar to data engineers coming from SQL or pandas
 
-### 2. Enrichment as DataFrame Rows
+### 2. Enrichment as Table Rows
 
 **Why:** Keep data in same structure
 
@@ -440,36 +465,43 @@ WhatsApp export:
 ### After Parse
 
 ```python
-DataFrame([
+import ibis
+
+parsed = ibis.memtable([
     {"timestamp": "2025-01-15 10:00", "author": "João Silva", "message": "Did you see..."},
     {"timestamp": "2025-01-15 10:01", "author": "Maria Santos", "message": "Yes! The alignment..."},
-    ...
+    # ... more rows kept lazily in DuckDB
 ])
 ```
 
 ### After Anonymize
 
 ```python
-DataFrame([
-    {"timestamp": "2025-01-15 10:00", "author": "a1b2c3d4", "message": "Did you see..."},
-    {"timestamp": "2025-01-15 10:01", "author": "e5f6g7h8", "message": "Yes! The alignment..."},
-    ...
-])
+from egregora.anonymizer import anonymize_dataframe
+
+anonymized = anonymize_dataframe(parsed)
 ```
 
 ### After Enrich
 
 ```python
-DataFrame([
-    {"timestamp": "2025-01-15 10:00", "author": "a1b2c3d4", "message": "Did you see..."},
-    {"timestamp": "2025-01-15 10:01", "author": "e5f6g7h8", "message": "Yes! The alignment..."},
-    {"timestamp": "2025-01-15 10:02", "author": "a1b2c3d4", "message": "https://example.com/paper"},
-    {"timestamp": "2025-01-15 10:02:01", "author": "egregora", "message": "[URL] Paper: Scalable AI Alignment..."},
-    {"timestamp": "2025-01-15 10:03", "author": "f9g0h1i2", "message": "This relates to..."},
-])
+enriched = anonymized.union(
+    ibis.memtable([
+        {
+            "timestamp": "2025-01-15 10:02:01",
+            "author": "egregora",
+            "message": "[URL] Paper: Scalable AI Alignment...",
+        }
+    ]),
+    distinct=False,
+)
 ```
 
 ### LLM Input
+
+We call `.execute()` on the table to get a pandas DataFrame before rendering
+markdown for the prompt (this is one of the few pandas conversions that still
+exist today).
 
 ```markdown
 **Messages from 2025-01-15:**
@@ -522,7 +554,7 @@ on scalable AI alignment...
 ## Technology Stack
 
 - **Python 3.11+** - Modern Python features
-- **Polars** - Fast DataFrame library
+- **Ibis + DuckDB** - Columnar analytics with lazy tables
 - **Google Gemini** - LLM API (2.5 Flash)
 - **DuckDB** - Embedded database (RAG, rankings)
 - **MkDocs Material** - Static site generator
@@ -567,7 +599,7 @@ Very efficient for local machines.
 | Maintainability | Hard (many abstractions) | Easy (straightforward flow) |
 | Performance | Similar | Similar |
 | Flexibility | High (pluggable agents) | Medium (simple functions) |
-| Debuggability | Hard (event replay needed) | Easy (inspect DataFrames) |
+| Debuggability | Hard (event replay needed) | Easy (inspect tables via `.limit().execute()`) |
 
 ## Future Directions
 

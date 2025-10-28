@@ -151,7 +151,7 @@ egregora process whatsapp-export.zip \
 
 **What it does:**
 
-1. **Parses** WhatsApp export into structured DataFrame
+1. **Parses** WhatsApp export into a structured Ibis table
 2. **Anonymizes** all names → UUID5 pseudonyms (privacy-first)
 3. **Groups** messages by period (day/week/month)
 4. **Enriches** messages with URL/media context (if enabled)

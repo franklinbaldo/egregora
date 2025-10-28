@@ -82,7 +82,7 @@ Each post includes:
 
 Egregora did the following:
 
-1. **Parsed** your WhatsApp export into a structured DataFrame
+1. **Parsed** your WhatsApp export into a structured Ibis table (DuckDB backend)
 2. **Anonymized** all names → UUID5 pseudonyms (privacy-first)
 3. **Grouped** messages by date (day/week/month)
 4. **Enriched** messages with URL/media context (optional)
