@@ -117,7 +117,8 @@ def _compute_message_id(row: Any) -> str:
     :class:`dict` as well as :class:`pandas.Series` produced by
     ``DataFrame.iterrows()``). Legacy helpers passed both ``(row_index, row)``
     positional arguments, but that form is no longer accepted because the index
-    value is ignored during hash computation.
+    value is ignored during hash computation. The function is private to this
+    module, so no downstream backwards compatibility considerations apply.
     """
 
     if not (hasattr(row, "get") and hasattr(row, "items")):
