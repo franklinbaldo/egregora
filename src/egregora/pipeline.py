@@ -265,7 +265,11 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         client = genai.Client(api_key=gemini_api_key)
         text_batch_client = GeminiBatchClient(client, model_config.get_model("enricher"))
         vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
-        embedding_batch_client = GeminiBatchClient(client, model_config.get_model("embedding"))
+        embedding_model_name = model_config.get_model("embedding")
+        embedding_batch_client = GeminiBatchClient(client, embedding_model_name)
+        embedding_dimensionality = model_config.get_embedding_output_dimensionality(
+            embedding_model_name
+        )
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
         checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
@@ -446,7 +450,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     site_paths.rag_dir,
                     model_config,
                     enable_rag=True,
-                    embedding_output_dimensionality=3072,
+                    embedding_output_dimensionality=embedding_dimensionality,
                 )
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
@@ -467,7 +471,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     embedding_batch_client,
                     store,
                     embedding_model=embedding_batch_client.default_model,
-                    output_dimensionality=3072,
+                    output_dimensionality=embedding_dimensionality,
                 )
                 if media_chunks > 0:
                     logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")

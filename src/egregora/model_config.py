@@ -8,6 +8,15 @@ from typing import Literal
 
 from .site_config import load_mkdocs_config
 
+DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
+
+# Known output dimensionalities for supported embedding models. The keys should
+# match the fully-qualified Gemini model identifiers returned by
+# ``ModelConfig.get_model("embedding")``.
+KNOWN_EMBEDDING_DIMENSIONS = {
+    "models/text-embedding-004": 3072,
+}
+
 logger = logging.getLogger(__name__)
 
 # Default models for different tasks
@@ -85,6 +94,66 @@ class ModelConfig:
         model = defaults[model_type]
         logger.debug(f"Using default model for {model_type}: {model}")
         return model
+
+    def get_embedding_output_dimensionality(
+        self, model_name: str | None = None
+    ) -> int:
+        """Return the embedding vector dimensionality for the active model.
+
+        The dimensionality can be configured explicitly in ``mkdocs.yml`` under
+        ``extra.egregora.embedding.output_dimensionality`` (or related legacy
+        keys). When not provided, a known value is returned for supported
+        built-in models and finally falls back to the default Gemini embedding
+        dimensionality.
+        """
+
+        candidate_keys = (
+            ("embedding", "output_dimensionality"),
+            ("embedding", "dimensionality"),
+            ("embedding", "dimensions"),
+        )
+
+        for parent_key, child_key in candidate_keys:
+            section = self.site_config.get(parent_key, {})
+            if isinstance(section, dict) and child_key in section:
+                value = section[child_key]
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Invalid embedding dimensionality %r for key %s.%s",
+                        value,
+                        parent_key,
+                        child_key,
+                    )
+
+        flat_keys = (
+            "embedding_output_dimensionality",
+            "embedding_dimensionality",
+            "embedding_dimensions",
+        )
+
+        for key in flat_keys:
+            if key in self.site_config:
+                value = self.site_config[key]
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Invalid embedding dimensionality %r for key %s", value, key
+                    )
+
+        resolved_model = model_name or self.get_model("embedding")
+        if resolved_model in KNOWN_EMBEDDING_DIMENSIONS:
+            return KNOWN_EMBEDDING_DIMENSIONS[resolved_model]
+
+        logger.warning(
+            "Unknown embedding dimensionality for %s; defaulting to %d. "
+            "Configure extra.egregora.embedding.output_dimensionality to override.",
+            resolved_model,
+            DEFAULT_EMBEDDING_DIMENSIONALITY,
+        )
+        return DEFAULT_EMBEDDING_DIMENSIONALITY
 
 
 def load_site_config(output_dir: Path) -> dict:
