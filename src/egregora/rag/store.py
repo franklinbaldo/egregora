@@ -8,7 +8,6 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
-from ibis.common.exceptions import NoBackendError
 import pyarrow as pa
 from ibis.expr.types import Table
 
@@ -103,10 +102,32 @@ class VectorStore:
     def _ensure_default_backend(self) -> None:
         """Ensure a global backend exists for memtable-based callers."""
 
-        try:
-            ibis.get_backend()
-        except NoBackendError:
-            ibis.set_backend(self._client)
+        backend: Any | None = None
+        get_backend = getattr(ibis, "get_backend", None)
+
+        if callable(get_backend):
+            try:
+                backend = get_backend()
+            except Exception:  # pragma: no cover - defensive for older Ibis releases
+                backend = None
+
+        if backend is not None:
+            return
+
+        default_backend = getattr(getattr(ibis, "options", object()), "default_backend", None)
+        if default_backend is not None:
+            return
+
+        set_backend = getattr(ibis, "set_backend", None)
+        if callable(set_backend):
+            try:
+                set_backend(self._client)
+                return
+            except Exception:  # pragma: no cover - fallback to option assignment
+                pass
+
+        if hasattr(ibis, "options"):
+            ibis.options.default_backend = self._client
 
     def add(self, chunks_df: Table):
         """
