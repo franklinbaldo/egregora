@@ -111,36 +111,27 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(
-    row_or_index: Mapping[str, Any] | int, row: Mapping[str, Any] | None = None
-) -> str:
+def _compute_message_id(row: Mapping[str, Any]) -> str:
     """Derive a deterministic identifier for a conversation row.
 
-    The helper historically accepted ``(row_index, row)`` positional arguments.
-    For backward compatibility we still support that shape while allowing the
-    modern ``(row)`` form. Any provided ``row_index`` is ignored to ensure the
-    identifier stays stable even if row ordering changes.
+    Only the mapping-based call signature is supported. Legacy helpers passed
+    both ``(row_index, row)`` positional arguments, but that form is no longer
+    accepted because the index value is ignored during hash computation.
     """
 
-    if isinstance(row_or_index, Mapping) and row is None:
-        resolved_row = row_or_index
-    elif isinstance(row_or_index, int) and row is not None:
-        resolved_row = row
-    else:
-        raise TypeError(
-            "_compute_message_id now expects either (row) or (row_index, row)."
-        )
+    if not isinstance(row, Mapping):
+        raise TypeError("_compute_message_id expects a mapping representing the row")
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
-        value = resolved_row.get(key)
+        value = row.get(key)
         normalized = _stringify_value(value)
         if normalized:
             parts.append(normalized)
 
     if not parts:
         fallback_pairs = []
-        for key, value in sorted(resolved_row.items()):
+        for key, value in sorted(row.items()):
             if key in {"row_index", "similarity"}:
                 continue
             normalized = _stringify_value(value)
@@ -150,7 +141,7 @@ def _compute_message_id(
             parts.extend(fallback_pairs)
         else:
             parts.append(
-                json.dumps(resolved_row, sort_keys=True, default=_stringify_value)
+                json.dumps(row, sort_keys=True, default=_stringify_value)
             )
 
     raw = "||".join(parts)
