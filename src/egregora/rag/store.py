@@ -114,6 +114,12 @@ class VectorStore:
         if backend is not None:
             return
 
+        options_backend: Any | None = None
+        if hasattr(ibis, "options"):
+            options_backend = getattr(ibis.options, "default_backend", None)
+            if options_backend is not None:
+                return
+
         set_backend = getattr(ibis, "set_backend", None)
         if callable(set_backend):
             try:
@@ -122,7 +128,7 @@ class VectorStore:
             except Exception:  # pragma: no cover - fallback to option assignment
                 pass
 
-        if hasattr(ibis, "options"):
+        if hasattr(ibis, "options") and getattr(ibis.options, "default_backend", None) is None:
             ibis.options.default_backend = self._client
 
     def add(self, chunks_df: Table):
