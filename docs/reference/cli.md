@@ -91,7 +91,7 @@ egregora process <zip_file> [OPTIONS]
 | `--from-date` | str | None | Only process messages from this date onwards (YYYY-MM-DD) |
 | `--to-date` | str | None | Only process messages up to this date (YYYY-MM-DD) |
 | `--timezone` | str | None | Timezone for date parsing (e.g., 'America/New_York') |
-| `--gemini-key` | str | None | Google Gemini API key (or set GOOGLE_API_KEY env var) |
+| `--gemini-key` | str | None | Google Gemini API key (flag overrides GOOGLE_API_KEY env var) |
 | `--model` | str | None | Gemini model to use (or configure in mkdocs.yml) |
 | `--debug` | bool | `False` | Enable debug logging |
 
@@ -194,7 +194,7 @@ egregora rank [OPTIONS]
 | `--comparisons` | int | `1` | Number of comparisons to run |
 | `--strategy` | str | `fewest_games` | Selection strategy: 'fewest_games', 'random', etc. |
 | `--export-parquet` | bool | `False` | Export rankings to Parquet files |
-| `--gemini-key` | str | None | Google Gemini API key (or set GOOGLE_API_KEY env var) |
+| `--gemini-key` | str | None | Google Gemini API key (flag overrides GOOGLE_API_KEY env var) |
 | `--model` | str | None | Gemini model to use (or configure in mkdocs.yml) |
 | `--debug` | bool | `False` | Enable debug logging |
 
@@ -281,7 +281,7 @@ egregora edit <post_path> [OPTIONS]
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--rag-dir` | Path | `./rag` | RAG database directory for context |
-| `--gemini-key` | str | None | Google Gemini API key (or set GOOGLE_API_KEY env var) |
+| `--gemini-key` | str | None | Google Gemini API key (flag overrides GOOGLE_API_KEY env var) |
 | `--model` | str | None | Gemini model to use |
 | `--custom-instructions` | str | None | Custom editorial instructions |
 | `--debug` | bool | `False` | Enable debug logging |
