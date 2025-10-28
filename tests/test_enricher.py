@@ -76,9 +76,8 @@ async def test_enrich_media_with_pii_detection():
         test_media.write_bytes(b"fake image data")
 
         # Mock configuration
-        mock_client = Mock()
         mock_config = EnrichmentConfig(
-            client=mock_client,
+            client=Mock(),
             output_dir=output_dir,
             model="test-model",
         )
@@ -110,6 +109,9 @@ This image shows a person holding an identification document in an indoor settin
         mock_uploaded_file.uri = "test://file"
         mock_uploaded_file.mime_type = "image/jpeg"
 
+        upload_fn = AsyncMock()
+        generate_fn = AsyncMock()
+
         with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
             # First call is for file upload, second is for generate_content
             mock_retry.side_effect = [mock_uploaded_file, mock_response]
@@ -121,6 +123,8 @@ This image shows a person holding an identification document in an indoor settin
                 sender_uuid="test123",
                 timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
                 config=mock_config,
+                upload_fn=upload_fn,
+                generate_content_fn=generate_fn,
             )
 
             # Assertions
@@ -147,9 +151,8 @@ async def test_enrich_media_without_pii():
         test_media.write_bytes(b"fake image data")
 
         # Mock configuration
-        mock_client = Mock()
         mock_config = EnrichmentConfig(
-            client=mock_client,
+            client=Mock(),
             output_dir=output_dir,
             model="test-model",
         )
@@ -178,6 +181,9 @@ The composition features a wide vista with layers of mountain ranges receding in
         mock_uploaded_file.uri = "test://file"
         mock_uploaded_file.mime_type = "image/jpeg"
 
+        upload_fn = AsyncMock()
+        generate_fn = AsyncMock()
+
         with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
             mock_retry.side_effect = [mock_uploaded_file, mock_response]
 
@@ -188,6 +194,8 @@ The composition features a wide vista with layers of mountain ranges receding in
                 sender_uuid="test123",
                 timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
                 config=mock_config,
+                upload_fn=upload_fn,
+                generate_content_fn=generate_fn,
             )
 
             # Assertions
