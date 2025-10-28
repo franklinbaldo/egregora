@@ -232,6 +232,15 @@ def _safe_timestamp_plus_one(timestamp) -> Any:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
+def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
+    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+
+    to_pylist = getattr(table, "to_pylist", None)
+    if callable(to_pylist):
+        return list(to_pylist())
+
+    records = table.execute().to_dict("records")
+    return [dict(record) for record in records]
 
 
 def get_media_subfolder(file_extension: str) -> str:
@@ -580,7 +589,7 @@ def enrich_dataframe(
 
     pending_url_jobs = [job for job in url_jobs if job.markdown is None]
     if pending_url_jobs:
-        requests: list[BatchPromptRequest] = []
+        url_records = []
         for job in pending_url_jobs:
             ts = _ensure_datetime(job.timestamp)
             prompt = render_url_enrichment_detailed_prompt(
@@ -590,19 +599,23 @@ def enrich_dataframe(
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
-            requests.append(
-                BatchPromptRequest(
-                    contents=[
-                        genai_types.Content(
-                            role="user",
-                            parts=[genai_types.Part(text=prompt)],
-                        )
-                    ],
-                    config=genai_types.GenerateContentConfig(temperature=0.3),
-                    model=url_model,
-                    tag=job.tag,
-                )
+            url_records.append({"tag": job.tag, "prompt": prompt})
+
+        url_table = ibis.memtable(url_records)
+        requests: list[BatchPromptRequest] = [
+            BatchPromptRequest(
+                contents=[
+                    genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part(text=record["prompt"])],
+                    )
+                ],
+                config=genai_types.GenerateContentConfig(temperature=0.3),
+                model=url_model,
+                tag=record["tag"],
             )
+            for record in _table_to_pylist(url_table)
+        ]
 
         try:
             responses = text_batch_client.generate_content(
@@ -630,7 +643,7 @@ def enrich_dataframe(
 
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
     if pending_media_jobs:
-        requests: list[BatchPromptRequest] = []
+        media_records = []
         for job in pending_media_jobs:
             try:
                 uploaded_file = vision_batch_client.upload_file(
@@ -659,43 +672,55 @@ def enrich_dataframe(
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
+            media_records.append(
+                {
+                    "tag": job.tag,
+                    "prompt": prompt,
+                    "file_uri": job.upload_uri,
+                    "mime_type": job.mime_type,
+                    "display_name": job.file_path.name,
+                }
+            )
 
-            parts = [genai_types.Part(text=prompt)]
-            if job.upload_uri:
-                parts.append(
-                    genai_types.Part(
-                        file_data=genai_types.FileData(
-                            file_uri=job.upload_uri,
-                            mime_type=job.mime_type,
-                            display_name=job.file_path.name,
+        responses = []
+        if media_records:
+            media_table = ibis.memtable(media_records)
+            records = _table_to_pylist(media_table)
+            requests: list[BatchPromptRequest] = []
+            for record in records:
+                parts = [genai_types.Part(text=record["prompt"])]
+                if record.get("file_uri"):
+                    parts.append(
+                        genai_types.Part(
+                            file_data=genai_types.FileData(
+                                file_uri=record.get("file_uri"),
+                                mime_type=record.get("mime_type"),
+                                display_name=record.get("display_name"),
+                            )
                         )
+                    )
+
+                requests.append(
+                    BatchPromptRequest(
+                        contents=[
+                            genai_types.Content(
+                                role="user",
+                                parts=parts,
+                            )
+                        ],
+                        model=vision_model,
+                        tag=record["tag"],
                     )
                 )
 
-            requests.append(
-                BatchPromptRequest(
-                    contents=[
-                        genai_types.Content(
-                            role="user",
-                            parts=parts,
-                        )
-                    ],
-                    model=vision_model,
-                    tag=job.tag,
-                )
-            )
-
-        if requests:
-            try:
-                responses = vision_batch_client.generate_content(
-                    requests,
-                    display_name="Egregora Media Enrichment",
-                )
-            except Exception as exc:
-                logger.error("Media enrichment batch failed: %s", exc)
-                responses = []
-        else:
-            responses = []
+            if requests:
+                try:
+                    responses = vision_batch_client.generate_content(
+                        requests,
+                        display_name="Egregora Media Enrichment",
+                    )
+                except Exception as exc:
+                    logger.error("Media enrichment batch failed: %s", exc)
 
         result_map = {result.tag: result for result in responses}
         for job in pending_media_jobs:
