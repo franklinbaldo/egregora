@@ -114,10 +114,6 @@ class VectorStore:
         if backend is not None:
             return
 
-        default_backend = getattr(getattr(ibis, "options", object()), "default_backend", None)
-        if default_backend is not None:
-            return
-
         set_backend = getattr(ibis, "set_backend", None)
         if callable(set_backend):
             try:
