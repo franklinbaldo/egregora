@@ -22,10 +22,12 @@ from google.genai import types as genai_types
 from ibis.expr.types import Table
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from .cache import EnrichmentCache, make_enrichment_cache_key
+from .config_types import EnrichmentConfig
 from .gemini_batch import BatchPromptRequest, GeminiBatchClient
+from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .prompt_templates import (
     render_media_enrichment_detailed_prompt,
@@ -105,6 +107,120 @@ class MediaEnrichmentJob:
     mime_type: str | None = None
 
 
+async def enrich_media(
+    *,
+    file_path: Path,
+    original_message: str,
+    sender_uuid: str,
+    timestamp: Any,
+    config: EnrichmentConfig,
+    media_type: str | None = None,
+    upload_fn: Callable[..., Awaitable[Any]] | None = None,
+    generate_content_fn: Callable[..., Awaitable[Any]] | None = None,
+) -> str | None:
+    """Enrich a single media file using the legacy async Gemini interface.
+
+    ``enrich_dataframe`` is the preferred batch API, but we keep this helper so
+    alpha users that still import :func:`enrich_media` are not broken while the
+    migration completes.  The implementation mirrors the previous behaviour:
+    upload the media, request a markdown description, persist it under
+    ``media/enrichments`` and delete the original file when the model flags
+    potential PII.
+    """
+
+    docs_dir = config.output_dir
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    detected_media_type = media_type or detect_media_type(file_path)
+    if not detected_media_type:
+        logger.warning("Unsupported media type for enrichment: %s", file_path.name)
+        return None
+
+    enrichment_dir = docs_dir / MEDIA_DIR_NAME / "enrichments"
+    enrichment_dir.mkdir(parents=True, exist_ok=True)
+    enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path.resolve()))
+    enrichment_path = enrichment_dir / f"{enrichment_id}.md"
+
+    ts = _ensure_datetime(timestamp)
+    try:
+        media_path = str(file_path.relative_to(docs_dir))
+    except ValueError:
+        subfolder = get_media_subfolder(file_path.suffix)
+        media_path = str(Path(MEDIA_DIR_NAME) / subfolder / file_path.name)
+
+    prompt = render_media_enrichment_detailed_prompt(
+        media_type=detected_media_type,
+        media_filename=file_path.name,
+        media_path=media_path,
+        original_message=original_message,
+        sender_uuid=sender_uuid,
+        date=ts.strftime("%Y-%m-%d"),
+        time=ts.strftime("%H:%M"),
+    )
+
+    if upload_fn is None or generate_content_fn is None:
+        client = getattr(config, "client", None)
+        aio_client = getattr(client, "aio", None) if client is not None else None
+        files_client = getattr(aio_client, "files", None) if aio_client else None
+        models_client = getattr(aio_client, "models", None) if aio_client else None
+
+        upload_fn = upload_fn or getattr(files_client, "upload", None)
+        generate_content_fn = generate_content_fn or getattr(models_client, "generate_content", None)
+
+    if upload_fn is None or generate_content_fn is None:
+        raise RuntimeError(
+            "Gemini async client missing: provide EnrichmentConfig.client or override upload_fn/generate_content_fn."
+        )
+
+    uploaded_file = await call_with_retries(
+        upload_fn,
+        path=str(file_path),
+        display_name=file_path.name,
+    )
+
+    parts = [genai_types.Part(text=prompt)]
+    upload_uri = getattr(uploaded_file, "uri", None)
+    if upload_uri:
+        mime_type = getattr(uploaded_file, "mime_type", "application/octet-stream")
+        parts.append(
+            genai_types.Part(
+                file_data=genai_types.FileData(
+                    file_uri=upload_uri,
+                    mime_type=mime_type,
+                    display_name=file_path.name,
+                )
+            )
+        )
+
+    response = await call_with_retries(
+        generate_content_fn,
+        contents=[genai_types.Content(role="user", parts=parts)],
+        model=config.model,
+        config=genai_types.GenerateContentConfig(temperature=0.3),
+    )
+
+    markdown_content = (getattr(response, "text", None) or "").strip()
+    if not markdown_content:
+        logger.warning("No enrichment generated for media: %s", file_path.name)
+        return None
+
+    if "PII_DETECTED" in markdown_content:
+        logger.warning(
+            "PII detected in media: %s. Media will be deleted after redaction.",
+            file_path.name,
+        )
+        markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+        try:
+            file_path.unlink(missing_ok=True)
+            logger.info("Deleted media file containing PII: %s", file_path)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to delete %s: %s", file_path, exc)
+
+    enrichment_path.write_text(markdown_content, encoding="utf-8")
+    logger.info("Saved media enrichment for %s at %s", file_path.name, enrichment_path)
+    return str(enrichment_path)
+
+
 def _ensure_datetime(value):
     """Convert pandas/ibis timestamp objects to ``datetime``."""
     if hasattr(value, "to_pydatetime"):
@@ -116,14 +232,12 @@ def _safe_timestamp_plus_one(timestamp) -> Any:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
-
-
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
 
     to_pylist = getattr(table, "to_pylist", None)
     if callable(to_pylist):
-        return list(to_pylist())  # type: ignore[call-arg]
+        return list(to_pylist())
 
     records = table.execute().to_dict("records")
     return [dict(record) for record in records]
