@@ -130,6 +130,8 @@ class VectorStore:
                 - tags: list[str]
                 - category: str | None
         """
+        chunks_df = self._ensure_local_table(chunks_df)
+
         if self.parquet_path.exists():
             # Read existing and append
             existing_df = self._client.read_parquet(self.parquet_path)
@@ -404,6 +406,27 @@ class VectorStore:
             table = table.mutate(**casts)
 
         return table.select(schema.names)
+
+    def _ensure_local_table(self, table: Table) -> Table:
+        """Materialize a table on the store backend when necessary."""
+
+        try:
+            backend = table._find_backend()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive against Ibis internals
+            backend = None
+
+        if backend is self._client:
+            return table
+
+        source_schema = table.schema()
+        dataframe = table.execute()
+        arrow_table = pa.Table.from_pandas(
+            dataframe,
+            schema=source_schema.to_pyarrow(),
+            preserve_index=False,
+            safe=False,
+        )
+        return self._table_from_arrow(arrow_table, source_schema)
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
         """Create an empty table with the given schema using the local backend."""

@@ -30,6 +30,56 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
         ibis.set_backend(previous_backend)
 
 
+def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
+    """VectorStore.add must materialize tables built on other backends."""
+
+    store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+
+    other_backend = ibis.duckdb.connect()
+    previous_backend = ibis.get_backend()
+    ibis.set_backend(other_backend)
+
+    try:
+        store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+        try:
+            base_rows = [
+                {
+                    "chunk_id": "chunk-1",
+                    "document_type": "post",
+                    "document_id": "doc-1",
+                    "chunk_index": 0,
+                    "content": "hello",
+                    "embedding": [0.0, 1.0],
+                    "tags": ["tag"],
+                }
+            ]
+            first_batch = ibis.memtable(base_rows)
+            store.add(first_batch)
+
+            second_batch = ibis.memtable(
+                [
+                    {
+                        "chunk_id": "chunk-2",
+                        "document_type": "post",
+                        "document_id": "doc-2",
+                        "chunk_index": 0,
+                        "content": "world",
+                        "embedding": [1.0, 0.0],
+                        "tags": ["tag"],
+                    }
+                ]
+            )
+            store.add(second_batch)
+
+            stored_rows = store.get_all().order_by("chunk_id").execute()
+            assert list(stored_rows["chunk_id"]) == ["chunk-1", "chunk-2"]
+        finally:
+            store.close()
+    finally:
+        ibis.set_backend(previous_backend)
+
+
 def _load_vector_store():
     """Load the vector store module directly to avoid heavy package imports."""
 
