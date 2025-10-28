@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Mapping
 from datetime import timezone
 from functools import lru_cache
 from pathlib import Path
