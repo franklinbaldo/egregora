@@ -8,6 +8,7 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+from ibis.common.exceptions import NoBackendError
 import pyarrow as pa
 from ibis.expr.types import Table
 
@@ -87,6 +88,7 @@ class VectorStore:
         self.conn = connection or duckdb.connect(":memory:")
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
+        self._ensure_default_backend()
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -97,6 +99,14 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Failed to load VSS extension: {e}")
             raise
+
+    def _ensure_default_backend(self) -> None:
+        """Ensure a global backend exists for memtable-based callers."""
+
+        try:
+            ibis.get_backend()
+        except NoBackendError:
+            ibis.set_backend(self._client)
 
     def add(self, chunks_df: Table):
         """
