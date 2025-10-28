@@ -331,7 +331,15 @@ df = parse_export(zip_file)
 df = anonymize_dataframe(df)
 
 # Enrich → DataFrame (add rows)
-df = await enrich_dataframe(df, client)
+df = enrich_dataframe(
+    df,
+    media_mapping,
+    text_batch_client,
+    vision_batch_client,
+    enrichment_cache,
+    docs_dir,
+    posts_dir,
+)
 
 # Write → Markdown table from DataFrame
 markdown = df.write_markdown()

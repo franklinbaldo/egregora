@@ -1,90 +1,90 @@
-"""Embedding generation using Gemini."""
+"""Embedding generation using the Gemini Batch API."""
+
+from __future__ import annotations
 
 import logging
+from typing import List
 
-from google import genai
-from google.genai.types import EmbedContentConfig
+from ..gemini_batch import EmbeddingBatchRequest, GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
 
-async def embed_chunks(
+def embed_chunks(
     chunks: list[str],
-    client: genai.Client,
+    batch_client: GeminiBatchClient,
+    *,
+    model: str,
     task_type: str = "RETRIEVAL_DOCUMENT",
-    output_dim: int = 3072,
+    output_dimensionality: int = 3072,
+    batch_size: int = 100,
 ) -> list[list[float]]:
-    """
-    Embed text chunks using gemini-embedding-001.
-
-    Uses batching (max 100 per batch) for efficiency.
-
-    Args:
-        chunks: List of text chunks to embed
-        client: Gemini client
-        task_type: "RETRIEVAL_DOCUMENT" for indexing or "RETRIEVAL_QUERY" for search
-        output_dim: 3072 (default/full quality) or 768 (efficient)
-
-    Returns:
-        List of embedding vectors (each 3072-dimensional by default)
-
-    Notes:
-        - Model: gemini-embedding-001
-        - Max input: 2048 tokens per chunk
-        - Batch size: 100 chunks per API call
-        - Task type optimizes embeddings for document vs query
-    """
+    """Embed text chunks using a single batch job per group."""
     if not chunks:
         return []
 
-    all_embeddings = []
+    embeddings: list[list[float]] = []
 
-    # Process in batches of 100 (API limit)
-    batch_size = 100
-    for i in range(0, len(chunks), batch_size):
-        batch = chunks[i : i + batch_size]
-
-        logger.debug(f"Embedding batch {i // batch_size + 1} ({len(batch)} chunks)")
-
-        result = await client.aio.models.embed_content(
-            model="gemini-embedding-001",
-            contents=batch,
-            config=EmbedContentConfig(
-                task_type=task_type,
-                output_dimensionality=output_dim,
-            ),
-        )
-
-        # Extract embedding values
-        for embedding in result.embeddings:
-            all_embeddings.append(embedding.values)
-
-    logger.info(f"Embedded {len(chunks)} chunks ({output_dim} dimensions)")
-
-    return all_embeddings
-
-
-async def embed_query(
-    query_text: str,
-    client: genai.Client,
-    output_dim: int = 3072,
-) -> list[float]:
-    """
-    Embed a query text using RETRIEVAL_QUERY task type.
-
-    Args:
-        query_text: Query text to embed
-        client: Gemini client
-        output_dim: Embedding dimensions (default 3072)
-
-    Returns:
-        Embedding vector
-    """
-    embeddings = await embed_chunks(
-        [query_text],
-        client,
-        task_type="RETRIEVAL_QUERY",
-        output_dim=output_dim,
+    logger.info(
+        "[blue]📚 Embedding model:[/] %s — %d chunk(s)", model, len(chunks)
     )
 
-    return embeddings[0]
+    for index in range(0, len(chunks), batch_size):
+        batch = chunks[index : index + batch_size]
+        requests = [
+            EmbeddingBatchRequest(
+                text=text,
+                tag=str(index + offset),
+                model=model,
+                task_type=task_type,
+                output_dimensionality=output_dimensionality,
+            )
+            for offset, text in enumerate(batch)
+        ]
+
+        results = batch_client.embed_content(
+            requests,
+            display_name="Egregora Embedding Batch",
+        )
+
+        for request, result in zip(requests, results, strict=False):
+            if result.embedding is None:
+                raise RuntimeError(f"Embedding failed for chunk index {request.tag}")
+            embeddings.append(result.embedding)
+
+    logger.info(
+        "Embedded %d chunks (%d dimensions)",
+        len(embeddings),
+        output_dimensionality,
+    )
+
+    return embeddings
+
+
+def embed_query(
+    query_text: str,
+    batch_client: GeminiBatchClient,
+    *,
+    model: str,
+    output_dimensionality: int = 3072,
+) -> list[float]:
+    """Embed a single query string for retrieval."""
+    requests = [
+        EmbeddingBatchRequest(
+            text=query_text,
+            tag="query",
+            model=model,
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=output_dimensionality,
+        )
+    ]
+
+    results = batch_client.embed_content(
+        requests,
+        display_name="Egregora Query Embedding",
+    )
+
+    if not results or results[0].embedding is None:
+        raise RuntimeError("Failed to embed query text")
+
+    return results[0].embedding

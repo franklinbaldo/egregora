@@ -286,6 +286,7 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
     ]
 
     model = model_config.get_model("editor")
+    logger.info("[blue]✏️  Editor model:[/] %s", model)
     tool_calls_log = []
 
     logger.info(f"Starting editor session for {post_path.name}")

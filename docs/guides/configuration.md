@@ -237,16 +237,16 @@ Higher values provide more context but cost more tokens.
 
 #### model
 
-LLM model to use (default: "gemini-2.0-flash-exp").
+LLM model to use (default: "models/gemini-flash-latest").
 
 ```yaml
 extra:
   egregora:
-    model: gemini-2.0-flash-exp
+    model: models/gemini-flash-latest
 ```
 
 Options:
-- `gemini-2.0-flash-exp` - Fastest, cheapest (recommended)
+- `models/gemini-flash-latest` - Fastest, cheapest (recommended)
 - `gemini-1.5-pro` - Higher quality, slower, more expensive
 - `gemini-1.5-flash` - Older fast model
 
@@ -514,7 +514,7 @@ extra:
     timezone: America/New_York
     enable_rag: true
     rag_top_k: 5
-    model: gemini-2.0-flash-exp
+    model: models/gemini-flash-latest
     temperature: 0.7
     custom_instructions: |
       ### Writing Style
@@ -570,7 +570,7 @@ extra:
     group_slug: test-group
     timezone: America/Sao_Paulo
     enable_rag: false  # Faster for testing
-    model: gemini-2.0-flash-exp
+    model: models/gemini-flash-latest
     temperature: 0.7
 ```
 

@@ -62,8 +62,10 @@ if "google" not in sys.modules:
 
 import ibis
 
+from egregora.cache import EnrichmentCache
 from egregora.config_types import EnrichmentConfig
 from egregora.enricher import enrich_dataframe, enrich_media, replace_media_mentions
+from egregora.gemini_batch import BatchPromptResult
 
 
 @pytest.mark.asyncio
@@ -76,9 +78,8 @@ async def test_enrich_media_with_pii_detection():
         test_media.write_bytes(b"fake image data")
 
         # Mock configuration
-        mock_client = Mock()
         mock_config = EnrichmentConfig(
-            client=mock_client,
+            client=Mock(),
             output_dir=output_dir,
             model="test-model",
         )
@@ -110,6 +111,9 @@ This image shows a person holding an identification document in an indoor settin
         mock_uploaded_file.uri = "test://file"
         mock_uploaded_file.mime_type = "image/jpeg"
 
+        upload_fn = AsyncMock()
+        generate_fn = AsyncMock()
+
         with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
             # First call is for file upload, second is for generate_content
             mock_retry.side_effect = [mock_uploaded_file, mock_response]
@@ -121,6 +125,8 @@ This image shows a person holding an identification document in an indoor settin
                 sender_uuid="test123",
                 timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
                 config=mock_config,
+                upload_fn=upload_fn,
+                generate_content_fn=generate_fn,
             )
 
             # Assertions
@@ -147,9 +153,8 @@ async def test_enrich_media_without_pii():
         test_media.write_bytes(b"fake image data")
 
         # Mock configuration
-        mock_client = Mock()
         mock_config = EnrichmentConfig(
-            client=mock_client,
+            client=Mock(),
             output_dir=output_dir,
             model="test-model",
         )
@@ -178,6 +183,9 @@ The composition features a wide vista with layers of mountain ranges receding in
         mock_uploaded_file.uri = "test://file"
         mock_uploaded_file.mime_type = "image/jpeg"
 
+        upload_fn = AsyncMock()
+        generate_fn = AsyncMock()
+
         with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
             mock_retry.side_effect = [mock_uploaded_file, mock_response]
 
@@ -188,6 +196,8 @@ The composition features a wide vista with layers of mountain ranges receding in
                 sender_uuid="test123",
                 timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
                 config=mock_config,
+                upload_fn=upload_fn,
+                generate_content_fn=generate_fn,
             )
 
             # Assertions
@@ -205,16 +215,18 @@ The composition features a wide vista with layers of mountain ranges receding in
 def test_replace_media_mentions_deleted_file():
     """Test that deleted media shows privacy notice."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir)
+        docs_dir = Path(tmpdir)
+        posts_dir = docs_dir / "posts"
+        posts_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a media mapping pointing to a non-existent (deleted) file
-        deleted_file = output_dir / "deleted_file.jpg"
+        deleted_file = docs_dir / "media" / "images" / "deleted_file.jpg"
         media_mapping = {"IMG-123.jpg": deleted_file}
 
         text = "See this IMG-123.jpg (file attached)"
 
         # Run replacement
-        result = replace_media_mentions(text, media_mapping, output_dir)
+        result = replace_media_mentions(text, media_mapping, docs_dir, posts_dir)
 
         # Assertions
         assert "[Media removed: privacy protection]" in result
@@ -224,10 +236,12 @@ def test_replace_media_mentions_deleted_file():
 def test_replace_media_mentions_existing_file():
     """Test that existing media gets proper markdown links."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir)
+        docs_dir = Path(tmpdir)
+        posts_dir = docs_dir / "posts"
+        posts_dir.mkdir(parents=True, exist_ok=True)
 
         # Create actual media file
-        media_dir = output_dir / "media" / "images"
+        media_dir = docs_dir / "media" / "images"
         media_dir.mkdir(parents=True)
         existing_file = media_dir / "abc123.jpg"
         existing_file.write_bytes(b"test image")
@@ -237,21 +251,22 @@ def test_replace_media_mentions_existing_file():
         text = "See this IMG-123.jpg (file attached)"
 
         # Run replacement
-        result = replace_media_mentions(text, media_mapping, output_dir)
+        result = replace_media_mentions(text, media_mapping, docs_dir, posts_dir)
 
         # Assertions
         assert "![Image]" in result
-        assert "media/images/abc123.jpg" in result
+        assert "../media/images/abc123.jpg" in result
         assert "IMG-123.jpg (file attached)" not in result
 
 
-@pytest.mark.asyncio
-async def test_enrich_dataframe_refreshes_deleted_media_mentions():
+def test_enrich_dataframe_refreshes_deleted_media_mentions():
     """When media is deleted for PII, messages should show privacy notice."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir)
+        docs_dir = Path(tmpdir)
+        posts_dir = docs_dir / "posts"
+        posts_dir.mkdir(parents=True, exist_ok=True)
 
-        media_dir = output_dir / "media" / "images"
+        media_dir = docs_dir / "media" / "images"
         media_dir.mkdir(parents=True)
         media_file = media_dir / "abc123.jpg"
         media_file.write_bytes(b"test image")
@@ -259,7 +274,7 @@ async def test_enrich_dataframe_refreshes_deleted_media_mentions():
         media_mapping = {"IMG-123.jpg": media_file}
 
         original_text = "See this IMG-123.jpg (file attached)"
-        replaced_text = replace_media_mentions(original_text, media_mapping, output_dir)
+        replaced_text = replace_media_mentions(original_text, media_mapping, docs_dir, posts_dir)
 
         df = ibis.memtable(
             {
@@ -272,21 +287,45 @@ async def test_enrich_dataframe_refreshes_deleted_media_mentions():
             }
         )
 
-        async def mock_enrich_media(**kwargs):  # type: ignore[override]
-            if media_file.exists():
-                media_file.unlink()
-            return str(output_dir / "media" / "enrichments" / "dummy.md")
+        text_batch_client = MagicMock()
+        text_batch_client.generate_content.return_value = []
 
-        with patch("egregora.enricher.enrich_media", side_effect=mock_enrich_media):
-            result_df = await enrich_dataframe(
-                df=df,
-                media_mapping=media_mapping,
-                client=MagicMock(),
-                output_dir=output_dir,
-                enable_url=False,
-                enable_media=True,
-                max_enrichments=5,
-            )
+        vision_batch_client = MagicMock()
+        vision_batch_client.upload_file.return_value = types.SimpleNamespace(
+            uri="test://file", mime_type="image/jpeg"
+        )
+
+        def mock_generate_content(requests, **_kwargs):
+            results = []
+            for request in requests:
+                results.append(
+                    BatchPromptResult(
+                        tag=request.tag,
+                        response=types.SimpleNamespace(
+                            text="PII_DETECTED\n[Media removed: privacy protection]"
+                        ),
+                        error=None,
+                    )
+                )
+            return results
+
+        vision_batch_client.generate_content.side_effect = mock_generate_content
+
+        cache_dir = docs_dir / "cache"
+        cache = EnrichmentCache(cache_dir)
+
+        result_df = enrich_dataframe(
+            df=df,
+            media_mapping=media_mapping,
+            text_batch_client=text_batch_client,
+            vision_batch_client=vision_batch_client,
+            cache=cache,
+            docs_dir=docs_dir,
+            posts_dir=posts_dir,
+            enable_url=False,
+            enable_media=True,
+            max_enrichments=5,
+        )
 
         original_rows = result_df.filter(result_df.author != "egregora")
         assert original_rows.count().execute() == 1

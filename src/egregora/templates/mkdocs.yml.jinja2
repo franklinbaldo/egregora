@@ -1,9 +1,10 @@
 site_name: {{ site_name }}
-site_description: Diários da consciência coletiva - {{ site_name }}
+site_description: Collective consciousness journal - {{ site_name }}
+docs_dir: {{ docs_dir }}
 
 theme:
   name: material
-  language: pt-BR
+  language: en
   palette:
     - media: '(prefers-color-scheme: light)'
       scheme: default
@@ -11,14 +12,14 @@ theme:
       accent: blue
       toggle:
         icon: material/brightness-7
-        name: Mudar para modo escuro
+        name: Switch to dark mode
     - media: '(prefers-color-scheme: dark)'
       scheme: slate
       primary: indigo
       accent: blue
       toggle:
         icon: material/brightness-4
-        name: Mudar para modo claro
+        name: Switch to light mode
   features:
     - navigation.instant
     - navigation.tracking
@@ -32,7 +33,7 @@ theme:
 
 plugins:
   - search:
-      lang: pt
+      lang: en
   - blog:
       blog_dir: {{ blog_dir }}
       blog_toc: true
@@ -74,10 +75,10 @@ markdown_extensions:
   #     generic: true
 
 nav:
-  - Home: docs/index.md
+  - Home: index.md
   - Blog: {{ blog_dir }}/index.md
-  - Perfis: profiles/index.md
-  - Sobre: docs/about.md
+  - Profiles: profiles/index.md
+  - About: about.md
 
 # Egregora configuration
 extra:

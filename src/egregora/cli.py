@@ -1,6 +1,5 @@
 """Typer-based CLI for Egregora v2."""
 
-import asyncio
 import logging
 import os
 import random
@@ -22,6 +21,7 @@ from .pipeline import process_whatsapp_export
 from .ranking.agent import run_comparison
 from .ranking.elo import get_posts_to_compare
 from .ranking.store import RankingStore
+from .site_config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
@@ -82,14 +82,34 @@ def init(
         )
 
 
-def _validate_and_run_process(config: ProcessConfig):
+def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(message)s",
-            handlers=[RichHandler(console=console)],
+            handlers=[
+                RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
+            ],
         )
+    else:
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            handler = RichHandler(
+                console=console,
+                rich_tracebacks=True,
+                show_path=False,
+                markup=True,
+            )
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            root_logger.addHandler(handler)
+        else:
+            for existing_handler in root_logger.handlers:
+                if isinstance(existing_handler, RichHandler):
+                    existing_handler.markup = True
+                    existing_handler.show_time = False
+                    existing_handler.show_path = False
+        root_logger.setLevel(logging.INFO)
 
     # Validate timezone
     timezone_obj = None
@@ -105,6 +125,34 @@ def _validate_and_run_process(config: ProcessConfig):
     from_date_obj = config.from_date
     to_date_obj = config.to_date
 
+    # Ensure output directory has MkDocs scaffold
+    output_dir = config.output_dir.expanduser().resolve()
+    config.output_dir = output_dir
+    mkdocs_path = find_mkdocs_file(output_dir)
+    if not mkdocs_path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        warning_message = (
+            "[yellow]Warning:[/yellow] MkDocs configuration not found in "
+            f"{output_dir}. Egregora can initialize a new scaffold before processing."
+        )
+        console.print(warning_message)
+
+        proceed = True
+        if any(output_dir.iterdir()):
+            proceed = typer.confirm(
+                "The output directory is not empty and lacks mkdocs.yml. "
+                "Initialize a fresh MkDocs scaffold here?",
+                default=False,
+            )
+
+        if not proceed:
+            console.print("[red]Aborting processing at user's request.[/red]")
+            raise typer.Exit(1)
+
+        logger.info("Initializing MkDocs scaffold in %s", output_dir)
+        ensure_mkdocs_project(output_dir)
+        console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+
     # Get API key
     api_key = config.gemini_key or os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -114,19 +162,27 @@ def _validate_and_run_process(config: ProcessConfig):
 
     # Run pipeline
     try:
-        asyncio.run(
-            process_whatsapp_export(
-                zip_path=config.zip_file,
-                output_dir=config.output_dir,
-                gemini_api_key=api_key,
-                period=config.period,
-                enable_enrichment=config.enable_enrichment,
-                from_date=from_date_obj,
-                to_date=to_date_obj,
-                timezone=timezone_obj,
-                model=config.model,
+        console.print(
+            Panel(
+                f"[cyan]Processing:[/cyan] {config.zip_file}\n"
+                f"[cyan]Output:[/cyan] {output_dir}\n"
+                f"[cyan]Grouping:[/cyan] {config.period}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
             )
         )
+        process_whatsapp_export(
+            zip_path=config.zip_file,
+            output_dir=config.output_dir,
+            gemini_api_key=api_key,
+            period=config.period,
+            enable_enrichment=config.enable_enrichment,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+            timezone=timezone_obj,
+            model=config.model,
+        )
+        console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
         if config.debug:
@@ -219,9 +275,10 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
         console.print(f"[red]Site directory not found: {site_path}[/red]")
         raise typer.Exit(1)
 
-    posts_dir = site_path / "posts"
-    rankings_dir = site_path / "rankings"
-    profiles_dir = site_path / "profiles"
+    site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir
+    rankings_dir = site_paths.rankings_dir
+    profiles_dir = site_paths.profiles_dir
 
     if not posts_dir.exists():
         console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
@@ -252,6 +309,7 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
     site_config = load_site_config(site_path)
     model_config = ModelConfig(cli_model=config.model, site_config=site_config)
     ranking_model = model_config.get_model("ranking")
+    logger.info("[blue]⚖️  Ranking model:[/] %s", ranking_model)
 
     # Run comparisons
     for i in range(config.comparisons):

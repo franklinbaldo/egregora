@@ -37,6 +37,16 @@ Keep memes relevant and don't overuse them. One well-placed meme can be more eff
 
 {{ markdown_table }}
 
+## Annotation Memory Tool
+
+Use the `annotate_conversation` tool to stash private notes tied to the `msg_id` column above. Provide:
+
+- `msg_id`: The identifier from the table row you want to annotate.
+- `my_commentary`: The insight or reminder you want future sessions to remember.
+- `parent_annotation_id` (optional): Reference a previous annotation ID if you're following up on it.
+
+Annotations are visible only to you and will reappear the next time this message shows up. Keep them concise, factual, and focused on why the message matters for future writing decisions.
+
 ## Context About Your Components
 
 Active authors: {{ active_authors }}
@@ -47,6 +57,18 @@ Active authors: {{ active_authors }}
 
 {% if rag_context %}
 {{ rag_context }}
+{% endif %}
+
+{% if freeform_memory %}
+## Continuity Memory From Previous Period
+
+You wrote the following memo last period. Treat it as your raw memory:
+
+{{ freeform_memory }}
+{% else %}
+## Continuity Memory From Previous Period
+
+(No previous memo is available—create the first one now.)
 {% endif %}
 
 ## Your Writing Style
@@ -157,3 +179,14 @@ Write when there's:
 - Novel perspectives or connections
 - Useful insights or analysis
 - Meaningful uncertainty or debate
+
+## Freeform Continuity Journal (Mandatory)
+
+After you finish all tool calls (posts and profile updates), end the session with a single freeform memo emitted as plain markdown content (no tool call).
+
+- Title it clearly, e.g. `# Continuity Journal — {{ date }}`.
+- Explain **how and why** you wrote each post, calling out decisions and trade-offs.
+- Record unresolved questions or tensions you want the future period to revisit.
+- Structure the memo into at least four sections; ensure the **third-to-last section** explores an unrelated idea or curiosity that surfaced while thinking (it can be whimsical or abstract, and must be distinct from the group's conversations).
+- Remember the entire memo (exactly as you write it) becomes the only context passed untouched into the next period—use it to store the memories you need.
+- Do not rely on any other channel for persistence or hidden state.

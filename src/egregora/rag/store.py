@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import ibis
@@ -14,9 +15,17 @@ logger = logging.getLogger(__name__)
 VECTOR_STORE_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
-        "post_slug": dt.string,
-        "post_title": dt.string,
-        "post_date": dt.date,
+        "document_type": dt.string,
+        "document_id": dt.string,
+        "post_slug": dt.String(nullable=True),
+        "post_title": dt.String(nullable=True),
+        "post_date": dt.String(nullable=True),
+        "media_uuid": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        "media_path": dt.String(nullable=True),
+        "original_filename": dt.String(nullable=True),
+        "message_date": dt.String(nullable=True),
+        "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
         "embedding": dt.Array(dt.float64),
@@ -30,9 +39,17 @@ VECTOR_STORE_SCHEMA = ibis.schema(
 SEARCH_RESULT_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
-        "post_slug": dt.string,
-        "post_title": dt.string,
-        "post_date": dt.date,
+        "document_type": dt.string,
+        "document_id": dt.string,
+        "post_slug": dt.String(nullable=True),
+        "post_title": dt.String(nullable=True),
+        "post_date": dt.String(nullable=True),
+        "media_uuid": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        "media_path": dt.String(nullable=True),
+        "original_filename": dt.String(nullable=True),
+        "message_date": dt.String(nullable=True),
+        "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
         "tags": dt.Array(dt.string),
@@ -102,7 +119,7 @@ class VectorStore:
                 # Common fields
                 - chunk_index: int
                 - content: str
-                - embedding: list[float] (3072 dims)
+                - embedding: list[float] (configured dimensionality)
                 - tags: list[str]
                 - category: str | None
         """
@@ -125,7 +142,7 @@ class VectorStore:
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
-    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:  # noqa: PLR0912
         """Ensure both tables share the same schema before unioning."""
 
         existing_columns = set(existing_df.columns)
@@ -184,6 +201,22 @@ class VectorStore:
         existing_df = existing_df.select(ordered_columns)
         new_df = new_df.select(ordered_columns)
 
+        # Cast to canonical schema types when available
+        existing_casts = {}
+        new_casts = {}
+        for column_name in ordered_columns:
+            if column_name in VECTOR_STORE_SCHEMA:
+                target_type = VECTOR_STORE_SCHEMA[column_name]
+                if existing_df[column_name].type() != target_type:
+                    existing_casts[column_name] = existing_df[column_name].cast(target_type)
+                if new_df[column_name].type() != target_type:
+                    new_casts[column_name] = new_df[column_name].cast(target_type)
+
+        if existing_casts:
+            existing_df = existing_df.mutate(**existing_casts)
+        if new_casts:
+            new_df = new_df.mutate(**new_casts)
+
         return existing_df, new_df
 
     def search(  # noqa: PLR0913
@@ -200,7 +233,7 @@ class VectorStore:
         Search for similar chunks using cosine similarity.
 
         Args:
-            query_vec: Query embedding vector (3072 dims)
+            query_vec: Query embedding vector
             top_k: Number of results to return
             min_similarity: Minimum cosine similarity (0-1)
             tag_filter: Filter by tags (OR logic)
@@ -215,13 +248,23 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
 
+        embedding_dimensionality = len(query_vec)
+        if embedding_dimensionality == 0:
+            raise ValueError("Query embedding vector must not be empty")
+
         # Build SQL query - select all columns plus similarity
         query = f"""
             SELECT
-                *,
-                array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) AS similarity
+                * EXCLUDE (embedding),
+                array_cosine_similarity(
+                    embedding::FLOAT[{embedding_dimensionality}],
+                    ?::FLOAT[{embedding_dimensionality}]
+                ) AS similarity
             FROM read_parquet('{self.parquet_path}')
-            WHERE array_cosine_similarity(embedding::FLOAT[3072], ?::FLOAT[3072]) >= {min_similarity}
+            WHERE array_cosine_similarity(
+                embedding::FLOAT[{embedding_dimensionality}],
+                ?::FLOAT[{embedding_dimensionality}]
+            ) >= {min_similarity}
         """
 
         # Add filters
@@ -250,8 +293,12 @@ class VectorStore:
 
         try:
             # Execute query
-            result = self.conn.execute(query, params).arrow()
-            df = ibis.memtable(result.to_pydict())
+            result_table = self.conn.execute(query, params).arrow()
+            if result_table.num_rows == 0:
+                return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+
+            prepared_data = self._prepare_search_results(result_table)
+            df = ibis.memtable(prepared_data, schema=SEARCH_RESULT_SCHEMA)
 
             row_count = df.count().execute()
             logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
@@ -261,6 +308,70 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Search failed: {e}")
             return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+
+    def _prepare_search_results(self, result_table) -> dict[str, list[Any]]:
+        """Normalize DuckDB arrow results to match the search schema."""
+
+        data = result_table.to_pydict()
+        row_count = result_table.num_rows
+
+        valid_columns = set(SEARCH_RESULT_SCHEMA.names) | {"similarity"}
+        for key in list(data.keys()):
+            if key not in valid_columns:
+                data.pop(key)
+
+        if "document_type" in data:
+            data["document_type"] = [value or "post" for value in data["document_type"]]
+        else:
+            data["document_type"] = ["post"] * row_count
+
+        chunk_ids = data.get("chunk_id", [""] * row_count)
+        post_slugs = data.get("post_slug", [None] * row_count)
+        if "document_id" in data:
+            document_ids = []
+            for index, existing in enumerate(data["document_id"]):
+                slug = post_slugs[index] if index < len(post_slugs) else None
+                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
+                document_ids.append(existing or slug or chunk_id)
+            data["document_id"] = document_ids
+        else:
+            document_ids = []
+            for index in range(row_count):
+                slug = post_slugs[index] if index < len(post_slugs) else None
+                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
+                document_ids.append(slug or chunk_id)
+            data["document_id"] = document_ids
+
+        array_columns = ("tags", "authors")
+        for column_name in array_columns:
+            if column_name not in data:
+                data[column_name] = [[] for _ in range(row_count)]
+            else:
+                data[column_name] = [value or [] for value in data[column_name]]
+
+        optional_defaults: dict[str, list[Any]] = {}
+        for column_name in (
+            "post_slug",
+            "post_title",
+            "post_date",
+            "media_uuid",
+            "media_type",
+            "media_path",
+            "original_filename",
+            "message_date",
+            "author_uuid",
+            "category",
+        ):
+            if column_name not in data:
+                optional_defaults[column_name] = [None] * row_count
+
+        if optional_defaults:
+            data.update(optional_defaults)
+
+        if "chunk_index" not in data:
+            data["chunk_index"] = list(range(row_count))
+
+        return data
 
     def get_all(self) -> Table:
         """
