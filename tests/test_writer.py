@@ -181,6 +181,7 @@ def _call_with_retries_sync(sync_fn, *args, **kwargs):
 genai_utils_stub = ModuleType("egregora.genai_utils")
 genai_utils_stub.call_with_retries = _call_with_retries_sync
 genai_utils_stub.call_with_retries_sync = _call_with_retries_sync
+genai_utils_stub.sleep_with_progress_sync = lambda *args, **kwargs: None
 sys.modules["egregora.genai_utils"] = genai_utils_stub
 
 
@@ -332,6 +333,23 @@ def test_write_freeform_markdown_creates_file(tmp_path):
     )
 
 
+def test_compute_message_id_accepts_pandas_series():
+    import pandas as pd
+
+    mapping_row = {
+        "msg_id": "abc123",
+        "timestamp": "2024-05-01T10:00:00Z",
+        "author": "alice",
+        "message": "Hello there",
+    }
+
+    series_row = pd.Series(mapping_row)
+
+    assert writer._compute_message_id(series_row) == writer._compute_message_id(
+        mapping_row
+    )
+
+
 def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     df = DummyTable(
         [
@@ -419,5 +437,5 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "Annotation Memory Tool" in initial_message
 
     records = df.execute().to_dict("records")
-    expected_msg_id = writer._compute_message_id(0, records[0])
+    expected_msg_id = writer._compute_message_id(records[0])
     assert expected_msg_id in initial_message

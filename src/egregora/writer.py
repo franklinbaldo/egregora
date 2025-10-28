@@ -14,7 +14,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Mapping
 from datetime import timezone
 from functools import lru_cache
 from pathlib import Path
@@ -111,8 +110,20 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(row: Mapping[str, Any]) -> str:
-    """Derive a deterministic identifier for a conversation row."""
+def _compute_message_id(row: Any) -> str:
+    """Derive a deterministic identifier for a conversation row.
+
+    The helper accepts any object exposing ``get`` and ``items`` (for example,
+    :class:`dict` as well as :class:`pandas.Series` produced by
+    ``DataFrame.iterrows()``). Legacy helpers passed both ``(row_index, row)``
+    positional arguments, but that form is no longer accepted because the index
+    value is ignored during hash computation.
+    """
+
+    if not (hasattr(row, "get") and hasattr(row, "items")):
+        raise TypeError(
+            "_compute_message_id expects an object with mapping-style access"
+        )
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
@@ -132,7 +143,9 @@ def _compute_message_id(row: Mapping[str, Any]) -> str:
         if fallback_pairs:
             parts.extend(fallback_pairs)
         else:
-            parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
+            parts.append(
+                json.dumps(row, sort_keys=True, default=_stringify_value)
+            )
 
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
