@@ -33,6 +33,12 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
+def _resolve_gemini_key(cli_override: str | None) -> str | None:
+    """Return the Gemini API key honoring CLI override precedence."""
+
+    return cli_override or os.getenv("GOOGLE_API_KEY")
+
+
 @app.command()
 def init(
     output_dir: Annotated[
@@ -154,7 +160,7 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
         console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
 
     # Get API key
-    api_key = config.gemini_key or os.getenv("GOOGLE_API_KEY")
+    api_key = _resolve_gemini_key(config.gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
@@ -210,7 +216,8 @@ def process(  # noqa: PLR0913
         str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
     ] = None,
     gemini_key: Annotated[
-        str | None, typer.Option(help="Google Gemini API key (or set GOOGLE_API_KEY env var)")
+        str | None,
+        typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
@@ -299,7 +306,7 @@ def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # n
         console.print(f"[green]Initialized {newly_initialized} new posts with ELO 1500[/green]")
 
     # Get API key
-    api_key = os.getenv("GOOGLE_API_KEY", gemini_key)
+    api_key = _resolve_gemini_key(gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
@@ -386,7 +393,8 @@ def rank(  # noqa: PLR0913
         bool, typer.Option(help="Export rankings to Parquet after comparisons")
     ] = False,
     gemini_key: Annotated[
-        str | None, typer.Option(help="Google Gemini API key (or set GOOGLE_API_KEY env var)")
+        str | None,
+        typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
@@ -423,7 +431,8 @@ def edit(
         typer.Option(help="Gemini model to use (default: models/gemini-flash-latest)"),
     ] = None,
     gemini_key: Annotated[
-        str | None, typer.Option(help="Google Gemini API key (or set GOOGLE_API_KEY env var)")
+        str | None,
+        typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
 ):
     """
@@ -458,7 +467,7 @@ def edit(
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
 
     # Get API key
-    api_key = os.getenv("GOOGLE_API_KEY", gemini_key)
+    api_key = _resolve_gemini_key(gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")

@@ -404,7 +404,7 @@ egregora process --enable_enrichment=False
 
 #### --gemini_key
 
-Pass API key directly:
+Pass API key directly (takes precedence over the `GOOGLE_API_KEY` environment variable):
 
 ```bash
 egregora process --gemini_key=YOUR_KEY
