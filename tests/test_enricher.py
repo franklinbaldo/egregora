@@ -1,5 +1,6 @@
 """Tests for enricher module, focusing on PII detection."""
 
+import asyncio
 import sys
 import tempfile
 import types
@@ -68,25 +69,25 @@ from egregora.enricher import enrich_dataframe, enrich_media, replace_media_ment
 from egregora.gemini_batch import BatchPromptResult
 
 
-@pytest.mark.asyncio
-async def test_enrich_media_with_pii_detection():
+def test_enrich_media_with_pii_detection():
     """Test that media with PII is deleted but description is kept."""
-    # Create temporary test media file
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir)
-        test_media = output_dir / "test_id_card.jpg"
-        test_media.write_bytes(b"fake image data")
+    async def run() -> None:
+        # Create temporary test media file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            test_media = output_dir / "test_id_card.jpg"
+            test_media.write_bytes(b"fake image data")
 
-        # Mock configuration
-        mock_config = EnrichmentConfig(
-            client=Mock(),
-            output_dir=output_dir,
-            model="test-model",
-        )
+            # Mock configuration
+            mock_config = EnrichmentConfig(
+                client=Mock(),
+                output_dir=output_dir,
+                model="test-model",
+            )
 
-        # Mock the response with PII code word
-        mock_response = MagicMock()
-        mock_response.text = """PII_DETECTED
+            # Mock the response with PII code word
+            mock_response = MagicMock()
+            mock_response.text = """PII_DETECTED
 
 # Enrichment: test_id_card.jpg
 
@@ -106,62 +107,64 @@ This image shows a person holding an identification document in an indoor settin
 [This media contained personal information which has been redacted for privacy protection]
 """
 
-        # Mock the Gemini API calls
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.uri = "test://file"
-        mock_uploaded_file.mime_type = "image/jpeg"
+            # Mock the Gemini API calls
+            mock_uploaded_file = MagicMock()
+            mock_uploaded_file.uri = "test://file"
+            mock_uploaded_file.mime_type = "image/jpeg"
 
-        upload_fn = AsyncMock()
-        generate_fn = AsyncMock()
+            upload_fn = AsyncMock()
+            generate_fn = AsyncMock()
 
-        with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
-            # First call is for file upload, second is for generate_content
-            mock_retry.side_effect = [mock_uploaded_file, mock_response]
+            with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
+                # First call is for file upload, second is for generate_content
+                mock_retry.side_effect = [mock_uploaded_file, mock_response]
 
-            # Run enrichment
-            result = await enrich_media(
-                file_path=test_media,
-                original_message="Check this ID",
-                sender_uuid="test123",
-                timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
-                config=mock_config,
-                upload_fn=upload_fn,
-                generate_content_fn=generate_fn,
+                # Run enrichment
+                result = await enrich_media(
+                    file_path=test_media,
+                    original_message="Check this ID",
+                    sender_uuid="test123",
+                    timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
+                    config=mock_config,
+                    upload_fn=upload_fn,
+                    generate_content_fn=generate_fn,
+                )
+
+                # Assertions
+                assert not test_media.exists(), "Media file should be deleted when PII detected"
+                assert result  # Enrichment path should still be returned
+
+                # Check that enrichment was saved
+                enrichment_path = Path(result)
+                assert enrichment_path.exists(), "Enrichment file should be saved"
+
+                # Check that code word was removed from saved enrichment
+                enrichment_text = enrichment_path.read_text()
+                assert "PII_DETECTED" not in enrichment_text, "Code word should be removed"
+                assert "redacted for privacy protection" in enrichment_text.lower()
+
+    asyncio.run(run())
+
+
+def test_enrich_media_without_pii():
+    """Test normal media enrichment when no PII detected."""
+    async def run() -> None:
+        # Create temporary test media file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            test_media = output_dir / "test_landscape.jpg"
+            test_media.write_bytes(b"fake image data")
+
+            # Mock configuration
+            mock_config = EnrichmentConfig(
+                client=Mock(),
+                output_dir=output_dir,
+                model="test-model",
             )
 
-            # Assertions
-            assert not test_media.exists(), "Media file should be deleted when PII detected"
-            assert result  # Enrichment path should still be returned
-
-            # Check that enrichment was saved
-            enrichment_path = Path(result)
-            assert enrichment_path.exists(), "Enrichment file should be saved"
-
-            # Check that code word was removed from saved enrichment
-            enrichment_text = enrichment_path.read_text()
-            assert "PII_DETECTED" not in enrichment_text, "Code word should be removed"
-            assert "redacted for privacy protection" in enrichment_text.lower()
-
-
-@pytest.mark.asyncio
-async def test_enrich_media_without_pii():
-    """Test normal media enrichment when no PII detected."""
-    # Create temporary test media file
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir)
-        test_media = output_dir / "test_landscape.jpg"
-        test_media.write_bytes(b"fake image data")
-
-        # Mock configuration
-        mock_config = EnrichmentConfig(
-            client=Mock(),
-            output_dir=output_dir,
-            model="test-model",
-        )
-
-        # Mock the response WITHOUT PII code word
-        mock_response = MagicMock()
-        mock_response.text = """# Enrichment: test_landscape.jpg
+            # Mock the response WITHOUT PII code word
+            mock_response = MagicMock()
+            mock_response.text = """# Enrichment: test_landscape.jpg
 
 ## Metadata
 - **Date:** 2024-01-01
@@ -178,38 +181,40 @@ This is a beautiful landscape photo showing mountains and valleys with dramatic 
 The composition features a wide vista with layers of mountain ranges receding into the distance.
 """
 
-        # Mock the Gemini API calls
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.uri = "test://file"
-        mock_uploaded_file.mime_type = "image/jpeg"
+            # Mock the Gemini API calls
+            mock_uploaded_file = MagicMock()
+            mock_uploaded_file.uri = "test://file"
+            mock_uploaded_file.mime_type = "image/jpeg"
 
-        upload_fn = AsyncMock()
-        generate_fn = AsyncMock()
+            upload_fn = AsyncMock()
+            generate_fn = AsyncMock()
 
-        with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
-            mock_retry.side_effect = [mock_uploaded_file, mock_response]
+            with patch("egregora.enricher.call_with_retries", new_callable=AsyncMock) as mock_retry:
+                mock_retry.side_effect = [mock_uploaded_file, mock_response]
 
-            # Run enrichment
-            result = await enrich_media(
-                file_path=test_media,
-                original_message="Nice view",
-                sender_uuid="test123",
-                timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
-                config=mock_config,
-                upload_fn=upload_fn,
-                generate_content_fn=generate_fn,
-            )
+                # Run enrichment
+                result = await enrich_media(
+                    file_path=test_media,
+                    original_message="Nice view",
+                    sender_uuid="test123",
+                    timestamp=MagicMock(strftime=lambda x: "2024-01-01" if "Y" in x else "12:00"),
+                    config=mock_config,
+                    upload_fn=upload_fn,
+                    generate_content_fn=generate_fn,
+                )
 
-            # Assertions
-            assert test_media.exists(), "Media file should NOT be deleted when no PII"
-            assert result
+                # Assertions
+                assert test_media.exists(), "Media file should NOT be deleted when no PII"
+                assert result
 
-            # Check enrichment content
-            enrichment_path = Path(result)
-            assert enrichment_path.exists()
-            enrichment_text = enrichment_path.read_text()
-            assert "PII_DETECTED" not in enrichment_text
-            assert "landscape" in enrichment_text.lower()
+                # Check enrichment content
+                enrichment_path = Path(result)
+                assert enrichment_path.exists()
+                enrichment_text = enrichment_path.read_text()
+                assert "PII_DETECTED" not in enrichment_text
+                assert "landscape" in enrichment_text.lower()
+
+    asyncio.run(run())
 
 
 def test_replace_media_mentions_deleted_file():

@@ -8,43 +8,23 @@ from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_PATH = PROJECT_ROOT / "src"
+
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
 import pytest
-
-from egregora.pipeline import discover_chat_file
-from egregora.types import GroupSlug
-from egregora.zip_utils import validate_zip_contents
-from egregora.models import WhatsAppExport
-
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
-    google_module = sys.modules.get("google")
-    genai_module = sys.modules.get("google.genai")
-    genai_types_module = sys.modules.get("google.genai.types")
-
-    if (
-        genai_module is not None
-        and hasattr(genai_module, "Client")
-        and getattr(genai_module, "types", None) is not None
-    ):
+    if "google" in sys.modules:
         return
 
-    if google_module is None:
-        google_module = types.ModuleType("google")
-        sys.modules["google"] = google_module
-
-    if genai_module is None:
-        genai_module = types.ModuleType("google.genai")
-        sys.modules["google.genai"] = genai_module
-
-    if genai_types_module is None:
-        genai_types_module = types.ModuleType("google.genai.types")
-        sys.modules["google.genai.types"] = genai_types_module
-
-    # Ensure the module hierarchy is linked even if a base google package exists.
-    google_module.genai = genai_module
-    genai_module.types = genai_types_module
+    google_module = types.ModuleType("google")
+    genai_module = types.ModuleType("google.genai")
+    genai_types_module = types.ModuleType("google.genai.types")
 
     class _SimpleStruct:
         def __init__(self, *args, **kwargs):
@@ -78,9 +58,7 @@ def _install_google_stubs() -> None:
         def close(self) -> None:  # pragma: no cover - compatibility stub
             return None
 
-    if not hasattr(genai_module, "Client"):
-        genai_module.Client = _DummyClient
-
+    # Populate genai.types namespace with simple containers used in code paths.
     for attr in (
         "Schema",
         "FunctionDeclaration",
@@ -99,14 +77,27 @@ def _install_google_stubs() -> None:
         "BatchJob",
         "JobError",
     ):
-        if not hasattr(genai_types_module, attr):
-            setattr(genai_types_module, attr, _SimpleStruct)
+        setattr(genai_types_module, attr, _SimpleStruct)
 
-    if not hasattr(genai_types_module, "Type"):
-        genai_types_module.Type = _DummyType
+    genai_types_module.Type = _DummyType
+
+    google_module.genai = genai_module
+    genai_module.types = genai_types_module
+    genai_module.Client = _DummyClient
+
+    sys.modules["google"] = google_module
+    sys.modules["google.genai"] = genai_module
+    sys.modules["google.genai.types"] = genai_types_module
 
 
 _install_google_stubs()
+
+
+from egregora.pipeline import discover_chat_file
+from egregora.types import GroupSlug
+from egregora.zip_utils import validate_zip_contents
+from egregora.models import WhatsAppExport
+
 
 
 @dataclass(slots=True)
