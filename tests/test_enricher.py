@@ -62,8 +62,10 @@ if "google" not in sys.modules:
 
 import ibis
 
+from egregora.cache import EnrichmentCache
 from egregora.config_types import EnrichmentConfig
 from egregora.enricher import enrich_dataframe, enrich_media, replace_media_mentions
+from egregora.gemini_batch import BatchPromptResult
 
 
 @pytest.mark.asyncio
@@ -285,22 +287,45 @@ def test_enrich_dataframe_refreshes_deleted_media_mentions():
             }
         )
 
-        def mock_enrich_media(**kwargs):  # type: ignore[override]
-            if media_file.exists():
-                media_file.unlink()
-            return str(docs_dir / "media" / "enrichments" / "dummy.md")
+        text_batch_client = MagicMock()
+        text_batch_client.generate_content.return_value = []
 
-        with patch("egregora.enricher.enrich_media", side_effect=mock_enrich_media):
-            result_df = enrich_dataframe(
-                df=df,
-                media_mapping=media_mapping,
-                client=MagicMock(),
-                docs_dir=docs_dir,
-                posts_dir=posts_dir,
-                enable_url=False,
-                enable_media=True,
-                max_enrichments=5,
-            )
+        vision_batch_client = MagicMock()
+        vision_batch_client.upload_file.return_value = types.SimpleNamespace(
+            uri="test://file", mime_type="image/jpeg"
+        )
+
+        def mock_generate_content(requests, **_kwargs):
+            results = []
+            for request in requests:
+                results.append(
+                    BatchPromptResult(
+                        tag=request.tag,
+                        response=types.SimpleNamespace(
+                            text="PII_DETECTED\n[Media removed: privacy protection]"
+                        ),
+                        error=None,
+                    )
+                )
+            return results
+
+        vision_batch_client.generate_content.side_effect = mock_generate_content
+
+        cache_dir = docs_dir / "cache"
+        cache = EnrichmentCache(cache_dir)
+
+        result_df = enrich_dataframe(
+            df=df,
+            media_mapping=media_mapping,
+            text_batch_client=text_batch_client,
+            vision_batch_client=vision_batch_client,
+            cache=cache,
+            docs_dir=docs_dir,
+            posts_dir=posts_dir,
+            enable_url=False,
+            enable_media=True,
+            max_enrichments=5,
+        )
 
         original_rows = result_df.filter(result_df.author != "egregora")
         assert original_rows.count().execute() == 1
