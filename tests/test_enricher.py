@@ -249,8 +249,7 @@ def test_replace_media_mentions_existing_file():
         assert "IMG-123.jpg (file attached)" not in result
 
 
-@pytest.mark.asyncio
-async def test_enrich_dataframe_refreshes_deleted_media_mentions():
+def test_enrich_dataframe_refreshes_deleted_media_mentions():
     """When media is deleted for PII, messages should show privacy notice."""
     with tempfile.TemporaryDirectory() as tmpdir:
         docs_dir = Path(tmpdir)
@@ -278,13 +277,13 @@ async def test_enrich_dataframe_refreshes_deleted_media_mentions():
             }
         )
 
-        async def mock_enrich_media(**kwargs):  # type: ignore[override]
+        def mock_enrich_media(**kwargs):  # type: ignore[override]
             if media_file.exists():
                 media_file.unlink()
             return str(docs_dir / "media" / "enrichments" / "dummy.md")
 
         with patch("egregora.enricher.enrich_media", side_effect=mock_enrich_media):
-            result_df = await enrich_dataframe(
+            result_df = enrich_dataframe(
                 df=df,
                 media_mapping=media_mapping,
                 client=MagicMock(),
