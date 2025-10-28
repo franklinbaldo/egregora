@@ -19,12 +19,32 @@ from egregora.models import WhatsAppExport
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
-    if "google" in sys.modules:
+    google_module = sys.modules.get("google")
+    genai_module = sys.modules.get("google.genai")
+    genai_types_module = sys.modules.get("google.genai.types")
+
+    if (
+        genai_module is not None
+        and hasattr(genai_module, "Client")
+        and getattr(genai_module, "types", None) is not None
+    ):
         return
 
-    google_module = types.ModuleType("google")
-    genai_module = types.ModuleType("google.genai")
-    genai_types_module = types.ModuleType("google.genai.types")
+    if google_module is None:
+        google_module = types.ModuleType("google")
+        sys.modules["google"] = google_module
+
+    if genai_module is None:
+        genai_module = types.ModuleType("google.genai")
+        sys.modules["google.genai"] = genai_module
+
+    if genai_types_module is None:
+        genai_types_module = types.ModuleType("google.genai.types")
+        sys.modules["google.genai.types"] = genai_types_module
+
+    # Ensure the module hierarchy is linked even if a base google package exists.
+    google_module.genai = genai_module
+    genai_module.types = genai_types_module
 
     class _SimpleStruct:
         def __init__(self, *args, **kwargs):
@@ -58,7 +78,9 @@ def _install_google_stubs() -> None:
         def close(self) -> None:  # pragma: no cover - compatibility stub
             return None
 
-    # Populate genai.types namespace with simple containers used in code paths.
+    if not hasattr(genai_module, "Client"):
+        genai_module.Client = _DummyClient
+
     for attr in (
         "Schema",
         "FunctionDeclaration",
@@ -77,17 +99,11 @@ def _install_google_stubs() -> None:
         "BatchJob",
         "JobError",
     ):
-        setattr(genai_types_module, attr, _SimpleStruct)
+        if not hasattr(genai_types_module, attr):
+            setattr(genai_types_module, attr, _SimpleStruct)
 
-    genai_types_module.Type = _DummyType
-
-    google_module.genai = genai_module
-    genai_module.types = genai_types_module
-    genai_module.Client = _DummyClient
-
-    sys.modules["google"] = google_module
-    sys.modules["google.genai"] = genai_module
-    sys.modules["google.genai.types"] = genai_types_module
+    if not hasattr(genai_types_module, "Type"):
+        genai_types_module.Type = _DummyType
 
 
 _install_google_stubs()
