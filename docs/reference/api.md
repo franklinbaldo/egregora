@@ -14,7 +14,7 @@ from datetime import date
 from zoneinfo import ZoneInfo
 from egregora.pipeline import process_whatsapp_export
 
-await process_whatsapp_export(
+process_whatsapp_export(
     zip_path=Path("export.zip"),
     output_dir=Path("./my-blog"),
     gemini_api_key="YOUR_API_KEY",
@@ -243,7 +243,7 @@ from egregora.rag import VectorStore, query_similar_posts
 
 async def main():
     # 1. Process WhatsApp export
-    await process_whatsapp_export(
+    process_whatsapp_export(
         zip_path=Path("export.zip"),
         output_dir=Path("./my-blog"),
         gemini_api_key="YOUR_KEY",

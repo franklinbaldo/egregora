@@ -111,7 +111,7 @@ def _escape_table_cell(value: Any) -> str:
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
+def _compute_message_id(row: Mapping[str, Any]) -> str:
     """Derive a deterministic identifier for a conversation row."""
 
     parts: list[str] = []
@@ -120,7 +120,20 @@ def _compute_message_id(row_index: int, row: Mapping[str, Any]) -> str:
         normalized = _stringify_value(value)
         if normalized:
             parts.append(normalized)
-    parts.append(str(row_index))
+
+    if not parts:
+        fallback_pairs = []
+        for key, value in sorted(row.items()):
+            if key in {"row_index", "similarity"}:
+                continue
+            normalized = _stringify_value(value)
+            if normalized:
+                fallback_pairs.append(f"{key}={normalized}")
+        if fallback_pairs:
+            parts.extend(fallback_pairs)
+        else:
+            parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
+
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -179,10 +192,7 @@ def _build_conversation_markdown(
     df = dataframe.copy()
 
     if "msg_id" not in df.columns:
-        msg_ids = [
-            _compute_message_id(index, row)
-            for index, row in enumerate(df.to_dict("records"))
-        ]
+        msg_ids = [_compute_message_id(row) for row in df.to_dict("records")]
         df.insert(0, "msg_id", msg_ids)
     else:
         df["msg_id"] = df["msg_id"].map(_stringify_value)

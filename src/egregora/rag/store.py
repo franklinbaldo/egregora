@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import ibis
@@ -283,11 +284,11 @@ class VectorStore:
         try:
             # Execute query
             result_table = self.conn.execute(query, params).arrow()
-            df = (
-                ibis.memtable(result_table.to_pydict(), schema=SEARCH_RESULT_SCHEMA)
-                if result_table.num_rows > 0
-                else ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
-            )
+            if result_table.num_rows == 0:
+                return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+
+            prepared_data = self._prepare_search_results(result_table)
+            df = ibis.memtable(prepared_data, schema=SEARCH_RESULT_SCHEMA)
 
             row_count = df.count().execute()
             logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
@@ -297,6 +298,70 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Search failed: {e}")
             return ibis.memtable([], schema=SEARCH_RESULT_SCHEMA)
+
+    def _prepare_search_results(self, result_table) -> dict[str, list[Any]]:
+        """Normalize DuckDB arrow results to match the search schema."""
+
+        data = result_table.to_pydict()
+        row_count = result_table.num_rows
+
+        valid_columns = set(SEARCH_RESULT_SCHEMA.names) | {"similarity"}
+        for key in list(data.keys()):
+            if key not in valid_columns:
+                data.pop(key)
+
+        if "document_type" in data:
+            data["document_type"] = [value or "post" for value in data["document_type"]]
+        else:
+            data["document_type"] = ["post"] * row_count
+
+        chunk_ids = data.get("chunk_id", [""] * row_count)
+        post_slugs = data.get("post_slug", [None] * row_count)
+        if "document_id" in data:
+            document_ids = []
+            for index, existing in enumerate(data["document_id"]):
+                slug = post_slugs[index] if index < len(post_slugs) else None
+                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
+                document_ids.append(existing or slug or chunk_id)
+            data["document_id"] = document_ids
+        else:
+            document_ids = []
+            for index in range(row_count):
+                slug = post_slugs[index] if index < len(post_slugs) else None
+                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
+                document_ids.append(slug or chunk_id)
+            data["document_id"] = document_ids
+
+        array_columns = ("tags", "authors")
+        for column_name in array_columns:
+            if column_name not in data:
+                data[column_name] = [[] for _ in range(row_count)]
+            else:
+                data[column_name] = [value or [] for value in data[column_name]]
+
+        optional_defaults: dict[str, list[Any]] = {}
+        for column_name in (
+            "post_slug",
+            "post_title",
+            "post_date",
+            "media_uuid",
+            "media_type",
+            "media_path",
+            "original_filename",
+            "message_date",
+            "author_uuid",
+            "category",
+        ):
+            if column_name not in data:
+                optional_defaults[column_name] = [None] * row_count
+
+        if optional_defaults:
+            data.update(optional_defaults)
+
+        if "chunk_index" not in data:
+            data["chunk_index"] = list(range(row_count))
+
+        return data
 
     def get_all(self) -> Table:
         """
