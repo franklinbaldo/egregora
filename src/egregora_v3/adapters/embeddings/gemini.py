@@ -28,6 +28,38 @@ class GeminiEmbeddingClient:
                 content=text,
                 task_type=task_type
             )
-            embeddings.append(result["embedding"])
+
+            embedding = getattr(result, "embedding", None)
+            if embedding is None and isinstance(result, dict):
+                embedding = result.get("embedding")
+
+            if embedding is None:
+                data = getattr(result, "data", None)
+                if data:
+                    try:
+                        embedding = data[0].embedding
+                    except (AttributeError, IndexError, KeyError, TypeError):
+                        embedding = None
+
+            if embedding is None:
+                raise TypeError("Failed to extract embedding from Gemini response")
+
+            values = None
+            if hasattr(embedding, "values"):
+                values = getattr(embedding, "values")
+            elif isinstance(embedding, dict):
+                values = embedding.get("values")
+            elif isinstance(embedding, (list, tuple)):
+                values = embedding
+
+            if values is None:
+                raise TypeError("Gemini embedding does not contain numeric values")
+
+            try:
+                numeric_values = [float(v) for v in values]
+            except (TypeError, ValueError):
+                raise TypeError("Gemini embedding values are not numeric") from None
+
+            embeddings.append(numeric_values)
 
         return embeddings
