@@ -38,6 +38,7 @@ docs = [
     "pymdown-extensions>=10.0",
     "codespell>=2.3.0",
 ]
+ranking = []
 lint = [
     "pre-commit>=3.8",
     "ruff>=0.4.4",

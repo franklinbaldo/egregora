@@ -17,7 +17,7 @@ Welcome to the Egregora documentation! This guide will help you turn your WhatsA
 
 - [Privacy & Anonymization](features/anonymization.md) - UUID5-based privacy-first approach
 - [User Commands](features/privacy-commands.md) - Control your data with `/egregora` commands
-- [Post Ranking](features/ranking.md) - ELO-based quality ranking system
+- [Post Ranking](features/ranking.md) - *(optional extra)* ELO-based quality ranking system
 - [Multi-Post Generation](features/multi-post.md) - Automatic thread detection and separation
 - [RAG Enrichment](features/rag.md) - Context-aware post enrichment
 

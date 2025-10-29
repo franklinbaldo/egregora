@@ -1,10 +1,9 @@
 """Vector store using DuckDB VSS and Parquet."""
 
 import logging
-import math
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -674,7 +673,7 @@ class VectorStore:
             return VectorStore._ensure_utc_datetime(value)
 
         if isinstance(value, date):
-            return datetime.combine(value, time.min, tzinfo=timezone.utc)
+            return datetime.combine(value, time.min, tzinfo=UTC)
 
         if isinstance(value, str):
             cleaned = value.strip()
@@ -688,7 +687,7 @@ class VectorStore:
                     parsed_date = date.fromisoformat(cleaned)
                 except ValueError as exc:  # pragma: no cover - defensive guard
                     raise ValueError(f"Invalid date_after value: {value!r}") from exc
-                return datetime.combine(parsed_date, time.min, tzinfo=timezone.utc)
+                return datetime.combine(parsed_date, time.min, tzinfo=UTC)
 
             return VectorStore._ensure_utc_datetime(parsed_dt)
 
@@ -701,9 +700,9 @@ class VectorStore:
         """Coerce datetime objects to UTC-aware variants."""
 
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
+            return value.replace(tzinfo=UTC)
 
-        return value.astimezone(timezone.utc)
+        return value.astimezone(UTC)
 
     def _ensure_arrow_table(self, arrow_object: Any) -> pa.Table:
         """Normalize DuckDB Arrow results to a ``pyarrow.Table`` instance."""

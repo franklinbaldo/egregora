@@ -482,7 +482,7 @@ Editor quality depends on RAG index quality.
 
 - [RAG System](rag.md) - How RAG queries work
 - [Architecture](../guides/architecture.md) - Where the editor fits
-- [Post Ranking](ranking.md) - Quality assessment system
+- [Post Ranking](ranking.md) - Quality assessment system *(optional extra)*
 
 ## Code Reference
 

@@ -145,6 +145,9 @@ for result in results:
 
 ## Ranking System
 
+!!! note "Install the ranking extra"
+    Importing `egregora.ranking` requires installing the optional plug-in: `pip install "egregora[ranking]"`.
+
 ### RankingStore
 
 DuckDB-based ELO ranking store.

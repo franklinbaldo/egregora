@@ -129,6 +129,8 @@ Use the ELO-based ranking system to identify your best content:
 egregora rank --site_dir . --comparisons 50
 ```
 
+> ℹ️ Install with `pip install "egregora[ranking]"` to expose the ranking command. Without the optional extra the command stays hidden.
+
 See [Post Ranking](../features/ranking.md) for details.
 
 ### Process More Dates

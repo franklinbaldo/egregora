@@ -2,6 +2,9 @@
 
 The Ranking Agent creates a dynamic ELO ranking system for blog posts using LLM-powered comparisons with profile impersonation.
 
+!!! note "Optional extra"
+    The ranking feature ships as an optional plug-in. Install Egregora with `pip install "egregora[ranking]"` to enable the `egregora rank` command and related APIs.
+
 ## Overview
 
 ### Three-Turn Conversation Protocol
