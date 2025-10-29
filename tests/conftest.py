@@ -106,7 +106,6 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
-from egregora.ibis_runtime import use_backend
 from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
@@ -117,9 +116,17 @@ from egregora.zip_utils import validate_zip_contents
 def ibis_backend():
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
-    with use_backend(backend):
+    options = getattr(ibis, "options", None)
+    previous_backend = getattr(options, "default_backend", None) if options else None
+
+    try:
+        if options is not None:
+            options.default_backend = backend
         yield
-    connection.close()
+    finally:
+        if options is not None:
+            options.default_backend = previous_backend
+        connection.close()
 
 
 @dataclass(slots=True)
