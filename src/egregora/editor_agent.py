@@ -209,26 +209,19 @@ async def _ask_llm_tool(
     model: str,
 ) -> str:
     """Simple Q&A with fresh LLM instance."""
-    # TENET-BREAK(ui)[@platform][P1][due:2025-04-30]:
-    # tenet=propagate-errors; why=secondary llm calls hit rate limits during reviews so we fail soft; exit=add dedicated quota and let sessions abort on errors (#tracking-editor-llm)
-    try:
-        response = await call_with_retries(
-            client.aio.models.generate_content,
-            model=model,
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=[genai_types.Part(text=question)],
-                )
-            ],
-            config=genai_types.GenerateContentConfig(temperature=0.7),
-        )
+    response = await call_with_retries(
+        client.aio.models.generate_content,
+        model=model,
+        contents=[
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part(text=question)],
+            )
+        ],
+        config=genai_types.GenerateContentConfig(temperature=0.7),
+    )
 
-        return (response.text or "No response").strip()
-
-    except Exception as e:
-        logger.error(f"ask_llm failed: {e}")
-        return f"[LLM query failed: {str(e)}]"
+    return (response.text or "No response").strip()
 
 
 async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
@@ -394,8 +387,8 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                 break
 
         except Exception as e:
-            logger.error(f"Error in editor turn {turn + 1}: {e}")
-            break
+            logger.error(f"Error in editor turn {turn + 1}: {e}", exc_info=True)
+            raise
 
     # If we exit loop without finish() being called
     logger.warning("Editor session reached max turns without finishing")

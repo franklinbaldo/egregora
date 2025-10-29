@@ -604,44 +604,43 @@ def _query_rag_for_context(  # noqa: PLR0913
     retrieval_overfetch: int | None = None,
 ) -> str:
     """Query RAG system for similar previous posts."""
-    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
-    # tenet=propagate-errors; why=vector store bootstrap races with writer so we degrade; exit=add rag health check and fail fast (#tracking-rag-context)
-    try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-        similar_posts = query_similar_posts(
-            df,
-            batch_client,
-            store,
-            embedding_model=embedding_model,
-            top_k=5,
-            deduplicate=True,
-            output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-
-        if similar_posts.count().execute() == 0:
-            logger.info("No similar previous posts found")
-            return ""
-
-        post_count = similar_posts.count().execute()
-        logger.info(f"Found {post_count} similar previous posts")
-        rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
-        rag_context += (
-            "You can reference these posts in your writing to maintain conversation continuity.\n\n"
-        )
-
-        for row in similar_posts.execute().to_dict("records"):
-            rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
-            rag_context += f"{row['content'][:400]}...\n"
-            rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
-            rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
-
-        return rag_context
-    except Exception as e:
-        logger.warning(f"RAG query failed: {e}")
+    chunks_path = rag_dir / "chunks.parquet"
+    if not chunks_path.exists():
+        logger.info("No RAG index found at %s", chunks_path)
         return ""
+
+    store = VectorStore(chunks_path)
+    similar_posts = query_similar_posts(
+        df,
+        batch_client,
+        store,
+        embedding_model=embedding_model,
+        top_k=5,
+        deduplicate=True,
+        output_dimensionality=embedding_output_dimensionality,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+    )
+
+    if similar_posts.count().execute() == 0:
+        logger.info("No similar previous posts found")
+        return ""
+
+    post_count = similar_posts.count().execute()
+    logger.info(f"Found {post_count} similar previous posts")
+    rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
+    rag_context += (
+        "You can reference these posts in your writing to maintain conversation continuity.\n\n"
+    )
+
+    for row in similar_posts.execute().to_dict("records"):
+        rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
+        rag_context += f"{row['content'][:400]}...\n"
+        rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
+        rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
+
+    return rag_context
 
 
 def _load_profiles_context(df: Table, profiles_dir: Path) -> str:
@@ -971,21 +970,16 @@ def _index_posts_in_rag(
     if not saved_posts:
         return
 
-    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
-    # tenet=propagate-errors; why=batch embeddings time out today and we cannot abort post generation; exit=move indexing into a durable worker then fail fast (#tracking-rag-indexing)
-    try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-        for post_path in saved_posts:
-            index_post(
-                Path(post_path),
-                batch_client,
-                store,
-                embedding_model=embedding_model,
-                output_dimensionality=embedding_output_dimensionality,
-            )
-        logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
-    except Exception as e:
-        logger.error(f"Failed to index posts in RAG: {e}")
+    store = VectorStore(rag_dir / "chunks.parquet")
+    for post_path in saved_posts:
+        index_post(
+            Path(post_path),
+            batch_client,
+            store,
+            embedding_model=embedding_model,
+            output_dimensionality=embedding_output_dimensionality,
+        )
+    logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
 
 
 def write_posts_for_period(  # noqa: PLR0913, PLR0915

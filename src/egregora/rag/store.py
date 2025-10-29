@@ -598,11 +598,11 @@ class VectorStore:
 
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
-        else:
-            logger.error("Search failed: no compatible VSS table function available")
-        # TENET-BREAK(rag)[@platform][P0][due:2025-04-30]:
-        # tenet=propagate-errors; why=duckdb vss availability differs across hosts so we fall back to empty results; exit=ship portable vss build or remote vector service and raise instead (#tracking-vss-portability)
-        return self._empty_table(SEARCH_RESULT_SCHEMA)
+            raise RuntimeError("Vector search failed due to VSS backend error") from last_error
+
+        message = "Search failed: no compatible VSS table function available"
+        logger.error(message)
+        raise RuntimeError(message)
 
     def _build_ann_query(
         self,

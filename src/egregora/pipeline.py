@@ -448,24 +448,19 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         # Index all media enrichments into RAG (if enrichment was enabled)
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media enrichments into RAG...[/]")
-            # TENET-BREAK(pipeline)[@platform][P1][due:2025-04-30]:
-            # tenet=propagate-errors; why=duckdb vss extension crashes on arm64 builds so we keep runs alive; exit=upgrade vector store stack and fail hard once stable (#tracking-vss-crash)
-            try:
-                rag_dir = site_paths.rag_dir
-                store = VectorStore(rag_dir / "chunks.parquet")
-                media_chunks = index_all_media(
-                    site_paths.docs_dir,
-                    embedding_batch_client,
-                    store,
-                    embedding_model=embedding_batch_client.default_model,
-                    output_dimensionality=embedding_dimensionality,
-                )
-                if media_chunks > 0:
-                    logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
-                else:
-                    logger.info("[yellow]No media enrichments to index for this run[/]")
-            except Exception as e:
-                logger.error(f"[red]Failed to index media into RAG:[/] {e}")
+            rag_dir = site_paths.rag_dir
+            store = VectorStore(rag_dir / "chunks.parquet")
+            media_chunks = index_all_media(
+                site_paths.docs_dir,
+                embedding_batch_client,
+                store,
+                embedding_model=embedding_batch_client.default_model,
+                output_dimensionality=embedding_dimensionality,
+            )
+            if media_chunks > 0:
+                logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
+            else:
+                logger.info("[yellow]No media enrichments to index for this run[/]")
 
         return results
     finally:

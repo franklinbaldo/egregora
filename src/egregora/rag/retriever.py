@@ -203,46 +203,39 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
     Returns:
         Dict with extracted metadata or None if parsing fails
     """
-    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
-    # tenet=propagate-errors; why=legacy enrichment exports have inconsistent front matter so we skip bad files; exit=backfill new format and reject malformed docs (#tracking-rag-cleanup)
-    try:
-        content = enrichment_path.read_text(encoding="utf-8")
+    content = enrichment_path.read_text(encoding="utf-8")
 
-        # Extract metadata from the markdown
-        metadata = {}
+    # Extract metadata from the markdown
+    metadata: dict[str, object] = {}
 
-        # Extract from metadata section
-        date_match = re.search(r"- \*\*Date:\*\* (.+)", content)
-        time_match = re.search(r"- \*\*Time:\*\* (.+)", content)
-        sender_match = re.search(r"- \*\*Sender:\*\* (.+)", content)
-        media_type_match = re.search(r"- \*\*Media Type:\*\* (.+)", content)
-        file_match = re.search(r"- \*\*File:\*\* (.+)", content)
+    # Extract from metadata section
+    date_match = re.search(r"- \*\*Date:\*\* (.+)", content)
+    time_match = re.search(r"- \*\*Time:\*\* (.+)", content)
+    sender_match = re.search(r"- \*\*Sender:\*\* (.+)", content)
+    media_type_match = re.search(r"- \*\*Media Type:\*\* (.+)", content)
+    file_match = re.search(r"- \*\*File:\*\* (.+)", content)
 
-        # Extract filename from title
-        filename_match = re.search(r"# Enrichment: (.+)", content)
-        original_filename = filename_match.group(1).strip() if filename_match else None
+    # Extract filename from title
+    filename_match = re.search(r"# Enrichment: (.+)", content)
+    original_filename = filename_match.group(1).strip() if filename_match else None
 
-        # Build metadata dict
-        if date_match and time_match:
-            date_str = date_match.group(1).strip()
-            time_str = time_match.group(1).strip()
-            try:
-                parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=UTC)
-            except ValueError:
-                logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
-                metadata["message_date"] = None
+    # Build metadata dict
+    if date_match and time_match:
+        date_str = date_match.group(1).strip()
+        time_str = time_match.group(1).strip()
+        try:
+            parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+            metadata["message_date"] = parsed.replace(tzinfo=UTC)
+        except ValueError:
+            logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
+            metadata["message_date"] = None
 
-        metadata["author_uuid"] = sender_match.group(1).strip() if sender_match else None
-        metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
-        metadata["media_path"] = file_match.group(1).strip() if file_match else None
-        metadata["original_filename"] = original_filename
+    metadata["author_uuid"] = sender_match.group(1).strip() if sender_match else None
+    metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
+    metadata["media_path"] = file_match.group(1).strip() if file_match else None
+    metadata["original_filename"] = original_filename
 
-        return metadata
-
-    except Exception as e:
-        logger.error(f"Failed to parse media enrichment {enrichment_path}: {e}")
-        return None
+    return metadata
 
 
 def index_media_enrichment(
