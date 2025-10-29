@@ -1,34 +1,42 @@
-# Egregora v3 Plan
+# Egregora v3 ETL Plan
+
+v3 frames the WhatsApp → knowledge flow as a classic ETL (Extract ➜ Transform ➜ Load) pipeline powered by DuckDB + ibis. Each workstream maps to one phase so we can evolve components independently without losing sight of the overall pipeline.
 
 ## Goals
-- Deliver a fully ibis/DuckDB-first ingestion and RAG pipeline without pandas.
-- Provide a user-friendly Typer CLI that scaffolds, ingests, builds, and queries with minimal setup.
-- Maintain parity with v2 anonymization and writer behaviour while exploring v3 features.
+- Deliver a fully ibis/DuckDB-first pipeline (no pandas) that scales from local to hosted environments.
+- Provide a Typer CLI that orchestrates each ETL phase (`eg3 ingest`, `eg3 build`, `eg3 query`, etc.).
+- Maintain parity with v2 anonymization/writer behaviour while enabling richer analytics downstream.
 
-## Workstreams
+## ETL Phases
 
-### 1. Data Ingestion & Storage
-- [x] Ingest Parquet exports without pandas (use DuckDB `read_parquet`).
-- [ ] Support direct zip ingestion for v3 pipelines.
-- [ ] Add validations for schema mismatches.
+### Extract
+- [x] Read Parquet exports without pandas (DuckDB `read_parquet`).
+- [ ] Ingest zipped WhatsApp exports end-to-end (staging + metadata capture).
+- [ ] Validate incoming schemas and surface actionable error messages.
 
-### 2. Embeddings & Vector Store
-- [x] DuckDB VSS fallback between `vss_search` and `vss_match`.
-- [ ] Async batch embedding for large corpora.
-- [ ] Evaluation harness for ANN accuracy vs exact search.
+### Transform
+- [x] Anonymize and ingest messages via ibis dataframes.
+- [x] Support ANN fallback (`vss_search` → `vss_match`) with automatic retries.
+- [ ] Add async batch embedding for large corpora.
+- [ ] Build an ANN vs exact evaluation harness to track recall/precision impacts.
 
-### 3. CLI Experience
+### Load
+- [ ] Persist staged data into versioned DuckDB datasets (partition by date / group).
+- [x] Expose Typer commands to rebuild embeddings (`eg3 build`) and query them (`eg3 query`).
+- [ ] Generate MkDocs-ready markdown (posts/profiles) through ibis-driven writers.
+
+## CLI & Developer Experience
 - [x] Group Typer commands (`init`, `ingest`, `build`, `query`, `rank`, `site`, `import`).
-- [ ] Add rich progress output for long-running tasks.
-- [ ] Provide `--dry-run` option for ingest/build commands.
+- [ ] Add rich progress indicators/logging for long ETL jobs.
+- [ ] Provide a `--dry-run` flag to preview ETL effects without writing output.
+- [x] Track a `v3` extras group in `pyproject.toml` for ibis/DuckDB requirements.
 
-### 4. Documentation & Tooling
-- [ ] Author v3 README with quickstart.
-- [ ] Update contribution guidelines for ibis-first workflows.
-- [x] Track v3 extra in `pyproject.toml`.
-- [ ] Publish example notebooks demonstrating v3 pipeline end-to-end.
+## Documentation & Tooling
+- [ ] Author a dedicated `v3/README.md` with ETL-focused quickstart instructions.
+- [ ] Update contribution guidelines to reflect ibis/DuckDB workflows.
+- [ ] Publish notebooks or scripts demonstrating end-to-end ETL runs.
 
 ## Next Steps
-1. Implement zip ingestion for v3 (`egregora_v3.features.ingest`).
-2. Build RAG quality evaluation harness (compare ANN vs exact).
-3. Draft v3 README and update docs navigation structure.
+1. Implement zip extraction + staging for the Extract phase.
+2. Build the ANN evaluation harness and integrate metrics into CI.
+3. Draft the v3 README and update docs navigation to highlight the ETL flow.
