@@ -11,10 +11,23 @@ from zoneinfo import ZoneInfo
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = PROJECT_ROOT / "src"
 
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+import duckdb
 import pytest
+
+try:
+    import ibis  # noqa: F401 - imported to ensure availability for fixtures
+except ImportError:  # pragma: no cover - depends on test env
+    pytest.skip(
+        "ibis is required for the test suite; install project dependencies to run tests",
+        allow_module_level=True,
+    )
+
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
@@ -93,11 +106,20 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
+from egregora.ibis_runtime import use_backend
+from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
 from egregora.zip_utils import validate_zip_contents
-from egregora.models import WhatsAppExport
 
+
+@pytest.fixture(autouse=True)
+def ibis_backend():
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    with use_backend(backend):
+        yield
+    connection.close()
 
 
 @dataclass(slots=True)

@@ -91,6 +91,7 @@ DuckDB-based vector store for RAG.
 from pathlib import Path
 from egregora.rag import VectorStore
 
+# Manages ./rag/chunks.parquet (embeddings) + ./rag/chunks.duckdb (ANN index)
 store = VectorStore(Path("./rag/chunks.parquet"))
 
 # Get all embeddings as an Ibis Table
@@ -111,6 +112,7 @@ from google import genai
 from egregora.rag import VectorStore, index_post
 
 client = genai.Client(api_key="YOUR_KEY")
+# VectorStore keeps the Parquet + DuckDB index files in sync
 store = VectorStore(Path("./rag/chunks.parquet"))
 
 # Index a post

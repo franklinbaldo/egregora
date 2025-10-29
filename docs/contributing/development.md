@@ -22,8 +22,13 @@ python3.11 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install in development mode with all dependencies
-pip install -e '.[docs,lint]'
+pip install -e '.[docs,lint,test]'
 ```
+
+> **Tip:** The RAG retriever depends on DuckDB's `vss` extension. The development install above
+> pulls in `duckdb` by default, but the first `pytest` or `egregora process` run still needs to
+> download the extension. Ensure your machine has network access or install it manually with
+> `duckdb -c "INSTALL vss; LOAD vss"` before running tests.
 
 ### Verify Installation
 

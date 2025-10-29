@@ -322,6 +322,7 @@ The Editor Agent uses the same RAG system as the main pipeline:
 ```python
 from egregora.rag import VectorStore
 
+# Manages both chunks.parquet and chunks.duckdb
 store = VectorStore(Path("./rag/chunks.parquet"))
 
 # Editor Agent will query this store
@@ -447,7 +448,7 @@ Editor quality depends on RAG index quality.
 **Problem:** `query_rag` returns empty results
 
 **Solution:**
-1. Check RAG index exists: `ls -la rag/chunks.parquet`
+1. Check RAG index exists: `ls -la rag/chunks.parquet rag/chunks.duckdb`
 2. Ensure posts are indexed
 3. Try broader queries
 

@@ -31,8 +31,8 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest>=8.4.2",
-    "typer[all]>=0.20.0",
-    "google-generativeai>=0.3.0",
+    "ruff>=0.4.4",
+    "duckdb>=0.10.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -77,6 +77,14 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/egregora/enricher.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"src/egregora/rag/embedder.py" = ["PLR0913"]
+"src/egregora/rag/retriever.py" = ["PLR0913"]
+"src/egregora/rag/store.py" = ["PLR0912"]
+"tests/conftest.py" = ["E402"]
+"tests/test_whatsapp_real_scenario.py" = ["PLR0913", "PLR2004", "PLC0208"]
+
 [tool.mypy]
 python_version = "3.11"
 warn_unused_ignores = true
@@ -90,4 +98,9 @@ pythonpath = ["src"]
 [dependency-groups]
 dev = [
     "ruff>=0.14.0",
+]
+test = [
+    "pytest>=8.4.2",
+    "ruff>=0.4.4",
+    "duckdb>=0.10.0",
 ]

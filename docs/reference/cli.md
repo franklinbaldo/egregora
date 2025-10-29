@@ -93,6 +93,9 @@ egregora process <zip_file> [OPTIONS]
 | `--timezone` | str | None | Timezone for date parsing (e.g., 'America/New_York') |
 | `--gemini-key` | str | None | Google Gemini API key (flag overrides GOOGLE_API_KEY env var) |
 | `--model` | str | None | Gemini model to use (or configure in mkdocs.yml) |
+| `--retrieval-mode` | str | `ann` | Retrieval strategy: `ann` (fast) or `exact` |
+| `--retrieval-nprobe` | int | None | Advanced: override DuckDB VSS nprobe (ANN mode only) |
+| `--retrieval-overfetch` | int | None | Advanced: multiply ANN candidate pool before filtering |
 | `--debug` | bool | `False` | Enable debug logging |
 
 **Examples:**
@@ -135,6 +138,11 @@ egregora process export.zip --model=gemini-1.5-pro
 egregora process export.zip --debug
 ```
 
+**Force exact retrieval:**
+```bash
+egregora process export.zip --retrieval-mode=exact
+```
+
 **Complete example:**
 ```bash
 egregora process whatsapp-export.zip \
@@ -162,7 +170,7 @@ egregora process whatsapp-export.zip \
 **Output:**
 - `posts/` - Generated blog posts in markdown
 - `profiles/` - Author profiles in markdown
-- `rag/` - RAG embeddings stored in `chunks.parquet` (if enrichment enabled)
+- `rag/` - RAG embeddings (`chunks.parquet`) + ANN index (`chunks.duckdb`) (if enrichment enabled)
 - `enriched/` - Debug CSV files (if debug mode)
 
 **Environment Variables:**

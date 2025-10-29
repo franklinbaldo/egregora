@@ -17,7 +17,100 @@ Egregora v3 is a greenfield rewrite focusing on a stateless, single-stack archit
 - **⚙️ Engine**: A stateless, AI-powered pipeline that works automatically.
 - **🛡️ Deterministic Privacy**: Your anonymization logic, preserved and guaranteed.
 
----
+🛡️ Privacy by Design
+
+· Automatic anonymization - Real names never reach the AI
+· User-controlled data - /egregora opt-out to exclude your messages
+· Deterministic UUIDs - Same person gets same pseudonym every time
+
+🚀 Quick Start
+
+1. Install uvx
+
+```bash
+# On macOS/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows (PowerShell):
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip (if you have Python):
+pip install uv
+```
+
+2. Create and serve your blog (zero installation required!)
+
+```bash
+# Initialize your blog site
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
+cd my-blog
+
+# Provide your Gemini API key (required)
+export GOOGLE_API_KEY="your-google-gemini-api-key"
+#   • On Windows (PowerShell): $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+#   • Alternatively, pass --gemini-key "your-google-gemini-api-key" to the command below
+
+# Process your WhatsApp export
+uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
+  whatsapp-export.zip --output=. --timezone='America/New_York'
+
+# Serve your blog (no pip install needed!)
+uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
+```
+
+Open http://localhost:8000 to see your AI-generated blog!
+
+🧩 Runtime Requirements
+
+Egregora ships with DuckDB in its default installation. The RAG retriever relies on the
+[DuckDB VSS extension](https://duckdb.org/docs/extensions/vss.html) to power approximate
+nearest-neighbor search. The first `egregora process` run will attempt to download and load
+this extension automatically. Make sure the machine running the pipeline can reach the DuckDB
+extension repository or preinstall it manually:
+
+```bash
+duckdb -c "INSTALL vss; LOAD vss"
+```
+
+If you are running in an offline or firewalled environment, fall back to exact retrieval with
+`--retrieval-mode exact` until the extension is available. The pytest suite also expects DuckDB
+to be installed; run `uv sync` or `pip install duckdb` before executing `pytest` to avoid the
+guarded skip in `tests/conftest.py`.
+
+🎪 Advanced Features
+
+Rank Your Posts
+
+```bash
+# Run ELO comparisons to find your best content
+uvx --from git+https://github.com/franklinbaldo/egregora egregora rank --site-dir=. --comparisons=50
+```
+
+AI-Powered Editing
+
+```bash
+# Let the AI improve an existing post
+uvx --from git+https://github.com/franklinbaldo/egregora egregora edit posts/2025-01-15-ai-safety.md
+```
+
+User Privacy Controls
+
+In your WhatsApp group, users can control their data:
+
+```
+/egregora set alias "Casey"      # Set display name
+/egregora set bio "AI researcher" # Add profile bio
+/egregora opt-out                # Exclude from future posts
+/egregora opt-in                 # Include in future posts
+```
+
+⚙️ Configuration
+
+Customize your blog via mkdocs.yml:
+
+```yaml
+site_name: Our AI Safety Discussions
+site_url: https://our-group.blog
 
 🚀 **Quick Start**
 
@@ -78,6 +171,29 @@ uv sync --all-extras
 uv run pytest tests/v3/
 uv run ruff check src/egregora_v3/
 ```
+
+Architecture Highlights
+
+· Privacy-first: Anonymization happens before AI sees any data
+· DataFrames all the way: Powered by Ibis + DuckDB for performance
+· Functional pipeline: Simple, composable functions over complex agents
+· DuckDB storage: Fast vector operations for RAG and rankings
+
+🤝 Community & Support
+
+· Documentation: docs/ - Comprehensive guides and API reference
+· Issues: GitHub Issues - Bug reports and feature requests
+· Discussions: GitHub Discussions - Questions and community support
+
+📄 License
+
+MIT License - see LICENSE file for details.
+
+🙏 Acknowledgments
+
+Egregora follows the philosophy of "trusting the LLM" - instead of micromanaging with complex heuristics, we give the AI the data and let it make editorial decisions. This results in simpler code and often better outcomes.
+
+Built with the amazing uv Python package manager.
 
 ---
 

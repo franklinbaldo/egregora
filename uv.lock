@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -533,13 +533,18 @@ lint = [
     { name = "ruff" },
 ]
 test = [
-    { name = "google-generativeai" },
+    { name = "duckdb" },
     { name = "pytest" },
-    { name = "typer" },
+    { name = "ruff" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "ruff" },
+]
+test = [
+    { name = "duckdb" },
+    { name = "pytest" },
     { name = "ruff" },
 ]
 
@@ -547,8 +552,8 @@ dev = [
 requires-dist = [
     { name = "codespell", marker = "extra == 'docs'", specifier = ">=2.3.0" },
     { name = "diskcache", specifier = ">=5.6.3" },
-    { name = "duckdb", specifier = ">=0.10.3" },
-    { name = "duckdb-engine", specifier = ">=0.17.0" },
+    { name = "duckdb", specifier = ">=0.10.0" },
+    { name = "duckdb", marker = "extra == 'test'", specifier = ">=0.10.0" },
     { name = "fire", specifier = ">=0.7.1" },
     { name = "google-genai", specifier = ">=0.3.0" },
     { name = "google-generativeai", marker = "extra == 'test'", specifier = ">=0.3.0" },
@@ -573,7 +578,7 @@ requires-dist = [
     { name = "repomix", specifier = ">=0.3.4" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.4" },
-    { name = "toml", specifier = ">=0.10.2" },
+    { name = "ruff", marker = "extra == 'test'", specifier = ">=0.4.4" },
     { name = "typer", extras = ["all"], specifier = ">=0.20.0" },
     { name = "typer", extras = ["all"], marker = "extra == 'test'", specifier = ">=0.20.0" },
 ]
@@ -581,6 +586,11 @@ provides-extras = ["test", "docs", "lint"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.14.0" }]
+test = [
+    { name = "duckdb", specifier = ">=0.10.0" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "ruff", specifier = ">=0.4.4" },
+]
 
 [[package]]
 name = "eval-type-backport"

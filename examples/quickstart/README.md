@@ -7,6 +7,7 @@ This example demonstrates the complete Egregora workflow from WhatsApp export to
 - Python 3.11+
 - Google Gemini API key
 - WhatsApp chat export
+- DuckDB runtime able to install the `vss` extension (download happens automatically on first run)
 
 ## Steps
 
@@ -63,8 +64,9 @@ my-blog/
 ├── profiles/               # Author profiles
 │   ├── a1b2c3d4.md
 │   └── e5f6g7h8.md
-├── rag/                    # RAG embeddings (Parquet)
-│   └── chunks.parquet
+├── rag/                    # RAG embeddings and ANN index
+│   ├── chunks.parquet
+│   └── chunks.duckdb
 └── docs/                   # Site pages
     └── index.md
 ```

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import ibis
 
+from .ibis_runtime import execute_scalar
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
@@ -67,7 +68,7 @@ class AnnotationStore:
     ) -> list[dict[str, object]]:
         cursor = self._connection.execute(query, params or [])
         column_names = [description[0] for description in cursor.description]
-        return [dict(zip(column_names, row)) for row in cursor.fetchall()]
+        return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
     def save_annotation(
         self,
@@ -96,11 +97,10 @@ class AnnotationStore:
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
 
         if parent_annotation_id is not None:
-            parent_exists = (
+            parent_exists = execute_scalar(
                 annotations_table.filter(annotations_table.id == parent_annotation_id)
                 .limit(1)
                 .count()
-                .execute()
             )
             if parent_exists == 0:
                 raise ValueError(

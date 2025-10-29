@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import ibis
@@ -65,7 +65,7 @@ def index_post(
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
         metadata = chunk["metadata"]
-        post_date = metadata.get("date")
+        post_date = _coerce_post_date(metadata.get("date"))
         authors = metadata.get("authors", [])
         if isinstance(authors, str):
             authors = [authors]
@@ -116,6 +116,9 @@ def query_similar_posts(
     top_k: int = 5,
     deduplicate: bool = True,
     output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> Table:
     """
     Find similar previous blog posts for a period's DataFrame.
@@ -132,6 +135,9 @@ def query_similar_posts(
         store: Vector store
         top_k: Number of results to return
         deduplicate: Keep only 1 chunk per post (highest similarity)
+        retrieval_mode: "ann" (default) or "exact" for brute-force search
+        retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
+        retrieval_overfetch: Candidate multiplier for ANN mode before filtering
 
     Returns:
         DataFrame with columns: [post_title, content, similarity, post_date, tags, ...]
@@ -157,6 +163,9 @@ def query_similar_posts(
         query_vec=query_vec,
         top_k=top_k * 3 if deduplicate else top_k,  # Get extras for dedup
         min_similarity=0.7,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
     )
 
     if results.count().execute() == 0:
@@ -216,9 +225,8 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
             date_str = date_match.group(1).strip()
             time_str = time_match.group(1).strip()
             try:
-                metadata["message_date"] = datetime.strptime(
-                    f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-                )
+                parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                metadata["message_date"] = parsed.replace(tzinfo=timezone.utc)
             except ValueError:
                 logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
                 metadata["message_date"] = None
@@ -289,9 +297,7 @@ def index_media_enrichment(
     # Build DataFrame for storage
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-        message_date = metadata.get("message_date")
-        if message_date:
-            message_date = message_date.isoformat()
+        message_date = _coerce_message_datetime(metadata.get("message_date"))
 
         rows.append(
             {
@@ -376,6 +382,72 @@ def index_all_media(
     return total_chunks
 
 
+def _coerce_post_date(value: object) -> date | None:
+    """Normalize post metadata values to ``date`` objects."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1]
+
+        try:
+            return datetime.fromisoformat(text).date()
+        except ValueError:
+            try:
+                return date.fromisoformat(text)
+            except ValueError:
+                logger.warning("Unable to parse post date: %s", value)
+                return None
+
+    logger.warning("Unsupported post date type: %s", type(value))
+    return None
+
+
+def _coerce_message_datetime(value: object) -> datetime | None:
+    """Ensure message timestamps are timezone-aware UTC datetimes."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            logger.warning("Unable to parse message datetime: %s", value)
+            return None
+
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    logger.warning("Unsupported message datetime type: %s", type(value))
+    return None
+
+
 def query_media(  # noqa: PLR0913
     query: str,
     batch_client: GeminiBatchClient,
@@ -387,6 +459,9 @@ def query_media(  # noqa: PLR0913
     *,
     embedding_model: str,
     output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> Table:
     """
     Search for relevant media by description or topic.
@@ -399,6 +474,9 @@ def query_media(  # noqa: PLR0913
         top_k: Number of results to return
         min_similarity: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
+        retrieval_mode: "ann" (default) or "exact" for brute-force search
+        retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
+        retrieval_overfetch: Candidate multiplier for ANN mode before filtering
 
     Returns:
         Ibis Table with columns: [media_uuid, media_type, media_path, content, similarity, ...]
@@ -420,6 +498,9 @@ def query_media(  # noqa: PLR0913
         min_similarity=min_similarity,
         document_type="media",  # Only search media documents
         media_types=media_types,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
     )
 
     result_count = results.count().execute()

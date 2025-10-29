@@ -27,9 +27,13 @@ When you enable RAG, Egregora:
 1. **Chunks** each existing blog post into ~1800 token segments
 2. **Embeds** each chunk using Google's text-embedding-004 model (3072 dimensions)
 3. **Stores** embeddings in `{output_dir}/rag/chunks.parquet`
-4. **Uses DuckDB** with the VSS extension to search the Parquet data for similar chunks
+4. **Indexes** the embeddings in `{output_dir}/rag/chunks.duckdb` using DuckDB VSS
+5. **Keeps** the Parquet + DuckDB artifacts synced on disk for reuse across runs
 
-**Storage location:** `{output_dir}/rag/chunks.parquet`
+**Storage layout:**
+
+- Embeddings: `{output_dir}/rag/chunks.parquet`
+- ANN index metadata: `{output_dir}/rag/chunks.duckdb`
 
 ### 2. Retrieval Phase
 
@@ -78,15 +82,40 @@ egregora process \
 
 This skips both URL enrichment and RAG retrieval (faster, cheaper).
 
+### Tune Retrieval Mode
+
+RAG uses the ANN index by default. You can switch to an exact
+brute-force scan or tweak ANN parameters via CLI flags:
+
+```bash
+egregora process \
+  --zip_file=export.zip \
+  --output=./my-blog \
+  --retrieval-mode=exact
+```
+
+Advanced users can also adjust the ANN search depth:
+
+```bash
+egregora process \
+  --zip_file=export.zip \
+  --output=./my-blog \
+  --retrieval-mode=ann \
+  --retrieval-nprobe=24 \
+  --retrieval-overfetch=6
+```
+
 ## RAG Database
 
 ### Storage Format
 
-Egregora writes all embeddings to a single **Parquet file** at
-`{output_dir}/rag/chunks.parquet`. During indexing and retrieval we attach this
-file to an in-memory DuckDB connection and run vector similarity search through
-the DuckDB VSS extension. This keeps the on-disk format portable (plain
-Parquet) while still benefiting from DuckDB's query and vector tooling.
+Egregora writes embeddings to a **Parquet file** at
+`{output_dir}/rag/chunks.parquet` and maintains a companion
+`{output_dir}/rag/chunks.duckdb` database. The DuckDB file stores the VSS
+index so subsequent runs can reuse the ANN structure without rebuilding it from
+scratch. Retrieval opens the DuckDB database directly and issues `vss_search`
+queries for fast nearest-neighbour lookups while keeping the raw embeddings
+portable in Parquet.
 
 **Schema:**
 ```sql
@@ -212,7 +241,7 @@ from egregora.rag import VectorStore, index_post
 
 # Setup
 client = genai.Client(api_key="...")
-store = VectorStore(Path("my-blog/rag/chunks.parquet"))
+store = VectorStore(Path("my-blog/rag/chunks.parquet"))  # handles chunks.duckdb too
 
 # Index a post
 post_path = Path("my-blog/posts/2025-01-15-ai-ethics.md")
@@ -245,7 +274,7 @@ for result in results:
 ```python
 from egregora.rag import VectorStore
 
-store = VectorStore(Path("my-blog/rag/chunks.parquet"))
+store = VectorStore(Path("my-blog/rag/chunks.parquet"))  # handles chunks.duckdb too
 
 # Get all embeddings as an Ibis Table
 embeddings = store.get_all_embeddings()
@@ -363,7 +392,7 @@ Similarity search isn't perfect:
 **Solution:**
 ```bash
 # Verify the Parquet file exists
-ls my-blog/rag/chunks.parquet
+ls my-blog/rag/chunks.parquet my-blog/rag/chunks.duckdb
 
 # Index existing posts first
 egregora process --enable_enrichment=True ...

@@ -35,6 +35,24 @@ _PHONE_PATTERNS: tuple[_PrivacyPattern, ...] = (
     ),
 )
 
+_EMAIL_PATTERN = _PrivacyPattern(
+    description="email address",
+    regex=re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.IGNORECASE),
+)
+
+_BRAZILIAN_ID_PATTERNS: tuple[_PrivacyPattern, ...] = (
+    _PrivacyPattern(
+        description="CPF identifier",
+        regex=re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"),
+    ),
+    _PrivacyPattern(
+        description="CNPJ identifier",
+        regex=re.compile(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b"),
+    ),
+)
+
+_PII_PATTERNS: tuple[_PrivacyPattern, ...] = _PHONE_PATTERNS + (_EMAIL_PATTERN,) + _BRAZILIAN_ID_PATTERNS
+
 _UUID_PATTERN = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
@@ -52,7 +70,7 @@ def validate_newsletter_privacy(newsletter_text: str) -> bool:
 
     uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(newsletter_text)]
 
-    for pattern in _PHONE_PATTERNS:
+    for pattern in _PII_PATTERNS:
         for match in pattern.regex.finditer(newsletter_text):
             span = match.span()
             if _within_any(span, uuid_spans):

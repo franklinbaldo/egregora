@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -48,8 +49,6 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     with a timezone-aware timestamp column, converting it to UTC
     and nanosecond precision.
     """
-    from zoneinfo import ZoneInfo
-
     # Create a DataFrame with a timezone-aware timestamp (12:00 Amsterdam = 11:00 UTC)
     data = {
         "timestamp": [datetime(2025, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("Europe/Amsterdam"))],

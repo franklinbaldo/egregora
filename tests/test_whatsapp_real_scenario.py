@@ -8,15 +8,14 @@ from types import SimpleNamespace
 
 import ibis
 import pytest
+from conftest import WhatsAppFixture
 
 from egregora.cache import EnrichmentCache
-from egregora.enricher import extract_and_replace_media, enrich_dataframe
+from egregora.enricher import enrich_dataframe, extract_and_replace_media
 from egregora.gemini_batch import BatchPromptResult
 from egregora.parser import filter_egregora_messages, parse_export
 from egregora.pipeline import process_whatsapp_export
 from egregora.zip_utils import ZipValidationError, validate_zip_contents
-
-from conftest import WhatsAppFixture
 
 
 def create_export_from_fixture(fixture: WhatsAppFixture):
@@ -101,6 +100,10 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         model_config,
         enable_rag=True,
         embedding_output_dimensionality=3072,
+        *,
+        retrieval_mode="exact",
+        retrieval_nprobe=None,
+        retrieval_overfetch=None,
     ):
         captured_dates.append(period_key)
         output_dir.mkdir(parents=True, exist_ok=True)

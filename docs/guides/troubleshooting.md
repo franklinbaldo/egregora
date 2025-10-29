@@ -310,6 +310,27 @@ egregora process \
   --enable_enrichment=True
 ```
 
+### DuckDB VSS Extension Missing
+
+**Problem:**
+```
+duckdb.CatalogException: Extension with name vss does not exist
+```
+
+**Cause:** DuckDB could not download and load the `vss` extension, so ANN retrieval and
+`VectorStore` initialization fail.
+
+**Solution:**
+1. Ensure the machine running Egregora can reach DuckDB's extension registry.
+2. Install the extension manually:
+   ```bash
+   duckdb -c "INSTALL vss; LOAD vss"
+   ```
+3. Re-run `egregora process` or the failing command. In offline mode, fall back to exact search:
+   ```bash
+   egregora process --retrieval-mode exact
+   ```
+
 ### Legacy RAG Database After Upgrade
 
 **Problem:**
