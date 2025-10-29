@@ -9,7 +9,6 @@ from pathlib import Path
 
 import ibis
 
-from .ibis_runtime import execute_scalar
 from .privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
@@ -97,10 +96,11 @@ class AnnotationStore:
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
 
         if parent_annotation_id is not None:
-            parent_exists = execute_scalar(
+            parent_exists = int(
                 annotations_table.filter(annotations_table.id == parent_annotation_id)
                 .limit(1)
                 .count()
+                .execute()
             )
             if parent_exists == 0:
                 raise ValueError(
