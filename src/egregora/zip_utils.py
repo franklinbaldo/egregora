@@ -92,14 +92,8 @@ def ensure_safe_member_size(
 def _ensure_safe_path(member_name: str) -> None:
     path = Path(member_name)
 
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if path.is_absolute():
         raise ZipValidationError(f"ZIP member uses absolute path: {member_name}")
 
-    if any(part == ".." for part in path.parts):
+    if ".." in path.parts:
         raise ZipValidationError(f"ZIP member attempts path traversal: {member_name}")
-
-    # Reject Windows drive prefixes such as C:\foo
-    if path.drive:
-        raise ZipValidationError(f"ZIP member uses unsupported drive prefix: {member_name}")

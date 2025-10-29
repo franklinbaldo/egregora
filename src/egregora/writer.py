@@ -16,7 +16,6 @@ import importlib
 import json
 import logging
 import math
-import numbers
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
@@ -115,34 +114,8 @@ def _pandas_na_singleton() -> Any | None:
 
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
-
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=no-defensive; why=defensive path; exit=remove defensive path
-    if isinstance(value, str):
-        return value
-    if value is None:
+    if value is None or (isinstance(value, float) and math.isnan(value)):
         return ""
-    if isinstance(value, pa.Scalar):  # pragma: no branch - defensive conversion
-        if not value.is_valid:
-            return ""
-        return _stringify_value(value.as_py())
-    pandas_na = _pandas_na_singleton()
-    if pandas_na is not None and value is pandas_na:
-        return ""
-    if value is getattr(pa, "NA", None):
-        return ""
-    if isinstance(value, numbers.Real):
-        try:
-            if math.isnan(value):
-                return ""
-        except TypeError:  # pragma: no cover - Decimal('NaN') and similar types
-            pass
-    else:  # pragma: no branch - defensive guard for exotic numeric types
-        try:
-            if math.isnan(value):
-                return ""
-        except TypeError:
-            pass
     return str(value)
 
 

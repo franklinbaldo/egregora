@@ -166,13 +166,13 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
             time.sleep(min(0.5, delay - elapsed))
 
 
-async def call_with_retries(
-    async_fn: _RateLimitFn,
-    *args: Any,
+async def call_with_retries[**P, T](
+    async_fn: Callable[P, Awaitable[T]],
+    *args: P.args,
     max_attempts: int = 5,
     base_delay: float = 2.0,
-    **kwargs: Any,
-) -> Any:
+    **kwargs: P.kwargs,
+) -> T:
     """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays."""
     attempt = 1
     fn_name = getattr(async_fn, "__qualname__", repr(async_fn))

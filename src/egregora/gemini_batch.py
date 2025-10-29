@@ -249,17 +249,12 @@ class GeminiBatchClient:
 
     def _poll_until_done(
         self,
-        job_name: str | None,
+        job_name: str,
         *,
         interval: float | None,
         timeout: float | None,
     ) -> genai_types.BatchJob:
         """Poll the batch job until it reaches a terminal state."""
-        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-        # tenet=no-defensive; why=defensive path; exit=remove defensive path
-        if not job_name:
-            raise ValueError("Batch job is missing a name; cannot poll for completion.")
-
         poll_interval = interval or self._poll_interval
         max_timeout = timeout or self._timeout
         start = time.monotonic()
@@ -290,7 +285,7 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests(items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
+def chunk_requests[T](items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
         raise ValueError("Batch size must be positive")

@@ -62,8 +62,6 @@ def ensure_message_schema(
     # Update target schema with the desired timezone
     target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
 
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     # Handle empty DataFrame
     if int(df.count().execute()) == 0:
         # Create empty table with correct schema without relying on backend internals

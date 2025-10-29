@@ -60,18 +60,10 @@ def find_mkdocs_file(start: Path) -> Path | None:
 def load_mkdocs_config(start: Path) -> tuple[dict[str, Any], Path | None]:
     """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
     mkdocs_path = find_mkdocs_file(start)
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if not mkdocs_path:
-        logger.debug("mkdocs.yml not found when starting from %s", start)
         return {}, None
 
-    try:
-        config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
-    except yaml.YAMLError as exc:
-        logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-        config = {}
-
+    config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
     return config, mkdocs_path
 
 

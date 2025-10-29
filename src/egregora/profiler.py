@@ -58,14 +58,6 @@ def write_profile(
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
 
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=no-defensive; why=defensive path; exit=remove defensive path
-    # Validation: ensure no PII leakage
-    if any(
-        suspicious in content.lower()
-        for suspicious in ["phone", "email", "@", "whatsapp", "real name"]
-    ):
-        logger.warning(f"Profile for {author_uuid} contains suspicious content")
 
     profile_path.write_text(content, encoding="utf-8")
     logger.info(f"Saved profile for {author_uuid} to {profile_path}")

@@ -7,7 +7,6 @@ import os
 import random
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -19,52 +18,10 @@ from rich.panel import Panel
 from .config_types import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
 from .logging_setup import configure_logging, console
-from .model_config import ModelConfig
-
-# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
-try:  # pragma: no cover - compatibility with older installations
-    from .model_config import load_site_config
-except ImportError:  # pragma: no cover - legacy fallback
-    from .site_config import load_mkdocs_config as _load_mkdocs_config
-
-    def load_site_config(output_dir: Path) -> dict:
-        config, mkdocs_path = _load_mkdocs_config(output_dir)
-        if not mkdocs_path:
-            logging.getLogger(__name__).debug("No mkdocs.yml found, using default config")
-            return {}
-        return config.get("extra", {}).get("egregora", {})
+from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
-
-# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
-try:  # pragma: no cover - compatibility with older installations
-    from .site_config import find_mkdocs_file, resolve_site_paths
-except ImportError:  # pragma: no cover - legacy fallback
-
-    def find_mkdocs_file(output_dir: Path) -> Path | None:
-        candidate = output_dir / "mkdocs.yml"
-        return candidate if candidate.exists() else None
-
-    def resolve_site_paths(site_dir: Path) -> SimpleNamespace:
-        docs_dir = site_dir / "docs"
-        return SimpleNamespace(
-            site_dir=site_dir,
-            docs_dir=docs_dir,
-            posts_dir=docs_dir / "posts",
-            profiles_dir=docs_dir / "profiles",
-            rankings_dir=docs_dir / "rankings",
-        )
-# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
-try:  # pragma: no cover - compatibility with older installations
-    from .site_scaffolding import ensure_mkdocs_project
-except ImportError:  # pragma: no cover - legacy fallback
-
-    def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
-        docs_dir = site_root / "docs"
-        docs_dir.mkdir(parents=True, exist_ok=True)
-        return docs_dir, False
+from .site_config import find_mkdocs_file, resolve_site_paths
+from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",
