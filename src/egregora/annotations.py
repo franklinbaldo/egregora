@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import ibis
 
@@ -67,7 +67,7 @@ class AnnotationStore:
     ) -> list[dict[str, object]]:
         cursor = self._connection.execute(query, params or [])
         column_names = [description[0] for description in cursor.description]
-        return [dict(zip(column_names, row)) for row in cursor.fetchall()]
+        return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
     def save_annotation(
         self,

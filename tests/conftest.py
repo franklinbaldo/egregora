@@ -16,6 +16,15 @@ if str(SRC_PATH) not in sys.path:
 
 import pytest
 
+try:
+    import ibis  # noqa: F401 - imported to ensure availability for fixtures
+except ImportError:  # pragma: no cover - depends on test env
+    pytest.skip(
+        "ibis is required for the test suite; install project dependencies to run tests",
+        allow_module_level=True,
+    )
+
+
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
@@ -93,11 +102,10 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
+from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
 from egregora.zip_utils import validate_zip_contents
-from egregora.models import WhatsAppExport
-
 
 
 @dataclass(slots=True)

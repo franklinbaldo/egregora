@@ -1,5 +1,4 @@
 import ibis
-import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from egregora.anonymizer import anonymize_dataframe

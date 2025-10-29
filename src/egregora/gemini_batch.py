@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence, TypeVar
+from typing import TypeVar
 
 from google import genai
 from google.genai import types as genai_types
