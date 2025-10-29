@@ -29,7 +29,7 @@ def make_enrichment_cache_key(
         identifier: Unique identifier for the entry.
         version: Optional semantic version to bust caches when format changes.
     """
-    raw = f"{version}:{kind}:{identifier}".encode("utf-8")
+    raw = f"{version}:{kind}:{identifier}".encode()
     return sha256(raw).hexdigest()
 
 

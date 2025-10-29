@@ -14,15 +14,15 @@ import os
 import re
 import uuid
 import zipfile
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
-
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
 
 from .cache import EnrichmentCache, make_enrichment_cache_key
 from .config_types import EnrichmentConfig

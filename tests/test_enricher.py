@@ -8,8 +8,6 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import pytest
-
 # Provide minimal google genai stubs so egregora package can import without optional deps.
 if "google" not in sys.modules:
     google_module = types.ModuleType("google")

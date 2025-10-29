@@ -1,10 +1,11 @@
-import asyncio  # Needed for asyncio.run invoked in tests below.
 import sys
 from importlib import util
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
+
+import pandas as pd
 
 
 def _install_ibis_stub() -> None:
@@ -311,8 +312,6 @@ class DummyTable:
         return DummyQueryResult(len(self._rows))
 
     def execute(self):
-        import pandas as pd
-
         return pd.DataFrame(self._rows)
 
 
@@ -334,8 +333,6 @@ def test_write_freeform_markdown_creates_file(tmp_path):
 
 
 def test_compute_message_id_accepts_pandas_series():
-    import pandas as pd
-
     mapping_row = {
         "msg_id": "abc123",
         "timestamp": "2024-05-01T10:00:00Z",

@@ -14,8 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Mapping
-from datetime import timezone
+from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -162,9 +161,9 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
     formatted_blocks: list[str] = []
     for annotation in annotations:
         timestamp = (
-            annotation.created_at.astimezone(timezone.utc)
+            annotation.created_at.astimezone(UTC)
             if annotation.created_at.tzinfo
-            else annotation.created_at.replace(tzinfo=timezone.utc)
+            else annotation.created_at.replace(tzinfo=UTC)
         )
         timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
         parent_note = (
@@ -174,10 +173,8 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
         )
         commentary = _stringify_value(annotation.commentary)
         formatted_blocks.append(
-            (
-                f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
-                f"\n{commentary}"
-            )
+            f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
+            f"\n{commentary}"
         )
 
     return "\n\n".join(formatted_blocks)
@@ -229,7 +226,7 @@ def _build_conversation_markdown(
         df[message_column] = [
             _merge_message_and_annotations(value, annotations_map.get(msg_id, []))
             for value, msg_id in zip(
-                df[message_column].tolist(), df["msg_id"].tolist()
+                df[message_column].tolist(), df["msg_id"].tolist(), strict=False
             )
         ]
     elif annotations_map:
@@ -662,7 +659,7 @@ def _handle_write_profile_tool(
     )
 
 
-def _handle_search_media_tool(
+def _handle_search_media_tool(  # noqa: PLR0913
     fn_args: dict,
     fn_call,
     batch_client: GeminiBatchClient,
@@ -901,7 +898,7 @@ def _index_posts_in_rag(
         logger.error(f"Failed to index posts in RAG: {e}")
 
 
-def write_posts_for_period(  # noqa: PLR0913
+def write_posts_for_period(  # noqa: PLR0913, PLR0915
     df: Table,
     date: str,
     client: genai.Client,
