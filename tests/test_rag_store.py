@@ -205,3 +205,129 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
             store.close()
     finally:
         connection.close()
+
+
+def test_rebuild_index_prefers_exact_mode_below_threshold(tmp_path, monkeypatch, caplog):
+    """Small tables should keep metadata but avoid rebuilding the VSS index."""
+
+    store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+
+    connection = duckdb.connect(":memory:")
+    store = store_module.VectorStore(
+        tmp_path / "chunks.parquet",
+        connection=connection,
+        exact_index_threshold=10,
+    )
+
+    try:
+        caplog.set_level("INFO")
+
+        row_template = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+        rows = []
+        for idx in range(3):
+            base = row_template.copy()
+            base.update(
+                {
+                    "chunk_id": f"chunk-{idx}",
+                    "document_type": "post",
+                    "document_id": f"doc-{idx}",
+                    "chunk_index": idx,
+                    "content": f"content-{idx}",
+                    "embedding": [1.0, 0.0],
+                    "tags": ["tag"],
+                }
+            )
+            rows.append(base)
+
+        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
+
+        meta = connection.execute(
+            "SELECT mode, nlist FROM index_meta WHERE index_name = ?",
+            [store_module.INDEX_NAME],
+        ).fetchone()
+
+        assert meta == ("exact", None)
+
+        index_count = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM duckdb_indexes()
+            WHERE lower(index_name) = lower(?)
+            """,
+            [store_module.INDEX_NAME],
+        ).fetchone()[0]
+
+        assert index_count == 0
+        assert any("exact similarity scan" in message for message in caplog.messages)
+    finally:
+        store.close()
+        connection.close()
+
+
+def test_rebuild_index_uses_ivfflat_above_threshold(tmp_path, caplog):
+    """Large tables should build a VSS IVFFLAT index and persist its parameters."""
+
+    store_module = _load_vector_store()
+    connection = duckdb.connect(str(tmp_path / "chunks.duckdb"))
+
+    store = None
+    try:
+        try:
+            connection.execute("INSTALL vss")
+            connection.execute("LOAD vss")
+        except duckdb.Error as err:
+            pytest.skip(f"DuckDB VSS extension unavailable: {err}")
+
+        store = store_module.VectorStore(
+            tmp_path / "chunks.parquet",
+            connection=connection,
+            exact_index_threshold=1,
+        )
+
+        caplog.set_level("INFO")
+
+        row_template = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+        rows = []
+        for idx in range(4):
+            base = row_template.copy()
+            base.update(
+                {
+                    "chunk_id": f"chunk-{idx}",
+                    "document_type": "post",
+                    "document_id": f"doc-{idx}",
+                    "chunk_index": idx,
+                    "content": f"content-{idx}",
+                    "embedding": [float(idx), float(idx + 1)],
+                    "tags": ["tag"],
+                }
+            )
+            rows.append(base)
+
+        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
+
+        meta = connection.execute(
+            "SELECT mode, nlist FROM index_meta WHERE index_name = ?",
+            [store_module.INDEX_NAME],
+        ).fetchone()
+
+        assert meta is not None
+        mode, nlist = meta
+        assert mode == "ann"
+        assert nlist and nlist >= 1
+
+        index_count = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM duckdb_indexes()
+            WHERE lower(index_name) = lower(?)
+            """,
+            [store_module.INDEX_NAME],
+        ).fetchone()[0]
+
+        assert index_count == 1
+        assert any("IVFFLAT" in message for message in caplog.messages)
+    finally:
+        if store is not None:
+            store.close()
+        connection.close()
