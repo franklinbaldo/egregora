@@ -3,10 +3,12 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+import pyarrow as pa
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -303,7 +305,7 @@ class RankingStore:
             [min_games, n],
         ).arrow()
 
-        return ibis.memtable(result.to_pydict())
+        return ibis.memtable(self._arrow_to_pydict(result))
 
     def get_all_ratings(self) -> Table:
         """
@@ -313,7 +315,7 @@ class RankingStore:
             Ibis Table with all elo_ratings data
         """
         result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
-        return ibis.memtable(result.to_pydict())
+        return ibis.memtable(self._arrow_to_pydict(result))
 
     def get_all_history(self) -> Table:
         """
@@ -323,7 +325,30 @@ class RankingStore:
             Ibis Table with all elo_history data
         """
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
-        return ibis.memtable(result.to_pydict())
+        return ibis.memtable(self._arrow_to_pydict(result))
+
+    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
+        """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
+
+        if isinstance(arrow_object, pa.RecordBatchReader):
+            table = arrow_object.read_all()
+        elif isinstance(arrow_object, pa.Table):
+            table = arrow_object
+        else:
+            read_all = getattr(arrow_object, "read_all", None)
+            if callable(read_all):
+                table = read_all()
+            else:
+                to_table = getattr(arrow_object, "to_table", None)
+                if callable(to_table):
+                    table = to_table()
+                else:
+                    raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
+
+        if not isinstance(table, pa.Table):
+            raise TypeError(f"Expected pyarrow.Table after conversion, got {type(table)!r}")
+
+        return table.to_pydict()
 
     def export_to_parquet(self):
         """
