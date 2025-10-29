@@ -14,6 +14,36 @@ import pyarrow as pa
 import pytest
 
 
+def _vector_store_row(store_module, **overrides):
+    """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
+
+    base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+
+    defaults = {
+        "chunk_id": overrides.get("chunk_id"),
+        "document_type": "post",
+        "document_id": overrides.get("chunk_id"),
+        "chunk_index": 0,
+        "content": overrides.get("chunk_id"),
+        "embedding": overrides.get("embedding", []),
+        "tags": overrides.get("tags", []),
+        "authors": overrides.get("authors", []),
+    }
+    defaults.update(overrides)
+
+    if defaults.get("chunk_id") is None:
+        raise ValueError("chunk_id is required for vector store rows")
+
+    if defaults.get("document_id") is None:
+        defaults["document_id"] = defaults["chunk_id"]
+
+    if defaults.get("content") is None:
+        defaults["content"] = defaults["chunk_id"]
+
+    base.update(defaults)
+    return base
+
+
 def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
     """Instantiating a store must not clobber an existing Ibis backend."""
 

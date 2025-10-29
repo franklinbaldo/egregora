@@ -3,6 +3,7 @@
 import logging
 import math
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
