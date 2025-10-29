@@ -204,6 +204,22 @@ class VectorStore:
             """
         )
 
+    def _ensure_index_meta_table(self) -> None:
+        """Create the table used to persist ANN index metadata."""
+
+        self.conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
+                index_name TEXT PRIMARY KEY,
+                mode TEXT,
+                row_count BIGINT,
+                threshold BIGINT,
+                nlist INTEGER,
+                updated_at TIMESTAMPTZ
+            )
+            """
+        )
+
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
 
