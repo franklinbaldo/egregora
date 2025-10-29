@@ -48,6 +48,9 @@ class ModelConfig:
         """
         self.cli_model = cli_model
         self.site_config = site_config or {}
+        self.embedding_output_dimensionality = (
+            self._resolve_embedding_output_dimensionality()
+        )
 
     def get_model(self, model_type: ModelType) -> str:
         """
@@ -96,17 +99,8 @@ class ModelConfig:
         logger.debug(f"Using default model for {model_type}: {model}")
         return model
 
-    def get_embedding_output_dimensionality(
-        self, model_name: str | None = None
-    ) -> int:
-        """Return the embedding vector dimensionality for the active model.
-
-        The dimensionality can be configured explicitly in ``mkdocs.yml`` under
-        ``extra.egregora.embedding.output_dimensionality`` (or related legacy
-        keys). When not provided, a known value is returned for supported
-        built-in models and finally falls back to the default Gemini embedding
-        dimensionality.
-        """
+    def _resolve_embedding_output_dimensionality(self) -> int:
+        """Determine the embedding vector dimensionality for the active model."""
 
         candidate_keys = (
             ("embedding", "output_dimensionality"),
@@ -144,7 +138,7 @@ class ModelConfig:
                         "Invalid embedding dimensionality %r for key %s", value, key
                     )
 
-        resolved_model = model_name or self.get_model("embedding")
+        resolved_model = self.get_model("embedding")
         if resolved_model in KNOWN_EMBEDDING_DIMENSIONS:
             return KNOWN_EMBEDDING_DIMENSIONS[resolved_model]
 
@@ -155,6 +149,24 @@ class ModelConfig:
             DEFAULT_EMBEDDING_DIMENSIONALITY,
         )
         return DEFAULT_EMBEDDING_DIMENSIONALITY
+
+    def get_embedding_output_dimensionality(
+        self, model_name: str | None = None
+    ) -> int:
+        """Return the cached embedding vector dimensionality.
+
+        Args:
+            model_name: Ignored. Present for compatibility with older call sites.
+        """
+
+        if model_name and model_name != self.get_model("embedding"):
+            logger.debug(
+                "Embedding dimensionality requested for %s, but ModelConfig is "
+                "configured for %s. Returning cached dimensionality.",
+                model_name,
+                self.get_model("embedding"),
+            )
+        return self.embedding_output_dimensionality
 
 
 def load_site_config(output_dir: Path) -> dict:
