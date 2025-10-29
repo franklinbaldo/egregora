@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -490,6 +490,7 @@ dependencies = [
     { name = "ibis-framework", extra = ["duckdb"] },
     { name = "jinja2" },
     { name = "mdformat" },
+    { name = "pandas" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
@@ -524,12 +525,18 @@ test = [
 dev = [
     { name = "ruff" },
 ]
+test = [
+    { name = "duckdb" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "codespell", marker = "extra == 'docs'", specifier = ">=2.3.0" },
     { name = "diskcache", specifier = ">=5.6.3" },
     { name = "duckdb", specifier = ">=0.10.0" },
+    { name = "duckdb", marker = "extra == 'test'", specifier = ">=0.10.0" },
     { name = "fire", specifier = ">=0.7.1" },
     { name = "google-genai", specifier = ">=0.3.0" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = ">=9.0.0" },
@@ -538,6 +545,7 @@ requires-dist = [
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.2" },
+    { name = "pandas", specifier = ">=2.0" },
     { name = "pre-commit", marker = "extra == 'lint'", specifier = ">=3.8" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pydantic", specifier = ">=2.7" },
@@ -558,6 +566,11 @@ provides-extras = ["test", "docs", "lint"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.14.0" }]
+test = [
+    { name = "duckdb", specifier = ">=0.10.0" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "ruff", specifier = ">=0.4.4" },
+]
 
 [[package]]
 name = "eval-type-backport"
