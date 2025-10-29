@@ -1,4 +1,4 @@
-# Development Guide
+# Contributing to Egregora
 
 Guide for contributors to Egregora.
 
