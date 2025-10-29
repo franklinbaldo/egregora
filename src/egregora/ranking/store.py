@@ -331,19 +331,32 @@ class RankingStore:
         """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
         if isinstance(arrow_object, pa.RecordBatchReader):
-            table = arrow_object.read_all()
+            table: pa.Table | None = arrow_object.read_all()
         elif isinstance(arrow_object, pa.Table):
             table = arrow_object
         else:
-            read_all = getattr(arrow_object, "read_all", None)
-            if callable(read_all):
-                table = read_all()
-            else:
-                to_table = getattr(arrow_object, "to_table", None)
-                if callable(to_table):
-                    table = to_table()
-                else:
-                    raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
+            table = None
+            for attr in ("read_all", "to_table", "to_arrow_table"):
+                method = getattr(arrow_object, attr, None)
+                if not callable(method):
+                    continue
+
+                result = method()
+                if isinstance(result, pa.RecordBatchReader):
+                    table = result.read_all()
+                    break
+                if isinstance(result, pa.Table):
+                    table = result
+                    break
+
+            if table is None:
+                to_pydict = getattr(arrow_object, "to_pydict", None)
+                if callable(to_pydict):
+                    data = to_pydict()
+                    if isinstance(data, dict):
+                        return data
+
+                raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
 
         if not isinstance(table, pa.Table):
             raise TypeError(f"Expected pyarrow.Table after conversion, got {type(table)!r}")
