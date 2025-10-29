@@ -18,6 +18,7 @@ import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime, time
+from typing import Any, Optional
 from typing import Any, Dict, cast
 
 import ibis
@@ -201,7 +202,7 @@ def filter_egregora_messages(df: Table) -> tuple[Table, int]:
     return filtered_df, removed_count
 
 
-def parse_export(export: WhatsAppExport, timezone=None) -> Table:
+def parse_export(export: WhatsAppExport, timezone: Optional[Any] = None) -> Table:
     """
     Parse an individual export into an Ibis ``Table``.
 
