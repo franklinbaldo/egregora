@@ -14,15 +14,8 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+import duckdb
 import pytest
-
-try:
-    import duckdb
-except ImportError:  # pragma: no cover - depends on test env
-    pytest.skip(
-        "duckdb is required for the test suite; install project dependencies to run tests",
-        allow_module_level=True,
-    )
 
 try:
     import ibis  # noqa: F401 - imported to ensure availability for fixtures
@@ -115,7 +108,6 @@ from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
 from egregora.zip_utils import validate_zip_contents
-
 
 @pytest.fixture(autouse=True)
 def ibis_backend():
