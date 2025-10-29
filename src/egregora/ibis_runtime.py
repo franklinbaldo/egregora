@@ -7,8 +7,15 @@ from contextlib import contextmanager
 from threading import RLock
 from typing import Any, TypeVar
 
+import importlib
+
 import ibis
-from ibis.backends.base import BaseBackend
+
+_base_spec = importlib.util.find_spec("ibis.backends.base")
+if _base_spec is not None:  # pragma: no branch - deterministic import
+    BaseBackend = importlib.import_module("ibis.backends.base").BaseBackend
+else:  # pragma: no branch - executed on newer Ibis versions
+    BaseBackend = importlib.import_module("ibis.backends").BaseBackend
 
 __all__ = [
     "use_backend",

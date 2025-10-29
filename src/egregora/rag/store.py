@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,33 @@ INDEX_NAME = "rag_chunks_embedding_idx"
 DEFAULT_ANN_OVERFETCH = 5
 
 
+class _ConnectionProxy:
+    """Allow attribute overrides on DuckDB connections (e.g., for monkeypatching)."""
+
+    def __init__(self, inner: duckdb.DuckDBPyConnection):
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_overrides", {})
+
+    def __getattr__(self, name: str):  # noqa: D401 - simple forwarder
+        overrides = object.__getattribute__(self, "_overrides")
+        if name in overrides:
+            return overrides[name]
+        return getattr(object.__getattribute__(self, "_inner"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"_inner", "_overrides"}:
+            object.__setattr__(self, name, value)
+            return
+        overrides = object.__getattribute__(self, "_overrides")
+        overrides[name] = value
+
+    def __delattr__(self, name: str) -> None:
+        overrides = object.__getattribute__(self, "_overrides")
+        if name in overrides:
+            del overrides[name]
+            return
+        delattr(object.__getattribute__(self, "_inner"), name)
+
 VECTOR_STORE_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
@@ -26,12 +54,12 @@ VECTOR_STORE_SCHEMA = ibis.schema(
         "document_id": dt.string,
         "post_slug": dt.String(nullable=True),
         "post_title": dt.String(nullable=True),
-        "post_date": dt.String(nullable=True),
+        "post_date": dt.date(nullable=True),
         "media_uuid": dt.String(nullable=True),
         "media_type": dt.String(nullable=True),
         "media_path": dt.String(nullable=True),
         "original_filename": dt.String(nullable=True),
-        "message_date": dt.String(nullable=True),
+        "message_date": dt.Timestamp(timezone="UTC", nullable=True),
         "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
@@ -50,12 +78,12 @@ SEARCH_RESULT_SCHEMA = ibis.schema(
         "document_id": dt.string,
         "post_slug": dt.String(nullable=True),
         "post_title": dt.String(nullable=True),
-        "post_date": dt.String(nullable=True),
+        "post_date": dt.date(nullable=True),
         "media_uuid": dt.String(nullable=True),
         "media_type": dt.String(nullable=True),
         "media_path": dt.String(nullable=True),
         "original_filename": dt.String(nullable=True),
-        "message_date": dt.String(nullable=True),
+        "message_date": dt.Timestamp(timezone="UTC", nullable=True),
         "author_uuid": dt.String(nullable=True),
         "chunk_index": dt.int64,
         "content": dt.string,
@@ -95,6 +123,7 @@ class VectorStore:
             self.conn = duckdb.connect(str(self.index_path))
         else:
             self.conn = connection
+        self.conn = _ConnectionProxy(self.conn)
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
@@ -148,13 +177,16 @@ class VectorStore:
         if not row or row[0] == 0:
             return
 
-        self.conn.execute(
-            f"""
-            CREATE INDEX {INDEX_NAME}
-            ON {TABLE_NAME}(embedding)
-            USING vss(metric='cosine', storage_type='ivfflat')
-            """
-        )
+        try:
+            self.conn.execute(
+                f"""
+                CREATE INDEX {INDEX_NAME}
+                ON {TABLE_NAME}(embedding)
+                USING vss(metric='cosine', storage_type='ivfflat')
+                """
+            )
+        except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
+            logger.warning("Skipping VSS index rebuild: %s", exc)
 
     def add(self, chunks_df: Table):
         """
@@ -295,7 +327,7 @@ class VectorStore:
         top_k: int = 5,
         min_similarity: float = 0.7,
         tag_filter: list[str] | None = None,
-        date_after: str | None = None,
+        date_after: date | datetime | str | None = None,
         document_type: str | None = None,
         media_types: list[str] | None = None,
         *,
@@ -311,7 +343,7 @@ class VectorStore:
             top_k: Number of results to return
             min_similarity: Minimum cosine similarity (0-1)
             tag_filter: Filter by tags (OR logic)
-            date_after: Filter by date (ISO format YYYY-MM-DD)
+            date_after: Filter by temporal boundary (``date``/``datetime``/ISO string)
             document_type: Filter by document type ("post" or "media")
             media_types: Filter by media type (e.g., ["image", "video"])
             mode: "ann" (VSS index) or "exact" (full scan)
@@ -366,9 +398,12 @@ class VectorStore:
             filters.append("list_has_any(tags, ?::VARCHAR[])")
             params.append(tag_filter)
 
-        if date_after:
-            filters.append("coalesce(post_date, message_date) > ?")
-            params.append(date_after)
+        if date_after is not None:
+            normalized_date = self._normalize_date_filter(date_after)
+            filters.append(
+                "coalesce(CAST(post_date AS TIMESTAMPTZ), message_date) > ?::TIMESTAMPTZ"
+            )
+            params.append(normalized_date.isoformat())
 
         filters.append("similarity >= ?")
         params.append(min_similarity)
@@ -507,11 +542,51 @@ class VectorStore:
 
         return pa.Table.from_arrays(arrays, schema=schema)
 
+    @staticmethod
+    def _normalize_date_filter(value: date | datetime | str) -> datetime:
+        """Normalize date filter inputs to UTC-aware datetimes."""
+
+        if isinstance(value, datetime):
+            return VectorStore._ensure_utc_datetime(value)
+
+        if isinstance(value, date):
+            return datetime.combine(value, time.min, tzinfo=timezone.utc)
+
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned.endswith("Z"):
+                cleaned = cleaned[:-1] + "+00:00"
+
+            try:
+                parsed_dt = datetime.fromisoformat(cleaned)
+            except ValueError:
+                try:
+                    parsed_date = date.fromisoformat(cleaned)
+                except ValueError as exc:  # pragma: no cover - defensive guard
+                    raise ValueError(f"Invalid date_after value: {value!r}") from exc
+                return datetime.combine(parsed_date, time.min, tzinfo=timezone.utc)
+
+            return VectorStore._ensure_utc_datetime(parsed_dt)
+
+        raise TypeError(
+            "date_after must be a date, datetime, or ISO8601 string"
+        )
+
+    @staticmethod
+    def _ensure_utc_datetime(value: datetime) -> datetime:
+        """Coerce datetime objects to UTC-aware variants."""
+
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+
+        return value.astimezone(timezone.utc)
+
     def _table_from_arrow(self, arrow_table: pa.Table, schema: ibis.Schema) -> Table:
         """Register an Arrow table with DuckDB and return an Ibis table."""
 
         table_name = f"_vector_store_{uuid.uuid4().hex}"
-        table = self._client.create_table(table_name, obj=arrow_table, temp=True)
+        self.conn.register(table_name, arrow_table)
+        table = self._client.table(table_name)
 
         casts = {}
         for column_name, dtype in schema.items():
@@ -536,7 +611,20 @@ class VectorStore:
             return table
 
         source_schema = table.schema()
-        dataframe = table.execute()
+        op = table.op() if hasattr(table, "op") else None
+        pandas_proxy = getattr(op, "data", None) if op is not None else None
+
+        if pandas_proxy is not None and hasattr(pandas_proxy, "to_frame"):
+            dataframe = pandas_proxy.to_frame()
+            missing_columns = [
+                column for column in source_schema.names if column not in dataframe.columns
+            ]
+            for column in missing_columns:
+                dataframe[column] = None
+            dataframe = dataframe.reindex(columns=source_schema.names)
+        else:
+            dataframe = table.execute()
+
         arrow_table = pa.Table.from_pandas(
             dataframe,
             schema=source_schema.to_pyarrow(),
