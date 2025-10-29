@@ -237,10 +237,16 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 
         store.conn = _ConnectionProxy(store.conn)
 
-        store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann")
+        store.search(
+            query_vec=[0.0, 1.0],
+            options=store_module.SearchOptions(top_k=1, mode="ann"),
+        )
         assert "vss_search" in captured["sql"]
 
-        store.search(query_vec=[0.0, 1.0], top_k=1, mode="exact")
+        store.search(
+            query_vec=[0.0, 1.0],
+            options=store_module.SearchOptions(top_k=1, mode="exact"),
+        )
         assert "array_cosine_similarity" in captured["sql"]
     finally:
         store.close()
@@ -286,8 +292,14 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
             table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
             store.add(table)
 
-            ann_results = store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann").execute()
-            exact_results = store.search(query_vec=[0.0, 1.0], top_k=1, mode="exact").execute()
+            ann_results = store.search(
+                query_vec=[0.0, 1.0],
+                options=store_module.SearchOptions(top_k=1, mode="ann"),
+            ).execute()
+            exact_results = store.search(
+                query_vec=[0.0, 1.0],
+                options=store_module.SearchOptions(top_k=1, mode="exact"),
+            ).execute()
 
             assert not ann_results.empty
             assert list(ann_results["chunk_id"]) == ["chunk-2"]
@@ -355,51 +367,43 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
 
         query_vector = [1.0, 0.0]
 
-        baseline = (
-            store.search(
-                query_vec=query_vector,
-                top_k=5,
-                min_similarity=0.0,
-                mode="exact",
-            )
-            .execute()
-        )
+        baseline = store.search(
+            query_vec=query_vector,
+            options=store_module.SearchOptions(top_k=5, min_similarity=0.0, mode="exact"),
+        ).execute()
         assert list(baseline["chunk_id"]) == ["chunk-after", "media-jan", "chunk-before"]
 
-        filtered_by_date = (
-            store.search(
-                query_vec=query_vector,
+        filtered_by_date = store.search(
+            query_vec=query_vector,
+            options=store_module.SearchOptions(
                 top_k=5,
                 min_similarity=0.0,
                 mode="exact",
                 date_after=date(2024, 1, 1),
-            )
-            .execute()
-        )
+            ),
+        ).execute()
         assert list(filtered_by_date["chunk_id"]) == ["chunk-after", "media-jan"]
 
-        filtered_by_datetime = (
-            store.search(
-                query_vec=query_vector,
+        filtered_by_datetime = store.search(
+            query_vec=query_vector,
+            options=store_module.SearchOptions(
                 top_k=5,
                 min_similarity=0.0,
                 mode="exact",
                 date_after=datetime(2023, 12, 31, 18, 0),
-            )
-            .execute()
-        )
+            ),
+        ).execute()
         assert list(filtered_by_datetime["chunk_id"]) == ["chunk-after", "media-jan"]
 
-        filtered_with_timezone = (
-            store.search(
-                query_vec=query_vector,
+        filtered_with_timezone = store.search(
+            query_vec=query_vector,
+            options=store_module.SearchOptions(
                 top_k=5,
                 min_similarity=0.0,
                 mode="exact",
                 date_after="2023-12-31T23:00:00+00:00",
-            )
-            .execute()
-        )
+            ),
+        ).execute()
         assert list(filtered_with_timezone["chunk_id"]) == ["chunk-after", "media-jan"]
     finally:
         store.close()

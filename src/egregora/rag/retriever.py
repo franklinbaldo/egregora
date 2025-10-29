@@ -14,6 +14,12 @@ from ..gemini_batch import GeminiBatchClient
 from ..site_config import MEDIA_DIR_NAME
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
+
+try:  # pragma: no cover - fallback for direct module execution in tests
+    from .options import MediaQueryOptions, SearchOptions
+except ImportError:  # pragma: no cover - fallback when package context missing
+    from egregora.rag.options import MediaQueryOptions, SearchOptions
+
 from .store import VECTOR_STORE_SCHEMA, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -158,15 +164,15 @@ def query_similar_posts(
         output_dimensionality=output_dimensionality,
     )
 
-    # Search vector store
-    results = store.search(
-        query_vec=query_vec,
-        top_k=top_k * 3 if deduplicate else top_k,  # Get extras for dedup
+    search_options = SearchOptions(
+        top_k=top_k * 3 if deduplicate else top_k,
         min_similarity=0.7,
         mode=retrieval_mode,
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
+    # Search vector store
+    results = store.search(query_vec=query_vec, options=search_options)
 
     if results.count().execute() == 0:
         logger.info("No similar posts found")
@@ -443,22 +449,14 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
-# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity (too many arguments); exit=refactor to reduce number of arguments or group related arguments into a dataclass (#N/A)
-# FIXME: consolidate media query parameters into a typed options object so this wrapper keeps the public surface minimal.
-def query_media(  # noqa: PLR0913
+def query_media(
     query: str,
     batch_client: GeminiBatchClient,
     store: VectorStore,
-    media_types: list[str] | None = None,
-    top_k: int = 5,
-    min_similarity: float = 0.7,
-    deduplicate: bool = True,
     *,
     embedding_model: str,
     output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    options: MediaQueryOptions | None = None,
 ) -> Table:
     """
     Search for relevant media by description or topic.
@@ -488,17 +486,19 @@ def query_media(  # noqa: PLR0913
         output_dimensionality=output_dimensionality,
     )
 
-    # Search vector store (filter to media documents only)
-    results = store.search(
-        query_vec=query_vec,
-        top_k=top_k * 3 if deduplicate else top_k,  # Get extras for dedup
-        min_similarity=min_similarity,
-        document_type="media",  # Only search media documents
-        media_types=media_types,
-        mode=retrieval_mode,
-        nprobe=retrieval_nprobe,
-        overfetch=retrieval_overfetch,
+    opts = options or MediaQueryOptions()
+    effective_top_k = opts.top_k * 3 if opts.deduplicate else opts.top_k
+    search_options = SearchOptions(
+        top_k=effective_top_k,
+        min_similarity=opts.min_similarity,
+        document_type="media",
+        media_types=opts.media_types,
+        mode=opts.mode,
+        nprobe=opts.nprobe,
+        overfetch=opts.overfetch,
     )
+
+    results = store.search(query_vec=query_vec, options=search_options)
 
     result_count = results.count().execute()
     if result_count == 0:
@@ -508,7 +508,7 @@ def query_media(  # noqa: PLR0913
     logger.info(f"Found {result_count} matching media chunks")
 
     # Deduplicate: keep only best chunk per media file
-    if deduplicate:
+    if opts.deduplicate:
         window = ibis.window(group_by="media_uuid", order_by=ibis.desc("similarity"))
         results = (
             results.order_by(ibis.desc("similarity"))
@@ -516,7 +516,7 @@ def query_media(  # noqa: PLR0913
             .filter(lambda t: t._rank < DEDUP_MAX_RANK)
             .drop("_rank")
             .order_by(ibis.desc("similarity"))
-            .limit(top_k)
+            .limit(opts.top_k)
         )
 
         dedup_count = results.count().execute()

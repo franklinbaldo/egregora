@@ -8,6 +8,7 @@ Documentation:
 - API Reference: docs/reference/api.md#rag-system
 """
 
+from .options import MediaQueryOptions, SearchOptions
 from .retriever import (
     index_all_media,
     index_media_enrichment,
@@ -24,4 +25,6 @@ __all__ = [
     "index_media_enrichment",
     "index_all_media",
     "query_media",
+    "SearchOptions",
+    "MediaQueryOptions",
 ]

@@ -238,6 +238,17 @@ class _StubVectorStore:
         pass
 
 
+class _StubMediaQueryOptions:
+    def __init__(self, *args, **kwargs):
+        self.top_k = kwargs.get("top_k", 5)
+        self.min_similarity = kwargs.get("min_similarity", 0.7)
+        self.media_types = kwargs.get("media_types")
+        self.deduplicate = kwargs.get("deduplicate", True)
+        self.mode = kwargs.get("mode", "ann")
+        self.nprobe = kwargs.get("nprobe")
+        self.overfetch = kwargs.get("overfetch")
+
+
 async def _stub_index_post(*args, **kwargs):
     return None
 
@@ -258,6 +269,7 @@ rag_stub.VectorStore = _StubVectorStore
 rag_stub.index_post = _stub_index_post
 rag_stub.query_media = _stub_query_media
 rag_stub.query_similar_posts = _stub_query_similar_posts
+rag_stub.MediaQueryOptions = _StubMediaQueryOptions
 sys.modules["egregora.rag"] = rag_stub
 
 

@@ -15,6 +15,11 @@ import pyarrow.parquet as pq
 from ibis.common.exceptions import IbisError
 from ibis.expr.types import Table
 
+try:  # pragma: no cover - fallback for direct module execution in tests
+    from .options import SearchOptions
+except ImportError:  # pragma: no cover - fallback when package context missing
+    from egregora.rag.options import SearchOptions
+
 logger = logging.getLogger(__name__)
 
 
@@ -445,40 +450,24 @@ class VectorStore:
 
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity; exit=refactor to reduce arguments/branches/statements (#N/A)
-# FIXME: split vector search into smaller helpers and pass a typed options object so the public API remains narrow.
-    def search(  # noqa: PLR0911, PLR0913, PLR0915
+    def search(  # noqa: PLR0911, PLR0915
         self,
         query_vec: list[float],
-        top_k: int = 5,
-        min_similarity: float = 0.7,
-        tag_filter: list[str] | None = None,
-        date_after: date | datetime | str | None = None,
-        document_type: str | None = None,
-        media_types: list[str] | None = None,
         *,
-        mode: str = "ann",
-        nprobe: int | None = None,
-        overfetch: int | None = None,
+        options: SearchOptions | None = None,
     ) -> Table:
         """
         Search for similar chunks using cosine similarity.
 
         Args:
             query_vec: Query embedding vector
-            top_k: Number of results to return
-            min_similarity: Minimum cosine similarity (0-1)
-            tag_filter: Filter by tags (OR logic)
-            date_after: Filter by temporal boundary (``date``/``datetime``/ISO string)
-            document_type: Filter by document type ("post" or "media")
-            media_types: Filter by media type (e.g., ["image", "video"])
-            mode: "ann" (VSS index) or "exact" (full scan)
-            nprobe: Override the ANN search breadth (DuckDB VSS ``nprobe``)
-            overfetch: Multiplier for ANN candidate pool before filtering
+            options: Search behaviour configuration
 
         Returns:
             Ibis Table with all stored columns plus similarity score
         """
+        opts = options or SearchOptions()
+
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
             return self._empty_table(SEARCH_RESULT_SCHEMA)
@@ -501,44 +490,47 @@ class VectorStore:
         if embedding_dimensionality == 0:
             raise ValueError("Query embedding vector must not be empty")
 
-        mode_normalized = mode.lower()
+        mode_normalized = opts.mode.lower()
         if mode_normalized not in {"ann", "exact"}:
             raise ValueError("mode must be either 'ann' or 'exact'")
 
-        if nprobe is not None and nprobe <= 0:
+        if opts.nprobe is not None and opts.nprobe <= 0:
             raise ValueError("nprobe must be a positive integer")
 
         params: list[Any] = [query_vec]
         filters: list[str] = []
 
-        if document_type:
+        if opts.document_type:
             filters.append("document_type = ?")
-            params.append(document_type)
+            params.append(opts.document_type)
 
-        if media_types:
-            placeholders = ", ".join(["?"] * len(media_types))
+        if opts.media_types:
+            placeholders = ", ".join(["?"] * len(opts.media_types))
             filters.append(f"media_type IN ({placeholders})")
-            params.extend(media_types)
+            params.extend(opts.media_types)
 
-        if tag_filter:
+        if opts.tag_filter:
             filters.append("list_has_any(tags, ?::VARCHAR[])")
-            params.append(tag_filter)
+            params.append(opts.tag_filter)
 
-        if date_after is not None:
-            normalized_date = self._normalize_date_filter(date_after)
+        if opts.date_after is not None:
+            normalized_date = self._normalize_date_filter(opts.date_after)
             filters.append(
                 "coalesce(CAST(post_date AS TIMESTAMPTZ), message_date) > ?::TIMESTAMPTZ"
             )
             params.append(normalized_date.isoformat())
 
         filters.append("similarity >= ?")
-        params.append(min_similarity)
+        params.append(opts.min_similarity)
 
         where_clause = ""
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
 
-        order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        order_clause = (
+            "\n            ORDER BY similarity DESC\n"
+            f"            LIMIT {opts.top_k}\n        "
+        )
 
         exact_base_query = f"""
             WITH candidates AS (
@@ -555,11 +547,11 @@ class VectorStore:
 
         if mode_normalized == "exact":
             query = exact_base_query + where_clause + order_clause
-            return self._execute_search_query(query, params, min_similarity)
+            return self._execute_search_query(query, params, opts.min_similarity)
 
-        fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
-        ann_limit = max(top_k * fetch_factor, top_k + 10)
-        nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
+        fetch_factor = opts.overfetch if opts.overfetch and opts.overfetch > 1 else DEFAULT_ANN_OVERFETCH
+        ann_limit = max(opts.top_k * fetch_factor, opts.top_k + 10)
+        nprobe_clause = f", nprobe := {int(opts.nprobe)}" if opts.nprobe else ""
 
         last_error: Exception | None = None
         for function_name in self._candidate_vss_functions():
@@ -572,7 +564,7 @@ class VectorStore:
             query = base_query + where_clause + order_clause
 
             try:
-                result = self._execute_search_query(query, params, min_similarity)
+                result = self._execute_search_query(query, params, opts.min_similarity)
                 self._vss_function = function_name
                 return result
             except duckdb.Error as exc:
@@ -585,7 +577,7 @@ class VectorStore:
             return self._execute_search_query(
                 exact_base_query + where_clause + order_clause,
                 params,
-                min_similarity,
+                opts.min_similarity,
             )
         if last_error is not None:
             logger.error("Search failed: %s", last_error)

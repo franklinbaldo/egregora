@@ -36,7 +36,7 @@ from .genai_utils import call_with_retries_sync
 from .model_config import ModelConfig
 from .profiler import get_active_authors, read_profile, write_profile
 from .prompt_templates import render_writer_prompt
-from .rag import VectorStore, index_post, query_media, query_similar_posts
+from .rag import MediaQueryOptions, VectorStore, index_post, query_media, query_similar_posts
 from .site_config import load_mkdocs_config
 from .write_post import write_post
 
@@ -752,18 +752,21 @@ def _handle_search_media_tool(  # noqa: PLR0913
 
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
+        media_options = MediaQueryOptions(
+            top_k=limit,
+            min_similarity=0.7,
+            media_types=media_types,
+            mode=retrieval_mode,
+            nprobe=retrieval_nprobe,
+            overfetch=retrieval_overfetch,
+        )
         results = query_media(
             query=query,
             batch_client=batch_client,
             store=store,
-            media_types=media_types,
-            top_k=limit,
-            min_similarity=0.7,
             embedding_model=embedding_model,
             output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
+            options=media_options,
         )
 
         # Format results for LLM
