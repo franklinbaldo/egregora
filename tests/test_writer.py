@@ -6,6 +6,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pandas as pd
+import pyarrow as pa
 
 
 def _install_ibis_stub() -> None:
@@ -313,6 +314,9 @@ class DummyTable:
 
     def execute(self):
         return pd.DataFrame(self._rows)
+
+    def to_pyarrow(self):
+        return pa.Table.from_pylist(self._rows)
 
 
 def test_write_freeform_markdown_creates_file(tmp_path):
