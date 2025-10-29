@@ -44,7 +44,7 @@ class GeminiEmbeddingClient:
 
             values = None
             if hasattr(embedding, "values"):
-                values = getattr(embedding, "values")
+                values = embedding.values
             elif isinstance(embedding, dict):
                 values = embedding.get("values")
             elif isinstance(embedding, (list, tuple)):

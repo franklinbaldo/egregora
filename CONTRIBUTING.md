@@ -6,7 +6,7 @@ Guide for contributors to Egregora.
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - Git
 - Google Gemini API key (for testing)
 
@@ -18,11 +18,14 @@ git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
 # Create virtual environment
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
+# Install uv
+pip install uv
+
 # Install in development mode with all dependencies
-pip install -e '.[docs,lint,test]'
+uv pip install -e '.[docs,lint,test]'
 ```
 
 ## TENET-BREAK — Philosophy Violation Flag

@@ -7,6 +7,7 @@ from egregora_v3.core.db import get_db_connection
 from egregora_v3.core.logging import get_logger
 from egregora_v3.core.paths import ensure_dirs_exist
 
+
 class Context:
     """
     The application context, holding all necessary components and state.

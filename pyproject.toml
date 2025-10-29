@@ -4,7 +4,7 @@ version = "2.0.0"
 description = "Ultra-simple pipeline to generate blog posts from WhatsApp exports."
 readme = "README.md"
 authors = [{ name = "Egregora" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "google-genai>=0.3.0",
     "duckdb>=0.10.3",
@@ -71,14 +71,14 @@ managed = true
 
 [tool.black]
 line-length = 100
-target-version = ["py311"]
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
@@ -92,7 +92,7 @@ ignore = ["E203", "E501"]
 "tests/test_whatsapp_real_scenario.py" = ["PLR0913", "PLR2004", "PLC0208"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
