@@ -87,6 +87,7 @@ class VectorStore:
         self.conn = connection or duckdb.connect(":memory:")
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
+        self._ensure_default_backend()
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -97,6 +98,38 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Failed to load VSS extension: {e}")
             raise
+
+    def _ensure_default_backend(self) -> None:
+        """Ensure a global backend exists for memtable-based callers."""
+
+        backend: Any | None = None
+        get_backend = getattr(ibis, "get_backend", None)
+
+        if callable(get_backend):
+            try:
+                backend = get_backend()
+            except Exception:  # pragma: no cover - defensive for older Ibis releases
+                backend = None
+
+        if backend is not None:
+            return
+
+        options_backend: Any | None = None
+        if hasattr(ibis, "options"):
+            options_backend = getattr(ibis.options, "default_backend", None)
+            if options_backend is not None:
+                return
+
+        set_backend = getattr(ibis, "set_backend", None)
+        if callable(set_backend):
+            try:
+                set_backend(self._client)
+                return
+            except Exception:  # pragma: no cover - fallback to option assignment
+                pass
+
+        if hasattr(ibis, "options") and getattr(ibis.options, "default_backend", None) is None:
+            ibis.options.default_backend = self._client
 
     def add(self, chunks_df: Table):
         """
