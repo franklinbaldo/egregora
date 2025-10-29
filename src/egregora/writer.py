@@ -253,6 +253,18 @@ logger = logging.getLogger(__name__)
 # Constants
 MAX_CONVERSATION_TURNS = 10
 
+def _memes_enabled(site_config: dict[str, Any]) -> bool:
+    """Return True when meme helper text should be appended to the prompt."""
+
+    if not isinstance(site_config, dict):
+        return False
+
+    writer_settings = site_config.get("writer")
+    if not isinstance(writer_settings, dict):
+        return False
+
+    return bool(writer_settings.get("enable_memes", False))
+
 
 class PostMetadata(BaseModel):
     """Metadata schema for write_post tool."""
@@ -1004,6 +1016,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     # Load site config and markdown extensions
     site_config = load_site_config(output_dir)
     custom_writer_prompt = site_config.get("writer_prompt", "")
+    meme_help_enabled = _memes_enabled(site_config)
     markdown_extensions_yaml = load_markdown_extensions(output_dir)
 
     markdown_features_section = ""
@@ -1029,6 +1042,7 @@ Use these features appropriately in your posts. You understand how each extensio
         profiles_context=profiles_context,
         rag_context=rag_context,
         freeform_memory=freeform_memory,
+        enable_memes=meme_help_enabled,
     )
 
     # Setup conversation

@@ -27,6 +27,7 @@ def render_writer_prompt(  # noqa: PLR0913
     profiles_context: str = "",
     rag_context: str = "",
     freeform_memory: str = "",
+    enable_memes: bool = False,
 ) -> str:
     """
     Render the writer system prompt from Jinja template.
@@ -53,6 +54,7 @@ def render_writer_prompt(  # noqa: PLR0913
         profiles_context=profiles_context,
         rag_context=rag_context,
         freeform_memory=freeform_memory,
+        enable_memes=enable_memes,
     )
 
 
