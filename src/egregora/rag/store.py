@@ -577,7 +577,8 @@ class VectorStore:
         )
 
         try:
-            result_table = self.conn.execute(query, params).arrow()
+            result_arrow = self.conn.execute(query, params).arrow()
+            result_table = self._ensure_arrow_table(result_arrow)
             if result_table.num_rows == 0:
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
 
@@ -704,8 +705,33 @@ class VectorStore:
 
         return value.astimezone(timezone.utc)
 
-    def _table_from_arrow(self, arrow_table: pa.Table, schema: ibis.Schema) -> Table:
+    def _ensure_arrow_table(self, arrow_object: Any) -> pa.Table:
+        """Normalize DuckDB Arrow results to a ``pyarrow.Table`` instance."""
+
+        if isinstance(arrow_object, pa.Table):
+            return arrow_object
+
+        if isinstance(arrow_object, pa.RecordBatchReader):
+            return arrow_object.read_all()
+
+        read_all = getattr(arrow_object, "read_all", None)
+        if callable(read_all):
+            result = read_all()
+            if isinstance(result, pa.Table):
+                return result
+
+        to_table = getattr(arrow_object, "to_table", None)
+        if callable(to_table):
+            result = to_table()
+            if isinstance(result, pa.Table):
+                return result
+
+        raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
+
+    def _table_from_arrow(self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema) -> Table:
         """Register an Arrow table with DuckDB and return an Ibis table."""
+
+        arrow_table = self._ensure_arrow_table(arrow_table)
 
         table_name = f"_vector_store_{uuid.uuid4().hex}"
         self.conn.register(table_name, arrow_table)
