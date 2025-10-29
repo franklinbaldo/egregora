@@ -9,6 +9,8 @@ import ibis.expr.datatypes as dt
 from ibis import udf
 from ibis.expr.types import Table
 
+from .ibis_runtime import execute_scalar, memtable
+
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
 
 # Default timezone for WhatsApp exports (no timezone in export files)
@@ -63,9 +65,9 @@ def ensure_message_schema(
     target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
 
     # Handle empty DataFrame
-    if df.count().execute() == 0:
+    if execute_scalar(df.count()) == 0:
         # Create empty table with correct schema without relying on backend internals
-        return ibis.memtable([], schema=ibis.schema(target_schema))
+        return memtable([], schema=ibis.schema(target_schema))
 
     # Start with the input table
     result = df

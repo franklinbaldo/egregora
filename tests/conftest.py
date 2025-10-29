@@ -14,6 +14,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+import duckdb
 import pytest
 
 try:
@@ -102,10 +103,19 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
+from egregora.ibis_runtime import use_backend
 from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
 from egregora.zip_utils import validate_zip_contents
+
+@pytest.fixture(autouse=True)
+def ibis_backend():
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    with use_backend(backend):
+        yield
+    connection.close()
 
 
 @dataclass(slots=True)

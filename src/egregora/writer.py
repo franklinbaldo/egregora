@@ -532,6 +532,9 @@ def _query_rag_for_context(
     *,
     embedding_model: str,
     embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> str:
     """Query RAG system for similar previous posts."""
     try:
@@ -544,6 +547,9 @@ def _query_rag_for_context(
             top_k=5,
             deduplicate=True,
             output_dimensionality=embedding_output_dimensionality,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
         )
 
         if similar_posts.count().execute() == 0:
@@ -667,6 +673,9 @@ def _handle_search_media_tool(  # noqa: PLR0913
     *,
     embedding_model: str,
     embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> genai_types.Content:
     """Handle search_media tool call."""
     query = fn_args.get("query", "")
@@ -681,8 +690,12 @@ def _handle_search_media_tool(  # noqa: PLR0913
             store=store,
             media_types=media_types,
             top_k=limit,
+            min_similarity=0.7,
             embedding_model=embedding_model,
             output_dimensionality=embedding_output_dimensionality,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
         )
 
         # Format results for LLM
@@ -817,6 +830,9 @@ def _process_tool_calls(  # noqa: PLR0913
     *,
     embedding_model: str,
     embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> tuple[bool, list[genai_types.Content], list[str]]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
@@ -854,6 +870,9 @@ def _process_tool_calls(  # noqa: PLR0913
                         rag_dir,
                         embedding_model=embedding_model,
                         embedding_output_dimensionality=embedding_output_dimensionality,
+                        retrieval_mode=retrieval_mode,
+                        retrieval_nprobe=retrieval_nprobe,
+                        retrieval_overfetch=retrieval_overfetch,
                     )
                     tool_responses.append(response)
                 elif fn_name == "annotate_conversation":
@@ -909,6 +928,9 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     model_config=None,
     enable_rag: bool = True,
     embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> dict[str, list[str]]:
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
@@ -929,6 +951,9 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
         rag_dir: Where RAG vector store is saved
         model_config: Model configuration object (contains model selection logic)
         enable_rag: Whether to use RAG for context
+        retrieval_mode: "ann" (default) or "exact" for brute-force lookups
+        retrieval_nprobe: Override ANN ``nprobe`` depth when ``retrieval_mode='ann'``
+        retrieval_overfetch: Candidate multiplier before ANN filters are applied
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
@@ -964,6 +989,9 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
             rag_dir,
             embedding_model=embedding_model,
             embedding_output_dimensionality=embedding_output_dimensionality,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
         )
         if enable_rag
         else ""
@@ -1047,6 +1075,9 @@ Use these features appropriately in your posts. You understand how each extensio
             annotations_store,
             embedding_model=embedding_model,
             embedding_output_dimensionality=embedding_output_dimensionality,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
         )
 
         # Exit if no more tools to call

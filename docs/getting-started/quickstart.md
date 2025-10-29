@@ -39,6 +39,11 @@ egregora process \
   --gemini_key=YOUR_GEMINI_API_KEY
 ```
 
+> **Runtime requirement:** The first run downloads DuckDB's `vss` extension so ANN retrieval
+> works. Ensure the machine can reach DuckDB's extension registry or run
+> `duckdb -c "INSTALL vss; LOAD vss"` beforehand. In offline environments, pass
+> `--retrieval-mode exact` to continue with brute-force search.
+
 **Important flags:**
 - `--timezone` - Your timezone (prevents wrong date grouping)
 - `--from_date` / `--to_date` - Date range (saves API costs)
