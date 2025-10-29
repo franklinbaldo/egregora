@@ -12,6 +12,9 @@ from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.markup import escape
 from rich.panel import Panel
 
 from .config_types import ProcessConfig, RankingCliConfig
@@ -567,7 +570,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         ) -> None:
             console.print(
                 "[red]Ranking commands require the optional extra: "
-                "pip install 'egregora[ranking]'[/red]"
+                f"{escape("pip install 'egregora[ranking]'")}[/red]"
             )
             console.print(f"[yellow]Missing dependency: {missing}[/yellow]")
             raise typer.Exit(1)
