@@ -2,6 +2,8 @@
 
 Welcome to the Egregora documentation! This guide will help you turn your WhatsApp group chats into beautiful, privacy-first blog posts.
 
+> **Current release:** 2.0.0 — see the [changelog](../CHANGELOG.md) for detailed notes.
+
 ## For Users
 
 ### Getting Started
