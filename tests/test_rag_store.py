@@ -4,12 +4,43 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import duckdb
 import ibis
 import pyarrow as pa
 import pytest
+
+
+def _vector_store_row(store_module, **overrides):
+    """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
+
+    base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+
+    defaults = {
+        "chunk_id": overrides.get("chunk_id"),
+        "document_type": "post",
+        "document_id": overrides.get("chunk_id"),
+        "chunk_index": 0,
+        "content": overrides.get("chunk_id"),
+        "embedding": overrides.get("embedding", []),
+        "tags": overrides.get("tags", []),
+        "authors": overrides.get("authors", []),
+    }
+    defaults.update(overrides)
+
+    if defaults.get("chunk_id") is None:
+        raise ValueError("chunk_id is required for vector store rows")
+
+    if defaults.get("document_id") is None:
+        defaults["document_id"] = defaults["chunk_id"]
+
+    if defaults.get("content") is None:
+        defaults["content"] = defaults["chunk_id"]
+
+    base.update(defaults)
+    return base
 
 
 def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
@@ -267,21 +298,108 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
         connection.close()
 
 
-def _vector_store_row(module, **overrides):
-    """Create a fully-specified row for the vector store schema."""
+def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
+    """Temporal filters must accept typed inputs and cross-year comparisons."""
 
-    base = {name: None for name in module.VECTOR_STORE_SCHEMA.names}
-    base.update(
-        {
-            "chunk_id": "chunk",
-            "document_type": "post",
-            "document_id": "chunk",
-            "chunk_index": 0,
-            "content": "",
-            "embedding": [],
-            "tags": [],
-            "authors": [],
-        }
-    )
-    base.update(overrides)
-    return base
+    store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
+
+    conn = duckdb.connect(":memory:")
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
+
+    try:
+        def build_row(chunk_id: str, embedding: list[float], **overrides) -> dict:
+            base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+            base.update(
+                {
+                    "chunk_id": chunk_id,
+                    "document_type": overrides.get("document_type", "post"),
+                    "document_id": overrides.get("document_id", chunk_id),
+                    "chunk_index": overrides.get("chunk_index", 0),
+                    "content": overrides.get("content", chunk_id),
+                    "embedding": embedding,
+                    "tags": overrides.get("tags", ["tag"]),
+                    "authors": overrides.get("authors", ["author"]),
+                }
+            )
+            base.update(overrides)
+            return base
+
+        rows = [
+            build_row(
+                "chunk-before",
+                [0.0, 1.0],
+                post_date=date(2023, 12, 31),
+            ),
+            build_row(
+                "chunk-after",
+                [1.0, 0.0],
+                post_date=date(2024, 1, 5),
+            ),
+            build_row(
+                "media-jan",
+                [0.8, 0.2],
+                document_type="media",
+                document_id="media-jan",
+                media_uuid="media-jan",
+                media_type="image",
+                message_date=datetime(2024, 1, 1, 12, tzinfo=timezone.utc),
+                tags=[],
+                authors=[],
+            ),
+        ]
+
+        table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
+        store.add(table)
+
+        query_vector = [1.0, 0.0]
+
+        baseline = (
+            store.search(
+                query_vec=query_vector,
+                top_k=5,
+                min_similarity=0.0,
+                mode="exact",
+            )
+            .execute()
+        )
+        assert list(baseline["chunk_id"]) == ["chunk-after", "media-jan", "chunk-before"]
+
+        filtered_by_date = (
+            store.search(
+                query_vec=query_vector,
+                top_k=5,
+                min_similarity=0.0,
+                mode="exact",
+                date_after=date(2024, 1, 1),
+            )
+            .execute()
+        )
+        assert list(filtered_by_date["chunk_id"]) == ["chunk-after", "media-jan"]
+
+        filtered_by_datetime = (
+            store.search(
+                query_vec=query_vector,
+                top_k=5,
+                min_similarity=0.0,
+                mode="exact",
+                date_after=datetime(2023, 12, 31, 18, 0),
+            )
+            .execute()
+        )
+        assert list(filtered_by_datetime["chunk_id"]) == ["chunk-after", "media-jan"]
+
+        filtered_with_timezone = (
+            store.search(
+                query_vec=query_vector,
+                top_k=5,
+                min_similarity=0.0,
+                mode="exact",
+                date_after="2023-12-31T23:00:00+00:00",
+            )
+            .execute()
+        )
+        assert list(filtered_with_timezone["chunk_id"]) == ["chunk-after", "media-jan"]
+    finally:
+        store.close()

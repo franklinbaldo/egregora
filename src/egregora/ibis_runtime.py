@@ -7,12 +7,16 @@ from contextlib import contextmanager
 from threading import RLock
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import importlib
+import importlib.util
+
 import ibis
 
-if TYPE_CHECKING:
-    from ibis.backends.base import BaseBackend
-else:  # pragma: no cover - runtime fallback for modern Ibis versions
-    BaseBackend = Any  # type: ignore[assignment]
+_base_spec = importlib.util.find_spec("ibis.backends.base")
+if _base_spec is not None:  # pragma: no branch - deterministic import
+    BaseBackend = importlib.import_module("ibis.backends.base").BaseBackend
+else:  # pragma: no branch - executed on newer Ibis versions
+    BaseBackend = importlib.import_module("ibis.backends").BaseBackend
 
 __all__ = [
     "use_backend",

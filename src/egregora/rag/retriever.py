@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import ibis
@@ -65,7 +65,7 @@ def index_post(
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
         metadata = chunk["metadata"]
-        post_date = metadata.get("date")
+        post_date = _coerce_post_date(metadata.get("date"))
         authors = metadata.get("authors", [])
         if isinstance(authors, str):
             authors = [authors]
@@ -225,9 +225,8 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
             date_str = date_match.group(1).strip()
             time_str = time_match.group(1).strip()
             try:
-                metadata["message_date"] = datetime.strptime(
-                    f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-                )
+                parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                metadata["message_date"] = parsed.replace(tzinfo=timezone.utc)
             except ValueError:
                 logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
                 metadata["message_date"] = None
@@ -298,9 +297,7 @@ def index_media_enrichment(
     # Build DataFrame for storage
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-        message_date = metadata.get("message_date")
-        if message_date:
-            message_date = message_date.isoformat()
+        message_date = _coerce_message_datetime(metadata.get("message_date"))
 
         rows.append(
             {
@@ -383,6 +380,72 @@ def index_all_media(
     logger.info(f"Indexed {total_chunks} total chunks from {len(enrichment_files)} media files")
 
     return total_chunks
+
+
+def _coerce_post_date(value: object) -> date | None:
+    """Normalize post metadata values to ``date`` objects."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1]
+
+        try:
+            return datetime.fromisoformat(text).date()
+        except ValueError:
+            try:
+                return date.fromisoformat(text)
+            except ValueError:
+                logger.warning("Unable to parse post date: %s", value)
+                return None
+
+    logger.warning("Unsupported post date type: %s", type(value))
+    return None
+
+
+def _coerce_message_datetime(value: object) -> datetime | None:
+    """Ensure message timestamps are timezone-aware UTC datetimes."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            logger.warning("Unable to parse message datetime: %s", value)
+            return None
+
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    logger.warning("Unsupported message datetime type: %s", type(value))
+    return None
 
 
 def query_media(  # noqa: PLR0913
