@@ -6,7 +6,7 @@ from types import SimpleNamespace
 try:  # pragma: no cover - exercised implicitly when dependency is present
     from google import genai as genai_module  # type: ignore
     from google.genai import types as genai_types_module  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - simple stub fallback
+except (ModuleNotFoundError, ImportError):  # pragma: no cover - simple stub fallback
     google_module = sys.modules.get("google")
     if google_module is None:
         google_module = types.ModuleType("google")
