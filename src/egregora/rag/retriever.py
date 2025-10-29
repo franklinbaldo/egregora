@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as datetime_module
 import logging
 import re
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import ibis
@@ -226,7 +227,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
             time_str = time_match.group(1).strip()
             try:
                 parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=UTC)
+                metadata["message_date"] = parsed.replace(tzinfo=datetime_module.UTC)
             except ValueError:
                 logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
                 metadata["message_date"] = None
@@ -423,8 +424,8 @@ def _coerce_message_datetime(value: object) -> datetime | None:  # noqa: PLR0911
 
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+            return value.replace(tzinfo=datetime_module.UTC)
+        return value.astimezone(datetime_module.UTC)
 
     if isinstance(value, str):
         text = value.strip()
@@ -441,8 +442,8 @@ def _coerce_message_datetime(value: object) -> datetime | None:  # noqa: PLR0911
             return None
 
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=UTC)
-        return parsed.astimezone(UTC)
+            return parsed.replace(tzinfo=datetime_module.UTC)
+        return parsed.astimezone(datetime_module.UTC)
 
     logger.warning("Unsupported message datetime type: %s", type(value))
     return None
