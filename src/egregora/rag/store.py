@@ -444,6 +444,7 @@ class VectorStore:
 
         return table.select(VECTOR_STORE_SCHEMA.names)
 
+# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity; exit=refactor to reduce arguments/branches/statements (#N/A)
     def search(  # noqa: PLR0911, PLR0913, PLR0915
         self,
         query_vec: list[float],
@@ -552,11 +553,7 @@ class VectorStore:
 
         if mode_normalized == "exact":
             query = exact_base_query + where_clause + order_clause
-            try:
-                return self._execute_search_query(query, params, min_similarity)
-            except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error(f"Search failed: {exc}")
-                return self._empty_table(SEARCH_RESULT_SCHEMA)
+            return self._execute_search_query(query, params, min_similarity)
 
         fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
         ann_limit = max(top_k * fetch_factor, top_k + 10)
@@ -580,22 +577,14 @@ class VectorStore:
                 last_error = exc
                 logger.warning("ANN search failed with %s: %s", function_name, exc)
                 continue
-            except Exception as exc:  # pragma: no cover - unexpected execution failure
-                last_error = exc
-                logger.error("ANN search aborted: %s", exc)
-                break
 
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
-            try:
-                return self._execute_search_query(
-                    exact_base_query + where_clause + order_clause,
-                    params,
-                    min_similarity,
-                )
-            except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error("Exact fallback search failed: %s", exc)
-
+            return self._execute_search_query(
+                exact_base_query + where_clause + order_clause,
+                params,
+                min_similarity,
+            )
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
             raise RuntimeError("Vector search failed due to VSS backend error") from last_error
@@ -770,6 +759,9 @@ class VectorStore:
                 try:
                     parsed_date = date.fromisoformat(cleaned)
                 except ValueError as exc:  # pragma: no cover - defensive guard
+# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]:
+# tenet=no-defensive; why=explicit defensive guard for invalid date_after value;
+# exit=ensure upstream validation or type enforcement makes this state impossible, or clarify why it's necessary (#N/A)
                     raise ValueError(f"Invalid date_after value: {value!r}") from exc
                 return datetime.combine(parsed_date, time.min, tzinfo=UTC)
 
@@ -841,6 +833,9 @@ class VectorStore:
 
         try:
             backend = table._find_backend()  # type: ignore[attr-defined]
+# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]:
+# tenet=no-defensive; why=defensive guard against Ibis internals with broad exception;
+# exit=identify specific Ibis internal exceptions to catch, or remove defensive guard if not truly impossible (#N/A)
         except Exception:  # pragma: no cover - defensive against Ibis internals
             backend = None
 
@@ -916,6 +911,7 @@ class VectorStore:
                 "total_tags": 0,
             }
 
+# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=no-compat; why=backward compatibility for schema changes; exit=remove old schema handling when no longer needed (#N/A)
         # Check if document_type column exists (for backward compatibility)
         df_executed = df.execute()
         has_doc_type = "document_type" in df_executed.columns

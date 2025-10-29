@@ -226,9 +226,10 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         try:
             parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
             metadata["message_date"] = parsed.replace(tzinfo=UTC)
-        except ValueError:
-            logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
-            metadata["message_date"] = None
+        except ValueError as exc:
+            raise ValueError(
+                f"Failed to parse enrichment timestamp '{date_str} {time_str}'"
+            ) from exc
 
     metadata["author_uuid"] = sender_match.group(1).strip() if sender_match else None
     metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
@@ -399,12 +400,12 @@ def _coerce_post_date(value: object) -> date | None:
             except ValueError:
                 try:
                     result = date.fromisoformat(text)
-                except ValueError:
-                    logger.warning("Unable to parse post date: %s", value)
+                except ValueError as exc:
+                    raise ValueError(f"Unable to parse post date: {value!r}") from exc
         else:
             result = None
     else:
-        logger.warning("Unsupported post date type: %s", type(value))
+        raise TypeError(f"Unsupported post date type: {type(value)}")
 
     return result
 
@@ -429,19 +430,20 @@ def _coerce_message_datetime(value: object) -> datetime | None:
         if text:
             try:
                 parsed = datetime.fromisoformat(text)
-            except ValueError:
-                logger.warning("Unable to parse message datetime: %s", value)
+            except ValueError as exc:
+                raise ValueError(f"Unable to parse message datetime: {value!r}") from exc
             else:
                 if parsed.tzinfo is None:
                     result = parsed.replace(tzinfo=UTC)
                 else:
                     result = parsed.astimezone(UTC)
     else:
-        logger.warning("Unsupported message datetime type: %s", type(value))
+        raise TypeError(f"Unsupported message datetime type: {type(value)}")
 
     return result
 
 
+# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity (too many arguments); exit=refactor to reduce number of arguments or group related arguments into a dataclass (#N/A)
 def query_media(  # noqa: PLR0913
     query: str,
     batch_client: GeminiBatchClient,
