@@ -90,20 +90,6 @@ class AnnotationStore:
 
         created_at = datetime.now(UTC)
 
-        annotations_table = self._backend.table(ANNOTATIONS_TABLE)
-
-        if parent_annotation_id is not None:
-            parent_exists = int(
-                annotations_table.filter(annotations_table.id == parent_annotation_id)
-                .limit(1)
-                .count()
-                .execute()
-            )
-            if parent_exists == 0:
-                raise ValueError(
-                    f"parent_annotation_id {parent_annotation_id} does not exist"
-                )
-
         next_id_cursor = self._connection.execute(
             f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
         )

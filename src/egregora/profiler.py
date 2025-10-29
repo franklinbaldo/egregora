@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import pyarrow as pa
+from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def write_profile(
     return str(profile_path)
 
 
-def get_active_authors(df: Any) -> list[str]:
+def get_active_authors(df: Table) -> list[str]:
     """
     Get list of unique authors from a Table.
 
@@ -75,29 +75,11 @@ def get_active_authors(df: Any) -> list[str]:
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    authors: list[str | None] = []
+    arrow_table = df.select("author").distinct().to_pyarrow()
+    if arrow_table.num_columns == 0:
+        return []
 
-    try:
-        arrow_table = df.select("author").distinct().to_pyarrow()
-    except AttributeError:  # pragma: no cover - fallback for non-ibis tables
-        result = df.select("author").distinct().execute()
-        if hasattr(result, "columns"):
-            if "author" in result.columns:
-                authors = result["author"].tolist()
-            else:  # pragma: no cover - defensive path for misnamed columns
-                authors = result.iloc[:, 0].tolist()
-        elif hasattr(result, "tolist"):
-            authors = list(result.tolist())
-        else:  # pragma: no cover - defensive path
-            authors = list(result)
-    else:
-        if arrow_table.num_columns == 0:
-            return []
-        column = arrow_table.column(0)
-        if isinstance(column, pa.ChunkedArray):
-            authors = column.to_pylist()
-        else:  # pragma: no cover - pyarrow tables always use ChunkedArray
-            authors = list(column)
+    authors: list[str | None] = arrow_table.column(0).to_pylist()
 
     # Filter out system and enrichment entries
     return [author for author in authors if author not in ("system", "egregora", None, "")]

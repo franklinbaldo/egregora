@@ -3,8 +3,6 @@ from importlib import util
 from pathlib import Path
 from types import ModuleType
 
-import pytest
-
 PROJECT_SRC = Path(__file__).resolve().parents[1] / "src"
 PRIVACY_PATH = PROJECT_SRC / "egregora" / "privacy.py"
 ANNOTATIONS_PATH = PROJECT_SRC / "egregora" / "annotations.py"
@@ -52,9 +50,3 @@ def test_annotation_store_persists_and_orders(tmp_path):
     }
 
 
-def test_annotation_store_rejects_missing_parent(tmp_path):
-    db_path = tmp_path / "annotations.duckdb"
-    store = AnnotationStore(db_path)
-
-    with pytest.raises(ValueError):
-        store.save_annotation("msg-1", "orphan", parent_annotation_id=999)
