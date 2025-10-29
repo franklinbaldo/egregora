@@ -22,20 +22,30 @@ if "google" not in sys.modules:
             )
 
     class DummyPart:  # pragma: no cover - simple stub
-        def __init__(self, *_, **__):
-            pass
+        def __init__(self, *, text: str | None = None, file_data: "DummyFileData" | None = None):
+            self.text = text
+            self.file_data = file_data
 
     class DummyContent:  # pragma: no cover - simple stub
-        def __init__(self, *_, **__):
-            pass
+        def __init__(self, *, role: str | None = None, parts: list[DummyPart] | None = None):
+            self.role = role
+            self.parts = parts or []
 
     class DummyGenerateContentConfig:  # pragma: no cover - simple stub
-        def __init__(self, *_, **__):
-            pass
+        def __init__(self, *, temperature: float | None = None):
+            self.temperature = temperature
 
     class DummyFileData:  # pragma: no cover - simple stub
-        def __init__(self, *_, **__):
-            pass
+        def __init__(
+            self,
+            *,
+            file_uri: str | None = None,
+            mime_type: str | None = None,
+            display_name: str | None = None,
+        ):
+            self.file_uri = file_uri
+            self.mime_type = mime_type
+            self.display_name = display_name
 
     class DummyEmbedContentConfig:  # pragma: no cover - simple stub
         def __init__(self, *_, **__):
@@ -63,8 +73,72 @@ import ibis
 
 from egregora.cache import EnrichmentCache
 from egregora.config_types import EnrichmentConfig
-from egregora.enricher import enrich_dataframe, enrich_media, replace_media_mentions
+from egregora.enricher import (
+    build_batch_requests,
+    enrich_dataframe,
+    enrich_media,
+    map_batch_results,
+    replace_media_mentions,
+)
 from egregora.gemini_batch import BatchPromptResult
+
+
+def test_build_batch_requests_for_text_prompts():
+    records = [
+        {
+            "tag": "url:test",
+            "prompt": "Describe the link",
+        }
+    ]
+
+    requests = build_batch_requests(records, model="text-model")
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.model == "text-model"
+    assert request.tag == "url:test"
+    assert request.contents[0].role == "user"
+    assert request.contents[0].parts[0].text == "Describe the link"
+    assert request.config is not None
+    assert getattr(request.config, "temperature", None) == 0.3
+
+
+def test_build_batch_requests_for_media_prompts():
+    records = [
+        {
+            "tag": "media:test",
+            "prompt": "Describe the file",
+            "file_uri": "gs://media/test.png",
+            "mime_type": "image/png",
+            "display_name": "test.png",
+        }
+    ]
+
+    requests = build_batch_requests(records, model="vision-model", include_file=True)
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.model == "vision-model"
+    assert request.tag == "media:test"
+    assert request.contents[0].parts[0].text == "Describe the file"
+    assert len(request.contents[0].parts) == 2
+    file_part = request.contents[0].parts[1]
+    assert getattr(file_part, "file_data").file_uri == "gs://media/test.png"
+    assert getattr(file_part, "file_data").mime_type == "image/png"
+    assert getattr(file_part, "file_data").display_name == "test.png"
+    assert request.config is None
+
+
+def test_map_batch_results_includes_none_tags():
+    responses = [
+        BatchPromptResult(tag="alpha", response=MagicMock()),
+        BatchPromptResult(tag=None, response=MagicMock()),
+    ]
+
+    result_map = map_batch_results(responses)
+
+    assert result_map["alpha"] is responses[0]
+    assert result_map[None] is responses[1]
 
 
 def test_enrich_media_with_pii_detection():
