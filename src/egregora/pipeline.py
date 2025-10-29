@@ -270,9 +270,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
         embedding_model_name = model_config.get_model("embedding")
         embedding_batch_client = GeminiBatchClient(client, embedding_model_name)
-        embedding_dimensionality = model_config.get_embedding_output_dimensionality(
-            embedding_model_name
-        )
+        embedding_dimensionality = model_config.embedding_output_dimensionality
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
         checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
