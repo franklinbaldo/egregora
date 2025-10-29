@@ -49,13 +49,7 @@ def _extract_retry_delay(error: Exception) -> float | None:
     text = str(error)
 
     # gRPC style: `'retryDelay': '19s'`
-    match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)(?:\.(\d+))?s['\"]", text)
-    if match:
-        seconds = int(match.group(1))
-        fractional = match.group(2)
-        if fractional:
-            seconds += float(f"0.{fractional}")
-        return float(seconds)
+    match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)(?:\\.(\d+))?s['\"]", text)
 
     # REST style: `Retry-After: 20`
     match = re.search(r"retry-after[:=]\s*(\d+)", text, flags=re.IGNORECASE)

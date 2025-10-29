@@ -23,8 +23,9 @@ class _ConfigLoader(yaml.SafeLoader):
 
 def _construct_python_name(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> str:
     """Return python/name tags as plain strings."""
-
-    return loader.construct_scalar(node)
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    return ""
 
 
 _ConfigLoader.add_multi_constructor("tag:yaml.org,2002:python/name", _construct_python_name)

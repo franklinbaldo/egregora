@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Any, Dict
 
 from .site_config import load_mkdocs_config
 
@@ -37,7 +37,7 @@ class ModelConfig:
     def __init__(
         self,
         cli_model: str | None = None,
-        site_config: dict | None = None,
+        site_config: Dict[str, Any] | None = None,
     ):
         """
         Initialize model config with CLI override and site config.
@@ -171,7 +171,7 @@ class ModelConfig:
         return self.embedding_output_dimensionality
 
 
-def load_site_config(output_dir: Path) -> dict:
+def load_site_config(output_dir: Path) -> Dict[str, Any]:
     """
     Load egregora configuration from mkdocs.yml if it exists.
 

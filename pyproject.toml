@@ -38,6 +38,8 @@ test = [
     "pytest>=8.4.2",
     "ruff>=0.4.4",
     "duckdb>=0.10.0",
+    "mypy>=1.10.0",
+    "pytest-mypy>=0.10.3",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -96,10 +98,31 @@ python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
-disallow_untyped_defs = false
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+strict_optional = true
+disable_error_code = "no-redef"
+
+[[tool.mypy.overrides]]
+module = [
+    "ibis",
+    "ibis.expr.types",
+    "ibis.expr.datatypes",
+    "ibis.expr",
+    "pyarrow",
+    "pyarrow.parquet",
+    "diskcache",
+    "frontmatter",
+    "google.generativeai.types",
+    "google.ai.generativelanguage",
+    "PIL"
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "--mypy"
 
 [dependency-groups]
 dev = [
@@ -109,4 +132,6 @@ test = [
     "pytest>=8.4.2",
     "ruff>=0.4.4",
     "duckdb>=0.10.0",
+    "mypy>=1.10.0",
+    "pytest-mypy>=0.10.3",
 ]

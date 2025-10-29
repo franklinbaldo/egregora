@@ -1,6 +1,7 @@
 """Site scaffolding utilities for MkDocs-based Egregora sites."""
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -43,10 +44,10 @@ def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         payload = {}
 
     docs_dir_setting = payload.get("docs_dir")
-    if docs_dir_setting in (None, "", "."):
+    if docs_dir_setting is None or docs_dir_setting == "." or docs_dir_setting == "":
         return site_root
 
-    docs_dir = Path(docs_dir_setting)
+    docs_dir = Path(str(docs_dir_setting))
     if not docs_dir.is_absolute():
         docs_dir = (site_root / docs_dir).resolve()
     return docs_dir
@@ -82,7 +83,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     return site_paths.docs_dir
 
 
-def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict) -> None:
+def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict[str, Any]) -> None:
     """Create essential directories and index files for the blog structure."""
     docs_dir = site_paths.docs_dir
     posts_dir = site_paths.posts_dir

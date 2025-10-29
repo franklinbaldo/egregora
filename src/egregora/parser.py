@@ -17,7 +17,8 @@ import re
 import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
+from typing import Any, Dict, cast
 
 import ibis
 from dateutil import parser as date_parser
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
 
-def _parse_set_command(args: str) -> dict | None:
+def _parse_set_command(args: str) -> Dict[str, Any] | None:
     """Parse a 'set' command."""
     parts = args.split(maxsplit=1)
     if len(parts) == SET_COMMAND_PARTS:
@@ -47,7 +48,7 @@ def _parse_set_command(args: str) -> dict | None:
     return None
 
 
-def _parse_remove_command(args: str) -> dict:
+def _parse_remove_command(args: str) -> Dict[str, Any]:
     """Parse a 'remove' command."""
     return {"command": "remove", "target": args.lower(), "value": None}
 
@@ -58,7 +59,7 @@ COMMAND_REGISTRY = {
 }
 
 
-def parse_egregora_command(message: str) -> dict | None:
+def parse_egregora_command(message: str) -> Dict[str, Any] | None:
     """
     Parse egregora commands from message text.
 
@@ -113,7 +114,7 @@ def parse_egregora_command(message: str) -> dict | None:
     return None
 
 
-def extract_commands(df: Table) -> list[dict]:
+def extract_commands(df: Table) -> list[Dict[str, Any]]:
     """
     Extract egregora commands from parsed Table.
 
@@ -134,10 +135,10 @@ def extract_commands(df: Table) -> list[dict]:
     if int(df.count().execute()) == 0:
         return []
 
-    commands = []
+    commands: list[Dict[str, Any]] = []
 
     # Convert to pandas for iteration (most efficient for small result sets)
-    rows = df.execute().to_dict("records")
+    rows: list[Dict[str, Any]] = df.execute().to_dict("records")
 
     for row in rows:
         message = row.get("message", "")
@@ -277,7 +278,7 @@ _LINE_PATTERN = re.compile(
 )
 
 
-_DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
+_DATE_PARSE_PREFERENCES: tuple[Dict[str, bool], ...] = (
     {"dayfirst": True},
     {"dayfirst": False},
 )
@@ -303,10 +304,10 @@ def _normalize_text(value: str) -> str:
     return normalized
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
+def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[Dict[str, Any]]:
     """Parse messages from an iterable of strings."""
 
-    rows: list[dict] = []
+    rows: list[Dict[str, Any]] = []
     current_date = export.export_date
     builder: _MessageBuilder | None = None
 
@@ -359,7 +360,7 @@ def _parse_iso_date(value: str) -> datetime | None:
 def _parse_with_preferences(value: str) -> datetime | None:
     for options in _DATE_PARSE_PREFERENCES:
         try:
-            return date_parser.parse(value, **options)
+            return date_parser.parse(value, **cast(Dict[str, Any], options))
         except (TypeError, ValueError, OverflowError):
             continue
     return None
@@ -389,7 +390,9 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
     return parsed, parsed
 
 
-def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
+def _parse_message_time(
+    time_token: str, am_pm: str | None, context_line: str
+) -> time | None:
     try:
         if am_pm:
             return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
@@ -403,7 +406,7 @@ def _start_message_builder(  # noqa: PLR0913
     *,
     export: WhatsAppExport,
     msg_date: date,
-    msg_time,
+    msg_time: time,
     author: str,
     initial_message: str,
     original_line: str,
@@ -443,7 +446,7 @@ class _MessageBuilder:
         self._message_lines.append(content)
         self._original_lines.append(original)
 
-    def finalize(self) -> dict:
+    def finalize(self) -> Dict[str, Any]:
         message_text = "\n".join(self._message_lines).strip()
         original_text = "\n".join(self._original_lines).strip()
         return {

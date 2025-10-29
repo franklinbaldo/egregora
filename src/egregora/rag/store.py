@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import duckdb
 import ibis
@@ -136,9 +136,9 @@ class VectorStore:
         self._owns_connection = connection is None
         if self._owns_connection:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
-            self.conn = duckdb.connect(str(self.index_path))
+            self.conn: duckdb.DuckDBPyConnection = duckdb.connect(str(self.index_path))
         else:
-            self.conn = connection
+            self.conn = connection  # type: ignore[assignment]
         self.conn = _ConnectionProxy(self.conn)
         self._init_vss()
         self._vss_function = self._detect_vss_function()
@@ -147,7 +147,7 @@ class VectorStore:
         self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
-    def _init_vss(self):
+    def _init_vss(self) -> None:
         """Initialize DuckDB VSS extension."""
         try:
             self.conn.execute("INSTALL vss")
@@ -838,7 +838,7 @@ class VectorStore:
         """Materialize a table on the store backend when necessary."""
 
         try:
-            backend = table._find_backend()  # type: ignore[attr-defined]
+            backend = table._find_backend()
         except Exception:  # pragma: no cover - defensive against Ibis internals
             backend = None
 
@@ -893,7 +893,7 @@ class VectorStore:
 
         return self._client.read_parquet(self.parquet_path)
 
-    def stats(self) -> dict:
+    def stats(self) -> Dict[str, Any]:
         """Get vector store statistics."""
         if not self.parquet_path.exists():
             return {

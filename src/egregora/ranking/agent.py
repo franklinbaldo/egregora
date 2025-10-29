@@ -9,7 +9,7 @@ from google.genai import types as genai_types
 from rich.console import Console
 
 from .elo import calculate_elo_update
-from .genai_utils import call_with_retries_sync
+from ..genai_utils import call_with_retries_sync
 from .store import RankingStore
 
 console = Console()

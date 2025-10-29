@@ -8,7 +8,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Annotated
+from typing import Any, Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -28,7 +28,7 @@ try:  # pragma: no cover - compatibility with older installations
 except ImportError:  # pragma: no cover - legacy fallback
     from .site_config import load_mkdocs_config as _load_mkdocs_config
 
-    def load_site_config(output_dir: Path) -> dict:
+    def load_site_config(output_dir: Path) -> dict[str, Any]:
         config, mkdocs_path = _load_mkdocs_config(output_dir)
         if not mkdocs_path:
             logging.getLogger(__name__).debug("No mkdocs.yml found, using default config")
@@ -42,11 +42,11 @@ try:  # pragma: no cover - compatibility with older installations
     from .site_config import find_mkdocs_file, resolve_site_paths
 except ImportError:  # pragma: no cover - legacy fallback
 
-    def find_mkdocs_file(output_dir: Path) -> Path | None:
+    def find_mkdocs_file(start: Path) -> Path | None:
         candidate = output_dir / "mkdocs.yml"
         return candidate if candidate.exists() else None
 
-    def resolve_site_paths(site_dir: Path) -> SimpleNamespace:
+    def resolve_site_paths(start: Path) -> SimpleNamespace:
         docs_dir = site_dir / "docs"
         return SimpleNamespace(
             site_dir=site_dir,
@@ -92,7 +92,7 @@ def init(
         Path,
         typer.Argument(help="Directory path for the new site (e.g., 'my-blog')"),
     ],
-):
+) -> None:
     """
     Initialize a new MkDocs site scaffold for serving Egregora posts.
 
@@ -619,7 +619,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
 _register_ranking_cli(app)
 
 
-def main():
+def main() -> None:
     """Entry point for the CLI."""
     app()
 

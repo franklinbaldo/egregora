@@ -35,7 +35,7 @@ def anonymize_mentions(text: str) -> str:
     if not text or "\u2068" not in text:
         return text
 
-    def replace_mention(match):
+    def replace_mention(match: re.Match[str]) -> str:
         name = match.group("name")
         pseudonym = anonymize_author(name)
         return pseudonym

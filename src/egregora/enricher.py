@@ -16,7 +16,7 @@ import uuid
 import zipfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -221,14 +221,14 @@ async def enrich_media(
     return str(enrichment_path)
 
 
-def _ensure_datetime(value):
+def _ensure_datetime(value: Any) -> datetime:
     """Convert pandas/ibis timestamp objects to ``datetime``."""
     if hasattr(value, "to_pydatetime"):
         return value.to_pydatetime()
     return value
 
 
-def _safe_timestamp_plus_one(timestamp) -> Any:
+def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
@@ -766,7 +766,7 @@ def enrich_dataframe(
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[URL Enrichment] {job.url}\\nEnrichment saved: {job.path}",
+                "message": f"[URL Enrichment] {job.url}\nEnrichment saved: {job.path}",
                 "original_line": "",
                 "tagged_line": "",
             }
@@ -785,7 +785,7 @@ def enrich_dataframe(
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[Media Enrichment] {job.file_path.name}\\nEnrichment saved: {job.path}",
+                "message": f"[Media Enrichment] {job.file_path.name}\nEnrichment saved: {job.path}",
                 "original_line": "",
                 "tagged_line": "",
             }
