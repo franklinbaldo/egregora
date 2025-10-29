@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Changed
+- Hid the ranking agent behind the optional `ranking` extra so the CLI command and APIs only load when explicitly requested.
 
 ## [2.0.0] - 2024-05-20
 

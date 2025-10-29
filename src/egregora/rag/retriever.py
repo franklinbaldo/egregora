@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import ibis
@@ -226,7 +226,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
             time_str = time_match.group(1).strip()
             try:
                 parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=timezone.utc)
+                metadata["message_date"] = parsed.replace(tzinfo=UTC)
             except ValueError:
                 logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
                 metadata["message_date"] = None
@@ -388,31 +388,30 @@ def _coerce_post_date(value: object) -> date | None:
     if value is None:
         return None
 
+    result: date | None = None
     if isinstance(value, datetime):
-        return value.date()
-
-    if isinstance(value, date):
-        return value
-
-    if isinstance(value, str):
+        result = value.date()
+    elif isinstance(value, date):
+        result = value
+    elif isinstance(value, str):
         text = value.strip()
-        if not text:
-            return None
-
         if text.endswith("Z"):
             text = text[:-1]
 
-        try:
-            return datetime.fromisoformat(text).date()
-        except ValueError:
+        if text:
             try:
-                return date.fromisoformat(text)
+                result = datetime.fromisoformat(text).date()
             except ValueError:
-                logger.warning("Unable to parse post date: %s", value)
-                return None
+                try:
+                    result = date.fromisoformat(text)
+                except ValueError:
+                    logger.warning("Unable to parse post date: %s", value)
+        else:
+            result = None
+    else:
+        logger.warning("Unsupported post date type: %s", type(value))
 
-    logger.warning("Unsupported post date type: %s", type(value))
-    return None
+    return result
 
 
 def _coerce_message_datetime(value: object) -> datetime | None:
@@ -421,31 +420,31 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     if value is None:
         return None
 
+    result: datetime | None = None
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-
-    if isinstance(value, str):
+            result = value.replace(tzinfo=UTC)
+        else:
+            result = value.astimezone(UTC)
+    elif isinstance(value, str):
         text = value.strip()
-        if not text:
-            return None
-
         if text.endswith("Z"):
             text = text[:-1] + "+00:00"
 
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            logger.warning("Unable to parse message datetime: %s", value)
-            return None
+        if text:
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                logger.warning("Unable to parse message datetime: %s", value)
+            else:
+                if parsed.tzinfo is None:
+                    result = parsed.replace(tzinfo=UTC)
+                else:
+                    result = parsed.astimezone(UTC)
+    else:
+        logger.warning("Unsupported message datetime type: %s", type(value))
 
-        if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-
-    logger.warning("Unsupported message datetime type: %s", type(value))
-    return None
+    return result
 
 
 def query_media(  # noqa: PLR0913
