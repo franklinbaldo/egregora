@@ -391,29 +391,29 @@ class RankingStore:
         Returns:
             dict with stats about ratings and history
         """
-        ratings_count = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()[0]
-        comparisons_count = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()[0]
+        ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
+        ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
 
-        avg_games = (
-            self.conn.execute("""
+        comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
+        comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
+
+        avg_games_result = self.conn.execute(
+            """
             SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()[0]
-            or 0
-        )
+        """).fetchone()
+        avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
 
-        top_elo = (
-            self.conn.execute("""
+        top_elo_result = self.conn.execute(
+            """
             SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
-        )
+        """).fetchone()
+        top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
 
-        bottom_elo = (
-            self.conn.execute("""
+        bottom_elo_result = self.conn.execute(
+            """
             SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
-        )
+        """).fetchone()
+        bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
 
         return {
             "total_posts": ratings_count,

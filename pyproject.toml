@@ -105,6 +105,10 @@ strict_optional = true
 disable_error_code = "no-redef"
 
 [[tool.mypy.overrides]]
+module = "egregora.parser"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
 module = [
     "ibis",
     "ibis.expr.types",

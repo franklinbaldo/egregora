@@ -26,7 +26,7 @@ CHOOSE_WINNER_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="choose_winner",
             description="Declare which post is better overall",
-            parameters={
+            parameters=genai_types.Schema.from_dict({
                 "type": "object",
                 "properties": {
                     "winner": {
@@ -36,7 +36,7 @@ CHOOSE_WINNER_TOOL = genai_types.Tool(
                     }
                 },
                 "required": ["winner"],
-            },
+            }),
         )
     ]
 )
