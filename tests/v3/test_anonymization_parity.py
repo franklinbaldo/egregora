@@ -60,12 +60,6 @@ def test_anonymization_checksum():
     source_code = anonymization_v3_source.read_text()
     current_hash = hashlib.sha256(source_code.encode()).hexdigest()
 
-    # This hash is calculated from the known, correct version of the anonymization code.
-    # If the file is ever modified, this test will fail, forcing a review.
-    known_hash = "d3b4b8c9c6b7e5a0f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8" # Placeholder
+    known_hash = "d701f8bf288666acb8b9ed68b6f1237912d0bc9251e9ad429a194a8eca8de755"
 
-    # In a real CI, you'd generate and store this hash securely.
-    # For now, we will just calculate and print it. If this test fails, it's a sign
-    # that the code has changed and the known_hash needs to be updated after verification.
-    print(f"Current anonymization code hash: {current_hash}")
-    # assert current_hash == known_hash, "Anonymization source code has been modified!"
+    assert current_hash == known_hash, "Anonymization source code has been modified!"

@@ -7,7 +7,7 @@ authors = [{ name = "Egregora" }]
 requires-python = ">=3.11"
 dependencies = [
     "google-genai>=0.3.0",
-    "duckdb>=0.10.0",
+    "duckdb>=0.10.3",
     "python-frontmatter>=1.0.0",
     "pyyaml>=6.0",
     "ibis-framework[duckdb]>=9.0.0",
@@ -25,12 +25,14 @@ dependencies = [
     "typer[all]>=0.20.0",
     "pydantic-settings>=0.1.1",
     "toml>=0.10.2",
+    "duckdb-engine>=0.17.0",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.4.2",
     "typer[all]>=0.20.0",
+    "google-generativeai>=0.3.0",
 ]
 docs = [
     "mkdocs>=1.6",

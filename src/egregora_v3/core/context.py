@@ -2,22 +2,17 @@ from typing import Optional
 import duckdb
 
 from egregora_v3.core.config import Settings, load_settings
-from egregora_v3.core.db import get_db_connection, initialize_database
+from egregora_v3.core.db import get_db_connection
 from egregora_v3.core.logging import get_logger
-
-# Placeholder for actual client implementations
-class EmbeddingClient:
-    pass
-
-class VectorStore:
-    pass
+from egregora_v3.adapters.embeddings.gemini import GeminiEmbeddingClient
+from egregora_v3.adapters.vectorstore.duckdb_vss import DuckDBVectorStore
 
 class Context:
     """
     The application context, holding all necessary components and state.
     """
     def __init__(self, settings: Settings, conn: duckdb.DuckDBPyConnection,
-                 embedding_client: EmbeddingClient, vector_store: VectorStore):
+                 embedding_client: GeminiEmbeddingClient, vector_store: DuckDBVectorStore):
         self.settings = settings
         self.conn = conn
         self.embedding_client = embedding_client
@@ -32,11 +27,12 @@ class Context:
         # Set up database connection
         conn = get_db_connection(settings.db_path)
 
-        # Initialize clients (placeholders for now)
-        # In a real implementation, you'd instantiate these from adapters
-        # e.g., embedding_client = GeminiEmbeddingClient(api_key=settings.gemini_api_key)
-        embedding_client = EmbeddingClient()
-        vector_store = VectorStore()
+        # Initialize clients
+        embedding_client = GeminiEmbeddingClient(
+            api_key=settings.gemini_api_key,
+            model=settings.embedding_model
+        )
+        vector_store = DuckDBVectorStore(conn, embedding_dim=settings.embedding_dim)
 
         return cls(settings, conn, embedding_client, vector_store)
 

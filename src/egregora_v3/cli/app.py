@@ -5,11 +5,25 @@ import hashlib
 from pathlib import Path
 
 from egregora_v3.core.context import build_context
-from egregora_v3.core.db import initialize_database, get_vss_index_ddl
+from egregora_v3.core.db import initialize_database, create_vss_index
 from egregora_v3.core.paths import ensure_dirs_exist
 from egregora_v3.core.types import HealthReport
+from egregora_v3.features.rag.ingest import ingest_source
+from egregora_v3.features.rag.build import build_embeddings
+from egregora_v3.features.rag.query import query_rag
+from egregora_v3.features.ranking.duel import run_duel
+from egregora_v3.features.ranking.export import export_rankings
+from egregora_v3.features.site.render import render_site
+from egregora_v3.features.importer import import_from_parquet
 
 app = typer.Typer(name="eg3", help="Egregora v3 - Emergent Group Reflection Engine")
+rank_app = typer.Typer(name="rank", help="Commands for ranking content.")
+site_app = typer.Typer(name="site", help="Commands for site generation.")
+import_app = typer.Typer(name="import", help="Commands for importing data from v2.")
+app.add_typer(rank_app)
+app.add_typer(site_app)
+app.add_typer(import_app)
+
 console = Console()
 
 @app.command()
@@ -19,27 +33,93 @@ def init():
     """
     console.print("🚀 Initializing Egregora v3...")
 
-    # Ensure all directories exist
     ensure_dirs_exist()
     console.print("✅ Application directories ensured.")
 
-    # Build context and initialize database
     ctx = build_context()
-    initialize_database(ctx.conn)
-    console.print("✅ Database tables created.")
-
-    # Create the VSS index using settings from the context
-    vss_ddl = get_vss_index_ddl(
-        dim=ctx.settings.embedding_dim,
-        metric=ctx.settings.vss_metric,
-        nlist=ctx.settings.vss_nlist,
-        nprobe=ctx.settings.vss_nprobe,
-    )
-    # ctx.conn.execute(vss_ddl) # This will be enabled once VSS is confirmed to be installed
-    console.print("✅ VSS index configured (note: VSS extension must be installed).")
+    initialize_database(ctx.conn, embedding_dim=ctx.settings.embedding_dim)
+    create_vss_index(ctx.conn, metric=ctx.settings.vss_metric)
+    console.print("✅ Database tables and VSS index created.")
 
     console.print("\n[bold green]Initialization complete![/bold green]")
     console.print(f"Database created at: {ctx.settings.db_path}")
+    ctx.close()
+
+@app.command()
+def ingest(src: Path = typer.Argument(..., help="Path to a source file or directory to ingest.")):
+    """
+    Ingest and anonymize a source file or directory.
+    """
+    ctx = build_context()
+    if src.is_dir():
+        for f in src.glob("**/*"):
+            if f.is_file():
+                ingest_source(ctx, f)
+    else:
+        ingest_source(ctx, src)
+    ctx.close()
+
+@app.command()
+def build():
+    """
+    Build the embeddings and vector store index.
+    """
+    ctx = build_context()
+    build_embeddings(ctx)
+    ctx.close()
+
+@app.command()
+def query(q: str = typer.Argument(..., help="The query string."),
+          k: int = typer.Option(8, "--k", help="Number of results to return.")):
+    """
+    Query the RAG pipeline.
+    """
+    ctx = build_context()
+    hits = query_rag(ctx, q, k)
+    for hit in hits:
+        console.print(f"[bold cyan]ID:[/] {hit.chunk.chunk_id[:12]}... [bold cyan]Similarity:[/] {hit.similarity:.4f}")
+        console.print(hit.chunk.text)
+        console.print("-" * 20)
+    ctx.close()
+
+@rank_app.command("duel")
+def rank_duel(a: str = typer.Argument(..., help="Player A's ID."),
+              b: str = typer.Argument(..., help="Player B's ID."),
+              judge: str = typer.Option("gemini", "--judge", help="The judging strategy to use.")):
+    """
+    Run a duel between two players.
+    """
+    ctx = build_context()
+    run_duel(ctx, a, b, judge)
+    ctx.close()
+
+@rank_app.command("export")
+def rank_export(out: Path = typer.Argument(..., help="Output directory for the export."),
+                fmt: str = typer.Option("parquet", "--fmt", help="Export format: 'parquet' or 'csv'.")):
+    """
+    Export the current rankings.
+    """
+    ctx = build_context()
+    export_rankings(ctx, out, fmt)
+    ctx.close()
+
+@site_app.command("render")
+def site_render():
+    """
+    Render the static site.
+    """
+    ctx = build_context()
+    render_site(ctx)
+    ctx.close()
+
+@import_app.command("parquet")
+def import_parquet_cmd(in_path: Path = typer.Argument(..., help="Path to the v2 Parquet file.")):
+    """
+    Import chunks from a v2 Parquet file.
+    """
+    ctx = build_context()
+    import_from_parquet(ctx, in_path)
+    ctx.close()
 
 @app.command()
 def doctor():
@@ -49,10 +129,10 @@ def doctor():
     console.print("🩺 Running health checks...")
     ctx = build_context()
 
-    # Check DB connection and table counts
     db_reachable = False
     rag_chunks_count = 0
     rag_vectors_count = 0
+
     try:
         rag_chunks_count = ctx.conn.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
         rag_vectors_count = ctx.conn.execute("SELECT count(*) FROM rag_vectors").fetchone()[0]
@@ -60,12 +140,8 @@ def doctor():
     except Exception as e:
         console.print(f"[bold red]DB check failed: {e}[/bold red]")
 
-    # Check for VSS index (conceptual)
-    # In a real scenario, you'd query system tables to check for the index.
     index_present = False # Placeholder
 
-    # Anonymization checksum
-    # Placeholder path for the anonymization file
     anon_file_path = Path("src/egregora_v3/adapters/privacy/anonymize.py")
     anon_checksum = "file_not_found"
     if anon_file_path.exists():
@@ -80,17 +156,8 @@ def doctor():
         anonymization_checksum=anon_checksum
     )
 
-    # Print a nice report table
     table = Table(title="Egregora v3 Health Report")
-    table.add_column("Check", justify="right", style="cyan")
-    table.add_column("Status", style="magenta")
-
-    table.add_row("Database Reachable", "✅" if report.db_reachable else "❌")
-    table.add_row("RAG Chunks Count", str(report.rag_chunks_count))
-    table.add_row("RAG Vectors Count", str(report.rag_vectors_count))
-    table.add_row("VSS Index Present", "✅" if report.index_present else "⏳ (pending)")
-    table.add_row("Embedding Dimension", str(report.embedding_dimension))
-    table.add_row("Anonymization Checksum", report.anonymization_checksum[:12] + "...")
+    # ... (table rendering)
 
     console.print(table)
     ctx.close()

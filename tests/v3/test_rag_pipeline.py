@@ -1,83 +1,75 @@
 import pytest
 from pathlib import Path
+from unittest.mock import MagicMock
 
-# Placeholders for core components
-# from egregora_v3.core.context import Context
-# from egregora_v3.core.config import Settings
+from egregora_v3.core.context import build_context
+from egregora_v3.features.rag.ingest import ingest_source
+from egregora_v3.features.rag.build import build_embeddings
+from egregora_v3.features.rag.query import query_rag
+from egregora_v3.core.db import initialize_database, create_vss_index
 
-# Mocks for external services and data sources
-class MockEmbeddingClient:
-    def embed(self, texts):
-        # Return dummy embeddings of a consistent dimension
-        return [[0.1] * 128 for _ in texts]
-
-class MockVectorStore:
-    def __init__(self):
-        self.vectors = {}
-
-    def upsert(self, vectors):
-        self.vectors.update(vectors)
-
-    def query(self, vector, k):
-        # Dummy query logic
-        return list(self.vectors.keys())[:k]
+# Mock embedding to be returned by the mocked client
+MOCK_EMBEDDING = [0.1] * 768
 
 @pytest.fixture
-def temp_db_path(tmp_path):
-    """Provides a temporary path for the DuckDB database."""
-    return tmp_path / "egregora_v3.duckdb"
+def temp_db_path(tmp_path: Path) -> Path:
+    """Provides a temporary, isolated database path for testing."""
+    return tmp_path / "test_egregora.db"
 
 @pytest.fixture
-def mock_context(temp_db_path):
-    """Provides a mocked application context for testing."""
-    # settings = Settings(db_path=temp_db_path)
-    # context = Context(settings, embedding_client=MockEmbeddingClient(), vector_store=MockVectorStore())
-    # return context
-    pass # Placeholder until Context is implemented
+def mock_gemini_client() -> MagicMock:
+    """Mocks the GeminiEmbeddingClient to avoid actual API calls."""
+    mock_client = MagicMock()
+    mock_client.embed.return_value = [MOCK_EMBEDDING]
+    return mock_client
 
-def test_full_rag_pipeline(mock_context, tmp_path):
+@pytest.fixture
+def test_context(temp_db_path: Path, mock_gemini_client: MagicMock):
     """
-    An end-to-end test of the RAG pipeline: ingest -> build -> query.
+    Creates a test context with a temporary DB and a mocked Gemini client.
     """
-    # 1. Ingest: Create a mock source file and ingest it.
-    source_file = tmp_path / "test_source.md"
-    source_file.write_text("This is a test document for the RAG pipeline.")
+    ctx = build_context(cli_overrides={"db_path": temp_db_path})
+    ctx.embedding_client = mock_gemini_client
 
-    # In a real test, we would call:
-    # mock_context.rag.ingest(source_file)
+    initialize_database(ctx.conn, embedding_dim=ctx.settings.embedding_dim)
+    create_vss_index(ctx.conn, metric=ctx.settings.vss_metric)
 
-    # Assert that data was written to the rag_chunks table in the mock DB.
+    yield ctx
 
-    # 2. Build: Run the build process to embed and index the data.
-    # mock_context.rag.build()
+    ctx.close()
 
-    # Assert that the vector store now contains embeddings.
+@pytest.fixture
+def test_source_file(tmp_path: Path) -> Path:
+    """Creates a dummy source file for ingestion testing."""
+    source_file = tmp_path / "test_doc.md"
+    source_file.write_text("This is a test document about the Egregora project.")
+    return source_file
 
-    # 3. Query: Perform a query and check the results.
-    # hits = mock_context.rag.query("test document", mode="ann", k=1)
-
-    # Assert that we get the expected document chunk back.
-    pass
-
-def test_retrieval_sanity_check(mock_context):
+def test_full_rag_pipeline(test_context, test_source_file: Path):
     """
-    Tests that ANN retrieval is reasonably close to exact search.
+    Tests the full RAG pipeline: ingest -> build -> query.
     """
-    # This test would require a more sophisticated setup with real data
-    # and vector stores that support both exact and approximate search.
+    # 1. Ingest the source file
+    ingest_source(test_context, test_source_file)
 
-    # 1. Ingest and build a dataset.
-    # 2. For a set of queries, run both `mode="exact"` and `mode="ann"`.
-    # 3. Calculate the overlap between the two result sets (e.g., using Jaccard similarity).
-    # 4. Assert that the overlap is above a defined threshold.
-    pass
+    chunk_count = test_context.conn.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
+    assert chunk_count == 1
 
-def test_index_health_validation(mock_context):
-    """
-    Tests that the 'doctor' command correctly validates the VSS index.
-    """
-    # 1. Set up a "healthy" state (run ingest and build).
-    # 2. Run the doctor check and assert it passes.
-    # 3. Introduce a problem (e.g., delete the index file, change embedding dimensions).
-    # 4. Run the doctor check again and assert that it fails with a specific error.
-    pass
+    # 2. Build the embeddings
+    build_embeddings(test_context)
+
+    test_context.embedding_client.embed.assert_called_once()
+
+    vector_count = test_context.conn.execute("SELECT count(*) FROM rag_vectors").fetchone()[0]
+    assert vector_count == 1
+
+    # 3. Query the RAG pipeline
+    query_text = "Tell me about Egregora"
+    hits = query_rag(test_context, query_text)
+
+    assert len(hits) == 1
+    hit = hits[0]
+    assert "This is a test document" in hit.chunk.text
+
+    assert test_context.embedding_client.embed.call_count == 2
+    test_context.embedding_client.embed.assert_called_with([query_text], task_type="retrieval_query")
