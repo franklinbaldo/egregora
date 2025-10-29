@@ -26,7 +26,7 @@ from ibis.expr.types import Table
 
 from .cache import EnrichmentCache, make_enrichment_cache_key
 from .config_types import EnrichmentConfig
-from .gemini_batch import BatchPromptRequest, GeminiBatchClient
+from .gemini_batch import BatchPromptRequest, BatchPromptResult, GeminiBatchClient
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .prompt_templates import (
@@ -617,14 +617,10 @@ def enrich_dataframe(
             for record in _table_to_pylist(url_table)
         ]
 
-        try:
-            responses = text_batch_client.generate_content(
-                requests,
-                display_name="Egregora URL Enrichment",
-            )
-        except Exception as exc:
-            logger.error("URL enrichment batch failed: %s", exc)
-            responses = []
+        responses = text_batch_client.generate_content(
+            requests,
+            display_name="Egregora URL Enrichment",
+        )
 
         result_map = {result.tag: result for result in responses}
         for job in pending_url_jobs:
@@ -645,17 +641,12 @@ def enrich_dataframe(
     if pending_media_jobs:
         media_records = []
         for job in pending_media_jobs:
-            try:
-                uploaded_file = vision_batch_client.upload_file(
-                    path=str(job.file_path),
-                    display_name=job.file_path.name,
-                )
-                job.upload_uri = getattr(uploaded_file, "uri", None)
-                job.mime_type = getattr(uploaded_file, "mime_type", None)
-            except Exception as exc:
-                logger.error("Failed to upload media %s: %s", job.file_path.name, exc)
-                job.markdown = f"[Failed to upload media for enrichment: {job.file_path.name}]"
-                continue
+            uploaded_file = vision_batch_client.upload_file(
+                path=str(job.file_path),
+                display_name=job.file_path.name,
+            )
+            job.upload_uri = getattr(uploaded_file, "uri", None)
+            job.mime_type = getattr(uploaded_file, "mime_type", None)
 
             ts = _ensure_datetime(job.timestamp)
             try:
@@ -682,7 +673,7 @@ def enrich_dataframe(
                 }
             )
 
-        responses = []
+        responses: list[BatchPromptResult] = []
         if media_records:
             media_table = ibis.memtable(media_records)
             records = _table_to_pylist(media_table)
@@ -714,13 +705,10 @@ def enrich_dataframe(
                 )
 
             if requests:
-                try:
-                    responses = vision_batch_client.generate_content(
-                        requests,
-                        display_name="Egregora Media Enrichment",
-                    )
-                except Exception as exc:
-                    logger.error("Media enrichment batch failed: %s", exc)
+                responses = vision_batch_client.generate_content(
+                    requests,
+                    display_name="Egregora Media Enrichment",
+                )
 
         result_map = {result.tag: result for result in responses}
         for job in pending_media_jobs:
