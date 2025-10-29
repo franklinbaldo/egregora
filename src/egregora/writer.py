@@ -12,15 +12,19 @@ Documentation:
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
+import math
+import numbers
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import ibis
-import pandas as pd
+import pyarrow as pa
 import yaml
 from google import genai
 from google.genai import types as genai_types
@@ -87,6 +91,28 @@ def _load_freeform_memory(output_dir: Path) -> str:
         return ""
 
 
+@lru_cache(maxsize=1)
+def _pandas_dataframe_type():
+    """Return the pandas DataFrame type when pandas is available."""
+
+    try:
+        pandas_module = importlib.import_module("pandas")
+    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+        return None
+    return pandas_module.DataFrame  # type: ignore[attr-defined]
+
+
+@lru_cache(maxsize=1)
+def _pandas_na_singleton() -> Any | None:
+    """Return the pandas.NA singleton when pandas is available."""
+
+    try:
+        pandas_module = importlib.import_module("pandas")
+    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+        return None
+    return pandas_module.NA  # type: ignore[attr-defined]
+
+
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
 
@@ -94,11 +120,27 @@ def _stringify_value(value: Any) -> str:
         return value
     if value is None:
         return ""
-    try:
-        if pd.isna(value):  # type: ignore[call-arg]
+    if isinstance(value, pa.Scalar):  # pragma: no branch - defensive conversion
+        if not value.is_valid:
             return ""
-    except TypeError:
-        pass
+        return _stringify_value(value.as_py())
+    pandas_na = _pandas_na_singleton()
+    if pandas_na is not None and value is pandas_na:
+        return ""
+    if value is getattr(pa, "NA", None):
+        return ""
+    if isinstance(value, numbers.Real):
+        try:
+            if math.isnan(value):
+                return ""
+        except TypeError:  # pragma: no cover - Decimal('NaN') and similar types
+            pass
+    else:  # pragma: no branch - defensive guard for exotic numeric types
+        try:
+            if math.isnan(value):
+                return ""
+        except TypeError:
+            pass
     return str(value)
 
 
@@ -114,8 +156,7 @@ def _compute_message_id(row: Any) -> str:
     """Derive a deterministic identifier for a conversation row.
 
     The helper accepts any object exposing ``get`` and ``items`` (for example,
-    :class:`dict` as well as :class:`pandas.Series` produced by
-    ``DataFrame.iterrows()``). Legacy helpers passed both ``(row_index, row)``
+    :class:`dict` as well as mapping-like table rows). Legacy helpers passed both ``(row_index, row)``
     positional arguments, but that form is no longer accepted because the index
     value is ignored during hash computation. The function is private to this
     module, so no downstream backwards compatibility considerations apply.
@@ -193,59 +234,98 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
     return annotations_block
 
 
+def _table_to_records(
+    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Normalize heterogeneous tabular inputs into row dictionaries."""
+
+    if isinstance(data, pa.Table):
+        column_names = [str(name) for name in data.column_names]
+        columns = {
+            name: data.column(index).to_pylist()
+            for index, name in enumerate(column_names)
+        }
+        records = [
+            {name: columns[name][row_index] for name in column_names}
+            for row_index in range(data.num_rows)
+        ]
+        return records, column_names
+
+    dataframe_type = _pandas_dataframe_type()
+    if dataframe_type is not None and isinstance(data, dataframe_type):  # type: ignore[arg-type]
+        column_names = [str(column) for column in data.columns]
+        return data.to_dict("records"), column_names
+
+    if isinstance(data, Iterable):
+        records = [dict(row) for row in data]
+        column_names: list[str] = []
+        for record in records:
+            for key in record:
+                if key not in column_names:
+                    column_names.append(str(key))
+        return records, column_names
+
+    raise TypeError("Unsupported data source for markdown rendering")
+
+
 def _build_conversation_markdown(
-    dataframe: pd.DataFrame, annotations_store: AnnotationStore | None
-) -> tuple[str, pd.DataFrame]:
+    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
+    annotations_store: AnnotationStore | None,
+) -> str:
     """Render conversation rows into markdown with inline annotations."""
 
-    if dataframe.empty:
-        return "", dataframe
+    records, column_order = _table_to_records(data)
+    if not records:
+        return ""
 
-    df = dataframe.copy()
+    rows = [dict(record) for record in records]
 
-    if "msg_id" not in df.columns:
-        msg_ids = [_compute_message_id(row) for row in df.to_dict("records")]
-        df.insert(0, "msg_id", msg_ids)
+    if "msg_id" not in column_order:
+        msg_ids = [_compute_message_id(row) for row in rows]
+        column_order = ["msg_id", *column_order]
+        for row, msg_id in zip(rows, msg_ids, strict=False):
+            row["msg_id"] = msg_id
     else:
-        df["msg_id"] = df["msg_id"].map(_stringify_value)
+        for row in rows:
+            row["msg_id"] = _stringify_value(row.get("msg_id"))
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
-        ordered_ids = list(dict.fromkeys(df["msg_id"].tolist()))
+        ordered_ids = list(dict.fromkeys(row["msg_id"] for row in rows))
         annotations_map = {
             msg_id: annotations_store.list_annotations_for_message(msg_id)
             for msg_id in ordered_ids
         }
 
     message_column = next(
-        (candidate for candidate in ("message", "content", "text") if candidate in df.columns),
+        (candidate for candidate in ("message", "content", "text") if candidate in column_order),
         None,
     )
 
     if message_column:
-        df[message_column] = [
-            _merge_message_and_annotations(value, annotations_map.get(msg_id, []))
-            for value, msg_id in zip(
-                df[message_column].tolist(), df["msg_id"].tolist(), strict=False
+        for row in rows:
+            row[message_column] = _merge_message_and_annotations(
+                row.get(message_column), annotations_map.get(row["msg_id"], [])
             )
-        ]
     elif annotations_map:
-        df["annotations"] = [
-            _format_annotations_for_message(annotations_map.get(msg_id, []))
-            for msg_id in df["msg_id"].tolist()
-        ]
+        for row in rows:
+            row["annotations"] = _format_annotations_for_message(
+                annotations_map.get(row["msg_id"], [])
+            )
+        if "annotations" not in column_order:
+            column_order.append("annotations")
 
-    headers = [str(column) for column in df.columns]
+    headers = [str(column) for column in column_order]
     lines = [
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",
     ]
 
-    for _, row in df.iterrows():
-        cells = [_escape_table_cell(row[column]) for column in headers]
+    for row in rows:
+        cells = [_escape_table_cell(row.get(column)) for column in headers]
         lines.append("| " + " | ".join(cells) + " |")
 
-    return "\n".join(lines), df
+    return "\n".join(lines)
 
 
 logger = logging.getLogger(__name__)
@@ -990,8 +1070,8 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
         logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
 
     active_authors = get_active_authors(df)
-    messages_df = df.execute()
-    markdown_table, _ = _build_conversation_markdown(messages_df, annotations_store)
+    messages_table = df.to_pyarrow()
+    markdown_table = _build_conversation_markdown(messages_table, annotations_store)
 
     # Query RAG and load profiles for context
     rag_context = (
