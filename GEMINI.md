@@ -1,6 +1,6 @@
-# AGENTS.md
+# GEMINI.md
 
-This file provides guidance to the Agent when working with code in this repository.
+This file provides guidance to Gemini when working with code in this repository.
 
 ## Development Commands
 
@@ -53,9 +53,9 @@ black --check src/
 
 ### Delegation Strategy
 
-**IMPORTANT**: Prefer delegating tasks to Jules whenever possible to maximize the Agent's availability for higher-level work.
+**IMPORTANT**: Prefer delegating tasks to Jules whenever possible to maximize Gemini's availability for higher-level work.
 
-### When to Use Jules vs the Agent
+### When to Use Jules vs Gemini
 
 **Use Jules for:**
 - ✅ Code reviews and refactoring
@@ -67,7 +67,7 @@ black --check src/
 - ✅ Iterative improvements to existing PRs
 - ✅ Any task that can run asynchronously
 
-**Use the Agent for:**
+**Use Gemini for:**
 - 🎯 Initial design and architecture decisions
 - 🎯 Complex problem-solving requiring context
 - 🎯 Interactive debugging sessions
@@ -97,7 +97,7 @@ uvx --from requests python .claude/skills/jules-api/jules_client.py create \
 python .claude/skills/jules-api/jules_client.py get <session-id>
 ```
 
-**Or simply ask the Agent:**
+**Or simply ask Gemini:**
 - "Create a Jules session to review this branch"
 - "Ask Jules to add tests for this feature"
 - "Delegate the refactoring to Jules"
@@ -114,7 +114,7 @@ python .claude/skills/jules-api/jules_client.py get <session-id>
 ### Typical Workflow
 
 ```
-The Agent creates initial implementation
+Gemini creates initial implementation
     ↓
 Push to feature branch
     ↓
@@ -126,7 +126,7 @@ Delegate to Jules for:
     ↓
 Jules creates PR with improvements
     ↓
-The Agent reviews Jules' changes
+Gemini reviews Jules' changes
     ↓
 Merge when ready
 ```
@@ -150,12 +150,12 @@ python .claude/skills/jules-api/jules_client.py activities <session-id>
 
 ### Success Pattern from This Repository
 
-1. The Agent created GitHub Actions workflow + Jules API skill
+1. Gemini created GitHub Actions workflow + Jules API skill
 2. Pushed to `feature/claude-code-integrations`
 3. Created Jules session for code review
 4. Jules found P1 auth bug and suggested improvements
-5. The Agent fixed the bug
+5. Gemini fixed the bug
 6. Created new Jules session to verify the fix
 7. Jules validated and enhanced the implementation
 
-**Result**: Better code quality + saved the Agent time for strategic work
+**Result**: Better code quality + saved Gemini time for strategic work
