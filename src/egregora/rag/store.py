@@ -3,8 +3,8 @@
 import logging
 import math
 import uuid
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -435,7 +435,7 @@ class VectorStore:
 
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-    def search(  # noqa: PLR0913
+    def search(  # noqa: PLR0913, PLR0915
         self,
         query_vec: list[float],
         top_k: int = 5,

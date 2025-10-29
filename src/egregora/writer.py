@@ -525,7 +525,7 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-def _query_rag_for_context(
+def _query_rag_for_context(  # noqa: PLR0913
     df: Table,
     batch_client: GeminiBatchClient,
     rag_dir: Path,

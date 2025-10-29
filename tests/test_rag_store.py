@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import duckdb
-
 import ibis
 import pyarrow as pa
 import pytest
