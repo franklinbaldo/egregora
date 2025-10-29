@@ -107,6 +107,8 @@ def site_render():
     """
     Render the static site.
     """
+    # TENET-BREAK(cli)[@franklin][P2][due:2025-12-31]:
+    # tenet=propagate-errors; why=site rendering is an optional, uninstalled feature; exit=feature is fully integrated or removed (#124)
     try:
         from egregora_v3.features.site.render import render_site  # type: ignore
     except ModuleNotFoundError as exc:

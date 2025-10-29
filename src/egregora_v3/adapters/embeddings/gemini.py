@@ -14,6 +14,8 @@ class GeminiEmbeddingClient:
         if api_key:
             genai.configure(api_key=api_key)
 
+    # TENET-BREAK(embeddings)[@franklin][P1][due:2025-11-30]:
+    # tenet=no-defensive; why=Gemini API has inconsistent response schemas; exit=API stabilizes (#123)
     def embed(self, texts: List[str], task_type: str = "retrieval_document") -> List[List[float]]:
         """
         Generates embeddings for a list of texts.

@@ -27,8 +27,8 @@ def import_from_parquet(ctx: Context, parquet_path: Path):
         return
 
     # Ingest each text as a separate document
-    # For simplicity, we'll write each text to a temporary file and ingest it.
-    # A more efficient approach would be to directly ingest the text.
+    # TENET-BREAK(ingestion)[@franklin][P1][due:2025-12-15]:
+    # tenet=clean; why=temporary use of file system for ingestion; exit=refactor to in-memory ingestion (#125)
     temp_dir = Path("/tmp/egregora_import")
     temp_dir.mkdir(exist_ok=True)
 
