@@ -293,18 +293,18 @@ rm my-blog/rankings/rankings.duckdb
 
 ## RAG Issues
 
-### No RAG Database Found
+### No RAG Index Found
 
 **Problem:**
 ```
-FileNotFoundError: rag/vectors.duckdb not found
+FileNotFoundError: rag/chunks.parquet not found
 ```
 
 **Cause:** RAG indexing hasn't run yet
 
 **Solution:**
 ```bash
-# Enable enrichment to build RAG index
+# Enable enrichment to build the Parquet embedding file
 egregora process \
   --zip_file=export.zip \
   --enable_enrichment=True

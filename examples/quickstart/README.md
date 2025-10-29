@@ -63,8 +63,8 @@ my-blog/
 ├── profiles/               # Author profiles
 │   ├── a1b2c3d4.md
 │   └── e5f6g7h8.md
-├── rag/                    # RAG database
-│   └── vectors.duckdb
+├── rag/                    # RAG embeddings (Parquet)
+│   └── chunks.parquet
 └── docs/                   # Site pages
     └── index.md
 ```

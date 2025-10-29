@@ -162,7 +162,7 @@ egregora process whatsapp-export.zip \
 **Output:**
 - `posts/` - Generated blog posts in markdown
 - `profiles/` - Author profiles in markdown
-- `rag/` - RAG vector database (if enrichment enabled)
+- `rag/` - RAG embeddings stored in `chunks.parquet` (if enrichment enabled)
 - `enriched/` - Debug CSV files (if debug mode)
 
 **Environment Variables:**
