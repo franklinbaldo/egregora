@@ -174,8 +174,7 @@ async def enrich_media(
 
     uploaded_file = await call_with_retries(
         upload_fn,
-        path=str(file_path),
-        display_name=file_path.name,
+        file=str(file_path),
     )
 
     parts = [genai_types.Part(text=prompt)]
@@ -187,7 +186,6 @@ async def enrich_media(
                 file_data=genai_types.FileData(
                     file_uri=upload_uri,
                     mime_type=mime_type,
-                    display_name=file_path.name,
                 )
             )
         )
