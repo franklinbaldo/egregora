@@ -191,6 +191,8 @@ async def call_with_retries[**P, T](
         try:
             return await async_fn(*args, **kwargs)
         except _RETRYABLE_EXCEPTIONS as exc:
+            if attempt >= max_attempts:
+                raise
             handled_exc: Exception = exc
         except Exception as exc:  # noqa: BLE001
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
@@ -228,6 +230,8 @@ def call_with_retries_sync(
         try:
             return fn(*args, **kwargs)
         except _RETRYABLE_EXCEPTIONS as exc:
+            if attempt >= max_attempts:
+                raise
             handled_exc: Exception = exc
         except Exception as exc:  # noqa: BLE001
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
