@@ -1,7 +1,10 @@
 """Vector store using DuckDB VSS and Parquet."""
 
 import logging
+import math
 import uuid
+from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +12,7 @@ import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
+import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -16,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 TABLE_NAME = "rag_chunks"
 INDEX_NAME = "rag_chunks_embedding_idx"
+METADATA_TABLE_NAME = "rag_chunks_metadata"
 DEFAULT_ANN_OVERFETCH = 5
+INDEX_META_TABLE = "index_meta"
+DEFAULT_EXACT_INDEX_THRESHOLD = 1_000
 
 
 VECTOR_STORE_SCHEMA = ibis.schema(
@@ -67,6 +74,15 @@ SEARCH_RESULT_SCHEMA = ibis.schema(
 )
 
 
+@dataclass(frozen=True)
+class DatasetMetadata:
+    """Lightweight container for persisted dataset metadata."""
+
+    mtime_ns: int
+    size: int
+    row_count: int
+
+
 class VectorStore:
     """
     Vector store backed by Parquet file.
@@ -80,12 +96,14 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
+        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ):
         """
         Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
+            exact_index_threshold: Maximum row count before switching to ANN indexing
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
@@ -95,9 +113,11 @@ class VectorStore:
             self.conn = duckdb.connect(str(self.index_path))
         else:
             self.conn = connection
+        self.exact_index_threshold = exact_index_threshold
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
+        self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
     def _init_vss(self):
@@ -113,12 +133,22 @@ class VectorStore:
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
 
-        if self._table_synced and not force:
-            return
+        self._ensure_metadata_table()
 
         if not self.parquet_path.exists():
             self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
             self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            self._store_metadata(None)
+            self._table_synced = True
+            return
+
+        stored_metadata = self._get_stored_metadata()
+        current_metadata = self._read_parquet_metadata()
+
+        table_exists = self._duckdb_table_exists(TABLE_NAME)
+        metadata_changed = stored_metadata != current_metadata
+
+        if not force and not metadata_changed and table_exists:
             self._table_synced = True
             return
 
@@ -126,13 +156,89 @@ class VectorStore:
             f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",
             [str(self.parquet_path)],
         )
-        self._rebuild_index()
+        self._store_metadata(current_metadata)
+
+        if force or metadata_changed or not table_exists:
+            self._rebuild_index()
+
         self._table_synced = True
+
+    def _ensure_metadata_table(self) -> None:
+        """Create the internal metadata table when missing."""
+
+        self.conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
+                path TEXT PRIMARY KEY,
+                mtime_ns BIGINT,
+                size BIGINT,
+                row_count BIGINT
+            )
+            """
+        )
+
+    def _get_stored_metadata(self) -> DatasetMetadata | None:
+        """Fetch cached metadata for the backing Parquet file."""
+
+        row = self.conn.execute(
+            f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        ).fetchone()
+        if not row:
+            return None
+
+        return DatasetMetadata(mtime_ns=int(row[0]), size=int(row[1]), row_count=int(row[2]))
+
+    def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
+        """Persist or remove cached metadata for the backing Parquet file."""
+
+        self.conn.execute(
+            f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        )
+
+        if metadata is None:
+            return
+
+        self.conn.execute(
+            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            [
+                str(self.parquet_path),
+                metadata.mtime_ns,
+                metadata.size,
+                metadata.row_count,
+            ],
+        )
+
+    def _read_parquet_metadata(self) -> DatasetMetadata:
+        """Inspect the Parquet file for structural metadata."""
+
+        stats = self.parquet_path.stat()
+        metadata = pq.read_metadata(self.parquet_path)
+        return DatasetMetadata(
+            mtime_ns=int(stats.st_mtime_ns),
+            size=int(stats.st_size),
+            row_count=int(metadata.num_rows),
+        )
+
+    def _duckdb_table_exists(self, table_name: str) -> bool:
+        """Check whether a DuckDB table is materialized in the current database."""
+
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [table_name],
+        ).fetchone()
+        return bool(row and row[0] > 0)
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
 
         self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+        self._ensure_index_meta_table()
         table_present = self.conn.execute(
             """
             SELECT COUNT(*)
@@ -142,18 +248,90 @@ class VectorStore:
             [TABLE_NAME],
         ).fetchone()
         if not table_present or table_present[0] == 0:
+            self._clear_index_meta()
             return
 
         row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()
         if not row or row[0] == 0:
+            self._clear_index_meta()
             return
+
+        row_count = int(row[0])
+        threshold = self.exact_index_threshold
+
+        if row_count <= threshold:
+            logger.info(
+                "Skipping VSS index rebuild: using exact similarity scan (row_count=%d, threshold=%d)",
+                row_count,
+                threshold,
+            )
+            self._upsert_index_meta(mode="exact", row_count=row_count, threshold=threshold, nlist=None)
+            return
+
+        nlist = max(int(math.sqrt(row_count)), 1)
+        logger.info(
+            "Building IVFFLAT VSS index (row_count=%d, threshold=%d, nlist=%d)",
+            row_count,
+            threshold,
+            nlist,
+        )
 
         self.conn.execute(
             f"""
             CREATE INDEX {INDEX_NAME}
             ON {TABLE_NAME}(embedding)
-            USING vss(metric='cosine', storage_type='ivfflat')
+            USING vss(metric='cosine', storage_type='ivfflat', nlist={nlist})
             """
+        )
+        self._upsert_index_meta(mode="ann", row_count=row_count, threshold=threshold, nlist=nlist)
+
+    def _ensure_index_meta_table(self) -> None:
+        """Ensure the metadata table that tracks index parameters exists."""
+
+        self.conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
+                index_name TEXT PRIMARY KEY,
+                mode TEXT NOT NULL,
+                row_count BIGINT NOT NULL,
+                threshold BIGINT NOT NULL,
+                nlist INTEGER,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+    def _upsert_index_meta(
+        self,
+        *,
+        mode: str,
+        row_count: int,
+        threshold: int,
+        nlist: int | None,
+    ) -> None:
+        """Persist the latest index configuration for observability and telemetry."""
+
+        timestamp = datetime.now()
+        self.conn.execute(
+            f"""
+            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(index_name) DO UPDATE SET
+                mode=excluded.mode,
+                row_count=excluded.row_count,
+                threshold=excluded.threshold,
+                nlist=excluded.nlist,
+                updated_at=excluded.updated_at
+            """,
+            [INDEX_NAME, mode, row_count, threshold, nlist, timestamp],
+        )
+
+    def _clear_index_meta(self) -> None:
+        """Remove metadata when the backing table is empty or missing."""
+
+        self.conn.execute(
+            f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?",
+            [INDEX_NAME],
         )
 
     def add(self, chunks_df: Table):
