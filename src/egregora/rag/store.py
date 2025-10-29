@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
+import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 TABLE_NAME = "rag_chunks"
 INDEX_NAME = "rag_chunks_embedding_idx"
+METADATA_TABLE_NAME = "rag_chunks_metadata"
 DEFAULT_ANN_OVERFETCH = 5
 
 
@@ -67,6 +70,15 @@ SEARCH_RESULT_SCHEMA = ibis.schema(
 )
 
 
+@dataclass(frozen=True)
+class DatasetMetadata:
+    """Lightweight container for persisted dataset metadata."""
+
+    mtime_ns: int
+    size: int
+    row_count: int
+
+
 class VectorStore:
     """
     Vector store backed by Parquet file.
@@ -113,12 +125,22 @@ class VectorStore:
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
 
-        if self._table_synced and not force:
-            return
+        self._ensure_metadata_table()
 
         if not self.parquet_path.exists():
             self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
             self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            self._store_metadata(None)
+            self._table_synced = True
+            return
+
+        stored_metadata = self._get_stored_metadata()
+        current_metadata = self._read_parquet_metadata()
+
+        table_exists = self._duckdb_table_exists(TABLE_NAME)
+        metadata_changed = stored_metadata != current_metadata
+
+        if not force and not metadata_changed and table_exists:
             self._table_synced = True
             return
 
@@ -126,8 +148,83 @@ class VectorStore:
             f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",
             [str(self.parquet_path)],
         )
-        self._rebuild_index()
+        self._store_metadata(current_metadata)
+
+        if force or metadata_changed or not table_exists:
+            self._rebuild_index()
+
         self._table_synced = True
+
+    def _ensure_metadata_table(self) -> None:
+        """Create the internal metadata table when missing."""
+
+        self.conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
+                path TEXT PRIMARY KEY,
+                mtime_ns BIGINT,
+                size BIGINT,
+                row_count BIGINT
+            )
+            """
+        )
+
+    def _get_stored_metadata(self) -> DatasetMetadata | None:
+        """Fetch cached metadata for the backing Parquet file."""
+
+        row = self.conn.execute(
+            f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        ).fetchone()
+        if not row:
+            return None
+
+        return DatasetMetadata(mtime_ns=int(row[0]), size=int(row[1]), row_count=int(row[2]))
+
+    def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
+        """Persist or remove cached metadata for the backing Parquet file."""
+
+        self.conn.execute(
+            f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        )
+
+        if metadata is None:
+            return
+
+        self.conn.execute(
+            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            [
+                str(self.parquet_path),
+                metadata.mtime_ns,
+                metadata.size,
+                metadata.row_count,
+            ],
+        )
+
+    def _read_parquet_metadata(self) -> DatasetMetadata:
+        """Inspect the Parquet file for structural metadata."""
+
+        stats = self.parquet_path.stat()
+        metadata = pq.read_metadata(self.parquet_path)
+        return DatasetMetadata(
+            mtime_ns=int(stats.st_mtime_ns),
+            size=int(stats.st_size),
+            row_count=int(metadata.num_rows),
+        )
+
+    def _duckdb_table_exists(self, table_name: str) -> bool:
+        """Check whether a DuckDB table is materialized in the current database."""
+
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [table_name],
+        ).fetchone()
+        return bool(row and row[0] > 0)
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
