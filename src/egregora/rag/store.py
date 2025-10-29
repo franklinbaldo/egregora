@@ -1,6 +1,7 @@
 """Vector store using DuckDB VSS and Parquet."""
 
 import logging
+import math
 import uuid
 from datetime import date, datetime, time, timezone
 from pathlib import Path
@@ -10,6 +11,7 @@ import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
+import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,10 @@ logger = logging.getLogger(__name__)
 
 TABLE_NAME = "rag_chunks"
 INDEX_NAME = "rag_chunks_embedding_idx"
+METADATA_TABLE_NAME = "rag_chunks_metadata"
 DEFAULT_ANN_OVERFETCH = 5
+INDEX_META_TABLE = "index_meta"
+DEFAULT_EXACT_INDEX_THRESHOLD = 1_000
 
 
 class _ConnectionProxy:
@@ -95,6 +100,15 @@ SEARCH_RESULT_SCHEMA = ibis.schema(
 )
 
 
+@dataclass(frozen=True)
+class DatasetMetadata:
+    """Lightweight container for persisted dataset metadata."""
+
+    mtime_ns: int
+    size: int
+    row_count: int
+
+
 class VectorStore:
     """
     Vector store backed by Parquet file.
@@ -108,12 +122,14 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
+        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ):
         """
         Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
+            exact_index_threshold: Maximum row count before switching to ANN indexing
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
@@ -127,6 +143,7 @@ class VectorStore:
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
+        self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
     def _init_vss(self):
@@ -142,12 +159,22 @@ class VectorStore:
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
 
-        if self._table_synced and not force:
-            return
+        self._ensure_metadata_table()
 
         if not self.parquet_path.exists():
             self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
             self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            self._store_metadata(None)
+            self._table_synced = True
+            return
+
+        stored_metadata = self._get_stored_metadata()
+        current_metadata = self._read_parquet_metadata()
+
+        table_exists = self._duckdb_table_exists(TABLE_NAME)
+        metadata_changed = stored_metadata != current_metadata
+
+        if not force and not metadata_changed and table_exists:
             self._table_synced = True
             return
 
@@ -155,13 +182,89 @@ class VectorStore:
             f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",
             [str(self.parquet_path)],
         )
-        self._rebuild_index()
+        self._store_metadata(current_metadata)
+
+        if force or metadata_changed or not table_exists:
+            self._rebuild_index()
+
         self._table_synced = True
+
+    def _ensure_metadata_table(self) -> None:
+        """Create the internal metadata table when missing."""
+
+        self.conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
+                path TEXT PRIMARY KEY,
+                mtime_ns BIGINT,
+                size BIGINT,
+                row_count BIGINT
+            )
+            """
+        )
+
+    def _get_stored_metadata(self) -> DatasetMetadata | None:
+        """Fetch cached metadata for the backing Parquet file."""
+
+        row = self.conn.execute(
+            f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        ).fetchone()
+        if not row:
+            return None
+
+        return DatasetMetadata(mtime_ns=int(row[0]), size=int(row[1]), row_count=int(row[2]))
+
+    def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
+        """Persist or remove cached metadata for the backing Parquet file."""
+
+        self.conn.execute(
+            f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            [str(self.parquet_path)],
+        )
+
+        if metadata is None:
+            return
+
+        self.conn.execute(
+            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            [
+                str(self.parquet_path),
+                metadata.mtime_ns,
+                metadata.size,
+                metadata.row_count,
+            ],
+        )
+
+    def _read_parquet_metadata(self) -> DatasetMetadata:
+        """Inspect the Parquet file for structural metadata."""
+
+        stats = self.parquet_path.stat()
+        metadata = pq.read_metadata(self.parquet_path)
+        return DatasetMetadata(
+            mtime_ns=int(stats.st_mtime_ns),
+            size=int(stats.st_size),
+            row_count=int(metadata.num_rows),
+        )
+
+    def _duckdb_table_exists(self, table_name: str) -> bool:
+        """Check whether a DuckDB table is materialized in the current database."""
+
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [table_name],
+        ).fetchone()
+        return bool(row and row[0] > 0)
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
 
         self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+        self._ensure_index_meta_table()
         table_present = self.conn.execute(
             """
             SELECT COUNT(*)
@@ -171,10 +274,12 @@ class VectorStore:
             [TABLE_NAME],
         ).fetchone()
         if not table_present or table_present[0] == 0:
+            self._clear_index_meta()
             return
 
         row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()
         if not row or row[0] == 0:
+            self._clear_index_meta()
             return
 
         try:
@@ -187,6 +292,39 @@ class VectorStore:
             )
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
             logger.warning("Skipping VSS index rebuild: %s", exc)
+
+    def _upsert_index_meta(
+        self,
+        *,
+        mode: str,
+        row_count: int,
+        threshold: int,
+        nlist: int | None,
+    ) -> None:
+        """Persist the latest index configuration for observability and telemetry."""
+
+        timestamp = datetime.now()
+        self.conn.execute(
+            f"""
+            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(index_name) DO UPDATE SET
+                mode=excluded.mode,
+                row_count=excluded.row_count,
+                threshold=excluded.threshold,
+                nlist=excluded.nlist,
+                updated_at=excluded.updated_at
+            """,
+            [INDEX_NAME, mode, row_count, threshold, nlist, timestamp],
+        )
+
+    def _clear_index_meta(self) -> None:
+        """Remove metadata when the backing table is empty or missing."""
+
+        self.conn.execute(
+            f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?",
+            [INDEX_NAME],
+        )
 
     def add(self, chunks_df: Table):
         """
@@ -220,18 +358,21 @@ class VectorStore:
                 - tags: list[str]
                 - category: str | None
         """
+        self._validate_table_schema(chunks_df, context="new chunks")
+
         chunks_df = self._ensure_local_table(chunks_df)
 
         if self.parquet_path.exists():
             # Read existing and append
             existing_df = self._client.read_parquet(self.parquet_path)
+            self._validate_table_schema(existing_df, context="existing vector store")
             existing_df, chunks_df = self._align_schemas(existing_df, chunks_df)
             combined_df = existing_df.union(chunks_df, distinct=False)
             existing_count = existing_df.count().execute()
             new_count = chunks_df.count().execute()
             logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
         else:
-            combined_df = chunks_df
+            combined_df = self._cast_to_vector_store_schema(chunks_df)
             chunk_count = chunks_df.count().execute()
             logger.info(f"Creating new vector store with {chunk_count} chunks")
 
@@ -244,82 +385,47 @@ class VectorStore:
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
-    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:  # noqa: PLR0912
-        """Ensure both tables share the same schema before unioning."""
+    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+        """Cast both tables to the canonical vector store schema."""
 
-        existing_columns = set(existing_df.columns)
-        new_columns = set(new_df.columns)
-
-        # Backfill new document metadata columns for older stores (posts-only)
-        if "document_type" not in existing_columns:
-            logger.info("Backfilling document_type column on existing vector store")
-            existing_df = existing_df.mutate(document_type=ibis.literal("post"))
-            existing_columns.add("document_type")
-
-        if "document_id" not in existing_columns:
-            logger.info("Backfilling document_id column on existing vector store")
-            document_id_expr = (
-                existing_df.post_slug if "post_slug" in existing_columns else existing_df.chunk_id
-            )
-            existing_df = existing_df.mutate(document_id=document_id_expr)
-            existing_columns.add("document_id")
-
-        # Add nullable media metadata columns when missing
-        for column_name in (
-            "media_uuid",
-            "media_type",
-            "media_path",
-            "original_filename",
-            "message_date",
-            "author_uuid",
-        ):
-            if column_name not in existing_columns and column_name in new_df.schema():
-                dtype = new_df.schema()[column_name]
-                existing_df = existing_df.mutate(**{column_name: ibis.null().cast(dtype)})
-                existing_columns.add(column_name)
-
-        # Ensure new rows still have legacy columns (e.g., authors)
-        legacy_defaults = {}
-        for column_name in existing_columns - new_columns:
-            dtype = existing_df.schema()[column_name]
-            legacy_defaults[column_name] = ibis.null().cast(dtype)
-
-        if legacy_defaults:
-            new_df = new_df.mutate(**legacy_defaults)
-            new_columns.update(legacy_defaults)
-
-        # Add any new columns that only exist on the new rows to the legacy data
-        forward_defaults = {}
-        for column_name in new_columns - existing_columns:
-            dtype = new_df.schema()[column_name]
-            forward_defaults[column_name] = ibis.null().cast(dtype)
-
-        if forward_defaults:
-            existing_df = existing_df.mutate(**forward_defaults)
-            existing_columns.update(forward_defaults)
-
-        # Align column order for deterministic unions
-        ordered_columns = list(dict.fromkeys(list(existing_df.columns) + list(new_df.columns)))
-        existing_df = existing_df.select(ordered_columns)
-        new_df = new_df.select(ordered_columns)
-
-        # Cast to canonical schema types when available
-        existing_casts = {}
-        new_casts = {}
-        for column_name in ordered_columns:
-            if column_name in VECTOR_STORE_SCHEMA:
-                target_type = VECTOR_STORE_SCHEMA[column_name]
-                if existing_df[column_name].type() != target_type:
-                    existing_casts[column_name] = existing_df[column_name].cast(target_type)
-                if new_df[column_name].type() != target_type:
-                    new_casts[column_name] = new_df[column_name].cast(target_type)
-
-        if existing_casts:
-            existing_df = existing_df.mutate(**existing_casts)
-        if new_casts:
-            new_df = new_df.mutate(**new_casts)
+        existing_df = self._cast_to_vector_store_schema(existing_df)
+        new_df = self._cast_to_vector_store_schema(new_df)
 
         return existing_df, new_df
+
+    def _validate_table_schema(self, table: Table, *, context: str) -> None:
+        """Ensure the provided table matches the expected vector store schema."""
+
+        expected_columns = set(VECTOR_STORE_SCHEMA.names)
+        table_columns = set(table.columns)
+
+        missing = sorted(expected_columns - table_columns)
+        unexpected = sorted(table_columns - expected_columns)
+
+        if missing or unexpected:
+            parts = []
+            if missing:
+                parts.append(f"missing columns: {', '.join(missing)}")
+            if unexpected:
+                parts.append(f"unexpected columns: {', '.join(unexpected)}")
+            detail = "; ".join(parts)
+            raise ValueError(
+                f"{context} do not match the vector store schema ({detail})."
+            )
+
+    def _cast_to_vector_store_schema(self, table: Table) -> Table:
+        """Cast the table to the canonical vector store schema ordering and types."""
+
+        casts = {}
+        for column_name, dtype in VECTOR_STORE_SCHEMA.items():
+            column = table[column_name]
+            if column.type() != dtype:
+                casts[column_name] = column.cast(dtype)
+
+        if casts:
+            table = table.mutate(**casts)
+
+        return table.select(VECTOR_STORE_SCHEMA.names)
 
     def search(  # noqa: PLR0913
         self,

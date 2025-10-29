@@ -38,6 +38,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
 
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
     other_backend = ibis.duckdb.connect()
     previous_backend = ibis.get_backend()
@@ -46,32 +47,35 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     try:
         store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
         try:
-            base_rows = [
-                {
-                    "chunk_id": "chunk-1",
-                    "document_type": "post",
-                    "document_id": "doc-1",
-                    "chunk_index": 0,
-                    "content": "hello",
-                    "embedding": [0.0, 1.0],
-                    "tags": ["tag"],
-                }
-            ]
-            first_batch = ibis.memtable(base_rows)
+            first_batch = ibis.memtable(
+                [
+                    _vector_store_row(
+                        store_module,
+                        chunk_id="chunk-1",
+                        document_id="doc-1",
+                        chunk_index=0,
+                        content="hello",
+                        embedding=[0.0, 1.0],
+                        tags=["tag"],
+                    )
+                ],
+                schema=store_module.VECTOR_STORE_SCHEMA,
+            )
             store.add(first_batch)
 
             second_batch = ibis.memtable(
                 [
-                    {
-                        "chunk_id": "chunk-2",
-                        "document_type": "post",
-                        "document_id": "doc-2",
-                        "chunk_index": 0,
-                        "content": "world",
-                        "embedding": [1.0, 0.0],
-                        "tags": ["tag"],
-                    }
-                ]
+                    _vector_store_row(
+                        store_module,
+                        chunk_id="chunk-2",
+                        document_id="doc-2",
+                        chunk_index=0,
+                        content="world",
+                        embedding=[1.0, 0.0],
+                        tags=["tag"],
+                    )
+                ],
+                schema=store_module.VECTOR_STORE_SCHEMA,
             )
             store.add(second_batch)
 
@@ -81,6 +85,57 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
             store.close()
     finally:
         ibis.set_backend(previous_backend)
+
+
+def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
+    """Adding rows must fail fast when the input schema diverges."""
+
+    store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
+
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+
+    try:
+        missing_column_rows = [
+            {
+                "chunk_id": "chunk-1",
+                "content": "hello",
+                "embedding": [0.0, 1.0],
+            }
+        ]
+
+        with pytest.raises(ValueError, match="missing columns"):
+            store.add(ibis.memtable(missing_column_rows))
+
+        valid_rows = [
+            _vector_store_row(
+                store_module,
+                chunk_id="chunk-1",
+                document_id="doc-1",
+                chunk_index=0,
+                content="hello",
+                embedding=[0.0, 1.0],
+                tags=["tag"],
+            )
+        ]
+        store.add(ibis.memtable(valid_rows, schema=store_module.VECTOR_STORE_SCHEMA))
+
+        extra_column_row = _vector_store_row(
+            store_module,
+            chunk_id="chunk-2",
+            document_id="doc-2",
+            chunk_index=0,
+            content="world",
+            embedding=[1.0, 0.0],
+            tags=["tag"],
+        )
+        extra_column_row["extra"] = "value"
+
+        with pytest.raises(ValueError, match="unexpected columns"):
+            store.add(ibis.memtable([extra_column_row]))
+    finally:
+        store.close()
 
 
 def _load_vector_store():
@@ -113,39 +168,45 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 
     try:
         rows = [
-            {
-                "chunk_id": "chunk-1",
-                "document_type": "post",
-                "document_id": "doc-1",
-                "chunk_index": 0,
-                "content": "hello",
-                "embedding": [0.0, 1.0],
-                "tags": ["tag"],
-            }
+            _vector_store_row(
+                store_module,
+                chunk_id="chunk-1",
+                document_id="doc-1",
+                chunk_index=0,
+                content="hello",
+                embedding=[0.0, 1.0],
+                tags=["tag"],
+            )
         ]
         store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
         captured: dict[str, str] = {}
-        original_execute = store.conn.execute
 
-        def _capture_execute(sql: str, params=None):
-            captured["sql"] = sql
-            if "vss_search" in sql:
-                empty = {
-                    name: []
-                    for name in store_module.SEARCH_RESULT_SCHEMA.names
-                }
-                empty["similarity"] = []
+        class _ConnectionProxy:
+            def __init__(self, inner):
+                self._inner = inner
 
-                class _Result:
-                    def arrow(self_inner):
-                        return pa.table(empty)
+            def execute(self, sql: str, params=None):
+                captured["sql"] = sql
+                if "vss_search" in sql:
+                    empty = {
+                        name: []
+                        for name in store_module.SEARCH_RESULT_SCHEMA.names
+                    }
+                    empty["similarity"] = []
 
-                return _Result()
+                    class _Result:
+                        def arrow(self_inner):
+                            return pa.table(empty)
 
-            return original_execute(sql, params)
+                    return _Result()
 
-        monkeypatch.setattr(store.conn, "execute", _capture_execute)
+                return self._inner.execute(sql, params)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        store.conn = _ConnectionProxy(store.conn)
 
         store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann")
         assert "vss_search" in captured["sql"]
