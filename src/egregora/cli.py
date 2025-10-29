@@ -24,14 +24,19 @@ from .ranking.store import RankingStore
 from .site_config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
-configure_logging()
-
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+
+@app.callback()
+def _initialize_cli() -> None:
+    """Configure logging when the CLI is invoked."""
+
+    configure_logging()
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
