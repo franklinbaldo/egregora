@@ -116,6 +116,9 @@ def query_similar_posts(
     top_k: int = 5,
     deduplicate: bool = True,
     output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> Table:
     """
     Find similar previous blog posts for a period's DataFrame.
@@ -132,6 +135,9 @@ def query_similar_posts(
         store: Vector store
         top_k: Number of results to return
         deduplicate: Keep only 1 chunk per post (highest similarity)
+        retrieval_mode: "ann" (default) or "exact" for brute-force search
+        retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
+        retrieval_overfetch: Candidate multiplier for ANN mode before filtering
 
     Returns:
         DataFrame with columns: [post_title, content, similarity, post_date, tags, ...]
@@ -157,6 +163,9 @@ def query_similar_posts(
         query_vec=query_vec,
         top_k=top_k * 3 if deduplicate else top_k,  # Get extras for dedup
         min_similarity=0.7,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
     )
 
     if results.count().execute() == 0:
@@ -387,6 +396,9 @@ def query_media(  # noqa: PLR0913
     *,
     embedding_model: str,
     output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> Table:
     """
     Search for relevant media by description or topic.
@@ -399,6 +411,9 @@ def query_media(  # noqa: PLR0913
         top_k: Number of results to return
         min_similarity: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
+        retrieval_mode: "ann" (default) or "exact" for brute-force search
+        retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
+        retrieval_overfetch: Candidate multiplier for ANN mode before filtering
 
     Returns:
         Ibis Table with columns: [media_uuid, media_type, media_path, content, similarity, ...]
@@ -420,6 +435,9 @@ def query_media(  # noqa: PLR0913
         min_similarity=min_similarity,
         document_type="media",  # Only search media documents
         media_types=media_types,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
     )
 
     result_count = results.count().execute()

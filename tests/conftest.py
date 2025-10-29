@@ -107,6 +107,14 @@ from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
 from egregora.zip_utils import validate_zip_contents
 
+@pytest.fixture(autouse=True)
+def ibis_backend():
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    with use_backend(backend):
+        yield
+    connection.close()
+
 
 @dataclass(slots=True)
 class WhatsAppFixture:

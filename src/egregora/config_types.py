@@ -22,6 +22,9 @@ class ProcessConfig:
     gemini_key: str | None = None
     model: str | None = None
     debug: bool = False
+    retrieval_mode: str = "ann"
+    retrieval_nprobe: int | None = None
+    retrieval_overfetch: int | None = None
 
 
 @dataclass

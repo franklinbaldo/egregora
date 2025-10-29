@@ -62,6 +62,23 @@ uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 
 Open http://localhost:8000 to see your AI-generated blog!
 
+🧩 Runtime Requirements
+
+Egregora ships with DuckDB in its default installation. The RAG retriever relies on the
+[DuckDB VSS extension](https://duckdb.org/docs/extensions/vss.html) to power approximate
+nearest-neighbor search. The first `egregora process` run will attempt to download and load
+this extension automatically. Make sure the machine running the pipeline can reach the DuckDB
+extension repository or preinstall it manually:
+
+```bash
+duckdb -c "INSTALL vss; LOAD vss"
+```
+
+If you are running in an offline or firewalled environment, fall back to exact retrieval with
+`--retrieval-mode exact` until the extension is available. The pytest suite also expects DuckDB
+to be installed; run `uv sync` or `pip install duckdb` before executing `pytest` to avoid the
+guarded skip in `tests/conftest.py`.
+
 🎪 Advanced Features
 
 Rank Your Posts
@@ -185,7 +202,7 @@ uv run ruff check src/
 Architecture Highlights
 
 · Privacy-first: Anonymization happens before AI sees any data
-· DataFrames all the way: Built on Polars for performance
+· DataFrames all the way: Powered by Ibis + DuckDB for performance
 · Functional pipeline: Simple, composable functions over complex agents
 · DuckDB storage: Fast vector operations for RAG and rankings
 
