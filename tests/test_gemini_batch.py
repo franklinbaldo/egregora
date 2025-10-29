@@ -3,8 +3,15 @@ import types
 from types import SimpleNamespace
 
 # Provide minimal google genai stubs when optional dependency is absent.
-if "google" not in sys.modules:
-    google_module = types.ModuleType("google")
+try:  # pragma: no cover - exercised implicitly when dependency is present
+    from google import genai as genai_module  # type: ignore
+    from google.genai import types as genai_types_module  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - simple stub fallback
+    google_module = sys.modules.get("google")
+    if google_module is None:
+        google_module = types.ModuleType("google")
+        sys.modules["google"] = google_module
+
     genai_module = types.ModuleType("google.genai")
     genai_types_module = types.ModuleType("google.genai.types")
 
@@ -22,7 +29,6 @@ if "google" not in sys.modules:
     google_module.genai = genai_module
     genai_module.types = genai_types_module
 
-    sys.modules["google"] = google_module
     sys.modules["google.genai"] = genai_module
     sys.modules["google.genai.types"] = genai_types_module
 
