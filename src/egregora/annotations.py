@@ -9,7 +9,7 @@ from pathlib import Path
 
 import ibis
 
-from .privacy import PrivacyViolationError, validate_newsletter_privacy
+from .privacy import validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
@@ -86,10 +86,7 @@ class AnnotationStore:
         if not sanitized_commentary:
             raise ValueError("my_commentary must not be empty")
 
-        try:
-            validate_newsletter_privacy(sanitized_commentary)
-        except PrivacyViolationError as exc:  # pragma: no cover - defensive path
-            raise ValueError(str(exc)) from exc
+        validate_newsletter_privacy(sanitized_commentary)
 
         created_at = datetime.now(UTC)
 
@@ -195,8 +192,6 @@ class AnnotationStore:
             created_at = created_at_obj.to_pydatetime()
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
-        else:  # pragma: no cover - defensive path for unexpected types
-            created_at = datetime.fromisoformat(str(created_at_obj))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 

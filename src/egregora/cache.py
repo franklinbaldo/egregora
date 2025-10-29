@@ -54,12 +54,6 @@ class EnrichmentCache:
         if self._cache is None:
             return None
         value = self._cache.get(key)
-        if value is None:
-            return None
-        if not isinstance(value, dict):
-            logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
-            self.delete(key)
-            return None
         return value
 
     def store(self, key: str, payload: dict[str, Any]) -> None:

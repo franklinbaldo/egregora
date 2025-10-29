@@ -29,18 +29,10 @@ class Editor:
         Replaces a single line in the document.
         """
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
+            raise ValueError("Version mismatch")
 
         if index not in self.snapshot.lines:
-            return {
-                "ok": False,
-                "reason": "index_out_of_bounds",
-                "max_index": len(self.snapshot.lines) - 1,
-            }
+            raise IndexError("Index out of bounds")
 
         self.snapshot.lines[index] = new
         self.snapshot.version += 1
@@ -51,14 +43,10 @@ class Editor:
         Replaces the entire document content.
         """
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
+            raise ValueError("Version mismatch")
 
         if not content:
-            return {"ok": False, "reason": "content_empty"}
+            raise ValueError("Content cannot be empty")
 
         lines = content.split("\n")
         self.snapshot.lines = {i: line for i, line in enumerate(lines)}
@@ -70,11 +58,7 @@ class Editor:
         Marks the document for the publish queue or holds it.
         """
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
+            raise ValueError("Version mismatch")
 
         # This is a placeholder. In a real implementation, this method would
         # interact with a database or a publishing queue to officially record

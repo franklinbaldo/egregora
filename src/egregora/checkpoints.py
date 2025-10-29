@@ -44,11 +44,7 @@ class CheckpointStore:
         if not path.exists():
             return _default_checkpoint(period)
 
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            logger.warning("Checkpoint file corrupted, resetting: %s", path)
-            return _default_checkpoint(period)
+        data = json.loads(path.read_text(encoding="utf-8"))
 
         # Ensure required keys exist
         data.setdefault("period", period)

@@ -30,8 +30,6 @@ def anonymize_author(author: str) -> str:
 
 def anonymize_mentions(text: str) -> str:
     """Replace WhatsApp mentions (Unicode markers) with UUID5 pseudonyms."""
-    if not text or "\u2068" not in text:
-        return text
 
     def replace_mention(match):
         name = match.group("name")

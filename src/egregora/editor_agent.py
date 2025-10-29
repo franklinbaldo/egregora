@@ -181,31 +181,26 @@ async def _query_rag_tool(
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 
-    try:
-        results = await query_similar_posts(
-            query=query,
-            rag_dir=rag_dir,
-            client=client,
-            model_config=model_config,
-            max_results=max_results,
-        )
+    results = await query_similar_posts(
+        query=query,
+        rag_dir=rag_dir,
+        client=client,
+        model_config=model_config,
+        max_results=max_results,
+    )
 
-        if not results:
-            return f"No relevant results found for: {query}"
+    if not results:
+        return f"No relevant results found for: {query}"
 
-        # Format results for editor
-        formatted = [f"RAG Results for '{query}':\n"]
-        for i, result in enumerate(results, 1):
-            formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
-            formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
-            formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
-            formatted.append("")
+    # Format results for editor
+    formatted = [f"RAG Results for '{query}':\n"]
+    for i, result in enumerate(results, 1):
+        formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
+        formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
+        formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
+        formatted.append("")
 
-        return "\n".join(formatted)
-
-    except Exception as e:
-        logger.error(f"RAG query failed: {e}")
-        return f"RAG query failed: {str(e)}"
+    return "\n".join(formatted)
 
 
 async def _ask_llm_tool(

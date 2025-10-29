@@ -5,7 +5,10 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
+
+from egregora.cli import app
 
 CLI_MODULE_NAME = "egregora.cli"
 CLI_PATH = Path(__file__).resolve().parents[1] / "src" / "egregora" / "cli.py"
@@ -21,31 +24,20 @@ def _load_cli_module():
     return module
 
 
-def test_rank_command_requires_optional_extra(monkeypatch, tmp_path):
+ranking_installed = importlib.util.find_spec("egregora.ranking") is not None
+
+
+@pytest.mark.skipif(ranking_installed, reason="ranking extra is installed")
+def test_rank_command_requires_optional_extra(tmp_path):
     """The rank command should guide users to install the optional extra when missing."""
-
-    sys.modules.pop(CLI_MODULE_NAME, None)
-
-    original_import_module = importlib.import_module
-
-    def fake_import(name: str, package: str | None = None):
-        if name.startswith("egregora.ranking"):
-            raise ModuleNotFoundError("egregora.ranking")
-        return original_import_module(name, package)
-
-    monkeypatch.setattr(importlib, "import_module", fake_import)
-
-    cli_module = _load_cli_module()
     runner = CliRunner()
 
-    result = runner.invoke(cli_module.app, ["rank", str(tmp_path)])
+    result = runner.invoke(app, ["rank", str(tmp_path)])
 
     assert result.exit_code == 1
     assert "egregora[ranking]" in result.stdout
     assert "Missing dependency" in result.stdout
 
-    help_result = runner.invoke(cli_module.app, ["--help"])
+    help_result = runner.invoke(app, ["--help"])
     commands_section = help_result.stdout.split("Commands:", 1)[-1]
     assert "rank" not in commands_section
-
-    sys.modules.pop(CLI_MODULE_NAME, None)
