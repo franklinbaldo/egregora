@@ -33,6 +33,7 @@ _RETRYABLE_EXCEPTIONS = (
     google_api_exceptions.ServiceUnavailable,
     google_api_exceptions.InternalServerError,
     google_api_exceptions.DeadlineExceeded,
+    google_api_exceptions.TooManyRequests,
 )
 
 
