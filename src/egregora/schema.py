@@ -9,7 +9,7 @@ import ibis.expr.datatypes as dt
 from ibis import udf
 from ibis.expr.types import Table
 
-from .ibis_runtime import execute_scalar, memtable
+from .ibis_runtime import execute_scalar
 
 __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
 
@@ -67,7 +67,7 @@ def ensure_message_schema(
     # Handle empty DataFrame
     if execute_scalar(df.count()) == 0:
         # Create empty table with correct schema without relying on backend internals
-        return memtable([], schema=ibis.schema(target_schema))
+        return ibis.memtable([], schema=ibis.schema(target_schema))
 
     # Start with the input table
     result = df

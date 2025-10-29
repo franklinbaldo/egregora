@@ -16,7 +16,6 @@ from .cache import EnrichmentCache
 from .checkpoints import CheckpointStore
 from .enricher import enrich_dataframe, extract_and_replace_media
 from .gemini_batch import GeminiBatchClient
-from .ibis_runtime import use_backend
 from .model_config import ModelConfig, load_site_config
 from .models import WhatsAppExport
 from .parser import extract_commands, filter_egregora_messages, parse_export
@@ -522,24 +521,32 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
 
     connection = duckdb.connect(str(runtime_db_path))
     backend = ibis.duckdb.from_connection(connection)
+    options = getattr(ibis, "options", None)
+    previous_backend = getattr(options, "default_backend", None) if options else None
+
+    if options is not None:
+        options.default_backend = backend
 
     try:
-        with use_backend(backend):
-            return _process_whatsapp_export(
-                zip_path=zip_path,
-                output_dir=output_dir,
-                site_paths=site_paths,
-                period=period,
-                enable_enrichment=enable_enrichment,
-                from_date=from_date,
-                to_date=to_date,
-                timezone=timezone,
-                gemini_api_key=gemini_api_key,
-                model=model,
-                resume=resume,
-                retrieval_mode=retrieval_mode,
-                retrieval_nprobe=retrieval_nprobe,
-                retrieval_overfetch=retrieval_overfetch,
-            )
+        return _process_whatsapp_export(
+            zip_path=zip_path,
+            output_dir=output_dir,
+            site_paths=site_paths,
+            period=period,
+            enable_enrichment=enable_enrichment,
+            from_date=from_date,
+            to_date=to_date,
+            timezone=timezone,
+            gemini_api_key=gemini_api_key,
+            model=model,
+            resume=resume,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
     finally:
-        connection.close()
+        try:
+            if options is not None:
+                options.default_backend = previous_backend
+        finally:
+            connection.close()

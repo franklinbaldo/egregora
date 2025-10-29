@@ -577,7 +577,7 @@ class VectorStore:
         )
 
         try:
-            result_table = self.conn.execute(query, params).arrow()
+            result_table = self.conn.execute(query, params).fetch_arrow_table()
             if result_table.num_rows == 0:
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
 
