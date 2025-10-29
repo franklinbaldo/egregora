@@ -12,6 +12,7 @@ import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
+from ibis.common.exceptions import IbisError
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -445,6 +446,7 @@ class VectorStore:
         return table.select(VECTOR_STORE_SCHEMA.names)
 
 # TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity; exit=refactor to reduce arguments/branches/statements (#N/A)
+# FIXME: split vector search into smaller helpers and pass a typed options object so the public API remains narrow.
     def search(  # noqa: PLR0911, PLR0913, PLR0915
         self,
         query_vec: list[float],
@@ -759,9 +761,6 @@ class VectorStore:
                 try:
                     parsed_date = date.fromisoformat(cleaned)
                 except ValueError as exc:  # pragma: no cover - defensive guard
-# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]:
-# tenet=no-defensive; why=explicit defensive guard for invalid date_after value;
-# exit=ensure upstream validation or type enforcement makes this state impossible, or clarify why it's necessary (#N/A)
                     raise ValueError(f"Invalid date_after value: {value!r}") from exc
                 return datetime.combine(parsed_date, time.min, tzinfo=UTC)
 
@@ -833,10 +832,7 @@ class VectorStore:
 
         try:
             backend = table._find_backend()  # type: ignore[attr-defined]
-# TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]:
-# tenet=no-defensive; why=defensive guard against Ibis internals with broad exception;
-# exit=identify specific Ibis internal exceptions to catch, or remove defensive guard if not truly impossible (#N/A)
-        except Exception:  # pragma: no cover - defensive against Ibis internals
+        except (AttributeError, IbisError):  # pragma: no cover - defensive against missing ibis internals
             backend = None
 
         if backend is self._client:
@@ -912,6 +908,7 @@ class VectorStore:
             }
 
 # TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=no-compat; why=backward compatibility for schema changes; exit=remove old schema handling when no longer needed (#N/A)
+# FIXME: drop support for legacy vector store schemas once all caches are migrated.
         # Check if document_type column exists (for backward compatibility)
         df_executed = df.execute()
         has_doc_type = "document_type" in df_executed.columns

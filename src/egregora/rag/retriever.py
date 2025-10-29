@@ -444,6 +444,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
 
 
 # TENET-BREAK(rag)[@gemini][P1][due:2025-12-31]: tenet=clean; why=function complexity (too many arguments); exit=refactor to reduce number of arguments or group related arguments into a dataclass (#N/A)
+# FIXME: consolidate media query parameters into a typed options object so this wrapper keeps the public surface minimal.
 def query_media(  # noqa: PLR0913
     query: str,
     batch_client: GeminiBatchClient,
