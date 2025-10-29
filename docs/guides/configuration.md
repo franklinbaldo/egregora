@@ -211,6 +211,17 @@ extra:
       - Include participant UUIDs when quoting
 ```
 
+#### writer.enable_memes
+
+Show the meme-generation helper text in the writer system prompt (default: false).
+
+```yaml
+extra:
+  egregora:
+    writer:
+      enable_memes: true
+```
+
 #### enable_rag
 
 Enable RAG enrichment (default: true).
