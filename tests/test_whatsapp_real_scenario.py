@@ -100,6 +100,10 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         model_config,
         enable_rag=True,
         embedding_output_dimensionality=3072,
+        *,
+        retrieval_mode="exact",
+        retrieval_nprobe=None,
+        retrieval_overfetch=None,
     ):
         captured_dates.append(period_key)
         output_dir.mkdir(parents=True, exist_ok=True)
