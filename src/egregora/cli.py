@@ -11,12 +11,11 @@ from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
-from rich.console import Console
-from rich.logging import RichHandler
 from rich.panel import Panel
 
 from .config_types import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
+from .logging_setup import console, configure_logging
 from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
 from .ranking.agent import run_comparison
@@ -25,12 +24,13 @@ from .ranking.store import RankingStore
 from .site_config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
+configure_logging()
+
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
-console = Console()
 logger = logging.getLogger(__name__)
 
 
@@ -92,31 +92,7 @@ def init(
 def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(message)s",
-            handlers=[
-                RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
-            ],
-        )
-    else:
-        root_logger = logging.getLogger()
-        if not root_logger.handlers:
-            handler = RichHandler(
-                console=console,
-                rich_tracebacks=True,
-                show_path=False,
-                markup=True,
-            )
-            handler.setFormatter(logging.Formatter("%(message)s"))
-            root_logger.addHandler(handler)
-        else:
-            for existing_handler in root_logger.handlers:
-                if isinstance(existing_handler, RichHandler):
-                    existing_handler.markup = True
-                    existing_handler.show_time = False
-                    existing_handler.show_path = False
-        root_logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.DEBUG)
 
     # Validate timezone
     timezone_obj = None
@@ -314,11 +290,7 @@ def process(  # noqa: PLR0913
 def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # noqa: PLR0915
     """Run the ranking session with the given configuration."""
     if config.debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(message)s",
-            handlers=[RichHandler(console=console)],
-        )
+        logging.getLogger().setLevel(logging.DEBUG)
 
     site_path = config.site_dir.resolve()
     if not site_path.exists():
