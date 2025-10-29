@@ -21,10 +21,13 @@ class GeminiEmbeddingClient:
         if not texts:
             return []
 
-        # The Gemini API can handle batching internally
-        result = genai.embed_content(
-            model=self.model,
-            content=texts,
-            task_type=task_type
-        )
-        return result['embedding']
+        embeddings: List[List[float]] = []
+        for text in texts:
+            result = genai.embed_content(
+                model=self.model,
+                content=text,
+                task_type=task_type
+            )
+            embeddings.append(result["embedding"])
+
+        return embeddings
