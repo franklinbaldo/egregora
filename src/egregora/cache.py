@@ -51,6 +51,8 @@ class EnrichmentCache:
 
     def load(self, key: str) -> dict[str, Any] | None:
         """Return cached payload when present."""
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if self._cache is None:
             return None
         value = self._cache.get(key)

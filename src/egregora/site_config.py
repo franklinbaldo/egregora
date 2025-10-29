@@ -60,6 +60,8 @@ def find_mkdocs_file(start: Path) -> Path | None:
 def load_mkdocs_config(start: Path) -> tuple[dict[str, Any], Path | None]:
     """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
     mkdocs_path = find_mkdocs_file(start)
+    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if not mkdocs_path:
         logger.debug("mkdocs.yml not found when starting from %s", start)
         return {}, None

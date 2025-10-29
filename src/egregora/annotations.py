@@ -86,6 +86,8 @@ class AnnotationStore:
         if not sanitized_commentary:
             raise ValueError("my_commentary must not be empty")
 
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         try:
             validate_newsletter_privacy(sanitized_commentary)
         except PrivacyViolationError as exc:  # pragma: no cover - defensive path
@@ -195,7 +197,7 @@ class AnnotationStore:
             created_at = created_at_obj.to_pydatetime()
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
-        else:  # pragma: no cover - defensive path for unexpected types
+        else:  # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]: tenet=no-defensive; why=defensive path for unexpected types; exit=remove defensive path
             created_at = datetime.fromisoformat(str(created_at_obj))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)

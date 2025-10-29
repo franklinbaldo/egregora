@@ -21,6 +21,8 @@ from .editor_agent import run_editor_session
 from .logging_setup import configure_logging, console
 from .model_config import ModelConfig
 
+# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
 try:  # pragma: no cover - compatibility with older installations
     from .model_config import load_site_config
 except ImportError:  # pragma: no cover - legacy fallback
@@ -34,6 +36,8 @@ except ImportError:  # pragma: no cover - legacy fallback
         return config.get("extra", {}).get("egregora", {})
 from .pipeline import process_whatsapp_export
 
+# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
 try:  # pragma: no cover - compatibility with older installations
     from .site_config import find_mkdocs_file, resolve_site_paths
 except ImportError:  # pragma: no cover - legacy fallback
@@ -51,6 +55,8 @@ except ImportError:  # pragma: no cover - legacy fallback
             profiles_dir=docs_dir / "profiles",
             rankings_dir=docs_dir / "rankings",
         )
+# TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+# tenet=no-compat; why=compatibility with older installations; exit=remove compatibility
 try:  # pragma: no cover - compatibility with older installations
     from .site_scaffolding import ensure_mkdocs_project
 except ImportError:  # pragma: no cover - legacy fallback

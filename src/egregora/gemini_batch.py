@@ -255,6 +255,8 @@ class GeminiBatchClient:
         timeout: float | None,
     ) -> genai_types.BatchJob:
         """Poll the batch job until it reaches a terminal state."""
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if not job_name:
             raise ValueError("Batch job is missing a name; cannot poll for completion.")
 

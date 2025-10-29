@@ -92,6 +92,8 @@ def ensure_safe_member_size(
 def _ensure_safe_path(member_name: str) -> None:
     path = Path(member_name)
 
+    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if path.is_absolute():
         raise ZipValidationError(f"ZIP member uses absolute path: {member_name}")
 

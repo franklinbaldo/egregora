@@ -38,6 +38,8 @@ def _merge_into_target(source: Path, destination: Path) -> bool:
     for item in source.iterdir():
         target_path = destination / item.name
 
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if item.is_dir():
             if target_path.exists() and target_path.is_file():
                 logger.warning(

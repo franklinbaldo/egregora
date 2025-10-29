@@ -28,6 +28,8 @@ class Editor:
         """
         Replaces a single line in the document.
         """
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,
@@ -50,6 +52,8 @@ class Editor:
         """
         Replaces the entire document content.
         """
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,
@@ -69,6 +73,8 @@ class Editor:
         """
         Marks the document for the publish queue or holds it.
         """
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,

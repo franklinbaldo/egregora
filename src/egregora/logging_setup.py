@@ -22,6 +22,8 @@ def _resolve_level() -> int:
 
     level_name = os.getenv(_LOG_LEVEL_ENV, _DEFAULT_LEVEL_NAME).upper()
     level = getattr(logging, level_name, None)
+    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if isinstance(level, int):
         return level
 

@@ -41,6 +41,8 @@ class CheckpointStore:
     def load(self, period: str) -> dict[str, Any]:
         """Load checkpoint data or return default structure."""
         path = self.path_for_period(period)
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if not path.exists():
             return _default_checkpoint(period)
 

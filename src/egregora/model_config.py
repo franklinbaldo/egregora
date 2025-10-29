@@ -69,6 +69,8 @@ class ModelConfig:
             Model name to use
         """
         # 1. CLI flag (highest priority)
+        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if self.cli_model:
             logger.debug(f"Using CLI model for {model_type}: {self.cli_model}")
             return self.cli_model

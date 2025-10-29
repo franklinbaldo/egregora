@@ -178,6 +178,8 @@ async def _query_rag_tool(
     model_config: ModelConfig,
 ) -> str:
     """RAG search returning formatted context string."""
+    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 

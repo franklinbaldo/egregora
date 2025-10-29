@@ -41,6 +41,8 @@ def write_post(
         ValueError: If required metadata is missing
     """
 
+    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
+    # tenet=no-defensive; why=defensive path; exit=remove defensive path
     required = ["title", "slug", "date"]
     for key in required:
         if key not in metadata:
