@@ -13,7 +13,6 @@ from egregora_v3.features.rag.build import build_embeddings
 from egregora_v3.features.rag.query import query_rag
 from egregora_v3.features.ranking.duel import run_duel
 from egregora_v3.features.ranking.export import export_rankings
-from egregora_v3.features.site.render import render_site
 from egregora_v3.features.importer import import_from_parquet
 
 app = typer.Typer(name="eg3", help="Egregora v3 - Emergent Group Reflection Engine")
@@ -108,9 +107,20 @@ def site_render():
     """
     Render the static site.
     """
+    try:
+        from egregora_v3.features.site.render import render_site  # type: ignore
+    except ModuleNotFoundError as exc:
+        console.print(
+            "[bold red]Site rendering is unavailable:[/] "
+            "missing 'egregora_v3.features.site.render'."
+        )
+        raise typer.Exit(code=1) from exc
+
     ctx = build_context()
-    render_site(ctx)
-    ctx.close()
+    try:
+        render_site(ctx)
+    finally:
+        ctx.close()
 
 @import_app.command("parquet")
 def import_parquet_cmd(in_path: Path = typer.Argument(..., help="Path to the v2 Parquet file.")):

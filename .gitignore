@@ -39,6 +39,7 @@ tests/temp_output/
 # Generated metrics and logs
 metrics/
 *.csv
+!tests/v3/fixtures/*.csv
 # Added by Codex
 .egregora-cache/
 .egregora-cache-*/
