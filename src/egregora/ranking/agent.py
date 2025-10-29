@@ -9,6 +9,7 @@ from google.genai import types as genai_types
 from rich.console import Console
 
 from .elo import calculate_elo_update
+from .genai_utils import call_with_retries_sync
 from .store import RankingStore
 
 console = Console()
@@ -249,7 +250,8 @@ Read these two blog posts and decide which one is better overall.
 
 Use the choose_winner tool to declare the winner."""
 
-    turn1_response = client.models.generate_content(
+    turn1_response = call_with_retries_sync(
+        client.models.generate_content,
         model=model,
         contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn1_prompt)])],
         config=genai_types.GenerateContentConfig(tools=[CHOOSE_WINNER_TOOL]),
@@ -292,7 +294,8 @@ Use the comment_post_A tool to:
 - Write a comment (max 250 chars, markdown supported)
 - Reference existing comments if relevant"""
 
-    turn2_response = client.models.generate_content(
+    turn2_response = call_with_retries_sync(
+        client.models.generate_content,
         model=model,
         contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn2_prompt)])],
         config=genai_types.GenerateContentConfig(tools=[COMMENT_POST_A_TOOL]),
@@ -344,7 +347,8 @@ Use the comment_post_B tool to:
 - Write a comment (max 250 chars, markdown supported)
 - Reference existing comments if relevant"""
 
-    turn3_response = client.models.generate_content(
+    turn3_response = call_with_retries_sync(
+        client.models.generate_content,
         model=model,
         contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=turn3_prompt)])],
         config=genai_types.GenerateContentConfig(tools=[COMMENT_POST_B_TOOL]),

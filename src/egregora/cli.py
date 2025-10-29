@@ -19,6 +19,7 @@ from rich.panel import Panel
 
 from .config_types import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
+from .logging_setup import console, configure_logging
 from .model_config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
 from .site_config import find_mkdocs_file, resolve_site_paths
@@ -29,8 +30,14 @@ app = typer.Typer(
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
-console = Console()
 logger = logging.getLogger(__name__)
+
+
+@app.callback()
+def _initialize_cli() -> None:
+    """Configure logging when the CLI is invoked."""
+
+    configure_logging()
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
@@ -91,31 +98,7 @@ def init(
 def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(message)s",
-            handlers=[
-                RichHandler(console=console, rich_tracebacks=True, show_path=False, markup=True)
-            ],
-        )
-    else:
-        root_logger = logging.getLogger()
-        if not root_logger.handlers:
-            handler = RichHandler(
-                console=console,
-                rich_tracebacks=True,
-                show_path=False,
-                markup=True,
-            )
-            handler.setFormatter(logging.Formatter("%(message)s"))
-            root_logger.addHandler(handler)
-        else:
-            for existing_handler in root_logger.handlers:
-                if isinstance(existing_handler, RichHandler):
-                    existing_handler.markup = True
-                    existing_handler.show_time = False
-                    existing_handler.show_path = False
-        root_logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.DEBUG)
 
     # Validate timezone
     timezone_obj = None
@@ -308,6 +291,153 @@ def process(  # noqa: PLR0913
     )
 
     _validate_and_run_process(config)
+
+
+def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None):  # noqa: PLR0915
+    """Run the ranking session with the given configuration."""
+    if config.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    site_path = config.site_dir.resolve()
+    if not site_path.exists():
+        console.print(f"[red]Site directory not found: {site_path}[/red]")
+        raise typer.Exit(1)
+
+    site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir
+    rankings_dir = site_paths.rankings_dir
+    profiles_dir = site_paths.profiles_dir
+
+    if not posts_dir.exists():
+        console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
+        console.print("Run 'egregora process' first to generate posts")
+        raise typer.Exit(1)
+
+    # Initialize rankings
+    store = RankingStore(rankings_dir)
+    post_files = sorted(posts_dir.glob("**/*.md"))
+    post_ids = [p.stem for p in post_files]
+
+    if not post_ids:
+        console.print("[red]No posts found to rank[/red]")
+        raise typer.Exit(1)
+
+    newly_initialized = store.initialize_ratings(post_ids)
+    if newly_initialized > 0:
+        console.print(f"[green]Initialized {newly_initialized} new posts with ELO 1500[/green]")
+
+    # Get API key
+    api_key = _resolve_gemini_key(gemini_key)
+    if not api_key:
+        console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
+        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
+        raise typer.Exit(1)
+
+    # Load model config
+    site_config = load_site_config(site_path)
+    model_config = ModelConfig(cli_model=config.model, site_config=site_config)
+    ranking_model = model_config.get_model("ranking")
+    logger.info("[blue]⚖️  Ranking model:[/] %s", ranking_model)
+
+    # Run comparisons
+    for i in range(config.comparisons):
+        console.print(
+            Panel(
+                f"[bold cyan]Comparison {i + 1} of {config.comparisons}[/bold cyan]",
+                border_style="cyan",
+            )
+        )
+
+        try:
+            post_a_id, post_b_id = get_posts_to_compare(rankings_dir, strategy=config.strategy)
+            console.print(f"[cyan]Comparing: {post_a_id} vs {post_b_id}[/cyan]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            break
+
+        # Pick random profile
+        profile_files = list(profiles_dir.glob("*.md"))
+        if not profile_files:
+            console.print("[yellow]No profiles found, using default judge[/yellow]")
+            # Create a default profile
+            default_profile = profiles_dir / "judge.md"
+            default_profile.parent.mkdir(parents=True, exist_ok=True)
+            default_profile.write_text(
+                "---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge."
+            )
+            profile_files = [default_profile]
+
+        profile_path = random.choice(profile_files)
+
+        try:
+            run_comparison(
+                site_dir=site_path,
+                post_a_id=post_a_id,
+                post_b_id=post_b_id,
+                profile_path=profile_path,
+                api_key=api_key,
+                model=ranking_model,
+            )
+        except Exception as e:
+            console.print(f"[red]Comparison failed: {e}[/red]")
+            if config.debug:
+                raise
+            continue
+
+    # Export to Parquet if requested
+    if config.export_parquet:
+        store.export_to_parquet()
+        console.print(f"[green]Exported rankings to {rankings_dir}[/green]")
+
+    # Display stats
+    stats = store.stats()
+    console.print(
+        Panel(
+            f"[bold]Ranking Statistics:[/bold]\n"
+            f"• Total posts: {stats['total_posts']}\n"
+            f"• Total comparisons: {stats['total_comparisons']}\n"
+            f"• Avg games per post: {stats['avg_games_per_post']:.1f}\n"
+            f"• Highest ELO: {stats['highest_elo']:.0f}\n"
+            f"• Lowest ELO: {stats['lowest_elo']:.0f}",
+            title="📊 Rankings",
+            border_style="green",
+        )
+    )
+
+
+@app.command()
+def rank(  # noqa: PLR0913
+    site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
+    comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+    strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
+    export_parquet: Annotated[
+        bool, typer.Option(help="Export rankings to Parquet after comparisons")
+    ] = False,
+    gemini_key: Annotated[
+        str | None,
+        typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
+    ] = None,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+):
+    """
+    Run ELO-based ranking comparisons on posts using LLM judge.
+
+    Compares posts pairwise and updates ELO ratings. The LLM impersonates
+    a reader profile and provides detailed comments on each post.
+    """
+    config = RankingCliConfig(
+        site_dir=site_dir,
+        comparisons=comparisons,
+        strategy=strategy,
+        export_parquet=export_parquet,
+        model=model,
+        debug=debug,
+    )
+
+    _run_ranking_session(config, gemini_key)
 
 
 @app.command()

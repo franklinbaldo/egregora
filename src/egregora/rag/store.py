@@ -713,17 +713,22 @@ class VectorStore:
         if isinstance(arrow_object, pa.RecordBatchReader):
             return arrow_object.read_all()
 
-        read_all = getattr(arrow_object, "read_all", None)
-        if callable(read_all):
-            result = read_all()
+        for attr in ("read_all", "to_table", "to_arrow_table"):
+            method = getattr(arrow_object, attr, None)
+            if not callable(method):
+                continue
+
+            result = method()
+            if isinstance(result, pa.RecordBatchReader):
+                return result.read_all()
             if isinstance(result, pa.Table):
                 return result
 
-        to_table = getattr(arrow_object, "to_table", None)
-        if callable(to_table):
-            result = to_table()
-            if isinstance(result, pa.Table):
-                return result
+        to_pydict = getattr(arrow_object, "to_pydict", None)
+        if callable(to_pydict):
+            data = to_pydict()
+            if isinstance(data, dict):
+                return pa.Table.from_pydict(data)
 
         raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
 
