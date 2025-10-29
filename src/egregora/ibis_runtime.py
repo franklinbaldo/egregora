@@ -8,6 +8,7 @@ from threading import RLock
 from typing import Any, TypeVar
 
 import importlib
+import importlib.util
 
 import ibis
 
