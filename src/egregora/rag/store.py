@@ -14,6 +14,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
+from ..config_types import SearchConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -537,6 +539,32 @@ class VectorStore:
 
         order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
 
+        if mode_normalized == "exact":
+            return self._run_exact_search(
+                embedding_dimensionality, where_clause, order_clause, params, min_similarity
+            )
+        else:
+            search_config = SearchConfig(
+                embedding_dimensionality=embedding_dimensionality,
+                where_clause=where_clause,
+                order_clause=order_clause,
+                params=params,
+                min_similarity=min_similarity,
+                top_k=top_k,
+                overfetch=overfetch,
+                nprobe=nprobe,
+            )
+            return self._run_ann_search(search_config)
+
+    def _run_exact_search(
+        self,
+        embedding_dimensionality: int,
+        where_clause: str,
+        order_clause: str,
+        params: list[Any],
+        min_similarity: float,
+    ) -> Table:
+        """Run an exact search."""
         exact_base_query = f"""
             WITH candidates AS (
                 SELECT
@@ -549,18 +577,18 @@ class VectorStore:
             )
             SELECT * FROM candidates
         """
+        query = exact_base_query + where_clause + order_clause
+        try:
+            return self._execute_search_query(query, params, min_similarity)
+        except Exception as exc:  # pragma: no cover - unexpected execution failure
+            logger.error(f"Search failed: {exc}")
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-        if mode_normalized == "exact":
-            query = exact_base_query + where_clause + order_clause
-            try:
-                return self._execute_search_query(query, params, min_similarity)
-            except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error(f"Search failed: {exc}")
-                return self._empty_table(SEARCH_RESULT_SCHEMA)
-
-        fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
-        ann_limit = max(top_k * fetch_factor, top_k + 10)
-        nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
+    def _run_ann_search(self, config: SearchConfig) -> Table:
+        """Run an ANN search with fallback to exact search."""
+        fetch_factor = config.overfetch if config.overfetch and config.overfetch > 1 else DEFAULT_ANN_OVERFETCH
+        ann_limit = max(config.top_k * fetch_factor, config.top_k + 10)
+        nprobe_clause = f", nprobe := {int(config.nprobe)}" if config.nprobe else ""
 
         last_error: Exception | None = None
         for function_name in self._candidate_vss_functions():
@@ -568,12 +596,12 @@ class VectorStore:
                 function_name,
                 ann_limit=ann_limit,
                 nprobe_clause=nprobe_clause,
-                embedding_dimensionality=embedding_dimensionality,
+                embedding_dimensionality=config.embedding_dimensionality,
             )
-            query = base_query + where_clause + order_clause
+            query = base_query + config.where_clause + config.order_clause
 
             try:
-                result = self._execute_search_query(query, params, min_similarity)
+                result = self._execute_search_query(query, config.params, config.min_similarity)
                 self._vss_function = function_name
                 return result
             except duckdb.Error as exc:
@@ -587,14 +615,13 @@ class VectorStore:
 
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
-            try:
-                return self._execute_search_query(
-                    exact_base_query + where_clause + order_clause,
-                    params,
-                    min_similarity,
-                )
-            except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error("Exact fallback search failed: %s", exc)
+            return self._run_exact_search(
+                config.embedding_dimensionality,
+                config.where_clause,
+                config.order_clause,
+                config.params,
+                config.min_similarity,
+            )
 
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
@@ -675,9 +702,37 @@ class VectorStore:
 
         return df
 
+    def _normalize_array_columns(self, data: dict[str, Any], row_count: int):
+        """Normalize array columns to ensure they are present and contain lists."""
+        for column_name in ("tags", "authors"):
+            if column_name not in data:
+                data[column_name] = [[] for _ in range(row_count)]
+            else:
+                data[column_name] = [value or [] for value in data[column_name]]
+
+    def _normalize_optional_columns(self, data: dict[str, Any], row_count: int):
+        """Ensure optional columns are present with None values if missing."""
+        optional_defaults: dict[str, list[Any]] = {}
+        for column_name in (
+            "post_slug",
+            "post_title",
+            "post_date",
+            "media_uuid",
+            "media_type",
+            "media_path",
+            "original_filename",
+            "message_date",
+            "author_uuid",
+            "category",
+        ):
+            if column_name not in data:
+                optional_defaults[column_name] = [None] * row_count
+
+        if optional_defaults:
+            data.update(optional_defaults)
+
     def _prepare_search_results(self, result_table: pa.Table) -> pa.Table:
         """Normalize DuckDB arrow results to match the search schema."""
-
         data = result_table.to_pydict()
         row_count = result_table.num_rows
 
@@ -708,31 +763,8 @@ class VectorStore:
                 document_ids.append(slug or chunk_id)
             data["document_id"] = document_ids
 
-        array_columns = ("tags", "authors")
-        for column_name in array_columns:
-            if column_name not in data:
-                data[column_name] = [[] for _ in range(row_count)]
-            else:
-                data[column_name] = [value or [] for value in data[column_name]]
-
-        optional_defaults: dict[str, list[Any]] = {}
-        for column_name in (
-            "post_slug",
-            "post_title",
-            "post_date",
-            "media_uuid",
-            "media_type",
-            "media_path",
-            "original_filename",
-            "message_date",
-            "author_uuid",
-            "category",
-        ):
-            if column_name not in data:
-                optional_defaults[column_name] = [None] * row_count
-
-        if optional_defaults:
-            data.update(optional_defaults)
+        self._normalize_array_columns(data, row_count)
+        self._normalize_optional_columns(data, row_count)
 
         if "chunk_index" not in data:
             data["chunk_index"] = list(range(row_count))

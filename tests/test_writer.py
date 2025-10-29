@@ -191,6 +191,8 @@ model_config_stub = ModuleType("egregora.model_config")
 
 
 class _StubModelConfig:
+    embedding_output_dimensionality = 768
+
     def get_model(self, name: str) -> str:
         return name
 

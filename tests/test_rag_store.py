@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from datetime import UTC, date, datetime
-from pathlib import Path
 
 import duckdb
 import ibis
 import pyarrow as pa
 import pytest
+
+from egregora.rag import store as store_module
 
 
 def _vector_store_row(store_module, **overrides):
@@ -51,7 +50,6 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
     ibis.set_backend(custom_backend)
 
     try:
-        store_module = _load_vector_store()
         monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
         store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
         try:
@@ -65,7 +63,6 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
 def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     """VectorStore.add must materialize tables built on other backends."""
 
-    store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
@@ -119,7 +116,6 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
 def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
     """Adding rows must fail fast when the input schema diverges."""
 
-    store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
@@ -167,28 +163,9 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
         store.close()
 
 
-def _load_vector_store():
-    """Load the vector store module directly to avoid heavy package imports."""
-
-    module_path = Path(__file__).resolve().parents[1] / "src" / "egregora" / "rag" / "store.py"
-    spec = importlib.util.spec_from_file_location("egregora_rag_store", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load vector store module for testing")
-
-    existing = sys.modules.get("egregora_rag_store")
-    if existing is not None:
-        return existing
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["egregora_rag_store"] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_search_builds_expected_sql(tmp_path, monkeypatch):
     """ANN mode should emit vss_search while exact mode falls back to cosine scans."""
 
-    store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
@@ -249,7 +226,6 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
     """Run an end-to-end ANN query when the VSS extension can be installed."""
 
-    store_module = _load_vector_store()
     connection = duckdb.connect(str(tmp_path / "chunks.duckdb"))
 
     try:
@@ -301,7 +277,6 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
 def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
     """Temporal filters must accept typed inputs and cross-year comparisons."""
 
-    store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 

@@ -74,6 +74,9 @@ class WriterConfig:
     rag_dir: Path
     model_config: ModelConfig | None = None
     enable_rag: bool = True
+    retrieval_mode: str = "ann"
+    retrieval_nprobe: int | None = None
+    retrieval_overfetch: int | None = None
 
 
 @dataclass
@@ -145,3 +148,17 @@ class PostGenerationContext:
     config: WriterConfig
     enable_rag: bool = True
     rag_context: str = ""
+
+
+@dataclass
+class SearchConfig:
+    """Configuration for vector search."""
+
+    embedding_dimensionality: int
+    where_clause: str
+    order_clause: str
+    params: list
+    min_similarity: float
+    top_k: int
+    overfetch: int | None
+    nprobe: int | None

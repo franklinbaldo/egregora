@@ -518,43 +518,22 @@ def detect_media_type(file_path: Path) -> str | None:
     return None
 
 
-
-
-def enrich_dataframe(
+def _collect_enrichment_jobs(
     df: Table,
     media_mapping: dict[str, Path],
-    text_batch_client: GeminiBatchClient,
-    vision_batch_client: GeminiBatchClient,
-    cache: EnrichmentCache,
     docs_dir: Path,
-    posts_dir: Path,
-    model_config: ModelConfig | None = None,
-    enable_url: bool = True,
-    enable_media: bool = True,
-    max_enrichments: int = 50,
-) -> Table:
-    """Add LLM-generated enrichment rows to Table for URLs and media."""
-    if model_config is None:
-        model_config = ModelConfig()
-
-    url_model = model_config.get_model("enricher")
-    vision_model = model_config.get_model("enricher_vision")
-    logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
-    logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
-
-    if df.count().execute() == 0:
-        return df
-
-    rows = df.execute().to_dict("records")
-    new_rows: list[dict[str, Any]] = []
+    enable_url: bool,
+    enable_media: bool,
+    max_enrichments: int,
+) -> tuple[list[UrlEnrichmentJob], list[MediaEnrichmentJob]]:
+    """Identify URL and media enrichment jobs from the dataframe."""
+    url_jobs: list[UrlEnrichmentJob] = []
+    media_jobs: list[MediaEnrichmentJob] = []
     enrichment_count = 0
-    pii_detected_count = 0
-    pii_media_deleted = False
     seen_url_keys: set[str] = set()
     seen_media_keys: set[str] = set()
 
-    url_jobs: list[UrlEnrichmentJob] = []
-    media_jobs: list[MediaEnrichmentJob] = []
+    rows = df.execute().to_dict("records")
 
     for row in rows:
         if enrichment_count >= max_enrichments:
@@ -584,12 +563,6 @@ def enrich_dataframe(
                     path=enrichment_path,
                     tag=f"url:{cache_key}",
                 )
-
-                cache_entry = cache.load(cache_key)
-                if cache_entry:
-                    job.markdown = cache_entry.get("markdown")
-                    job.cached = True
-
                 url_jobs.append(job)
                 seen_url_keys.add(cache_key)
                 enrichment_count += 1
@@ -621,135 +594,174 @@ def enrich_dataframe(
                         tag=f"media:{cache_key}",
                         media_type=media_type,
                     )
-
-                    cache_entry = cache.load(cache_key)
-                    if cache_entry:
-                        job.markdown = cache_entry.get("markdown")
-                        job.cached = True
-
                     media_jobs.append(job)
                     seen_media_keys.add(cache_key)
                     enrichment_count += 1
 
-    pending_url_jobs = [job for job in url_jobs if job.markdown is None]
-    if pending_url_jobs:
-        url_records = []
-        for job in pending_url_jobs:
-            ts = _ensure_datetime(job.timestamp)
-            prompt = render_url_enrichment_detailed_prompt(
-                url=job.url,
-                original_message=job.original_message,
-                sender_uuid=job.sender_uuid,
-                date=ts.strftime("%Y-%m-%d"),
-                time=ts.strftime("%H:%M"),
-            )
-            url_records.append({"tag": job.tag, "prompt": prompt})
+    return url_jobs, media_jobs
 
-        url_table = ibis.memtable(url_records)
-        requests = build_batch_requests(_table_to_pylist(url_table), url_model)
 
-        responses = text_batch_client.generate_content(
-            requests,
-            display_name="Egregora URL Enrichment",
+def _process_url_enrichment_batch(
+    url_jobs: list[UrlEnrichmentJob],
+    text_batch_client: GeminiBatchClient,
+    cache: EnrichmentCache,
+    url_model: str,
+):
+    """Process a batch of URL enrichment jobs."""
+    for job in url_jobs:
+        cache_entry = cache.load(job.key)
+        if cache_entry:
+            job.markdown = cache_entry.get("markdown")
+            job.cached = True
+
+    pending_url_jobs = [job for job in url_jobs if not job.cached]
+    if not pending_url_jobs:
+        return
+
+    url_records = []
+    for job in pending_url_jobs:
+        ts = _ensure_datetime(job.timestamp)
+        prompt = render_url_enrichment_detailed_prompt(
+            url=job.url,
+            original_message=job.original_message,
+            sender_uuid=job.sender_uuid,
+            date=ts.strftime("%Y-%m-%d"),
+            time=ts.strftime("%H:%M"),
+        )
+        url_records.append({"tag": job.tag, "prompt": prompt})
+
+    url_table = ibis.memtable(url_records)
+    requests = build_batch_requests(_table_to_pylist(url_table), url_model)
+
+    responses = text_batch_client.generate_content(
+        requests,
+        display_name="Egregora URL Enrichment",
+    )
+
+    result_map = map_batch_results(responses)
+    for job in pending_url_jobs:
+        result = result_map.get(job.tag)
+        if not result or result.error or not result.response:
+            logger.warning("Failed to enrich URL %s: %s", job.url, result.error if result else "no result")
+            job.markdown = f"[Failed to enrich URL: {job.url}]"
+            continue
+
+        markdown_content = (result.response.text or "").strip()
+        if not markdown_content:
+            markdown_content = f"[No enrichment generated for URL: {job.url}]"
+
+        job.markdown = markdown_content
+        cache.store(job.key, {"markdown": markdown_content, "type": "url"})
+
+
+def _process_media_enrichment_batch(
+    media_jobs: list[MediaEnrichmentJob],
+    vision_batch_client: GeminiBatchClient,
+    cache: EnrichmentCache,
+    docs_dir: Path,
+    vision_model: str,
+) -> tuple[int, bool]:
+    """Process a batch of media enrichment jobs."""
+    pii_detected_count = 0
+    pii_media_deleted = False
+
+    for job in media_jobs:
+        cache_entry = cache.load(job.key)
+        if cache_entry:
+            job.markdown = cache_entry.get("markdown")
+            job.cached = True
+
+    pending_media_jobs = [job for job in media_jobs if not job.cached]
+    if not pending_media_jobs:
+        return 0, False
+
+    media_records = []
+    for job in pending_media_jobs:
+        uploaded_file = vision_batch_client.upload_file(
+            path=str(job.file_path),
+            display_name=job.file_path.name,
+        )
+        job.upload_uri = getattr(uploaded_file, "uri", None)
+        job.mime_type = getattr(uploaded_file, "mime_type", None)
+
+        ts = _ensure_datetime(job.timestamp)
+        try:
+            media_path = job.file_path.relative_to(docs_dir)
+        except ValueError:
+            media_path = job.file_path
+
+        prompt = render_media_enrichment_detailed_prompt(
+            media_type=job.media_type,
+            media_filename=job.file_path.name,
+            media_path=str(media_path),
+            original_message=job.original_message,
+            sender_uuid=job.sender_uuid,
+            date=ts.strftime("%Y-%m-%d"),
+            time=ts.strftime("%H:%M"),
+        )
+        media_records.append(
+            {
+                "tag": job.tag,
+                "prompt": prompt,
+                "file_uri": job.upload_uri,
+                "mime_type": job.mime_type,
+            }
         )
 
-        result_map = map_batch_results(responses)
-        for job in pending_url_jobs:
-            result = result_map.get(job.tag)
-            if not result or result.error or not result.response:
-                logger.warning("Failed to enrich URL %s: %s", job.url, result.error if result else "no result")
-                job.markdown = f"[Failed to enrich URL: {job.url}]"
-                continue
+    responses: list[BatchPromptResult] = []
+    if media_records:
+        media_table = ibis.memtable(media_records)
+        records = _table_to_pylist(media_table)
+        requests = build_batch_requests(records, vision_model, include_file=True)
 
-            markdown_content = (result.response.text or "").strip()
-            if not markdown_content:
-                markdown_content = f"[No enrichment generated for URL: {job.url}]"
-
-            job.markdown = markdown_content
-            cache.store(job.key, {"markdown": markdown_content, "type": "url"})
-
-    pending_media_jobs = [job for job in media_jobs if job.markdown is None]
-    if pending_media_jobs:
-        media_records = []
-        for job in pending_media_jobs:
-            uploaded_file = vision_batch_client.upload_file(
-                path=str(job.file_path),
-                display_name=job.file_path.name,
+        if requests:
+            responses = vision_batch_client.generate_content(
+                requests,
+                display_name="Egregora Media Enrichment",
             )
-            job.upload_uri = getattr(uploaded_file, "uri", None)
-            job.mime_type = getattr(uploaded_file, "mime_type", None)
 
-            ts = _ensure_datetime(job.timestamp)
+    result_map = map_batch_results(responses)
+    for job in pending_media_jobs:
+        result = result_map.get(job.tag)
+        if not result or result.error or not result.response:
+            logger.warning(
+                "Failed to enrich media %s: %s",
+                job.file_path.name,
+                result.error if result else "no result",
+            )
+            job.markdown = f"[Failed to enrich media: {job.file_path.name}]"
+            continue
+
+        markdown_content = (result.response.text or "").strip()
+        if not markdown_content:
+            markdown_content = f"[No enrichment generated for media: {job.file_path.name}]"
+
+        if "PII_DETECTED" in markdown_content:
+            logger.warning(
+                "PII detected in media: %s. Media will be deleted after redaction.",
+                job.file_path.name,
+            )
+            markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
             try:
-                media_path = job.file_path.relative_to(docs_dir)
-            except ValueError:
-                media_path = job.file_path
+                job.file_path.unlink()
+                logger.info("Deleted media file containing PII: %s", job.file_path)
+                pii_media_deleted = True
+                pii_detected_count += 1
+            except Exception as delete_error:
+                logger.error("Failed to delete %s: %s", job.file_path, delete_error)
 
-            prompt = render_media_enrichment_detailed_prompt(
-                media_type=job.media_type,
-                media_filename=job.file_path.name,
-                media_path=str(media_path),
-                original_message=job.original_message,
-                sender_uuid=job.sender_uuid,
-                date=ts.strftime("%Y-%m-%d"),
-                time=ts.strftime("%H:%M"),
-            )
-            media_records.append(
-                {
-                    "tag": job.tag,
-                    "prompt": prompt,
-                    "file_uri": job.upload_uri,
-                    "mime_type": job.mime_type,
-                }
-            )
+        job.markdown = markdown_content
+        cache.store(job.key, {"markdown": markdown_content, "type": "media"})
 
-        responses: list[BatchPromptResult] = []
-        if media_records:
-            media_table = ibis.memtable(media_records)
-            records = _table_to_pylist(media_table)
-            requests = build_batch_requests(records, vision_model, include_file=True)
+    return pii_detected_count, pii_media_deleted
 
-            if requests:
-                responses = vision_batch_client.generate_content(
-                    requests,
-                    display_name="Egregora Media Enrichment",
-                )
 
-        result_map = map_batch_results(responses)
-        for job in pending_media_jobs:
-            if job.markdown is not None:
-                continue
-
-            result = result_map.get(job.tag)
-            if not result or result.error or not result.response:
-                logger.warning(
-                    "Failed to enrich media %s: %s",
-                    job.file_path.name,
-                    result.error if result else "no result",
-                )
-                job.markdown = f"[Failed to enrich media: {job.file_path.name}]"
-                continue
-
-            markdown_content = (result.response.text or "").strip()
-            if not markdown_content:
-                markdown_content = f"[No enrichment generated for media: {job.file_path.name}]"
-
-            if "PII_DETECTED" in markdown_content:
-                logger.warning(
-                    "PII detected in media: %s. Media will be deleted after redaction.",
-                    job.file_path.name,
-                )
-                markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
-                try:
-                    job.file_path.unlink()
-                    logger.info("Deleted media file containing PII: %s", job.file_path)
-                    pii_media_deleted = True
-                    pii_detected_count += 1
-                except Exception as delete_error:
-                    logger.error("Failed to delete %s: %s", job.file_path, delete_error)
-
-            job.markdown = markdown_content
-            cache.store(job.key, {"markdown": markdown_content, "type": "media"})
+def _create_enrichment_rows(
+    url_jobs: list[UrlEnrichmentJob],
+    media_jobs: list[MediaEnrichmentJob],
+) -> list[dict[str, Any]]:
+    """Create new dataframe rows from completed enrichment jobs."""
+    new_rows: list[dict[str, Any]] = []
 
     for job in url_jobs:
         if not job.markdown:
@@ -788,6 +800,46 @@ def enrich_dataframe(
                 "tagged_line": "",
             }
         )
+
+    return new_rows
+
+
+def enrich_dataframe(
+    df: Table,
+    media_mapping: dict[str, Path],
+    text_batch_client: GeminiBatchClient,
+    vision_batch_client: GeminiBatchClient,
+    cache: EnrichmentCache,
+    docs_dir: Path,
+    posts_dir: Path,
+    model_config: ModelConfig | None = None,
+    enable_url: bool = True,
+    enable_media: bool = True,
+    max_enrichments: int = 50,
+) -> Table:
+    """Add LLM-generated enrichment rows to Table for URLs and media."""
+    if model_config is None:
+        model_config = ModelConfig()
+
+    url_model = model_config.get_model("enricher")
+    vision_model = model_config.get_model("enricher_vision")
+    logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
+    logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
+
+    if df.count().execute() == 0:
+        return df
+
+    url_jobs, media_jobs = _collect_enrichment_jobs(
+        df, media_mapping, docs_dir, enable_url, enable_media, max_enrichments
+    )
+
+    _process_url_enrichment_batch(url_jobs, text_batch_client, cache, url_model)
+
+    pii_detected_count, pii_media_deleted = _process_media_enrichment_batch(
+        media_jobs, vision_batch_client, cache, docs_dir, vision_model
+    )
+
+    new_rows = _create_enrichment_rows(url_jobs, media_jobs)
 
     if pii_media_deleted:
         @ibis.udf.scalar.python

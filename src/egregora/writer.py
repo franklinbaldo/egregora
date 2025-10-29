@@ -31,6 +31,7 @@ from ibis.expr.types import Table
 from pydantic import BaseModel
 
 from .annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
+from .config_types import WriterConfig
 from .gemini_batch import GeminiBatchClient
 from .genai_utils import call_with_retries_sync
 from .model_config import ModelConfig
@@ -909,6 +910,24 @@ def _process_tool_calls(  # noqa: PLR0913
     if not candidate or not candidate.content or not candidate.content.parts:
         return False, [], []
 
+    tool_handlers = {
+        "write_post": lambda args, call: _handle_write_post_tool(args, call, output_dir, saved_posts),
+        "read_profile": lambda args, call: _handle_read_profile_tool(args, call, profiles_dir),
+        "write_profile": lambda args, call: _handle_write_profile_tool(args, call, profiles_dir, saved_profiles),
+        "search_media": lambda args, call: _handle_search_media_tool(
+            args,
+            call,
+            batch_client,
+            rag_dir,
+            embedding_model=embedding_model,
+            embedding_output_dimensionality=embedding_output_dimensionality,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        ),
+        "annotate_conversation": lambda args, call: _handle_annotate_conversation_tool(args, call, annotations_store),
+    }
+
     for part in candidate.content.parts:
         function_call = getattr(part, "function_call", None)
 
@@ -919,33 +938,10 @@ def _process_tool_calls(  # noqa: PLR0913
             fn_args = fn_call.args or {}
 
             try:
-                if fn_name == "write_post":
-                    tool_responses.append(
-                        _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
-                    )
-                elif fn_name == "read_profile":
-                    tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
-                elif fn_name == "write_profile":
-                    tool_responses.append(
-                        _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
-                    )
-                elif fn_name == "search_media":
-                    response = _handle_search_media_tool(
-                        fn_args,
-                        fn_call,
-                        batch_client,
-                        rag_dir,
-                        embedding_model=embedding_model,
-                        embedding_output_dimensionality=embedding_output_dimensionality,
-                        retrieval_mode=retrieval_mode,
-                        retrieval_nprobe=retrieval_nprobe,
-                        retrieval_overfetch=retrieval_overfetch,
-                    )
-                    tool_responses.append(response)
-                elif fn_name == "annotate_conversation":
-                    tool_responses.append(
-                        _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
-                    )
+                if handler := tool_handlers.get(fn_name):
+                    tool_responses.append(handler(fn_args, fn_call))
+                else:
+                    logger.warning(f"Unknown tool call: {fn_name}")
             except ValueError as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
@@ -982,6 +978,152 @@ def _index_posts_in_rag(
         logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
     except Exception as e:
         logger.error(f"Failed to index posts in RAG: {e}")
+
+
+def _prepare_writer_prompt(
+    df: Table,
+    date: str,
+    batch_client: GeminiBatchClient,
+    config: WriterConfig,
+) -> str:
+    """Prepare the writer prompt with all necessary context."""
+    embedding_model = config.model_config.get_model("embedding")
+
+    annotations_store: AnnotationStore | None = None
+    try:
+        annotations_path = (config.posts_dir.parent / "annotations.duckdb").resolve()
+        annotations_store = AnnotationStore(annotations_path)
+    except Exception as exc:  # pragma: no cover - defensive path
+        logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
+
+    active_authors = get_active_authors(df)
+    messages_table = df.to_pyarrow()
+    markdown_table = _build_conversation_markdown(messages_table, annotations_store)
+
+    rag_context = (
+        _query_rag_for_context(
+            df,
+            batch_client,
+            config.rag_dir,
+            embedding_model=embedding_model,
+            embedding_output_dimensionality=config.model_config.embedding_output_dimensionality,
+            retrieval_mode=config.retrieval_mode,
+            retrieval_nprobe=config.retrieval_nprobe,
+            retrieval_overfetch=config.retrieval_overfetch,
+        )
+        if config.enable_rag
+        else ""
+    )
+    profiles_context = _load_profiles_context(df, config.profiles_dir)
+
+    freeform_memory = _load_freeform_memory(config.posts_dir)
+
+    site_config = load_site_config(config.posts_dir)
+    custom_writer_prompt = site_config.get("writer_prompt", "")
+    meme_help_enabled = _memes_enabled(site_config)
+    markdown_extensions_yaml = load_markdown_extensions(config.posts_dir)
+
+    markdown_features_section = ""
+    if markdown_extensions_yaml:
+        markdown_features_section = f"""
+## Available Markdown Features
+
+This MkDocs site has the following extensions configured:
+
+```yaml
+{markdown_extensions_yaml}```
+
+Use these features appropriately in your posts. You understand how each extension works.
+"""
+
+    return render_writer_prompt(
+        date=date,
+        markdown_table=markdown_table,
+        active_authors=", ".join(active_authors),
+        custom_instructions=custom_writer_prompt or "",
+        markdown_features=markdown_features_section,
+        profiles_context=profiles_context,
+        rag_context=rag_context,
+        freeform_memory=freeform_memory,
+        enable_memes=meme_help_enabled,
+    )
+
+
+def _run_writer_conversation(
+    prompt: str,
+    date: str,
+    client: genai.Client,
+    batch_client: GeminiBatchClient,
+    config: WriterConfig,
+) -> dict[str, list[str]]:
+    """Run the multi-turn conversation with the writer model."""
+    genai_config = genai_types.GenerateContentConfig(
+        tools=_writer_tools(),
+        temperature=0.7,
+    )
+    messages: list[genai_types.Content] = [
+        genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
+    ]
+    saved_posts: list[str] = []
+    saved_profiles: list[str] = []
+
+    annotations_store: AnnotationStore | None = None
+    try:
+        annotations_path = (config.posts_dir.parent / "annotations.duckdb").resolve()
+        annotations_store = AnnotationStore(annotations_path)
+    except Exception as exc:  # pragma: no cover - defensive path
+        logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
+
+    for _ in range(MAX_CONVERSATION_TURNS):
+        try:
+            response = call_with_retries_sync(
+                client.models.generate_content,
+                model=config.model_config.get_model("writer"),
+                contents=messages,
+                config=genai_config,
+            )
+        except Exception as exc:
+            logger.error("Writer generation failed: %s", exc)
+            raise
+
+        if not response or not response.candidates:
+            logger.warning("No candidates in response, ending conversation")
+            break
+
+        candidate = response.candidates[0]
+
+        has_tool_calls, tool_responses, freeform_parts = _process_tool_calls(
+            candidate,
+            config.posts_dir,
+            config.profiles_dir,
+            saved_posts,
+            saved_profiles,
+            client,
+            batch_client,
+            config.rag_dir,
+            annotations_store,
+            embedding_model=config.model_config.get_model("embedding"),
+            embedding_output_dimensionality=config.model_config.embedding_output_dimensionality,
+            retrieval_mode=config.retrieval_mode,
+            retrieval_nprobe=config.retrieval_nprobe,
+            retrieval_overfetch=config.retrieval_overfetch,
+        )
+
+        if not has_tool_calls:
+            if freeform_parts:
+                freeform_content = "\n\n".join(
+                    part.strip() for part in freeform_parts if part and part.strip()
+                )
+                if freeform_content:
+                    freeform_path = _write_freeform_markdown(freeform_content, date, config.posts_dir)
+                    saved_posts.append(str(freeform_path))
+            break
+
+        if candidate.content:
+            messages.append(candidate.content)
+        messages.extend(tool_responses)
+
+    return {"posts": saved_posts, "profiles": saved_profiles}
 
 
 def write_posts_for_period(  # noqa: PLR0913, PLR0915
@@ -1032,147 +1174,44 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     # Setup
     if model_config is None:
         model_config = ModelConfig()
-    model = model_config.get_model("writer")
-    embedding_model = model_config.get_model("embedding")
-    logger.info("[blue]🧠 Writer model:[/] %s", model)
-    logger.info("[blue]📚 Embedding model:[/] %s", embedding_model)
 
-    annotations_store: AnnotationStore | None = None
-    try:
-        annotations_path = (output_dir.parent / "annotations.duckdb").resolve()
-        annotations_store = AnnotationStore(annotations_path)
-    except Exception as exc:  # pragma: no cover - defensive path
-        logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
+    logger.info("[blue]🧠 Writer model:[/] %s", model_config.get_model("writer"))
+    logger.info("[blue]📚 Embedding model:[/] %s", model_config.get_model("embedding"))
 
-    active_authors = get_active_authors(df)
-    messages_table = df.to_pyarrow()
-    markdown_table = _build_conversation_markdown(messages_table, annotations_store)
-
-    # Query RAG and load profiles for context
-    rag_context = (
-        _query_rag_for_context(
-            df,
-            batch_client,
-            rag_dir,
-            embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-        if enable_rag
-        else ""
-    )
-    profiles_context = _load_profiles_context(df, profiles_dir)
-
-    # Load previous freeform memo (only persisted memory between periods)
-    freeform_memory = _load_freeform_memory(output_dir)
-
-    # Load site config and markdown extensions
-    site_config = load_site_config(output_dir)
-    custom_writer_prompt = site_config.get("writer_prompt", "")
-    meme_help_enabled = _memes_enabled(site_config)
-    markdown_extensions_yaml = load_markdown_extensions(output_dir)
-
-    markdown_features_section = ""
-    if markdown_extensions_yaml:
-        markdown_features_section = f"""
-## Available Markdown Features
-
-This MkDocs site has the following extensions configured:
-
-```yaml
-{markdown_extensions_yaml}```
-
-Use these features appropriately in your posts. You understand how each extension works.
-"""
-
-    # Build prompt
-    prompt = render_writer_prompt(
-        date=date,
-        markdown_table=markdown_table,
-        active_authors=", ".join(active_authors),
-        custom_instructions=custom_writer_prompt or "",
-        markdown_features=markdown_features_section,
-        profiles_context=profiles_context,
-        rag_context=rag_context,
-        freeform_memory=freeform_memory,
-        enable_memes=meme_help_enabled,
+    config = WriterConfig(
+        posts_dir=output_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        model_config=model_config,
+        enable_rag=enable_rag,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
     )
 
-    # Setup conversation
-    config = genai_types.GenerateContentConfig(
-        tools=_writer_tools(),
-        temperature=0.7,
+    prompt = _prepare_writer_prompt(
+        df,
+        date,
+        batch_client,
+        config,
     )
-    messages: list[genai_types.Content] = [
-        genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
-    ]
-    saved_posts: list[str] = []
-    saved_profiles: list[str] = []
 
-    # Conversation loop
-    for _ in range(MAX_CONVERSATION_TURNS):
-        try:
-            response = call_with_retries_sync(
-                client.models.generate_content,
-                model=model,
-                contents=messages,
-                config=config,
-            )
-        except Exception as exc:
-            logger.error("Writer generation failed: %s", exc)
-            raise
-
-        # Check for valid response
-        if not response or not response.candidates:
-            logger.warning("No candidates in response, ending conversation")
-            break
-
-        candidate = response.candidates[0]
-
-        # Process tool calls
-        has_tool_calls, tool_responses, freeform_parts = _process_tool_calls(
-            candidate,
-            output_dir,
-            profiles_dir,
-            saved_posts,
-            saved_profiles,
-            client,
-            batch_client,
-            rag_dir,
-            annotations_store,
-            embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-
-        # Exit if no more tools to call
-        if not has_tool_calls:
-            if freeform_parts:
-                freeform_content = "\n\n".join(
-                    part.strip() for part in freeform_parts if part and part.strip()
-                )
-                if freeform_content:
-                    freeform_path = _write_freeform_markdown(freeform_content, date, output_dir)
-                    saved_posts.append(str(freeform_path))
-            break
-
-        # Continue conversation
-        if candidate.content:
-            messages.append(candidate.content)
-        messages.extend(tool_responses)
+    result = _run_writer_conversation(
+        prompt,
+        date,
+        client,
+        batch_client,
+        config,
+    )
 
     # Index new posts in RAG
     if enable_rag:
         _index_posts_in_rag(
-            saved_posts,
+            result["posts"],
             batch_client,
             rag_dir,
-            embedding_model=embedding_model,
+            embedding_model=model_config.get_model("embedding"),
             embedding_output_dimensionality=embedding_output_dimensionality,
         )
 
-    return {"posts": saved_posts, "profiles": saved_profiles}
+    return result
