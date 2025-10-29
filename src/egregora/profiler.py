@@ -87,7 +87,12 @@ def get_active_authors(df: Any) -> list[str]:
         arrow_table = df.select("author").distinct().to_pyarrow()
     except AttributeError:  # pragma: no cover - fallback for non-ibis tables
         result = df.select("author").distinct().execute()
-        if hasattr(result, "tolist"):
+        if hasattr(result, "columns"):
+            if "author" in result.columns:
+                authors = result["author"].tolist()
+            else:  # pragma: no cover - defensive path for misnamed columns
+                authors = result.iloc[:, 0].tolist()
+        elif hasattr(result, "tolist"):
             authors = list(result.tolist())
         else:  # pragma: no cover - defensive path
             authors = list(result)
