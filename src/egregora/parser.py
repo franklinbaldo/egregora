@@ -182,6 +182,15 @@ def filter_egregora_messages(df: Table) -> tuple[Table, int]:
     filtered_df = df.filter(~df.message.lower().startswith("/egregora"))
 
     removed_count = total_messages - int(filtered_df.count().execute())
+    if int(df.count().execute()) == 0:
+        return df, 0
+
+    original_count = int(df.count().execute())
+
+    # Filter out messages starting with /egregora (case-insensitive)
+    filtered_df = df.filter(~df.message.lower().startswith("/egregora"))
+
+    removed_count = original_count - int(filtered_df.count().execute())
 
     if removed_count > 0:
         logger.info(f"Removed {removed_count} /egregora messages from DataFrame")

@@ -571,6 +571,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             console.print(
                 "[red]Ranking commands require the optional extra: "
                 f"{escape("pip install 'egregora[ranking]'")}[/red]"
+                "pip install 'egregora[ranking]'[/red]"
             )
             console.print(f"[yellow]Missing dependency: {missing}[/yellow]")
             raise typer.Exit(1)
