@@ -1,5 +1,0 @@
-This is a test message.
-Here's a mention to b07ac1f4.
-And another one to 957cf4d6.
-This message is from Franklin.
-This one is from Jane Doe.
