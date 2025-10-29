@@ -100,10 +100,18 @@ def get_active_authors(df: Any) -> list[str]:
             authors = list(column)
 
     # Filter out system and enrichment entries
-    return [author for author in authors if author not in ("system", "egregora", None, "")]
+    filtered_authors: list[str] = []
+    for author in authors:
+        if author is None or author == "":
+            continue
+        if author in ("system", "egregora"):
+            continue
+        filtered_authors.append(author)
+
+    return filtered_authors
 
 
-def _validate_alias(alias: str) -> str | None:
+def _validate_alias(alias: str | None) -> str | None:
     """
     Validate and sanitize alias input.
 
@@ -113,11 +121,16 @@ def _validate_alias(alias: str) -> str | None:
     Returns:
         Sanitized alias or None if invalid
     """
+    if alias is None:
+        return None
+
+    alias = alias.strip()
+
     if not alias:
         return None
 
     # Strip whitespace and quotes
-    alias = alias.strip().strip("\"'")
+    alias = alias.strip("\"'")
 
     # Length check (1-MAX_ALIAS_LENGTH characters)
     if not (1 <= len(alias) <= MAX_ALIAS_LENGTH):
@@ -145,7 +158,7 @@ def _validate_alias(alias: str) -> str | None:
 
 def apply_command_to_profile(
     author_uuid: str,
-    command: dict,
+    command: dict[str, Any],
     timestamp: str,
     profiles_dir: Path = Path("output/profiles"),
 ) -> str:
