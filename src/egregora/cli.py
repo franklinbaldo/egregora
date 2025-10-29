@@ -1,5 +1,6 @@
 """Typer-based CLI for Egregora v2."""
 
+import asyncio
 import logging
 import os
 import random
@@ -127,6 +128,27 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
             console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
             raise typer.Exit(1) from e
 
+    retrieval_mode = (config.retrieval_mode or "ann").lower()
+    if retrieval_mode not in {"ann", "exact"}:
+        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
+        raise typer.Exit(1)
+
+    if retrieval_mode == "exact" and config.retrieval_nprobe:
+        console.print(
+            "[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]"
+        )
+        config.retrieval_nprobe = None
+
+    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
+        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
+        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    config.retrieval_mode = retrieval_mode
+
     # Parse dates
     from_date_obj = config.from_date
     to_date_obj = config.to_date
@@ -187,6 +209,9 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
             to_date=to_date_obj,
             timezone=timezone_obj,
             model=config.model,
+            retrieval_mode=config.retrieval_mode,
+            retrieval_nprobe=config.retrieval_nprobe,
+            retrieval_overfetch=config.retrieval_overfetch,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
@@ -221,6 +246,21 @@ def process(  # noqa: PLR0913
     ] = None,
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
+    ] = None,
+    retrieval_mode: Annotated[
+        str,
+        typer.Option(
+            help="Retrieval strategy: 'ann' (default) or 'exact'",
+            case_sensitive=False,
+        ),
+    ] = "ann",
+    retrieval_nprobe: Annotated[
+        int | None,
+        typer.Option(help="Advanced: override DuckDB VSS nprobe for ANN retrieval"),
+    ] = None,
+    retrieval_overfetch: Annotated[
+        int | None,
+        typer.Option(help="Advanced: multiply ANN candidate pool before filtering"),
     ] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
@@ -262,6 +302,9 @@ def process(  # noqa: PLR0913
         timezone=timezone,
         gemini_key=gemini_key,
         model=model,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
         debug=debug,
     )
 

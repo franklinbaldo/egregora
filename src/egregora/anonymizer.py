@@ -15,6 +15,8 @@ import uuid
 import ibis
 from ibis.expr.types import Table
 
+from .ibis_runtime import execute
+
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 SYSTEM_AUTHOR = "system"
 
@@ -46,7 +48,7 @@ def anonymize_dataframe(df: Table) -> Table:
 
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
-    unique_authors_df = df.select("author").distinct().execute()
+    unique_authors_df = execute(df.select("author").distinct())
 
     # ibis executes to a pandas DataFrame; get the author column
     unique_authors = unique_authors_df["author"].dropna().tolist()

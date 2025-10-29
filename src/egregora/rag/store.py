@@ -14,6 +14,11 @@ from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 
 
+TABLE_NAME = "rag_chunks"
+INDEX_NAME = "rag_chunks_embedding_idx"
+DEFAULT_ANN_OVERFETCH = 5
+
+
 VECTOR_STORE_SCHEMA = ibis.schema(
     {
         "chunk_id": dt.string,
@@ -83,11 +88,17 @@ class VectorStore:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
         """
         self.parquet_path = parquet_path
+        self.index_path = parquet_path.with_suffix(".duckdb")
         self._owns_connection = connection is None
-        self.conn = connection or duckdb.connect(":memory:")
+        if self._owns_connection:
+            self.index_path.parent.mkdir(parents=True, exist_ok=True)
+            self.conn = duckdb.connect(str(self.index_path))
+        else:
+            self.conn = connection
         self._init_vss()
         self._client = ibis.duckdb.from_connection(self.conn)
-        self._ensure_default_backend()
+        self._table_synced = False
+        self._ensure_dataset_loaded()
 
     def _init_vss(self):
         """Initialize DuckDB VSS extension."""
@@ -99,37 +110,51 @@ class VectorStore:
             logger.error(f"Failed to load VSS extension: {e}")
             raise
 
-    def _ensure_default_backend(self) -> None:
-        """Ensure a global backend exists for memtable-based callers."""
+    def _ensure_dataset_loaded(self, force: bool = False) -> None:
+        """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
 
-        backend: Any | None = None
-        get_backend = getattr(ibis, "get_backend", None)
-
-        if callable(get_backend):
-            try:
-                backend = get_backend()
-            except Exception:  # pragma: no cover - defensive for older Ibis releases
-                backend = None
-
-        if backend is not None:
+        if self._table_synced and not force:
             return
 
-        options_backend: Any | None = None
-        if hasattr(ibis, "options"):
-            options_backend = getattr(ibis.options, "default_backend", None)
-            if options_backend is not None:
-                return
+        if not self.parquet_path.exists():
+            self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+            self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            self._table_synced = True
+            return
 
-        set_backend = getattr(ibis, "set_backend", None)
-        if callable(set_backend):
-            try:
-                set_backend(self._client)
-                return
-            except Exception:  # pragma: no cover - fallback to option assignment
-                pass
+        self.conn.execute(
+            f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",
+            [str(self.parquet_path)],
+        )
+        self._rebuild_index()
+        self._table_synced = True
 
-        if hasattr(ibis, "options") and getattr(ibis.options, "default_backend", None) is None:
-            ibis.options.default_backend = self._client
+    def _rebuild_index(self) -> None:
+        """Recreate the VSS index for the materialized chunks table."""
+
+        self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+        table_present = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [TABLE_NAME],
+        ).fetchone()
+        if not table_present or table_present[0] == 0:
+            return
+
+        row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()
+        if not row or row[0] == 0:
+            return
+
+        self.conn.execute(
+            f"""
+            CREATE INDEX {INDEX_NAME}
+            ON {TABLE_NAME}(embedding)
+            USING vss(metric='cosine', storage_type='ivfflat')
+            """
+        )
 
     def add(self, chunks_df: Table):
         """
@@ -181,6 +206,9 @@ class VectorStore:
         # Write to Parquet
         self.parquet_path.parent.mkdir(parents=True, exist_ok=True)
         combined_df.execute().to_parquet(self.parquet_path)
+
+        self._table_synced = False
+        self._ensure_dataset_loaded(force=True)
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
@@ -270,6 +298,10 @@ class VectorStore:
         date_after: str | None = None,
         document_type: str | None = None,
         media_types: list[str] | None = None,
+        *,
+        mode: str = "ann",
+        nprobe: int | None = None,
+        overfetch: int | None = None,
     ) -> Table:
         """
         Search for similar chunks using cosine similarity.
@@ -282,6 +314,9 @@ class VectorStore:
             date_after: Filter by date (ISO format YYYY-MM-DD)
             document_type: Filter by document type ("post" or "media")
             media_types: Filter by media type (e.g., ["image", "video"])
+            mode: "ann" (VSS index) or "exact" (full scan)
+            nprobe: Override the ANN search breadth (DuckDB VSS ``nprobe``)
+            overfetch: Multiplier for ANN candidate pool before filtering
 
         Returns:
             Ibis Table with all stored columns plus similarity score
@@ -290,51 +325,100 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return self._empty_table(SEARCH_RESULT_SCHEMA)
 
+        self._ensure_dataset_loaded()
+
+        table_present = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [TABLE_NAME],
+        ).fetchone()
+
+        if not table_present or table_present[0] == 0:
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
+
         embedding_dimensionality = len(query_vec)
         if embedding_dimensionality == 0:
             raise ValueError("Query embedding vector must not be empty")
 
-        # Build SQL query - select all columns plus similarity
-        query = f"""
-            SELECT
-                * EXCLUDE (embedding),
-                array_cosine_similarity(
-                    embedding::FLOAT[{embedding_dimensionality}],
-                    ?::FLOAT[{embedding_dimensionality}]
-                ) AS similarity
-            FROM read_parquet('{self.parquet_path}')
-            WHERE array_cosine_similarity(
-                embedding::FLOAT[{embedding_dimensionality}],
-                ?::FLOAT[{embedding_dimensionality}]
-            ) >= {min_similarity}
-        """
+        mode_normalized = mode.lower()
+        if mode_normalized not in {"ann", "exact"}:
+            raise ValueError("mode must be either 'ann' or 'exact'")
 
-        # Add filters
-        params = [query_vec, query_vec]  # Bind twice (similarity calc + WHERE)
+        if nprobe is not None and nprobe <= 0:
+            raise ValueError("nprobe must be a positive integer")
+
+        params: list[Any] = [query_vec]
+        filters: list[str] = []
 
         if document_type:
-            query += f" AND document_type = '{document_type}'"
+            filters.append("document_type = ?")
+            params.append(document_type)
 
         if media_types:
-            # Create SQL array literal
-            media_list = "ARRAY[" + ", ".join(f"'{t}'" for t in media_types) + "]"
-            query += f" AND media_type IN (SELECT unnest({media_list}))"
+            placeholders = ", ".join(["?"] * len(media_types))
+            filters.append(f"media_type IN ({placeholders})")
+            params.extend(media_types)
 
         if tag_filter:
-            # Create SQL array literal
-            tag_list = "ARRAY[" + ", ".join(f"'{t}'" for t in tag_filter) + "]"
-            query += f" AND list_has_any(tags, {tag_list})"
+            filters.append("list_has_any(tags, ?::VARCHAR[])")
+            params.append(tag_filter)
 
         if date_after:
-            query += f" AND (post_date > '{date_after}' OR message_date > '{date_after}')"
+            filters.append("coalesce(post_date, message_date) > ?")
+            params.append(date_after)
 
-        query += f"""
-            ORDER BY similarity DESC
-            LIMIT {top_k}
-        """
+        filters.append("similarity >= ?")
+        params.append(min_similarity)
+
+        where_clause = ""
+        if filters:
+            where_clause = " WHERE " + " AND ".join(filters)
+
+        if mode_normalized == "exact":
+            base_query = f"""
+                WITH candidates AS (
+                    SELECT
+                        * EXCLUDE (embedding),
+                        array_cosine_similarity(
+                            embedding::FLOAT[{embedding_dimensionality}],
+                            ?::FLOAT[{embedding_dimensionality}]
+                        ) AS similarity
+                    FROM {TABLE_NAME}
+                )
+                SELECT * FROM candidates
+            """
+        else:
+            fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
+            ann_limit = max(top_k * fetch_factor, top_k + 10)
+            nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
+            base_query = f"""
+                WITH candidates AS (
+                    SELECT
+                        base.*,
+                        1 - vs.distance AS similarity
+                    FROM vss_search(
+                        '{TABLE_NAME}',
+                        'embedding',
+                        ?::FLOAT[{embedding_dimensionality}],
+                        top_k := {ann_limit},
+                        metric := 'cosine'{nprobe_clause}
+                    ) AS vs
+                    JOIN {TABLE_NAME} AS base
+                      ON vs.rowid = base.rowid
+                )
+                SELECT * FROM candidates
+            """
+
+        query = (
+            base_query
+            + where_clause
+            + f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        )
 
         try:
-            # Execute query
             result_table = self.conn.execute(query, params).arrow()
             if result_table.num_rows == 0:
                 return self._empty_table(SEARCH_RESULT_SCHEMA)

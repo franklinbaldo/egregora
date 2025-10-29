@@ -23,6 +23,7 @@ sys.modules["egregora.annotations"] = annotations_module
 annotations_spec.loader.exec_module(annotations_module)
 
 AnnotationStore = annotations_module.AnnotationStore
+EXPECTED_TOTAL_ANNOTATIONS = 3
 
 
 def test_annotation_store_persists_and_orders(tmp_path):
@@ -43,7 +44,7 @@ def test_annotation_store_persists_and_orders(tmp_path):
     assert store.get_last_annotation_id("msg-unknown") is None
 
     all_annotations = list(store.iter_all_annotations())
-    assert len(all_annotations) == 3
+    assert len(all_annotations) == EXPECTED_TOTAL_ANNOTATIONS
     assert {annotation.id for annotation in all_annotations} == {
         first.id,
         second.id,

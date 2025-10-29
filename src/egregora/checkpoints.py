@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,7 @@ class CheckpointStore:
         data = dict(data)  # shallow copy
         data["period"] = period
         data.setdefault("steps", {})
-        data["timestamp"] = datetime.now(timezone.utc).isoformat()
+        data["timestamp"] = datetime.now(UTC).isoformat()
 
         tmp_path = path.with_suffix(".json.tmp")
         tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

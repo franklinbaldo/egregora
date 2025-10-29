@@ -300,8 +300,9 @@ my-blog/
 │   ├── a1b2c3d4.md
 │   └── e5f6g7h8.md
 ├── media/             # Uploaded media
-├── rag/               # RAG embeddings (Parquet)
-│   └── chunks.parquet
+├── rag/               # RAG embeddings + ANN index
+│   ├── chunks.parquet
+│   └── chunks.duckdb
 └── rankings/          # ELO rankings
     └── rankings.duckdb
 ```

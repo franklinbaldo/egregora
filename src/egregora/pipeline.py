@@ -7,6 +7,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+import duckdb
 import ibis
 from google import genai
 from ibis.expr.types import Table
@@ -15,6 +16,7 @@ from .cache import EnrichmentCache
 from .checkpoints import CheckpointStore
 from .enricher import enrich_dataframe, extract_and_replace_media
 from .gemini_batch import GeminiBatchClient
+from .ibis_runtime import use_backend
 from .model_config import ModelConfig, load_site_config
 from .models import WhatsAppExport
 from .parser import extract_commands, filter_egregora_messages, parse_export
@@ -202,9 +204,11 @@ def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
     return grouped
 
 
-def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
+def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     zip_path: Path,
-    output_dir: Path = Path("output"),
+    output_dir: Path,
+    *,
+    site_paths: SitePaths,
     period: str = "day",
     enable_enrichment: bool = True,
     from_date=None,
@@ -213,6 +217,9 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Complete pipeline: ZIP → posts + profiles.
@@ -231,9 +238,6 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
     """
-
-    output_dir = output_dir.expanduser().resolve()
-    site_paths = resolve_site_paths(output_dir)
 
     def _load_enriched_table(path: Path, schema: Table.schema) -> Table:
         if not path.exists():
@@ -451,6 +455,9 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     model_config,
                     enable_rag=True,
                     embedding_output_dimensionality=embedding_dimensionality,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
                 )
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
@@ -488,3 +495,51 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         finally:
             if client:
                 client.close()
+
+
+def process_whatsapp_export(  # noqa: PLR0912
+    zip_path: Path,
+    output_dir: Path = Path("output"),
+    period: str = "day",
+    enable_enrichment: bool = True,
+    from_date=None,
+    to_date=None,
+    timezone=None,
+    gemini_api_key: str | None = None,
+    model: str | None = None,
+    resume: bool = True,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> dict[str, dict[str, list[str]]]:
+    """Public entry point that manages DuckDB/Ibis backend state for processing."""
+
+    output_dir = output_dir.expanduser().resolve()
+    site_paths = resolve_site_paths(output_dir)
+
+    runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
+    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    connection = duckdb.connect(str(runtime_db_path))
+    backend = ibis.duckdb.from_connection(connection)
+
+    try:
+        with use_backend(backend):
+            return _process_whatsapp_export(
+                zip_path=zip_path,
+                output_dir=output_dir,
+                site_paths=site_paths,
+                period=period,
+                enable_enrichment=enable_enrichment,
+                from_date=from_date,
+                to_date=to_date,
+                timezone=timezone,
+                gemini_api_key=gemini_api_key,
+                model=model,
+                resume=resume,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
+    finally:
+        connection.close()
