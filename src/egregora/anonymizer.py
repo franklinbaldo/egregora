@@ -13,6 +13,7 @@ import re
 import uuid
 
 import ibis
+import pyarrow as pa
 from ibis.expr.types import Table
 
 from .ibis_runtime import execute
@@ -48,10 +49,19 @@ def anonymize_dataframe(df: Table) -> Table:
 
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
-    unique_authors_df = execute(df.select("author").distinct())
+    authors_expr = df.select("author").distinct()
+    try:
+        arrow_table = authors_expr.to_pyarrow()
+    except AttributeError:
+        result = execute(authors_expr)
+        if hasattr(result, "to_dict"):
+            arrow_table = pa.Table.from_pylist(result.to_dict("records"))
+        else:  # pragma: no cover - fallback for exotic backends
+            arrow_table = pa.table(result)
 
-    # ibis executes to a pandas DataFrame; get the author column
-    unique_authors = unique_authors_df["author"].dropna().tolist()
+    unique_authors = [
+        value for value in arrow_table.column("author").to_pylist() if value not in (None, "")
+    ]
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
 
     # Build a CASE expression for author replacement

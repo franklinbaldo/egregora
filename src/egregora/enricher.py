@@ -235,11 +235,19 @@ def _safe_timestamp_plus_one(timestamp) -> Any:
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
 
+    to_pyarrow = getattr(table, "to_pyarrow", None)
+    if callable(to_pyarrow):
+        return [dict(row) for row in to_pyarrow().to_pylist()]
+
     to_pylist = getattr(table, "to_pylist", None)
     if callable(to_pylist):
         return list(to_pylist())
 
-    records = table.execute().to_dict("records")
+    result = table.execute()
+    if hasattr(result, "to_pyarrow"):
+        return [dict(row) for row in result.to_pyarrow().to_pylist()]
+
+    records = result.to_dict("records")
     return [dict(record) for record in records]
 
 
@@ -440,7 +448,7 @@ def extract_and_replace_media(
     """
     # Step 1: Find all media references
     all_media = set()
-    for row in df.execute().to_dict("records"):
+    for row in _table_to_pylist(df):
         message = row.get("message", "")
         media_refs = find_media_references(message)
         all_media.update(media_refs)
@@ -501,7 +509,7 @@ def enrich_dataframe(
     if df.count().execute() == 0:
         return df
 
-    rows = df.execute().to_dict("records")
+    rows = _table_to_pylist(df)
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
     pii_detected_count = 0

@@ -20,6 +20,7 @@ from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
 
 import ibis
+import pyarrow as pa
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
@@ -135,8 +136,13 @@ def extract_commands(df: Table) -> list[dict]:
 
     commands = []
 
-    # Convert to pandas for iteration (most efficient for small result sets)
-    rows = execute(df).to_dict("records")
+    try:
+        arrow_table = df.to_pyarrow()
+    except AttributeError:
+        records = execute(df).to_dict("records")
+        arrow_table = pa.Table.from_pylist(records)
+
+    rows = arrow_table.to_pylist()
 
     for row in rows:
         message = row.get("message", "")

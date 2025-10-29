@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import duckdb
@@ -344,7 +344,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
                 document_id="media-jan",
                 media_uuid="media-jan",
                 media_type="image",
-                message_date=datetime(2024, 1, 1, 12, tzinfo=timezone.utc),
+                    message_date=datetime(2024, 1, 1, 12, tzinfo=UTC),
                 tags=[],
                 authors=[],
             ),

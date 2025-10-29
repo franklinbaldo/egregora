@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 
 import ibis
@@ -226,7 +226,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
             time_str = time_match.group(1).strip()
             try:
                 parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=timezone.utc)
+                metadata["message_date"] = parsed.replace(tzinfo=datetime.UTC)
             except ValueError:
                 logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
                 metadata["message_date"] = None
@@ -382,7 +382,7 @@ def index_all_media(
     return total_chunks
 
 
-def _coerce_post_date(value: object) -> date | None:
+def _coerce_post_date(value: object) -> date | None:  # noqa: PLR0911
     """Normalize post metadata values to ``date`` objects."""
 
     if value is None:
@@ -415,7 +415,7 @@ def _coerce_post_date(value: object) -> date | None:
     return None
 
 
-def _coerce_message_datetime(value: object) -> datetime | None:
+def _coerce_message_datetime(value: object) -> datetime | None:  # noqa: PLR0911
     """Ensure message timestamps are timezone-aware UTC datetimes."""
 
     if value is None:
@@ -423,8 +423,8 @@ def _coerce_message_datetime(value: object) -> datetime | None:
 
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=datetime.UTC)
+        return value.astimezone(datetime.UTC)
 
     if isinstance(value, str):
         text = value.strip()
@@ -441,8 +441,8 @@ def _coerce_message_datetime(value: object) -> datetime | None:
             return None
 
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=datetime.UTC)
+        return parsed.astimezone(datetime.UTC)
 
     logger.warning("Unsupported message datetime type: %s", type(value))
     return None

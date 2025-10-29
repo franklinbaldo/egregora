@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pyarrow as pa
+
 logger = logging.getLogger(__name__)
 
 # Constants for alias validation
@@ -79,18 +81,18 @@ def get_active_authors(df: Any) -> list[str]:
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    result = df.select("author").distinct().execute()
 
-    if hasattr(result, "columns"):
-        # pandas DataFrame result
-        if "author" in result.columns:
-            authors = result["author"].tolist()
-        else:
-            authors = result.iloc[:, 0].tolist()
-    elif hasattr(result, "tolist"):
-        authors = result.tolist()
-    else:
-        authors = list(result)
+    authors_expr = df.select("author").distinct()
+    try:
+        arrow_table = authors_expr.to_pyarrow()
+    except AttributeError:
+        result = authors_expr.execute()
+        if hasattr(result, "to_dict"):
+            arrow_table = pa.Table.from_pylist(result.to_dict("records"))
+        else:  # pragma: no cover - fallback for unusual backends
+            arrow_table = pa.table(result)
+
+    authors = arrow_table.column("author").to_pylist()
 
     # Filter out system and enrichment entries
     return [author for author in authors if author not in ("system", "egregora", None, "")]

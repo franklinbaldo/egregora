@@ -1,10 +1,10 @@
 """Vector store using DuckDB VSS and Parquet."""
 
+import datetime as datetime_module
 import logging
-import math
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -577,7 +577,11 @@ class VectorStore:
         )
 
         try:
-            result_table = self.conn.execute(query, params).arrow()
+            result_reader = self.conn.execute(query, params).arrow()
+            if isinstance(result_reader, pa.RecordBatchReader):
+                result_table = result_reader.read_all()
+            else:
+                result_table = result_reader
             if result_table.num_rows == 0:
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
 
@@ -673,7 +677,7 @@ class VectorStore:
             return VectorStore._ensure_utc_datetime(value)
 
         if isinstance(value, date):
-            return datetime.combine(value, time.min, tzinfo=timezone.utc)
+            return datetime.combine(value, time.min, tzinfo=datetime_module.UTC)
 
         if isinstance(value, str):
             cleaned = value.strip()
@@ -687,7 +691,7 @@ class VectorStore:
                     parsed_date = date.fromisoformat(cleaned)
                 except ValueError as exc:  # pragma: no cover - defensive guard
                     raise ValueError(f"Invalid date_after value: {value!r}") from exc
-                return datetime.combine(parsed_date, time.min, tzinfo=timezone.utc)
+                return datetime.combine(parsed_date, time.min, tzinfo=datetime_module.UTC)
 
             return VectorStore._ensure_utc_datetime(parsed_dt)
 
@@ -700,9 +704,9 @@ class VectorStore:
         """Coerce datetime objects to UTC-aware variants."""
 
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
+            return value.replace(tzinfo=datetime_module.UTC)
 
-        return value.astimezone(timezone.utc)
+        return value.astimezone(datetime_module.UTC)
 
     def _table_from_arrow(self, arrow_table: pa.Table, schema: ibis.Schema) -> Table:
         """Register an Arrow table with DuckDB and return an Ibis table."""
@@ -734,26 +738,41 @@ class VectorStore:
             return table
 
         source_schema = table.schema()
-        op = table.op() if hasattr(table, "op") else None
-        pandas_proxy = getattr(op, "data", None) if op is not None else None
 
-        if pandas_proxy is not None and hasattr(pandas_proxy, "to_frame"):
-            dataframe = pandas_proxy.to_frame()
-            missing_columns = [
-                column for column in source_schema.names if column not in dataframe.columns
-            ]
+        try:
+            arrow_table = table.to_pyarrow()
+        except AttributeError:
+            result = table.execute()
+            if isinstance(result, pa.Table):
+                arrow_table = result
+            elif hasattr(result, "to_pyarrow"):
+                arrow_table = result.to_pyarrow()
+            elif hasattr(result, "to_dict"):
+                arrow_table = pa.Table.from_pylist(
+                    result.to_dict("records"), schema=source_schema.to_pyarrow()
+                )
+            else:  # pragma: no cover - fallback for unknown backends
+                arrow_table = pa.table(result, schema=source_schema.to_pyarrow())
+
+        if isinstance(arrow_table, pa.RecordBatchReader):
+            arrow_table = arrow_table.read_all()
+
+        missing_columns = [
+            column for column in source_schema.names if column not in arrow_table.column_names
+        ]
+
+        if missing_columns:
+            row_count = arrow_table.num_rows
             for column in missing_columns:
-                dataframe[column] = None
-            dataframe = dataframe.reindex(columns=source_schema.names)
-        else:
-            dataframe = table.execute()
+                dtype = source_schema[column]
+                arrow_table = arrow_table.append_column(
+                    column,
+                    pa.nulls(row_count, type=dtype.to_pyarrow()),
+                )
 
-        arrow_table = pa.Table.from_pandas(
-            dataframe,
-            schema=source_schema.to_pyarrow(),
-            preserve_index=False,
-            safe=False,
-        )
+        if list(arrow_table.column_names) != list(source_schema.names):
+            arrow_table = arrow_table.select(source_schema.names)
+
         return self._table_from_arrow(arrow_table, source_schema)
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
@@ -803,8 +822,7 @@ class VectorStore:
             }
 
         # Check if document_type column exists (for backward compatibility)
-        df_executed = df.execute()
-        has_doc_type = "document_type" in df_executed.columns
+        has_doc_type = "document_type" in df.schema()
 
         stats = {
             "total_chunks": total_chunks,
@@ -823,15 +841,14 @@ class VectorStore:
 
             # Media breakdown by type
             if media_count > 0:
-                media_types_agg = (
-                    media_df.group_by("media_type")
-                    .aggregate(count=lambda t: t.media_uuid.nunique())
-                    .execute()
+                media_types_expr = media_df.group_by("media_type").aggregate(
+                    count=lambda t: t.media_uuid.nunique()
                 )
+                media_types_table = media_types_expr.to_pyarrow()
                 stats["media_by_type"] = {
                     row["media_type"]: row["count"]
-                    for _, row in media_types_agg.iterrows()
-                    if row["media_type"]
+                    for row in media_types_table.to_pylist()
+                    if row.get("media_type")
                 }
             else:
                 stats["media_by_type"] = {}

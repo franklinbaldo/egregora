@@ -14,13 +14,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
+from math import isnan
 from pathlib import Path
 from typing import Any
 
 import ibis
-import pandas as pd
+import pyarrow as pa
 import yaml
 from google import genai
 from google.genai import types as genai_types
@@ -87,18 +89,28 @@ def _load_freeform_memory(output_dir: Path) -> str:
         return ""
 
 
+def _is_missing(value: Any) -> bool:
+    """Return ``True`` when ``value`` represents a missing entry."""
+
+    if value is None:
+        return True
+
+    if isinstance(value, float):
+        return isnan(value)
+
+    try:
+        return value != value  # noqa: PLR0124 - NaN is not equal to itself
+    except Exception:  # pragma: no cover - defensive, mirrors pandas.isna
+        return False
+
+
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
         return value
-    if value is None:
+    if _is_missing(value):
         return ""
-    try:
-        if pd.isna(value):  # type: ignore[call-arg]
-            return ""
-    except TypeError:
-        pass
     return str(value)
 
 
@@ -193,59 +205,122 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
     return annotations_block
 
 
-def _build_conversation_markdown(
-    dataframe: pd.DataFrame, annotations_store: AnnotationStore | None
-) -> tuple[str, pd.DataFrame]:
+def _ensure_pyarrow_table(data: Any) -> pa.Table:
+    """Return ``data`` as a :class:`pyarrow.Table`."""
+
+    if isinstance(data, pa.Table):
+        return data
+
+    to_pyarrow = getattr(data, "to_pyarrow", None)
+    if callable(to_pyarrow):
+        return to_pyarrow()
+
+    execute_method = getattr(data, "execute", None)
+    if callable(execute_method):
+        result = execute_method()
+        if isinstance(result, pa.Table):
+            return result
+        to_pyarrow = getattr(result, "to_pyarrow", None)
+        if callable(to_pyarrow):
+            return to_pyarrow()
+        to_dict = getattr(result, "to_dict", None)
+        if callable(to_dict):
+            records = to_dict("records")
+            return pa.Table.from_pylist(records)
+
+    raise TypeError("Unsupported table-like object; expected pyarrow-compatible input")
+
+
+def _normalize_records(
+    table: pa.Table | Sequence[Mapping[str, Any]],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Return column order and shallow copies of ``table`` rows."""
+
+    if isinstance(table, pa.Table):
+        column_order = list(table.column_names)
+        rows = [dict(row) for row in table.to_pylist()]
+        return column_order, rows
+
+    if not isinstance(table, Sequence):
+        raise TypeError("Expected a pyarrow.Table or sequence of mappings")
+
+    rows: list[dict[str, Any]] = []
+    column_order: list[str] = []
+
+    for item in table:
+        if not isinstance(item, Mapping):
+            raise TypeError("Sequence must contain mapping-like rows")
+        row_dict = dict(item)
+        rows.append(row_dict)
+        if not column_order:
+            column_order = list(row_dict.keys())
+
+    return column_order, rows
+
+
+def _build_conversation_markdown(  # noqa: PLR0912
+    table_like: pa.Table | Sequence[Mapping[str, Any]],
+    annotations_store: AnnotationStore | None,
+) -> tuple[str, list[dict[str, Any]]]:
     """Render conversation rows into markdown with inline annotations."""
 
-    if dataframe.empty:
-        return "", dataframe
+    if isinstance(table_like, pa.Table) and table_like.num_rows == 0:
+        return "", []
+    if isinstance(table_like, Sequence) and not table_like:
+        return "", []
 
-    df = dataframe.copy()
+    column_order, rows = _normalize_records(table_like)
 
-    if "msg_id" not in df.columns:
-        msg_ids = [_compute_message_id(row) for row in df.to_dict("records")]
-        df.insert(0, "msg_id", msg_ids)
+    if not rows:
+        return "", []
+
+    if "msg_id" not in column_order:
+        column_order = ["msg_id", *column_order]
+        for row in rows:
+            row.setdefault("msg_id", _compute_message_id(row))
     else:
-        df["msg_id"] = df["msg_id"].map(_stringify_value)
+        for row in rows:
+            row["msg_id"] = _stringify_value(row.get("msg_id"))
+            if not row["msg_id"]:
+                row["msg_id"] = _compute_message_id(row)
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
-        ordered_ids = list(dict.fromkeys(df["msg_id"].tolist()))
+        ordered_ids = list(dict.fromkeys(row["msg_id"] for row in rows))
         annotations_map = {
             msg_id: annotations_store.list_annotations_for_message(msg_id)
             for msg_id in ordered_ids
         }
 
     message_column = next(
-        (candidate for candidate in ("message", "content", "text") if candidate in df.columns),
+        (candidate for candidate in ("message", "content", "text") if candidate in column_order),
         None,
     )
 
     if message_column:
-        df[message_column] = [
-            _merge_message_and_annotations(value, annotations_map.get(msg_id, []))
-            for value, msg_id in zip(
-                df[message_column].tolist(), df["msg_id"].tolist(), strict=False
+        for row in rows:
+            row[message_column] = _merge_message_and_annotations(
+                row.get(message_column), annotations_map.get(row["msg_id"], [])
             )
-        ]
     elif annotations_map:
-        df["annotations"] = [
-            _format_annotations_for_message(annotations_map.get(msg_id, []))
-            for msg_id in df["msg_id"].tolist()
-        ]
+        if "annotations" not in column_order:
+            column_order.append("annotations")
+        for row in rows:
+            row["annotations"] = _format_annotations_for_message(
+                annotations_map.get(row["msg_id"], [])
+            )
 
-    headers = [str(column) for column in df.columns]
+    headers = [str(column) for column in column_order]
     lines = [
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",
     ]
 
-    for _, row in df.iterrows():
-        cells = [_escape_table_cell(row[column]) for column in headers]
+    for row in rows:
+        cells = [_escape_table_cell(row.get(column)) for column in headers]
         lines.append("| " + " | ".join(cells) + " |")
 
-    return "\n".join(lines), df
+    return "\n".join(lines), rows
 
 
 logger = logging.getLogger(__name__)
@@ -522,7 +597,9 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     if author_counts.count().execute() == 0:
         return []
 
-    return author_counts.author.execute().tolist()
+    arrow_table = _ensure_pyarrow_table(author_counts.select("author"))
+    authors = [value for value in arrow_table.column("author").to_pylist() if value]
+    return authors
 
 
 def _query_rag_for_context(  # noqa: PLR0913
@@ -563,7 +640,9 @@ def _query_rag_for_context(  # noqa: PLR0913
             "You can reference these posts in your writing to maintain conversation continuity.\n\n"
         )
 
-        for row in similar_posts.execute().to_dict("records"):
+        _, rows = _normalize_records(_ensure_pyarrow_table(similar_posts))
+
+        for row in rows:
             rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
             rag_context += f"{row['content'][:400]}...\n"
             rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
@@ -704,8 +783,8 @@ def _handle_search_media_tool(  # noqa: PLR0913
             formatted_results = "No matching media found."
         else:
             formatted_list = []
-            results_df = results.execute()
-            for _, row in results_df.iterrows():
+            _, result_rows = _normalize_records(_ensure_pyarrow_table(results))
+            for row in result_rows:
                 media_info = {
                     "media_type": row.get("media_type"),
                     "media_path": row.get("media_path"),
@@ -978,8 +1057,8 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
         logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
 
     active_authors = get_active_authors(df)
-    messages_df = df.execute()
-    markdown_table, _ = _build_conversation_markdown(messages_df, annotations_store)
+    messages_table = _ensure_pyarrow_table(df)
+    markdown_table, _ = _build_conversation_markdown(messages_table, annotations_store)
 
     # Query RAG and load profiles for context
     rag_context = (

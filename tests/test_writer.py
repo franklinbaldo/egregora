@@ -6,6 +6,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pandas as pd
+import pyarrow as pa
 
 
 def _install_ibis_stub() -> None:
@@ -312,7 +313,10 @@ class DummyTable:
         return DummyQueryResult(len(self._rows))
 
     def execute(self):
-        return pd.DataFrame(self._rows)
+        return self.to_pyarrow()
+
+    def to_pyarrow(self):
+        return pa.Table.from_pylist(self._rows)
 
 
 def test_write_freeform_markdown_creates_file(tmp_path):
@@ -433,6 +437,6 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "| msg_id |" in initial_message
     assert "Annotation Memory Tool" in initial_message
 
-    records = df.execute().to_dict("records")
+    records = df.to_pyarrow().to_pylist()
     expected_msg_id = writer._compute_message_id(records[0])
     assert expected_msg_id in initial_message
