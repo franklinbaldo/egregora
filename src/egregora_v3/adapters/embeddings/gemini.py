@@ -1,5 +1,9 @@
-import google.generativeai as genai
 from typing import List
+
+try:
+    from google import genai  # type: ignore[import]
+except ImportError:  # pragma: no cover - depends on optional dependency
+    import google.generativeai as genai  # type: ignore[import]
 
 class GeminiEmbeddingClient:
     """

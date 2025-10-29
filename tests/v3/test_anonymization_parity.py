@@ -16,9 +16,14 @@ def golden_text_path() -> Path:
     return Path("tests/v3/fixtures/golden_anonymization_data.txt")
 
 @pytest.fixture
-def golden_author_path() -> Path:
-    """Returns the path to the golden anonymized author CSV file."""
-    return Path("tests/v3/fixtures/golden_author_data.csv")
+def golden_author_data() -> list[tuple[str, str]]:
+    """Returns tuples of (author, anonymized_id) for parity assertions."""
+    return [
+        ("Jules", "b07ac1f4"),
+        ("John Doe", "957cf4d6"),
+        ("Franklin", "ca71a986"),
+        ("Jane Doe", "6ebd8acd"),
+    ]
 
 def test_anonymize_mentions_parity(raw_data_path, golden_text_path):
     """
@@ -38,15 +43,13 @@ def test_anonymize_mentions_parity(raw_data_path, golden_text_path):
 
     assert v3_output.strip() == golden_output.strip()
 
-def test_anonymize_author_parity(golden_author_path):
+def test_anonymize_author_parity(golden_author_data):
     """
     Tests that v3's anonymize_author produces byte-for-byte identical output to the golden file.
     """
-    with open(golden_author_path, 'r') as f:
-        for line in f:
-            author, golden_anon_id = line.strip().split('|')
-            v3_anon_id = anonymize_author(author)
-            assert v3_anon_id == golden_anon_id
+    for author, golden_anon_id in golden_author_data:
+        v3_anon_id = anonymize_author(author)
+        assert v3_anon_id == golden_anon_id
 
 def test_anonymization_checksum():
     """
