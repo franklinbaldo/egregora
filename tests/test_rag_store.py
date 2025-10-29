@@ -82,6 +82,57 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
         ibis.set_backend(previous_backend)
 
 
+def test_ensure_dataset_loaded_skips_rebuild_without_changes(tmp_path, monkeypatch):
+    """Consecutive ensure calls must avoid rebuilding when metadata is stable."""
+
+    store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+
+    rebuild_calls: list[int] = []
+
+    def _record_rebuild(self):
+        rebuild_calls.append(1)
+
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", _record_rebuild)
+
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+
+    try:
+        rows = [
+            {
+                "chunk_id": "chunk-1",
+                "document_type": "post",
+                "document_id": "doc-1",
+                "chunk_index": 0,
+                "content": "hello",
+                "embedding": [0.0, 1.0],
+                "tags": ["tag"],
+            }
+        ]
+        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
+
+        rebuild_calls.clear()
+
+        store._ensure_dataset_loaded()
+        assert rebuild_calls == []
+
+        store._ensure_dataset_loaded()
+        assert rebuild_calls == []
+
+        store._ensure_dataset_loaded(force=True)
+        assert rebuild_calls == [1]
+
+        metadata_row = store.conn.execute(
+            "SELECT row_count FROM rag_chunks_metadata WHERE path = ?",
+            [str(tmp_path / "chunks.parquet")],
+        ).fetchone()
+
+        assert metadata_row is not None
+        assert metadata_row[0] == 1
+    finally:
+        store.close()
+
+
 def _load_vector_store():
     """Load the vector store module directly to avoid heavy package imports."""
 
