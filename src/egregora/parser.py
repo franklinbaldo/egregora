@@ -86,12 +86,10 @@ def parse_egregora_command(message: str) -> dict | None:
             'command': 'opt-out'
         }
     """
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=clean; why=defensive path; exit=remove defensive path
     # Normalize curly quotes to straight quotes (English only, as requested)
     # This handles copy-paste from phones/messaging apps
-    message = message.replace('"', '"').replace('"', '"')
-    message = message.replace("'", "'").replace("'", "'")
+    message = message.replace("“", '"').replace("”", '"')
+    message = message.replace("‘", "'").replace("’", "'")
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()

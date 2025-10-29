@@ -35,12 +35,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
 
 def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Return the docs directory defined by an existing mkdocs.yml."""
-    # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-    # tenet=propagate-errors; why=defensive path; exit=remove defensive path
-    try:
-        payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
-    except yaml.YAMLError:
-        payload = {}
+    payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
 
     docs_dir_setting = payload.get("docs_dir")
     if docs_dir_setting in (None, "", "."):

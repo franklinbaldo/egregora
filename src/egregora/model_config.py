@@ -8,6 +8,27 @@ from typing import Literal
 
 from .site_config import load_mkdocs_config
 
+
+def load_site_config(output_dir: Path) -> dict:
+    """
+    Load egregora configuration from mkdocs.yml if it exists.
+
+    Args:
+        output_dir: Output directory (will look for mkdocs.yml in parent/root)
+
+    Returns:
+        Dict with egregora config from extra.egregora section
+    """
+    config, mkdocs_path = load_mkdocs_config(output_dir)
+
+    if not mkdocs_path:
+        logger.debug("No mkdocs.yml found, using default config")
+        return {}
+
+    egregora_config = config.get("extra", {}).get("egregora", {})
+    logger.debug(f"Loaded site config from {mkdocs_path}")
+    return egregora_config
+
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 
 # Known output dimensionalities for supported embedding models. The keys should
@@ -69,8 +90,6 @@ class ModelConfig:
             Model name to use
         """
         # 1. CLI flag (highest priority)
-        # TENET-BREAK(api)[@franklin][P1][due:2025-12-01]:
-        # tenet=no-defensive; why=defensive path; exit=remove defensive path
         if self.cli_model:
             logger.debug(f"Using CLI model for {model_type}: {self.cli_model}")
             return self.cli_model
@@ -171,22 +190,3 @@ class ModelConfig:
         return self.embedding_output_dimensionality
 
 
-def load_site_config(output_dir: Path) -> dict:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Dict with egregora config from extra.egregora section
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, using default config")
-        return {}
-
-    egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.debug(f"Loaded site config from {mkdocs_path}")
-    return egregora_config
