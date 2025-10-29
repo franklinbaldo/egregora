@@ -11,6 +11,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
+from google.api_core import exceptions as google_api_exceptions
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
 
@@ -25,6 +26,14 @@ _last_call_monotonic = 0.0
 _sync_rate_lock = threading.Lock()
 _sync_last_call_monotonic = 0.0
 _MIN_INTERVAL_SECONDS = 1.5  # free tier tolerates ~40 RPM, so keep a healthy gap
+
+
+_RETRYABLE_EXCEPTIONS = (
+    google_api_exceptions.ResourceExhausted,
+    google_api_exceptions.ServiceUnavailable,
+    google_api_exceptions.InternalServerError,
+    google_api_exceptions.DeadlineExceeded,
+)
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
@@ -181,23 +190,26 @@ async def call_with_retries[**P, T](
         await _respect_min_interval()
         try:
             return await async_fn(*args, **kwargs)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            handled_exc: Exception = exc
         except Exception as exc:  # noqa: BLE001
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
                 raise
+            handled_exc = exc
 
-            recommended_delay = _extract_retry_delay(exc)
-            if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
-            else:
-                delay = base_delay * (2 ** (attempt - 1))
+        recommended_delay = _extract_retry_delay(handled_exc)
+        if recommended_delay is not None:
+            delay = max(recommended_delay, 0.0)
+        else:
+            delay = base_delay * (2 ** (attempt - 1))
 
-            logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
-            )
+        logger.info(
+            f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+            f"Waiting {delay:.2f}s before retry.\n[dim]{handled_exc}[/]"
+        )
 
-            await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
-            attempt += 1
+        await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
+        attempt += 1
 
 
 def call_with_retries_sync(
@@ -215,23 +227,26 @@ def call_with_retries_sync(
         _respect_min_interval_sync()
         try:
             return fn(*args, **kwargs)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            handled_exc: Exception = exc
         except Exception as exc:  # noqa: BLE001
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
                 raise
+            handled_exc = exc
 
-            recommended_delay = _extract_retry_delay(exc)
-            if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
-            else:
-                delay = base_delay * (2 ** (attempt - 1))
+        recommended_delay = _extract_retry_delay(handled_exc)
+        if recommended_delay is not None:
+            delay = max(recommended_delay, 0.0)
+        else:
+            delay = base_delay * (2 ** (attempt - 1))
 
-            logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
-            )
+        logger.info(
+            f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+            f"Waiting {delay:.2f}s before retry.\n[dim]{handled_exc}[/]"
+        )
 
-            _sleep_with_progress_sync(delay, f"Rate limit cooldown ({delay:.0f}s)")
-            attempt += 1
+        _sleep_with_progress_sync(delay, f"Rate limit cooldown ({delay:.0f}s)")
+        attempt += 1
 
 
 def sleep_with_progress_sync(delay: float, description: str) -> None:

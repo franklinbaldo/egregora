@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
+from google.api_core import exceptions as google_api_exceptions
 from rich.markup import escape
 from rich.panel import Panel
 
@@ -193,7 +194,7 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
             retrieval_overfetch=config.retrieval_overfetch,
         )
         console.print("[green]Processing completed successfully.[/green]")
-    except Exception as e:
+    except (ValueError, OSError, google_api_exceptions.GoogleAPICallError) as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
         if config.debug:
             raise
