@@ -2,7 +2,7 @@ from typing import List
 
 try:
     from google import genai  # type: ignore[import]
-except ModuleNotFoundError:  # pragma: no cover - depends on optional dependency
+except ImportError:  # pragma: no cover - depends on optional dependency
     import google.generativeai as genai  # type: ignore[import]
 
 class GeminiEmbeddingClient:
