@@ -8,7 +8,6 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import duckdb
-
 import ibis
 import pyarrow as pa
 import pytest

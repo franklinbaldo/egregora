@@ -497,7 +497,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 client.close()
 
 
-def process_whatsapp_export(  # noqa: PLR0912
+def process_whatsapp_export(  # noqa: PLR0912, PLR0913
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",

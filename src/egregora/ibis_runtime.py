@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from contextlib import contextmanager
 from threading import RLock
-from typing import Any, TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import importlib
 import importlib.util
@@ -96,7 +96,28 @@ def execute(expression) -> Any:
     """Execute ``expression`` with the active backend."""
 
     backend = get_backend()
-    return expression.execute(backend=backend)
+    execute_method = getattr(expression, "execute", None)
+
+    if execute_method is not None:
+        try:
+            return execute_method()
+        except TypeError as exc:
+            # Older Ibis releases required passing the backend explicitly.
+            if "backend" in str(exc):
+                try:
+                    return execute_method(backend=backend)
+                except TypeError:
+                    pass
+            else:
+                raise
+
+    if hasattr(backend, "execute"):
+        return backend.execute(expression)
+
+    if execute_method is None:
+        raise RuntimeError("Expression is not executable with the active backend")
+
+    return execute_method()
 
 
 def execute_scalar(expression) -> _T:
