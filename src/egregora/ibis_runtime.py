@@ -5,10 +5,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from contextlib import contextmanager
 from threading import RLock
-from typing import Any, TypeVar
+from typing import Any, TYPE_CHECKING, TypeVar
 
 import ibis
-from ibis.backends.base import BaseBackend
+
+if TYPE_CHECKING:
+    from ibis.backends.base import BaseBackend
+else:  # pragma: no cover - runtime fallback for modern Ibis versions
+    BaseBackend = Any  # type: ignore[assignment]
 
 __all__ = [
     "use_backend",
