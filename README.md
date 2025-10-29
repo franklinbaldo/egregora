@@ -205,6 +205,7 @@ Architecture Highlights
 · DataFrames all the way: Powered by Ibis + DuckDB for performance
 · Functional pipeline: Simple, composable functions over complex agents
 · DuckDB storage: Fast vector operations for RAG and rankings
+· Optional extras: Install `egregora[ranking]` to enable the experimental ranking agent
 
 🤝 Community & Support
 

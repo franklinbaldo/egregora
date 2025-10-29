@@ -418,5 +418,5 @@ Now that you understand the concepts:
 
 - [Try the Quickstart](quickstart.md) - Build your first blog
 - [Learn about Privacy](../features/anonymization.md) - Deep dive into anonymization
-- [Explore Features](../features/ranking.md) - Post ranking, RAG, etc.
+- [Explore Features](../features/ranking.md) - Post ranking *(optional extra)*, RAG, etc.
 - [Read the Architecture](../guides/architecture.md) - System design details

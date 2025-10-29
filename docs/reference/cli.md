@@ -187,6 +187,9 @@ egregora process whatsapp-export.zip \
 
 ### egregora rank
 
+!!! warning "Requires optional extra"
+    Install Egregora with `pip install "egregora[ranking]"` to expose this command. Without the extra, `egregora rank` remains hidden from `--help` output and calling it prints an installation hint.
+
 Run ELO-based ranking comparisons for blog posts.
 
 **Usage:**

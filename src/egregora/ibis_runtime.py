@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
 from collections.abc import Iterable
 from contextlib import contextmanager
 from threading import RLock
-from typing import TYPE_CHECKING, Any, TypeVar
-
-import importlib
-import importlib.util
+from typing import Any, TypeVar
 
 import ibis
 
