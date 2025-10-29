@@ -1,9 +1,11 @@
 import hashlib
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Import the v3 anonymization functions
 from egregora_v3.adapters.privacy.anonymize import anonymize_author, anonymize_mentions
+
 
 @pytest.fixture
 def raw_data_path() -> Path:

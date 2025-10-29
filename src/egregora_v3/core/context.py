@@ -1,11 +1,10 @@
-from typing import Optional
 import duckdb
 
+from egregora_v3.adapters.embeddings.gemini import GeminiEmbeddingClient
+from egregora_v3.adapters.vectorstore.duckdb_vss import DuckDBVectorStore
 from egregora_v3.core.config import Settings, load_settings
 from egregora_v3.core.db import get_db_connection
 from egregora_v3.core.logging import get_logger
-from egregora_v3.adapters.embeddings.gemini import GeminiEmbeddingClient
-from egregora_v3.adapters.vectorstore.duckdb_vss import DuckDBVectorStore
 from egregora_v3.core.paths import ensure_dirs_exist
 
 class Context:
@@ -41,7 +40,7 @@ class Context:
         """Closes the database connection."""
         self.conn.close()
 
-def build_context(cli_overrides: Optional[dict] = None):
+def build_context(cli_overrides: dict | None = None):
     """
     A factory function to build the full application context.
     """

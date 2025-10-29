@@ -1,45 +1,59 @@
-from typing import List, Tuple
+"""Lightweight DuckDB-backed vector store used by v3 experiments."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
+
 import duckdb
 
+
 class DuckDBVectorStore:
-    """
-    A vector store implementation using DuckDB with the VSS extension.
-    """
-    def __init__(self, conn: duckdb.DuckDBPyConnection, embedding_dim: int):
+    """Persist embeddings in DuckDB and expose ANN-style queries."""
+
+    def __init__(self, conn: duckdb.DuckDBPyConnection, embedding_dim: int) -> None:
         self.conn = conn
         self.embedding_dim = embedding_dim
 
-    def upsert(self, vectors: List[Tuple[str, List[float]]]):
-        """
-        Upserts a list of (chunk_id, embedding) tuples into the database.
-        """
+    def upsert(self, vectors: Sequence[tuple[str, Sequence[float]]]) -> None:
+        """Insert or update the provided embeddings."""
         if not vectors:
             return
 
-        # Use a temporary table for efficient bulk insertion
-        self.conn.execute(f"CREATE TEMP TABLE temp_vectors (chunk_id TEXT, embedding FLOAT[{self.embedding_dim}]);")
+        self.conn.execute(
+            f"""
+            CREATE TEMP TABLE temp_vectors (
+                chunk_id TEXT,
+                embedding FLOAT[{self.embedding_dim}]
+            )
+            """
+        )
         self.conn.executemany("INSERT INTO temp_vectors VALUES (?, ?)", vectors)
-
-        # Merge into the main rag_vectors table
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO rag_vectors (chunk_id, embedding)
-            SELECT chunk_id, embedding FROM temp_vectors
-            ON CONFLICT (chunk_id) DO UPDATE SET embedding = excluded.embedding;
-        """)
-
-        self.conn.execute("DROP TABLE temp_vectors;")
+            SELECT chunk_id, embedding
+            FROM temp_vectors
+            ON CONFLICT (chunk_id) DO UPDATE
+            SET embedding = excluded.embedding
+            """
+        )
+        self.conn.execute("DROP TABLE temp_vectors")
         self.conn.commit()
 
-    def query(self, query_embedding: List[float], k: int) -> List[Tuple[str, float]]:
-        """
-        Queries the vector store for the top k nearest neighbors using the HNSW index.
-        """
-        # The query uses the ORDER BY ... LIMIT pattern to leverage the HNSW index
-        query = f"""
-            SELECT chunk_id, array_distance(embedding, CAST(? AS FLOAT[{self.embedding_dim}])) as distance
+    def query(self, query_embedding: Iterable[float], k: int) -> list[tuple[str, float]]:
+        """Return the `k` closest embeddings by cosine distance."""
+        embedding = list(query_embedding)
+        return self.conn.execute(
+            f"""
+            SELECT
+                chunk_id,
+                array_distance(
+                    embedding,
+                    CAST(? AS FLOAT[{self.embedding_dim}])
+                ) AS distance
             FROM rag_vectors
             ORDER BY distance
-            LIMIT ?;
-        """
-
-        return self.conn.execute(query, [query_embedding, k]).fetchall()
+            LIMIT ?
+            """,
+            [embedding, k],
+        ).fetchall()

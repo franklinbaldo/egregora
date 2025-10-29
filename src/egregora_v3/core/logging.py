@@ -4,6 +4,7 @@ from pathlib import Path
 
 from egregora_v3.core.paths import LOGS_DIR
 
+
 def setup_logging(log_level: str = "INFO", log_file: Path = LOGS_DIR / "egregora.log"):
     """
     Configures logging for the application.

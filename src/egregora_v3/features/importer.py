@@ -1,10 +1,11 @@
 from pathlib import Path
+
 import pandas as pd
 from rich.console import Console
 
 from egregora_v3.core.context import Context
-from egregora_v3.features.rag.ingest import ingest_source
 from egregora_v3.features.rag.build import build_embeddings
+from egregora_v3.features.rag.ingest import ingest_source
 
 console = Console()
 
@@ -23,7 +24,7 @@ def import_from_parquet(ctx: Context, parquet_path: Path):
 
     # Assume the text is in a column named 'text' and is already anonymized
     if 'text' not in df.columns:
-        console.print(f"[bold red]Error:[/] 'text' column not found in Parquet file.")
+        console.print("[bold red]Error:[/] 'text' column not found in Parquet file.")
         return
 
     # Ingest each text as a separate document

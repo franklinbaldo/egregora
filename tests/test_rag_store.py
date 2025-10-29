@@ -283,7 +283,7 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
                 build_row("chunk-2", [0.0, 1.0], chunk_index=1),
             ]
 
-            table = ibis.memtable(rows)
+            table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
             store.add(table)
 
             ann_results = store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann").execute()

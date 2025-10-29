@@ -263,7 +263,6 @@ def build_batch_requests(
                         file_data=genai_types.FileData(
                             file_uri=file_uri,
                             mime_type=record.get("mime_type", "application/octet-stream"),
-                            display_name=record.get("display_name"),
                         )
                     )
                 )
@@ -703,7 +702,6 @@ def enrich_dataframe(
                     "prompt": prompt,
                     "file_uri": job.upload_uri,
                     "mime_type": job.mime_type,
-                    "display_name": job.file_path.name,
                 }
             )
 

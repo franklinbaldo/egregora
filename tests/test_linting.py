@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -17,7 +16,7 @@ def _run_ruff(*paths: str) -> subprocess.CompletedProcess[str]:
     """Execute ``ruff check`` for the given paths and capture output."""
 
     return subprocess.run(
-        [sys.executable, "-m", "ruff", "check", *paths],
+        ["uv", "run", "ruff", "check", *paths],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from rich.console import Console
 
 from egregora_v3.core.context import Context

@@ -1,9 +1,9 @@
-from typing import List
 
 from egregora_v3.core.context import Context
 from egregora_v3.core.types import QueryHit, RagChunk
 
-def query_rag(ctx: Context, query_text: str, k: int = 8, mode: str = "ann") -> List[QueryHit]:
+
+def query_rag(ctx: Context, query_text: str, k: int = 8, mode: str = "ann") -> list[QueryHit]:
     """
     Performs a RAG query against the vector store.
     """
@@ -35,7 +35,7 @@ def query_rag(ctx: Context, query_text: str, k: int = 8, mode: str = "ann") -> L
     if chunk_results:
         column_names = [desc[0] for desc in ctx.conn.description]
         for row in chunk_results:
-            row_dict = dict(zip(column_names, row))
+            row_dict = dict(zip(column_names, row, strict=False))
             chunk = RagChunk(**row_dict)
             similarity = similarity_map.get(chunk.chunk_id)
             query_hits.append(QueryHit(chunk=chunk, similarity=similarity))

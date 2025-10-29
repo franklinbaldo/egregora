@@ -1,5 +1,7 @@
 """Tests for enricher module, focusing on PII detection."""
 
+# ruff: noqa: E402 - imports after stub installation
+
 import asyncio
 import sys
 import tempfile
@@ -8,34 +10,41 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-# Provide minimal google genai stubs so egregora package can import without optional deps.
-if "google" not in sys.modules:
+import ibis
+
+EXPECTED_TEMPERATURE = 0.3
+EXPECTED_MEDIA_PARTS = 2
+
+def _install_google_stubs() -> None:  # pragma: no cover - simple fallback
+    if "google" in sys.modules:
+        return
+
     google_module = types.ModuleType("google")
     genai_module = types.ModuleType("google.genai")
     genai_types_module = types.ModuleType("google.genai.types")
 
-    class DummyClient:  # pragma: no cover - simple stub
+    class DummyClient:
         def __init__(self, *_, **__):
             self.aio = types.SimpleNamespace(
                 models=types.SimpleNamespace(generate_content=None),
                 files=types.SimpleNamespace(upload=None),
             )
 
-    class DummyPart:  # pragma: no cover - simple stub
+    class DummyPart:
         def __init__(self, *, text: str | None = None, file_data: "DummyFileData" | None = None):
             self.text = text
             self.file_data = file_data
 
-    class DummyContent:  # pragma: no cover - simple stub
-        def __init__(self, *, role: str | None = None, parts: list[DummyPart] | None = None):
+    class DummyContent:
+        def __init__(self, *, role: str | None = None, parts: list["DummyPart"] | None = None):
             self.role = role
             self.parts = parts or []
 
-    class DummyGenerateContentConfig:  # pragma: no cover - simple stub
+    class DummyGenerateContentConfig:
         def __init__(self, *, temperature: float | None = None):
             self.temperature = temperature
 
-    class DummyFileData:  # pragma: no cover - simple stub
+    class DummyFileData:
         def __init__(
             self,
             *,
@@ -47,11 +56,11 @@ if "google" not in sys.modules:
             self.mime_type = mime_type
             self.display_name = display_name
 
-    class DummyEmbedContentConfig:  # pragma: no cover - simple stub
+    class DummyEmbedContentConfig:
         def __init__(self, *_, **__):
             pass
 
-    class DummyTool:  # pragma: no cover - simple stub
+    class DummyTool:
         def __init__(self, *_, **__):
             pass
 
@@ -64,23 +73,35 @@ if "google" not in sys.modules:
     genai_types_module.EmbedContentConfig = DummyEmbedContentConfig
     genai_types_module.Tool = DummyTool
 
+    google_module.genai = genai_module
     sys.modules["google"] = google_module
     sys.modules["google.genai"] = genai_module
     sys.modules["google.genai.types"] = genai_types_module
-    google_module.genai = genai_module
 
-import ibis
 
-from egregora.cache import EnrichmentCache
-from egregora.config_types import EnrichmentConfig
-from egregora.enricher import (
-    build_batch_requests,
-    enrich_dataframe,
-    enrich_media,
-    map_batch_results,
-    replace_media_mentions,
-)
-from egregora.gemini_batch import BatchPromptResult
+try:  # pragma: no cover - exercised implicitly when dependency is present
+    from egregora.cache import EnrichmentCache
+    from egregora.config_types import EnrichmentConfig
+    from egregora.enricher import (
+        build_batch_requests,
+        enrich_dataframe,
+        enrich_media,
+        map_batch_results,
+        replace_media_mentions,
+    )
+    from egregora.gemini_batch import BatchPromptResult
+except ModuleNotFoundError:  # pragma: no cover - optional dependency missing
+    _install_google_stubs()
+    from egregora.cache import EnrichmentCache
+    from egregora.config_types import EnrichmentConfig
+    from egregora.enricher import (
+        build_batch_requests,
+        enrich_dataframe,
+        enrich_media,
+        map_batch_results,
+        replace_media_mentions,
+    )
+    from egregora.gemini_batch import BatchPromptResult
 
 
 def test_build_batch_requests_for_text_prompts():
@@ -100,7 +121,7 @@ def test_build_batch_requests_for_text_prompts():
     assert request.contents[0].role == "user"
     assert request.contents[0].parts[0].text == "Describe the link"
     assert request.config is not None
-    assert getattr(request.config, "temperature", None) == 0.3
+    assert request.config.temperature == EXPECTED_TEMPERATURE
 
 
 def test_build_batch_requests_for_media_prompts():
@@ -110,7 +131,6 @@ def test_build_batch_requests_for_media_prompts():
             "prompt": "Describe the file",
             "file_uri": "gs://media/test.png",
             "mime_type": "image/png",
-            "display_name": "test.png",
         }
     ]
 
@@ -121,11 +141,10 @@ def test_build_batch_requests_for_media_prompts():
     assert request.model == "vision-model"
     assert request.tag == "media:test"
     assert request.contents[0].parts[0].text == "Describe the file"
-    assert len(request.contents[0].parts) == 2
+    assert len(request.contents[0].parts) == EXPECTED_MEDIA_PARTS
     file_part = request.contents[0].parts[1]
-    assert getattr(file_part, "file_data").file_uri == "gs://media/test.png"
-    assert getattr(file_part, "file_data").mime_type == "image/png"
-    assert getattr(file_part, "file_data").display_name == "test.png"
+    assert file_part.file_data.file_uri == "gs://media/test.png"
+    assert file_part.file_data.mime_type == "image/png"
     assert request.config is None
 
 

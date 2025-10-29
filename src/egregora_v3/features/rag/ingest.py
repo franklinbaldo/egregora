@@ -1,10 +1,11 @@
-from pathlib import Path
 import hashlib
-from typing import Iterator
+from collections.abc import Iterator
+from pathlib import Path
 
-from egregora_v3.core.context import Context
 from egregora_v3.adapters.privacy.anonymize import anonymize_mentions
+from egregora_v3.core.context import Context
 from egregora_v3.core.types import RagChunk
+
 
 def chunk_document(doc_content: str, chunk_size: int = 1024) -> Iterator[str]:
     """

@@ -81,10 +81,12 @@ def test_batch_client_retries_rate_limited_create(monkeypatch):
     client = SimpleNamespace(batches=FlakyBatches())
     batch_client = GeminiBatchClient(client=client, default_model="models/test", poll_interval=0.0, timeout=5.0)
 
-    requests = [BatchPromptRequest(contents=[object()], tag="tag-1")]
+    content = genai_types_module.Content(parts=[genai_types_module.Part(text="hello world")])
+    requests = [BatchPromptRequest(contents=[content], tag="tag-1")]
 
     results = batch_client.generate_content(requests)
 
-    assert client.batches.create_attempts == 2, "should retry the initial create call"
+    expected_attempts = 2
+    assert client.batches.create_attempts == expected_attempts, "should retry the initial create call"
     assert len(results) == 1
     assert results[0].response.text == "ok"

@@ -25,10 +25,9 @@ def _resolve_level() -> int:
     if isinstance(level, int):
         return level
 
-    console.print(
-        "[yellow]Unknown EGREGORA_LOG_LEVEL '%s'; defaulting to INFO.[/yellow]"
-        % level_name
-    )
+        console.print(
+            f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]"
+        )
     return logging.INFO
 
 
@@ -66,4 +65,3 @@ def configure_logging() -> None:
 
     # Avoid noisy duplicate logs from libraries that might configure logging later.
     logging.captureWarnings(True)
-

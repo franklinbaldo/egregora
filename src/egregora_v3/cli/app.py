@@ -1,19 +1,22 @@
+import hashlib
+import importlib
+from pathlib import Path
+from typing import Annotated
+
 import typer
 from rich.console import Console
 from rich.table import Table
-import hashlib
-from pathlib import Path
 
 from egregora_v3.core.context import build_context
-from egregora_v3.core.db import initialize_database, create_vss_index
+from egregora_v3.core.db import create_vss_index, initialize_database
 from egregora_v3.core.paths import ensure_dirs_exist
 from egregora_v3.core.types import HealthReport
-from egregora_v3.features.rag.ingest import ingest_source
+from egregora_v3.features.importer import import_from_parquet
 from egregora_v3.features.rag.build import build_embeddings
+from egregora_v3.features.rag.ingest import ingest_source
 from egregora_v3.features.rag.query import query_rag
 from egregora_v3.features.ranking.duel import run_duel
 from egregora_v3.features.ranking.export import export_rankings
-from egregora_v3.features.importer import import_from_parquet
 
 app = typer.Typer(name="eg3", help="Egregora v3 - Emergent Group Reflection Engine")
 rank_app = typer.Typer(name="rank", help="Commands for ranking content.")
@@ -45,7 +48,9 @@ def init():
     ctx.close()
 
 @app.command()
-def ingest(src: Path = typer.Argument(..., help="Path to a source file or directory to ingest.")):
+def ingest(
+    src: Annotated[Path, typer.Argument(help="Path to a source file or directory to ingest.")]
+):
     """
     Ingest and anonymize a source file or directory.
     """
@@ -68,8 +73,10 @@ def build():
     ctx.close()
 
 @app.command()
-def query(q: str = typer.Argument(..., help="The query string."),
-          k: int = typer.Option(8, "--k", help="Number of results to return.")):
+def query(
+    q: Annotated[str, typer.Argument(help="The query string.")],
+    k: Annotated[int, typer.Option("--k", help="Number of results to return.")] = 8,
+):
     """
     Query the RAG pipeline.
     """
@@ -82,9 +89,11 @@ def query(q: str = typer.Argument(..., help="The query string."),
     ctx.close()
 
 @rank_app.command("duel")
-def rank_duel(a: str = typer.Argument(..., help="Player A's ID."),
-              b: str = typer.Argument(..., help="Player B's ID."),
-              judge: str = typer.Option("gemini", "--judge", help="The judging strategy to use.")):
+def rank_duel(
+    a: Annotated[str, typer.Argument(help="Player A's ID.")],
+    b: Annotated[str, typer.Argument(help="Player B's ID.")],
+    judge: Annotated[str, typer.Option("--judge", help="The judging strategy to use.")] = "gemini",
+):
     """
     Run a duel between two players.
     """
@@ -93,8 +102,10 @@ def rank_duel(a: str = typer.Argument(..., help="Player A's ID."),
     ctx.close()
 
 @rank_app.command("export")
-def rank_export(out: Path = typer.Argument(..., help="Output directory for the export."),
-                fmt: str = typer.Option("parquet", "--fmt", help="Export format: 'parquet' or 'csv'.")):
+def rank_export(
+    out: Annotated[Path, typer.Argument(help="Output directory for the export.")],
+    fmt: Annotated[str, typer.Option("--fmt", help="Export format: 'parquet' or 'csv'.")] = "parquet",
+):
     """
     Export the current rankings.
     """
@@ -108,13 +119,14 @@ def site_render():
     Render the static site.
     """
     try:
-        from egregora_v3.features.site.render import render_site  # type: ignore
+        render_module = importlib.import_module("egregora_v3.features.site.render")
     except ModuleNotFoundError as exc:
         console.print(
             "[bold red]Site rendering is unavailable:[/] "
             "missing 'egregora_v3.features.site.render'."
         )
         raise typer.Exit(code=1) from exc
+    render_site = render_module.render_site
 
     ctx = build_context()
     try:
@@ -123,7 +135,9 @@ def site_render():
         ctx.close()
 
 @import_app.command("parquet")
-def import_parquet_cmd(in_path: Path = typer.Argument(..., help="Path to the v2 Parquet file.")):
+def import_parquet_cmd(
+    in_path: Annotated[Path, typer.Argument(help="Path to the v2 Parquet file.")]
+):
     """
     Import chunks from a v2 Parquet file.
     """

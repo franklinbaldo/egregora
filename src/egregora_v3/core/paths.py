@@ -1,5 +1,6 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
 
 def get_app_dir(app_name: str = "egregora_v3") -> Path:
     """

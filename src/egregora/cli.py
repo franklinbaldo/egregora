@@ -5,25 +5,61 @@ import importlib
 import logging
 import os
 import random
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from types import SimpleNamespace
+from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
-from rich.console import Console
-from rich.logging import RichHandler
 from rich.markup import escape
 from rich.panel import Panel
 
 from .config_types import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
-from .logging_setup import console, configure_logging
-from .model_config import ModelConfig, load_site_config
+from .logging_setup import configure_logging, console
+from .model_config import ModelConfig
+
+try:  # pragma: no cover - compatibility with older installations
+    from .model_config import load_site_config
+except ImportError:  # pragma: no cover - legacy fallback
+    from .site_config import load_mkdocs_config as _load_mkdocs_config
+
+    def load_site_config(output_dir: Path) -> dict:
+        config, mkdocs_path = _load_mkdocs_config(output_dir)
+        if not mkdocs_path:
+            logging.getLogger(__name__).debug("No mkdocs.yml found, using default config")
+            return {}
+        return config.get("extra", {}).get("egregora", {})
 from .pipeline import process_whatsapp_export
-from .site_config import find_mkdocs_file, resolve_site_paths
-from .site_scaffolding import ensure_mkdocs_project
+
+try:  # pragma: no cover - compatibility with older installations
+    from .site_config import find_mkdocs_file, resolve_site_paths
+except ImportError:  # pragma: no cover - legacy fallback
+
+    def find_mkdocs_file(output_dir: Path) -> Path | None:
+        candidate = output_dir / "mkdocs.yml"
+        return candidate if candidate.exists() else None
+
+    def resolve_site_paths(site_dir: Path) -> SimpleNamespace:
+        docs_dir = site_dir / "docs"
+        return SimpleNamespace(
+            site_dir=site_dir,
+            docs_dir=docs_dir,
+            posts_dir=docs_dir / "posts",
+            profiles_dir=docs_dir / "profiles",
+            rankings_dir=docs_dir / "rankings",
+        )
+try:  # pragma: no cover - compatibility with older installations
+    from .site_scaffolding import ensure_mkdocs_project
+except ImportError:  # pragma: no cover - legacy fallback
+
+    def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
+        docs_dir = site_root / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        return docs_dir, False
 
 app = typer.Typer(
     name="egregora",
@@ -31,6 +67,10 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+RankingStore: Any | None = None
+run_comparison: Callable[..., Any] | None = None
+get_posts_to_compare: Callable[..., Any] | None = None
 
 
 @app.callback()
@@ -568,12 +608,11 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             ] = None,
             debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
         ) -> None:
+            install_cmd = escape("pip install 'egregora[ranking]'")
             console.print(
-                "[red]Ranking commands require the optional extra: "
-                f"{escape("pip install 'egregora[ranking]'")}[/red]"
-                "pip install 'egregora[ranking]'[/red]"
+                f"[red]Ranking commands require the optional extra: {install_cmd}[/red]"
             )
-            console.print(f"[yellow]Missing dependency: {missing}[/yellow]")
+            console.print(f"[yellow]Missing dependency: {escape(missing)}[/yellow]")
             raise typer.Exit(1)
 
         logger.debug("Ranking extra unavailable: %s", missing)
@@ -582,6 +621,10 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     def _run_ranking_session(  # noqa: PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
+        assert RankingStore is not None
+        assert run_comparison is not None
+        assert get_posts_to_compare is not None
+
         site_path = config.site_dir.resolve()
         if not site_path.exists():
             console.print(f"[red]Site directory not found: {site_path}[/red]")

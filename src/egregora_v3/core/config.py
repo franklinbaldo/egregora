@@ -1,10 +1,11 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pathlib import Path
 import os
+from pathlib import Path
+
 import toml
-from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora_v3.core.paths import APP_DIR
+
 
 class Settings(BaseSettings):
     """
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
     vss_nprobe: int = 10
 
     # API keys - loaded from environment or a secrets file
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: str | None = None
 
 def load_from_toml(config_path: Path) -> dict:
     """Loads settings from a TOML file."""
@@ -33,7 +34,7 @@ def load_from_toml(config_path: Path) -> dict:
         return toml.load(config_path)
     return {}
 
-def load_settings(cli_overrides: Optional[dict] = None) -> Settings:
+def load_settings(cli_overrides: dict | None = None) -> Settings:
     """
     Loads settings with the correct precedence: CLI > ENV > TOML file.
     """

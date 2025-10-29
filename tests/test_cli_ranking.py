@@ -12,6 +12,7 @@ CLI_PATH = Path(__file__).resolve().parents[1] / "src" / "egregora" / "cli.py"
 
 
 def _load_cli_module():
+    importlib.import_module("egregora")
     spec = importlib.util.spec_from_file_location(CLI_MODULE_NAME, CLI_PATH)
     module = importlib.util.module_from_spec(spec)
     sys.modules[CLI_MODULE_NAME] = module

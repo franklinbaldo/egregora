@@ -1,5 +1,7 @@
-import duckdb
 from pathlib import Path
+
+import duckdb
+
 
 def get_db_connection(db_path: Path) -> duckdb.DuckDBPyConnection:
     """Returns a connection to the DuckDB database."""

@@ -1,15 +1,17 @@
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from egregora_v3.core.context import build_context
-from egregora_v3.features.rag.ingest import ingest_source
+from egregora_v3.core.db import create_vss_index, initialize_database
 from egregora_v3.features.rag.build import build_embeddings
+from egregora_v3.features.rag.ingest import ingest_source
 from egregora_v3.features.rag.query import query_rag
-from egregora_v3.core.db import initialize_database, create_vss_index
 
 # Mock embedding to be returned by the mocked client
 MOCK_EMBEDDING = [0.1] * 768
+EXPECTED_EMBED_CALLS = 2
 
 @pytest.fixture
 def temp_db_path(tmp_path: Path) -> Path:
@@ -71,5 +73,5 @@ def test_full_rag_pipeline(test_context, test_source_file: Path):
     hit = hits[0]
     assert "This is a test document" in hit.chunk.text
 
-    assert test_context.embedding_client.embed.call_count == 2
+    assert test_context.embedding_client.embed.call_count == EXPECTED_EMBED_CALLS
     test_context.embedding_client.embed.assert_called_with([query_text], task_type="retrieval_query")

@@ -141,6 +141,7 @@ class VectorStore:
             self.conn = connection
         self.conn = _ConnectionProxy(self.conn)
         self._init_vss()
+        self._vss_function = self._detect_vss_function()
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
         self._ensure_index_meta_table()
@@ -443,7 +444,7 @@ class VectorStore:
 
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-    def search(  # noqa: PLR0913, PLR0915
+    def search(  # noqa: PLR0911, PLR0913, PLR0915
         self,
         query_vec: list[float],
         top_k: int = 5,
@@ -534,64 +535,145 @@ class VectorStore:
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
 
+        order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+
+        exact_base_query = f"""
+            WITH candidates AS (
+                SELECT
+                    * EXCLUDE (embedding),
+                    array_cosine_similarity(
+                        embedding::FLOAT[{embedding_dimensionality}],
+                        ?::FLOAT[{embedding_dimensionality}]
+                    ) AS similarity
+                FROM {TABLE_NAME}
+            )
+            SELECT * FROM candidates
+        """
+
         if mode_normalized == "exact":
-            base_query = f"""
-                WITH candidates AS (
-                    SELECT
-                        * EXCLUDE (embedding),
-                        array_cosine_similarity(
-                            embedding::FLOAT[{embedding_dimensionality}],
-                            ?::FLOAT[{embedding_dimensionality}]
-                        ) AS similarity
-                    FROM {TABLE_NAME}
-                )
-                SELECT * FROM candidates
-            """
-        else:
-            fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
-            ann_limit = max(top_k * fetch_factor, top_k + 10)
-            nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
-            base_query = f"""
-                WITH candidates AS (
-                    SELECT
-                        base.*,
-                        1 - vs.distance AS similarity
-                    FROM vss_search(
-                        '{TABLE_NAME}',
-                        'embedding',
-                        ?::FLOAT[{embedding_dimensionality}],
-                        top_k := {ann_limit},
-                        metric := 'cosine'{nprobe_clause}
-                    ) AS vs
-                    JOIN {TABLE_NAME} AS base
-                      ON vs.rowid = base.rowid
-                )
-                SELECT * FROM candidates
-            """
-
-        query = (
-            base_query
-            + where_clause
-            + f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
-        )
-
-        try:
-            result_arrow = self.conn.execute(query, params).arrow()
-            result_table = self._ensure_arrow_table(result_arrow)
-            if result_table.num_rows == 0:
+            query = exact_base_query + where_clause + order_clause
+            try:
+                return self._execute_search_query(query, params, min_similarity)
+            except Exception as exc:  # pragma: no cover - unexpected execution failure
+                logger.error(f"Search failed: {exc}")
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-            prepared_table = self._prepare_search_results(result_table)
-            df = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
+        fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
+        ann_limit = max(top_k * fetch_factor, top_k + 10)
+        nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
 
-            row_count = df.count().execute()
-            logger.info(f"Found {row_count} similar chunks (min_similarity={min_similarity})")
+        last_error: Exception | None = None
+        for function_name in self._candidate_vss_functions():
+            base_query = self._build_ann_query(
+                function_name,
+                ann_limit=ann_limit,
+                nprobe_clause=nprobe_clause,
+                embedding_dimensionality=embedding_dimensionality,
+            )
+            query = base_query + where_clause + order_clause
 
-            return df
+            try:
+                result = self._execute_search_query(query, params, min_similarity)
+                self._vss_function = function_name
+                return result
+            except duckdb.Error as exc:
+                last_error = exc
+                logger.warning("ANN search failed with %s: %s", function_name, exc)
+                continue
+            except Exception as exc:  # pragma: no cover - unexpected execution failure
+                last_error = exc
+                logger.error("ANN search aborted: %s", exc)
+                break
 
-        except Exception as e:
-            logger.error(f"Search failed: {e}")
+        if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
+            logger.info("Falling back to exact search due to VSS compatibility issues")
+            try:
+                return self._execute_search_query(
+                    exact_base_query + where_clause + order_clause,
+                    params,
+                    min_similarity,
+                )
+            except Exception as exc:  # pragma: no cover - unexpected execution failure
+                logger.error("Exact fallback search failed: %s", exc)
+
+        if last_error is not None:
+            logger.error("Search failed: %s", last_error)
+        else:
+            logger.error("Search failed: no compatible VSS table function available")
+        return self._empty_table(SEARCH_RESULT_SCHEMA)
+
+    def _build_ann_query(
+        self,
+        function_name: str,
+        *,
+        ann_limit: int,
+        nprobe_clause: str,
+        embedding_dimensionality: int,
+    ) -> str:
+        return f"""
+            WITH candidates AS (
+                SELECT
+                    base.*,
+                    1 - vs.distance AS similarity
+                FROM {function_name}(
+                    '{TABLE_NAME}',
+                    'embedding',
+                    ?::FLOAT[{embedding_dimensionality}],
+                    top_k := {ann_limit},
+                    metric := 'cosine'{nprobe_clause}
+                ) AS vs
+                JOIN {TABLE_NAME} AS base
+                  ON vs.rowid = base.rowid
+            )
+            SELECT * FROM candidates
+        """
+
+    def _detect_vss_function(self) -> str:
+        """Return the appropriate DuckDB VSS function name."""
+
+        try:
+            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
+        except duckdb.Error as exc:  # pragma: no cover - DuckDB compatibility
+            logger.debug("Unable to inspect table functions: %s", exc)
+            return "vss_search"
+
+        function_names = {str(row[0]).lower() for row in rows if row}
+
+        if "vss_search" in function_names:
+            return "vss_search"
+        if "vss_match" in function_names:
+            logger.debug("Using vss_match table function for ANN queries")
+            return "vss_match"
+
+        logger.debug("No VSS table function detected; defaulting to vss_search")
+        return "vss_search"
+
+    def _candidate_vss_functions(self) -> list[str]:
+        """Return preferred VSS table functions in fallback order."""
+
+        candidates = [self._vss_function]
+        for function_name in ("vss_match", "vss_search"):
+            if function_name not in candidates:
+                candidates.append(function_name)
+        return candidates
+
+    def _execute_search_query(
+        self, query: str, params: list[Any], min_similarity: float
+    ) -> Table:
+        """Execute the provided search query and normalize the results."""
+
+        result_arrow = self.conn.execute(query, params).arrow()
+        result_table = self._ensure_arrow_table(result_arrow)
+        if result_table.num_rows == 0:
             return self._empty_table(SEARCH_RESULT_SCHEMA)
+
+        prepared_table = self._prepare_search_results(result_table)
+        df = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
+
+        row_count = df.count().execute()
+        logger.info("Found %d similar chunks (min_similarity=%s)", row_count, min_similarity)
+
+        return df
 
     def _prepare_search_results(self, result_table: pa.Table) -> pa.Table:
         """Normalize DuckDB arrow results to match the search schema."""

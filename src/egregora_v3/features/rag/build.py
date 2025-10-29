@@ -1,5 +1,6 @@
 from egregora_v3.core.context import Context
 
+
 def build_embeddings(ctx: Context, batch_size: int = 100):
     """
     Finds chunks without embeddings, generates embeddings for them,
@@ -23,10 +24,10 @@ def build_embeddings(ctx: Context, batch_size: int = 100):
     total_embedded = 0
     for i in range(0, len(chunks_to_embed), batch_size):
         batch = chunks_to_embed[i:i + batch_size]
-        chunk_ids, texts = zip(*batch)
+        chunk_ids, texts = zip(*batch, strict=False)
 
         embeddings = ctx.embedding_client.embed(list(texts))
-        vectors_to_upsert = list(zip(chunk_ids, embeddings))
+        vectors_to_upsert = list(zip(chunk_ids, embeddings, strict=False))
 
         ctx.vector_store.upsert(vectors_to_upsert)
 

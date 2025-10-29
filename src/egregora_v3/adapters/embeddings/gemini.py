@@ -1,5 +1,3 @@
-from typing import List
-
 try:
     from google import genai  # type: ignore[import]
 except ImportError:  # pragma: no cover - depends on optional dependency
@@ -14,14 +12,14 @@ class GeminiEmbeddingClient:
         if api_key:
             genai.configure(api_key=api_key)
 
-    def embed(self, texts: List[str], task_type: str = "retrieval_document") -> List[List[float]]:
+    def embed(self, texts: list[str], task_type: str = "retrieval_document") -> list[list[float]]:
         """
         Generates embeddings for a list of texts.
         """
         if not texts:
             return []
 
-        embeddings: List[List[float]] = []
+        embeddings: list[list[float]] = []
         for text in texts:
             result = genai.embed_content(
                 model=self.model,

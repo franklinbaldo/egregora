@@ -1,12 +1,10 @@
-from typer.testing import CliRunner
-import pytest
-from pathlib import Path
-
 # Placeholder for the main CLI application
 # This will be imported from the actual implementation once it exists
 # from egregora_v3.cli.app import app
 # For now, we'll use a dummy app
 import typer
+from typer.testing import CliRunner
+
 app = typer.Typer()
 
 @app.command()

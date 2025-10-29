@@ -81,11 +81,9 @@ class GeminiBatchClient:
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file so it can be referenced in batch prompts."""
         logger.debug("Uploading media for batch processing: %s", path)
-        return call_with_retries_sync(
-            self._client.files.upload,
-            path=path,
-            display_name=display_name,
-        )
+        # Newer google-genai clients accept only the file path/handle; display
+        # names are deprecated, so we ignore them here for compatibility.
+        return call_with_retries_sync(self._client.files.upload, file=path)
 
     def generate_content(
         self,
@@ -118,7 +116,6 @@ class GeminiBatchClient:
             self._client.batches.create,
             model=self._default_model,
             src=genai_types.BatchJobSource(inlined_requests=inlined_requests),
-            config=genai_types.CreateBatchJobConfig(display_name=display_name),
         )
 
         logger.info("[cyan]🚀 Batch job created:[/] %s", job.name or "<unknown>")
@@ -208,7 +205,6 @@ class GeminiBatchClient:
             self._client.batches.create_embeddings,
             model=model_name,
             src=source,
-            config=genai_types.CreateEmbeddingsBatchJobConfig(display_name=display_name),
         )
 
         logger.info("[cyan]🚀 Embedding job created:[/] %s", job.name or "<unknown>")
