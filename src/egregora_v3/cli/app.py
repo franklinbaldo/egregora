@@ -131,6 +131,10 @@ def import_parquet_cmd(in_path: Path = typer.Argument(..., help="Path to the v2 
     import_from_parquet(ctx, in_path)
     ctx.close()
 
+def _status_icon(ok: bool) -> str:
+    return "[bold green]✔[/bold green]" if ok else "[bold red]✘[/bold red]"
+
+
 @app.command()
 def doctor():
     """
@@ -150,7 +154,7 @@ def doctor():
     except Exception as e:
         console.print(f"[bold red]DB check failed: {e}[/bold red]")
 
-    index_present = False # Placeholder
+    index_present = False  # Placeholder
 
     anon_file_path = Path("src/egregora_v3/adapters/privacy/anonymize.py")
     anon_checksum = "file_not_found"
@@ -167,7 +171,30 @@ def doctor():
     )
 
     table = Table(title="Egregora v3 Health Report")
-    # ... (table rendering)
+    table.add_column("Check", style="bold cyan")
+    table.add_column("Status", style="bold")
+    table.add_column("Details")
+
+    table.add_row(
+        "Database",
+        _status_icon(report.db_reachable),
+        f"{report.rag_chunks_count} chunks / {report.rag_vectors_count} vectors",
+    )
+    table.add_row(
+        "Vector index",
+        _status_icon(report.index_present),
+        "Index not yet implemented" if not report.index_present else "Available",
+    )
+    table.add_row(
+        "Embedding dim",
+        "[bold green]✔[/bold green]",
+        str(report.embedding_dimension),
+    )
+    table.add_row(
+        "Anonymization checksum",
+        "[bold green]✔[/bold green]" if anon_file_path.exists() else "[bold yellow]![/bold yellow]",
+        report.anonymization_checksum,
+    )
 
     console.print(table)
     ctx.close()
