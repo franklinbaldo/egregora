@@ -604,6 +604,8 @@ def _query_rag_for_context(  # noqa: PLR0913
     retrieval_overfetch: int | None = None,
 ) -> str:
     """Query RAG system for similar previous posts."""
+    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
+    # tenet=propagate-errors; why=vector store bootstrap races with writer so we degrade; exit=add rag health check and fail fast (#tracking-rag-context)
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         similar_posts = query_similar_posts(
@@ -969,6 +971,8 @@ def _index_posts_in_rag(
     if not saved_posts:
         return
 
+    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
+    # tenet=propagate-errors; why=batch embeddings time out today and we cannot abort post generation; exit=move indexing into a durable worker then fail fast (#tracking-rag-indexing)
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         for post_path in saved_posts:

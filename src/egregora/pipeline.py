@@ -448,6 +448,8 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         # Index all media enrichments into RAG (if enrichment was enabled)
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media enrichments into RAG...[/]")
+            # TENET-BREAK(pipeline)[@platform][P1][due:2025-04-30]:
+            # tenet=propagate-errors; why=duckdb vss extension crashes on arm64 builds so we keep runs alive; exit=upgrade vector store stack and fail hard once stable (#tracking-vss-crash)
             try:
                 rag_dir = site_paths.rag_dir
                 store = VectorStore(rag_dir / "chunks.parquet")

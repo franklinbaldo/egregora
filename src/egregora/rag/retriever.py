@@ -203,6 +203,8 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
     Returns:
         Dict with extracted metadata or None if parsing fails
     """
+    # TENET-BREAK(rag)[@platform][P1][due:2025-04-30]:
+    # tenet=propagate-errors; why=legacy enrichment exports have inconsistent front matter so we skip bad files; exit=backfill new format and reject malformed docs (#tracking-rag-cleanup)
     try:
         content = enrichment_path.read_text(encoding="utf-8")
 

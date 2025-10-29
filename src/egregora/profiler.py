@@ -351,6 +351,8 @@ def process_commands(
         timestamp = str(cmd_data["timestamp"])
         command = cmd_data["command"]
 
+        # TENET-BREAK(parser)[@platform][P2][due:2025-04-30]:
+        # tenet=propagate-errors; why=user-supplied commands can include legacy formats and we cannot block the pipeline; exit=validate upstream and surface failures per command (#tracking-command-recovery)
         try:
             apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
         except Exception as e:

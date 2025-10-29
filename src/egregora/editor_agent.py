@@ -209,6 +209,8 @@ async def _ask_llm_tool(
     model: str,
 ) -> str:
     """Simple Q&A with fresh LLM instance."""
+    # TENET-BREAK(ui)[@platform][P1][due:2025-04-30]:
+    # tenet=propagate-errors; why=secondary llm calls hit rate limits during reviews so we fail soft; exit=add dedicated quota and let sessions abort on errors (#tracking-editor-llm)
     try:
         response = await call_with_retries(
             client.aio.models.generate_content,
