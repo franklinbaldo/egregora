@@ -366,18 +366,21 @@ class VectorStore:
                 - tags: list[str]
                 - category: str | None
         """
+        self._validate_table_schema(chunks_df, context="new chunks")
+
         chunks_df = self._ensure_local_table(chunks_df)
 
         if self.parquet_path.exists():
             # Read existing and append
             existing_df = self._client.read_parquet(self.parquet_path)
+            self._validate_table_schema(existing_df, context="existing vector store")
             existing_df, chunks_df = self._align_schemas(existing_df, chunks_df)
             combined_df = existing_df.union(chunks_df, distinct=False)
             existing_count = existing_df.count().execute()
             new_count = chunks_df.count().execute()
             logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
         else:
-            combined_df = chunks_df
+            combined_df = self._cast_to_vector_store_schema(chunks_df)
             chunk_count = chunks_df.count().execute()
             logger.info(f"Creating new vector store with {chunk_count} chunks")
 
@@ -390,82 +393,47 @@ class VectorStore:
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
-    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:  # noqa: PLR0912
-        """Ensure both tables share the same schema before unioning."""
+    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+        """Cast both tables to the canonical vector store schema."""
 
-        existing_columns = set(existing_df.columns)
-        new_columns = set(new_df.columns)
-
-        # Backfill new document metadata columns for older stores (posts-only)
-        if "document_type" not in existing_columns:
-            logger.info("Backfilling document_type column on existing vector store")
-            existing_df = existing_df.mutate(document_type=ibis.literal("post"))
-            existing_columns.add("document_type")
-
-        if "document_id" not in existing_columns:
-            logger.info("Backfilling document_id column on existing vector store")
-            document_id_expr = (
-                existing_df.post_slug if "post_slug" in existing_columns else existing_df.chunk_id
-            )
-            existing_df = existing_df.mutate(document_id=document_id_expr)
-            existing_columns.add("document_id")
-
-        # Add nullable media metadata columns when missing
-        for column_name in (
-            "media_uuid",
-            "media_type",
-            "media_path",
-            "original_filename",
-            "message_date",
-            "author_uuid",
-        ):
-            if column_name not in existing_columns and column_name in new_df.schema():
-                dtype = new_df.schema()[column_name]
-                existing_df = existing_df.mutate(**{column_name: ibis.null().cast(dtype)})
-                existing_columns.add(column_name)
-
-        # Ensure new rows still have legacy columns (e.g., authors)
-        legacy_defaults = {}
-        for column_name in existing_columns - new_columns:
-            dtype = existing_df.schema()[column_name]
-            legacy_defaults[column_name] = ibis.null().cast(dtype)
-
-        if legacy_defaults:
-            new_df = new_df.mutate(**legacy_defaults)
-            new_columns.update(legacy_defaults)
-
-        # Add any new columns that only exist on the new rows to the legacy data
-        forward_defaults = {}
-        for column_name in new_columns - existing_columns:
-            dtype = new_df.schema()[column_name]
-            forward_defaults[column_name] = ibis.null().cast(dtype)
-
-        if forward_defaults:
-            existing_df = existing_df.mutate(**forward_defaults)
-            existing_columns.update(forward_defaults)
-
-        # Align column order for deterministic unions
-        ordered_columns = list(dict.fromkeys(list(existing_df.columns) + list(new_df.columns)))
-        existing_df = existing_df.select(ordered_columns)
-        new_df = new_df.select(ordered_columns)
-
-        # Cast to canonical schema types when available
-        existing_casts = {}
-        new_casts = {}
-        for column_name in ordered_columns:
-            if column_name in VECTOR_STORE_SCHEMA:
-                target_type = VECTOR_STORE_SCHEMA[column_name]
-                if existing_df[column_name].type() != target_type:
-                    existing_casts[column_name] = existing_df[column_name].cast(target_type)
-                if new_df[column_name].type() != target_type:
-                    new_casts[column_name] = new_df[column_name].cast(target_type)
-
-        if existing_casts:
-            existing_df = existing_df.mutate(**existing_casts)
-        if new_casts:
-            new_df = new_df.mutate(**new_casts)
+        existing_df = self._cast_to_vector_store_schema(existing_df)
+        new_df = self._cast_to_vector_store_schema(new_df)
 
         return existing_df, new_df
+
+    def _validate_table_schema(self, table: Table, *, context: str) -> None:
+        """Ensure the provided table matches the expected vector store schema."""
+
+        expected_columns = set(VECTOR_STORE_SCHEMA.names)
+        table_columns = set(table.columns)
+
+        missing = sorted(expected_columns - table_columns)
+        unexpected = sorted(table_columns - expected_columns)
+
+        if missing or unexpected:
+            parts = []
+            if missing:
+                parts.append(f"missing columns: {', '.join(missing)}")
+            if unexpected:
+                parts.append(f"unexpected columns: {', '.join(unexpected)}")
+            detail = "; ".join(parts)
+            raise ValueError(
+                f"{context} do not match the vector store schema ({detail})."
+            )
+
+    def _cast_to_vector_store_schema(self, table: Table) -> Table:
+        """Cast the table to the canonical vector store schema ordering and types."""
+
+        casts = {}
+        for column_name, dtype in VECTOR_STORE_SCHEMA.items():
+            column = table[column_name]
+            if column.type() != dtype:
+                casts[column_name] = column.cast(dtype)
+
+        if casts:
+            table = table.mutate(**casts)
+
+        return table.select(VECTOR_STORE_SCHEMA.names)
 
     def search(  # noqa: PLR0913
         self,

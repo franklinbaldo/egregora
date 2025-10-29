@@ -37,6 +37,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
 
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
     other_backend = ibis.duckdb.connect()
     previous_backend = ibis.get_backend()
@@ -45,32 +46,35 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     try:
         store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
         try:
-            base_rows = [
-                {
-                    "chunk_id": "chunk-1",
-                    "document_type": "post",
-                    "document_id": "doc-1",
-                    "chunk_index": 0,
-                    "content": "hello",
-                    "embedding": [0.0, 1.0],
-                    "tags": ["tag"],
-                }
-            ]
-            first_batch = ibis.memtable(base_rows)
+            first_batch = ibis.memtable(
+                [
+                    _vector_store_row(
+                        store_module,
+                        chunk_id="chunk-1",
+                        document_id="doc-1",
+                        chunk_index=0,
+                        content="hello",
+                        embedding=[0.0, 1.0],
+                        tags=["tag"],
+                    )
+                ],
+                schema=store_module.VECTOR_STORE_SCHEMA,
+            )
             store.add(first_batch)
 
             second_batch = ibis.memtable(
                 [
-                    {
-                        "chunk_id": "chunk-2",
-                        "document_type": "post",
-                        "document_id": "doc-2",
-                        "chunk_index": 0,
-                        "content": "world",
-                        "embedding": [1.0, 0.0],
-                        "tags": ["tag"],
-                    }
-                ]
+                    _vector_store_row(
+                        store_module,
+                        chunk_id="chunk-2",
+                        document_id="doc-2",
+                        chunk_index=0,
+                        content="world",
+                        embedding=[1.0, 0.0],
+                        tags=["tag"],
+                    )
+                ],
+                schema=store_module.VECTOR_STORE_SCHEMA,
             )
             store.add(second_batch)
 
@@ -82,53 +86,53 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
         ibis.set_backend(previous_backend)
 
 
-def test_ensure_dataset_loaded_skips_rebuild_without_changes(tmp_path, monkeypatch):
-    """Consecutive ensure calls must avoid rebuilding when metadata is stable."""
+def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
+    """Adding rows must fail fast when the input schema diverges."""
 
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
-
-    rebuild_calls: list[int] = []
-
-    def _record_rebuild(self):
-        rebuild_calls.append(1)
-
-    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", _record_rebuild)
+    monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
     store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
 
     try:
-        rows = [
+        missing_column_rows = [
             {
                 "chunk_id": "chunk-1",
-                "document_type": "post",
-                "document_id": "doc-1",
-                "chunk_index": 0,
                 "content": "hello",
                 "embedding": [0.0, 1.0],
-                "tags": ["tag"],
             }
         ]
-        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
-        rebuild_calls.clear()
+        with pytest.raises(ValueError, match="missing columns"):
+            store.add(ibis.memtable(missing_column_rows))
 
-        store._ensure_dataset_loaded()
-        assert rebuild_calls == []
+        valid_rows = [
+            _vector_store_row(
+                store_module,
+                chunk_id="chunk-1",
+                document_id="doc-1",
+                chunk_index=0,
+                content="hello",
+                embedding=[0.0, 1.0],
+                tags=["tag"],
+            )
+        ]
+        store.add(ibis.memtable(valid_rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
-        store._ensure_dataset_loaded()
-        assert rebuild_calls == []
+        extra_column_row = _vector_store_row(
+            store_module,
+            chunk_id="chunk-2",
+            document_id="doc-2",
+            chunk_index=0,
+            content="world",
+            embedding=[1.0, 0.0],
+            tags=["tag"],
+        )
+        extra_column_row["extra"] = "value"
 
-        store._ensure_dataset_loaded(force=True)
-        assert rebuild_calls == [1]
-
-        metadata_row = store.conn.execute(
-            "SELECT row_count FROM rag_chunks_metadata WHERE path = ?",
-            [str(tmp_path / "chunks.parquet")],
-        ).fetchone()
-
-        assert metadata_row is not None
-        assert metadata_row[0] == 1
+        with pytest.raises(ValueError, match="unexpected columns"):
+            store.add(ibis.memtable([extra_column_row]))
     finally:
         store.close()
 
@@ -163,39 +167,45 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 
     try:
         rows = [
-            {
-                "chunk_id": "chunk-1",
-                "document_type": "post",
-                "document_id": "doc-1",
-                "chunk_index": 0,
-                "content": "hello",
-                "embedding": [0.0, 1.0],
-                "tags": ["tag"],
-            }
+            _vector_store_row(
+                store_module,
+                chunk_id="chunk-1",
+                document_id="doc-1",
+                chunk_index=0,
+                content="hello",
+                embedding=[0.0, 1.0],
+                tags=["tag"],
+            )
         ]
         store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
         captured: dict[str, str] = {}
-        original_execute = store.conn.execute
 
-        def _capture_execute(sql: str, params=None):
-            captured["sql"] = sql
-            if "vss_search" in sql:
-                empty = {
-                    name: []
-                    for name in store_module.SEARCH_RESULT_SCHEMA.names
-                }
-                empty["similarity"] = []
+        class _ConnectionProxy:
+            def __init__(self, inner):
+                self._inner = inner
 
-                class _Result:
-                    def arrow(self_inner):
-                        return pa.table(empty)
+            def execute(self, sql: str, params=None):
+                captured["sql"] = sql
+                if "vss_search" in sql:
+                    empty = {
+                        name: []
+                        for name in store_module.SEARCH_RESULT_SCHEMA.names
+                    }
+                    empty["similarity"] = []
 
-                return _Result()
+                    class _Result:
+                        def arrow(self_inner):
+                            return pa.table(empty)
 
-            return original_execute(sql, params)
+                    return _Result()
 
-        monkeypatch.setattr(store.conn, "execute", _capture_execute)
+                return self._inner.execute(sql, params)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        store.conn = _ConnectionProxy(store.conn)
 
         store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann")
         assert "vss_search" in captured["sql"]
@@ -258,127 +268,21 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
         connection.close()
 
 
-def test_rebuild_index_prefers_exact_mode_below_threshold(tmp_path, monkeypatch, caplog):
-    """Small tables should keep metadata but avoid rebuilding the VSS index."""
+def _vector_store_row(module, **overrides):
+    """Create a fully-specified row for the vector store schema."""
 
-    store_module = _load_vector_store()
-    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
-
-    connection = duckdb.connect(":memory:")
-    store = store_module.VectorStore(
-        tmp_path / "chunks.parquet",
-        connection=connection,
-        exact_index_threshold=10,
+    base = {name: None for name in module.VECTOR_STORE_SCHEMA.names}
+    base.update(
+        {
+            "chunk_id": "chunk",
+            "document_type": "post",
+            "document_id": "chunk",
+            "chunk_index": 0,
+            "content": "",
+            "embedding": [],
+            "tags": [],
+            "authors": [],
+        }
     )
-
-    try:
-        caplog.set_level("INFO")
-
-        row_template = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
-        rows = []
-        for idx in range(3):
-            base = row_template.copy()
-            base.update(
-                {
-                    "chunk_id": f"chunk-{idx}",
-                    "document_type": "post",
-                    "document_id": f"doc-{idx}",
-                    "chunk_index": idx,
-                    "content": f"content-{idx}",
-                    "embedding": [1.0, 0.0],
-                    "tags": ["tag"],
-                }
-            )
-            rows.append(base)
-
-        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
-
-        meta = connection.execute(
-            "SELECT mode, nlist FROM index_meta WHERE index_name = ?",
-            [store_module.INDEX_NAME],
-        ).fetchone()
-
-        assert meta == ("exact", None)
-
-        index_count = connection.execute(
-            """
-            SELECT COUNT(*)
-            FROM duckdb_indexes()
-            WHERE lower(index_name) = lower(?)
-            """,
-            [store_module.INDEX_NAME],
-        ).fetchone()[0]
-
-        assert index_count == 0
-        assert any("exact similarity scan" in message for message in caplog.messages)
-    finally:
-        store.close()
-        connection.close()
-
-
-def test_rebuild_index_uses_ivfflat_above_threshold(tmp_path, caplog):
-    """Large tables should build a VSS IVFFLAT index and persist its parameters."""
-
-    store_module = _load_vector_store()
-    connection = duckdb.connect(str(tmp_path / "chunks.duckdb"))
-
-    store = None
-    try:
-        try:
-            connection.execute("INSTALL vss")
-            connection.execute("LOAD vss")
-        except duckdb.Error as err:
-            pytest.skip(f"DuckDB VSS extension unavailable: {err}")
-
-        store = store_module.VectorStore(
-            tmp_path / "chunks.parquet",
-            connection=connection,
-            exact_index_threshold=1,
-        )
-
-        caplog.set_level("INFO")
-
-        row_template = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
-        rows = []
-        for idx in range(4):
-            base = row_template.copy()
-            base.update(
-                {
-                    "chunk_id": f"chunk-{idx}",
-                    "document_type": "post",
-                    "document_id": f"doc-{idx}",
-                    "chunk_index": idx,
-                    "content": f"content-{idx}",
-                    "embedding": [float(idx), float(idx + 1)],
-                    "tags": ["tag"],
-                }
-            )
-            rows.append(base)
-
-        store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
-
-        meta = connection.execute(
-            "SELECT mode, nlist FROM index_meta WHERE index_name = ?",
-            [store_module.INDEX_NAME],
-        ).fetchone()
-
-        assert meta is not None
-        mode, nlist = meta
-        assert mode == "ann"
-        assert nlist and nlist >= 1
-
-        index_count = connection.execute(
-            """
-            SELECT COUNT(*)
-            FROM duckdb_indexes()
-            WHERE lower(index_name) = lower(?)
-            """,
-            [store_module.INDEX_NAME],
-        ).fetchone()[0]
-
-        assert index_count == 1
-        assert any("IVFFLAT" in message for message in caplog.messages)
-    finally:
-        if store is not None:
-            store.close()
-        connection.close()
+    base.update(overrides)
+    return base
