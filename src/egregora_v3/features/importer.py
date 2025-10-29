@@ -1,6 +1,7 @@
+import tempfile
 from pathlib import Path
 
-import pandas as pd
+import duckdb
 from rich.console import Console
 
 from egregora_v3.core.context import Context
@@ -19,28 +20,31 @@ def import_from_parquet(ctx: Context, parquet_path: Path):
 
     ctx.logger.info(f"Importing from Parquet file: {parquet_path}")
 
-    # Read the Parquet file into a Pandas DataFrame
-    df = pd.read_parquet(parquet_path)
-
-    # Assume the text is in a column named 'text' and is already anonymized
-    if 'text' not in df.columns:
-        console.print("[bold red]Error:[/] 'text' column not found in Parquet file.")
+    try:
+        rows = ctx.conn.execute(
+            "SELECT text FROM read_parquet(?)",
+            [str(parquet_path)],
+        ).fetchall()
+    except duckdb.Error as exc:
+        console.print(f"[bold red]Error reading Parquet file:[/] {exc}")
         return
 
-    # Ingest each text as a separate document
-    # For simplicity, we'll write each text to a temporary file and ingest it.
-    # A more efficient approach would be to directly ingest the text.
-    temp_dir = Path("/tmp/egregora_import")
-    temp_dir.mkdir(exist_ok=True)
+    if not rows:
+        console.print(f"[yellow]No rows found in {parquet_path}.[/yellow]")
+        return
 
-    for i, text in enumerate(df['text']):
-        temp_file = temp_dir / f"imported_{i}.md"
-        temp_file.write_text(text)
-        ingest_source(ctx, temp_file)
+    with tempfile.TemporaryDirectory(prefix="egregora_import_") as tmpdir:
+        temp_dir = Path(tmpdir)
+        for index, (text,) in enumerate(rows):
+            if not isinstance(text, str):
+                console.print(f"[yellow]Skipping row {index}: not a string.[/yellow]")
+                continue
+            temp_file = temp_dir / f"imported_{index}.md"
+            temp_file.write_text(text)
+            ingest_source(ctx, temp_file)
 
-    console.print(f"Imported and ingested {len(df)} chunks from {parquet_path}.")
+    console.print(f"Imported and ingested {len(rows)} chunks from {parquet_path}.")
 
-    # After ingesting, run the build process to create embeddings
     console.print("Building embeddings for imported chunks...")
     build_embeddings(ctx)
     console.print("Embedding build complete.")
