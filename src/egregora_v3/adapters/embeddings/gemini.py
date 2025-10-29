@@ -28,6 +28,22 @@ class GeminiEmbeddingClient:
                 content=text,
                 task_type=task_type
             )
-            embeddings.append(result["embedding"])
+
+            embedding = getattr(result, "embedding", None)
+            if embedding is None and isinstance(result, dict):
+                embedding = result.get("embedding")
+
+            if embedding is None:
+                data = getattr(result, "data", None)
+                if data:
+                    try:
+                        embedding = data[0].embedding
+                    except (AttributeError, IndexError, KeyError, TypeError):
+                        embedding = None
+
+            if embedding is None:
+                raise TypeError("Failed to extract embedding from Gemini response")
+
+            embeddings.append(embedding)
 
         return embeddings

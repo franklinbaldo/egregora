@@ -6,6 +6,7 @@ from egregora_v3.core.db import get_db_connection
 from egregora_v3.core.logging import get_logger
 from egregora_v3.adapters.embeddings.gemini import GeminiEmbeddingClient
 from egregora_v3.adapters.vectorstore.duckdb_vss import DuckDBVectorStore
+from egregora_v3.core.paths import ensure_dirs_exist
 
 class Context:
     """
@@ -44,5 +45,6 @@ def build_context(cli_overrides: Optional[dict] = None):
     """
     A factory function to build the full application context.
     """
+    ensure_dirs_exist()
     settings = load_settings(cli_overrides)
     return Context.from_settings(settings)
