@@ -14,6 +14,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+import duckdb
 import pytest
 
 try:
@@ -102,6 +103,7 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
+from egregora.ibis_runtime import use_backend
 from egregora.models import WhatsAppExport
 from egregora.pipeline import discover_chat_file
 from egregora.types import GroupSlug
