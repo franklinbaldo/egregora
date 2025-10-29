@@ -11,6 +11,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
+from google.api_core import exceptions as google_api_exceptions
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
 
@@ -27,21 +28,12 @@ _sync_last_call_monotonic = 0.0
 _MIN_INTERVAL_SECONDS = 1.5  # free tier tolerates ~40 RPM, so keep a healthy gap
 
 
-def _is_rate_limit_error(error: Exception) -> bool:
-    """Return True when ``error`` looks like a quota/rate limit or transient failure."""
-    message = str(error).lower()
-    return any(
-        token in message
-        for token in (
-            "429",
-            "resource_exhausted",
-            "quota",
-            "rate limit",
-            "503",
-            "unavailable",
-            "overloaded",
-        )
-    )
+_RETRYABLE_EXCEPTIONS = (
+    google_api_exceptions.ResourceExhausted,
+    google_api_exceptions.ServiceUnavailable,
+    google_api_exceptions.InternalServerError,
+    google_api_exceptions.DeadlineExceeded,
+)
 
 
 def _extract_retry_delay(error: Exception) -> float | None:
@@ -63,11 +55,6 @@ def _extract_retry_delay(error: Exception) -> float | None:
         return float(match.group(1))
 
     return None
-
-
-def is_rate_limit_error(error: Exception) -> bool:
-    """Public helper to determine if an error is retryable."""
-    return _is_rate_limit_error(error)
 
 
 def extract_retry_delay(error: Exception) -> float | None:
@@ -181,8 +168,8 @@ async def call_with_retries[**P, T](
         await _respect_min_interval()
         try:
             return await async_fn(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001
-            if not _is_rate_limit_error(exc) or attempt >= max_attempts:
+        except _RETRYABLE_EXCEPTIONS as exc:
+            if attempt >= max_attempts:
                 raise
 
             recommended_delay = _extract_retry_delay(exc)
@@ -215,8 +202,8 @@ def call_with_retries_sync(
         _respect_min_interval_sync()
         try:
             return fn(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001
-            if not _is_rate_limit_error(exc) or attempt >= max_attempts:
+        except _RETRYABLE_EXCEPTIONS as exc:
+            if attempt >= max_attempts:
                 raise
 
             recommended_delay = _extract_retry_delay(exc)

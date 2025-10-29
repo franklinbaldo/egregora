@@ -281,16 +281,16 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
 )
 
 
-def _parse_message_date(token: str) -> date | None:
-    """Parse ``token`` into a ``date`` in UTC, returning ``None`` when invalid."""
+def _parse_message_date(token: str) -> date:
+    """Parse ``token`` into a ``date`` in UTC, raising ``ValueError`` when invalid."""
 
     normalized = token.strip()
     if not normalized:
-        return None
+        raise ValueError("Cannot parse an empty date token")
 
     parsed = _parse_iso_date(normalized) or _parse_with_preferences(normalized)
     if parsed is None:
-        return None
+        raise ValueError(f"Could not parse date: {token!r}")
     return _normalise_parsed_date(parsed)
 
 
@@ -323,8 +323,6 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
 
         msg_date, current_date = _resolve_message_date(match.group("date"), current_date)
         msg_time = _parse_message_time(match.group("time"), match.group("ampm"), prepared.trimmed)
-        if msg_time is None:
-            continue
 
         if builder is not None:
             rows.append(builder.finalize())
@@ -381,10 +379,11 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
     if not date_token:
         return fallback, fallback
 
-    parsed = _parse_message_date(date_token)
-    if parsed is None:
-        return fallback, fallback
-    return parsed, parsed
+    try:
+        parsed = _parse_message_date(date_token)
+        return parsed, parsed
+    except ValueError as exc:
+        raise ValueError(f"Failed to resolve message date from token: {date_token!r}") from exc
 
 
 def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
@@ -392,9 +391,8 @@ def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
         if am_pm:
             return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
         return datetime.strptime(time_token, "%H:%M").time()
-    except ValueError:
-        logger.debug("Failed to parse time '%s' in line: %s", time_token, context_line)
-        return None
+    except ValueError as exc:
+        raise ValueError(f"Failed to parse time '{time_token}' in line: {context_line}") from exc
 
 
 def _start_message_builder(  # noqa: PLR0913

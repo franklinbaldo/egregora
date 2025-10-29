@@ -32,6 +32,8 @@ except (ModuleNotFoundError, ImportError):  # pragma: no cover - simple stub fal
     sys.modules["google.genai"] = genai_module
     sys.modules["google.genai.types"] = genai_types_module
 
+from google.api_core import exceptions as google_api_exceptions
+
 from egregora import genai_utils
 from egregora.gemini_batch import BatchPromptRequest, GeminiBatchClient
 
@@ -46,7 +48,7 @@ class FlakyBatches:
     def create(self, *_, **__):  # pragma: no cover - simple stub
         self.create_attempts += 1
         if self.create_attempts == 1:
-            raise RuntimeError("429 Too Many Requests: slow down")
+            raise google_api_exceptions.ResourceExhausted("429 Too Many Requests: slow down")
         return SimpleNamespace(name="jobs/123", done=False, state=None, dest=None, error=None)
 
     def get(self, name: str):  # pragma: no cover - simple stub

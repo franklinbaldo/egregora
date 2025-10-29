@@ -946,7 +946,7 @@ def _process_tool_calls(  # noqa: PLR0913
                     tool_responses.append(
                         _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
                     )
-            except Exception as e:
+            except ValueError as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
 

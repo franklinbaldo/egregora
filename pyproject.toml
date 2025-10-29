@@ -24,6 +24,7 @@ dependencies = [
     "pydantic-settings>=0.1.1",
     "toml>=0.10.2",
     "duckdb-engine>=0.17.0",
+    "google-api-core>=2.11.0",
 ]
 
 [project.optional-dependencies]

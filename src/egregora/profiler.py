@@ -353,7 +353,7 @@ def process_commands(
 
         try:
             apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
-        except Exception as e:
+        except (KeyError, OSError) as e:
             logger.error(f"Failed to process command for {author_uuid}: {e}")
 
     return len(commands)
