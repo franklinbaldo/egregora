@@ -1,0 +1,1 @@
+# This file makes src/egregora/testing a Python package.
