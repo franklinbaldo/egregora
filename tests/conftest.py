@@ -180,3 +180,52 @@ def whatsapp_timezone() -> ZoneInfo:
 @pytest.fixture()
 def gemini_api_key() -> str:
     return "test-key"
+
+
+@pytest.fixture()
+def mock_batch_client(monkeypatch):
+    """Monkey-patch GeminiBatchClient and genai.Client with mocks for fast tests.
+
+    This fixture replaces all API client instances with mocks that return
+    instant fake responses without API calls. Tests run ~100x faster.
+
+    Usage:
+        def test_with_mock(mock_batch_client):
+            # All API calls are now mocked
+            process_whatsapp_export(...)
+    """
+    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient
+
+    # Patch genai.Client - this is the main client used everywhere
+    monkeypatch.setattr(
+        "google.genai.Client",
+        MockGeminiClient,
+    )
+    # Patch where genai is imported in egregora modules
+    monkeypatch.setattr(
+        "egregora.orchestration.pipeline.genai.Client",
+        MockGeminiClient,
+    )
+    monkeypatch.setattr(
+        "egregora.generation.editor.agent.genai.Client",
+        MockGeminiClient,
+    )
+
+    # Patch the GeminiBatchClient class at import locations
+    monkeypatch.setattr(
+        "egregora.utils.batch.GeminiBatchClient",
+        MockGeminiBatchClient,
+    )
+    monkeypatch.setattr(
+        "egregora.orchestration.pipeline.GeminiBatchClient",
+        MockGeminiBatchClient,
+    )
+    monkeypatch.setattr(
+        "egregora.generation.editor.agent.GeminiBatchClient",
+        MockGeminiBatchClient,
+    )
+
+    yield {
+        "client": MockGeminiClient,
+        "batch_client": MockGeminiBatchClient,
+    }
