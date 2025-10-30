@@ -8,7 +8,7 @@ __pycache__
 
 # Extracted WhatsApp media
 /media/
-
+egregora/src/egregora_v3
 # Environments
 .env
 .idea/
