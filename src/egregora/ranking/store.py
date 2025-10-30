@@ -7,7 +7,6 @@ from typing import Any
 
 import duckdb
 import ibis
-import pandas as pd
 from ibis.expr.types import Table
 
 from egregora.sql_templates import render_sql_template
@@ -175,18 +174,29 @@ class RankingStore:
 
         ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
         existing_rows = (
-            ratings.filter(ratings.post_id.isin(post_ids))
-            .select(ratings.post_id)
-            .execute()
+            ratings.filter(ratings.post_id.isin(post_ids)).select(ratings.post_id)
+        ).to_pyarrow()
+        existing_ids = (
+            set(existing_rows.column("post_id").to_pylist())
+            if existing_rows.num_rows
+            else set()
         )
-        existing_ids = set(existing_rows["post_id"].tolist()) if len(existing_rows) else set()
 
         new_post_ids = [post_id for post_id in post_ids if post_id not in existing_ids]
         if not new_post_ids:
             return 0
 
         now = self._to_utc_naive(datetime.now(UTC))
-        payload = pd.DataFrame(
+        ratings_schema = ratings.schema()
+        payload_schema = ibis.schema(
+            {
+                "post_id": ratings_schema["post_id"],
+                "elo_global": ratings_schema["elo_global"],
+                "games_played": ratings_schema["games_played"],
+                "last_updated": ratings_schema["last_updated"],
+            }
+        )
+        payload_expr = ibis.memtable(
             [
                 {
                     "post_id": post_id,
@@ -195,10 +205,11 @@ class RankingStore:
                     "last_updated": now,
                 }
                 for post_id in new_post_ids
-            ]
+            ],
+            schema=payload_schema,
         )
 
-        self.ibis_conn.insert(ELO_RATINGS_TABLE, payload)
+        self.ibis_conn.insert(ELO_RATINGS_TABLE, payload_expr)
         logger.info(f"Initialized {len(new_post_ids)} new posts with default ELO 1500")
 
         return len(new_post_ids)
@@ -217,14 +228,15 @@ class RankingStore:
         result = (
             ratings.filter(ratings.post_id == post_id)
             .select(ratings.elo_global, ratings.games_played)
-            .execute()
+            .to_pyarrow()
         )
 
-        if len(result) == 0:
+        if result.num_rows == 0:
             return None
 
-        row = result.to_dict("records")[0]
-        return {"elo_global": float(row["elo_global"]), "games_played": int(row["games_played"])}
+        elo = float(result.column("elo_global").to_pylist()[0])
+        games = int(result.column("games_played").to_pylist()[0])
+        return {"elo_global": elo, "games_played": games}
 
     def update_ratings(
         self, post_a: str, post_b: str, new_elo_a: float, new_elo_b: float
@@ -241,27 +253,48 @@ class RankingStore:
         Returns:
             (new_elo_a, new_elo_b)
         """
-        ratings_df = self.ibis_conn.table(ELO_RATINGS_TABLE).execute()
-        if ratings_df.empty:
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        if ratings.count().execute() == 0:
             raise ValueError("Cannot update ratings for an empty rankings table")
 
         now = self._to_utc_naive(datetime.now(UTC))
 
-        mask_a = ratings_df["post_id"] == post_a
-        if not mask_a.any():
+        post_id_type = ratings.schema()["post_id"]
+        elo_type = ratings.schema()["elo_global"]
+        games_type = ratings.schema()["games_played"]
+        timestamp_type = ratings.schema()["last_updated"]
+
+        post_a_literal = ibis.literal(post_a, type=post_id_type)
+        post_b_literal = ibis.literal(post_b, type=post_id_type)
+
+        exists_a = ratings.filter(ratings.post_id == post_a_literal).count().execute()
+        if exists_a == 0:
             raise KeyError(f"Rating row for post '{post_a}' is missing")
-        ratings_df.loc[mask_a, "elo_global"] = new_elo_a
-        ratings_df.loc[mask_a, "games_played"] = ratings_df.loc[mask_a, "games_played"].astype(int) + 1
-        ratings_df.loc[mask_a, "last_updated"] = now
 
-        mask_b = ratings_df["post_id"] == post_b
-        if not mask_b.any():
+        exists_b = ratings.filter(ratings.post_id == post_b_literal).count().execute()
+        if exists_b == 0:
             raise KeyError(f"Rating row for post '{post_b}' is missing")
-        ratings_df.loc[mask_b, "elo_global"] = new_elo_b
-        ratings_df.loc[mask_b, "games_played"] = ratings_df.loc[mask_b, "games_played"].astype(int) + 1
-        ratings_df.loc[mask_b, "last_updated"] = now
 
-        self.ibis_conn.insert(ELO_RATINGS_TABLE, ratings_df, overwrite=True)
+        elo_literal_a = ibis.literal(new_elo_a, type=elo_type)
+        elo_literal_b = ibis.literal(new_elo_b, type=elo_type)
+        now_literal = ibis.literal(now, type=timestamp_type)
+
+        target_filter = (ratings.post_id == post_a_literal) | (ratings.post_id == post_b_literal)
+
+        updated = ratings.mutate(
+            elo_global=ibis.case()
+            .when(ratings.post_id == post_a_literal, elo_literal_a)
+            .when(ratings.post_id == post_b_literal, elo_literal_b)
+            .else_(ratings.elo_global)
+            .end(),
+            games_played=ibis.case()
+            .when(target_filter, ratings.games_played + ibis.literal(1, type=games_type))
+            .else_(ratings.games_played)
+            .end(),
+            last_updated=ibis.ifelse(target_filter, now_literal, ratings.last_updated),
+        )
+
+        self.ibis_conn.insert(ELO_RATINGS_TABLE, updated, overwrite=True)
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")
 
@@ -296,6 +329,8 @@ class RankingStore:
             bio=comparison_data.get("profile_bio"),
         )
 
+        history = self.ibis_conn.table(ELO_HISTORY_TABLE)
+        history_schema = history.schema()
         record = {
             "comparison_id": comparison_data["comparison_id"],
             "timestamp": self._to_utc_naive(comparison_data["timestamp"]),
@@ -309,7 +344,10 @@ class RankingStore:
             "stars_b": comparison_data["stars_b"],
         }
 
-        self.ibis_conn.insert(ELO_HISTORY_TABLE, pd.DataFrame([record]))
+        payload_schema = ibis.schema({name: history_schema[name] for name in record.keys()})
+        payload_expr = ibis.memtable([record], schema=payload_schema)
+
+        self.ibis_conn.insert(ELO_HISTORY_TABLE, payload_expr)
 
         logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
 
@@ -330,9 +368,9 @@ class RankingStore:
                 ratings.order_by([ratings.games_played, ibis.random()])
                 .limit(n)
                 .select(ratings.post_id)
-                .execute()
+                .to_pyarrow()
             )
-            return candidates["post_id"].tolist()
+            return candidates.column("post_id").to_pylist()
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -410,13 +448,13 @@ class RankingStore:
             profiles.join(stats, profiles.profile_id == stats.profile_id)
             .select(
                 profiles.profile_id,
-                stats.alias,
-                stats.bio,
-                stats.comparisons,
+                stats["alias"],
+                stats["bio"],
+                stats["comparisons"],
                 profiles.first_seen,
-                stats.last_seen,
+                stats["last_seen"],
             )
-            .order_by(stats.last_seen.desc())
+            .order_by(stats["last_seen"].desc())
         )
 
     def export_to_parquet(self) -> None:
@@ -489,31 +527,35 @@ class RankingStore:
         now = self._to_utc_naive(datetime.now(UTC))
 
         profiles = self.ibis_conn.table(ELO_PROFILES_TABLE)
+        profile_schema = profiles.schema()
         profile_exists = (
             profiles.filter(profiles.profile_id == profile_id).count().execute() > 0
         )
         if not profile_exists:
-            self.ibis_conn.insert(
-                ELO_PROFILES_TABLE,
-                pd.DataFrame(
-                    [
-                        {
-                            "profile_id": profile_id,
-                            "first_seen": now,
-                        }
-                    ]
+            profile_payload = ibis.memtable(
+                [
+                    {
+                        "profile_id": profile_id,
+                        "first_seen": now,
+                    }
+                ],
+                schema=ibis.schema(
+                    {
+                        "profile_id": profile_schema["profile_id"],
+                        "first_seen": profile_schema["first_seen"],
+                    }
                 ),
             )
+            self.ibis_conn.insert(ELO_PROFILES_TABLE, profile_payload)
 
         stats = self.ibis_conn.table(ELO_PROFILE_STATS_TABLE)
         stats_schema = stats.schema()
-        existing_df = (
-            stats.filter(stats["profile_id"] == profile_id)
-            .select(stats["alias"], stats["bio"], stats["comparisons"])
-            .execute()
+        profile_key_literal = ibis.literal(profile_id, type=stats_schema["profile_id"])
+        existing_count = (
+            stats.filter(stats.profile_id == profile_key_literal).count().execute()
         )
 
-        if existing_df.empty:
+        if existing_count == 0:
             new_row = {
                 "profile_id": profile_id,
                 "alias": normalized_alias,
@@ -521,18 +563,50 @@ class RankingStore:
                 "comparisons": 1,
                 "last_seen": now,
             }
-            self.ibis_conn.insert(ELO_PROFILE_STATS_TABLE, pd.DataFrame([new_row]))
+            new_schema = ibis.schema(
+                {
+                    "profile_id": stats_schema["profile_id"],
+                    "alias": stats_schema["alias"],
+                    "bio": stats_schema["bio"],
+                    "comparisons": stats_schema["comparisons"],
+                    "last_seen": stats_schema["last_seen"],
+                }
+            )
+            payload = ibis.memtable([new_row], schema=new_schema)
+            self.ibis_conn.insert(ELO_PROFILE_STATS_TABLE, payload)
             return
 
-        current = existing_df.iloc[0]
-        next_alias = normalized_alias if normalized_alias is not None else current["alias"]
-        next_bio = normalized_bio if normalized_bio is not None else current["bio"]
-        next_comparisons = int(current["comparisons"]) + 1
-
-        remaining_df = stats.filter(stats["profile_id"] != profile_id).execute()
-        column_schema = ibis.schema(
-            {name: stats_schema[name] for name in ("profile_id", "alias", "bio", "comparisons", "last_seen")}
+        current_arrow = (
+            stats.filter(stats.profile_id == profile_key_literal)
+            .select(
+                stats["alias"].name("alias"),
+                stats["bio"].name("bio"),
+                stats["comparisons"].name("comparisons"),
+            )
+            .to_pyarrow()
         )
+
+        if current_arrow.num_rows == 0:
+            raise RuntimeError("Expected an existing stats row but none was found")
+
+        current_alias = current_arrow.column("alias").to_pylist()[0]
+        current_bio = current_arrow.column("bio").to_pylist()[0]
+        current_comparisons = current_arrow.column("comparisons").to_pylist()[0]
+
+        next_alias = normalized_alias if normalized_alias is not None else current_alias
+        next_bio = normalized_bio if normalized_bio is not None else current_bio
+        next_comparisons = int(current_comparisons) + 1
+
+        column_schema = ibis.schema(
+            {
+                "profile_id": stats_schema["profile_id"],
+                "alias": stats_schema["alias"],
+                "bio": stats_schema["bio"],
+                "comparisons": stats_schema["comparisons"],
+                "last_seen": stats_schema["last_seen"],
+            }
+        )
+
         updated_row = {
             "profile_id": profile_id,
             "alias": next_alias,
@@ -542,11 +616,9 @@ class RankingStore:
         }
 
         updated_mem = ibis.memtable([updated_row], schema=column_schema)
-
-        if len(remaining_df) == 0:
-            combined_expr = updated_mem
-        else:
-            existing_mem = ibis.memtable(remaining_df, schema=column_schema)
-            combined_expr = existing_mem.union(updated_mem)
+        remaining_expr = stats.filter(stats.profile_id != profile_key_literal).select(
+            *[stats[name] for name in column_schema.names]
+        )
+        combined_expr = remaining_expr.union(updated_mem, distinct=False)
 
         self.ibis_conn.insert(ELO_PROFILE_STATS_TABLE, combined_expr, overwrite=True)
