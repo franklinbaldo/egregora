@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 ENRICHMENT_CACHE_VERSION = "v1"
 
+EnrichmentPayload = dict[str, Any]
 
 def make_enrichment_cache_key(
     *,
@@ -38,7 +39,7 @@ class EnrichmentCache:
     """Disk-backed cache for enrichment markdown payloads."""
 
     directory: Path | None = None
-    _cache: diskcache.Cache | None = None
+    _cache: diskcache.Cache[str, EnrichmentPayload] | None = None
 
     def __post_init__(self) -> None:
         base_dir = self.directory or Path(".egregora-cache") / "enrichments"
@@ -49,25 +50,27 @@ class EnrichmentCache:
         self._cache = diskcache.Cache(str(base_dir))
         self.directory = base_dir
 
-    def load(self, key: str) -> dict[str, Any] | None:
+    def load(self, key: str) -> EnrichmentPayload | None:
         """Return cached payload when present."""
-        if self._cache is None:
+        cache = self._cache
+        if cache is None:
             return None
-        value = self._cache.get(key)
-        return value
+        return cache.get(key)
 
-    def store(self, key: str, payload: dict[str, Any]) -> None:
+    def store(self, key: str, payload: EnrichmentPayload) -> None:
         """Persist enrichment payload."""
-        if self._cache is None:
+        cache = self._cache
+        if cache is None:
             raise RuntimeError("Cache not initialised")
-        self._cache.set(key, payload, expire=None)
+        cache.set(key, payload, expire=None)
         logger.debug("Cached enrichment entry for key %s", key)
 
     def delete(self, key: str) -> None:
         """Remove an entry from the cache if present."""
         try:
-            if self._cache is not None:
-                del self._cache[key]
+            cache = self._cache
+            if cache is not None:
+                del cache[key]
         except KeyError:
             return
 
