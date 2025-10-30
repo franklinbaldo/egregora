@@ -73,30 +73,76 @@ egregora enrich periods/2025-W03.csv \
   --gemini-key $GOOGLE_API_KEY
 ```
 
-### 4. Write Posts Stage
-**Purpose:** Generate blog posts from enriched messages
+### 4. Gather Context Stage
+**Purpose:** Collect all context needed for post generation (RAG, profiles, freeform memory)
+
+**Command:**
+```bash
+egregora gather-context <input.csv> \
+  --period-key <period_identifier> \
+  --site-dir <site_directory> \
+  --output <context.json> \
+  [--gemini-key API_KEY] \
+  [--enable-rag / --no-enable-rag] \
+  [--retrieval-mode {ann|exact}] \
+  [--retrieval-nprobe N] \
+  [--retrieval-overfetch N]
+```
+
+**Input:** Enriched CSV file
+**Output:** JSON file containing:
+- Conversation markdown (formatted message table)
+- RAG-retrieved similar posts (if enabled)
+- Media search results (if RAG enabled)
+- Author profiles
+- Freeform memory from previous period
+- Site configuration (markdown extensions, custom prompts)
+
+**Example:**
+```bash
+egregora gather-context enriched/2025-W03-enriched.csv \
+  --period-key 2025-W03 \
+  --site-dir ./my-blog \
+  --output context/2025-W03-context.json \
+  --gemini-key $GOOGLE_API_KEY
+```
+
+**Benefits:**
+- Inspect exactly what context the LLM will receive
+- Debug RAG retrieval separately from generation
+- Re-run post generation without re-querying RAG
+- Share context for reproducibility
+
+### 5. Write Posts Stage
+**Purpose:** Generate blog posts from enriched messages + context
 
 **Command:**
 ```bash
 egregora write-posts <input.csv> \
+  --context <context.json> \
   --period-key <period_identifier> \
   --site-dir <site_directory> \
   [--gemini-key API_KEY] \
-  [--model MODEL_NAME] \
-  [--enable-rag / --no-enable-rag] \
-  [--retrieval-mode {ann|exact}]
+  [--model MODEL_NAME]
 ```
 
-**Input:** Enriched CSV file
+**Input:**
+- Enriched CSV file
+- Context JSON file (from gather-context stage)
+
 **Output:** Blog posts in `site-dir/docs/posts/` and profiles in `site-dir/docs/profiles/`
 
 **Example:**
 ```bash
 egregora write-posts enriched/2025-W03-enriched.csv \
+  --context context/2025-W03-context.json \
   --period-key 2025-W03 \
   --site-dir ./my-blog \
   --gemini-key $GOOGLE_API_KEY
 ```
+
+**Alternative (inline context):**
+If `--context` is not provided, the command will gather context inline (backward compatibility)
 
 ## Data Format: CSV Schema
 
@@ -139,9 +185,16 @@ Each CLI command should:
   - Requires media extraction from ZIP
   - Uses enrichment cache (`.egregora-cache/`)
   - Saves media to `site-dir/docs/media/`
+- **Gather context stage:**
+  - Reads RAG database from `site-dir/docs/rag/` (if RAG enabled)
+  - Reads profiles from `site-dir/docs/profiles/`
+  - Reads freeform memory from `site-dir/docs/posts/freeform/`
+  - Reads site config from `site-dir/mkdocs.yml`
+  - No state mutations
 - **Write posts stage:**
-  - Requires RAG database (if enabled)
+  - Writes posts to `site-dir/docs/posts/`
   - Updates profiles in `site-dir/docs/profiles/`
+  - May write freeform content to `site-dir/docs/posts/freeform/`
   - Uses checkpoint store (optional)
 
 ## Workflow Examples
@@ -162,10 +215,20 @@ for period in periods/*.csv; do
     --site-dir ./my-blog
 done
 
-# 4. Write posts for each period
+# 4. Gather context for each period
+for enriched in enriched/*.csv; do
+  period_key=$(basename "$enriched" .csv | sed 's/-enriched//')
+  egregora gather-context "$enriched" \
+    --period-key "$period_key" \
+    --site-dir ./my-blog \
+    --output "context/${period_key}-context.json"
+done
+
+# 5. Write posts for each period
 for enriched in enriched/*.csv; do
   period_key=$(basename "$enriched" .csv | sed 's/-enriched//')
   egregora write-posts "$enriched" \
+    --context "context/${period_key}-context.json" \
     --period-key "$period_key" \
     --site-dir ./my-blog
 done
@@ -182,13 +245,53 @@ egregora enrich periods/2025-W03.csv \
   --enable-media
 ```
 
-### Example 3: Re-generate posts with different model
+### Example 3: Re-generate posts with different model (without re-gathering context)
 ```bash
-# Use a different model for post generation
+# Gather context once
+egregora gather-context enriched/2025-W03-enriched.csv \
+  --period-key 2025-W03 \
+  --site-dir ./my-blog \
+  --output context/2025-W03-context.json
+
+# Try different models without re-querying RAG
 egregora write-posts enriched/2025-W03-enriched.csv \
+  --context context/2025-W03-context.json \
   --period-key 2025-W03 \
   --site-dir ./my-blog \
   --model gemini-2.0-flash-exp
+
+# Not happy? Try a different model with same context
+egregora write-posts enriched/2025-W03-enriched.csv \
+  --context context/2025-W03-context.json \
+  --period-key 2025-W03 \
+  --site-dir ./my-blog \
+  --model gemini-1.5-pro-002
+```
+
+### Example 4: Debug RAG retrieval
+```bash
+# Gather context and inspect what RAG returned
+egregora gather-context enriched/2025-W03-enriched.csv \
+  --period-key 2025-W03 \
+  --site-dir ./my-blog \
+  --output context/2025-W03-context.json \
+  --enable-rag \
+  --retrieval-mode ann
+
+# Inspect the context file
+jq '.rag_similar_posts' context/2025-W03-context.json
+
+# Try different retrieval settings
+egregora gather-context enriched/2025-W03-enriched.csv \
+  --period-key 2025-W03 \
+  --site-dir ./my-blog \
+  --output context/2025-W03-context-exact.json \
+  --enable-rag \
+  --retrieval-mode exact
+
+# Compare results
+diff <(jq '.rag_similar_posts' context/2025-W03-context.json) \
+     <(jq '.rag_similar_posts' context/2025-W03-context-exact.json)
 ```
 
 ## Benefits
