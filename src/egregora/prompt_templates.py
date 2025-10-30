@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -11,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Jinja2 environment with auto-escaping disabled (we're generating prompts, not HTML)
-env = Environment(
+DEFAULT_ENVIRONMENT = Environment(
     loader=FileSystemLoader(PROMPTS_DIR),
     autoescape=select_autoescape(enabled_extensions=()),  # Disable autoescaping
     trim_blocks=True,
@@ -19,162 +21,161 @@ env = Environment(
 )
 
 
-def render_writer_prompt(  # noqa: PLR0913
-    date: str,
-    markdown_table: str,
-    active_authors: str,
-    custom_instructions: str = "",
-    markdown_features: str = "",
-    profiles_context: str = "",
-    rag_context: str = "",
-    freeform_memory: str = "",
-    enable_memes: bool = False,
-) -> str:
-    """
-    Render the writer system prompt from Jinja template.
+class PromptTemplate(ABC):
+    """Base class for prompt templates backed by Jinja files."""
 
-    Args:
-        date: Period date (e.g., "2025-03-02")
-        markdown_table: Messages formatted as markdown table
-        active_authors: Comma-separated list of active author UUIDs
-        custom_instructions: Optional custom writing instructions
-        markdown_features: Optional markdown extensions info
-        profiles_context: Optional author profiles context
-        rag_context: Optional RAG context from similar posts
+    template_name: ClassVar[str]
 
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("writer_system.jinja")
-    return template.render(
-        date=date,
-        markdown_table=markdown_table,
-        active_authors=active_authors,
-        custom_instructions=custom_instructions,
-        markdown_features=markdown_features,
-        profiles_context=profiles_context,
-        rag_context=rag_context,
-        freeform_memory=freeform_memory,
-        enable_memes=enable_memes,
-    )
+    def _render(self, env: Environment | None = None, **context: Any) -> str:
+        template_env = env or DEFAULT_ENVIRONMENT
+        template = template_env.get_template(self.template_name)
+        return template.render(**context)
+
+    @abstractmethod
+    def render(self) -> str:  # pragma: no cover - abstract method pattern
+        """Render the template with the configured context."""
 
 
-def render_url_enrichment_prompt(url: str) -> str:
-    """
-    Render URL enrichment prompt from Jinja template.
 
-    Args:
-        url: URL to describe
+@dataclass(slots=True)
+class WriterPromptTemplate(PromptTemplate):  # noqa: PLR0913
+    """Prompt template for the writer agent."""
 
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("enricher_url.jinja")
-    return template.render(url=url)
+    date: str
+    markdown_table: str
+    active_authors: str
+    custom_instructions: str = ""
+    markdown_features: str = ""
+    profiles_context: str = ""
+    rag_context: str = ""
+    freeform_memory: str = ""
+    enable_memes: bool = False
+    env: Environment | None = None
 
+    template_name: ClassVar[str] = "writer_system.jinja"
 
-def render_media_enrichment_prompt() -> str:
-    """
-    Render media enrichment prompt from Jinja template.
-
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("enricher_media.jinja")
-    return template.render()
-
-
-def render_url_enrichment_detailed_prompt(
-    url: str,
-    original_message: str,
-    sender_uuid: str,
-    date: str,
-    time: str,
-) -> str:
-    """
-    Render detailed URL enrichment prompt from Jinja template.
-
-    Args:
-        url: URL to analyze
-        original_message: Original message containing the URL
-        sender_uuid: Author UUID
-        date: Date string (YYYY-MM-DD)
-        time: Time string (HH:MM)
-
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("enricher_url_detailed.jinja")
-    return template.render(
-        url=url,
-        original_message=original_message,
-        sender_uuid=sender_uuid,
-        date=date,
-        time=time,
-    )
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            date=self.date,
+            markdown_table=self.markdown_table,
+            active_authors=self.active_authors,
+            custom_instructions=self.custom_instructions,
+            markdown_features=self.markdown_features,
+            profiles_context=self.profiles_context,
+            rag_context=self.rag_context,
+            freeform_memory=self.freeform_memory,
+            enable_memes=self.enable_memes,
+        )
 
 
-def render_media_enrichment_detailed_prompt(  # noqa: PLR0913
-    media_type: str,
-    media_filename: str,
-    media_path: str,
-    original_message: str,
-    sender_uuid: str,
-    date: str,
-    time: str,
-) -> str:
-    """
-    Render detailed media enrichment prompt from Jinja template.
+@dataclass(slots=True)
+class UrlEnrichmentPromptTemplate(PromptTemplate):
+    """Prompt template for lightweight URL enrichment."""
 
-    Args:
-        media_type: Type of media (image, video, audio)
-        media_filename: Original filename
-        media_path: Relative path to media file
-        original_message: Original message containing the media
-        sender_uuid: Author UUID
-        date: Date string (YYYY-MM-DD)
-        time: Time string (HH:MM)
+    url: str
+    env: Environment | None = None
 
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("enricher_media_detailed.jinja")
-    return template.render(
-        media_type=media_type,
-        media_filename=media_filename,
-        media_path=media_path,
-        original_message=original_message,
-        sender_uuid=sender_uuid,
-        date=date,
-        time=time,
-    )
+    template_name: ClassVar[str] = "enricher_url.jinja"
+
+    def render(self) -> str:
+        return self._render(env=self.env, url=self.url)
 
 
-def render_editor_prompt(
-    post_content: str,
-    doc_id: str,
-    version: int,
-    lines: dict[int, str],
-    context: dict[str, Any] | None = None,
-) -> str:
-    """
-    Render editor system prompt from Jinja template.
+@dataclass(slots=True)
+class MediaEnrichmentPromptTemplate(PromptTemplate):
+    """Prompt template for lightweight media enrichment."""
 
-    Args:
-        post_content: Full markdown content of the post
-        doc_id: Document identifier (usually file path)
-        version: Current document version
-        lines: Line-indexed dictionary of post content
-        context: Optional context (ELO, ranking comments, etc.)
+    env: Environment | None = None
 
-    Returns:
-        Rendered prompt string
-    """
-    template = env.get_template("editor_system.jinja")
-    return template.render(
-        post_content=post_content,
-        doc_id=doc_id,
-        version=version,
-        lines=lines,
-        context=context or {},
-    )
+    template_name: ClassVar[str] = "enricher_media.jinja"
+
+    def render(self) -> str:
+        return self._render(env=self.env)
+
+
+@dataclass(slots=True)
+class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
+    """Prompt template for detailed URL enrichment."""
+
+    url: str
+    original_message: str
+    sender_uuid: str
+    date: str
+    time: str
+    env: Environment | None = None
+
+    template_name: ClassVar[str] = "enricher_url_detailed.jinja"
+
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            url=self.url,
+            original_message=self.original_message,
+            sender_uuid=self.sender_uuid,
+            date=self.date,
+            time=self.time,
+        )
+
+
+@dataclass(slots=True)
+class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):  # noqa: PLR0913
+    """Prompt template for detailed media enrichment."""
+
+    media_type: str
+    media_filename: str
+    media_path: str
+    original_message: str
+    sender_uuid: str
+    date: str
+    time: str
+    env: Environment | None = None
+
+    template_name: ClassVar[str] = "enricher_media_detailed.jinja"
+
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            media_type=self.media_type,
+            media_filename=self.media_filename,
+            media_path=self.media_path,
+            original_message=self.original_message,
+            sender_uuid=self.sender_uuid,
+            date=self.date,
+            time=self.time,
+        )
+
+
+@dataclass(slots=True)
+class EditorPromptTemplate(PromptTemplate):
+    """Prompt template for the editor agent."""
+
+    post_content: str
+    doc_id: str
+    version: int
+    lines: dict[int, str]
+    context: dict[str, Any] | None = None
+    env: Environment | None = None
+
+    template_name: ClassVar[str] = "editor_system.jinja"
+
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            post_content=self.post_content,
+            doc_id=self.doc_id,
+            version=self.version,
+            lines=self.lines,
+            context=self.context or {},
+        )
+
+
+__all__ = [
+    "PromptTemplate",
+    "WriterPromptTemplate",
+    "UrlEnrichmentPromptTemplate",
+    "MediaEnrichmentPromptTemplate",
+    "DetailedUrlEnrichmentPromptTemplate",
+    "DetailedMediaEnrichmentPromptTemplate",
+    "EditorPromptTemplate",
+]

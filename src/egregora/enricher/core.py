@@ -28,8 +28,8 @@ from ..utils import EnrichmentCache, make_enrichment_cache_key
 from ..config import EnrichmentConfig, ModelConfig, MEDIA_DIR_NAME
 from ..utils import BatchPromptRequest, BatchPromptResult, GeminiBatchClient, call_with_retries
 from ..prompt_templates import (
-    render_media_enrichment_detailed_prompt,
-    render_url_enrichment_detailed_prompt,
+    DetailedMediaEnrichmentPromptTemplate,
+    DetailedUrlEnrichmentPromptTemplate,
 )
 
 logger = logging.getLogger(__name__)
@@ -521,13 +521,13 @@ def enrich_table(
         url_records = []
         for url_job in pending_url_jobs:
             ts = _ensure_datetime(url_job.timestamp)
-            prompt = render_url_enrichment_detailed_prompt(
+            prompt = DetailedUrlEnrichmentPromptTemplate(
                 url=url_job.url,
                 original_message=url_job.original_message,
                 sender_uuid=url_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
-            )
+            ).render()
             url_records.append({"tag": url_job.tag, "prompt": prompt})
 
         url_table = ibis.memtable(url_records)
@@ -570,7 +570,7 @@ def enrich_table(
             except ValueError:
                 media_path = media_job.file_path
 
-            prompt = render_media_enrichment_detailed_prompt(
+            prompt = DetailedMediaEnrichmentPromptTemplate(
                 media_type=media_job.media_type or "unknown",
                 media_filename=media_job.file_path.name,
                 media_path=str(media_path),
@@ -578,7 +578,7 @@ def enrich_table(
                 sender_uuid=media_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
-            )
+            ).render()
             media_records.append(
                 {
                     "tag": media_job.tag,

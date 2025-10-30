@@ -23,7 +23,7 @@ from ibis.expr.types import Table
 from .document import DocumentSnapshot, Editor
 from ..utils import GeminiBatchClient, call_with_retries
 from ..config import ModelConfig
-from ..prompt_templates import render_editor_prompt
+from ..prompt_templates import EditorPromptTemplate
 from ..rag import query_similar_posts, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -270,13 +270,13 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
 
     # Prepare initial prompt
     context = context or {}
-    prompt = render_editor_prompt(
+    prompt = EditorPromptTemplate(
         post_content=original_content,
         doc_id=str(post_path),
         version=snapshot.version,
         lines=snapshot.lines,
         context=context,
-    )
+    ).render()
 
     # Initialize conversation
     conversation_history = [genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])]
