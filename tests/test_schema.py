@@ -69,6 +69,7 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     timestamp_dtype = result.schema()["timestamp"]
     assert timestamp_dtype == dt.Timestamp(timezone="UTC", scale=9)
     # 12:00 Amsterdam should become 11:00 UTC
-    result_value = result.timestamp.execute().iloc[0]
-    # Convert pandas Timestamp to datetime for comparison
-    assert result_value.to_pydatetime().replace(microsecond=0) == datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)
+    result_values = result.timestamp.execute().tolist()
+    result_value = result_values[0]
+    # Compare the datetime value
+    assert result_value.replace(microsecond=0) == datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)

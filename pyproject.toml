@@ -11,6 +11,7 @@ dependencies = [
     "python-frontmatter>=1.0.0",
     "pyyaml>=6.0",
     "ibis-framework[duckdb]>=9.0.0",
+    "pandas>=2.0",  # Required by ibis.memtable()
     "rich>=13.7.0",
     "diskcache>=5.6.3",
     "python-dateutil>=2.9",
@@ -25,7 +26,6 @@ dependencies = [
     "toml>=0.10.2",
     "duckdb-engine>=0.17.0",
     "pytest>=8.4.2",
-    "pandas>=2.0",
 ]
 
 [project.optional-dependencies]
