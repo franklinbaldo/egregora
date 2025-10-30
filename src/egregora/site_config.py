@@ -152,10 +152,15 @@ def load_mkdocs_config(start: Path) -> tuple[MkDocsConfig, Path | None]:
 
 def _resolve_docs_dir(site_root: Path, config: MkDocsConfig) -> Path:
     """Return the absolute docs directory based on MkDocs config."""
-    docs_setting = config.docs_dir if config.docs_dir not in (None, "") else DEFAULT_DOCS_DIR
-    docs_setting = "." if docs_setting in ("./", "") else docs_setting
+    docs_setting = config.docs_dir
 
-    if docs_setting in (".", None):
+    if docs_setting in ("", "./"):
+        return site_root
+
+    if docs_setting is None:
+        docs_setting = DEFAULT_DOCS_DIR
+
+    if docs_setting == ".":
         return site_root
 
     docs_path = Path(str(docs_setting))
