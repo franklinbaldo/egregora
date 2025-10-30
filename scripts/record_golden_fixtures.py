@@ -81,9 +81,9 @@ def main(
     """
     Runs the Egregora pipeline and records Gemini API calls to golden fixtures.
     """
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        logger.error("The GOOGLE_API_KEY environment variable is not set.")
+        logger.error("The GOOGLE_API_KEY or GEMINI_API_KEY environment variable is not set.")
         logger.error("Please set it to your Google API key to run the recording.")
         raise typer.Exit(code=1)
 

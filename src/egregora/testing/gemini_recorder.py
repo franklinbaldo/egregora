@@ -52,6 +52,7 @@ class GeminiClientRecorder:
         self._record_request("embeddings", kwargs, response_dict)
         return response
 
+    @property
     def models(self):
         """Provide access to models with recording."""
         # Return a wrapper that records generate_content calls
