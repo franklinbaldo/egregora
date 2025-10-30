@@ -42,10 +42,10 @@ def chunk_markdown(
         List of text chunks
     """
     # Split into paragraphs
-    paragraphs = content.split("\n\n")
+    paragraphs: list[str] = content.split("\n\n")
 
-    chunks = []
-    current_chunk = []
+    chunks: list[str] = []
+    current_chunk: list[str] = []
     current_tokens = 0
 
     for paragraph in paragraphs:
@@ -62,7 +62,7 @@ def chunk_markdown(
             chunks.append(chunk_text)
 
             # Start new chunk with overlap (keep last few paragraphs)
-            overlap_paras = []
+            overlap_paras: list[str] = []
             overlap_tokens_count = 0
 
             for prev_para in reversed(current_chunk):
@@ -151,7 +151,7 @@ def chunk_document(
     text_chunks = chunk_markdown(content, max_tokens=max_tokens)
 
     # Build chunk objects
-    chunks = []
+    chunks: list[dict[str, Any]] = []
     for i, chunk_text in enumerate(text_chunks):
         chunks.append(
             {
