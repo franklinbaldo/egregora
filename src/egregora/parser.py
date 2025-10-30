@@ -17,7 +17,9 @@ import re
 import unicodedata
 import zipfile
 from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
+from zoneinfo import ZoneInfo
+from typing import Any
 
 import ibis
 from dateutil import parser as date_parser
@@ -37,7 +39,7 @@ logger = logging.getLogger(__name__)
 EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
 
-def _parse_set_command(args: str) -> dict | None:
+def _parse_set_command(args: str) -> dict[str, str | None] | None:
     """Parse a 'set' command."""
     parts = args.split(maxsplit=1)
     if len(parts) == SET_COMMAND_PARTS:
@@ -47,7 +49,7 @@ def _parse_set_command(args: str) -> dict | None:
     return None
 
 
-def _parse_remove_command(args: str) -> dict:
+def _parse_remove_command(args: str) -> dict[str, str | None]:
     """Parse a 'remove' command."""
     return {"command": "remove", "target": args.lower(), "value": None}
 
@@ -58,7 +60,7 @@ COMMAND_REGISTRY = {
 }
 
 
-def parse_egregora_command(message: str) -> dict | None:
+def parse_egregora_command(message: str) -> dict[str, str | None] | None:
     """
     Parse egregora commands from message text.
 
@@ -111,7 +113,7 @@ def parse_egregora_command(message: str) -> dict | None:
     return None
 
 
-def extract_commands(df: Table) -> list[dict]:
+def extract_commands(df: Table) -> list[dict[str, Any]]:
     """
     Extract egregora commands from parsed Table.
 
@@ -132,7 +134,7 @@ def extract_commands(df: Table) -> list[dict]:
     if int(df.count().execute()) == 0:
         return []
 
-    commands = []
+    commands: list[dict[str, Any]] = []
 
     # Convert to pandas for iteration (most efficient for small result sets)
     rows = df.execute().to_dict("records")
@@ -198,7 +200,10 @@ def filter_egregora_messages(df: Table) -> tuple[Table, int]:
     return filtered_df, removed_count
 
 
-def parse_export(export: WhatsAppExport, timezone=None) -> Table:
+def parse_export(
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None = None,
+) -> Table:
     """
     Parse an individual export into an Ibis ``Table``.
 
@@ -301,10 +306,13 @@ def _normalize_text(value: str) -> str:
     return normalized
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
+def _parse_messages(
+    lines: Iterable[str],
+    export: WhatsAppExport,
+) -> list[dict[str, Any]]:
     """Parse messages from an iterable of strings."""
 
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     current_date = export.export_date
     builder: _MessageBuilder | None = None
 
@@ -387,7 +395,7 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
     return parsed, parsed
 
 
-def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
+def _parse_message_time(time_token: str, am_pm: str | None, context_line: str) -> time | None:
     try:
         if am_pm:
             return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
@@ -401,7 +409,7 @@ def _start_message_builder(  # noqa: PLR0913
     *,
     export: WhatsAppExport,
     msg_date: date,
-    msg_time,
+    msg_time: time,
     author: str,
     initial_message: str,
     original_line: str,
