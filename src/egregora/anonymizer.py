@@ -14,7 +14,17 @@ from __future__ import annotations
 import re
 import uuid
 from importlib import import_module
-from typing import Callable, Mapping, ParamSpec, Protocol, Sequence, TypeVar, cast, overload
+from typing import (
+    Callable,
+    Mapping,
+    ParamSpec,
+    Protocol,
+    Sequence,
+    TypeVar,
+    cast,
+    overload,
+    runtime_checkable,
+)
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -30,6 +40,7 @@ class SeriesLike(Protocol):
         ...
 
 
+@runtime_checkable
 class ColumnExpression(Protocol):
     """Subset of ibis column expression methods used by the anonymizer."""
 
@@ -131,15 +142,15 @@ def anonymize_dataframe(df: Table) -> Table:
         ibis_module = _get_ibis()
 
         @overload
+        def anonymize_mentions_udf(text: ColumnExpression) -> ColumnExpression:
+            ...
+
+        @overload
         def anonymize_mentions_udf(text: str) -> str:
             ...
 
         @overload
         def anonymize_mentions_udf(text: None) -> None:
-            ...
-
-        @overload
-        def anonymize_mentions_udf(text: ColumnExpression) -> ColumnExpression:
             ...
 
         @ibis_module.udf.scalar.python
@@ -148,9 +159,9 @@ def anonymize_dataframe(df: Table) -> Table:
         ) -> str | None | ColumnExpression:
             """UDF wrapper for anonymize_mentions."""
 
-            if text is None or not isinstance(text, str):
+            if text is None or isinstance(text, ColumnExpression):
                 return text
-            return anonymize_mentions(text)
+            return anonymize_mentions(str(text))
 
         anonymized_message = anonymize_mentions_udf(anonymized_df.message)
         anonymized_df = anonymized_df.mutate(message=anonymized_message)
