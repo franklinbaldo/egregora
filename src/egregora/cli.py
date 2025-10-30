@@ -7,13 +7,20 @@ import os
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
 from rich.markup import escape
 from rich.panel import Panel
+
+if TYPE_CHECKING:
+    from google.genai import Client as GenaiClient
+else:  # pragma: no cover - typing fallback for runtime
+    from typing import Any
+
+    GenaiClient = Any
 
 from .config_types import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
@@ -23,7 +30,7 @@ from .pipeline import process_whatsapp_export
 from .site_config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
-app = typer.Typer(
+app: typer.Typer = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
@@ -349,7 +356,7 @@ def edit(
     model_config = ModelConfig(cli_model=model, site_config=site_config)
 
     # Create client
-    client = genai.Client(api_key=api_key)
+    client: GenaiClient = genai.Client(api_key=api_key)
 
     # Run editor session
     try:
@@ -396,8 +403,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on installation
         missing = exc.name or "egregora.ranking"
 
-        @app.command(hidden=True)
-        def rank(  # noqa: PLR0913
+        @app.command(name="rank", hidden=True)
+        def _rank_missing_dependencies(  # noqa: PLR0913
             site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
             comparisons: Annotated[
                 int, typer.Option(help="Number of comparisons to run")
@@ -418,6 +425,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             ] = None,
             debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
         ) -> None:
+            """Inform the user about missing optional ranking dependencies."""
             install_cmd = escape("pip install 'egregora[ranking]'")
             console.print(
                 f"[red]Ranking commands require the optional extra: {install_cmd}[/red]"

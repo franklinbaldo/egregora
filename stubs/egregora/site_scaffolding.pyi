@@ -1,0 +1,3 @@
+from pathlib import Path
+
+def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]: ...
