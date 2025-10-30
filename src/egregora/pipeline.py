@@ -1,33 +1,293 @@
 """Ultra-simple pipeline: parse → anonymize → group → enrich → write."""
 
+from __future__ import annotations
+
+import importlib
 import logging
 import re
 import shutil
 import zipfile
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
+from types import ModuleType
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    MutableMapping,
+    Protocol,
+    Sequence,
+    Literal,
+    TypeAlias,
+    TypedDict,
+    cast,
+)
+from zoneinfo import ZoneInfo
 
-import duckdb
-import ibis
-from google import genai
-from ibis.expr.types import Table
+# -- Third-party modules ---------------------------------------------------
+#
+# These imports are performed dynamically so that mypy does not require stub
+# packages for ``duckdb``/``ibis``/``google``.  The resulting module objects are
+# re-exported with precise ``ModuleType`` annotations so other modules can rely
+# on their availability without triggering ``Any`` inference.
 
-from .cache import EnrichmentCache
-from .checkpoints import CheckpointStore
-from .enricher import enrich_dataframe, extract_and_replace_media
-from .gemini_batch import GeminiBatchClient
-from .model_config import ModelConfig, load_site_config
-from .models import WhatsAppExport
-from .parser import extract_commands, filter_egregora_messages, parse_export
-from .profiler import filter_opted_out_authors, process_commands
-from .rag import VectorStore, index_all_media
-from .site_config import SitePaths, resolve_site_paths
-from .types import GroupSlug
-from .writer import write_posts_for_period
+duckdb: ModuleType = importlib.import_module("duckdb")
+ibis: ModuleType = importlib.import_module("ibis")
+google: ModuleType = importlib.import_module("google")
+genai = cast("_GenAIModule", importlib.import_module("google.genai"))
+
+__all__ = [
+    "duckdb",
+    "ibis",
+    "google",
+    "genai",
+    "discover_chat_file",
+    "group_by_period",
+    "period_has_posts",
+    "process_whatsapp_export",
+]
+
+
+class _GenAIClientProtocol(Protocol):
+    """Minimal protocol describing the subset used in this module."""
+
+    def close(self) -> None: ...
+
+
+class _GenAIModule(Protocol):
+    """Protocol representing ``google.genai`` used in the pipeline."""
+
+    def Client(self, *, api_key: str | None) -> _GenAIClientProtocol: ...
+
+
+if TYPE_CHECKING:  # pragma: no cover - only used for type checking
+    class Table(Protocol):
+        """Shallow protocol for ibis table operations used in this module."""
+
+        def count(self) -> Any: ...
+
+        def mutate(self, **updates: Any) -> Table: ...
+
+        def select(self, *columns: Any) -> Table: ...
+
+        def distinct(self) -> Table: ...
+
+        def execute(self) -> Any: ...
+
+        def filter(self, predicate: Any) -> Table: ...
+
+        def drop(self, *columns: str) -> Table: ...
+
+        def schema(self) -> Any: ...
+
+        @property
+        def timestamp(self) -> Any: ...
+
+        def __getattr__(self, item: str) -> Any: ...
+
+else:  # pragma: no cover - runtime protocol fallback
+    class Table:  # noqa: D401
+        """Runtime placeholder used only for type annotations."""
+
+        pass
 
 logger = logging.getLogger(__name__)
 
 SINGLE_DIGIT_THRESHOLD = 10
+
+
+StepStatus: TypeAlias = Literal["pending", "in_progress", "completed"]
+StepName: TypeAlias = Literal["enrichment", "writing", "profiles", "rag"]
+
+
+class CheckpointRecord(TypedDict, total=False):
+    """Typed representation of checkpoint JSON persisted by ``CheckpointStore``."""
+
+    period: str
+    steps: MutableMapping[StepName, StepStatus]
+    timestamp: str | None
+
+
+class PeriodArtifacts(TypedDict, total=False):
+    """Artifacts generated for a given period."""
+
+    posts: list[str]
+    profiles: list[str]
+
+
+class EnrichmentCacheProtocol(Protocol):
+    def close(self) -> None: ...
+
+
+class CheckpointStoreProtocol(Protocol):
+    def load(self, period: str) -> MutableMapping[str, Any]: ...
+
+    def update_step(self, period: str, step: str, status: str) -> MutableMapping[str, Any]: ...
+
+
+class GeminiBatchClientProtocol(Protocol):
+    @property
+    def default_model(self) -> str: ...
+
+
+class ModelConfigProtocol(Protocol):
+    embedding_output_dimensionality: int
+
+    def get_model(self, name: str) -> str: ...
+
+
+class SitePathsProtocol(Protocol):
+    site_root: Path
+    docs_dir: Path
+    posts_dir: Path
+    profiles_dir: Path
+    media_dir: Path
+    enriched_dir: Path
+    rag_dir: Path
+    mkdocs_path: Path | None
+
+
+VectorStoreProtocol = Any
+WhatsAppExportFactory = Callable[..., Any]
+GroupSlugFactory = Callable[[str], str]
+
+EnrichDataFrameFunc = Callable[..., Table]
+ExtractAndReplaceMediaFunc = Callable[..., tuple[Table, dict[str, Path]]]
+ParseExportFunc = Callable[..., Table]
+ExtractCommandsFunc = Callable[[Table], Sequence[Any]]
+ProcessCommandsFunc = Callable[[Iterable[Any], Path], None]
+FilterMessagesFunc = Callable[[Table], tuple[Table, int]]
+FilterOptedOutFunc = Callable[[Table, Path], tuple[Table, int]]
+WritePostsForPeriodFunc = Callable[..., dict[str, list[str]]]
+ResolveSitePathsFunc = Callable[[Path], SitePathsProtocol]
+IndexAllMediaFunc = Callable[..., int]
+
+EnrichmentCacheFactory = Callable[..., EnrichmentCacheProtocol]
+CheckpointStoreFactory = Callable[..., CheckpointStoreProtocol]
+GeminiBatchClientFactory = Callable[..., GeminiBatchClientProtocol]
+ModelConfigFactory = Callable[..., ModelConfigProtocol]
+VectorStoreFactory = Callable[..., VectorStoreProtocol]
+
+
+@dataclass(slots=True, frozen=True)
+class PipelineConfig:
+    """Immutable configuration captured at pipeline invocation time."""
+
+    zip_path: Path
+    output_dir: Path
+    site_paths: SitePathsProtocol
+    period: str
+    enable_enrichment: bool
+    from_date: date | None
+    to_date: date | None
+    timezone: ZoneInfo | None
+    gemini_api_key: str | None
+    model: str | None
+    resume: bool
+    retrieval_mode: str
+    retrieval_nprobe: int | None
+    retrieval_overfetch: int | None
+
+
+@dataclass(slots=True)
+class RuntimeResources:
+    """Mutable runtime state shared across pipeline stages."""
+
+    client: _GenAIClientProtocol | None
+    text_batch_client: "GeminiBatchClientProtocol"
+    vision_batch_client: "GeminiBatchClientProtocol"
+    embedding_batch_client: "GeminiBatchClientProtocol"
+    embedding_dimensionality: int
+    enrichment_cache: "EnrichmentCacheProtocol"
+    checkpoint_store: "CheckpointStoreProtocol"
+
+
+def _get_step_state(record: CheckpointRecord) -> MutableMapping[StepName, StepStatus]:
+    """Return the mutable per-step state from a checkpoint record."""
+
+    steps = record.get("steps")
+    if steps is None:
+        steps = cast(MutableMapping[StepName, StepStatus], {})
+        record["steps"] = steps
+    return steps
+
+
+def _update_checkpoint_state(
+    resources: RuntimeResources,
+    period_key: str,
+    step: StepName,
+    status: StepStatus,
+) -> MutableMapping[StepName, StepStatus]:
+    """Persist an updated step status and return the latest state mapping."""
+
+    record = cast(
+        CheckpointRecord,
+        resources.checkpoint_store.update_step(period_key, step, status),
+    )
+    return _get_step_state(record)
+
+
+def _load_checkpoint(resources: RuntimeResources, period_key: str) -> CheckpointRecord:
+    """Load a checkpoint record for ``period_key`` and coerce its typing."""
+
+    return cast(CheckpointRecord, resources.checkpoint_store.load(period_key))
+
+
+_cache_module = importlib.import_module(".cache", __package__)
+EnrichmentCache = cast(EnrichmentCacheFactory, getattr(_cache_module, "EnrichmentCache"))
+
+_checkpoints_module = importlib.import_module(".checkpoints", __package__)
+CheckpointStore = cast(
+    CheckpointStoreFactory, getattr(_checkpoints_module, "CheckpointStore")
+)
+
+_enricher_module = importlib.import_module(".enricher", __package__)
+enrich_dataframe = cast(EnrichDataFrameFunc, getattr(_enricher_module, "enrich_dataframe"))
+extract_and_replace_media = cast(
+    ExtractAndReplaceMediaFunc, getattr(_enricher_module, "extract_and_replace_media")
+)
+
+_gemini_batch_module = importlib.import_module(".gemini_batch", __package__)
+GeminiBatchClient = cast(
+    GeminiBatchClientFactory, getattr(_gemini_batch_module, "GeminiBatchClient")
+)
+
+_model_config_module = importlib.import_module(".model_config", __package__)
+ModelConfig = cast(ModelConfigFactory, getattr(_model_config_module, "ModelConfig"))
+load_site_config = cast(Callable[[Path], Any], getattr(_model_config_module, "load_site_config"))
+
+_models_module = importlib.import_module(".models", __package__)
+WhatsAppExport = cast(WhatsAppExportFactory, getattr(_models_module, "WhatsAppExport"))
+
+_parser_module = importlib.import_module(".parser", __package__)
+extract_commands = cast(ExtractCommandsFunc, getattr(_parser_module, "extract_commands"))
+filter_egregora_messages = cast(
+    FilterMessagesFunc, getattr(_parser_module, "filter_egregora_messages")
+)
+parse_export = cast(ParseExportFunc, getattr(_parser_module, "parse_export"))
+
+_profiler_module = importlib.import_module(".profiler", __package__)
+filter_opted_out_authors = cast(
+    FilterOptedOutFunc, getattr(_profiler_module, "filter_opted_out_authors")
+)
+process_commands = cast(ProcessCommandsFunc, getattr(_profiler_module, "process_commands"))
+
+_rag_module = importlib.import_module(".rag", __package__)
+VectorStore = cast(VectorStoreFactory, getattr(_rag_module, "VectorStore"))
+index_all_media = cast(IndexAllMediaFunc, getattr(_rag_module, "index_all_media"))
+
+_site_config_module = importlib.import_module(".site_config", __package__)
+resolve_site_paths = cast(ResolveSitePathsFunc, getattr(_site_config_module, "resolve_site_paths"))
+
+_types_module = importlib.import_module(".types", __package__)
+GroupSlug = cast(GroupSlugFactory, getattr(_types_module, "GroupSlug"))
+
+_writer_module = importlib.import_module(".writer", __package__)
+write_posts_for_period = cast(
+    WritePostsForPeriodFunc, getattr(_writer_module, "write_posts_for_period")
+)
 
 
 def _merge_into_target(source: Path, destination: Path) -> bool:
@@ -93,7 +353,7 @@ def _migrate_directory(source: Path, target: Path, label: str) -> None:
     )
 
 
-def _migrate_legacy_structure(site_paths: SitePaths) -> None:
+def _migrate_legacy_structure(site_paths: SitePathsProtocol) -> None:
     """Normalize legacy site structure generated by older scaffold versions."""
 
     legacy_posts = site_paths.site_root / "posts"
@@ -188,19 +448,19 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     zip_path: Path,
     output_dir: Path,
     *,
-    site_paths: SitePaths,
+    site_paths: SitePathsProtocol,
     period: str = "day",
     enable_enrichment: bool = True,
-    from_date=None,
-    to_date=None,
-    timezone=None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    timezone: ZoneInfo | None = None,
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-) -> dict[str, dict[str, list[str]]]:
+) -> dict[str, PeriodArtifacts]:
     """
     Complete pipeline: ZIP → posts + profiles.
 
@@ -219,7 +479,24 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         Dict mapping period to {'posts': [...], 'profiles': [...]}
     """
 
-    def _load_enriched_table(path: Path, schema: Table.schema) -> Table:
+    config = PipelineConfig(
+        zip_path=zip_path,
+        output_dir=output_dir,
+        site_paths=site_paths,
+        period=period,
+        enable_enrichment=enable_enrichment,
+        from_date=from_date,
+        to_date=to_date,
+        timezone=timezone,
+        gemini_api_key=gemini_api_key,
+        model=model,
+        resume=resume,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+    )
+
+    def _load_enriched_table(path: Path, schema: Any) -> Table:
         if not path.exists():
             raise FileNotFoundError(path)
         return ibis.read_csv(str(path), table_schema=schema)
@@ -227,7 +504,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     # Validate MkDocs scaffold exists before proceeding
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
         raise ValueError(
-            f"No mkdocs.yml found for site at {output_dir}. "
+            f"No mkdocs.yml found for site at {config.output_dir}. "
             "Run 'egregora init <site-dir>' before processing exports."
         )
 
@@ -242,19 +519,23 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     # Load site config and create model config
     site_config = load_site_config(site_paths.site_root)
-    model_config = ModelConfig(cli_model=model, site_config=site_config)
+    model_config = ModelConfig(cli_model=config.model, site_config=site_config)
 
-    client: genai.Client | None = None
+    client: _GenAIClientProtocol | None = None
+    resources: RuntimeResources | None = None
     try:
-        client = genai.Client(api_key=gemini_api_key)
-        text_batch_client = GeminiBatchClient(client, model_config.get_model("enricher"))
-        vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
-        embedding_model_name = model_config.get_model("embedding")
-        embedding_batch_client = GeminiBatchClient(client, embedding_model_name)
-        embedding_dimensionality = model_config.embedding_output_dimensionality
-        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
-        enrichment_cache = EnrichmentCache(cache_dir)
-        checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
+        client = genai.Client(api_key=config.gemini_api_key)
+        resources = RuntimeResources(
+            client=client,
+            text_batch_client=GeminiBatchClient(client, model_config.get_model("enricher")),
+            vision_batch_client=GeminiBatchClient(client, model_config.get_model("enricher_vision")),
+            embedding_batch_client=GeminiBatchClient(
+                client, model_config.get_model("embedding")
+            ),
+            embedding_dimensionality=model_config.embedding_output_dimensionality,
+            enrichment_cache=EnrichmentCache(Path(".egregora-cache") / site_paths.site_root.name),
+            checkpoint_store=CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints"),
+        )
 
         logger.info(f"[bold cyan]📦 Parsing export:[/] {zip_path}")
         group_name, chat_file = discover_chat_file(zip_path)
@@ -271,7 +552,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         )
 
         # Parse and anonymize (with timezone from phone)
-        df = parse_export(export, timezone=timezone)
+        df = parse_export(export, timezone=config.timezone)
         total_messages = df.count().execute()
         logger.info(f"[green]✅ Loaded[/] {total_messages} messages after parsing")
 
@@ -310,20 +591,23 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             logger.warning(f"⚠️  {removed_count} messages removed from opted-out users")
 
         # Filter by date range if specified
-        if from_date or to_date:
+        if config.from_date or config.to_date:
             original_count = df.count().execute()
 
-            if from_date and to_date:
+            if config.from_date and config.to_date:
                 df = df.filter(
-                    (df.timestamp.date() >= from_date) & (df.timestamp.date() <= to_date)
+                    (df.timestamp.date() >= config.from_date)
+                    & (df.timestamp.date() <= config.to_date)
                 )
-                logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
-            elif from_date:
-                df = df.filter(df.timestamp.date() >= from_date)
-                logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} onwards")
-            elif to_date:
-                df = df.filter(df.timestamp.date() <= to_date)
-                logger.info(f"📅 [cyan]Filtering[/] messages up to {to_date}")
+                logger.info(
+                    f"📅 [cyan]Filtering[/] messages from {config.from_date} to {config.to_date}"
+                )
+            elif config.from_date:
+                df = df.filter(df.timestamp.date() >= config.from_date)
+                logger.info(f"📅 [cyan]Filtering[/] messages from {config.from_date} onwards")
+            elif config.to_date:
+                df = df.filter(df.timestamp.date() <= config.to_date)
+                logger.info(f"📅 [cyan]Filtering[/] messages up to {config.to_date}")
 
             filtered_count = df.count().execute()
             removed_by_date = original_count - filtered_count
@@ -338,13 +622,13 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 )
 
         # Group by period first (media extraction handled per-period)
-        logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {period}")
-        periods = group_by_period(df, period)
+        logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {config.period}")
+        periods = group_by_period(df, config.period)
         if not periods:
             logger.info("[yellow]No periods found after grouping[/]")
             return {}
 
-        results = {}
+        results: dict[str, PeriodArtifacts] = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
         site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
@@ -354,8 +638,12 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             period_count = period_df.count().execute()
             logger.info(f"➡️  [bold]{period_key}[/] — {period_count} messages")
 
-            checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
-            steps_state = checkpoint_data.get("steps", {})
+            checkpoint_data = (
+                _load_checkpoint(resources, period_key)
+                if config.resume
+                else cast(CheckpointRecord, {"period": period_key, "steps": {}})
+            )
+            steps_state = _get_step_state(checkpoint_data)
 
             period_df, media_mapping = extract_and_replace_media(
                 period_df,
@@ -369,50 +657,58 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             enriched_path = site_paths.enriched_dir / f"{period_key}-enriched.csv"
 
-            if enable_enrichment:
+            if config.enable_enrichment:
                 logger.info(f"✨ [cyan]Enriching[/] period {period_key}")
-                if resume and steps_state.get("enrichment") == "completed":
+                if config.resume and steps_state.get("enrichment") == "completed":
                     try:
                         enriched_df = _load_enriched_table(enriched_path, period_df.schema())
                         logger.info("Loaded cached enrichment for %s", period_key)
                     except FileNotFoundError:
                         logger.info("Cached enrichment missing; regenerating %s", period_key)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                        if config.resume:
+                            steps_state = _update_checkpoint_state(
+                                resources, period_key, "enrichment", "in_progress"
+                            )
                         enriched_df = enrich_dataframe(
                             period_df,
                             media_mapping,
-                            text_batch_client,
-                            vision_batch_client,
-                            enrichment_cache,
+                            resources.text_batch_client,
+                            resources.vision_batch_client,
+                            resources.enrichment_cache,
                             site_paths.docs_dir,
                             posts_dir,
                             model_config,
                         )
                         enriched_df.execute().to_csv(enriched_path, index=False)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                        if config.resume:
+                            steps_state = _update_checkpoint_state(
+                                resources, period_key, "enrichment", "completed"
+                            )
                 else:
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                    if config.resume:
+                        steps_state = _update_checkpoint_state(
+                            resources, period_key, "enrichment", "in_progress"
+                        )
                     enriched_df = enrich_dataframe(
                         period_df,
                         media_mapping,
-                        text_batch_client,
-                        vision_batch_client,
-                        enrichment_cache,
+                        resources.text_batch_client,
+                        resources.vision_batch_client,
+                        resources.enrichment_cache,
                         site_paths.docs_dir,
                         posts_dir,
                         model_config,
                     )
                     enriched_df.execute().to_csv(enriched_path, index=False)
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                    if config.resume:
+                        steps_state = _update_checkpoint_state(
+                            resources, period_key, "enrichment", "completed"
+                        )
             else:
                 enriched_df = period_df
                 enriched_df.execute().to_csv(enriched_path, index=False)
 
-            if resume and steps_state.get("writing") == "completed":
+            if config.resume and steps_state.get("writing") == "completed":
                 logger.info("Resuming posts for %s from existing files", period_key)
                 existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
                 result = {
@@ -420,43 +716,47 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     "profiles": [],
                 }
             else:
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
+                if config.resume:
+                    steps_state = _update_checkpoint_state(
+                        resources, period_key, "writing", "in_progress"
+                    )
                 result = write_posts_for_period(
                     enriched_df,
                     period_key,
                     client,
-                    embedding_batch_client,
+                    resources.embedding_batch_client,
                     posts_dir,
                     profiles_dir,
                     site_paths.rag_dir,
                     model_config,
                     enable_rag=True,
-                    embedding_output_dimensionality=embedding_dimensionality,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
+                    embedding_output_dimensionality=resources.embedding_dimensionality,
+                    retrieval_mode=config.retrieval_mode,
+                    retrieval_nprobe=config.retrieval_nprobe,
+                    retrieval_overfetch=config.retrieval_overfetch,
                 )
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
+                if config.resume:
+                    steps_state = _update_checkpoint_state(
+                        resources, period_key, "writing", "completed"
+                    )
 
-            results[period_key] = result
+            results[period_key] = cast(PeriodArtifacts, result)
             logger.info(
                 f"[green]✔ Generated[/] {len(result.get('posts', []))} posts / {len(result.get('profiles', []))} profiles for {period_key}"
             )
 
         # Index all media enrichments into RAG (if enrichment was enabled)
-        if enable_enrichment and results:
+        if config.enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media enrichments into RAG...[/]")
             try:
                 rag_dir = site_paths.rag_dir
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    embedding_batch_client,
+                    resources.embedding_batch_client,
                     store,
-                    embedding_model=embedding_batch_client.default_model,
-                    output_dimensionality=embedding_dimensionality,
+                    embedding_model=resources.embedding_batch_client.default_model,
+                    output_dimensionality=resources.embedding_dimensionality,
                 )
                 if media_chunks > 0:
                     logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
@@ -467,12 +767,10 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         return results
     finally:
-        try:
-            if 'enrichment_cache' in locals():
-                enrichment_cache.close()
-        finally:
-            if client:
-                client.close()
+        if resources is not None:
+            resources.enrichment_cache.close()
+        if client is not None:
+            client.close()
 
 
 def process_whatsapp_export(  # noqa: PLR0912, PLR0913
@@ -480,16 +778,16 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
     output_dir: Path = Path("output"),
     period: str = "day",
     enable_enrichment: bool = True,
-    from_date=None,
-    to_date=None,
-    timezone=None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    timezone: ZoneInfo | None = None,
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-) -> dict[str, dict[str, list[str]]]:
+) -> dict[str, PeriodArtifacts]:
     """Public entry point that manages DuckDB/Ibis backend state for processing."""
 
     output_dir = output_dir.expanduser().resolve()
