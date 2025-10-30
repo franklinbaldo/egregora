@@ -118,9 +118,14 @@ class GeminiBatchClient:
             src=genai_types.BatchJobSource(inlined_requests=inlined_requests),
         )
 
-        logger.info("[cyan]🚀 Batch job created:[/] %s", job.name or "<unknown>")
+        job_name = job.name
+        logger.info("[cyan]🚀 Batch job created:[/] %s", job_name or "<unknown>")
+
+        if not job_name:
+            raise RuntimeError("Batch generate job did not return an identifier")
+
         completed_job = self._poll_until_done(
-            job.name,
+            job_name,
             interval=poll_interval,
             timeout=timeout,
         )
@@ -207,9 +212,14 @@ class GeminiBatchClient:
             src=source,
         )
 
-        logger.info("[cyan]🚀 Embedding job created:[/] %s", job.name or "<unknown>")
+        job_name = job.name
+        logger.info("[cyan]🚀 Embedding job created:[/] %s", job_name or "<unknown>")
+
+        if not job_name:
+            raise RuntimeError("Embedding batch job did not return an identifier")
+
         completed_job = self._poll_until_done(
-            job.name,
+            job_name,
             interval=poll_interval,
             timeout=timeout,
         )
