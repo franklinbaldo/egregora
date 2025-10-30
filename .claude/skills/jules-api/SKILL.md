@@ -72,6 +72,39 @@ Claude should **proactively suggest** creating Jules sessions for:
 - ❌ "Fix everything"
 - ❌ "Add features"
 
+### 🔄 Jules Automatically Resumes From PR Comments
+
+**IMPORTANT DISCOVERY**: Jules monitors PRs and automatically resumes sessions when you comment!
+
+**How it works:**
+1. Jules creates a PR (e.g., #466)
+2. You comment on the PR describing an issue or requesting changes
+3. **Jules automatically sees your comment** and resumes the session
+4. Jules generates a NEW plan to address your feedback
+5. Session state changes: `COMPLETED` → `AWAITING_PLAN_APPROVAL`
+6. You approve the plan, Jules fixes the issues and updates the PR
+
+**Real example from egregora:**
+```
+1. Jules session #10887318009267300343 created PR #466 (golden fixtures)
+2. State was COMPLETED
+3. Claude commented: "Wrong SDK used (google.generativeai vs google.genai)"
+4. Jules AUTOMATICALLY resumed - state became AWAITING_PLAN_APPROVAL
+5. Jules generated 8-step plan to fix SDK + modify pipeline
+6. Claude approved: jules_client.py approve-plan 10887318009267300343
+7. Jules executing fixes now
+```
+
+**Best practices:**
+- ✅ **DO**: Comment on PRs with specific, actionable feedback
+- ✅ **DO**: Check if session auto-resumed before creating duplicate session
+- ✅ **DO**: Approve Jules' new plan if it looks good
+- ✅ **DO**: Use detailed comments - Jules understands context
+- ❌ **DON'T**: Create new session if existing one can resume
+- ❌ **DON'T**: Use vague PR comments like "fix this"
+
+**This creates a powerful feedback loop!** Comment on PRs to iterate with Jules.
+
 ### Claude's Role in Delegation
 
 When delegating to Jules, Claude should:
