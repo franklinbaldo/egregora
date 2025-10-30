@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from .privacy import validate_newsletter_privacy
+from ..transform.core import validate_newsletter_privacy
 
 
 def write_post(

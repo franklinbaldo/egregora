@@ -54,7 +54,7 @@ lint = [
 ]
 
 [project.scripts]
-egregora = "egregora.cli:main"
+egregora = "egregora.pipeline.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]
@@ -84,7 +84,7 @@ select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/egregora/enricher.py" = ["PLR0913", "PLR0912", "PLR0915"]
+"src/egregora/transform/enricher/core.py" = ["PLR0913", "PLR0912", "PLR0915"]
 "src/egregora/rag/embedder.py" = ["PLR0913"]
 "src/egregora/rag/retriever.py" = ["PLR0913"]
 "src/egregora/rag/store.py" = ["PLR0912"]
@@ -103,9 +103,9 @@ strict_optional = true
 
 [[tool.mypy.overrides]]
 module = [
-    "egregora.parser",
-    "egregora.pipeline",
-    "egregora.cli",
+    "egregora.extract.parser",
+    "egregora.pipeline.pipeline",
+    "egregora.pipeline.cli",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false

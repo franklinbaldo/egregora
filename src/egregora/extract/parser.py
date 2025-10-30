@@ -23,10 +23,10 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
-from .anonymizer import anonymize_table
-from .models import WhatsAppExport
-from .schema import MESSAGE_SCHEMA, ensure_message_schema
-from .utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from ..transform.anonymizer import anonymize_table
+from ..transform.models import WhatsAppExport
+from ..transform.schema import MESSAGE_SCHEMA, ensure_message_schema
+from ..utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
 SET_COMMAND_PARTS = 2
