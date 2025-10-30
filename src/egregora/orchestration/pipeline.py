@@ -22,6 +22,7 @@ from ..knowledge.rag import VectorStore, index_all_media
 from ..utils.batch import GeminiBatchClient
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
+from ..utils.smart_client import SmartGeminiClient
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
+    batch_threshold: int = 10,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -138,6 +140,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
         gemini_api_key: Google Gemini API key
         model: Gemini model to use (overrides mkdocs.yml config)
+        batch_threshold: The threshold for switching to batch processing.
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
@@ -171,10 +174,16 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         client = genai.Client(api_key=gemini_api_key)
 
     try:
-        text_batch_client = GeminiBatchClient(client, model_config.get_model("enricher"))
-        vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
+        text_batch_client = SmartGeminiClient(
+            client, model_config.get_model("enricher"), batch_threshold=batch_threshold
+        )
+        vision_batch_client = SmartGeminiClient(
+            client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
+        )
         embedding_model_name = model_config.get_model("embedding")
-        embedding_batch_client = GeminiBatchClient(client, embedding_model_name)
+        embedding_batch_client = SmartGeminiClient(
+            client, embedding_model_name, batch_threshold=batch_threshold
+        )
         embedding_dimensionality = model_config.embedding_output_dimensionality
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -417,12 +426,34 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
+    batch_threshold: int = 10,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """Public entry point that manages DuckDB/Ibis backend state for processing."""
+    """
+    Public entry point that manages DuckDB/Ibis backend state for processing.
+
+    Args:
+        zip_path: WhatsApp export ZIP file
+        output_dir: Where to save posts and profiles
+        period: "day", "week", or "month"
+        enable_enrichment: Add URL/media context
+        from_date: Only process messages from this date onwards (date object)
+        to_date: Only process messages up to this date (date object)
+        timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
+        gemini_api_key: Google Gemini API key
+        model: Gemini model to use (overrides mkdocs.yml config)
+        resume: Whether to resume from a previous run.
+        batch_threshold: The threshold for switching to batch processing.
+        retrieval_mode: The retrieval mode to use.
+        retrieval_nprobe: The number of probes to use for retrieval.
+        retrieval_overfetch: The overfetch factor to use for retrieval.
+
+    Returns:
+        Dict mapping period to {'posts': [...], 'profiles': [...]}
+    """
 
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
@@ -452,6 +483,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
             gemini_api_key=gemini_api_key,
             model=model,
             resume=resume,
+            batch_threshold=batch_threshold,
             retrieval_mode=retrieval_mode,
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
