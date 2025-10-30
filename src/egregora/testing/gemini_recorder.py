@@ -5,22 +5,18 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Dict
 
-import google.generativeai as genai
-from google.generativeai.client import GenerativeServiceClient
-from google.generativeai.generative_models import GenerativeModel, Part
-from google.generativeai.client import FileServiceClient
-from google.generativeai.files import File
+from google import genai
+from google.generativeai.client import File, GenerativeModel
+from google.generativeai.types import content_types
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 class GeminiClientRecorder:
     """
-    A wrapper around `google.generativeai.Client` that records API calls.
+    A wrapper around `google.genai.Client` that records API calls.
 
     This class intercepts calls to the Gemini API, executes them against the real
     API, and saves the request and response data to a specified directory. The
@@ -33,10 +29,11 @@ class GeminiClientRecorder:
         client = genai.Client()
         recorder = GeminiClientRecorder(client, output_dir="tests/fixtures/golden/api_responses")
         # Now use `recorder` as you would use `client`
-        recorder.embed_content(...)
+        model = recorder.get_model("gemini-pro")
+        model.generate_content(...)
     """
 
-    def __init__(self, client: genai.Client, output_dir: Path):
+    def __init__(self, client: genai.client.Client, output_dir: Path):
         """
         Initializes the recorder.
 
@@ -48,8 +45,10 @@ class GeminiClientRecorder:
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_model(self, model_name: str) -> "GenerativeModel":
-        """Wraps a model to ensure its calls are also recorded."""
+    def get_model(self, model_name: str) -> "GenerativeModel":
+        """
+        Gets a model and wraps it to record its API calls.
+        """
         model = self._client.get_model(model_name)
         # It's easier to just monkey-patch the methods on the model instance
         # than to create a full wrapper class for GenerativeModel.
@@ -58,11 +57,12 @@ class GeminiClientRecorder:
 
         def recorded_embed_content(*args, **kwargs):
             response = original_embed_content(*args, **kwargs)
-            self._record_request("embeddings", kwargs, response.to_dict())
+            self._record_request("embeddings", kwargs, response)
             return response
 
         def recorded_generate_content(*args, **kwargs):
             response = original_generate_content(*args, **kwargs)
+            # The response object from generate_content is complex, so we convert to dict
             self._record_request("generation", kwargs, response.to_dict())
             return response
 
@@ -70,31 +70,12 @@ class GeminiClientRecorder:
         model.generate_content = recorded_generate_content
         return model
 
-    def get_model(self, model_name: str) -> "GenerativeModel":
-        return self._get_model(model_name)
-
-    def embed_content(self, *args, **kwargs) -> Dict[str, Any]:
-        """
-        Records an `embed_content` call.
-        """
-        response = self._client.embed_content(*args, **kwargs)
-        self._record_request("embeddings", kwargs, response)
-        return response
-
-    def generate_content(self, *args, **kwargs) -> Any:
-        """
-        Records a `generate_content` call.
-        """
-        response = self._client.generate_content(*args, **kwargs)
-        self._record_request("generation", kwargs, response.to_dict())
-        return response
-
     def upload_file(self, path: str, **kwargs) -> File:
         """
         Records a `upload_file` call.
         """
         response = self._client.upload_file(path, **kwargs)
-        request_data = {"path": path, **kwargs}
+        request_data = {"path": str(path), **kwargs}
         self._record_request("files", request_data, response.to_dict())
         return response
 
@@ -106,15 +87,9 @@ class GeminiClientRecorder:
         category_dir.mkdir(exist_ok=True)
 
         # Convert Parts to dicts for stable hashing
-        if 'content' in request_data and isinstance(request_data['content'], Part):
-             request_data['content'] = request_data['content'].to_dict()
-        if 'contents' in request_data:
-            request_data['contents'] = [
-                part.to_dict() if isinstance(part, Part) else part
-                for part in request_data['contents']
-            ]
+        serializable_request = self._prepare_request_for_hashing(request_data)
 
-        request_hash = self._hash_request(request_data)
+        request_hash = self._hash_request(serializable_request)
         filename = f"response_{request_hash}.json"
         filepath = category_dir / filename
 
@@ -123,33 +98,29 @@ class GeminiClientRecorder:
             return
 
         fixture_data = {
-            "request": request_data,
+            "request": serializable_request,
             "response": response_data,
         }
 
         try:
             with open(filepath, "w") as f:
-                json.dump(fixture_data, f, indent=2)
+                json.dump(fixture_data, f, indent=2, default=str) # Use default=str for any other non-serializable types
             logger.info(f"Recorded {category} to {filepath.name}")
         except Exception as e:
             logger.error(f"Failed to record {category} to {filepath.name}: {e}")
+
+    def _prepare_request_for_hashing(self, request_data: Dict) -> Dict:
+        """Creates a deep copy of the request and makes it JSON serializable."""
+        # Create a deep copy to avoid modifying the original request object
+        data_copy = json.loads(json.dumps(request_data, default=content_types.to_dict))
+        return data_copy
+
 
     def _hash_request(self, request_data: Dict) -> str:
         """
         Generates a SHA256 hash of the request data.
         """
-        # Using a custom serializer to handle non-serializable types like Part
-        def json_serializer(obj):
-            if isinstance(obj, Part):
-                return obj.to_dict()
-            if isinstance(obj, Path):
-                return str(obj)
-            try:
-                return obj.__dict__
-            except AttributeError:
-                return str(obj)
-
-        request_str = json.dumps(request_data, sort_keys=True, default=json_serializer)
+        request_str = json.dumps(request_data, sort_keys=True)
         return hashlib.sha256(request_str.encode("utf-8")).hexdigest()
 
     def __getattr__(self, name: str) -> Any:
