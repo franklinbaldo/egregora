@@ -96,7 +96,53 @@ python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = false
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "egregora.parser",
+    "egregora.pipeline",
+    "egregora.cli",
+]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "ibis",
+    "ibis.expr",
+    "ibis.expr.types",
+    "ibis.expr.datatypes",
+    "pyarrow",
+    "pyarrow.parquet",
+    "duckdb",
+    "diskcache",
+    "frontmatter",
+    "google",
+    "google.genai",
+    "google.genai.types",
+    "google.generativeai",
+    "google.generativeai.types",
+    "google.ai.generativelanguage",
+    "jinja2",
+    "yaml",
+    "dateutil",
+    "dateutil.parser",
+    "typer",
+    "rich",
+    "rich.console",
+    "rich.progress",
+    "rich.logging",
+    "rich.markup",
+    "rich.panel",
+    "pydantic",
+    "pydantic.fields",
+    "pandas",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

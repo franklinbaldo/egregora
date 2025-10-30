@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, cast
 
 import duckdb
 import ibis
@@ -32,7 +32,7 @@ class _ConnectionProxy:
         object.__setattr__(self, "_inner", inner)
         object.__setattr__(self, "_overrides", {})
 
-    def __getattr__(self, name: str):  # noqa: D401 - simple forwarder
+    def __getattr__(self, name: str) -> Any:  # noqa: D401 - simple forwarder
         overrides = object.__getattribute__(self, "_overrides")
         if name in overrides:
             return overrides[name]
@@ -110,6 +110,7 @@ class DatasetMetadata:
 
 
 class VectorStore:
+    conn: _ConnectionProxy
     """
     Vector store backed by Parquet file.
 
@@ -136,10 +137,11 @@ class VectorStore:
         self._owns_connection = connection is None
         if self._owns_connection:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
-            self.conn = duckdb.connect(str(self.index_path))
+            self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
-            self.conn = connection
-        self.conn = _ConnectionProxy(self.conn)
+            assert connection is not None
+            self.conn = _ConnectionProxy(connection)
+        
         self._init_vss()
         self._vss_function = self._detect_vss_function()
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -147,7 +149,7 @@ class VectorStore:
         self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
-    def _init_vss(self):
+    def _init_vss(self) -> None:
         """Initialize DuckDB VSS extension."""
         try:
             self.conn.execute("INSTALL vss")
@@ -343,7 +345,7 @@ class VectorStore:
             [INDEX_NAME],
         )
 
-    def add(self, chunks_df: Table):
+    def add(self, chunks_df: Table) -> None:
         """
         Add chunks to the vector store.
 
@@ -838,7 +840,7 @@ class VectorStore:
         """Materialize a table on the store backend when necessary."""
 
         try:
-            backend = table._find_backend()  # type: ignore[attr-defined]
+            backend = table._find_backend()
         except Exception:  # pragma: no cover - defensive against Ibis internals
             backend = None
 
@@ -893,7 +895,7 @@ class VectorStore:
 
         return self._client.read_parquet(self.parquet_path)
 
-    def stats(self) -> dict:
+    def stats(self) -> Dict[str, Any]:
         """Get vector store statistics."""
         if not self.parquet_path.exists():
             return {

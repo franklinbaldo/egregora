@@ -6,6 +6,14 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any, TypedDict
+
+class MediaEnrichmentMetadata(TypedDict):
+    message_date: datetime | None
+    author_uuid: str | None
+    media_type: str | None
+    media_path: str | None
+    original_filename: str
 
 import ibis
 from ibis.expr.types import Table
@@ -193,7 +201,7 @@ def query_similar_posts(
     return results
 
 
-def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
+def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | None:
     """
     Parse a media enrichment markdown file to extract metadata.
 
@@ -207,7 +215,13 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         content = enrichment_path.read_text(encoding="utf-8")
 
         # Extract metadata from the markdown
-        metadata = {}
+        metadata: MediaEnrichmentMetadata = {
+            "message_date": None,
+            "author_uuid": None,
+            "media_type": None,
+            "media_path": None,
+            "original_filename": enrichment_path.name,
+        }
 
         # Extract from metadata section
         date_match = re.search(r"- \*\*Date:\*\* (.+)", content)
@@ -218,7 +232,10 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
 
         # Extract filename from title
         filename_match = re.search(r"# Enrichment: (.+)", content)
-        original_filename = filename_match.group(1).strip() if filename_match else None
+        original_filename_from_content = filename_match.group(1).strip() if filename_match else None
+
+        if original_filename_from_content:
+            metadata["original_filename"] = original_filename_from_content
 
         # Build metadata dict
         if date_match and time_match:
@@ -234,7 +251,8 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         metadata["author_uuid"] = sender_match.group(1).strip() if sender_match else None
         metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
         metadata["media_path"] = file_match.group(1).strip() if file_match else None
-        metadata["original_filename"] = original_filename
+
+        metadata["original_filename"] = original_filename_from_content or enrichment_path.name
 
         return metadata
 

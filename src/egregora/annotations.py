@@ -6,10 +6,12 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
+import duckdb
 import ibis
 
-from .privacy import validate_newsletter_privacy
+from .privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
@@ -37,7 +39,7 @@ class AnnotationStore:
         self._initialize()
 
     @property
-    def _connection(self):
+    def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
 
         return self._backend.con
@@ -86,7 +88,10 @@ class AnnotationStore:
         if not sanitized_commentary:
             raise ValueError("my_commentary must not be empty")
 
-        validate_newsletter_privacy(sanitized_commentary)
+        try:
+            validate_newsletter_privacy(sanitized_commentary)
+        except PrivacyViolationError as exc:  # pragma: no cover - defensive path
+            raise ValueError(str(exc)) from exc
 
         created_at = datetime.now(UTC)
 
@@ -107,7 +112,10 @@ class AnnotationStore:
         next_id_cursor = self._connection.execute(
             f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
         )
-        annotation_id = int(next_id_cursor.fetchone()[0])
+        row = next_id_cursor.fetchone()
+        if row is None:
+            raise RuntimeError("Could not get next annotation ID")
+        annotation_id = int(row[0])
 
         self._connection.execute(
             f"""
@@ -186,12 +194,13 @@ class AnnotationStore:
             yield self._row_to_annotation(row)
 
     @staticmethod
-    def _row_to_annotation(row: dict[str, object]) -> Annotation:
+    def _row_to_annotation(row: dict[str, Any]) -> Annotation:
         created_at_obj = row["created_at"]
         if hasattr(created_at_obj, "to_pydatetime"):
             created_at = created_at_obj.to_pydatetime()
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
+            created_at = datetime.fromisoformat(str(created_at_obj))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 

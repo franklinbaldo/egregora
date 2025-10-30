@@ -39,15 +39,34 @@ def _merge_into_target(source: Path, destination: Path) -> bool:
         target_path = destination / item.name
 
         if item.is_dir():
+            if target_path.exists() and target_path.is_file():
+                logger.warning(
+                    "Skipping directory %s because destination %s is a file",
+                    item,
+                    target_path,
+                )
+                continue
+
             target_path.mkdir(parents=True, exist_ok=True)
             moved_any = _merge_into_target(item, target_path) or moved_any
-            if not any(item.iterdir()):
+
+            try:
                 item.rmdir()
+            except OSError:
+                # Directory not empty (likely due to skipped conflicts)
+                pass
             continue
 
-        if not target_path.exists():
-            shutil.move(str(item), str(target_path))
-            moved_any = True
+        if target_path.exists():
+            logger.debug(
+                "Skipping migration for %s because %s already exists",
+                item,
+                target_path,
+            )
+            continue
+
+        shutil.move(str(item), str(target_path))
+        moved_any = True
 
     return moved_any
 

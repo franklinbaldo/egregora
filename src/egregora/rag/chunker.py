@@ -45,7 +45,7 @@ def chunk_markdown(
     paragraphs = content.split("\n\n")
 
     chunks = []
-    current_chunk = []
+    current_chunk: list[str] = []
     current_tokens = 0
 
     for paragraph in paragraphs:
@@ -62,7 +62,7 @@ def chunk_markdown(
             chunks.append(chunk_text)
 
             # Start new chunk with overlap (keep last few paragraphs)
-            overlap_paras = []
+            overlap_paras: list[str] = []
             overlap_tokens_count = 0
 
             for prev_para in reversed(current_chunk):
