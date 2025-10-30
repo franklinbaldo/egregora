@@ -5,9 +5,9 @@ import importlib
 import logging
 import os
 import random
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 import typer
@@ -34,6 +34,26 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+
+def _make_json_safe(value: Any) -> Any:
+    """Return a JSON-serializable representation of ``value``."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _make_json_safe(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_make_json_safe(item) for item in value]
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:  # pragma: no cover - fallback to raising below
+            pass
+    return str(value)
+
 
 @app.callback()
 def _initialize_cli() -> None:
@@ -1029,7 +1049,8 @@ def gather_context(  # noqa: PLR0913
         freeform_memory = _load_freeform_memory(site_paths.posts_dir)
 
         # RAG context (if enabled)
-        rag_similar_posts = []
+        rag_similar_posts: list[dict[str, Any]] = []
+        rag_context_markdown = ""
         if enable_rag:
             api_key = _resolve_gemini_key(gemini_key)
             if not api_key:
@@ -1041,20 +1062,21 @@ def gather_context(  # noqa: PLR0913
                     client, model_config.get_model("embedding")
                 )
 
-                try:
-                    rag_context = _query_rag_for_context(
-                        conversation_md,
-                        embedding_batch_client,
-                        site_paths.rag_dir,
-                        model_config.embedding_output_dimensionality,
-                        retrieval_mode=retrieval_mode,
-                        retrieval_nprobe=retrieval_nprobe,
-                        retrieval_overfetch=retrieval_overfetch,
-                    )
-                    rag_similar_posts = rag_context.get("similar_posts", [])
-                    console.print(f"[green]Found {len(rag_similar_posts)} similar posts[/green]")
-                except Exception as e:
-                    console.print(f"[yellow]RAG query failed: {e}[/yellow]")
+                rag_context_markdown, rag_similar_posts = _query_rag_for_context(
+                    enriched_table,
+                    embedding_batch_client,
+                    site_paths.rag_dir,
+                    embedding_model=model_config.get_model("embedding"),
+                    embedding_output_dimensionality=model_config.embedding_output_dimensionality,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
+                    return_records=True,
+                )
+                console.print(f"[green]Found {len(rag_similar_posts)} similar posts[/green]")
+
+        if rag_similar_posts:
+            rag_similar_posts = [_make_json_safe(record) for record in rag_similar_posts]
 
         # Build context structure
         context = {
@@ -1064,6 +1086,7 @@ def gather_context(  # noqa: PLR0913
             "profiles": profiles,
             "freeform_memory": freeform_memory,
             "rag_similar_posts": rag_similar_posts,
+            "rag_context_markdown": rag_context_markdown,
             "site_config": {
                 "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
                 "custom_writer_prompt": site_config.get("custom_writer_prompt"),
