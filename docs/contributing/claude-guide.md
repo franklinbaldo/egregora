@@ -33,10 +33,10 @@ black --check src/
 - Ultra-simple pipeline
 - LLM-driven content generation
 - Privacy-first approach
-- DataFrame-based processing
+- Table-based processing
 
 ### Main Pipeline Components
-- `parser.py`: Convert WhatsApp export to DataFrame
+- `parser.py`: Convert WhatsApp export to Ibis table
 - `anonymizer.py`: Privacy transformations
 - `enricher.py`: Add context to messages
 - `write_post.py`: Generate blog posts

@@ -39,11 +39,11 @@ def _builtin_timezone(_: str, __: dt.Timestamp) -> dt.Timestamp:  # pragma: no c
 
 
 def ensure_message_schema(
-    df: Table,
+    table: Table,
     *,
     timezone: str | ZoneInfo | None = None,
 ) -> Table:
-    """Return ``df`` cast to the canonical :data:`MESSAGE_SCHEMA`.
+    """Return ``table`` cast to the canonical :data:`MESSAGE_SCHEMA`.
 
     The pipeline relies on consistent dtypes so schema validation is performed
     eagerly at ingestion boundaries (parser and render stages). The function is
@@ -62,13 +62,13 @@ def ensure_message_schema(
     # Update target schema with the desired timezone
     target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
 
-    # Handle empty DataFrame
-    if int(df.count().execute()) == 0:
+    # Handle empty table
+    if int(table.count().execute()) == 0:
         # Create empty table with correct schema without relying on backend internals
         return ibis.memtable([], schema=ibis.schema(target_schema))
 
     # Start with the input table
-    result = df
+    result = table
 
     # Cast columns to target types (except timestamp/date which need special handling)
     for name, dtype in target_schema.items():
@@ -84,7 +84,7 @@ def ensure_message_schema(
 
     # Handle timestamp column with timezone normalization
     if "timestamp" not in result.columns:
-        raise ValueError("DataFrame is missing required 'timestamp' column")
+        raise ValueError("Table is missing required 'timestamp' column")
 
     result = _normalise_timestamp(result, tz_name)
     result = _ensure_date_column(result)
@@ -102,7 +102,7 @@ def _normalise_timestamp(
     schema = table.schema()
     current_dtype = schema.get("timestamp")
     if current_dtype is None:
-        raise ValueError("DataFrame is missing required 'timestamp' column")
+        raise ValueError("Table is missing required 'timestamp' column")
 
     desired_dtype = dt.Timestamp(timezone=desired_timezone, scale=9)
 

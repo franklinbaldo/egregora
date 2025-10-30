@@ -38,14 +38,14 @@ lazy and only call `.execute()` when we truly need a pandas object:
 
 ```python
 import ibis
-from egregora.anonymizer import anonymize_dataframe
+from egregora.anonymizer import anonymize_table
 
 messages = ibis.memtable([
     {"author": "João Silva", "message": "Olá"},
     {"author": "Maria Santos", "message": "Oi @João"},
 ])
 
-anonymized = anonymize_dataframe(messages)
+anonymized = anonymize_table(messages)
 
 # Conversion to pandas (still needed when rendering markdown today)
 preview = anonymized.limit(5).execute()
@@ -71,17 +71,17 @@ The `parse_export()` function automatically anonymizes:
 import ibis
 
 # In parser.py
-df = ibis.memtable(rows).order_by("timestamp")
-df = anonymize_dataframe(df)  # ← PII removed HERE
-return df
+table = ibis.memtable(rows).order_by("timestamp")
+table = anonymize_table(table)  # ← PII removed HERE
+return table
 
 # In loader.py
-df = parse_export(export)  # Already anonymized Table
-messages = create_messages(df)  # Uses anonymized data lazily
+table = parse_export(export)  # Already anonymized Table
+messages = create_messages(table)  # Uses anonymized data lazily
 
 # In writer/
-prompt_df = df.execute()  # pandas conversion happens here today
-await llm.generate(prompt_df.to_markdown(index=False))
+prompt_frame = table.execute()  # pandas conversion happens here today
+await llm.generate(prompt_frame.to_markdown(index=False))
 ```
 
 ### Code Location

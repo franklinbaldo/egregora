@@ -11,7 +11,7 @@ import pytest
 from conftest import WhatsAppFixture
 
 from egregora.cache import EnrichmentCache
-from egregora.enricher import enrich_dataframe, extract_and_replace_media
+from egregora.enricher import enrich_table, extract_and_replace_media
 from egregora.gemini_batch import BatchPromptResult
 from egregora.parser import filter_egregora_messages, parse_export
 from egregora.pipeline import process_whatsapp_export
@@ -90,7 +90,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.pipeline.GeminiBatchClient", lambda client, model, **kwargs: DummyBatchClient(model))
 
     def _stub_writer(
-        df,
+        table,
         period_key,
         client,
         batch_client,
@@ -390,7 +390,7 @@ def test_enrichment_adds_egregora_messages(
     vision_client = DummyBatchClient("vision-model")
 
     try:
-        enriched = enrich_dataframe(
+        enriched = enrich_table(
             updated_table,
             media_mapping,
             text_client,

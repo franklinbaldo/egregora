@@ -184,11 +184,11 @@ async def _query_rag_tool(
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         embedding_model = model_config.get_model("embedding")
-        # Create a dummy DataFrame for query_similar_posts
-        dummy_df = ibis.memtable({"query_text": [query]})
+        # Create a dummy table for query_similar_posts
+        dummy_table = ibis.memtable({"query_text": [query]})
 
         results = await query_similar_posts(
-            df=dummy_df,
+            table=dummy_table,
             batch_client=GeminiBatchClient(client, default_model=model_config.get_model("embedding")),
             store=store,
             embedding_model=embedding_model,

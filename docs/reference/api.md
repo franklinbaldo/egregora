@@ -62,20 +62,20 @@ pandas_df = table.limit(10).execute()
 
 ## Anonymizer
 
-### anonymize_dataframe
+### anonymize_table
 
 Anonymize author names in an Ibis table.
 
 ```python
 import ibis
-from egregora.anonymizer import anonymize_dataframe
+from egregora.anonymizer import anonymize_table
 
 table = ibis.memtable([
     {"author": "João Silva", "message": "Hello"},
     {"author": "Maria Santos", "message": "Hi"},
 ])
 
-anonymized_table = anonymize_dataframe(table)
+anonymized_table = anonymize_table(table)
 pandas_df = anonymized_table.execute()  # pandas conversion happens here today
 ```
 

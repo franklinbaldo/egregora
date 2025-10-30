@@ -63,7 +63,7 @@ pandas_frame = preview.execute()
 **Example:**
 ```python
 from ibis import memtable
-from egregora.anonymizer import anonymize_dataframe
+from egregora.anonymizer import anonymize_table
 
 authors = memtable(
     [
@@ -72,7 +72,7 @@ authors = memtable(
     ]
 )
 
-anonymized = anonymize_dataframe(authors)
+anonymized = anonymize_table(authors)
 anonymized.execute()
 # pandas.DataFrame →
 #   author    message
@@ -229,7 +229,7 @@ post = llm.write(important)
 **Egregora approach (trust):**
 ```python
 # Just give it the data
-markdown = dataframe.execute().to_markdown(index=False)
+markdown = table.execute().to_markdown(index=False)
 
 # LLM does everything
 posts = llm.generate(markdown, tools=[write_post])

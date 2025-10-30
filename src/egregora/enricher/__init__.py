@@ -1,6 +1,6 @@
-"""Simple enrichment: extract media, add LLM-described context as DataFrame rows.
+"""Simple enrichment: extract media, add LLM-described context as table rows.
 
-Enrichment adds context for URLs and media as new DataFrame rows with author 'egregora'.
+Enrichment adds context for URLs and media as new table rows with author 'egregora'.
 The LLM sees enrichment context inline with original messages.
 
 Documentation:
@@ -9,7 +9,7 @@ Documentation:
 """
 
 from .core import (
-    enrich_dataframe,
+    enrich_table,
     extract_and_replace_media,
     extract_media_from_zip,
     detect_media_type,
@@ -20,7 +20,7 @@ from .core import (
 )
 
 __all__ = [
-    "enrich_dataframe",
+    "enrich_table",
     "extract_and_replace_media",
     "extract_media_from_zip",
     "detect_media_type",

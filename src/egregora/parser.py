@@ -23,7 +23,7 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
-from .anonymizer import anonymize_dataframe
+from .anonymizer import anonymize_table
 from .models import WhatsAppExport
 from .schema import MESSAGE_SCHEMA, ensure_message_schema
 from .utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -111,7 +111,7 @@ def parse_egregora_command(message: str) -> dict | None:
     return None
 
 
-def extract_commands(df: Table) -> list[dict]:
+def extract_commands(messages: Table) -> list[dict]:
     """
     Extract egregora commands from parsed Table.
 
@@ -119,7 +119,7 @@ def extract_commands(df: Table) -> list[dict]:
     like aliases, bios, links, etc.
 
     Args:
-        df: Parsed Table with columns: timestamp, author, message
+        messages: Parsed Table with columns: timestamp, author, message
 
     Returns:
         List of command dicts:
@@ -129,13 +129,13 @@ def extract_commands(df: Table) -> list[dict]:
             'command': {...}
         }]
     """
-    if int(df.count().execute()) == 0:
+    if int(messages.count().execute()) == 0:
         return []
 
     commands = []
 
     # Convert to pandas for iteration (most efficient for small result sets)
-    rows = df.execute().to_dict("records")
+    rows = messages.execute().to_dict("records")
 
     for row in rows:
         message = row.get("message", "")
@@ -154,7 +154,7 @@ def extract_commands(df: Table) -> list[dict]:
     return commands
 
 
-def filter_egregora_messages(df: Table) -> tuple[Table, int]:
+def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     """
     Remove all messages starting with /egregora from Table.
 
@@ -169,33 +169,33 @@ def filter_egregora_messages(df: Table) -> tuple[Table, int]:
     - /egregora set alias "Name" (command)
 
     Args:
-        df: Ibis Table with 'message' column
+        messages: Ibis Table with 'message' column
 
     Returns:
-        (filtered_df, num_removed)
+        (filtered_table, num_removed)
     """
-    total_messages = int(df.count().execute())
+    total_messages = int(messages.count().execute())
     if total_messages == 0:
-        return df, 0
+        return messages, 0
 
     # Filter out messages starting with /egregora (case-insensitive)
-    filtered_df = df.filter(~df.message.lower().startswith("/egregora"))
+    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
 
-    removed_count = total_messages - int(filtered_df.count().execute())
-    if int(df.count().execute()) == 0:
-        return df, 0
+    removed_count = total_messages - int(filtered_messages.count().execute())
+    if int(messages.count().execute()) == 0:
+        return messages, 0
 
-    original_count = int(df.count().execute())
+    original_count = int(messages.count().execute())
 
     # Filter out messages starting with /egregora (case-insensitive)
-    filtered_df = df.filter(~df.message.lower().startswith("/egregora"))
+    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
 
-    removed_count = original_count - int(filtered_df.count().execute())
+    removed_count = original_count - int(filtered_messages.count().execute())
 
     if removed_count > 0:
-        logger.info(f"Removed {removed_count} /egregora messages from DataFrame")
+        logger.info(f"Removed {removed_count} /egregora messages from table")
 
-    return filtered_df, removed_count
+    return filtered_messages, removed_count
 
 
 def parse_export(export: WhatsAppExport, timezone=None) -> Table:
@@ -228,34 +228,34 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table, timezone=timezone)
 
-    df = ibis.memtable(rows).order_by("timestamp")
-    df = ensure_message_schema(df, timezone=timezone)
-    df = anonymize_dataframe(df)
-    return df
+    messages = ibis.memtable(rows).order_by("timestamp")
+    messages = ensure_message_schema(messages, timezone=timezone)
+    messages = anonymize_table(messages)
+    return messages
 
 
 def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp."""
 
-    frames: list[Table] = []
+    tables: list[Table] = []
 
     for export in exports:
         try:
-            df = parse_export(export)
+            messages = parse_export(export)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
-        if int(df.count().execute()) > 0:
-            frames.append(df)
+        if int(messages.count().execute()) > 0:
+            tables.append(messages)
 
-    if not frames:
+    if not tables:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table)
 
     # Concatenate all frames using union
-    combined = frames[0]
-    for frame in frames[1:]:
-        combined = combined.union(frame, distinct=False)
+    combined = tables[0]
+    for table in tables[1:]:
+        combined = combined.union(table, distinct=False)
 
     return ensure_message_schema(combined.order_by("timestamp"))
 

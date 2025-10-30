@@ -84,7 +84,7 @@ try:  # pragma: no cover - exercised implicitly when dependency is present
     from egregora.config_types import EnrichmentConfig
     from egregora.enricher import (
         build_batch_requests,
-        enrich_dataframe,
+        enrich_table,
         enrich_media,
         map_batch_results,
         replace_media_mentions,
@@ -96,7 +96,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency missing
     from egregora.config_types import EnrichmentConfig
     from egregora.enricher import (
         build_batch_requests,
-        enrich_dataframe,
+        enrich_table,
         enrich_media,
         map_batch_results,
         replace_media_mentions,
@@ -355,7 +355,7 @@ def test_replace_media_mentions_existing_file():
         assert "IMG-123.jpg (file attached)" not in result
 
 
-def test_enrich_dataframe_refreshes_deleted_media_mentions():
+def test_enrich_table_refreshes_deleted_media_mentions():
     """When media is deleted for PII, messages should show privacy notice."""
     with tempfile.TemporaryDirectory() as tmpdir:
         docs_dir = Path(tmpdir)
@@ -372,7 +372,7 @@ def test_enrich_dataframe_refreshes_deleted_media_mentions():
         original_text = "See this IMG-123.jpg (file attached)"
         replaced_text = replace_media_mentions(original_text, media_mapping, docs_dir, posts_dir)
 
-        df = ibis.memtable(
+        table = ibis.memtable(
             {
                 "timestamp": [datetime(2024, 1, 1, 12, 0, 0)],
                 "date": [date(2024, 1, 1)],
@@ -410,8 +410,8 @@ def test_enrich_dataframe_refreshes_deleted_media_mentions():
         cache_dir = docs_dir / "cache"
         cache = EnrichmentCache(cache_dir)
 
-        result_df = enrich_dataframe(
-            df=df,
+        result_table = enrich_table(
+            table=table,
             media_mapping=media_mapping,
             text_batch_client=text_batch_client,
             vision_batch_client=vision_batch_client,
@@ -423,7 +423,7 @@ def test_enrich_dataframe_refreshes_deleted_media_mentions():
             max_enrichments=5,
         )
 
-        original_rows = result_df.filter(result_df.author != "egregora")
+        original_rows = result_table.filter(result_table.author != "egregora")
         assert original_rows.count().execute() == 1
         message_value = original_rows.message.execute().iloc[0]
         assert "[Media removed: privacy protection]" in message_value
