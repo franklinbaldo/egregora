@@ -17,8 +17,6 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColum
 logger = logging.getLogger(__name__)
 _console = Console(stderr=True, soft_wrap=True)
 
-_RateLimitFn = TypeVar("_RateLimitFn", bound=Callable[..., Awaitable[Any]])
-
 # Ensure we space out requests so we do not burst through short-term quota limits.
 _rate_lock = asyncio.Lock()
 _last_call_monotonic = 0.0
@@ -51,11 +49,11 @@ def _extract_retry_delay(error: Exception) -> float | None:
     # gRPC style: `'retryDelay': '19s'`
     match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)(?:\.(\d+))?s['\"]", text)
     if match:
-        seconds = int(match.group(1))
+        seconds = float(match.group(1))
         fractional = match.group(2)
         if fractional:
             seconds += float(f"0.{fractional}")
-        return float(seconds)
+        return seconds
 
     # REST style: `Retry-After: 20`
     match = re.search(r"retry-after[:=]\s*(\d+)", text, flags=re.IGNORECASE)
@@ -166,12 +164,15 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
             time.sleep(min(0.5, delay - elapsed))
 
 
-async def call_with_retries[**P, T](
-    async_fn: Callable[P, Awaitable[T]],
-    *args: P.args,
+T = TypeVar("T")
+
+
+async def call_with_retries(
+    async_fn: Callable[..., Awaitable[T]],
+    *args: Any,
     max_attempts: int = 5,
     base_delay: float = 2.0,
-    **kwargs: P.kwargs,
+    **kwargs: Any,
 ) -> T:
     """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays."""
     attempt = 1
@@ -201,12 +202,12 @@ async def call_with_retries[**P, T](
 
 
 def call_with_retries_sync(
-    fn: Callable[..., Any],
+    fn: Callable[..., T],
     *args: Any,
     max_attempts: int = 5,
     base_delay: float = 2.0,
     **kwargs: Any,
-) -> Any:
+) -> T:
     """Synchronous twin of ``call_with_retries`` for Batch API usage."""
     attempt = 1
     fn_name = getattr(fn, "__qualname__", repr(fn))
