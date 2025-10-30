@@ -464,10 +464,12 @@ dependencies = [
     { name = "ibis-framework", extra = ["duckdb"] },
     { name = "jinja2" },
     { name = "mdformat" },
+    { name = "pandas" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "pydantic-settings" },
+    { name = "pytest" },
     { name = "python-dateutil" },
     { name = "python-frontmatter" },
     { name = "pyyaml" },
@@ -478,9 +480,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-base = [
-    { name = "pandas" },
-]
 docs = [
     { name = "codespell" },
     { name = "mkdocs" },
@@ -494,13 +493,7 @@ lint = [
     { name = "ruff" },
 ]
 test = [
-    { name = "duckdb" },
-    { name = "pytest" },
     { name = "ruff" },
-]
-v3 = [
-    { name = "duckdb" },
-    { name = "ibis-framework", extra = ["duckdb"] },
 ]
 
 [package.dev-dependencies]
@@ -518,25 +511,22 @@ requires-dist = [
     { name = "codespell", marker = "extra == 'docs'", specifier = ">=2.3.0" },
     { name = "diskcache", specifier = ">=5.6.3" },
     { name = "duckdb", specifier = ">=0.10.3" },
-    { name = "duckdb", marker = "extra == 'test'", specifier = ">=0.10.0" },
-    { name = "duckdb", marker = "extra == 'v3'", specifier = ">=0.10.3" },
     { name = "duckdb-engine", specifier = ">=0.17.0" },
     { name = "google-genai", specifier = ">=0.3.0" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = ">=9.0.0" },
-    { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'v3'", specifier = ">=9.0.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "mdformat", specifier = ">=0.7.22" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.2" },
-    { name = "pandas", marker = "extra == 'base'", specifier = ">=2.0" },
+    { name = "pandas", specifier = ">=2.0" },
     { name = "pre-commit", marker = "extra == 'lint'", specifier = ">=3.8" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-ai", specifier = ">=0.0.14" },
     { name = "pydantic-settings", specifier = ">=0.1.1" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.2" },
+    { name = "pytest", specifier = ">=8.4.2" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "python-dateutil", marker = "extra == 'docs'", specifier = ">=2.9" },
     { name = "python-frontmatter", specifier = ">=1.0.0" },
@@ -548,7 +538,7 @@ requires-dist = [
     { name = "toml", specifier = ">=0.10.2" },
     { name = "typer", extras = ["all"], specifier = ">=0.20.0" },
 ]
-provides-extras = ["base", "v3", "test", "docs", "ranking", "lint"]
+provides-extras = ["test", "docs", "ranking", "lint"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.14.0" }]
