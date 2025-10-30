@@ -256,6 +256,8 @@ egregora rank --site-dir=./my-blog --debug
 
 **Output:**
 - `rankings/rankings.duckdb` - DuckDB database with ELO ratings and history
+- `rankings/elo_profiles.parquet` - Parquet export (if --export-parquet)
+- `rankings/elo_profile_stats.parquet` - Parquet export (if --export-parquet)
 - `rankings/elo_ratings.parquet` - Parquet export (if --export-parquet)
 - `rankings/elo_history.parquet` - Parquet export (if --export-parquet)
 

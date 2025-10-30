@@ -3,15 +3,21 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import duckdb
 import ibis
-import ibis.expr.datatypes as dt
-import pyarrow as pa
 from ibis.expr.types import Table
 
+from egregora.duckdb_ddl import apply_schema
+
 logger = logging.getLogger(__name__)
+
+
+ELO_PROFILES_TABLE = "elo_profiles"
+ELO_PROFILE_STATS_TABLE = "elo_profile_stats"
+ELO_RATINGS_TABLE = "elo_ratings"
+ELO_HISTORY_TABLE = "elo_history"
 
 
 class RankingStore:
@@ -36,54 +42,22 @@ class RankingStore:
 
         self.db_path = rankings_dir / "rankings.duckdb"
         self.conn = duckdb.connect(str(self.db_path))
+        self.ibis_conn = ibis.duckdb.from_connection(self.conn)
         self._init_schema()
 
         logger.info(f"Ranking store initialized: {self.db_path}")
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
-        # ELO ratings table
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS elo_ratings (
-                post_id VARCHAR PRIMARY KEY,
-                elo_global DOUBLE NOT NULL DEFAULT 1500,
-                games_played INTEGER NOT NULL DEFAULT 0,
-                last_updated TIMESTAMP NOT NULL
-            )
-        """)
+        apply_schema(self.conn)
 
-        # Comparison history table
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS elo_history (
-                comparison_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                profile_id VARCHAR NOT NULL,
-                post_a VARCHAR NOT NULL,
-                post_b VARCHAR NOT NULL,
-                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-                comment_a VARCHAR NOT NULL,
-                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-                comment_b VARCHAR NOT NULL,
-                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
-            )
-        """)
+    @staticmethod
+    def _to_utc_naive(ts: datetime) -> datetime:
+        """Convert timezone-aware timestamps to naive UTC for DuckDB."""
 
-        # Create indexes for efficient queries
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """)
+        if ts.tzinfo is None:
+            return ts
+        return ts.astimezone(UTC).replace(tzinfo=None)
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
         """
@@ -100,27 +74,49 @@ class RankingStore:
         if not post_ids:
             return 0
 
-        now = datetime.now(UTC)
-        inserted = 0
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        existing_rows = (
+            ratings.filter(ratings.post_id.isin(post_ids)).select(ratings.post_id)
+        ).to_pyarrow()
+        existing_ids = (
+            set(existing_rows.column("post_id").to_pylist())
+            if existing_rows.num_rows
+            else set()
+        )
 
-        for post_id in post_ids:
-            result = self.conn.execute(
-                """
-                INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-                VALUES (?, 1500, 0, ?)
-                ON CONFLICT (post_id) DO NOTHING
-            """,
-                [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+        new_post_ids = [post_id for post_id in post_ids if post_id not in existing_ids]
+        if not new_post_ids:
+            return 0
 
-        if inserted > 0:
-            logger.info(f"Initialized {inserted} new posts with default ELO 1500")
+        now = self._to_utc_naive(datetime.now(UTC))
+        ratings_schema = ratings.schema()
+        payload_schema = ibis.schema(
+            {
+                "post_id": ratings_schema["post_id"],
+                "elo_global": ratings_schema["elo_global"],
+                "games_played": ratings_schema["games_played"],
+                "last_updated": ratings_schema["last_updated"],
+            }
+        )
+        payload_expr = ibis.memtable(
+            [
+                {
+                    "post_id": post_id,
+                    "elo_global": 1500.0,
+                    "games_played": 0,
+                    "last_updated": now,
+                }
+                for post_id in new_post_ids
+            ],
+            schema=payload_schema,
+        )
 
-        return inserted
+        self.ibis_conn.insert(ELO_RATINGS_TABLE, payload_expr)
+        logger.info(f"Initialized {len(new_post_ids)} new posts with default ELO 1500")
 
-    def get_rating(self, post_id: str) -> Dict[str, Any] | None:
+        return len(new_post_ids)
+
+    def get_rating(self, post_id: str) -> dict[str, Any] | None:
         """
         Get rating for a specific post.
 
@@ -130,16 +126,19 @@ class RankingStore:
         Returns:
             dict with elo_global and games_played, or None if not found
         """
-        result = self.conn.execute(
-            """
-            SELECT elo_global, games_played FROM elo_ratings WHERE post_id = ?
-        """,
-            [post_id],
-        ).fetchone()
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        result = (
+            ratings.filter(ratings.post_id == post_id)
+            .select(ratings.elo_global, ratings.games_played)
+            .to_pyarrow()
+        )
 
-        if result is not None:
-            return {"elo_global": result[0], "games_played": result[1]}
-        return None
+        if result.num_rows == 0:
+            return None
+
+        elo = float(result.column("elo_global").to_pylist()[0])
+        games = int(result.column("games_played").to_pylist()[0])
+        return {"elo_global": elo, "games_played": games}
 
     def update_ratings(
         self, post_a: str, post_b: str, new_elo_a: float, new_elo_b: float
@@ -156,31 +155,54 @@ class RankingStore:
         Returns:
             (new_elo_a, new_elo_b)
         """
-        now = datetime.now(UTC)
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        if ratings.count().execute() == 0:
+            raise ValueError("Cannot update ratings for an empty rankings table")
 
-        self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
-        """,
-            [new_elo_a, now, post_a],
+        now = self._to_utc_naive(datetime.now(UTC))
+
+        post_id_type = ratings.schema()["post_id"]
+        elo_type = ratings.schema()["elo_global"]
+        games_type = ratings.schema()["games_played"]
+        timestamp_type = ratings.schema()["last_updated"]
+
+        post_a_literal = ibis.literal(post_a, type=post_id_type)
+        post_b_literal = ibis.literal(post_b, type=post_id_type)
+
+        exists_a = ratings.filter(ratings.post_id == post_a_literal).count().execute()
+        if exists_a == 0:
+            raise KeyError(f"Rating row for post '{post_a}' is missing")
+
+        exists_b = ratings.filter(ratings.post_id == post_b_literal).count().execute()
+        if exists_b == 0:
+            raise KeyError(f"Rating row for post '{post_b}' is missing")
+
+        elo_literal_a = ibis.literal(new_elo_a, type=elo_type)
+        elo_literal_b = ibis.literal(new_elo_b, type=elo_type)
+        now_literal = ibis.literal(now, type=timestamp_type)
+
+        target_filter = (ratings.post_id == post_a_literal) | (ratings.post_id == post_b_literal)
+
+        updated = ratings.mutate(
+            elo_global=ibis.case()
+            .when(ratings.post_id == post_a_literal, elo_literal_a)
+            .when(ratings.post_id == post_b_literal, elo_literal_b)
+            .else_(ratings.elo_global)
+            .end(),
+            games_played=ibis.case()
+            .when(target_filter, ratings.games_played + ibis.literal(1, type=games_type))
+            .else_(ratings.games_played)
+            .end(),
+            last_updated=ibis.ifelse(target_filter, now_literal, ratings.last_updated),
         )
 
-        self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
-        """,
-            [new_elo_b, now, post_b],
-        )
+        self.ibis_conn.insert(ELO_RATINGS_TABLE, updated, overwrite=True)
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")
 
         return new_elo_a, new_elo_b
 
-    def save_comparison(self, comparison_data: Dict[str, Any]) -> None:
+    def save_comparison(self, comparison_data: dict[str, Any]) -> None:
         """
         Save comparison to history.
 
@@ -189,6 +211,8 @@ class RankingStore:
                 - comparison_id: str
                 - timestamp: datetime
                 - profile_id: str
+                - profile_alias: str | None (optional)
+                - profile_bio: str | None (optional)
                 - post_a: str
                 - post_b: str
                 - winner: str ("A" or "B")
@@ -197,23 +221,35 @@ class RankingStore:
                 - comment_b: str
                 - stars_b: int
         """
-        self.conn.execute(
-            """
-            INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            [
-                comparison_data["comparison_id"],
-                comparison_data["timestamp"],
-                comparison_data["profile_id"],
-                comparison_data["post_a"],
-                comparison_data["post_b"],
-                comparison_data["winner"],
-                comparison_data["comment_a"],
-                comparison_data["stars_a"],
-                comparison_data["comment_b"],
-                comparison_data["stars_b"],
-            ],
+        self.initialize_ratings(
+            list({comparison_data["post_a"], comparison_data["post_b"]})
         )
+
+        self._upsert_profile(
+            profile_id=comparison_data["profile_id"],
+            alias=comparison_data.get("profile_alias"),
+            bio=comparison_data.get("profile_bio"),
+        )
+
+        history = self.ibis_conn.table(ELO_HISTORY_TABLE)
+        history_schema = history.schema()
+        record = {
+            "comparison_id": comparison_data["comparison_id"],
+            "timestamp": self._to_utc_naive(comparison_data["timestamp"]),
+            "profile_id": comparison_data["profile_id"],
+            "post_a": comparison_data["post_a"],
+            "post_b": comparison_data["post_b"],
+            "winner": comparison_data["winner"],
+            "comment_a": comparison_data["comment_a"],
+            "stars_a": comparison_data["stars_a"],
+            "comment_b": comparison_data["comment_b"],
+            "stars_b": comparison_data["stars_b"],
+        }
+
+        payload_schema = ibis.schema({name: history_schema[name] for name in record.keys()})
+        payload_expr = ibis.memtable([record], schema=payload_schema)
+
+        self.ibis_conn.insert(ELO_HISTORY_TABLE, payload_expr)
 
         logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
 
@@ -229,15 +265,14 @@ class RankingStore:
             List of post IDs
         """
         if strategy == "fewest_games":
-            result = self.conn.execute(
-                """
-                SELECT post_id FROM elo_ratings
-                ORDER BY games_played ASC, RANDOM()
-                LIMIT ?
-            """,
-                [n],
-            ).fetchall()
-            return [row[0] for row in result]
+            ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+            candidates = (
+                ratings.order_by([ratings.games_played, ibis.random()])
+                .limit(n)
+                .select(ratings.post_id)
+                .to_pyarrow()
+            )
+            return candidates.column("post_id").to_pylist()
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -251,39 +286,19 @@ class RankingStore:
         Returns:
             Ibis Table with columns: profile_id, timestamp, comment, stars
         """
-        result = self.conn.execute(
-            """
-            SELECT
-                profile_id,
-                timestamp,
-                CASE WHEN post_a = ? THEN comment_a ELSE comment_b END as comment,
-                CASE WHEN post_a = ? THEN stars_a ELSE stars_b END as stars
-            FROM elo_history
-            WHERE post_a = ? OR post_b = ?
-            ORDER BY timestamp
-        """,
-            [post_id, post_id, post_id, post_id],
-        ).fetchall()
+        history = self.ibis_conn.table(ELO_HISTORY_TABLE)
+        post_ref = ibis.literal(post_id)
 
-        # Convert to Ibis Table, handling empty results
-        if not result:
-            return ibis.memtable(
-                [],
-                schema=ibis.schema(
-                    {
-                        "profile_id": dt.string,
-                        "timestamp": dt.Timestamp(timezone=None),
-                        "comment": dt.string,
-                        "stars": dt.int64,
-                    }
-                ),
+        return (
+            history.filter((history.post_a == post_ref) | (history.post_b == post_ref))
+            .select(
+                history.profile_id,
+                history.timestamp,
+                comment=ibis.ifelse(history.post_a == post_ref, history.comment_a, history.comment_b),
+                stars=ibis.ifelse(history.post_a == post_ref, history.stars_a, history.stars_b),
             )
-
-        # Convert to list of dicts for Ibis
-        rows = [
-            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result
-        ]
-        return ibis.memtable(rows)
+            .order_by(history.timestamp)
+        )
 
     def get_top_posts(self, n: int = 10, min_games: int = 5) -> Table:
         """
@@ -296,17 +311,12 @@ class RankingStore:
         Returns:
             Ibis Table with post_id, elo_global, games_played, last_updated
         """
-        result = self.conn.execute(
-            """
-            SELECT * FROM elo_ratings
-            WHERE games_played >= ?
-            ORDER BY elo_global DESC
-            LIMIT ?
-        """,
-            [min_games, n],
-        ).arrow()
-
-        return ibis.memtable(self._arrow_to_pydict(result))
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        return (
+            ratings.filter(ratings.games_played >= min_games)
+            .order_by(ratings.elo_global.desc())
+            .limit(n)
+        )
 
     def get_all_ratings(self) -> Table:
         """
@@ -315,8 +325,8 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_ratings data
         """
-        result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
-        return ibis.memtable(self._arrow_to_pydict(result))
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        return ratings.order_by(ratings.elo_global.desc())
 
     def get_all_history(self) -> Table:
         """
@@ -325,100 +335,192 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_history data
         """
-        result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
-        return ibis.memtable(self._arrow_to_pydict(result))
+        history = self.ibis_conn.table(ELO_HISTORY_TABLE)
+        return history.order_by(history.timestamp)
 
-    def _arrow_to_pydict(self, arrow_object: Any) -> Dict[str, Any]:
-        """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
+    def get_all_profiles(self) -> Table:
+        """Return judge profile statistics as an Ibis table.
 
-        if isinstance(arrow_object, pa.RecordBatchReader):
-            table: pa.Table | None = arrow_object.read_all()
-        elif isinstance(arrow_object, pa.Table):
-            table = arrow_object
-        else:
-            table = None
-            for attr in ("read_all", "to_table", "to_arrow_table"):
-                method = getattr(arrow_object, attr, None)
-                if not callable(method):
-                    continue
+        Columns: profile_id, alias, bio, comparisons, first_seen, last_seen.
+        """
 
-                result = method()
-                if isinstance(result, pa.RecordBatchReader):
-                    table = result.read_all()
-                    break
-                if isinstance(result, pa.Table):
-                    table = result
-                    break
-
-            if table is None:
-                to_pydict = getattr(arrow_object, "to_pydict", None)
-                if callable(to_pydict):
-                    data = to_pydict()
-                    if isinstance(data, dict):
-                        return data
-
-                raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
-
-        if not isinstance(table, pa.Table):
-            raise TypeError(f"Expected pyarrow.Table after conversion, got {type(table)!r}")
-
-        return table.to_pydict()
+        profiles = self.ibis_conn.table(ELO_PROFILES_TABLE)
+        stats = self.ibis_conn.table(ELO_PROFILE_STATS_TABLE)
+        return (
+            profiles.join(stats, profiles.profile_id == stats.profile_id)
+            .select(
+                profiles.profile_id,
+                stats["alias"],
+                stats["bio"],
+                stats["comparisons"],
+                profiles.first_seen,
+                stats["last_seen"],
+            )
+            .order_by(stats["last_seen"].desc())
+        )
 
     def export_to_parquet(self) -> None:
         """
         Export DuckDB tables to Parquet for sharing/analytics.
 
         Creates:
+            - rankings/elo_profiles.parquet
+            - rankings/elo_profile_stats.parquet
             - rankings/elo_ratings.parquet
             - rankings/elo_history.parquet
         """
+        profiles_path = self.rankings_dir / "elo_profiles.parquet"
+        profile_stats_path = self.rankings_dir / "elo_profile_stats.parquet"
         ratings_path = self.rankings_dir / "elo_ratings.parquet"
         history_path = self.rankings_dir / "elo_history.parquet"
 
-        self.conn.execute(f"""
-            COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
-        """)
-        self.conn.execute(f"""
-            COPY elo_history TO '{history_path}' (FORMAT PARQUET)
-        """)
+        self.ibis_conn.to_parquet(self.ibis_conn.table(ELO_PROFILES_TABLE), profiles_path)
+        self.ibis_conn.to_parquet(
+            self.ibis_conn.table(ELO_PROFILE_STATS_TABLE), profile_stats_path
+        )
+        self.ibis_conn.to_parquet(self.ibis_conn.table(ELO_RATINGS_TABLE), ratings_path)
+        self.ibis_conn.to_parquet(self.ibis_conn.table(ELO_HISTORY_TABLE), history_path)
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """
         Get ranking store statistics.
 
         Returns:
             dict with stats about ratings and history
         """
-        ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
-        ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
+        profiles = self.ibis_conn.table(ELO_PROFILES_TABLE)
+        ratings = self.ibis_conn.table(ELO_RATINGS_TABLE)
+        history = self.ibis_conn.table(ELO_HISTORY_TABLE)
 
-        comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
-        comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
+        profiles_count = int(profiles.count().execute() or 0)
+        ratings_count = int(ratings.count().execute() or 0)
+        comparisons_count = int(history.count().execute() or 0)
 
-        avg_games_result = self.conn.execute(
-            """
-            SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()
-        avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
+        avg_games_value = ratings.games_played.mean().execute()
+        top_elo_value = ratings.elo_global.max().execute()
+        bottom_elo_value = ratings.elo_global.min().execute()
 
-        top_elo_result = self.conn.execute(
-            """
-            SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()
-        top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
-
-        bottom_elo_result = self.conn.execute(
-            """
-            SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()
-        bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
+        avg_games = float(avg_games_value) if avg_games_value is not None else 0.0
+        top_elo = float(top_elo_value) if top_elo_value is not None else 1500.0
+        bottom_elo = float(bottom_elo_value) if bottom_elo_value is not None else 1500.0
 
         return {
+            "total_profiles": profiles_count,
             "total_posts": ratings_count,
             "total_comparisons": comparisons_count,
             "avg_games_per_post": avg_games,
             "highest_elo": top_elo,
             "lowest_elo": bottom_elo,
         }
+
+    def _upsert_profile(self, *, profile_id: str, alias: str | None, bio: str | None) -> None:
+        """Ensure judge metadata exists and update activity counters."""
+
+        normalized_alias = alias.strip() if isinstance(alias, str) else None
+        if normalized_alias == "":
+            normalized_alias = None
+
+        normalized_bio = bio.strip() if isinstance(bio, str) else None
+        if normalized_bio == "":
+            normalized_bio = None
+
+        now = self._to_utc_naive(datetime.now(UTC))
+
+        profiles = self.ibis_conn.table(ELO_PROFILES_TABLE)
+        profile_schema = profiles.schema()
+        profile_exists = (
+            profiles.filter(profiles.profile_id == profile_id).count().execute() > 0
+        )
+        if not profile_exists:
+            profile_payload = ibis.memtable(
+                [
+                    {
+                        "profile_id": profile_id,
+                        "first_seen": now,
+                    }
+                ],
+                schema=ibis.schema(
+                    {
+                        "profile_id": profile_schema["profile_id"],
+                        "first_seen": profile_schema["first_seen"],
+                    }
+                ),
+            )
+            self.ibis_conn.insert(ELO_PROFILES_TABLE, profile_payload)
+
+        stats = self.ibis_conn.table(ELO_PROFILE_STATS_TABLE)
+        stats_schema = stats.schema()
+        profile_key_literal = ibis.literal(profile_id, type=stats_schema["profile_id"])
+        existing_count = (
+            stats.filter(stats.profile_id == profile_key_literal).count().execute()
+        )
+
+        if existing_count == 0:
+            new_row = {
+                "profile_id": profile_id,
+                "alias": normalized_alias,
+                "bio": normalized_bio,
+                "comparisons": 1,
+                "last_seen": now,
+            }
+            new_schema = ibis.schema(
+                {
+                    "profile_id": stats_schema["profile_id"],
+                    "alias": stats_schema["alias"],
+                    "bio": stats_schema["bio"],
+                    "comparisons": stats_schema["comparisons"],
+                    "last_seen": stats_schema["last_seen"],
+                }
+            )
+            payload = ibis.memtable([new_row], schema=new_schema)
+            self.ibis_conn.insert(ELO_PROFILE_STATS_TABLE, payload)
+            return
+
+        current_arrow = (
+            stats.filter(stats.profile_id == profile_key_literal)
+            .select(
+                stats["alias"].name("alias"),
+                stats["bio"].name("bio"),
+                stats["comparisons"].name("comparisons"),
+            )
+            .to_pyarrow()
+        )
+
+        if current_arrow.num_rows == 0:
+            raise RuntimeError("Expected an existing stats row but none was found")
+
+        current_alias = current_arrow.column("alias").to_pylist()[0]
+        current_bio = current_arrow.column("bio").to_pylist()[0]
+        current_comparisons = current_arrow.column("comparisons").to_pylist()[0]
+
+        next_alias = normalized_alias if normalized_alias is not None else current_alias
+        next_bio = normalized_bio if normalized_bio is not None else current_bio
+        next_comparisons = int(current_comparisons) + 1
+
+        column_schema = ibis.schema(
+            {
+                "profile_id": stats_schema["profile_id"],
+                "alias": stats_schema["alias"],
+                "bio": stats_schema["bio"],
+                "comparisons": stats_schema["comparisons"],
+                "last_seen": stats_schema["last_seen"],
+            }
+        )
+
+        updated_row = {
+            "profile_id": profile_id,
+            "alias": next_alias,
+            "bio": next_bio,
+            "comparisons": next_comparisons,
+            "last_seen": now,
+        }
+
+        updated_mem = ibis.memtable([updated_row], schema=column_schema)
+        remaining_expr = stats.filter(stats.profile_id != profile_key_literal).select(
+            *[stats[name] for name in column_schema.names]
+        )
+        combined_expr = remaining_expr.union(updated_mem, distinct=False)
+
+        self.ibis_conn.insert(ELO_PROFILE_STATS_TABLE, combined_expr, overwrite=True)

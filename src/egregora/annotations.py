@@ -11,7 +11,8 @@ from typing import Any
 import duckdb
 import ibis
 
-from .privacy import PrivacyViolationError, validate_newsletter_privacy
+from egregora.duckdb_ddl import apply_schema
+from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
@@ -45,24 +46,7 @@ class AnnotationStore:
         return self._backend.con
 
     def _initialize(self) -> None:
-        self._backend.raw_sql(
-            f"""
-            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
-                id BIGINT PRIMARY KEY,
-                msg_id TEXT NOT NULL,
-                author TEXT NOT NULL,
-                commentary TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL,
-                parent_annotation_id BIGINT
-            )
-            """
-        )
-        self._backend.raw_sql(
-            f"""
-            CREATE INDEX IF NOT EXISTS idx_annotations_msg_id_created
-            ON {ANNOTATIONS_TABLE} (msg_id, created_at)
-            """
-        )
+        apply_schema(self._connection)
 
     def _fetch_records(
         self, query: str, params: Sequence[object] | None = None

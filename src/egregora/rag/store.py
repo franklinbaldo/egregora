@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, cast
 
 import duckdb
@@ -13,6 +14,15 @@ import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
+
+from egregora.duckdb_ddl import (
+    apply_schema,
+    create_vss_index,
+    drop_index_if_exists,
+    drop_table_if_exists,
+    quote_identifier,
+    string_literal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,12 +150,12 @@ class VectorStore:
             self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
             self.conn = _ConnectionProxy(connection)
-        
+
+        apply_schema(self.conn)
         self._init_vss()
         self._vss_function = self._detect_vss_function()
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
-        self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
     def _init_vss(self) -> None:
@@ -161,11 +171,9 @@ class VectorStore:
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
 
-        self._ensure_metadata_table()
-
         if not self.parquet_path.exists():
-            self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
-            self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            drop_index_if_exists(self._client, index_name=INDEX_NAME)
+            drop_table_if_exists(self._client, table_name=TABLE_NAME)
             self._store_metadata(None)
             self._table_synced = True
             return
@@ -180,9 +188,14 @@ class VectorStore:
             self._table_synced = True
             return
 
-        self.conn.execute(
-            f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",
-            [str(self.parquet_path)],
+        path_literal = string_literal(str(self.parquet_path))
+        self._client.raw_sql(
+            dedent(
+                f"""
+                CREATE OR REPLACE TABLE {quote_identifier(TABLE_NAME)}
+                AS SELECT * FROM read_parquet({path_literal})
+                """
+            )
         )
         self._store_metadata(current_metadata)
 
@@ -190,36 +203,6 @@ class VectorStore:
             self._rebuild_index()
 
         self._table_synced = True
-
-    def _ensure_metadata_table(self) -> None:
-        """Create the internal metadata table when missing."""
-
-        self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
-                path TEXT PRIMARY KEY,
-                mtime_ns BIGINT,
-                size BIGINT,
-                row_count BIGINT
-            )
-            """
-        )
-
-    def _ensure_index_meta_table(self) -> None:
-        """Create the table used to persist ANN index metadata."""
-
-        self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
-                index_name TEXT PRIMARY KEY,
-                mode TEXT,
-                row_count BIGINT,
-                threshold BIGINT,
-                nlist INTEGER,
-                updated_at TIMESTAMPTZ
-            )
-            """
-        )
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
@@ -281,7 +264,7 @@ class VectorStore:
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
 
-        self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+        drop_index_if_exists(self._client, index_name=INDEX_NAME)
         self._ensure_index_meta_table()
         table_present = self.conn.execute(
             """
@@ -301,12 +284,10 @@ class VectorStore:
             return
 
         try:
-            self.conn.execute(
-                f"""
-                CREATE INDEX {INDEX_NAME}
-                ON {TABLE_NAME}(embedding)
-                USING vss(metric='cosine', storage_type='ivfflat')
-                """
+            create_vss_index(
+                self._client,
+                index_name=INDEX_NAME,
+                table_name=TABLE_NAME,
             )
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
             logger.warning("Skipping VSS index rebuild: %s", exc)
