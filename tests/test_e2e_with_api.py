@@ -23,23 +23,23 @@ from egregora.utils.zip import validate_zip_contents
 
 # Skip all tests in this module if API key is not available
 pytestmark = pytest.mark.skipif(
-    not os.getenv("REAL_GEMINI_API_KEY"),
-    reason="REAL_GEMINI_API_KEY environment variable not set - skipping E2E tests with real API",
+    not os.getenv("GEMINI_API_KEY"),
+    reason="GEMINI_API_KEY environment variable not set - skipping E2E tests with real API",
 )
 
 
 @pytest.fixture()
 def gemini_api_key_real() -> str:
     """Return the real Gemini API key from environment."""
-    api_key = os.getenv("REAL_GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        pytest.skip("REAL_GEMINI_API_KEY not set")
+        pytest.skip("GEMINI_API_KEY not set")
     return api_key
 
 
 def test_e2e_full_pipeline_with_real_api(
     whatsapp_fixture: WhatsAppFixture,
-    gemini_api_key_real: str,
+    gemini_api_key: str,
     tmp_path: Path,
 ):
     """Test complete pipeline with real API calls using WhatsApp export data.
@@ -72,7 +72,7 @@ def test_e2e_full_pipeline_with_real_api(
         output_dir=output_dir,
         period="day",
         enable_enrichment=True,
-        gemini_api_key=gemini_api_key_real,
+        gemini_api_key=gemini_api_key,
     )
 
     # Verify output structure
@@ -112,7 +112,7 @@ def test_e2e_full_pipeline_with_real_api(
 
 def test_e2e_enrichment_with_real_api(
     whatsapp_fixture: WhatsAppFixture,
-    gemini_api_key_real: str,
+    gemini_api_key: str,
     tmp_path: Path,
 ):
     """Test message enrichment with real API calls.
