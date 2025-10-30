@@ -35,6 +35,7 @@ egregora.toml
 
 # Test output
 tests/temp_output/
+tests/v3/
 
 # Generated metrics and logs
 metrics/
