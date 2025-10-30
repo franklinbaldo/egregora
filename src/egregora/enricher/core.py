@@ -24,16 +24,13 @@ import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from .utils import EnrichmentCache, make_enrichment_cache_key
-from .config import EnrichmentConfig
-from .utils import BatchPromptRequest, BatchPromptResult, GeminiBatchClient
-from .utils import call_with_retries
-from .config import ModelConfig
-from .prompt_templates import (
+from ..utils import EnrichmentCache, make_enrichment_cache_key
+from ..config import EnrichmentConfig, ModelConfig, MEDIA_DIR_NAME
+from ..utils import BatchPromptRequest, BatchPromptResult, GeminiBatchClient, call_with_retries
+from ..prompt_templates import (
     render_media_enrichment_detailed_prompt,
     render_url_enrichment_detailed_prompt,
 )
-from .config import MEDIA_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
