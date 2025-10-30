@@ -91,20 +91,27 @@ def main(
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Fixtures directory: {fixtures_dir}")
 
-    # Configure the real Gemini client
+    # Configure Gemini API
     genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-    real_client = genai.Client()
 
-    # Wrap the real client with the recorder
-    recorder = GeminiClientRecorder(client=real_client, output_dir=fixtures_dir)
+    # Monkey-patch genai.Client to return a recorder instead
+    # This ensures any Client created by the pipeline will record calls
+    _OriginalClient = genai.Client
+
+    def create_recording_client(*args, **kwargs):
+        """Factory function that returns a GeminiClientRecorder."""
+        real_client = _OriginalClient(*args, **kwargs)
+        return GeminiClientRecorder(client=real_client, output_dir=fixtures_dir)
+
+    genai.Client = create_recording_client
 
     try:
-        # Run the main pipeline with the recorder
+        # Run the main pipeline - it will create its own client which will be recorded
         process_whatsapp_export(
             zip_path=zip_path,
             output_dir=output_dir,
             enable_enrichment=True,  # Ensure all API calls are made
-            client=recorder,
+            gemini_api_key=os.environ["GOOGLE_API_KEY"],
         )
         logger.info("Pipeline finished successfully.")
         logger.info(f"Golden fixtures have been recorded to: {fixtures_dir}")
