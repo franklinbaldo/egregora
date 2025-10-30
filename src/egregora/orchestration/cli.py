@@ -574,6 +574,216 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         _run_ranking_session(config, gemini_key)
 
 
+@app.command()
+def parse(
+    zip_file: Annotated[Path, typer.Argument(help="Path to WhatsApp export ZIP")],
+    output: Annotated[Path, typer.Option(help="Output CSV file path")] = Path("messages.csv"),
+    timezone: Annotated[
+        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
+    ] = None,
+):
+    """
+    Parse WhatsApp export ZIP to CSV.
+
+    This is the first stage of the pipeline. It:
+    - Extracts messages from the ZIP file
+    - Parses dates, times, and authors
+    - Anonymizes author names to UUID5 pseudonyms
+    - Saves structured data to CSV
+
+    Output CSV contains: timestamp, date, time, author, message, group_slug, group_name
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import duckdb
+
+    from ..core.models import WhatsAppExport
+    from ..ingestion.parser import parse_export
+    from .pipeline import discover_chat_file
+    from .serialization import save_table_to_csv
+
+    # Validate inputs
+    zip_path = zip_file.resolve()
+    if not zip_path.exists():
+        console.print(f"[red]ZIP file not found: {zip_path}[/red]")
+        raise typer.Exit(1)
+
+    output_path = output.resolve()
+
+    # Parse timezone
+    timezone_obj = None
+    if timezone:
+        try:
+            timezone_obj = ZoneInfo(timezone)
+            console.print(f"[green]Using timezone: {timezone}[/green]")
+        except Exception as e:
+            console.print(f"[red]Invalid timezone '{timezone}': {e}[/red]")
+            raise typer.Exit(1) from e
+
+    # Setup DuckDB backend
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    old_backend = getattr(ibis.options, "default_backend", None)
+
+    try:
+        ibis.options.default_backend = backend
+
+        console.print(f"[cyan]Parsing:[/cyan] {zip_path}")
+
+        # Discover chat file
+        group_name, chat_file = discover_chat_file(zip_path)
+        from ..core.types import GroupSlug
+
+        group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+        console.print(f"[yellow]Group:[/yellow] {group_name}")
+
+        # Create export object
+        export = WhatsAppExport(
+            zip_path=zip_path,
+            group_name=group_name,
+            group_slug=group_slug,
+            export_date=datetime.now().date(),
+            chat_file=chat_file,
+            media_files=[],
+        )
+
+        # Parse messages
+        messages_table = parse_export(export, timezone=timezone_obj)
+        total_messages = messages_table.count().execute()
+
+        console.print(f"[green]✅ Parsed {total_messages} messages[/green]")
+
+        # Save to CSV
+        save_table_to_csv(messages_table, output_path)
+        console.print(f"[green]💾 Saved to {output_path}[/green]")
+
+    finally:
+        ibis.options.default_backend = old_backend
+        connection.close()
+
+
+@app.command()
+def group(
+    input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
+    period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
+    output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path(
+        "periods"
+    ),
+    from_date: Annotated[
+        str | None, typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)")
+    ] = None,
+    to_date: Annotated[
+        str | None, typer.Option(help="Only include messages up to this date (YYYY-MM-DD)")
+    ] = None,
+):
+    """
+    Group messages by time period (day/week/month).
+
+    This is the second stage of the pipeline. It:
+    - Loads messages from CSV
+    - Optionally filters by date range
+    - Groups messages by the specified period
+    - Saves each period to a separate CSV file
+
+    Output files are named: {period_key}.csv (e.g., 2025-01-15.csv, 2025-W03.csv)
+    """
+    from datetime import datetime
+
+    import duckdb
+
+    from .pipeline import group_by_period
+    from .serialization import load_table_from_csv, save_table_to_csv
+
+    # Validate inputs
+    input_path = input_csv.resolve()
+    if not input_path.exists():
+        console.print(f"[red]Input CSV not found: {input_path}[/red]")
+        raise typer.Exit(1)
+
+    if period not in {"day", "week", "month"}:
+        console.print(f"[red]Invalid period '{period}'. Choose: day, week, or month[/red]")
+        raise typer.Exit(1)
+
+    output_path = output_dir.resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Parse dates
+    from_date_obj = None
+    to_date_obj = None
+
+    if from_date:
+        try:
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+        except ValueError as e:
+            console.print(f"[red]Invalid from_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    if to_date:
+        try:
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+        except ValueError as e:
+            console.print(f"[red]Invalid to_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    # Setup DuckDB backend
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    old_backend = getattr(ibis.options, "default_backend", None)
+
+    try:
+        ibis.options.default_backend = backend
+
+        console.print(f"[cyan]Loading:[/cyan] {input_path}")
+        messages_table = load_table_from_csv(input_path)
+
+        # Filter by date range if specified
+        if from_date_obj or to_date_obj:
+            original_count = messages_table.count().execute()
+
+            if from_date_obj and to_date_obj:
+                messages_table = messages_table.filter(
+                    (messages_table.timestamp.date() >= from_date_obj)
+                    & (messages_table.timestamp.date() <= to_date_obj)
+                )
+                console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
+            elif from_date_obj:
+                messages_table = messages_table.filter(
+                    messages_table.timestamp.date() >= from_date_obj
+                )
+                console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
+            elif to_date_obj:
+                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
+                console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
+
+            filtered_count = messages_table.count().execute()
+            removed = original_count - filtered_count
+            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+
+        # Group by period
+        console.print(f"[cyan]Grouping by:[/cyan] {period}")
+        periods = group_by_period(messages_table, period)
+
+        if not periods:
+            console.print("[yellow]No periods found after grouping[/yellow]")
+            raise typer.Exit(0)
+
+        console.print(f"[green]Found {len(periods)} periods[/green]")
+
+        # Save each period to CSV
+        for period_key, period_table in periods.items():
+            period_output = output_path / f"{period_key}.csv"
+            period_count = period_table.count().execute()
+            console.print(f"  [cyan]{period_key}:[/cyan] {period_count} messages → {period_output}")
+            save_table_to_csv(period_table, period_output)
+
+        console.print(f"[green]✅ Saved {len(periods)} period files to {output_path}[/green]")
+
+    finally:
+        ibis.options.default_backend = old_backend
+        connection.close()
+
+
 _register_ranking_cli(app)
 
 
