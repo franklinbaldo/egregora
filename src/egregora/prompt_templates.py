@@ -5,17 +5,25 @@ from __future__ import annotations
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2.environment import Template
 
 # Prompts directory
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Jinja2 environment with auto-escaping disabled (we're generating prompts, not HTML)
-env = Environment(
+env: Environment = Environment(
     loader=FileSystemLoader(PROMPTS_DIR),
     autoescape=select_autoescape(enabled_extensions=()),  # Disable autoescaping
     trim_blocks=True,
     lstrip_blocks=True,
 )
+
+
+def _render_template(template_name: str, /, **context: object) -> str:
+    """Render a named template with the provided context."""
+
+    template: Template = env.get_template(template_name)
+    return template.render(**context)
 
 
 def render_writer_prompt(  # noqa: PLR0913
@@ -44,8 +52,8 @@ def render_writer_prompt(  # noqa: PLR0913
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("writer_system.jinja")
-    return template.render(
+    return _render_template(
+        "writer_system.jinja",
         date=date,
         markdown_table=markdown_table,
         active_authors=active_authors,
@@ -68,8 +76,7 @@ def render_url_enrichment_prompt(url: str) -> str:
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("enricher_url.jinja")
-    return template.render(url=url)
+    return _render_template("enricher_url.jinja", url=url)
 
 
 def render_media_enrichment_prompt() -> str:
@@ -79,8 +86,7 @@ def render_media_enrichment_prompt() -> str:
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("enricher_media.jinja")
-    return template.render()
+    return _render_template("enricher_media.jinja")
 
 
 def render_url_enrichment_detailed_prompt(
@@ -103,8 +109,8 @@ def render_url_enrichment_detailed_prompt(
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("enricher_url_detailed.jinja")
-    return template.render(
+    return _render_template(
+        "enricher_url_detailed.jinja",
         url=url,
         original_message=original_message,
         sender_uuid=sender_uuid,
@@ -137,8 +143,8 @@ def render_media_enrichment_detailed_prompt(  # noqa: PLR0913
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("enricher_media_detailed.jinja")
-    return template.render(
+    return _render_template(
+        "enricher_media_detailed.jinja",
         media_type=media_type,
         media_filename=media_filename,
         media_path=media_path,
@@ -169,8 +175,8 @@ def render_editor_prompt(
     Returns:
         Rendered prompt string
     """
-    template = env.get_template("editor_system.jinja")
-    return template.render(
+    return _render_template(
+        "editor_system.jinja",
         post_content=post_content,
         doc_id=doc_id,
         version=version,

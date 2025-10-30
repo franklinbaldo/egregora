@@ -51,6 +51,7 @@ ranking = []
 lint = [
     "pre-commit>=3.8",
     "ruff>=0.4.4",
+    "types-Jinja2>=2.11.9",
 ]
 
 [project.scripts]
@@ -104,6 +105,7 @@ pythonpath = ["src"]
 [dependency-groups]
 dev = [
     "ruff>=0.14.0",
+    "types-Jinja2>=2.11.9",
 ]
 test = [
     "pytest>=8.4.2",
