@@ -270,7 +270,7 @@ _LINE_PATTERN = re.compile(
     r"(?:\s*(?P<ampm>[APap][Mm]))?"
     r"\s*[—\-]\s*"
     r"(?P<author>[^:]+?):\s*"
-    r"(?P<message>.+)"
+    r"(?P<message>.*)"
     r")$"
 )
 

@@ -165,6 +165,16 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     assert participant_rows.count().execute() == 10
 
 
+def test_parser_retains_blank_message_payloads(whatsapp_fixture: WhatsAppFixture):
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+
+    messages = table.execute().to_dict("records")
+    blank_payloads = [row for row in messages if row.get("message") == ""]
+
+    assert blank_payloads, "Expected at least one conversation row with an empty message payload"
+
+
 def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_export(export, timezone=whatsapp_fixture.timezone)
