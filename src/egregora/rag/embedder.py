@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from ..gemini_batch import EmbeddingBatchRequest, GeminiBatchClient
+from ..utils import EmbeddingBatchRequest, GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,62 @@
+"""Utility modules for Egregora."""
+
+from .batch import (
+    BatchPromptRequest,
+    BatchPromptResult,
+    EmbeddingBatchRequest,
+    EmbeddingBatchResult,
+    GeminiBatchClient,
+    chunk_requests,
+)
+from .cache import (
+    EnrichmentCache,
+    make_enrichment_cache_key,
+    ENRICHMENT_CACHE_VERSION,
+)
+from .checkpoints import (
+    CheckpointStore,
+    DEFAULT_STEP_ORDER,
+)
+from .genai import (
+    call_with_retries,
+    call_with_retries_sync,
+    is_rate_limit_error,
+    extract_retry_delay,
+    sleep_with_progress_sync,
+)
+from .zip import (
+    ZipValidationError,
+    ZipValidationLimits,
+    configure_default_limits,
+    validate_zip_contents,
+    ensure_safe_member_size,
+)
+
+__all__ = [
+    # Batch API
+    "BatchPromptRequest",
+    "BatchPromptResult",
+    "EmbeddingBatchRequest",
+    "EmbeddingBatchResult",
+    "GeminiBatchClient",
+    "chunk_requests",
+    # Cache
+    "EnrichmentCache",
+    "make_enrichment_cache_key",
+    "ENRICHMENT_CACHE_VERSION",
+    # Checkpoints
+    "CheckpointStore",
+    "DEFAULT_STEP_ORDER",
+    # GenAI utilities
+    "call_with_retries",
+    "call_with_retries_sync",
+    "is_rate_limit_error",
+    "extract_retry_delay",
+    "sleep_with_progress_sync",
+    # ZIP validation
+    "ZipValidationError",
+    "ZipValidationLimits",
+    "configure_default_limits",
+    "validate_zip_contents",
+    "ensure_safe_member_size",
+]

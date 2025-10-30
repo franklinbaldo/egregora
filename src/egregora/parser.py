@@ -26,7 +26,7 @@ from ibis.expr.types import Table
 from .anonymizer import anonymize_dataframe
 from .models import WhatsAppExport
 from .schema import MESSAGE_SCHEMA, ensure_message_schema
-from .zip_utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from .utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
 SET_COMMAND_PARTS = 2
