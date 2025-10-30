@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from typing import Any
+
+class Progress:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    def add_task(self, *args: Any, **kwargs: Any) -> Any: ...
+    def update(self, *args: Any, **kwargs: Any) -> None: ...
+    def __enter__(self) -> Progress: ...
+    def __exit__(self, *args: Any) -> None: ...
+
+class SpinnerColumn:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+class BarColumn:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+class TimeRemainingColumn:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+__all__ = [
+    "Progress",
+    "SpinnerColumn",
+    "BarColumn",
+    "TimeRemainingColumn",
+]

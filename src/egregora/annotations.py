@@ -188,15 +188,25 @@ class AnnotationStore:
     @staticmethod
     def _row_to_annotation(row: dict[str, object]) -> Annotation:
         created_at_obj = row["created_at"]
+        created_at: datetime
         if hasattr(created_at_obj, "to_pydatetime"):
             created_at = created_at_obj.to_pydatetime()
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
+        else:
+            raise TypeError("created_at column must be datetime-like")
+
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 
         parent_raw = row.get("parent_annotation_id")
-        parent_id = int(parent_raw) if parent_raw is not None else None
+        if parent_raw is None or parent_raw == "":
+            parent_id: int | None = None
+        else:
+            try:
+                parent_id = int(parent_raw)
+            except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+                raise ValueError("parent_annotation_id must be numeric") from exc
 
         return Annotation(
             id=int(row["id"]),

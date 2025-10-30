@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+from typing import Any
+
+from . import Table
+
+class ParquetWriter:
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    def write_table(self, table: Table, *args: Any, **kwargs: Any) -> None: ...
+    def close(self) -> None: ...
+
+def read_table(*args: Any, **kwargs: Any) -> Table: ...
+
+def write_table(table: Table, *args: Any, **kwargs: Any) -> None: ...
+
+__all__ = ["ParquetWriter", "read_table", "write_table"]

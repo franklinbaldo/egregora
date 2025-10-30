@@ -20,7 +20,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, SupportsInt
 
 import ibis
 import pyarrow as pa
@@ -91,14 +91,16 @@ def _load_freeform_memory(output_dir: Path) -> str:
 
 
 @lru_cache(maxsize=1)
-def _pandas_dataframe_type():
+def _pandas_dataframe_type() -> type[Any] | None:
     """Return the pandas DataFrame type when pandas is available."""
 
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.DataFrame  # type: ignore[attr-defined]
+
+    dataframe_type = getattr(pandas_module, "DataFrame", None)
+    return dataframe_type if isinstance(dataframe_type, type) else None
 
 
 @lru_cache(maxsize=1)
@@ -109,7 +111,8 @@ def _pandas_na_singleton() -> Any | None:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.NA  # type: ignore[attr-defined]
+
+    return getattr(pandas_module, "NA", None)
 
 
 def _stringify_value(value: Any) -> str:
@@ -227,18 +230,18 @@ def _table_to_records(
         return records, column_names
 
     dataframe_type = _pandas_dataframe_type()
-    if dataframe_type is not None and isinstance(data, dataframe_type):  # type: ignore[arg-type]
-        column_names = [str(column) for column in data.columns]
-        return data.to_dict("records"), column_names
+    if dataframe_type is not None and isinstance(data, dataframe_type):
+        dataframe_columns = [str(column) for column in getattr(data, "columns", [])]
+        return data.to_dict("records"), dataframe_columns
 
     if isinstance(data, Iterable):
         records = [dict(row) for row in data]
-        column_names: list[str] = []
+        column_labels: list[str] = []
         for record in records:
             for key in record:
-                if key not in column_names:
-                    column_names.append(str(key))
-        return records, column_names
+                if key not in column_labels:
+                    column_labels.append(str(key))
+        return records, column_labels
 
     raise TypeError("Unsupported data source for markdown rendering")
 
@@ -826,17 +829,20 @@ def _handle_annotate_conversation_tool(
     commentary = _stringify_value(fn_args.get("my_commentary"))
     parent_raw = fn_args.get("parent_annotation_id")
 
+    parent_annotation_id: int | None = None
     if isinstance(parent_raw, str):
-        parent_raw = parent_raw.strip()
-
-    parent_annotation_id: int | None
-    if parent_raw in (None, ""):
-        parent_annotation_id = None
-    else:
-        try:
-            parent_annotation_id = int(parent_raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("parent_annotation_id must be an integer when provided") from exc
+        trimmed = parent_raw.strip()
+        if trimmed:
+            try:
+                parent_annotation_id = int(trimmed)
+            except ValueError as exc:
+                raise ValueError(
+                    "parent_annotation_id must be an integer when provided"
+                ) from exc
+    elif isinstance(parent_raw, SupportsInt):
+        parent_annotation_id = int(parent_raw)
+    elif parent_raw is not None:
+        raise ValueError("parent_annotation_id must be an integer when provided")
 
     annotation = annotations_store.save_annotation(
         msg_id,
