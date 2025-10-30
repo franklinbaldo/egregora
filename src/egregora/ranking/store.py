@@ -1,15 +1,62 @@
 """DuckDB-backed ranking store for efficient updates and queries."""
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
+
+if TYPE_CHECKING:
+    from duckdb import DuckDBPyConnection
+
+
+class RatingSummary(TypedDict):
+    """ELO rating snapshot for a single post."""
+
+    elo_global: float
+    games_played: int
+
+
+class ComparisonRecord(TypedDict):
+    """Data persisted for every ranking comparison."""
+
+    comparison_id: str
+    timestamp: datetime
+    profile_id: str
+    post_a: str
+    post_b: str
+    winner: str
+    comment_a: str
+    stars_a: int
+    comment_b: str
+    stars_b: int
+
+
+class CommentRow(TypedDict):
+    """Single comment extracted from the ranking history."""
+
+    profile_id: str
+    timestamp: datetime
+    comment: str
+    stars: int
+
+
+class RankingStats(TypedDict):
+    """Aggregated statistics about the ranking store."""
+
+    total_posts: int
+    total_comparisons: int
+    avg_games_per_post: float
+    highest_elo: float
+    lowest_elo: float
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +82,7 @@ class RankingStore:
         rankings_dir.mkdir(parents=True, exist_ok=True)
 
         self.db_path = rankings_dir / "rankings.duckdb"
-        self.conn = duckdb.connect(str(self.db_path))
+        self.conn: DuckDBPyConnection = duckdb.connect(str(self.db_path))
         self._init_schema()
 
         logger.info(f"Ranking store initialized: {self.db_path}")
@@ -85,7 +132,7 @@ class RankingStore:
             CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
         """)
 
-    def initialize_ratings(self, post_ids: list[str]) -> int:
+    def initialize_ratings(self, post_ids: Sequence[str]) -> int:
         """
         Initialize ratings for new posts.
 
@@ -112,14 +159,16 @@ class RankingStore:
             """,
                 [post_id, now],
             )
-            inserted += result.fetchone()[0]  # Returns number of rows inserted
+            row = result.fetchone()
+            if row:
+                inserted += int(row[0])
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
 
         return inserted
 
-    def get_rating(self, post_id: str) -> dict | None:
+    def get_rating(self, post_id: str) -> RatingSummary | None:
         """
         Get rating for a specific post.
 
@@ -137,7 +186,7 @@ class RankingStore:
         ).fetchone()
 
         if result:
-            return {"elo_global": result[0], "games_played": result[1]}
+            return {"elo_global": float(result[0]), "games_played": int(result[1])}
         return None
 
     def update_ratings(
@@ -179,7 +228,7 @@ class RankingStore:
 
         return new_elo_a, new_elo_b
 
-    def save_comparison(self, comparison_data: dict):
+    def save_comparison(self, comparison_data: ComparisonRecord) -> None:
         """
         Save comparison to history.
 
@@ -236,7 +285,7 @@ class RankingStore:
             """,
                 [n],
             ).fetchall()
-            return [row[0] for row in result]
+            return [str(row[0]) for row in result]
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -279,8 +328,14 @@ class RankingStore:
             )
 
         # Convert to list of dicts for Ibis
-        rows = [
-            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result
+        rows: list[CommentRow] = [
+            {
+                "profile_id": str(r[0]),
+                "timestamp": r[1],
+                "comment": str(r[2]),
+                "stars": int(r[3]),
+            }
+            for r in result
         ]
         return ibis.memtable(rows)
 
@@ -327,7 +382,7 @@ class RankingStore:
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
         return ibis.memtable(self._arrow_to_pydict(result))
 
-    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
+    def _arrow_to_pydict(self, arrow_object: object) -> dict[str, list[Any]]:
         """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
         if isinstance(arrow_object, pa.RecordBatchReader):
@@ -363,7 +418,7 @@ class RankingStore:
 
         return table.to_pydict()
 
-    def export_to_parquet(self):
+    def export_to_parquet(self) -> None:
         """
         Export DuckDB tables to Parquet for sharing/analytics.
 
@@ -383,35 +438,40 @@ class RankingStore:
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
-    def stats(self) -> dict:
+    def stats(self) -> RankingStats:
         """
         Get ranking store statistics.
 
         Returns:
             dict with stats about ratings and history
         """
-        ratings_count = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()[0]
-        comparisons_count = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()[0]
+        ratings_row = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
+        ratings_count = int(ratings_row[0]) if ratings_row else 0
 
-        avg_games = (
-            self.conn.execute("""
+        comparisons_row = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
+        comparisons_count = int(comparisons_row[0]) if comparisons_row else 0
+
+        avg_games_row = self.conn.execute(
+            """
             SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()[0]
-            or 0
-        )
+        """
+        ).fetchone()
+        avg_games = float(avg_games_row[0]) if avg_games_row and avg_games_row[0] is not None else 0.0
 
-        top_elo = (
-            self.conn.execute("""
+        top_elo_row = self.conn.execute(
+            """
             SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
-        )
+        """
+        ).fetchone()
+        top_elo = float(top_elo_row[0]) if top_elo_row and top_elo_row[0] is not None else 1500.0
 
-        bottom_elo = (
-            self.conn.execute("""
+        bottom_elo_row = self.conn.execute(
+            """
             SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
+        """
+        ).fetchone()
+        bottom_elo = (
+            float(bottom_elo_row[0]) if bottom_elo_row and bottom_elo_row[0] is not None else 1500.0
         )
 
         return {
