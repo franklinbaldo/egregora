@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    path TEXT PRIMARY KEY,
+    mtime_ns BIGINT,
+    size BIGINT,
+    row_count BIGINT
+)

@@ -11,10 +11,12 @@ from typing import Any
 import duckdb
 import ibis
 
-from .privacy import PrivacyViolationError, validate_newsletter_privacy
+from egregora.privacy import PrivacyViolationError, validate_newsletter_privacy
+from egregora.sql_templates import render_sql_template
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
+ANNOTATIONS_INDEX = "idx_annotations_msg_id_created"
 
 
 @dataclass(slots=True)
@@ -46,22 +48,18 @@ class AnnotationStore:
 
     def _initialize(self) -> None:
         self._backend.raw_sql(
-            f"""
-            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
-                id BIGINT PRIMARY KEY,
-                msg_id TEXT NOT NULL,
-                author TEXT NOT NULL,
-                commentary TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL,
-                parent_annotation_id BIGINT
+            render_sql_template(
+                "annotations_table.sql.jinja",
+                table_name=ANNOTATIONS_TABLE,
             )
-            """
         )
         self._backend.raw_sql(
-            f"""
-            CREATE INDEX IF NOT EXISTS idx_annotations_msg_id_created
-            ON {ANNOTATIONS_TABLE} (msg_id, created_at)
-            """
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ANNOTATIONS_INDEX,
+                table_name=ANNOTATIONS_TABLE,
+                columns=["msg_id", "created_at"],
+            )
         )
 
     def _fetch_records(

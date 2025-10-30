@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    post_id VARCHAR PRIMARY KEY,
+    elo_global DOUBLE NOT NULL DEFAULT 1500,
+    games_played INTEGER NOT NULL DEFAULT 0,
+    last_updated TIMESTAMP NOT NULL
+)

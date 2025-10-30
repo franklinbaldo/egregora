@@ -11,7 +11,18 @@ import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
 
+from egregora.sql_templates import render_sql_template
+
 logger = logging.getLogger(__name__)
+
+
+ELO_RATINGS_TABLE = "elo_ratings"
+ELO_HISTORY_TABLE = "elo_history"
+ELO_HISTORY_POST_A_INDEX = "idx_history_post_a"
+ELO_HISTORY_POST_B_INDEX = "idx_history_post_b"
+ELO_HISTORY_TIMESTAMP_INDEX = "idx_history_timestamp"
+ELO_RATINGS_GAMES_INDEX = "idx_ratings_games"
+ELO_RATINGS_ELO_INDEX = "idx_ratings_elo"
 
 
 class RankingStore:
@@ -43,47 +54,63 @@ class RankingStore:
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
         # ELO ratings table
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS elo_ratings (
-                post_id VARCHAR PRIMARY KEY,
-                elo_global DOUBLE NOT NULL DEFAULT 1500,
-                games_played INTEGER NOT NULL DEFAULT 0,
-                last_updated TIMESTAMP NOT NULL
+        self.conn.execute(
+            render_sql_template(
+                "ranking_elo_ratings_table.sql.jinja",
+                table_name=ELO_RATINGS_TABLE,
             )
-        """)
+        )
 
         # Comparison history table
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS elo_history (
-                comparison_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                profile_id VARCHAR NOT NULL,
-                post_a VARCHAR NOT NULL,
-                post_b VARCHAR NOT NULL,
-                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-                comment_a VARCHAR NOT NULL,
-                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-                comment_b VARCHAR NOT NULL,
-                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
+        self.conn.execute(
+            render_sql_template(
+                "ranking_elo_history_table.sql.jinja",
+                table_name=ELO_HISTORY_TABLE,
+                ratings_table_name=ELO_RATINGS_TABLE,
             )
-        """)
+        )
 
         # Create indexes for efficient queries
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """)
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_HISTORY_POST_A_INDEX,
+                table_name=ELO_HISTORY_TABLE,
+                columns=["post_a"],
+            )
+        )
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_HISTORY_POST_B_INDEX,
+                table_name=ELO_HISTORY_TABLE,
+                columns=["post_b"],
+            )
+        )
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_HISTORY_TIMESTAMP_INDEX,
+                table_name=ELO_HISTORY_TABLE,
+                columns=["timestamp"],
+            )
+        )
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_RATINGS_GAMES_INDEX,
+                table_name=ELO_RATINGS_TABLE,
+                columns=["games_played"],
+            )
+        )
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_RATINGS_ELO_INDEX,
+                table_name=ELO_RATINGS_TABLE,
+                columns=["elo_global"],
+            )
+        )
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
         """
@@ -105,8 +132,8 @@ class RankingStore:
 
         for post_id in post_ids:
             result = self.conn.execute(
-                """
-                INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
+                f"""
+                INSERT INTO {ELO_RATINGS_TABLE} (post_id, elo_global, games_played, last_updated)
                 VALUES (?, 1500, 0, ?)
                 ON CONFLICT (post_id) DO NOTHING
             """,
@@ -131,8 +158,8 @@ class RankingStore:
             dict with elo_global and games_played, or None if not found
         """
         result = self.conn.execute(
-            """
-            SELECT elo_global, games_played FROM elo_ratings WHERE post_id = ?
+            f"""
+            SELECT elo_global, games_played FROM {ELO_RATINGS_TABLE} WHERE post_id = ?
         """,
             [post_id],
         ).fetchone()
@@ -159,8 +186,8 @@ class RankingStore:
         now = datetime.now(UTC)
 
         self.conn.execute(
-            """
-            UPDATE elo_ratings
+            f"""
+            UPDATE {ELO_RATINGS_TABLE}
             SET elo_global = ?, games_played = games_played + 1, last_updated = ?
             WHERE post_id = ?
         """,
@@ -168,8 +195,8 @@ class RankingStore:
         )
 
         self.conn.execute(
-            """
-            UPDATE elo_ratings
+            f"""
+            UPDATE {ELO_RATINGS_TABLE}
             SET elo_global = ?, games_played = games_played + 1, last_updated = ?
             WHERE post_id = ?
         """,
@@ -197,6 +224,10 @@ class RankingStore:
                 - comment_b: str
                 - stars_b: int
         """
+        self.initialize_ratings(
+            list({comparison_data["post_a"], comparison_data["post_b"]})
+        )
+
         self.conn.execute(
             """
             INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

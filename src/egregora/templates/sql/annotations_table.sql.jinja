@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    id BIGINT PRIMARY KEY,
+    msg_id TEXT NOT NULL,
+    author TEXT NOT NULL,
+    commentary TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    parent_annotation_id BIGINT,
+    CONSTRAINT fk_{{ table_name }}_parent
+        FOREIGN KEY (parent_annotation_id)
+        REFERENCES {{ table_name }} (id)
+)

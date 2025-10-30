@@ -14,6 +14,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
+from egregora.sql_templates import render_sql_template
+
 logger = logging.getLogger(__name__)
 
 
@@ -195,30 +197,20 @@ class VectorStore:
         """Create the internal metadata table when missing."""
 
         self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
-                path TEXT PRIMARY KEY,
-                mtime_ns BIGINT,
-                size BIGINT,
-                row_count BIGINT
+            render_sql_template(
+                "rag_metadata_table.sql.jinja",
+                table_name=METADATA_TABLE_NAME,
             )
-            """
         )
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
 
         self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
-                index_name TEXT PRIMARY KEY,
-                mode TEXT,
-                row_count BIGINT,
-                threshold BIGINT,
-                nlist INTEGER,
-                updated_at TIMESTAMPTZ
+            render_sql_template(
+                "rag_index_meta_table.sql.jinja",
+                table_name=INDEX_META_TABLE,
             )
-            """
         )
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
@@ -302,11 +294,11 @@ class VectorStore:
 
         try:
             self.conn.execute(
-                f"""
-                CREATE INDEX {INDEX_NAME}
-                ON {TABLE_NAME}(embedding)
-                USING vss(metric='cosine', storage_type='ivfflat')
-                """
+                render_sql_template(
+                    "rag_vss_index.sql.jinja",
+                    index_name=INDEX_NAME,
+                    table_name=TABLE_NAME,
+                )
             )
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
             logger.warning("Skipping VSS index rebuild: %s", exc)

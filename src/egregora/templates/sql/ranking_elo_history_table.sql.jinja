@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    comparison_id VARCHAR PRIMARY KEY,
+    timestamp TIMESTAMP NOT NULL,
+    profile_id VARCHAR NOT NULL,
+    post_a VARCHAR NOT NULL,
+    post_b VARCHAR NOT NULL,
+    winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
+    comment_a VARCHAR NOT NULL,
+    stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
+    comment_b VARCHAR NOT NULL,
+    stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5),
+    CONSTRAINT fk_{{ table_name }}_post_a
+        FOREIGN KEY (post_a)
+        REFERENCES {{ ratings_table_name }} (post_id),
+    CONSTRAINT fk_{{ table_name }}_post_b
+        FOREIGN KEY (post_b)
+        REFERENCES {{ ratings_table_name }} (post_id)
+)

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    index_name TEXT PRIMARY KEY,
+    mode TEXT,
+    row_count BIGINT,
+    threshold BIGINT,
+    nlist INTEGER,
+    updated_at TIMESTAMPTZ
+)
