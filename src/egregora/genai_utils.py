@@ -214,9 +214,8 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
 
 async def call_with_retries[**P, T](
     async_fn: Callable[P, Awaitable[T]],
-    retry_options: RetryOptions | None = None,
-    /,
     *args: P.args,
+    retry_options: RetryOptions | None = None,
     **kwargs: P.kwargs,
 ) -> T:
     """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays.
@@ -253,9 +252,8 @@ async def call_with_retries[**P, T](
 
 def call_with_retries_sync[**P, T](
     fn: Callable[P, T],
-    retry_options: RetryOptions | None = None,
-    /,
     *args: P.args,
+    retry_options: RetryOptions | None = None,
     **kwargs: P.kwargs,
 ) -> T:
     """Synchronous twin of ``call_with_retries`` for Batch API usage."""
