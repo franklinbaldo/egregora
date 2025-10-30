@@ -344,14 +344,14 @@ class VectorStore:
             [INDEX_NAME],
         )
 
-    def add(self, chunks_df: Table) -> None:
+    def add(self, chunks_table: Table) -> None:
         """
         Add chunks to the vector store.
 
         Appends to existing Parquet file or creates new one.
 
         Args:
-            chunks_df: Ibis Table with columns:
+            chunks_table: Ibis Table with columns:
                 - chunk_id: str
                 - document_type: str ("post" or "media")
                 - document_id: str (post_slug or media_uuid)
@@ -376,40 +376,40 @@ class VectorStore:
                 - tags: list[str]
                 - category: str | None
         """
-        self._validate_table_schema(chunks_df, context="new chunks")
+        self._validate_table_schema(chunks_table, context="new chunks")
 
-        chunks_df = self._ensure_local_table(chunks_df)
+        chunks_table = self._ensure_local_table(chunks_table)
 
         if self.parquet_path.exists():
             # Read existing and append
-            existing_df = self._client.read_parquet(self.parquet_path)
-            self._validate_table_schema(existing_df, context="existing vector store")
-            existing_df, chunks_df = self._align_schemas(existing_df, chunks_df)
-            combined_df = existing_df.union(chunks_df, distinct=False)
-            existing_count = existing_df.count().execute()
-            new_count = chunks_df.count().execute()
+            existing_table = self._client.read_parquet(self.parquet_path)
+            self._validate_table_schema(existing_table, context="existing vector store")
+            existing_table, chunks_table = self._align_schemas(existing_table, chunks_table)
+            combined_table = existing_table.union(chunks_table, distinct=False)
+            existing_count = existing_table.count().execute()
+            new_count = chunks_table.count().execute()
             logger.info(f"Appending {new_count} chunks to existing {existing_count} chunks")
         else:
-            combined_df = self._cast_to_vector_store_schema(chunks_df)
-            chunk_count = chunks_df.count().execute()
+            combined_table = self._cast_to_vector_store_schema(chunks_table)
+            chunk_count = chunks_table.count().execute()
             logger.info(f"Creating new vector store with {chunk_count} chunks")
 
         # Write to Parquet
         self.parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        combined_df.execute().to_parquet(self.parquet_path)
+        combined_table.execute().to_parquet(self.parquet_path)
 
         self._table_synced = False
         self._ensure_dataset_loaded(force=True)
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
-    def _align_schemas(self, existing_df: Table, new_df: Table) -> tuple[Table, Table]:
+    def _align_schemas(self, existing_table: Table, new_table: Table) -> tuple[Table, Table]:
         """Cast both tables to the canonical vector store schema."""
 
-        existing_df = self._cast_to_vector_store_schema(existing_df)
-        new_df = self._cast_to_vector_store_schema(new_df)
+        existing_table = self._cast_to_vector_store_schema(existing_table)
+        new_table = self._cast_to_vector_store_schema(new_table)
 
-        return existing_df, new_df
+        return existing_table, new_table
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""
@@ -669,12 +669,12 @@ class VectorStore:
             return self._empty_table(SEARCH_RESULT_SCHEMA)
 
         prepared_table = self._prepare_search_results(result_table)
-        df = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
+        table = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
 
-        row_count = df.count().execute()
+        row_count = table.count().execute()
         logger.info("Found %d similar chunks (min_similarity=%s)", row_count, min_similarity)
 
-        return df
+        return table
 
     def _prepare_search_results(self, result_table: pa.Table) -> pa.Table:
         """Normalize DuckDB arrow results to match the search schema."""
@@ -904,8 +904,8 @@ class VectorStore:
                 "media_by_type": {},
             }
 
-        df = self.get_all()
-        total_chunks = df.count().execute()
+        table = self.get_all()
+        total_chunks = table.count().execute()
 
         if total_chunks == 0:
             return {
@@ -916,7 +916,7 @@ class VectorStore:
             }
 
         # Check if document_type column exists (for backward compatibility)
-        df_executed = df.execute()
+        df_executed = table.execute()
         has_doc_type = "document_type" in df_executed.columns
 
         stats = {
@@ -925,19 +925,19 @@ class VectorStore:
 
         if has_doc_type:
             # New schema with document types
-            post_df = df.filter(df.document_type == "post")
-            media_df = df.filter(df.document_type == "media")
+            post_table = table.filter(table.document_type == "post")
+            media_table = table.filter(table.document_type == "media")
 
-            post_count = post_df.count().execute()
-            media_count = media_df.count().execute()
+            post_count = post_table.count().execute()
+            media_count = media_table.count().execute()
 
-            stats["total_posts"] = post_df.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = media_df.media_uuid.nunique().execute() if media_count > 0 else 0
+            stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
+            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
 
             # Media breakdown by type
             if media_count > 0:
                 media_types_agg = (
-                    media_df.group_by("media_type")
+                    media_table.group_by("media_type")
                     .aggregate(count=lambda t: t.media_uuid.nunique())
                     .execute()
                 )
@@ -952,24 +952,24 @@ class VectorStore:
             # Date ranges
             if post_count > 0:
                 stats["post_date_range"] = (
-                    post_df.post_date.min().execute(),
-                    post_df.post_date.max().execute(),
+                    post_table.post_date.min().execute(),
+                    post_table.post_date.max().execute(),
                 )
             if media_count > 0:
                 stats["media_date_range"] = (
-                    media_df.message_date.min().execute(),
-                    media_df.message_date.max().execute(),
+                    media_table.message_date.min().execute(),
+                    media_table.message_date.max().execute(),
                 )
 
         else:
             # Old schema - all posts
-            stats["total_posts"] = df.post_slug.nunique().execute()
+            stats["total_posts"] = table.post_slug.nunique().execute()
             stats["total_media"] = 0
             stats["media_by_type"] = {}
             stats["date_range"] = (
-                df.post_date.min().execute(),
-                df.post_date.max().execute(),
+                table.post_date.min().execute(),
+                table.post_date.max().execute(),
             )
-            stats["total_tags"] = df.tags.unnest().nunique().execute()
+            stats["total_tags"] = table.tags.unnest().nunique().execute()
 
         return stats

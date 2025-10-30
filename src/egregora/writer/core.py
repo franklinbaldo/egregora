@@ -592,12 +592,12 @@ def load_markdown_extensions(output_dir: Path) -> str:
         return ""
 
 
-def get_top_authors(df: Table, limit: int = 20) -> list[str]:
+def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """
     Get top N active authors by message count.
 
     Args:
-        df: Table with 'author' column
+        table: Table with 'author' column
         limit: Max number of authors (default 20)
 
     Returns:
@@ -605,9 +605,9 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
     """
     # Filter out system and enrichment entries
     author_counts = (
-        df.filter(~df.author.isin(["system", "egregora"]))
-        .filter(df.author.notnull())
-        .filter(df.author != "")
+        table.filter(~table.author.isin(["system", "egregora"]))
+        .filter(table.author.notnull())
+        .filter(table.author != "")
         .group_by("author")
         .aggregate(count=ibis._.count())
         .order_by(ibis.desc("count"))
@@ -621,7 +621,7 @@ def get_top_authors(df: Table, limit: int = 20) -> list[str]:
 
 
 def _query_rag_for_context(  # noqa: PLR0913
-    df: Table,
+    table: Table,
     batch_client: GeminiBatchClient,
     rag_dir: Path,
     *,
@@ -635,7 +635,7 @@ def _query_rag_for_context(  # noqa: PLR0913
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         similar_posts = query_similar_posts(
-            df,
+            table,
             batch_client,
             store,
             embedding_model=embedding_model,
@@ -670,9 +670,9 @@ def _query_rag_for_context(  # noqa: PLR0913
         return ""
 
 
-def _load_profiles_context(df: Table, profiles_dir: Path) -> str:
+def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
     """Load profiles for top active authors."""
-    top_authors = get_top_authors(df, limit=20)
+    top_authors = get_top_authors(table, limit=20)
     if not top_authors:
         return ""
 
@@ -799,8 +799,8 @@ def _handle_search_media_tool(  # noqa: PLR0913
             formatted_results = "No matching media found."
         else:
             formatted_list = []
-            results_df = results.execute()
-            for _, row in results_df.iterrows():
+            results_table = results.execute()
+            for _, row in results_table.iterrows():
                 media_info = {
                     "media_type": row.get("media_type"),
                     "media_path": row.get("media_path"),
@@ -1015,7 +1015,7 @@ def _index_posts_in_rag(
 
 
 def write_posts_for_period(  # noqa: PLR0913, PLR0915
-    df: Table,
+    table: Table,
     period_date: str,
     client: genai.Client,
     batch_client: GeminiBatchClient,
@@ -1040,7 +1040,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     RAG system provides context from previous posts for continuity.
 
     Args:
-        df: Table with messages for the period (already enriched)
+        table: Table with messages for the period (already enriched)
         period_date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         output_dir: Where to save posts
@@ -1056,7 +1056,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
     # Early return for empty input
-    if df.count().execute() == 0:
+    if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
     # Setup
@@ -1074,14 +1074,14 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     except Exception as exc:  # pragma: no cover - defensive path
         logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
 
-    active_authors = get_active_authors(df)
-    messages_table = df.to_pyarrow()
+    active_authors = get_active_authors(table)
+    messages_table = table.to_pyarrow()
     markdown_table = _build_conversation_markdown(messages_table, annotations_store)
 
     # Query RAG and load profiles for context
     rag_context = (
         _query_rag_for_context(
-            df,
+            table,
             batch_client,
             rag_dir,
             embedding_model=embedding_model,
@@ -1093,7 +1093,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
         if enable_rag
         else ""
     )
-    profiles_context = _load_profiles_context(df, profiles_dir)
+    profiles_context = _load_profiles_context(table, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)
     freeform_memory = _load_freeform_memory(output_dir)

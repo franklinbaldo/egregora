@@ -1,6 +1,6 @@
-"""Simple enrichment: extract media, add LLM-described context as DataFrame rows.
+"""Simple enrichment: extract media, add LLM-described context as table rows.
 
-Enrichment adds context for URLs and media as new DataFrame rows with author 'egregora'.
+Enrichment adds context for URLs and media as new table rows with author 'egregora'.
 The LLM sees enrichment context inline with original messages.
 
 Documentation:
@@ -354,7 +354,7 @@ def replace_media_mentions(
 
 
 def extract_and_replace_media(
-    df: Table,
+    messages_table: Table,
     zip_path: Path,
     docs_dir: Path,
     posts_dir: Path,
@@ -369,7 +369,7 @@ def extract_and_replace_media(
     """
     # Step 1: Find all media references
     all_media = set()
-    for row in df.execute().to_dict("records"):
+    for row in messages_table.execute().to_dict("records"):
         message = row.get("message", "")
         media_refs = find_media_references(message)
         all_media.update(media_refs)
@@ -378,7 +378,7 @@ def extract_and_replace_media(
     media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir, group_slug)
 
     if not media_mapping:
-        return df, {}
+        return messages_table, {}
 
     # Step 3: Replace mentions in Table
     @ibis.udf.scalar.python
@@ -389,9 +389,9 @@ def extract_and_replace_media(
             else message
         )
 
-    updated_df = df.mutate(message=replace_in_message(df.message))
+    updated_table = messages_table.mutate(message=replace_in_message(messages_table.message))
 
-    return updated_df, media_mapping
+    return updated_table, media_mapping
 
 
 def detect_media_type(file_path: Path) -> str | None:
@@ -405,8 +405,8 @@ def detect_media_type(file_path: Path) -> str | None:
 
 
 
-def enrich_dataframe(
-    df: Table,
+def enrich_table(
+    messages_table: Table,
     media_mapping: dict[str, Path],
     text_batch_client: GeminiBatchClient,
     vision_batch_client: GeminiBatchClient,
@@ -427,10 +427,10 @@ def enrich_dataframe(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    if df.count().execute() == 0:
-        return df
+    if messages_table.count().execute() == 0:
+        return messages_table
 
-    rows = df.execute().to_dict("records")
+    rows = messages_table.execute().to_dict("records")
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
     pii_detected_count = 0
@@ -683,16 +683,16 @@ def enrich_dataframe(
                 else message
             )
 
-        df = df.mutate(message=replace_media_udf(df.message))
+        messages_table = messages_table.mutate(message=replace_media_udf(messages_table.message))
 
     if not new_rows:
-        return df
+        return messages_table
 
-    schema = df.schema()
+    schema = messages_table.schema()
     normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
 
-    enrichment_df = ibis.memtable(normalized_rows, schema=schema)
-    combined = df.union(enrichment_df, distinct=False)
+    enrichment_table = ibis.memtable(normalized_rows, schema=schema)
+    combined = messages_table.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
 
     if pii_detected_count > 0:

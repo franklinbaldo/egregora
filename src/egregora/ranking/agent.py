@@ -152,14 +152,14 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     Load all existing comments for a post from DuckDB.
     Format as markdown for agent context.
     """
-    comments_df = store.get_comments_for_post(post_id)
+    comments_table = store.get_comments_for_post(post_id)
 
-    if len(comments_df) == 0:
+    if len(comments_table) == 0:
         return None
 
     # Format as markdown
     lines = []
-    for row in comments_df.iter_rows(named=True):
+    for row in comments_table.iter_rows(named=True):
         # Get profile alias (use short UUID for now)
         profile_name = row["profile_id"][:8]
         stars = "⭐" * row["stars"]

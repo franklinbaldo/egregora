@@ -319,11 +319,11 @@ from egregora.parser import parse_export
 def test_parse_export_basic():
     """Test basic export parsing."""
     zip_path = Path("tests/fixtures/sample-export.zip")
-    df = parse_export(zip_path)
+    table = parse_export(zip_path)
 
-    assert len(df) > 0
-    assert "timestamp" in df.columns
-    assert "author" in df.columns
+    assert len(table) > 0
+    assert "timestamp" in table.columns
+    assert "author" in table.columns
 
 def test_parse_export_invalid_file():
     """Test parsing invalid file raises error."""

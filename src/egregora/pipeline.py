@@ -13,7 +13,7 @@ from ibis.expr.types import Table
 
 from .utils import EnrichmentCache
 from .utils import CheckpointStore
-from .enricher import enrich_dataframe, extract_and_replace_media
+from .enricher import enrich_table, extract_and_replace_media
 from .utils import GeminiBatchClient
 from .config import ModelConfig, load_site_config
 from .models import WhatsAppExport
@@ -57,53 +57,53 @@ def period_has_posts(period_key: str, posts_dir: Path) -> bool:
     return len(existing_posts) > 0
 
 
-def group_by_period(df: Table, period: str = "day") -> dict[str, Table]:
+def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
     """
     Group Table by time period.
 
     Args:
-        df: Table with timestamp column
+        table: Table with timestamp column
         period: "day", "week", or "month"
 
     Returns:
         Dict mapping period string to Table
     """
-    if df.count().execute() == 0:
+    if table.count().execute() == 0:
         return {}
 
     if period == "day":
-        df = df.mutate(period=df.timestamp.date().cast("string"))
+        table = table.mutate(period=table.timestamp.date().cast("string"))
     elif period == "week":
         # ISO week format: YYYY-Wnn
-        year_str = df.timestamp.year().cast("string")
-        week_num = df.timestamp.week_of_year()
+        year_str = table.timestamp.year().cast("string")
+        week_num = table.timestamp.week_of_year()
         week_str = ibis.ifelse(
             week_num < SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + week_num.cast("string"),
             week_num.cast("string"),
         )
-        df = df.mutate(period=year_str + ibis.literal("-W") + week_str)
+        table = table.mutate(period=year_str + ibis.literal("-W") + week_str)
     elif period == "month":
         # Format: YYYY-MM
-        year_str = df.timestamp.year().cast("string")
-        month_num = df.timestamp.month()
+        year_str = table.timestamp.year().cast("string")
+        month_num = table.timestamp.month()
         # Zero-pad month: use lpad to ensure 2 digits
         month_str = ibis.ifelse(
             month_num < SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + month_num.cast("string"),
             month_num.cast("string"),
         )
-        df = df.mutate(period=year_str + ibis.literal("-") + month_str)
+        table = table.mutate(period=year_str + ibis.literal("-") + month_str)
     else:
         raise ValueError(f"Unknown period: {period}")
 
     grouped = {}
     # Get unique period values, sorted
-    period_values = sorted(df.select("period").distinct().execute()["period"].tolist())
+    period_values = sorted(table.select("period").distinct().execute()["period"].tolist())
 
     for period_value in period_values:
-        period_df = df.filter(df.period == period_value).drop("period")
-        grouped[period_value] = period_df
+        period_table = table.filter(table.period == period_value).drop("period")
+        grouped[period_value] = period_table
 
     return grouped
 
@@ -192,8 +192,8 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         )
 
         # Parse and anonymize (with timezone from phone)
-        df = parse_export(export, timezone=timezone)
-        total_messages = df.count().execute()
+        messages_table = parse_export(export, timezone=timezone)
+        total_messages = messages_table.count().execute()
         logger.info(f"[green]✅ Loaded[/] {total_messages} messages after parsing")
 
         # Ensure key directories exist and live inside docs/
@@ -213,7 +213,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             directory.mkdir(parents=True, exist_ok=True)
 
         # Extract and process egregora commands (before filtering)
-        commands = extract_commands(df)
+        commands = extract_commands(messages_table)
         if commands:
             process_commands(commands, site_paths.profiles_dir)
             logger.info(f"[magenta]🧾 Processed[/] {len(commands)} /egregora commands")
@@ -221,32 +221,39 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             logger.info("[magenta]🧾 No /egregora commands detected in this export[/]")
 
         # Remove ALL /egregora messages (commands + ad-hoc exclusions)
-        df, egregora_removed = filter_egregora_messages(df)
+        messages_table, egregora_removed = filter_egregora_messages(messages_table)
         if egregora_removed:
             logger.info(f"[yellow]🧹 Removed[/] {egregora_removed} /egregora messages")
 
         # Filter out opted-out authors EARLY (before any processing)
-        df, removed_count = filter_opted_out_authors(df, site_paths.profiles_dir)
+        messages_table, removed_count = filter_opted_out_authors(
+            messages_table, site_paths.profiles_dir
+        )
         if removed_count > 0:
             logger.warning(f"⚠️  {removed_count} messages removed from opted-out users")
 
         # Filter by date range if specified
         if from_date or to_date:
-            original_count = df.count().execute()
+            original_count = messages_table.count().execute()
 
             if from_date and to_date:
-                df = df.filter(
-                    (df.timestamp.date() >= from_date) & (df.timestamp.date() <= to_date)
+                messages_table = messages_table.filter(
+                    (messages_table.timestamp.date() >= from_date)
+                    & (messages_table.timestamp.date() <= to_date)
                 )
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
-                df = df.filter(df.timestamp.date() >= from_date)
+                messages_table = messages_table.filter(
+                    messages_table.timestamp.date() >= from_date
+                )
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} onwards")
             elif to_date:
-                df = df.filter(df.timestamp.date() <= to_date)
+                messages_table = messages_table.filter(
+                    messages_table.timestamp.date() <= to_date
+                )
                 logger.info(f"📅 [cyan]Filtering[/] messages up to {to_date}")
 
-            filtered_count = df.count().execute()
+            filtered_count = messages_table.count().execute()
             removed_by_date = original_count - filtered_count
 
             if removed_by_date > 0:
@@ -260,7 +267,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
         # Group by period first (media extraction handled per-period)
         logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {period}")
-        periods = group_by_period(df, period)
+        periods = group_by_period(messages_table, period)
         if not periods:
             logger.info("[yellow]No periods found after grouping[/]")
             return {}
@@ -271,15 +278,15 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
 
         for period_key in sorted(periods.keys()):
-            period_df = periods[period_key]
-            period_count = period_df.count().execute()
+            period_table = periods[period_key]
+            period_count = period_table.count().execute()
             logger.info(f"➡️  [bold]{period_key}[/] — {period_count} messages")
 
             checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
             steps_state = checkpoint_data.get("steps", {})
 
-            period_df, media_mapping = extract_and_replace_media(
-                period_df,
+            period_table, media_mapping = extract_and_replace_media(
+                period_table,
                 zip_path,
                 site_paths.docs_dir,
                 posts_dir,
@@ -294,14 +301,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 logger.info(f"✨ [cyan]Enriching[/] period {period_key}")
                 if resume and steps_state.get("enrichment") == "completed":
                     try:
-                        enriched_df = _load_enriched_table(enriched_path, period_df.schema())
+                        enriched_table = _load_enriched_table(enriched_path, period_table.schema())
                         logger.info("Loaded cached enrichment for %s", period_key)
                     except FileNotFoundError:
                         logger.info("Cached enrichment missing; regenerating %s", period_key)
                         if resume:
                             steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
-                        enriched_df = enrich_dataframe(
-                            period_df,
+                        enriched_table = enrich_table(
+                            period_table,
                             media_mapping,
                             text_batch_client,
                             vision_batch_client,
@@ -310,14 +317,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                             posts_dir,
                             model_config,
                         )
-                        enriched_df.execute().to_csv(enriched_path, index=False)
+                        enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
                             steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
                 else:
                     if resume:
                         steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
-                    enriched_df = enrich_dataframe(
-                        period_df,
+                    enriched_table = enrich_table(
+                        period_table,
                         media_mapping,
                         text_batch_client,
                         vision_batch_client,
@@ -326,12 +333,12 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         posts_dir,
                         model_config,
                     )
-                    enriched_df.execute().to_csv(enriched_path, index=False)
+                    enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
                         steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
             else:
-                enriched_df = period_df
-                enriched_df.execute().to_csv(enriched_path, index=False)
+                enriched_table = period_table
+                enriched_table.execute().to_csv(enriched_path, index=False)
 
             if resume and steps_state.get("writing") == "completed":
                 logger.info("Resuming posts for %s from existing files", period_key)
@@ -344,7 +351,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
                 result = write_posts_for_period(
-                    enriched_df,
+                    enriched_table,
                     period_key,
                     client,
                     embedding_batch_client,

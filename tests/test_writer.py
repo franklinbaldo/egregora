@@ -202,7 +202,7 @@ sys.modules["egregora.model_config"] = model_config_stub
 profiler_stub = ModuleType("egregora.profiler")
 
 
-def _stub_get_active_authors(df):
+def _stub_get_active_authors(table):
     return []
 
 
@@ -352,7 +352,7 @@ def test_compute_message_id_accepts_pandas_series():
 
 
 def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
-    df = DummyTable(
+    table = DummyTable(
         [
             {
                 "author": "user-1",
@@ -398,8 +398,8 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
         return sync_fn(*args, **kwargs)
 
     monkeypatch.setattr(writer, "call_with_retries_sync", immediate_call)
-    monkeypatch.setattr(writer, "get_active_authors", lambda df: ["user-1"])
-    monkeypatch.setattr(writer, "_load_profiles_context", lambda df, profiles_dir: "")
+    monkeypatch.setattr(writer, "get_active_authors", lambda table: ["user-1"])
+    monkeypatch.setattr(writer, "_load_profiles_context", lambda table, profiles_dir: "")
 
     client = DummyClient(response)
     output_dir = tmp_path / "posts"
@@ -409,7 +409,7 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     batch_client = SimpleNamespace()
 
     result = writer.write_posts_for_period(
-        df,
+        table,
         date="2024-05-01",
         client=client,
         batch_client=batch_client,
@@ -437,6 +437,6 @@ def test_write_posts_for_period_saves_freeform_response(tmp_path, monkeypatch):
     assert "| msg_id |" in initial_message
     assert "Annotation Memory Tool" in initial_message
 
-    records = df.execute().to_dict("records")
+    records = table.execute().to_dict("records")
     expected_msg_id = writer._compute_message_id(records[0])
     assert expected_msg_id in initial_message

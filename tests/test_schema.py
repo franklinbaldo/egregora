@@ -32,10 +32,10 @@ def test_ensure_message_schema_with_datetime_objects():
         "author": ["test"],
         "message": ["hello"],
     }
-    df = ibis.memtable(data)
+    table = ibis.memtable(data)
 
     # Apply the schema function
-    result = ensure_message_schema(df)
+    result = ensure_message_schema(table)
 
     # Check the timestamp column's dtype
     timestamp_dtype = result.schema()["timestamp"]
@@ -55,15 +55,15 @@ def test_ensure_message_schema_with_tz_aware_datetime():
         "author": ["test"],
         "message": ["hello"],
     }
-    df = ibis.memtable(data)
+    table = ibis.memtable(data)
 
     # Cast to microsecond precision timestamp with Amsterdam timezone
-    df = df.mutate(
-        timestamp=df.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6))
+    table = table.mutate(
+        timestamp=table.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6))
     )
 
     # Apply the schema function - should convert to UTC
-    result = ensure_message_schema(df)
+    result = ensure_message_schema(table)
 
     # Check the timestamp column's dtype and value
     timestamp_dtype = result.schema()["timestamp"]

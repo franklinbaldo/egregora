@@ -69,7 +69,7 @@ def index_post(
         output_dimensionality=output_dimensionality,
     )
 
-    # Build DataFrame for storage
+    # Build table for storage
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
         metadata = chunk["metadata"]
@@ -105,10 +105,10 @@ def index_post(
             }
         )
 
-    chunks_df = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
+    chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
 
     # Add to store
-    store.add(chunks_df)
+    store.add(chunks_table)
 
     logger.info(f"Indexed {len(chunks)} chunks from {post_path.name}")
 
@@ -116,7 +116,7 @@ def index_post(
 
 
 def query_similar_posts(
-    df: Table,
+    table: Table,
     batch_client: GeminiBatchClient,
     store: VectorStore,
     *,
@@ -129,16 +129,16 @@ def query_similar_posts(
     retrieval_overfetch: int | None = None,
 ) -> Table:
     """
-    Find similar previous blog posts for a period's DataFrame.
+    Find similar previous blog posts for a period's table.
 
     Strategy:
-    1. Convert DataFrame to text (markdown table)
+    1. Convert table to text (markdown table)
     2. Embed using RETRIEVAL_QUERY task type
     3. Search vector store with cosine similarity
     4. Optionally deduplicate (keep best chunk per post)
 
     Args:
-        df: Period's DataFrame (messages)
+        table: Period's table (messages)
         client: Gemini client
         store: Vector store
         top_k: Number of results to return
@@ -148,13 +148,13 @@ def query_similar_posts(
         retrieval_overfetch: Candidate multiplier for ANN mode before filtering
 
     Returns:
-        DataFrame with columns: [post_title, content, similarity, post_date, tags, ...]
+        Table with columns: [post_title, content, similarity, post_date, tags, ...]
     """
-    msg_count = df.count().execute()
+    msg_count = table.count().execute()
     logger.info(f"Querying similar posts for period with {msg_count} messages")
 
     # Convert Table to markdown table for embedding
-    query_text = df.execute().to_csv(sep="|", index=False)
+    query_text = table.execute().to_csv(sep="|", index=False)
 
     logger.debug(f"Query text length: {len(query_text)} chars")
 
@@ -312,7 +312,7 @@ def index_media_enrichment(
         output_dimensionality=output_dimensionality,
     )
 
-    # Build DataFrame for storage
+    # Build table for storage
     rows = []
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
         message_date = _coerce_message_datetime(metadata.get("message_date"))
@@ -340,10 +340,10 @@ def index_media_enrichment(
             }
         )
 
-    chunks_df = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
+    chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
 
     # Add to store
-    store.add(chunks_df)
+    store.add(chunks_table)
 
     logger.info(f"Indexed {len(chunks)} chunks from {enrichment_path.name}")
 

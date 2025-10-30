@@ -31,7 +31,7 @@ post = writer_agent.execute(enriched)
 
 ```python
 # Just give it the data
-markdown = dataframe.to_markdown()
+markdown = table.to_markdown()
 
 # LLM does everything
 posts = llm.generate(markdown, tools=[write_post])
@@ -100,7 +100,7 @@ assert isinstance(messages, ibis.expr.types.Table)
 # Keep everything lazy until the last responsible moment
 first_day = messages.filter(messages.timestamp.date() == "2025-01-01")
 
-# .execute() returns a pandas.DataFrame today when we need interoperability
+# .execute() returns a pandas DataFrame today when we need interoperability
 first_day_pd = first_day.execute()
 
 # Quick experiments without touching disk are easy too
@@ -353,10 +353,10 @@ Compared to the agent-based v2 architecture, we deleted:
 table = parse_export(zip_file)
 
 # Anonymize → Table
-table = anonymize_dataframe(table)
+table = anonymize_table(table)
 
 # Enrich → Table (add rows lazily)
-table = enrich_dataframe(
+table = enrich_table(
     table,
     media_mapping,
     text_batch_client,
@@ -390,7 +390,12 @@ message.enrichment = {"url": "...", "content": "..."}
 We do:
 ```python
 # ✅ Add enrichment as rows
-df.append({"author": "egregora", "message": "[URL] ..."})
+import ibis
+
+messages = messages.union(
+    ibis.memtable([{ "author": "egregora", "message": "[URL] ..." }]),
+    distinct=False,
+)
 ```
 
 The LLM sees enrichment inline with messages.
@@ -478,9 +483,9 @@ parsed = ibis.memtable([
 ### After Anonymize
 
 ```python
-from egregora.anonymizer import anonymize_dataframe
+from egregora.anonymizer import anonymize_table
 
-anonymized = anonymize_dataframe(parsed)
+anonymized = anonymize_table(parsed)
 ```
 
 ### After Enrich

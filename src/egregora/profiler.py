@@ -71,12 +71,12 @@ def write_profile(
     return str(profile_path)
 
 
-def get_active_authors(df: Any) -> list[str]:
+def get_active_authors(table: Any) -> list[str]:
     """
     Get list of unique authors from a Table.
 
     Args:
-        df: Ibis Table with 'author' column
+        table: Ibis Table with 'author' column
 
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
@@ -84,9 +84,9 @@ def get_active_authors(df: Any) -> list[str]:
     authors: list[str | None] = []
 
     try:
-        arrow_table = df.select("author").distinct().to_pyarrow()
+        arrow_table = table.select("author").distinct().to_pyarrow()
     except AttributeError:  # pragma: no cover - fallback for non-ibis tables
-        result = df.select("author").distinct().execute()
+        result = table.select("author").distinct().execute()
         if hasattr(result, "columns"):
             if "author" in result.columns:
                 authors = result["author"].tolist()
@@ -418,7 +418,7 @@ def get_opted_out_authors(profiles_dir: Path = Path("output/profiles")) -> set[s
 
 
 def filter_opted_out_authors(
-    df: Any,
+    table: Any,
     profiles_dir: Path = Path("output/profiles"),
 ) -> tuple[Any, int]:
     """
@@ -428,36 +428,36 @@ def filter_opted_out_authors(
     enrichment, or any processing.
 
     Args:
-        df: Ibis Table with 'author' column
+        table: Ibis Table with 'author' column
         profiles_dir: Where profiles are stored
 
     Returns:
-        (filtered_df, num_removed_messages)
+        (filtered_table, num_removed_messages)
     """
-    if df.count().execute() == 0:
-        return df, 0
+    if table.count().execute() == 0:
+        return table, 0
 
     # Get opted-out authors
     opted_out = get_opted_out_authors(profiles_dir)
 
     if not opted_out:
-        return df, 0
+        return table, 0
 
     logger.info(f"Found {len(opted_out)} opted-out authors")
 
     # Count messages before filtering
-    original_count = df.count().execute()
+    original_count = table.count().execute()
 
     # Filter out opted-out authors
-    filtered_df = df.filter(~df.author.isin(list(opted_out)))
+    filtered_table = table.filter(~table.author.isin(list(opted_out)))
 
-    removed_count = original_count - filtered_df.count().execute()
+    removed_count = original_count - filtered_table.count().execute()
 
     if removed_count > 0:
         logger.warning(f"⚠️  Removed {removed_count} messages from {len(opted_out)} opted-out users")
         for author in opted_out:
-            author_msg_count = df.filter(df.author == author).count().execute()
+            author_msg_count = table.filter(table.author == author).count().execute()
             if author_msg_count > 0:
                 logger.warning(f"   - {author}: {author_msg_count} messages removed")
 
-    return filtered_df, removed_count
+    return filtered_table, removed_count

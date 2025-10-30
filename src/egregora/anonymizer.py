@@ -41,30 +41,30 @@ def anonymize_mentions(text: str) -> str:
     return MENTION_PATTERN.sub(replace_mention, text)
 
 
-def anonymize_dataframe(df: Table) -> Table:
-    """Anonymize author column and mentions in message column using vectorial operations."""
+def anonymize_table(table: Table) -> Table:
+    """Anonymize author column and mentions in message column using vectorized operations."""
 
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
-    unique_authors_df = df.select("author").distinct().execute()
+    unique_authors_result = table.select("author").distinct().execute()
 
     # ibis executes to a pandas DataFrame; get the author column
-    unique_authors = unique_authors_df["author"].dropna().tolist()
+    unique_authors = unique_authors_result["author"].dropna().tolist()
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
 
     # Build a CASE expression for author replacement
     # Start with the author column
-    author_expr = df.author
+    author_expr = table.author
 
     # Chain .substitute() calls for each mapping
     # Ibis has a .substitute() method that's perfect for this
     anonymized_author = author_expr.substitute(author_mapping, else_=SYSTEM_AUTHOR)
 
     # Apply the anonymized author column
-    anonymized_df = df.mutate(author=anonymized_author)
+    anonymized_table = table.mutate(author=anonymized_author)
 
     # 2. Anonymize Mentions in Messages
-    if "message" in anonymized_df.columns:
+    if "message" in anonymized_table.columns:
         # Register the anonymize_mentions function as a UDF
         # Note: For DuckDB backend, we can use Python UDFs
         @ibis.udf.scalar.python
@@ -72,6 +72,8 @@ def anonymize_dataframe(df: Table) -> Table:
             """UDF wrapper for anonymize_mentions."""
             return anonymize_mentions(text) if text else text
 
-        anonymized_df = anonymized_df.mutate(message=anonymize_mentions_udf(anonymized_df.message))
+        anonymized_table = anonymized_table.mutate(
+            message=anonymize_mentions_udf(anonymized_table.message)
+        )
 
-    return anonymized_df
+    return anonymized_table

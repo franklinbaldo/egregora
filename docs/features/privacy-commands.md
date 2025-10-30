@@ -118,8 +118,8 @@ Adds social links to profile.
 ### 1. Command Detection (Parse Time)
 Commands are extracted from messages after parsing:
 ```python
-df = parse_export(export)
-commands = extract_commands(df)  # Finds /egregora commands
+table = parse_export(export)
+commands = extract_commands(table)  # Finds /egregora commands
 process_commands(commands, profiles_dir)  # Updates profiles
 ```
 
