@@ -12,15 +12,17 @@ Documentation:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
 
 from .editor import DocumentSnapshot, Editor
+from .gemini_batch import GeminiBatchClient
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .prompt_templates import render_editor_prompt
-from .rag import query_similar_posts
+from .rag import VectorStore, query_similar_posts
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,72 @@ class EditorResult:
     decision: str  # "publish" or "hold"
     notes: str
     edits_made: bool
-    tool_calls: list[dict]  # Log of all tool calls made
+    tool_calls: list[dict[str, object]]  # Log of all tool calls made
+
+
+class _QueryDataFrame:
+    """Minimal pandas-like object used for embedding the query text."""
+
+    def __init__(self, query: str) -> None:
+        self._query = query
+
+    def to_csv(
+        self,
+        path_or_buf: object | None = None,
+        *,
+        sep: str = "|",
+        index: bool = False,
+    ) -> str:
+        return self._query
+
+
+class _QueryCountResult:
+    """Simple wrapper returning a row count via ``execute``."""
+
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def execute(self) -> int:
+        return self._count
+
+
+class _QueryTable:
+    """Table-like wrapper compatible with ``query_similar_posts``."""
+
+    def __init__(self, query: str) -> None:
+        self._query = query
+
+    def count(self) -> _QueryCountResult:
+        return _QueryCountResult(1 if self._query else 0)
+
+    def execute(self) -> _QueryDataFrame:
+        return _QueryDataFrame(self._query)
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    """Convert ``value`` to ``int`` while providing a safe fallback."""
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_str(value: Any, default: str = "") -> str:
+    """Convert ``value`` to ``str`` while substituting ``default`` for ``None``."""
+
+    if value is None:
+        return default
+    return str(value)
+
+
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    """Convert ``value`` to ``float`` with graceful fallback."""
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 # Gemini Function Declarations for Editor Tools
@@ -181,23 +248,43 @@ async def _query_rag_tool(
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 
-    results = await query_similar_posts(
-        query=query,
-        rag_dir=rag_dir,
-        client=client,
-        model_config=model_config,
-        max_results=max_results,
+    store_path = rag_dir / "chunks.parquet"
+    if not store_path.exists():
+        return "RAG system not available (no posts indexed yet)"
+
+    embedding_model = model_config.get_model("embedding")
+    batch_client = GeminiBatchClient(client, default_model=embedding_model)
+    store = VectorStore(store_path)
+
+    results_table = query_similar_posts(
+        _QueryTable(query),
+        batch_client,
+        store,
+        embedding_model=embedding_model,
+        top_k=max_results,
+        deduplicate=True,
+        output_dimensionality=model_config.get_embedding_output_dimensionality(),
     )
 
-    if not results:
+    if results_table.count().execute() == 0:
         return f"No relevant results found for: {query}"
+
+    results = results_table.execute().to_dict("records")
 
     # Format results for editor
     formatted = [f"RAG Results for '{query}':\n"]
     for i, result in enumerate(results, 1):
-        formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
-        formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
-        formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
+        post_label = (
+            _coerce_str(result.get("post_title"))
+            or _coerce_str(result.get("post_slug"))
+            or _coerce_str(result.get("document_id"))
+            or "unknown"
+        )
+        formatted.append(f"[{i}] Post: {post_label}")
+        similarity = _coerce_float(result.get("similarity"), 0.0)
+        formatted.append(f"    Similarity: {similarity:.2f}")
+        excerpt = _coerce_str(result.get("content"))[:400]
+        formatted.append(f"    Excerpt: {excerpt}...")
         formatted.append("")
 
     return "\n".join(formatted)
@@ -282,7 +369,7 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
 
     model = model_config.get_model("editor")
     logger.info("[blue]✏️  Editor model:[/] %s", model)
-    tool_calls_log = []
+    tool_calls_log: list[dict[str, object]] = []
 
     logger.info(f"Starting editor session for {post_path.name}")
 
@@ -312,64 +399,61 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                     if hasattr(part, "function_call") and part.function_call:
                         fc = part.function_call
                         fc_name = fc.name
-                        fc_args = dict(fc.args)
+                        fc_args: dict[str, Any] = dict(fc.args)
 
                         logger.info(f"Tool call: {fc_name}({fc_args})")
                         tool_calls_log.append({"tool": fc_name, "args": fc_args})
 
                         # Execute tool
                         if fc_name == "query_rag":
-                            result = await _query_rag_tool(
-                                query=fc_args.get("query", ""),
-                                max_results=fc_args.get("max_results", 5),
+                            result_str = await _query_rag_tool(
+                                query=_coerce_str(fc_args.get("query")),
+                                max_results=_coerce_int(fc_args.get("max_results"), 5),
                                 rag_dir=rag_dir,
                                 client=client,
                                 model_config=model_config,
                             )
-                            result_str = str(result)
 
                         elif fc_name == "ask_llm":
-                            result = await _ask_llm_tool(
-                                question=fc_args.get("question", ""),
+                            result_str = await _ask_llm_tool(
+                                question=_coerce_str(fc_args.get("question")),
                                 client=client,
                                 model=model,
                             )
-                            result_str = str(result)
 
                         elif fc_name == "edit_line":
-                            result = editor.edit_line(
-                                expect_version=fc_args.get("expect_version", 0),
-                                index=fc_args.get("index", 0),
-                                new=fc_args.get("new", ""),
+                            edit_result = editor.edit_line(
+                                expect_version=_coerce_int(fc_args.get("expect_version"), 0),
+                                index=_coerce_int(fc_args.get("index"), 0),
+                                new=_coerce_str(fc_args.get("new")),
                             )
-                            result_str = str(result)
+                            result_str = str(edit_result)
 
                         elif fc_name == "full_rewrite":
-                            result = editor.full_rewrite(
-                                expect_version=fc_args.get("expect_version", 0),
-                                content=fc_args.get("content", ""),
+                            rewrite_result = editor.full_rewrite(
+                                expect_version=_coerce_int(fc_args.get("expect_version"), 0),
+                                content=_coerce_str(fc_args.get("content")),
                             )
-                            result_str = str(result)
+                            result_str = str(rewrite_result)
 
                         elif fc_name == "finish":
-                            result = editor.finish(
-                                expect_version=fc_args.get("expect_version", 0),
-                                decision=fc_args.get("decision", "hold"),
-                                notes=fc_args.get("notes", ""),
+                            finish_result = editor.finish(
+                                expect_version=_coerce_int(fc_args.get("expect_version"), 0),
+                                decision=_coerce_str(fc_args.get("decision"), "hold"),
+                                notes=_coerce_str(fc_args.get("notes")),
                             )
 
                             # Check if finish was successful
-                            if result.get("ok"):
-                                logger.info(f"Editor finished: {result}")
+                            if finish_result.get("ok"):
+                                logger.info(f"Editor finished: {finish_result}")
                                 return EditorResult(
                                     final_content=snapshot_to_markdown(editor.snapshot),
-                                    decision=result.get("decision", "hold"),
-                                    notes=result.get("notes", ""),
+                                    decision=_coerce_str(finish_result.get("decision"), "hold"),
+                                    notes=_coerce_str(finish_result.get("notes")),
                                     edits_made=editor.snapshot.version > 1,
                                     tool_calls=tool_calls_log,
                                 )
-                            else:
-                                result_str = str(result)
+                            result_str = str(finish_result)
 
                         else:
                             result_str = f"Unknown tool: {fc_name}"
