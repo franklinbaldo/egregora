@@ -39,7 +39,7 @@ from ..annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 from ..utils import GeminiBatchClient, call_with_retries_sync
 from ..config import ModelConfig, load_mkdocs_config
 from ..profiler import get_active_authors, read_profile, write_profile
-from ..prompt_templates import render_writer_prompt
+from ..prompt_templates import WriterPromptTemplate
 from ..rag import VectorStore, index_post, query_media, query_similar_posts
 from ..write_post import write_post
 
@@ -1118,7 +1118,7 @@ Use these features appropriately in your posts. You understand how each extensio
 """
 
     # Build prompt
-    prompt = render_writer_prompt(
+    prompt = WriterPromptTemplate(
         date=period_date,
         markdown_table=markdown_table,
         active_authors=", ".join(active_authors),
@@ -1128,7 +1128,7 @@ Use these features appropriately in your posts. You understand how each extensio
         rag_context=rag_context,
         freeform_memory=freeform_memory,
         enable_memes=meme_help_enabled,
-    )
+    ).render()
 
     # Setup conversation
     config = genai_types.GenerateContentConfig(
