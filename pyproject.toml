@@ -65,6 +65,7 @@ packages = ["src/egregora"]
 
 [tool.hatchling.build.targets.wheel.force-include]
 "src/egregora/templates" = "egregora/templates"
+"src/egregora/py.typed" = "egregora/py.typed"
 
 [tool.uv]
 managed = true
