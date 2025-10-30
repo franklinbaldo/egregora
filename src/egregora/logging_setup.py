@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Final
+from typing import TYPE_CHECKING, Final, cast
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -15,6 +15,12 @@ _LOG_LEVEL_ENV: Final[str] = "EGREGORA_LOG_LEVEL"
 _DEFAULT_LEVEL_NAME: Final[str] = "INFO"
 
 console = Console()
+
+if TYPE_CHECKING:
+    class _ManagedRichHandler(RichHandler):
+        _egregora_managed: bool
+else:
+    _ManagedRichHandler = RichHandler
 
 
 def _resolve_level() -> int:
@@ -31,24 +37,24 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     level = _resolve_level()
 
-    managed_handler = None
+    managed_handler: _ManagedRichHandler | None = None
     for handler in root_logger.handlers:
         if isinstance(handler, RichHandler) and getattr(
             handler, "_egregora_managed", False
         ):
-            managed_handler = handler
+            managed_handler = cast(_ManagedRichHandler, handler)
             break
 
     if managed_handler is None:
         root_logger.handlers.clear()
-        handler = RichHandler(
+        handler = _ManagedRichHandler(
             console=console,
             rich_tracebacks=True,
             show_path=False,
             markup=True,
         )
         handler.setFormatter(logging.Formatter("%(message)s"))
-        handler._egregora_managed = True  # type: ignore[attr-defined]
+        handler._egregora_managed = True
         root_logger.addHandler(handler)
     else:
         handler = managed_handler
