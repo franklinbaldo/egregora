@@ -9,7 +9,7 @@ from pathlib import Path
 import ibis
 from ibis.expr.types import Table
 
-from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
+from ..core.schema import MESSAGE_SCHEMA
 
 logger = logging.getLogger(__name__)
 

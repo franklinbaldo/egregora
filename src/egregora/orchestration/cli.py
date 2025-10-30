@@ -597,6 +597,7 @@ def parse(
     from zoneinfo import ZoneInfo
 
     import duckdb
+    import ibis
 
     from ..core.models import WhatsAppExport
     from ..ingestion.parser import parse_export
@@ -691,6 +692,7 @@ def group(
     from datetime import datetime
 
     import duckdb
+    import ibis
 
     from .pipeline import group_by_period
     from .serialization import load_table_from_csv, save_table_to_csv
@@ -814,12 +816,13 @@ def enrich(  # noqa: PLR0913
     Requires GOOGLE_API_KEY environment variable or --gemini-key flag.
     """
     import duckdb
+    import ibis
     from google import genai
 
     from ..augmentation.enrichment import enrich_table, extract_and_replace_media
     from ..config import ModelConfig, load_site_config, resolve_site_paths
-    from ..utils.batch import GeminiBatchClient
     from ..utils.cache import EnrichmentCache
+    from ..utils.smart_client import SmartGeminiClient
     from .serialization import load_table_with_auto_schema, save_table_to_csv
 
     # Validate inputs
@@ -870,7 +873,7 @@ def enrich(  # noqa: PLR0913
         console.print(f"[cyan]Loaded {original_count} messages[/cyan]")
 
         # Extract media from ZIP
-        console.print(f"[yellow]Extracting media from ZIP...[/yellow]")
+        console.print("[yellow]Extracting media from ZIP...[/yellow]")
         messages_table, media_mapping = extract_and_replace_media(
             messages_table,
             zip_path,
@@ -881,9 +884,9 @@ def enrich(  # noqa: PLR0913
 
         console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
 
-        # Setup batch clients and cache
-        text_batch_client = GeminiBatchClient(client, model_config.get_model("enricher"))
-        vision_batch_client = GeminiBatchClient(client, model_config.get_model("enricher_vision"))
+        # Setup smart clients and cache
+        text_batch_client = SmartGeminiClient(client, model_config.get_model("enricher"))
+        vision_batch_client = SmartGeminiClient(client, model_config.get_model("enricher_vision"))
 
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -965,13 +968,14 @@ def gather_context(  # noqa: PLR0913
     import json
 
     import duckdb
+    import ibis
     from google import genai
 
     from ..augmentation.profiler import get_active_authors
     from ..config import ModelConfig, load_mkdocs_config, load_site_config, resolve_site_paths
     from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
     from ..generation.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-    from ..utils.batch import GeminiBatchClient
+    from ..utils.smart_client import SmartGeminiClient
     from .serialization import load_table_with_auto_schema
 
     # Validate inputs
@@ -1033,7 +1037,7 @@ def gather_context(  # noqa: PLR0913
             else:
                 console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                 client = genai.Client(api_key=api_key)
-                embedding_batch_client = GeminiBatchClient(
+                embedding_batch_client = SmartGeminiClient(
                     client, model_config.get_model("embedding")
                 )
 
@@ -1072,7 +1076,7 @@ def gather_context(  # noqa: PLR0913
             json.dump(context, f, indent=2, ensure_ascii=False)
 
         console.print(f"[green]✅ Saved context to {output_path}[/green]")
-        console.print(f"[cyan]Context includes:[/cyan]")
+        console.print("[cyan]Context includes:[/cyan]")
         console.print(f"  • {message_count} messages")
         console.print(f"  • {len(active_authors)} active authors")
         console.print(f"  • {len(rag_similar_posts)} RAG results")
@@ -1117,11 +1121,12 @@ def write_posts(  # noqa: PLR0913
     import json
 
     import duckdb
+    import ibis
     from google import genai
 
     from ..config import ModelConfig, load_site_config, resolve_site_paths
     from ..generation.writer import write_posts_for_period
-    from ..utils.batch import GeminiBatchClient
+    from ..utils.smart_client import SmartGeminiClient
     from .serialization import load_table_with_auto_schema
 
     # Validate inputs
@@ -1177,7 +1182,7 @@ def write_posts(  # noqa: PLR0913
             console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
         # Setup embedding client for RAG
-        embedding_batch_client = GeminiBatchClient(
+        embedding_batch_client = SmartGeminiClient(
             client, model_config.get_model("embedding")
         )
         embedding_dimensionality = model_config.embedding_output_dimensionality
