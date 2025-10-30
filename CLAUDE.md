@@ -118,18 +118,23 @@ python .claude/skills/jules-api/jules_client.py get <session-id>
 - Files created in other sessions (even by Jules itself)
 - Session history or outcomes
 - References like "session #123456789" (meaningless to Jules)
+- Files in other branches (unless explicitly in startingBranch)
 
 **What this means:**
 - ❌ DON'T say: "Continue the work from session #4842758738209255752"
 - ❌ DON'T say: "See the files you created earlier"
 - ❌ DON'T say: "Follow up on your previous implementation"
+- ❌ DON'T say: "See DESIGN.md in branch feature/foo" (if starting from different branch)
+- ❌ DON'T reference files that don't exist in the starting branch
 
 **Instead, always provide complete context:**
 - ✅ DO: Include full task description with all relevant details
-- ✅ DO: Reference files BY PATH if they exist in the repo/branch
+- ✅ DO: Reference files BY PATH **if they exist in the starting branch**
 - ✅ DO: Describe what needs to be done from scratch
-- ✅ DO: Include design docs, requirements, and examples
+- ✅ DO: Include design docs, requirements, and examples IN THE PROMPT
 - ✅ DO: Explain the "why" behind the task
+- ✅ DO: Use --branch parameter to start from branch containing needed files
+- ✅ DO: Copy/paste key design info into prompt rather than referencing external docs
 
 **Example - Bad Prompt:**
 ```
