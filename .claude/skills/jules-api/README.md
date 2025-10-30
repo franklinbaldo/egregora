@@ -151,9 +151,25 @@ For complete API documentation, see:
 
 ## Troubleshooting
 
+### 403 Errors (Network Restrictions)
+
+If you get 403 errors even with a valid API key, your network/IP may be restricted:
+
+**Quick fix:** Use the ngrok bypass solution
+```bash
+# See detailed guide
+cat .claude/skills/jules-api/QUICKSTART.md
+```
+
+**Files to help:**
+- `QUICKSTART.md` - 5-minute ngrok setup
+- `TESTING.md` - Detailed testing guide
+- `bypass_403.md` - 6 bypass solutions explained
+- `proxy_server.py` - Ready-to-use proxy server
+
 ### Authentication Issues
 
-If you get 403 or authentication errors:
+If you get authentication errors:
 
 1. **Verify your API key is set**:
    ```bash
