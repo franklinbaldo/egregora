@@ -3,8 +3,22 @@
 ## The Problem
 You're getting 403 errors from Google Jules API even with a valid API key. This is likely due to IP/network restrictions in your environment.
 
-## The Solution
-Use **ngrok** to tunnel requests through an unrestricted machine.
+## ⚡ Simplest Solution
+
+**Before reading this guide**, try the SSH tunnel method (30 seconds):
+```bash
+ssh -D 8080 -N user@unrestricted-machine &
+export HTTPS_PROXY="socks5://localhost:8080"
+python jules_client.py list
+```
+
+See **SIMPLE_BYPASS.md** for details.
+
+---
+
+## The ngrok Solution
+
+If you don't have SSH access, use **ngrok** to tunnel requests through an unrestricted machine.
 
 ## What You Need
 

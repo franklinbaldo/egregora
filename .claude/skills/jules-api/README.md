@@ -153,19 +153,32 @@ For complete API documentation, see:
 
 ### 403 Errors (Network Restrictions)
 
-If you get 403 errors even with a valid API key, your network/IP may be restricted:
+If you get 403 errors even with a valid API key, your network/IP may be restricted.
 
-**Quick fix:** Use the ngrok bypass solution
+**✨ NEW: Simplest Fix - SSH Tunnel (30 seconds)**
 ```bash
-# See detailed guide
-cat .claude/skills/jules-api/QUICKSTART.md
+# Create SOCKS proxy via SSH to unrestricted machine
+ssh -D 8080 -N user@your-laptop.com &
+
+# Use it
+export HTTPS_PROXY="socks5://localhost:8080"
+python jules_client.py list
 ```
 
-**Files to help:**
-- `QUICKSTART.md` - 5-minute ngrok setup
+**Or use any HTTP/SOCKS proxy:**
+```bash
+export HTTPS_PROXY="http://proxy:port"
+python jules_client.py list
+```
+
+The client now supports standard proxies automatically!
+
+**Detailed guides:**
+- `SIMPLE_BYPASS.md` - **START HERE!** Easiest solutions (SSH, proxies)
+- `QUICKSTART.md` - ngrok solution (if no SSH access)
 - `TESTING.md` - Detailed testing guide
 - `bypass_403.md` - 6 bypass solutions explained
-- `proxy_server.py` - Ready-to-use proxy server
+- `proxy_server.py` - Custom proxy server (advanced)
 
 ### Authentication Issues
 

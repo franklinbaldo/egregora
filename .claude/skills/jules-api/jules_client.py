@@ -16,7 +16,12 @@ import requests
 class JulesClient:
     """Client for Google Jules API."""
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        proxies: dict[str, str] | None = None,
+    ):
         """
         Initialize the Jules client.
 
@@ -26,6 +31,10 @@ class JulesClient:
             base_url: The base URL for the Jules API. If not provided, will
                       check JULES_BASE_URL environment variable, then fall back
                       to the default production URL.
+            proxies: Optional proxy configuration. If not provided, will check
+                     HTTPS_PROXY/HTTP_PROXY environment variables.
+                     Format: {"http": "http://proxy:port", "https": "http://proxy:port"}
+                     Or for SOCKS: {"http": "socks5://proxy:port", "https": "socks5://proxy:port"}
         """
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
         if not self.api_key:
@@ -35,6 +44,21 @@ class JulesClient:
         self.base_url = base_url or os.environ.get(
             "JULES_BASE_URL", "https://jules.googleapis.com/v1alpha"
         )
+
+        # Setup proxies - use provided, or check environment variables
+        if proxies is not None:
+            self.proxies = proxies
+        else:
+            https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+            http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+            if https_proxy or http_proxy:
+                self.proxies = {}
+                if http_proxy:
+                    self.proxies["http"] = http_proxy
+                if https_proxy:
+                    self.proxies["https"] = https_proxy
+            else:
+                self.proxies = None
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
@@ -84,7 +108,9 @@ class JulesClient:
         if require_plan_approval:
             data["requirePlanApproval"] = require_plan_approval
 
-        response = requests.post(url, headers=self._get_headers(), json=data)
+        response = requests.post(
+            url, headers=self._get_headers(), json=data, proxies=self.proxies
+        )
         response.raise_for_status()
         return response.json()
 
@@ -99,7 +125,7 @@ class JulesClient:
             Session object
         """
         url = f"{self.base_url}/sessions/{session_id}"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), proxies=self.proxies)
         response.raise_for_status()
         return response.json()
 
@@ -111,7 +137,7 @@ class JulesClient:
             List of session objects
         """
         url = f"{self.base_url}/sessions"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), proxies=self.proxies)
         response.raise_for_status()
         return response.json()
 
@@ -128,7 +154,9 @@ class JulesClient:
         """
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"message": message}
-        response = requests.post(url, headers=self._get_headers(), json=data)
+        response = requests.post(
+            url, headers=self._get_headers(), json=data, proxies=self.proxies
+        )
         response.raise_for_status()
         return response.json()
 
@@ -143,7 +171,7 @@ class JulesClient:
             Updated session object
         """
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
-        response = requests.post(url, headers=self._get_headers())
+        response = requests.post(url, headers=self._get_headers(), proxies=self.proxies)
         response.raise_for_status()
         return response.json()
 
@@ -158,7 +186,7 @@ class JulesClient:
             List of activity objects
         """
         url = f"{self.base_url}/sessions/{session_id}/activities"
-        response = requests.get(url, headers=self._get_headers())
+        response = requests.get(url, headers=self._get_headers(), proxies=self.proxies)
         response.raise_for_status()
         return response.json()
 
