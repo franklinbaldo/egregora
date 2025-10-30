@@ -9,15 +9,53 @@ import re
 import threading
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
-from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
+if TYPE_CHECKING:  # pragma: no cover - import-time typing helpers
+    class Console:  # noqa: D401 - small Protocol-like helper for mypy
+        """Lightweight typing stub for ``rich.console.Console``."""
+
+        is_terminal: bool
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    class Progress:  # noqa: D401 - lightweight stub mirroring the runtime type
+        """Typing stub for ``rich.progress.Progress`` used during sleeps."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+        def __enter__(self) -> "Progress": ...
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            tb: Any,
+        ) -> bool | None: ...
+
+        def add_task(self, description: str, *, total: float | None = None) -> int: ...
+
+        def update(self, task_id: int, *, completed: float | None = None) -> None: ...
+
+    class SpinnerColumn:
+        def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    class BarColumn:
+        def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    class TimeRemainingColumn:
+        def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+else:  # pragma: no cover - executed only at runtime
+    from rich.console import Console
+    from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 _console = Console(stderr=True, soft_wrap=True)
-
-_RateLimitFn = TypeVar("_RateLimitFn", bound=Callable[..., Awaitable[Any]])
 
 # Ensure we space out requests so we do not burst through short-term quota limits.
 _rate_lock = asyncio.Lock()
@@ -25,6 +63,14 @@ _last_call_monotonic = 0.0
 _sync_rate_lock = threading.Lock()
 _sync_last_call_monotonic = 0.0
 _MIN_INTERVAL_SECONDS = 1.5  # free tier tolerates ~40 RPM, so keep a healthy gap
+
+
+@dataclass(slots=True)
+class RetryOptions:
+    """Configuration for retry helpers."""
+
+    max_attempts: int = 5
+    base_delay: float = 2.0
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
@@ -51,7 +97,7 @@ def _extract_retry_delay(error: Exception) -> float | None:
     # gRPC style: `'retryDelay': '19s'`
     match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)(?:\.(\d+))?s['\"]", text)
     if match:
-        seconds = int(match.group(1))
+        seconds = float(match.group(1))
         fractional = match.group(2)
         if fractional:
             seconds += float(f"0.{fractional}")
@@ -168,12 +214,17 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
 
 async def call_with_retries[**P, T](
     async_fn: Callable[P, Awaitable[T]],
+    retry_options: RetryOptions | None = None,
+    /,
     *args: P.args,
-    max_attempts: int = 5,
-    base_delay: float = 2.0,
     **kwargs: P.kwargs,
 ) -> T:
-    """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays."""
+    """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays.
+
+    ``retry_options`` allows callers to customise the maximum number of attempts and the
+    exponential backoff base delay without affecting the wrapped callable signature.
+    """
+    options = retry_options or RetryOptions()
     attempt = 1
     fn_name = getattr(async_fn, "__qualname__", repr(async_fn))
 
@@ -182,17 +233,17 @@ async def call_with_retries[**P, T](
         try:
             return await async_fn(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001
-            if not _is_rate_limit_error(exc) or attempt >= max_attempts:
+            if not _is_rate_limit_error(exc) or attempt >= options.max_attempts:
                 raise
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
                 delay = max(recommended_delay, 0.0)
             else:
-                delay = base_delay * (2 ** (attempt - 1))
+                delay = options.base_delay * (2 ** (attempt - 1))
 
             logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{options.max_attempts}. "
                 f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
             )
 
@@ -200,14 +251,15 @@ async def call_with_retries[**P, T](
             attempt += 1
 
 
-def call_with_retries_sync(
-    fn: Callable[..., Any],
-    *args: Any,
-    max_attempts: int = 5,
-    base_delay: float = 2.0,
-    **kwargs: Any,
-) -> Any:
+def call_with_retries_sync[**P, T](
+    fn: Callable[P, T],
+    retry_options: RetryOptions | None = None,
+    /,
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> T:
     """Synchronous twin of ``call_with_retries`` for Batch API usage."""
+    options = retry_options or RetryOptions()
     attempt = 1
     fn_name = getattr(fn, "__qualname__", repr(fn))
 
@@ -216,17 +268,17 @@ def call_with_retries_sync(
         try:
             return fn(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001
-            if not _is_rate_limit_error(exc) or attempt >= max_attempts:
+            if not _is_rate_limit_error(exc) or attempt >= options.max_attempts:
                 raise
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
                 delay = max(recommended_delay, 0.0)
             else:
-                delay = base_delay * (2 ** (attempt - 1))
+                delay = options.base_delay * (2 ** (attempt - 1))
 
             logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
+                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{options.max_attempts}. "
                 f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
             )
 
