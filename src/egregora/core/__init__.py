@@ -5,15 +5,15 @@ all pipeline stages.
 """
 
 from . import database_schema
-from .models import Conversation, Message, WhatsAppExport
+from .models import GroupSource, MergeConfig, WhatsAppExport
 from .schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
-from .types import GroupSlug
+from .types import GroupSlug, PostSlug
 
 __all__ = [
     # Models
     "WhatsAppExport",
-    "Conversation",
-    "Message",
+    "GroupSource",
+    "MergeConfig",
     # Schemas (Data)
     "WHATSAPP_SCHEMA",
     "MESSAGE_SCHEMA",
@@ -21,4 +21,5 @@ __all__ = [
     "database_schema",
     # Types
     "GroupSlug",
+    "PostSlug",
 ]

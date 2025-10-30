@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from .model import ModelConfig
-from ..types import GroupSlug
+from ..core.types import GroupSlug
 
 
 @dataclass

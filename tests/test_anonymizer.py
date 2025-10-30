@@ -1,7 +1,7 @@
 import ibis
 from pandas.testing import assert_frame_equal
 
-from egregora.anonymizer import anonymize_table
+from egregora.privacy.anonymizer import anonymize_table
 
 
 def test_anonymize_table():

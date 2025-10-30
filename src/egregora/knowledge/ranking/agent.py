@@ -12,7 +12,7 @@ from rich.console import Console
 from typing import Any
 
 from .elo import calculate_elo_update
-from ..utils import call_with_retries_sync
+from ...utils.genai import call_with_retries_sync
 from .store import RankingStore
 
 console = Console()

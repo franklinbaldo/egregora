@@ -19,7 +19,9 @@ from ..core.types import GroupSlug
 from ..generation.writer import write_posts_for_period
 from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from ..knowledge.rag import VectorStore, index_all_media
-from ..utils import CheckpointStore, EnrichmentCache, GeminiBatchClient
+from ..utils.batch import GeminiBatchClient
+from ..utils.cache import EnrichmentCache
+from ..utils.checkpoints import CheckpointStore
 
 logger = logging.getLogger(__name__)
 

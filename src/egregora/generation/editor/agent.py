@@ -20,11 +20,12 @@ from google.genai import types as genai_types
 import ibis
 from ibis.expr.types import Table
 
+from ...config import ModelConfig
+from ...knowledge.rag import VectorStore, query_similar_posts
+from ...prompt_templates import EditorPromptTemplate
+from ...utils.batch import GeminiBatchClient
+from ...utils.genai import call_with_retries
 from .document import DocumentSnapshot, Editor
-from ..utils import GeminiBatchClient, call_with_retries
-from ..config import ModelConfig
-from ..prompt_templates import EditorPromptTemplate
-from ..rag import query_similar_posts, VectorStore
 
 logger = logging.getLogger(__name__)
 

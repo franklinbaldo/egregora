@@ -154,7 +154,7 @@ class VectorStore:
         """Create the internal metadata table when missing."""
         # Note: RAG_CHUNKS_METADATA_SCHEMA has checksum field, but old code had row_count
         # Keeping old behavior for now - add row_count if needed
-        if METADATA_TABLE_NAME not in self.backend.list_tables():
+        if METADATA_TABLE_NAME not in self._client.list_tables():
             # Create with row_count column (not in centralized schema yet)
             self.conn.execute(
                 f"""
@@ -171,7 +171,7 @@ class VectorStore:
         """Create the table used to persist ANN index metadata."""
         # Note: Schema has extra fields (threshold, nlist) beyond database_schema definition
         # Keeping old behavior for compatibility
-        if INDEX_META_TABLE not in self.backend.list_tables():
+        if INDEX_META_TABLE not in self._client.list_tables():
             self.conn.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (

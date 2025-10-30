@@ -18,8 +18,8 @@ class MediaEnrichmentMetadata(TypedDict):
 import ibis
 from ibis.expr.types import Table
 
-from ..utils import GeminiBatchClient
-from ..config import MEDIA_DIR_NAME
+from ...config import MEDIA_DIR_NAME
+from ...utils.batch import GeminiBatchClient
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
 from .store import VECTOR_STORE_SCHEMA, VectorStore
