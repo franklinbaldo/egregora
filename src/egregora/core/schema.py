@@ -9,7 +9,7 @@ import ibis.expr.datatypes as dt
 from ibis import udf
 from ibis.expr.types import Table
 
-__all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
+__all__ = ["MESSAGE_SCHEMA", "WHATSAPP_SCHEMA", "ensure_message_schema"]
 
 # Default timezone for WhatsApp exports (no timezone in export files)
 DEFAULT_TIMEZONE = "UTC"
@@ -22,6 +22,9 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "original_line": dt.String(),
     "tagged_line": dt.String(),
 }
+
+# Alias for MESSAGE_SCHEMA - represents full WhatsApp conversation data
+WHATSAPP_SCHEMA = MESSAGE_SCHEMA
 
 
 @udf.scalar.builtin(

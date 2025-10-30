@@ -15,13 +15,18 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
-from .config import ProcessConfig, RankingCliConfig
-from .editor import run_editor_session
+from ..config import (
+    ModelConfig,
+    ProcessConfig,
+    RankingCliConfig,
+    find_mkdocs_file,
+    load_site_config,
+    resolve_site_paths,
+)
+from ..generation.editor import run_editor_session
+from ..publication.site import ensure_mkdocs_project
 from .logging_setup import configure_logging, console
-from .config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
-from .config import find_mkdocs_file, resolve_site_paths
-from .site import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",

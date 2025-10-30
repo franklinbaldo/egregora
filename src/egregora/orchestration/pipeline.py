@@ -11,18 +11,15 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
-from .utils import EnrichmentCache
-from .utils import CheckpointStore
-from .enricher import enrich_table, extract_and_replace_media
-from .utils import GeminiBatchClient
-from .config import ModelConfig, load_site_config
-from .models import WhatsAppExport
-from .parser import extract_commands, filter_egregora_messages, parse_export
-from .profiler import filter_opted_out_authors, process_commands
-from .rag import VectorStore, index_all_media
-from .config import SitePaths, resolve_site_paths
-from .types import GroupSlug
-from .writer import write_posts_for_period
+from ..augmentation.enrichment import enrich_table, extract_and_replace_media
+from ..augmentation.profiler import filter_opted_out_authors, process_commands
+from ..config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
+from ..core.models import WhatsAppExport
+from ..core.types import GroupSlug
+from ..generation.writer import write_posts_for_period
+from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
+from ..knowledge.rag import VectorStore, index_all_media
+from ..utils import CheckpointStore, EnrichmentCache, GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 

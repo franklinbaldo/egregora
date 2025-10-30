@@ -14,6 +14,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
+from ...core import database_schema
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,52 +54,9 @@ class _ConnectionProxy:
             return
         delattr(object.__getattribute__(self, "_inner"), name)
 
-VECTOR_STORE_SCHEMA = ibis.schema(
-    {
-        "chunk_id": dt.string,
-        "document_type": dt.string,
-        "document_id": dt.string,
-        "post_slug": dt.String(nullable=True),
-        "post_title": dt.String(nullable=True),
-        "post_date": dt.date(nullable=True),
-        "media_uuid": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        "media_path": dt.String(nullable=True),
-        "original_filename": dt.String(nullable=True),
-        "message_date": dt.Timestamp(timezone="UTC", nullable=True),
-        "author_uuid": dt.String(nullable=True),
-        "chunk_index": dt.int64,
-        "content": dt.string,
-        "embedding": dt.Array(dt.float64),
-        "tags": dt.Array(dt.string),
-        "authors": dt.Array(dt.string),
-        "category": dt.String(nullable=True),
-    }
-)
-
-
-SEARCH_RESULT_SCHEMA = ibis.schema(
-    {
-        "chunk_id": dt.string,
-        "document_type": dt.string,
-        "document_id": dt.string,
-        "post_slug": dt.String(nullable=True),
-        "post_title": dt.String(nullable=True),
-        "post_date": dt.date(nullable=True),
-        "media_uuid": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        "media_path": dt.String(nullable=True),
-        "original_filename": dt.String(nullable=True),
-        "message_date": dt.Timestamp(timezone="UTC", nullable=True),
-        "author_uuid": dt.String(nullable=True),
-        "chunk_index": dt.int64,
-        "content": dt.string,
-        "tags": dt.Array(dt.string),
-        "authors": dt.Array(dt.string),
-        "category": dt.String(nullable=True),
-        "similarity": dt.float64,
-    }
-)
+# Use schemas from centralized database_schema module
+VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
+SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
 
 
 @dataclass(frozen=True)
@@ -193,33 +152,38 @@ class VectorStore:
 
     def _ensure_metadata_table(self) -> None:
         """Create the internal metadata table when missing."""
-
-        self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
-                path TEXT PRIMARY KEY,
-                mtime_ns BIGINT,
-                size BIGINT,
-                row_count BIGINT
+        # Note: RAG_CHUNKS_METADATA_SCHEMA has checksum field, but old code had row_count
+        # Keeping old behavior for now - add row_count if needed
+        if METADATA_TABLE_NAME not in self.backend.list_tables():
+            # Create with row_count column (not in centralized schema yet)
+            self.conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
+                    path TEXT PRIMARY KEY,
+                    mtime_ns BIGINT,
+                    size BIGINT,
+                    row_count BIGINT
+                )
+                """
             )
-            """
-        )
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
-
-        self.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
-                index_name TEXT PRIMARY KEY,
-                mode TEXT,
-                row_count BIGINT,
-                threshold BIGINT,
-                nlist INTEGER,
-                updated_at TIMESTAMPTZ
+        # Note: Schema has extra fields (threshold, nlist) beyond database_schema definition
+        # Keeping old behavior for compatibility
+        if INDEX_META_TABLE not in self.backend.list_tables():
+            self.conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
+                    index_name TEXT PRIMARY KEY,
+                    mode TEXT,
+                    row_count BIGINT,
+                    threshold BIGINT,
+                    nlist INTEGER,
+                    updated_at TIMESTAMPTZ
+                )
+                """
             )
-            """
-        )
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
