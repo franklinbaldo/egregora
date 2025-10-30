@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 import pyarrow as pa
 
-from ..annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
+from ...knowledge.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 
 logger = logging.getLogger(__name__)
 

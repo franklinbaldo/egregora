@@ -168,21 +168,9 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
 
 def _load_vector_store():
-    """Load the vector store module directly to avoid heavy package imports."""
-
-    module_path = Path(__file__).resolve().parents[1] / "src" / "egregora" / "rag" / "store.py"
-    spec = importlib.util.spec_from_file_location("egregora_rag_store", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load vector store module for testing")
-
-    existing = sys.modules.get("egregora_rag_store")
-    if existing is not None:
-        return existing
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["egregora_rag_store"] = module
-    spec.loader.exec_module(module)
-    return module
+    """Load the vector store module."""
+    from egregora.knowledge.rag import store
+    return store
 
 
 def test_search_builds_expected_sql(tmp_path, monkeypatch):
