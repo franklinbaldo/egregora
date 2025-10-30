@@ -29,131 +29,88 @@ Create a system to:
 tests/fixtures/golden/
 ├── api_responses/           # Mocked API responses
 │   ├── embeddings/
-│   │   ├── request_<hash>.json     # Request metadata
-│   │   └── response_<hash>.json    # Response data
-│   ├── generation/
-│   │   ├── request_<hash>.json
-│   │   └── response_<hash>.json
-│   └── batch_jobs/
-│       ├── job_<id>_status.json
-│       └── job_<id>_result.json
+│   │   └── response_<hash>.json    # Request and response data
+│   └── generation/
+│       └── response_<hash>.json
 └── expected_output/         # Expected pipeline outputs
-    └── docs/               # Already captured!
+    └── docs/
         ├── posts/
         ├── profiles/
         └── media/
 ```
+Each `response_<hash>.json` file contains both the original request and the corresponding response.
 
-### 2. Recording Mode
+### 2. Recording Workflow
 
-Create a `GeminiClientRecorder` wrapper that:
-- Intercepts all `genai.Client` calls
-- Saves request/response pairs to `tests/fixtures/golden/api_responses/`
-- Uses content hash to identify unique requests
-- Saves batch job states and polling results
+A `GeminiClientRecorder` wrapper intercepts all `genai.Client` calls. It saves request/response pairs to `tests/fixtures/golden/api_responses/`.
 
-Usage:
-```python
-with GeminiClientRecorder(output_dir="tests/fixtures/golden/api_responses"):
-    # Run pipeline - responses are recorded
-    process_whatsapp_export(...)
+**To record new fixtures:**
+
+Use the `scripts/record_golden_fixtures.py` script. This script runs the main pipeline with the recorder enabled.
+
+```bash
+uv run python scripts/record_golden_fixtures.py \
+  --zip-path "tests/Conversa do WhatsApp com Teste.zip" \
+  --output-dir /tmp/test_site \
+  --fixtures-dir tests/fixtures/golden/api_responses
 ```
 
-### 3. Playback Mode
+This will populate the `tests/fixtures/golden/api_responses` directory with new fixtures based on the API calls made during the pipeline run.
 
-Create a `GeminiClientMock` that:
-- Returns pre-recorded responses based on request content hash
-- Simulates batch job lifecycle (PENDING → RUNNING → SUCCEEDED)
-- Fails loudly if a request doesn't have a recorded response
+### 3. Playback Workflow
 
-Usage:
+The `GeminiClientPlayback` class is used in tests to replay the recorded fixtures.
+
+- It loads all fixtures from the `tests/fixtures/golden/api_responses` directory into memory.
+- When a method like `embed_content` or `generate_content` is called, it hashes the request arguments.
+- It looks up the response corresponding to the request hash and returns it.
+- This allows tests to run without making any live API calls.
+
+**How tests use playback:**
+
+A `playback_client` fixture is available in `tests/conftest.py`. Tests can use this fixture to get an instance of `GeminiClientPlayback`.
+
 ```python
-@pytest.fixture
-def gemini_client_mock():
-    return GeminiClientMock(fixtures_dir="tests/fixtures/golden/api_responses")
+# in tests/test_with_golden_fixtures.py
 
-def test_with_mocks(gemini_client_mock):
-    # No API calls - uses fixtures
-    process_whatsapp_export(..., client=gemini_client_mock)
-```
-
-### 4. Modified Tests
-
-Transform `test_e2e_with_api.py` to:
-- Use `GeminiClientMock` by default (fast, no API)
-- Keep one `@pytest.mark.slow` test with real API for validation
-- Add fixture comparison helpers
-
-Example:
-```python
-def test_e2e_with_golden_fixtures(whatsapp_fixture, gemini_client_mock, tmp_path):
-    """Fast test using pre-recorded API responses."""
+def test_pipeline_with_golden_fixtures(
+    whatsapp_fixture,
+    playback_client,
+    tmp_path: Path,
+):
+    """Test pipeline with real recorded API responses."""
     process_whatsapp_export(
-        zip_path=whatsapp_fixture.zip_path,
-        output_dir=tmp_path,
-        client=gemini_client_mock,
-        # ...
+        ...,
+        client=playback_client, # Pass the playback client to the pipeline
     )
 
-    # Compare outputs with golden fixtures
-    assert_posts_match_golden(tmp_path / "docs/posts", "tests/fixtures/golden/expected_output/docs/posts")
-
-@pytest.mark.slow
-@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="Real API test")
-def test_e2e_with_real_api_for_validation(whatsapp_fixture, gemini_api_key, tmp_path):
-    """Occasional test with real API to validate fixtures are still accurate."""
-    # Current test, but marked as slow
+    # Assertions to verify the output...
 ```
 
-## Implementation Plan
+### 4. Regenerating Fixtures
 
-### Phase 1: Mock Infrastructure (Jules - no API key needed)
-- [ ] Create `GeminiClientMock` class that replays fixtures
-- [ ] Add request hashing for fixture lookup
-- [ ] Handle batch job state simulation (PENDING → RUNNING → SUCCEEDED)
-- [ ] Create pytest fixtures for mock client
-- [ ] Add output comparison helpers for golden files
+If you change the prompts or the logic that generates API requests, you will need to regenerate the fixtures.
 
-### Phase 2: Test Refactoring (Jules - no API key needed)
-- [ ] Refactor `test_e2e_with_api.py` to accept mock client
-- [ ] Create new `test_with_golden_fixtures.py` using mocks
-- [ ] Add output comparison against `tests/fixtures/golden/expected_output/`
-- [ ] Keep one `@pytest.mark.slow` real API test in `test_e2e_with_api.py`
-- [ ] Add documentation for test structure
-
-### Phase 3: Recording Infrastructure (Jules - no API key needed)
-- [ ] Create `GeminiClientRecorder` wrapper class
-- [ ] Implement request/response serialization
-- [ ] Add CLI script `scripts/record_golden_fixtures.py`
-- [ ] Document how to regenerate fixtures (for humans with API keys)
-
-### Phase 4: Record Actual Fixtures (Claude - REQUIRES API KEY)
-- [ ] Run pipeline with `GeminiClientRecorder` enabled
-- [ ] Capture all API responses to `tests/fixtures/golden/api_responses/`
-- [ ] Verify mocked tests pass with recorded fixtures
-- [ ] Commit API response fixtures
-
-### Phase 5: CI/CD Integration (Jules)
-- [ ] Update GitHub Actions to run mocked tests
-- [ ] Add weekly job for real API validation (with secrets)
-- [ ] Update testing documentation
+1.  **Delete the old fixtures:**
+    ```bash
+    rm -rf tests/fixtures/golden/api_responses/*
+    ```
+2.  **Run the recording script again:**
+    ```bash
+    uv run python scripts/record_golden_fixtures.py ...
+    ```
+3.  **Commit the new fixtures.**
 
 ## Benefits
 
-- **Speed**: Tests run in seconds instead of minutes
-- **Determinism**: Same inputs → same outputs
-- **CI-friendly**: No API keys needed in CI
-- **Cost**: Zero API costs for most test runs
-- **Debugging**: Easier to debug with reproducible behavior
+- **Speed**: Tests run in seconds instead of minutes.
+- **Determinism**: Same inputs → same outputs.
+- **CI-friendly**: No API keys needed in CI for most tests.
+- **Cost**: Zero API costs for most test runs.
+- **Debugging**: Easier to debug with reproducible behavior.
 
 ## Trade-offs
 
-- **Maintenance**: Fixtures need updating when prompts/API changes
-- **Storage**: Fixtures add ~1-5MB to repo
-- **Coverage**: Need occasional real API tests to catch regressions
-
-## References
-
-- VCR.py pattern for HTTP mocking
-- pytest-recording for similar approach
-- Existing golden fixtures in `/tests/fixtures/golden/expected_output/`
+- **Maintenance**: Fixtures need updating when prompts or the API changes.
+- **Storage**: Fixtures add to the repository size.
+- **Coverage**: It's important to still have some tests that run against the real API to catch regressions.

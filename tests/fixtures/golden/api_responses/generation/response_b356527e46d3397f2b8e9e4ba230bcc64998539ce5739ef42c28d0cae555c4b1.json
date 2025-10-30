@@ -1,0 +1,38 @@
+{
+  "request": {
+    "model": "models/gemini-flash-latest",
+    "contents": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "This is a dummy request. The actual content doesn't matter for this test, only the hash."
+          }
+        ]
+      }
+    ],
+    "tools": [],
+    "config": {
+      "temperature": 0.7
+    }
+  },
+  "response": {
+    "text": "This is a dummy response from a golden fixture.",
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "This is a dummy response from a golden fixture."
+            }
+          ],
+          "role": "model"
+        },
+        "finish_reason": "STOP",
+        "index": 0,
+        "safety_ratings": [],
+        "token_count": 0
+      }
+    ]
+  }
+}

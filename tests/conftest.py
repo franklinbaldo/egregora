@@ -229,3 +229,12 @@ def mock_batch_client(monkeypatch):
         "client": MockGeminiClient,
         "batch_client": MockGeminiBatchClient,
     }
+
+
+@pytest.fixture
+def playback_client():
+    """Gemini client that replays golden fixtures."""
+    from egregora.testing.gemini_playback import GeminiClientPlayback
+
+    fixtures_dir = Path(__file__).parent / "fixtures/golden/api_responses"
+    return GeminiClientPlayback(fixtures_dir)
