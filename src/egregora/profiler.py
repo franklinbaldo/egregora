@@ -75,7 +75,7 @@ def get_active_authors(df: Any) -> list[str]:
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
     """
-    authors: list[str | None] = []
+    authors_raw: list[str | None] = []
 
     try:
         arrow_table = df.select("author").distinct().to_pyarrow()
@@ -83,27 +83,40 @@ def get_active_authors(df: Any) -> list[str]:
         result = df.select("author").distinct().execute()
         if hasattr(result, "columns"):
             if "author" in result.columns:
-                authors = result["author"].tolist()
+                authors_raw = [
+                    value if isinstance(value, str) else None
+                    for value in result["author"].tolist()
+                ]
             else:  # pragma: no cover - defensive path for misnamed columns
-                authors = result.iloc[:, 0].tolist()
+                authors_raw = [
+                    value if isinstance(value, str) else None
+                    for value in result.iloc[:, 0].tolist()
+                ]
         elif hasattr(result, "tolist"):
-            authors = list(result.tolist())
+            authors_raw = [
+                value if isinstance(value, str) else None for value in result.tolist()
+            ]
         else:  # pragma: no cover - defensive path
-            authors = list(result)
+            authors_raw = [value if isinstance(value, str) else None for value in result]
     else:
         if arrow_table.num_columns == 0:
             return []
         column = arrow_table.column(0)
         if isinstance(column, pa.ChunkedArray):
-            authors = column.to_pylist()
+            values = column.to_pylist()
         else:  # pragma: no cover - pyarrow tables always use ChunkedArray
-            authors = list(column)
+            values = list(column)
+        authors_raw = [value if isinstance(value, str) else None for value in values]
 
     # Filter out system and enrichment entries
-    return [author for author in authors if author not in ("system", "egregora", None, "")]
+    return [
+        author
+        for author in authors_raw
+        if isinstance(author, str) and author not in {"system", "egregora", ""}
+    ]
 
 
-def _validate_alias(alias: str) -> str | None:
+def _validate_alias(alias: str | None) -> str | None:
     """
     Validate and sanitize alias input.
 
