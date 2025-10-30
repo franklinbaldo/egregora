@@ -24,7 +24,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
 }
 
 
-@utable.scalar.builtin(
+@udf.scalar.builtin(
     name="timezone",
     signature=((dt.string, dt.Timestamp(timezone=None)), dt.Timestamp(timezone="UTC")),
 )
