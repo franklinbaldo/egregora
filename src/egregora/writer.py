@@ -20,7 +20,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import ibis
 import pyarrow as pa
@@ -29,6 +29,9 @@ from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 from pydantic import BaseModel
+
+if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
+    import pandas as pd
 
 from .annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 from .gemini_batch import GeminiBatchClient
@@ -91,25 +94,33 @@ def _load_freeform_memory(output_dir: Path) -> str:
 
 
 @lru_cache(maxsize=1)
-def _pandas_dataframe_type():
+def _pandas_dataframe_type() -> "type[pd.DataFrame] | None":
     """Return the pandas DataFrame type when pandas is available."""
 
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.DataFrame  # type: ignore[attr-defined]
+
+    dataframe_type = getattr(pandas_module, "DataFrame", None)
+    if dataframe_type is None:
+        return None
+    return cast("type[pd.DataFrame]", dataframe_type)
 
 
 @lru_cache(maxsize=1)
-def _pandas_na_singleton() -> Any | None:
+def _pandas_na_singleton() -> "pd._libs.missing.NAType | None":
     """Return the pandas.NA singleton when pandas is available."""
 
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.NA  # type: ignore[attr-defined]
+
+    na_singleton = getattr(pandas_module, "NA", None)
+    if na_singleton is None:
+        return None
+    return cast("pd._libs.missing.NAType", na_singleton)
 
 
 def _stringify_value(value: Any) -> str:
@@ -227,9 +238,11 @@ def _table_to_records(
         return records, column_names
 
     dataframe_type = _pandas_dataframe_type()
-    if dataframe_type is not None and isinstance(data, dataframe_type):  # type: ignore[arg-type]
-        column_names = [str(column) for column in data.columns]
-        return data.to_dict("records"), column_names
+    if dataframe_type is not None and isinstance(data, dataframe_type):
+        dataframe = cast("pd.DataFrame", data)
+        column_names = [str(column) for column in dataframe.columns]
+        records = cast("list[dict[str, Any]]", dataframe.to_dict("records"))
+        return records, column_names
 
     if isinstance(data, Iterable):
         records = [dict(row) for row in data]
