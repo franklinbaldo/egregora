@@ -322,8 +322,8 @@ def create_session_with_retry(client, prompt, owner, repo, max_retries=3):
             return session
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
-                print("Authentication failed. Re-authenticating...")
-                client.access_token = None  # Force token refresh
+                print("Authentication failed. Check your JULES_API_KEY.")
+                raise
             elif e.response.status_code == 429:
                 print(f"Rate limited. Waiting before retry {attempt + 1}/{max_retries}...")
                 time.sleep(60)
@@ -366,12 +366,9 @@ jobs:
   jules-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-
       - name: Create Jules Review Session
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         run: |
           SESSION_ID=$(curl -X POST https://jules.googleapis.com/v1alpha/sessions \
             -H "X-Goog-Api-Key: $JULES_API_KEY" \

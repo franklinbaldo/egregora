@@ -7,7 +7,6 @@ A simple Python client for interacting with Google's Jules API.
 import argparse
 import json
 import os
-import subprocess
 import sys
 from typing import Any
 
@@ -23,41 +22,26 @@ class JulesClient:
 
         Args:
             api_key: Jules API key. If not provided, will check JULES_API_KEY
-                     environment variable, then fall back to gcloud auth.
+                     environment variable.
             base_url: The base URL for the Jules API. If not provided, will
                       check JULES_BASE_URL environment variable, then fall back
                       to the default production URL.
         """
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "JULES_API_KEY is required. Set it as an environment variable or pass it to the constructor."
+            )
         self.base_url = base_url or os.environ.get(
             "JULES_BASE_URL", "https://jules.googleapis.com/v1alpha"
         )
-        self.access_token = None
-        self.using_oauth = False  # Track if we're using OAuth vs API key
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["X-Goog-Api-Key"] = self.api_key
-        else:
-            if not self.access_token:
-                try:
-                    result = subprocess.run(
-                        ["gcloud", "auth", "print-access-token"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-                    self.access_token = result.stdout.strip()
-                except subprocess.CalledProcessError as e:
-                    raise Exception(
-                        "Failed to get access token. Make sure you either:\n"
-                        "1. Set JULES_API_KEY environment variable, or\n"
-                        "2. Authenticate with gcloud: gcloud auth login"
-                    ) from e
-            headers["Authorization"] = f"Bearer {self.access_token}"
-        return headers
+        return {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self.api_key,
+        }
 
     def create_session(  # noqa: PLR0913
         self,

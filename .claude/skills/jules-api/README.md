@@ -25,16 +25,10 @@ Simply mention "Jules" in your request, and Claude will automatically invoke thi
 
 Before using this skill, you need:
 
-1. **Google Cloud SDK** installed and authenticated:
+1. **Jules API Key**:
+   - Set the `JULES_API_KEY` environment variable with your API key
    ```bash
-   # Install gcloud CLI
-   # https://cloud.google.com/sdk/docs/install
-
-   # Authenticate
-   gcloud auth login
-
-   # Set your project
-   gcloud config set project YOUR_PROJECT_ID
+   export JULES_API_KEY="your-api-key-here"
    ```
 
 2. **Jules API access** enabled for your Google Cloud project
@@ -99,9 +93,13 @@ You can also use the `JulesClient` class directly in your Python code:
 
 ```python
 from jules_client import JulesClient
+import os
 
-# Initialize client
+# Initialize client (reads JULES_API_KEY from environment)
 client = JulesClient()
+
+# Or pass API key explicitly
+# client = JulesClient(api_key="your-api-key")
 
 # Create a session
 session = client.create_session(
@@ -155,14 +153,16 @@ For complete API documentation, see:
 
 ### Authentication Issues
 
-If you get authentication errors:
-```bash
-# Re-authenticate
-gcloud auth login
+If you get 403 or authentication errors:
 
-# Verify authentication
-gcloud auth print-access-token
-```
+1. **Verify your API key is set**:
+   ```bash
+   echo $JULES_API_KEY
+   ```
+
+2. **Check API key is valid** - Make sure your Jules API key is correct and not expired
+
+3. **Verify API access** - Ensure your Google Cloud project has Jules API enabled
 
 ### Permission Issues
 
