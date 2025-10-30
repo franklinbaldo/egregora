@@ -72,6 +72,53 @@ Claude should **proactively suggest** creating Jules sessions for:
 - ❌ "Fix everything"
 - ❌ "Add features"
 
+### ⚠️ CRITICAL: Jules Session Isolation
+
+**Each Jules session is completely isolated with NO memory of previous sessions.**
+
+**Jules CANNOT access:**
+- Previous session conversations or context
+- Files created in other Jules sessions (even by Jules itself)
+- Session history or outcomes
+- References like "session #123456789" are meaningless to Jules
+- Files in branches other than the `startingBranch`
+
+**What this means for prompts:**
+- ❌ DON'T: "Continue the work from session #4842758738209255752"
+- ❌ DON'T: "See the files you created earlier"
+- ❌ DON'T: "Follow up on your previous implementation"
+- ❌ DON'T: "See DESIGN.md in branch feature/foo" (if starting from different branch)
+- ❌ DON'T: Reference files that don't exist in `startingBranch`
+
+**DO provide complete, self-contained context:**
+- ✅ DO: Include full task description with all necessary details
+- ✅ DO: Reference files BY PATH only if they exist in `startingBranch`
+- ✅ DO: Copy/paste key design info directly into the prompt
+- ✅ DO: Describe what needs to be done from scratch
+- ✅ DO: Use `--branch` parameter to start from branch containing needed files
+- ✅ DO: Explain the "why" behind the task
+
+**Bad example:**
+```
+"Continue implementing the recorder from the previous session"
+```
+
+**Good example:**
+```
+"Implement GeminiClientRecorder class in src/egregora/testing/gemini_recorder.py.
+This class should wrap google.genai.Client to intercept and record API calls to JSON files.
+
+Requirements:
+- Save to tests/fixtures/golden/api_responses/{embeddings,generation}/
+- Use SHA256 hash of request content for filenames
+- Match genai.Client interface for drop-in replacement
+- Handle both embed_content() and generate_content() methods
+
+See existing mock implementation in tests/mock_batch_client.py for reference."
+```
+
+**Key insight**: Treat every Jules session as if Jules is seeing the codebase for the first time.
+
 ### Claude's Role in Delegation
 
 When delegating to Jules, Claude should:

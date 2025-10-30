@@ -21,6 +21,24 @@ Invoke this skill when you want to:
 
 Simply mention "Jules" in your request, and Claude will automatically invoke this skill.
 
+## ⚠️ Important: Jules Session Isolation
+
+**Each Jules session is completely isolated** - Jules has NO memory between sessions.
+
+**Jules CANNOT access:**
+- Previous session conversations
+- Files created in other sessions (even by Jules itself)
+- References to other session IDs
+- Files in branches other than `startingBranch`
+
+**What this means for prompts:**
+- Always provide complete, self-contained task descriptions
+- Include all necessary context in each prompt
+- Reference files only if they exist in the starting branch
+- Don't reference previous sessions or assume continuity
+
+See [SKILL.md](./SKILL.md#-critical-jules-session-isolation) for detailed best practices.
+
 ## Prerequisites
 
 Before using this skill, you need:
