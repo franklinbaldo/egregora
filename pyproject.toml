@@ -97,6 +97,14 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
 disallow_untyped_defs = false
+mypy_path = ["src"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["egregora.rag.retriever"]
+follow_imports = "normal"
+ignore_missing_imports = false
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

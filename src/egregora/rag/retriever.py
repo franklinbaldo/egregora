@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import TypedDict
 
 import ibis
 from ibis.expr.types import Table
@@ -19,6 +20,16 @@ from .store import VECTOR_STORE_SCHEMA, VectorStore
 logger = logging.getLogger(__name__)
 
 DEDUP_MAX_RANK = 2
+
+
+class MediaEnrichmentMetadata(TypedDict, total=False):
+    """Structured metadata extracted from enrichment markdown files."""
+
+    message_date: datetime | None
+    author_uuid: str | None
+    media_type: str | None
+    media_path: str | None
+    original_filename: str | None
 
 
 def index_post(
@@ -193,7 +204,7 @@ def query_similar_posts(
     return results
 
 
-def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
+def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | None:
     """
     Parse a media enrichment markdown file to extract metadata.
 
@@ -207,7 +218,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         content = enrichment_path.read_text(encoding="utf-8")
 
         # Extract metadata from the markdown
-        metadata = {}
+        metadata: MediaEnrichmentMetadata = {}
 
         # Extract from metadata section
         date_match = re.search(r"- \*\*Date:\*\* (.+)", content)
@@ -221,26 +232,59 @@ def _parse_media_enrichment(enrichment_path: Path) -> dict | None:
         original_filename = filename_match.group(1).strip() if filename_match else None
 
         # Build metadata dict
-        if date_match and time_match:
-            date_str = date_match.group(1).strip()
-            time_str = time_match.group(1).strip()
-            try:
-                parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=UTC)
-            except ValueError:
-                logger.warning(f"Failed to parse date/time: {date_str} {time_str}")
-                metadata["message_date"] = None
-
-        metadata["author_uuid"] = sender_match.group(1).strip() if sender_match else None
-        metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
-        metadata["media_path"] = file_match.group(1).strip() if file_match else None
-        metadata["original_filename"] = original_filename
+        metadata["message_date"] = _parse_media_timestamp(date_match, time_match)
+        metadata["author_uuid"] = _extract_enrichment_field(sender_match)
+        metadata["media_type"] = _extract_enrichment_field(media_type_match)
+        metadata["media_path"] = _extract_enrichment_field(file_match)
+        metadata["original_filename"] = _strip_optional(original_filename)
 
         return metadata
 
     except Exception as e:
         logger.error(f"Failed to parse media enrichment {enrichment_path}: {e}")
         return None
+
+
+def _parse_media_timestamp(
+    date_match: re.Match[str] | None, time_match: re.Match[str] | None
+) -> datetime | None:
+    """Combine separate date and time matches into a timezone-aware datetime."""
+
+    if not date_match or not time_match:
+        return None
+
+    date_str = _extract_enrichment_field(date_match)
+    time_str = _extract_enrichment_field(time_match)
+
+    if not date_str or not time_str:
+        return None
+
+    try:
+        parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        logger.warning("Failed to parse date/time: %s %s", date_str, time_str)
+        return None
+
+    return parsed.replace(tzinfo=UTC)
+
+
+def _extract_enrichment_field(match: re.Match[str] | None) -> str | None:
+    """Return the stripped capture group from ``match`` when available."""
+
+    if match is None:
+        return None
+
+    return _strip_optional(match.group(1))
+
+
+def _strip_optional(value: str | None) -> str | None:
+    """Strip whitespace while preserving ``None`` values."""
+
+    if value is None:
+        return None
+
+    stripped = value.strip()
+    return stripped or None
 
 
 def index_media_enrichment(
