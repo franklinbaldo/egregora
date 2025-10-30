@@ -14,14 +14,39 @@ __all__ = ["MESSAGE_SCHEMA", "ensure_message_schema"]
 # Default timezone for WhatsApp exports (no timezone in export files)
 DEFAULT_TIMEZONE = "UTC"
 
-MESSAGE_SCHEMA: dict[str, dt.DataType] = {
-    "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),  # nanosecond precision
-    "date": dt.Date(),
-    "author": dt.String(),
-    "message": dt.String(),
-    "original_line": dt.String(),
-    "tagged_line": dt.String(),
-}
+
+def _timestamp_dtype(timezone: str | None) -> dt.Timestamp:
+    """Return a timestamp datatype with nanosecond precision."""
+
+    return dt.Timestamp(timezone=timezone, scale=9)
+
+
+def _date_dtype() -> dt.Date:
+    """Return a date datatype."""
+
+    return dt.Date()
+
+
+def _string_dtype() -> dt.String:
+    """Return a string datatype."""
+
+    return dt.String()
+
+
+def _base_message_schema() -> dict[str, dt.DataType]:
+    """Base schema shared by all message tables."""
+
+    return {
+        "timestamp": _timestamp_dtype(DEFAULT_TIMEZONE),
+        "date": _date_dtype(),
+        "author": _string_dtype(),
+        "message": _string_dtype(),
+        "original_line": _string_dtype(),
+        "tagged_line": _string_dtype(),
+    }
+
+
+MESSAGE_SCHEMA: dict[str, dt.DataType] = _base_message_schema()
 
 
 @udf.scalar.builtin(
@@ -35,7 +60,7 @@ def _builtin_timezone(_: str, __: dt.Timestamp) -> dt.Timestamp:  # pragma: no c
     backend implementation. DuckDB mirrors Polars' ``replace_time_zone``
     semantics when a naive timestamp is paired with the export's timezone.
     """
-    ...
+    raise NotImplementedError("ibis replaces builtin bodies at runtime")
 
 
 def ensure_message_schema(
@@ -51,7 +76,7 @@ def ensure_message_schema(
     normalisation is applied when necessary.
     """
 
-    target_schema = dict(MESSAGE_SCHEMA)
+    target_schema: dict[str, dt.DataType] = dict(MESSAGE_SCHEMA)
 
     tz = timezone or DEFAULT_TIMEZONE
     if isinstance(tz, ZoneInfo):
@@ -60,7 +85,7 @@ def ensure_message_schema(
         tz_name = str(tz)
 
     # Update target schema with the desired timezone
-    target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
+    target_schema["timestamp"] = _timestamp_dtype(tz_name)
 
     # Handle empty DataFrame
     if int(df.count().execute()) == 0:
