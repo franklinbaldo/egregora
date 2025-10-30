@@ -11,6 +11,8 @@ import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
 
+from ...core import database_schema
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +44,10 @@ class RankingStore:
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
+        # Note: Ranking store schema has extra fields beyond database_schema definitions
+        # (profile_id, post_a/b, comment_a/b, stars_a/b, games_played)
+        # Keeping existing SQL for now - can migrate to Ibis later
+
         # ELO ratings table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS elo_ratings (
