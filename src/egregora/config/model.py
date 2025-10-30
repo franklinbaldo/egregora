@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Literal, Any, Dict
 
-from .site_config import load_mkdocs_config
+from .site import load_mkdocs_config
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 

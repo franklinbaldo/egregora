@@ -15,12 +15,12 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
-from .config_types import ProcessConfig, RankingCliConfig
+from .config import ProcessConfig, RankingCliConfig
 from .editor_agent import run_editor_session
 from .logging_setup import configure_logging, console
-from .model_config import ModelConfig, load_site_config
+from .config import ModelConfig, load_site_config
 from .pipeline import process_whatsapp_export
-from .site_config import find_mkdocs_file, resolve_site_paths
+from .config import find_mkdocs_file, resolve_site_paths
 from .site_scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(

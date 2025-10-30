@@ -6,7 +6,8 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .site_config import DEFAULT_BLOG_DIR, SitePaths, _ConfigLoader, resolve_site_paths
+from .config import DEFAULT_BLOG_DIR, SitePaths, resolve_site_paths
+from .config.site import _ConfigLoader
 
 DEFAULT_SITE_NAME = "Egregora Archive"
 DEFAULT_DOCS_SETTING = "docs"

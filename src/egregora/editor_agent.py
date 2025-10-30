@@ -21,9 +21,9 @@ import ibis
 from ibis.expr.types import Table
 
 from .editor import DocumentSnapshot, Editor
-from .gemini_batch import GeminiBatchClient
-from .genai_utils import call_with_retries
-from .model_config import ModelConfig
+from .utils import GeminiBatchClient
+from .utils import call_with_retries
+from .config import ModelConfig
 from .prompt_templates import render_editor_prompt
 from .rag import query_similar_posts, VectorStore
 
