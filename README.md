@@ -1,31 +1,26 @@
-# Egregora v3 🤖 → 📝
+# Egregora 🤖 → 📝
 
 **Emergent Group Reflection Engine Generating Organized Relevant Articles**
 
 Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
 
-[![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Powered by uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
 
-✨ **Why Egregora v3?**
+---
 
-Egregora v3 is a greenfield rewrite focusing on a stateless, single-stack architecture using Ibis, DuckDB, and VSS.
+## ✨ Why Egregora?
 
-- **🧠 Emergent Intelligence**: Collective conversations synthesize into coherent articles.
-- **👥 Group Reflection**: Your community's unique voice and insights are preserved.
-- **⚙️ Engine**: A stateless, AI-powered pipeline that works automatically.
-- **🛡️ Deterministic Privacy**: Your anonymization logic, preserved and guaranteed.
+- **🧠 Emergent Intelligence**: Collective conversations synthesize into coherent articles
+- **👥 Group Reflection**: Your community's unique voice and insights are preserved
+- **🛡️ Privacy-First**: Automatic anonymization - real names never reach the AI
+- **⚙️ Fully Automated**: Stateless pipeline powered by Ibis, DuckDB, and Gemini
+- **📊 Smart Context**: RAG retrieval ensures consistent, context-aware writing
 
-🛡️ Privacy by Design
+## 🚀 Quick Start
 
-· Automatic anonymization - Real names never reach the AI
-· User-controlled data - /egregora opt-out to exclude your messages
-· Deterministic UUIDs - Same person gets same pseudonym every time
-
-🚀 Quick Start
-
-1. Install uvx
+### 1. Install `uv`
 
 ```bash
 # On macOS/Linux:
@@ -33,69 +28,119 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # On Windows (PowerShell):
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Or via pip (if you have Python):
-pip install uv
 ```
 
-2. Create and serve your blog (zero installation required!)
+### 2. Initialize Your Blog
 
 ```bash
-# Initialize your blog site
+# Create a new blog site (zero installation required!)
 uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
+```
 
-# Provide your Gemini API key (required)
+### 3. Set Up Your API Key
+
+```bash
+# Get a free Gemini API key: https://ai.google.dev/gemini-api/docs/api-key
 export GOOGLE_API_KEY="your-google-gemini-api-key"
-#   • On Windows (PowerShell): $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
-#   • Alternatively, pass --gemini-key "your-google-gemini-api-key" to the command below
 
-# Process your WhatsApp export
+# On Windows (PowerShell):
+# $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+```
+
+### 4. Process Your WhatsApp Export
+
+```bash
+# Export your WhatsApp chat (without media for privacy)
+# Settings → More → Export chat → Without media
+
+# Process the export
 uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
-  whatsapp-export.zip --output=. --timezone='America/New_York'
+  whatsapp-export.zip \
+  --output=. \
+  --timezone='America/New_York'
+```
 
-# Serve your blog (no pip install needed!)
+### 5. Serve Your Blog
+
+```bash
+# Launch local preview (no installation needed!)
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
-Open http://localhost:8000 to see your AI-generated blog!
+Open http://localhost:8000 to see your AI-generated blog! 🎉
 
-🧩 Runtime Requirements
+---
 
-Egregora ships with DuckDB in its default installation. The RAG retriever relies on the
-[DuckDB VSS extension](https://duckdb.org/docs/extensions/vss.html) to power approximate
-nearest-neighbor search. The first `egregora process` run will attempt to download and load
-this extension automatically. Make sure the machine running the pipeline can reach the DuckDB
-extension repository or preinstall it manually:
+## 🏗️ Architecture: Staged Pipeline
 
-```bash
-duckdb -c "INSTALL vss; LOAD vss"
+Egregora uses a **staged pipeline architecture** that processes conversations through distinct phases:
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Ingestion  │ -> │   Privacy   │ -> │ Augmentation│
+└─────────────┘    └─────────────┘    └─────────────┘
+      ↓                   ↓                   ↓
+   Parse ZIP        Anonymize UUIDs     Enrich context
+                    Detect PII          Build profiles
+
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Knowledge  │ <- │ Generation  │ -> │ Publication │
+└─────────────┘    └─────────────┘    └─────────────┘
+      ↑                   ↓                   ↓
+   RAG Index        LLM Writer           MkDocs Site
+   Annotations      Tool Calling         Templates
+   Rankings
 ```
 
-If you are running in an offline or firewalled environment, fall back to exact retrieval with
-`--retrieval-mode exact` until the extension is available. The pytest suite also expects DuckDB
-to be installed; run `uv sync` or `pip install duckdb` before executing `pytest` to avoid the
-guarded skip in `tests/conftest.py`.
+### Pipeline Stages
 
-🎪 Advanced Features
+1. **Ingestion** (`ingestion/`)
+   - Parse WhatsApp `.zip` exports into structured Ibis tables
+   - Extract messages, timestamps, authors, media references
 
-Rank Your Posts
+2. **Privacy** (`privacy/`)
+   - **Anonymization**: Convert names to deterministic UUIDs
+   - **PII Detection**: Scan for sensitive information
+   - **Opt-out Management**: Respect user privacy preferences
 
-```bash
-# Run ELO comparisons to find your best content
-uvx --from git+https://github.com/franklinbaldo/egregora egregora rank --site-dir=. --comparisons=50
-```
+3. **Augmentation** (`augmentation/`)
+   - **Enrichment**: LLM-powered descriptions for URLs and media
+   - **Profiling**: Generate author bio/context from conversations
 
-AI-Powered Editing
+4. **Knowledge** (`knowledge/`)
+   - **RAG**: Vector store for retrieving similar past posts
+   - **Annotations**: Conversation metadata and threading
+   - **Rankings**: Elo-based content quality scoring
 
-```bash
-# Let the AI improve an existing post
-uvx --from git+https://github.com/franklinbaldo/egregora egregora edit posts/2025-01-15-ai-safety.md
-```
+5. **Generation** (`generation/`)
+   - **Writer**: LLM with tool calling generates 0-N posts per period
+   - **Editor**: Interactive AI-powered document refinement
 
-User Privacy Controls
+6. **Publication** (`publication/`)
+   - **Site Scaffolding**: MkDocs project structure
+   - **Templates**: Homepage, about pages, post indexes
 
-In your WhatsApp group, users can control their data:
+### Why Staged Pipeline > ETL?
+
+- **Clearer separation of concerns** - Each stage has focused responsibility
+- **Acknowledges feedback loops** - RAG indexes posts for future queries
+- **Stateful operations** - Knowledge stage maintains persistent data
+- **Better maintainability** - Easier to understand and extend
+
+---
+
+## 🛡️ Privacy by Design
+
+Privacy is core to Egregora's architecture:
+
+### Automatic Anonymization
+- Real names are converted to deterministic UUIDs **before** any LLM interaction
+- Same person always gets the same pseudonym (e.g., `a3f2b91c`)
+- AI never sees actual names, only anonymized identifiers
+
+### User Controls
+Users can manage their data directly in WhatsApp:
 
 ```
 /egregora set alias "Casey"      # Set display name
@@ -104,100 +149,177 @@ In your WhatsApp group, users can control their data:
 /egregora opt-in                 # Include in future posts
 ```
 
-⚙️ Configuration
+### PII Detection
+- Scans text and media for phone numbers, emails, addresses
+- Automatically removes detected PII
+- Configurable sensitivity levels
 
-Customize your blog via mkdocs.yml:
+---
+
+## ⚙️ Advanced Features
+
+### Content Ranking
+
+```bash
+# Run Elo comparisons to identify your best posts
+uvx --from git+https://github.com/franklinbaldo/egregora egregora rank \
+  --site-dir=. \
+  --comparisons=50
+```
+
+### AI-Powered Editing
+
+```bash
+# Let the AI refine an existing post
+uvx --from git+https://github.com/franklinbaldo/egregora egregora edit \
+  posts/2025-01-15-ai-safety.md
+```
+
+### Custom Models
 
 ```yaml
-site_name: Our AI Safety Discussions
-site_url: https://our-group.blog
+# In mkdocs.yml
+extra:
+  egregora:
+    models:
+      writer: models/gemini-2.0-flash-exp
+      enricher: models/gemini-1.5-flash
+      embeddings: models/text-embedding-004
+```
 
-🚀 **Quick Start**
+### RAG Configuration
 
-1.  **Install `uv`** (if you haven't already):
-    ```bash
-    # On macOS/Linux:
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    # On Windows (PowerShell):
-    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-    ```
-
-2.  **Run Egregora v3 (zero installation required!)**
-    ```bash
-    # Initialize your project (creates egregora.db and config)
-    uvx --from git+https://github.com/franklinbaldo/egregora egregora eg3 init
-
-    # Provide your Gemini API key
-    export GOOGLE_API_KEY="your-google-gemini-api-key"
-
-    # Ingest your data
-    uvx --from git+https://github.com/franklinbaldo/egregora egregora eg3 ingest --src /path/to/your/data
-
-    # Build the vector index
-    uvx --from git+https://github.com/franklinbaldo/egregora egregora eg3 build
-
-    # Query your data
-    uvx --from git+https://github.com/franklinbaldo/egregora egregora eg3 query --q "What are we talking about?"
-    ```
+```bash
+# Adjust retrieval parameters
+egregora process whatsapp.zip \
+  --retrieval-mode=ann \          # or 'exact'
+  --retrieval-nprobe=10 \         # ANN search quality
+  --embedding-dimensions=768      # Model dimensions
+```
 
 ---
 
-🏗️ **Architecture**
+## 🧩 Technical Details
 
-Egregora v3 is built on a clean, layered architecture:
+### Runtime Requirements
 
-- **Core**: Configuration, context, database management, and paths.
-- **Adapters**: Pluggable components for embeddings, vector stores, and I/O.
-- **Features**: RAG, ranking, and site generation logic.
-- **CLI**: A thin Typer-based command-line interface.
+Egregora uses **DuckDB** with the [VSS extension](https://duckdb.org/docs/extensions/vss.html) for vector search:
 
-The data model is a single DuckDB file containing `rag_chunks`, `rag_vectors`, and ranking tables.
+```bash
+# Auto-installed on first run, or install manually:
+duckdb -c "INSTALL vss; LOAD vss"
+```
+
+**Offline/Firewalled environments:** Use `--retrieval-mode exact` until VSS is available.
+
+### Stack
+
+- **Ibis**: DataFrame abstraction for data transformations
+- **DuckDB**: Fast analytical database with vector search
+- **Gemini**: Google's LLM for content generation
+- **MkDocs**: Static site generation
+- **uv**: Modern Python package management
+
+### Database Schemas
+
+All schemas are defined in `core/database_schema.py` using Ibis:
+
+```python
+from egregora.core import database_schema
+
+# Persistent schemas (DuckDB tables)
+database_schema.RAG_CHUNKS_SCHEMA
+database_schema.ANNOTATIONS_SCHEMA
+database_schema.ELO_RATINGS_SCHEMA
+
+# Ephemeral schemas (in-memory transformations)
+database_schema.CONVERSATION_SCHEMA
+```
 
 ---
 
-🛠️ **Development**
+## 🛠️ Development
 
-For Contributors:
+### Setup
 
 ```bash
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Install with development dependencies
+# Install with all development dependencies
 uv sync --all-extras
 
 # Run tests
-uv run pytest tests/v3/
-uv run ruff check src/egregora_v3/
+uv run pytest tests/
+
+# Lint code
+uv run ruff check src/
+uv run black --check src/
 ```
 
-Architecture Highlights
+### Project Structure
 
-· Privacy-first: Anonymization happens before AI sees any data
-· DataFrames all the way: Powered by Ibis + DuckDB for performance
-· Functional pipeline: Simple, composable functions over complex agents
-· DuckDB storage: Fast vector operations for RAG and rankings
-· Optional extras: Install `egregora[ranking]` to enable the experimental ranking agent
+```
+src/egregora/
+├── ingestion/       # Parse WhatsApp exports
+├── privacy/         # Anonymization & PII detection
+├── augmentation/    # Enrichment & profiling
+├── knowledge/       # RAG, annotations, rankings
+├── generation/      # LLM writer & editor
+├── publication/     # Site scaffolding
+├── core/            # Shared models & schemas
+├── orchestration/   # CLI & pipeline coordination
+├── config/          # Configuration management
+├── utils/           # Batch processing, caching
+└── prompts/         # Jinja2 prompt templates
+```
 
-🤝 Community & Support
+### Contributing
 
-· Documentation: docs/ - Comprehensive guides and API reference
-· Issues: GitHub Issues - Bug reports and feature requests
-· Discussions: GitHub Discussions - Questions and community support
+We welcome contributions! Please:
 
-📄 License
-
-MIT License - see LICENSE file for details.
-
-🙏 Acknowledgments
-
-Egregora follows the philosophy of "trusting the LLM" - instead of micromanaging with complex heuristics, we give the AI the data and let it make editorial decisions. This results in simpler code and often better outcomes.
-
-Built with the amazing uv Python package manager.
+1. Check existing issues or open a new one
+2. Fork the repository
+3. Create a feature branch
+4. Write tests for new functionality
+5. Submit a pull request
 
 ---
 
-📄 **License**
+## 📚 Documentation
 
-MIT License - see the `LICENSE` file for details.
+- **Getting Started**: [`docs/getting-started/`](docs/getting-started/)
+- **Architecture Guide**: [`docs/guides/architecture.md`](docs/guides/architecture.md)
+- **API Reference**: [`docs/reference/api.md`](docs/reference/api.md)
+- **Privacy Model**: [`docs/features/anonymization.md`](docs/features/anonymization.md)
+
+---
+
+## 🤝 Community & Support
+
+- **Issues**: [GitHub Issues](https://github.com/franklinbaldo/egregora/issues) - Bug reports and feature requests
+- **Discussions**: [GitHub Discussions](https://github.com/franklinbaldo/egregora/discussions) - Questions and community support
+- **Documentation**: Comprehensive guides in [`docs/`](docs/)
+
+---
+
+## 📄 License
+
+MIT License - see [`LICENSE`](LICENSE) file for details.
+
+---
+
+## 🙏 Philosophy
+
+Egregora follows the principle of **"trusting the LLM"** - instead of micromanaging with complex heuristics, we:
+
+- Give the AI complete conversation context
+- Let it make editorial decisions (how many posts, what to write)
+- Use tool calling for structured output
+- Keep the pipeline simple and composable
+
+This results in simpler code and often better outcomes. The LLM knows what makes a good article - our job is to give it the right context.
+
+---
+
+**Built with ❤️ using [uv](https://github.com/astral-sh/uv)**
