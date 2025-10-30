@@ -2,17 +2,81 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-
-import ibis
+from typing import Any, Protocol, SupportsIndex, SupportsInt, TYPE_CHECKING, cast, runtime_checkable
 
 from .privacy import validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
+
+
+class DuckDBBackend(Protocol):
+    """Subset of the ibis DuckDB backend used by ``AnnotationStore``."""
+
+    con: Any
+
+    def raw_sql(self, query: str) -> Any: ...
+
+    def table(self, name: str) -> Any: ...
+
+
+class DuckDBModule(Protocol):
+    def connect(self, path: str) -> DuckDBBackend: ...
+
+
+class IbisModule(Protocol):
+    duckdb: DuckDBModule
+
+
+_ibis = importlib.import_module("ibis")
+if TYPE_CHECKING:
+    ibis = cast(IbisModule, _ibis)
+else:  # pragma: no cover - runtime import path
+    ibis = _ibis
+
+
+@runtime_checkable
+class _SupportsToPyDateTime(Protocol):
+    def to_pydatetime(self) -> datetime: ...
+
+
+def _coerce_int(value: object, *, field_name: str) -> int:
+    """Return ``value`` as ``int`` when it satisfies standard integer protocols."""
+
+    if isinstance(value, (SupportsInt, SupportsIndex)):
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(f"{field_name} cannot be parsed from an empty string")
+        return int(stripped)
+    raise TypeError(
+        f"Expected {field_name} to implement SupportsInt, SupportsIndex, or str, "
+        f"got {type(value).__name__}",
+    )
+
+
+def _coerce_datetime(value: object, *, field_name: str) -> datetime:
+    """Normalize ``value`` to a timezone-aware ``datetime``."""
+
+    if isinstance(value, datetime):
+        result = value
+    elif isinstance(value, _SupportsToPyDateTime):
+        result = value.to_pydatetime()
+    else:
+        raise TypeError(
+            f"Expected {field_name} to be a datetime or expose to_pydatetime(), "
+            f"got {type(value).__name__}",
+        )
+
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=UTC)
+    return result
 
 
 @dataclass(slots=True)
@@ -33,11 +97,11 @@ class AnnotationStore:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._backend = ibis.duckdb.connect(str(self.db_path))
+        self._backend: DuckDBBackend = ibis.duckdb.connect(str(self.db_path))
         self._initialize()
 
     @property
-    def _connection(self):
+    def _connection(self) -> Any:
         """Return the underlying DuckDB connection."""
 
         return self._backend.con
@@ -187,19 +251,17 @@ class AnnotationStore:
 
     @staticmethod
     def _row_to_annotation(row: dict[str, object]) -> Annotation:
-        created_at_obj = row["created_at"]
-        if hasattr(created_at_obj, "to_pydatetime"):
-            created_at = created_at_obj.to_pydatetime()
-        elif isinstance(created_at_obj, datetime):
-            created_at = created_at_obj
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=UTC)
+        created_at = _coerce_datetime(row["created_at"], field_name="created_at")
 
         parent_raw = row.get("parent_annotation_id")
-        parent_id = int(parent_raw) if parent_raw is not None else None
+        parent_id = (
+            _coerce_int(parent_raw, field_name="parent_annotation_id")
+            if parent_raw is not None
+            else None
+        )
 
         return Annotation(
-            id=int(row["id"]),
+            id=_coerce_int(row["id"], field_name="id"),
             msg_id=str(row["msg_id"]),
             author=str(row["author"]),
             commentary=str(row["commentary"]),
