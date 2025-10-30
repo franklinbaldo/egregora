@@ -58,7 +58,24 @@ Rankings are stored in a **DuckDB database** for fast updates and efficient quer
 
 ### Primary Storage: `rankings.duckdb`
 
-DuckDB database with two tables:
+DuckDB database with four tables:
+
+**`elo_profiles` table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `profile_id` | VARCHAR | Judge profile UUID (PRIMARY KEY) |
+| `first_seen` | TIMESTAMP | When the judge first appeared |
+
+**`elo_profile_stats` table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `profile_id` | VARCHAR | FK to `elo_profiles.profile_id` |
+| `alias` | VARCHAR | Preferred display name (nullable) |
+| `bio` | VARCHAR | Short bio excerpt (nullable) |
+| `comparisons` | INTEGER | Total comparisons performed |
+| `last_seen` | TIMESTAMP | Most recent comparison timestamp |
 
 **`elo_ratings` table:**
 
@@ -84,6 +101,11 @@ DuckDB database with two tables:
 | `comment_b` | VARCHAR | Feedback on post B (max 250 chars) |
 | `stars_b` | INTEGER | Star rating for B (1-5) |
 
+Foreign keys enforce referential integrity:
+
+- `elo_history.profile_id` → `elo_profiles.profile_id`
+- `elo_history.post_a` and `elo_history.post_b` → `elo_ratings.post_id`
+
 **Why DuckDB?**
 - **Fast updates**: No read-modify-write of entire file (10-50x faster than Parquet)
 - **ACID transactions**: Safe concurrent access
@@ -100,6 +122,8 @@ egregora rank --site_dir ./blog --comparisons 10 --export_parquet
 ```
 
 Creates:
+- `rankings/elo_profiles.parquet`
+- `rankings/elo_profile_stats.parquet`
 - `rankings/elo_ratings.parquet`
 - `rankings/elo_history.parquet`
 

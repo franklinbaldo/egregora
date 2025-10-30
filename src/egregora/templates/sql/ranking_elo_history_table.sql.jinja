@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS {{ table_name }} (
     stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
     comment_b VARCHAR NOT NULL,
     stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5),
+    CONSTRAINT fk_{{ table_name }}_profile
+        FOREIGN KEY (profile_id)
+        REFERENCES {{ profiles_table_name }} (profile_id),
     CONSTRAINT fk_{{ table_name }}_post_a
         FOREIGN KEY (post_a)
         REFERENCES {{ ratings_table_name }} (post_id),

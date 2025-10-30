@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    profile_id VARCHAR PRIMARY KEY,
+    alias VARCHAR,
+    bio VARCHAR,
+    comparisons INTEGER NOT NULL DEFAULT 0 CHECK (comparisons >= 0),
+    last_seen TIMESTAMP NOT NULL,
+    CONSTRAINT fk_{{ table_name }}_profile
+        FOREIGN KEY (profile_id)
+        REFERENCES {{ profiles_table_name }} (profile_id)
+)

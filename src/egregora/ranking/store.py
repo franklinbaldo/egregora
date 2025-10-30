@@ -16,8 +16,12 @@ from egregora.sql_templates import render_sql_template
 logger = logging.getLogger(__name__)
 
 
+ELO_PROFILES_TABLE = "elo_profiles"
+ELO_PROFILE_STATS_TABLE = "elo_profile_stats"
 ELO_RATINGS_TABLE = "elo_ratings"
 ELO_HISTORY_TABLE = "elo_history"
+ELO_PROFILE_STATS_LAST_SEEN_INDEX = "idx_profile_stats_last_seen"
+ELO_PROFILE_STATS_COMPARISONS_INDEX = "idx_profile_stats_comparisons"
 ELO_HISTORY_POST_A_INDEX = "idx_history_post_a"
 ELO_HISTORY_POST_B_INDEX = "idx_history_post_b"
 ELO_HISTORY_TIMESTAMP_INDEX = "idx_history_timestamp"
@@ -53,6 +57,23 @@ class RankingStore:
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
+        # Judge profiles table (identity)
+        self.conn.execute(
+            render_sql_template(
+                "ranking_elo_profiles_table.sql.jinja",
+                table_name=ELO_PROFILES_TABLE,
+            )
+        )
+
+        # Judge profile stats table
+        self.conn.execute(
+            render_sql_template(
+                "ranking_elo_profile_stats_table.sql.jinja",
+                table_name=ELO_PROFILE_STATS_TABLE,
+                profiles_table_name=ELO_PROFILES_TABLE,
+            )
+        )
+
         # ELO ratings table
         self.conn.execute(
             render_sql_template(
@@ -67,10 +88,27 @@ class RankingStore:
                 "ranking_elo_history_table.sql.jinja",
                 table_name=ELO_HISTORY_TABLE,
                 ratings_table_name=ELO_RATINGS_TABLE,
+                profiles_table_name=ELO_PROFILES_TABLE,
             )
         )
 
         # Create indexes for efficient queries
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_PROFILE_STATS_LAST_SEEN_INDEX,
+                table_name=ELO_PROFILE_STATS_TABLE,
+                columns=["last_seen"],
+            )
+        )
+        self.conn.execute(
+            render_sql_template(
+                "create_index.sql.jinja",
+                index_name=ELO_PROFILE_STATS_COMPARISONS_INDEX,
+                table_name=ELO_PROFILE_STATS_TABLE,
+                columns=["comparisons"],
+            )
+        )
         self.conn.execute(
             render_sql_template(
                 "create_index.sql.jinja",
@@ -216,6 +254,8 @@ class RankingStore:
                 - comparison_id: str
                 - timestamp: datetime
                 - profile_id: str
+                - profile_alias: str | None (optional)
+                - profile_bio: str | None (optional)
                 - post_a: str
                 - post_b: str
                 - winner: str ("A" or "B")
@@ -228,9 +268,26 @@ class RankingStore:
             list({comparison_data["post_a"], comparison_data["post_b"]})
         )
 
+        self._upsert_profile(
+            profile_id=comparison_data["profile_id"],
+            alias=comparison_data.get("profile_alias"),
+            bio=comparison_data.get("profile_bio"),
+        )
+
         self.conn.execute(
             """
-            INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO elo_history (
+                comparison_id,
+                timestamp,
+                profile_id,
+                post_a,
+                post_b,
+                winner,
+                comment_a,
+                stars_a,
+                comment_b,
+                stars_b
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             [
                 comparison_data["comparison_id"],
@@ -359,6 +416,29 @@ class RankingStore:
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
         return ibis.memtable(self._arrow_to_pydict(result))
 
+    def get_all_profiles(self) -> Table:
+        """Return judge profile statistics as an Ibis table.
+
+        Columns: profile_id, alias, bio, comparisons, first_seen, last_seen.
+        """
+
+        result = self.conn.execute(
+            f"""
+            SELECT
+                profiles.profile_id,
+                stats.alias,
+                stats.bio,
+                stats.comparisons,
+                profiles.first_seen,
+                stats.last_seen
+            FROM {ELO_PROFILES_TABLE} AS profiles
+            JOIN {ELO_PROFILE_STATS_TABLE} AS stats
+              ON profiles.profile_id = stats.profile_id
+            ORDER BY stats.last_seen DESC
+            """
+        ).arrow()
+        return ibis.memtable(self._arrow_to_pydict(result))
+
     def _arrow_to_pydict(self, arrow_object: Any) -> Dict[str, Any]:
         """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
@@ -400,12 +480,22 @@ class RankingStore:
         Export DuckDB tables to Parquet for sharing/analytics.
 
         Creates:
+            - rankings/elo_profiles.parquet
+            - rankings/elo_profile_stats.parquet
             - rankings/elo_ratings.parquet
             - rankings/elo_history.parquet
         """
+        profiles_path = self.rankings_dir / "elo_profiles.parquet"
+        profile_stats_path = self.rankings_dir / "elo_profile_stats.parquet"
         ratings_path = self.rankings_dir / "elo_ratings.parquet"
         history_path = self.rankings_dir / "elo_history.parquet"
 
+        self.conn.execute(f"""
+            COPY elo_profiles TO '{profiles_path}' (FORMAT PARQUET)
+        """)
+        self.conn.execute(f"""
+            COPY elo_profile_stats TO '{profile_stats_path}' (FORMAT PARQUET)
+        """)
         self.conn.execute(f"""
             COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
         """)
@@ -422,6 +512,9 @@ class RankingStore:
         Returns:
             dict with stats about ratings and history
         """
+        profiles_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_profiles").fetchone()
+        profiles_count = profiles_count_result[0] if profiles_count_result is not None else 0
+
         ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
         ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
 
@@ -447,9 +540,44 @@ class RankingStore:
         bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
 
         return {
+            "total_profiles": profiles_count,
             "total_posts": ratings_count,
             "total_comparisons": comparisons_count,
             "avg_games_per_post": avg_games,
             "highest_elo": top_elo,
             "lowest_elo": bottom_elo,
         }
+
+    def _upsert_profile(self, *, profile_id: str, alias: str | None, bio: str | None) -> None:
+        """Ensure judge metadata exists and update activity counters."""
+
+        normalized_alias = alias.strip() if isinstance(alias, str) else None
+        if normalized_alias == "":
+            normalized_alias = None
+
+        normalized_bio = bio.strip() if isinstance(bio, str) else None
+        if normalized_bio == "":
+            normalized_bio = None
+
+        now = datetime.now(UTC)
+        self.conn.execute(
+            f"""
+            INSERT INTO {ELO_PROFILES_TABLE} (profile_id, first_seen)
+            VALUES (?, ?)
+            ON CONFLICT (profile_id) DO NOTHING
+            """,
+            [profile_id, now],
+        )
+
+        self.conn.execute(
+            f"""
+            INSERT INTO {ELO_PROFILE_STATS_TABLE} (profile_id, alias, bio, comparisons, last_seen)
+            VALUES (?, ?, ?, 1, ?)
+            ON CONFLICT (profile_id) DO UPDATE SET
+                alias = COALESCE(excluded.alias, {ELO_PROFILE_STATS_TABLE}.alias),
+                bio = COALESCE(excluded.bio, {ELO_PROFILE_STATS_TABLE}.bio),
+                comparisons = {ELO_PROFILE_STATS_TABLE}.comparisons + 1,
+                last_seen = excluded.last_seen
+            """,
+            [profile_id, normalized_alias, normalized_bio, now],
+        )

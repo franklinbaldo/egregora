@@ -182,12 +182,17 @@ def save_comparison(  # noqa: PLR0913
     stars_a: int,
     comment_b: str,
     stars_b: int,
+    *,
+    profile_alias: str | None = None,
+    profile_bio: str | None = None,
 ) -> None:
     """Save comparison result to DuckDB."""
     comparison_data = {
         "comparison_id": str(uuid.uuid4()),
         "timestamp": datetime.now(UTC),
         "profile_id": profile_id,
+        "profile_alias": profile_alias,
+        "profile_bio": profile_bio,
         "post_a": post_a,
         "post_b": post_b,
         "winner": winner,
@@ -440,6 +445,8 @@ def run_comparison(  # noqa: PLR0913
         stars_a=stars_a,
         comment_b=comment_b,
         stars_b=stars_b,
+        profile_alias=profile.get("alias"),
+        profile_bio=profile.get("bio"),
     )
 
     # Update ELO ratings
