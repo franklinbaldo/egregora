@@ -1,0 +1,9 @@
+from __future__ import annotations
+
+from typing import Tuple
+
+def calculate_elo_update(rating_a: float, rating_b: float, winner: str) -> tuple[float, float]: ...
+
+def initialize_ratings(*args: object, **kwargs: object) -> None: ...
+
+def update_ratings(*args: object, **kwargs: object) -> None: ...

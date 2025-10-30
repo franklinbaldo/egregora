@@ -8,8 +8,8 @@ from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
 
+from ..genai_utils import call_with_retries_sync
 from .elo import calculate_elo_update
-from .genai_utils import call_with_retries_sync
 from .store import RankingStore
 
 console = Console()
@@ -272,12 +272,14 @@ def _run_turn2_comment_post_a(  # noqa: PLR0913
     winner: str,
     post_a_id: str,
     content_a: str,
-    existing_comments_a: str,
+    existing_comments_a: str | None,
 ) -> tuple[str, int]:
     """Run turn 2: Comment on Post A."""
     console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
 
-    comments_display = existing_comments_a or "No comments yet. Be the first!"
+    comments_display = (
+        existing_comments_a if existing_comments_a is not None else "No comments yet. Be the first!"
+    )
 
     turn2_prompt = f"""You chose Post {winner} as the winner.
 
@@ -325,12 +327,14 @@ def _run_turn3_comment_post_b(  # noqa: PLR0913
     winner: str,
     post_b_id: str,
     content_b: str,
-    existing_comments_b: str,
+    existing_comments_b: str | None,
 ) -> tuple[str, int]:
     """Run turn 3: Comment on Post B."""
     console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
 
-    comments_display = existing_comments_b or "No comments yet. Be the first!"
+    comments_display = (
+        existing_comments_b if existing_comments_b is not None else "No comments yet. Be the first!"
+    )
 
     turn3_prompt = f"""You chose Post {winner} as the winner.
 
