@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -25,9 +26,18 @@ def load_site_config(output_dir: Path) -> dict:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
 
-    egregora_config = config.get("extra", {}).get("egregora", {})
+    extra_section = config.get("extra")
+    if not isinstance(extra_section, Mapping):
+        logger.debug("mkdocs.yml missing extra section; using default config")
+        return {}
+
+    egregora_section = extra_section.get("egregora")
+    if not isinstance(egregora_section, Mapping):
+        logger.debug("mkdocs.yml missing extra.egregora section; using default config")
+        return {}
+
     logger.debug(f"Loaded site config from {mkdocs_path}")
-    return egregora_config
+    return dict(egregora_section)
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 

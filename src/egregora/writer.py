@@ -519,9 +519,18 @@ def load_site_config(output_dir: Path) -> dict:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
 
-    egregora_config = config.get("extra", {}).get("egregora", {})
+    extra_section = config.get("extra")
+    if not isinstance(extra_section, Mapping):
+        logger.info("mkdocs.yml missing extra section; using default writer config")
+        return {}
+
+    egregora_section = extra_section.get("egregora")
+    if not isinstance(egregora_section, Mapping):
+        logger.info("mkdocs.yml missing extra.egregora section; using default writer config")
+        return {}
+
     logger.info(f"Loaded site config from {mkdocs_path}")
-    return egregora_config
+    return dict(egregora_section)
 
 
 def load_markdown_extensions(output_dir: Path) -> str:
@@ -542,26 +551,31 @@ def load_markdown_extensions(output_dir: Path) -> str:
         logger.debug("No mkdocs.yml found, no custom markdown extensions")
         return ""
 
-    try:
-        extensions = config.get("markdown_extensions", [])
-
-        if not extensions:
-            return ""
-
-        # Format as YAML for the LLM
-        yaml_section = yaml.dump(
-            {"markdown_extensions": extensions},
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
-        )
-
-        logger.info(f"Loaded {len(extensions)} markdown extensions from {mkdocs_path}")
-        return yaml_section
-
-    except Exception as e:
-        logger.warning(f"Could not load markdown extensions from {mkdocs_path}: {e}")
+    extensions_obj = config.get("markdown_extensions")
+    if extensions_obj is None:
         return ""
+
+    if not isinstance(extensions_obj, Sequence) or isinstance(
+        extensions_obj, (str, bytes, bytearray)
+    ):
+        logger.warning("markdown_extensions section has unexpected type; ignoring")
+        return ""
+
+    if not extensions_obj:
+        return ""
+
+    extensions = list(extensions_obj)
+
+    # Format as YAML for the LLM
+    yaml_section = yaml.dump(
+        {"markdown_extensions": extensions},
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+    logger.info(f"Loaded {len(extensions)} markdown extensions from {mkdocs_path}")
+    return yaml_section
 
 
 def get_top_authors(df: Table, limit: int = 20) -> list[str]:
