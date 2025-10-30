@@ -125,6 +125,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
+    client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Complete pipeline: ZIP → posts + profiles.
@@ -167,9 +168,12 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     site_config = load_site_config(site_paths.site_root)
     model_config = ModelConfig(cli_model=model, site_config=site_config)
 
-    client: genai.Client | None = None
-    try:
+    # If a client is not provided, create a new one.
+    # This allows injecting a mock or recorder client for testing.
+    if client is None:
         client = genai.Client(api_key=gemini_api_key)
+
+    try:
         text_batch_client = SmartGeminiClient(
             client, model_config.get_model("enricher"), batch_threshold=batch_threshold
         )
@@ -426,6 +430,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
+    client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Public entry point that manages DuckDB/Ibis backend state for processing.
@@ -482,6 +487,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
             retrieval_mode=retrieval_mode,
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
+            client=client,
         )
     finally:
         if options is not None:
