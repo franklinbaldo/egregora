@@ -431,10 +431,6 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     def _run_ranking_session(  # noqa: PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
-        assert RankingStore is not None
-        assert run_comparison is not None
-        assert get_posts_to_compare is not None
-
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
 

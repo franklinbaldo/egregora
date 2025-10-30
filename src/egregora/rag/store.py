@@ -139,7 +139,6 @@ class VectorStore:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
             self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
-            assert connection is not None
             self.conn = _ConnectionProxy(connection)
         
         self._init_vss()
