@@ -2,10 +2,39 @@
 
 All table schemas are defined using Ibis for type safety and consistency.
 Use these schemas to create tables via Ibis instead of raw SQL.
+
+This module contains both:
+- Persistent schemas: Tables that are stored in DuckDB files
+- Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
 
 import ibis
 import ibis.expr.datatypes as dt
+
+# ============================================================================
+# Ephemeral/In-Memory Schemas (Not Persisted)
+# ============================================================================
+# These schemas define the structure of data that flows through the pipeline
+# but is never persisted to disk (for privacy/performance reasons).
+# Having schemas for ephemeral data provides:
+# - Type safety during transformations
+# - Documentation of data contracts
+# - Optimization for vectorized operations
+# - Validation capabilities
+
+CONVERSATION_SCHEMA = ibis.schema(
+    {
+        "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
+        "date": dt.date,
+        "author": dt.string,  # Anonymized UUID after privacy stage
+        "message": dt.string,
+        "original_line": dt.string,  # Raw line from WhatsApp export
+        "tagged_line": dt.string,  # Processed line with mentions
+    }
+)
+
+# Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
+WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
 
 # ============================================================================
 # RAG Vector Store Schemas
