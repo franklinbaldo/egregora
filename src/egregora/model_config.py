@@ -150,22 +150,8 @@ class ModelConfig:
         )
         return DEFAULT_EMBEDDING_DIMENSIONALITY
 
-    def get_embedding_output_dimensionality(
-        self, model_name: str | None = None
-    ) -> int:
-        """Return the cached embedding vector dimensionality.
-
-        Args:
-            model_name: Ignored. Present for compatibility with older call sites.
-        """
-
-        if model_name and model_name != self.get_model("embedding"):
-            logger.debug(
-                "Embedding dimensionality requested for %s, but ModelConfig is "
-                "configured for %s. Returning cached dimensionality.",
-                model_name,
-                self.get_model("embedding"),
-            )
+    def get_embedding_output_dimensionality(self) -> int:
+        """Return the cached embedding vector dimensionality."""
         return self.embedding_output_dimensionality
 
 
