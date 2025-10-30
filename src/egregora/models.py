@@ -5,9 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+try:
+    from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+    msg = "`pydantic` is required for egregora's configuration models."
+    raise RuntimeError(msg) from exc
 
 from .types import GroupSlug
 
@@ -28,7 +32,7 @@ class WhatsAppExport:
 class MergeConfig(BaseModel):
     """Configuration for merging multiple groups into a virtual group."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
 
     name: str  # "RC Americas"
     source_groups: list[GroupSlug] = Field(
