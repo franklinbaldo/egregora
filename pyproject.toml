@@ -51,6 +51,7 @@ ranking = []
 lint = [
     "pre-commit>=3.8",
     "ruff>=0.4.4",
+    "types-PyYAML>=6.0.12",
 ]
 
 [project.scripts]
