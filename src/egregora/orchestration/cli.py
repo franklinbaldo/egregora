@@ -5,7 +5,7 @@ import importlib
 import logging
 import os
 import random
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
@@ -34,6 +34,26 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+
+def _make_json_safe(value: Any) -> Any:
+    """Return a JSON-serializable representation of ``value``."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _make_json_safe(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_make_json_safe(item) for item in value]
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:  # pragma: no cover - fallback to raising below
+            pass
+    return str(value)
+
 
 @app.callback()
 def _initialize_cli() -> None:
@@ -1054,6 +1074,9 @@ def gather_context(  # noqa: PLR0913
                     return_records=True,
                 )
                 console.print(f"[green]Found {len(rag_similar_posts)} similar posts[/green]")
+
+        if rag_similar_posts:
+            rag_similar_posts = [_make_json_safe(record) for record in rag_similar_posts]
 
         # Build context structure
         context = {
