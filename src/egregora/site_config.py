@@ -23,8 +23,9 @@ class _ConfigLoader(yaml.SafeLoader):
 
 def _construct_python_name(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> str:
     """Return python/name tags as plain strings."""
-
-    return loader.construct_scalar(node)
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    return ""
 
 
 _ConfigLoader.add_multi_constructor("tag:yaml.org,2002:python/name", _construct_python_name)
@@ -61,9 +62,15 @@ def load_mkdocs_config(start: Path) -> tuple[dict[str, Any], Path | None]:
     """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
     mkdocs_path = find_mkdocs_file(start)
     if not mkdocs_path:
+        logger.debug("mkdocs.yml not found when starting from %s", start)
         return {}, None
 
-    config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+    try:
+        config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+    except yaml.YAMLError as exc:
+        logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+        config = {}
+
     return config, mkdocs_path
 
 

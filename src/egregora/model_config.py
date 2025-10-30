@@ -4,30 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Any, Dict
 
 from .site_config import load_mkdocs_config
-
-
-def load_site_config(output_dir: Path) -> dict:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Dict with egregora config from extra.egregora section
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, using default config")
-        return {}
-
-    egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.debug(f"Loaded site config from {mkdocs_path}")
-    return egregora_config
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 
@@ -58,7 +37,7 @@ class ModelConfig:
     def __init__(
         self,
         cli_model: str | None = None,
-        site_config: dict | None = None,
+        site_config: Dict[str, Any] | None = None,
     ):
         """
         Initialize model config with CLI override and site config.
@@ -190,3 +169,22 @@ class ModelConfig:
         return self.embedding_output_dimensionality
 
 
+def load_site_config(output_dir: Path) -> Dict[str, Any]:
+    """
+    Load egregora configuration from mkdocs.yml if it exists.
+
+    Args:
+        output_dir: Output directory (will look for mkdocs.yml in parent/root)
+
+    Returns:
+        Dict with egregora config from extra.egregora section
+    """
+    config, mkdocs_path = load_mkdocs_config(output_dir)
+
+    if not mkdocs_path:
+        logger.debug("No mkdocs.yml found, using default config")
+        return {}
+
+    egregora_config = config.get("extra", {}).get("egregora", {})
+    logger.debug(f"Loaded site config from {mkdocs_path}")
+    return egregora_config

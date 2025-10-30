@@ -1,5 +1,7 @@
 """LLM-based ranking agent using three-turn conversation protocol."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,9 +9,10 @@ from pathlib import Path
 from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
+from typing import Any
 
 from .elo import calculate_elo_update
-from .genai_utils import call_with_retries_sync
+from ..genai_utils import call_with_retries_sync
 from .store import RankingStore
 
 console = Console()
@@ -26,17 +29,17 @@ CHOOSE_WINNER_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="choose_winner",
             description="Declare which post is better overall",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "winner": {
-                        "type": "string",
-                        "enum": ["A", "B"],
-                        "description": "Which post is better: A or B",
-                    }
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "winner": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        enum=["A", "B"],
+                        description="Which post is better: A or B",
+                    )
                 },
-                "required": ["winner"],
-            },
+                required=["winner"],
+            ),
         )
     ]
 )
@@ -46,24 +49,24 @@ COMMENT_POST_A_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="comment_post_A",
             description="Provide detailed feedback on Post A",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "comment": {
-                        "type": "string",
-                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant.",
-                    },
-                    "stars": {
-                        "type": "integer",
-                        "description": "Star rating 1-5",
-                        "minimum": 1,
-                        "maximum": 5,
-                    },
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "comment": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="Markdown comment, max 250 chars. Reference existing comments if relevant.",
+                    ),
+                    "stars": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Star rating 1-5",
+                        minimum=1,
+                        maximum=5,
+                    ),
                 },
-                "required": ["comment", "stars"],
-            },
+                required=["comment", "stars"],
+            ),
         )
-    ]
+    ],
 )
 
 COMMENT_POST_B_TOOL = genai_types.Tool(
@@ -71,25 +74,28 @@ COMMENT_POST_B_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="comment_post_B",
             description="Provide detailed feedback on Post B",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "comment": {
-                        "type": "string",
-                        "description": "Markdown comment, max 250 chars. Reference existing comments if relevant.",
-                    },
-                    "stars": {
-                        "type": "integer",
-                        "description": "Star rating 1-5",
-                        "minimum": 1,
-                        "maximum": 5,
-                    },
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "comment": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="Markdown comment, max 250 chars. Reference existing comments if relevant.",
+                    ),
+                    "stars": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Star rating 1-5",
+                        minimum=1,
+                        maximum=5,
+                    ),
                 },
-                "required": ["comment", "stars"],
-            },
+                required=["comment", "stars"],
+            ),
         )
-    ]
+    ],
 )
+    
+    
+    
 
 
 def load_post_content(post_path: Path) -> str:
@@ -105,7 +111,7 @@ def load_post_content(post_path: Path) -> str:
     return content.strip()
 
 
-def load_profile(profile_path: Path) -> dict:
+def load_profile(profile_path: Path) -> dict[str, Any]:
     """Load author profile metadata."""
     content = profile_path.read_text()
 
@@ -176,7 +182,7 @@ def save_comparison(  # noqa: PLR0913
     stars_a: int,
     comment_b: str,
     stars_b: int,
-):
+) -> None:
     """Save comparison result to DuckDB."""
     comparison_data = {
         "comparison_id": str(uuid.uuid4()),
@@ -212,22 +218,26 @@ def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tu
     return content_a, content_b
 
 
-def _extract_tool_call_result(response, tool_name: str, arg_names: list[str]) -> dict | None:
+def _extract_tool_call_result(response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]) -> dict[str, Any] | None:
     """Extract tool call arguments from LLM response."""
+    if not response.candidates:
+        return None
+    if not response.candidates[0].content:
+        return None
     if not response.candidates[0].content.parts:
         return None
 
     for part in response.candidates[0].content.parts:
-        if hasattr(part, "function_call") and part.function_call.name == tool_name:
+        if hasattr(part, "function_call") and part.function_call and part.function_call.args and part.function_call.name == tool_name:
             return {arg: part.function_call.args[arg] for arg in arg_names}
 
     return None
 
 
-def _run_turn1_choose_winner(  # noqa: PLR0913
+def _run_turn1_choose_winner(  # noqa: PLR0913 # type: ignore[no-untyped-def]
     client: genai.Client,
     model: str,
-    profile: dict,
+    profile: dict[str, Any],
     post_a_id: str,
     post_b_id: str,
     content_a: str,
@@ -272,7 +282,7 @@ def _run_turn2_comment_post_a(  # noqa: PLR0913
     winner: str,
     post_a_id: str,
     content_a: str,
-    existing_comments_a: str,
+    existing_comments_a: str | None,
 ) -> tuple[str, int]:
     """Run turn 2: Comment on Post A."""
     console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
@@ -325,7 +335,7 @@ def _run_turn3_comment_post_b(  # noqa: PLR0913
     winner: str,
     post_b_id: str,
     content_b: str,
-    existing_comments_b: str,
+    existing_comments_b: str | None,
 ) -> tuple[str, int]:
     """Run turn 3: Comment on Post B."""
     console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
@@ -379,7 +389,7 @@ def run_comparison(  # noqa: PLR0913
     profile_path: Path,
     api_key: str,
     model: str = "models/gemini-flash-latest",
-) -> dict:
+) -> dict[str, Any]:
     """
     Run a three-turn comparison between two posts.
 

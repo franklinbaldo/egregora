@@ -16,7 +16,12 @@ import importlib
 import json
 import logging
 import math
+import numbers
 from collections.abc import Iterable, Mapping, Sequence
+from typing import Any, Optional, Type, TYPE_CHECKING, cast, Callable
+
+if TYPE_CHECKING:
+    import pandas as pd
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
@@ -91,14 +96,14 @@ def _load_freeform_memory(output_dir: Path) -> str:
 
 
 @lru_cache(maxsize=1)
-def _pandas_dataframe_type():
+def _pandas_dataframe_type() -> Type[pd.DataFrame] | None:
     """Return the pandas DataFrame type when pandas is available."""
 
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.DataFrame  # type: ignore[attr-defined]
+    return pandas_module.DataFrame
 
 
 @lru_cache(maxsize=1)
@@ -109,13 +114,37 @@ def _pandas_na_singleton() -> Any | None:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         return None
-    return pandas_module.NA  # type: ignore[attr-defined]
+    return pandas_module.NA
 
 
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
-    if value is None or (isinstance(value, float) and math.isnan(value)):
+
+    if isinstance(value, str):
+        return value
+    if value is None:
         return ""
+    if isinstance(value, pa.Scalar):  # pragma: no branch - defensive conversion
+        if not value.is_valid:
+            return ""
+        return _stringify_value(value.as_py())
+    pandas_na = _pandas_na_singleton()
+    if pandas_na is not None and value is pandas_na:
+        return ""
+    if value is getattr(pa, "NA", None):
+        return ""
+    if isinstance(value, numbers.Real):
+        try:
+            if math.isnan(value):
+                return ""
+        except TypeError:  # pragma: no cover - Decimal('NaN') and similar types
+            pass
+    else:  # pragma: no branch - defensive guard for exotic numeric types
+        try:
+            if math.isnan(value):
+                return ""
+        except TypeError:
+            pass
     return str(value)
 
 
@@ -227,18 +256,19 @@ def _table_to_records(
         return records, column_names
 
     dataframe_type = _pandas_dataframe_type()
-    if dataframe_type is not None and isinstance(data, dataframe_type):  # type: ignore[arg-type]
-        column_names = [str(column) for column in data.columns]
-        return data.to_dict("records"), column_names
+    if dataframe_type is not None and isinstance(data, dataframe_type):
+        df_column_names = [str(column) for column in data.columns]
+        df_records = [{str(k): v for k, v in record.items()} for record in data.to_dict("records")]
+        return df_records, df_column_names
 
     if isinstance(data, Iterable):
-        records = [dict(row) for row in data]
-        column_names: list[str] = []
-        for record in records:
+        iter_records = [{str(k): v for k, v in row.items()} for row in data]
+        iter_column_names: list[str] = []
+        for record in iter_records:
             for key in record:
-                if key not in column_names:
-                    column_names.append(str(key))
-        return records, column_names
+                if key not in iter_column_names:
+                    iter_column_names.append(str(key))
+        return iter_records, iter_column_names
 
     raise TypeError("Unsupported data source for markdown rendering")
 
@@ -334,7 +364,7 @@ class PostMetadata(BaseModel):
 
 
 @lru_cache(maxsize=1)
-def _writer_tools() -> list[genai_types.Tool]:
+def _writer_tools() -> Sequence[genai_types.Tool]:
     """Return tool definitions compatible with the google.genai SDK."""
     metadata_schema = genai_types.Schema(
         type=genai_types.Type.OBJECT,
@@ -501,7 +531,7 @@ def _writer_tools() -> list[genai_types.Tool]:
     ]
 
 
-def load_site_config(output_dir: Path) -> dict:
+def load_site_config(output_dir: Path) -> dict[str, Any]:
     """
     Load egregora configuration from mkdocs.yml if it exists.
 
@@ -668,7 +698,7 @@ def _load_profiles_context(df: Table, profiles_dir: Path) -> str:
 
 
 def _handle_write_post_tool(
-    fn_args: dict, fn_call, output_dir: Path, saved_posts: list[str]
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path, saved_posts: list[str]
 ) -> genai_types.Content:
     """Handle write_post tool call."""
     content = fn_args.get("content", "")
@@ -690,7 +720,7 @@ def _handle_write_post_tool(
     )
 
 
-def _handle_read_profile_tool(fn_args: dict, fn_call, profiles_dir: Path) -> genai_types.Content:
+def _handle_read_profile_tool(fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path) -> genai_types.Content:
     """Handle read_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
     profile_content = read_profile(author_uuid, profiles_dir)
@@ -710,7 +740,7 @@ def _handle_read_profile_tool(fn_args: dict, fn_call, profiles_dir: Path) -> gen
 
 
 def _handle_write_profile_tool(
-    fn_args: dict, fn_call, profiles_dir: Path, saved_profiles: list[str]
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path, saved_profiles: list[str]
 ) -> genai_types.Content:
     """Handle write_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
@@ -733,8 +763,8 @@ def _handle_write_profile_tool(
 
 
 def _handle_search_media_tool(  # noqa: PLR0913
-    fn_args: dict,
-    fn_call,
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
     batch_client: GeminiBatchClient,
     rag_dir: Path,
     *,
@@ -813,8 +843,8 @@ def _handle_search_media_tool(  # noqa: PLR0913
 
 
 def _handle_annotate_conversation_tool(
-    fn_args: dict,
-    fn_call,
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
     annotations_store: AnnotationStore | None,
 ) -> genai_types.Content:
     """Persist annotation data using the AnnotationStore."""
@@ -833,6 +863,8 @@ def _handle_annotate_conversation_tool(
     if parent_raw in (None, ""):
         parent_annotation_id = None
     else:
+        if not isinstance(parent_raw, str):
+            raise ValueError("parent_annotation_id must be a string or None")
         try:
             parent_annotation_id = int(parent_raw)
         except (TypeError, ValueError) as exc:
@@ -868,7 +900,7 @@ def _handle_annotate_conversation_tool(
     )
 
 
-def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.Content:
+def _handle_tool_error(fn_call: genai_types.FunctionCall, fn_name: str, error: Exception) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
         role="user",
@@ -885,7 +917,7 @@ def _handle_tool_error(fn_call, fn_name: str, error: Exception) -> genai_types.C
 
 
 def _process_tool_calls(  # noqa: PLR0913
-    candidate,
+    candidate: genai_types.Candidate,
     output_dir: Path,
     profiles_dir: Path,
     saved_posts: list[str],
@@ -986,13 +1018,13 @@ def _index_posts_in_rag(
 
 def write_posts_for_period(  # noqa: PLR0913, PLR0915
     df: Table,
-    date: str,
+    period_date: str,
     client: genai.Client,
     batch_client: GeminiBatchClient,
     output_dir: Path = Path("output/posts"),
     profiles_dir: Path = Path("output/profiles"),
     rag_dir: Path = Path("output/rag"),
-    model_config=None,
+    model_config: ModelConfig | None = None,
     enable_rag: bool = True,
     embedding_output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
@@ -1011,7 +1043,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
 
     Args:
         df: Table with messages for the period (already enriched)
-        date: Period identifier (e.g., "2025-01-01")
+        period_date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         output_dir: Where to save posts
         profiles_dir: Where to save author profiles
@@ -1089,7 +1121,7 @@ Use these features appropriately in your posts. You understand how each extensio
 
     # Build prompt
     prompt = render_writer_prompt(
-        date=date,
+        date=period_date,
         markdown_table=markdown_table,
         active_authors=", ".join(active_authors),
         custom_instructions=custom_writer_prompt or "",
@@ -1102,7 +1134,7 @@ Use these features appropriately in your posts. You understand how each extensio
 
     # Setup conversation
     config = genai_types.GenerateContentConfig(
-        tools=_writer_tools(),
+        tools=cast(list[genai_types.Tool | Callable[..., Any]], _writer_tools()),
         temperature=0.7,
     )
     messages: list[genai_types.Content] = [
@@ -1156,7 +1188,7 @@ Use these features appropriately in your posts. You understand how each extensio
                     part.strip() for part in freeform_parts if part and part.strip()
                 )
                 if freeform_content:
-                    freeform_path = _write_freeform_markdown(freeform_content, date, output_dir)
+                    freeform_path = _write_freeform_markdown(freeform_content, period_date, output_dir)
                     saved_posts.append(str(freeform_path))
             break
 

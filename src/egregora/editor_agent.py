@@ -12,15 +12,20 @@ Documentation:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 
 from google import genai
 from google.genai import types as genai_types
 
+import ibis
+from ibis.expr.types import Table
+
 from .editor import DocumentSnapshot, Editor
+from .gemini_batch import GeminiBatchClient
 from .genai_utils import call_with_retries
 from .model_config import ModelConfig
 from .prompt_templates import render_editor_prompt
-from .rag import query_similar_posts
+from .rag import query_similar_posts, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,7 @@ class EditorResult:
     decision: str  # "publish" or "hold"
     notes: str
     edits_made: bool
-    tool_calls: list[dict]  # Log of all tool calls made
+    tool_calls: list[dict[str, Any]]  # Log of all tool calls made
 
 
 # Gemini Function Declarations for Editor Tools
@@ -42,18 +47,18 @@ EDIT_LINE_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="edit_line",
             description="Replace a single line in the document",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "expect_version": {
-                        "type": "integer",
-                        "description": "Expected document version (for optimistic concurrency)",
-                    },
-                    "index": {"type": "integer", "description": "Line index to edit (0-based)"},
-                    "new": {"type": "string", "description": "New content for this line"},
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "expect_version": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Expected document version (for optimistic concurrency)",
+                    ),
+                    "index": genai_types.Schema(type=genai_types.Type.INTEGER, description="Line index to edit (0-based)"),
+                    "new": genai_types.Schema(type=genai_types.Type.STRING, description="New content for this line"),
                 },
-                "required": ["expect_version", "index", "new"],
-            },
+                required=["expect_version", "index", "new"],
+            ),
         )
     ]
 )
@@ -63,17 +68,17 @@ FULL_REWRITE_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="full_rewrite",
             description="Replace the entire document content",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "expect_version": {
-                        "type": "integer",
-                        "description": "Expected document version",
-                    },
-                    "content": {"type": "string", "description": "New complete document content"},
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "expect_version": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Expected document version",
+                    ),
+                    "content": genai_types.Schema(type=genai_types.Type.STRING, description="New complete document content"),
                 },
-                "required": ["expect_version", "content"],
-            },
+                required=["expect_version", "content"],
+            ),
         )
     ]
 )
@@ -83,21 +88,21 @@ QUERY_RAG_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="query_rag",
             description="Search past Egregora posts and enrichments for relevant context. Use this to find related discussions, definitions, or examples from previous posts.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')",
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum results to return (default 5)",
-                        "default": 5,
-                    },
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "query": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')",
+                    ),
+                    "max_results": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Maximum results to return (default 5)",
+                        default=5,
+                    ),
                 },
-                "required": ["query"],
-            },
+                required=["query"],
+            ),
         )
     ]
 )
@@ -116,13 +121,13 @@ Use cases:
 - "Suggest 3 alternative titles for this section"
 - "What's a clearer way to explain X?"
 """,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string", "description": "Question to ask the LLM"}
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "question": genai_types.Schema(type=genai_types.Type.STRING, description="Question to ask the LLM")
                 },
-                "required": ["question"],
-            },
+                required=["question"],
+            ),
         )
     ]
 )
@@ -132,25 +137,21 @@ FINISH_TOOL = genai_types.Tool(
         genai_types.FunctionDeclaration(
             name="finish",
             description="Mark editing complete. Call this when satisfied with the post (with or without edits) or when it needs human review.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "expect_version": {
-                        "type": "integer",
-                        "description": "Expected document version",
-                    },
-                    "decision": {
-                        "type": "string",
-                        "enum": ["publish", "hold"],
-                        "description": "publish: post is ready | hold: needs human review",
-                    },
-                    "notes": {
-                        "type": "string",
-                        "description": "Summary of changes made or reason for holding",
-                    },
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "expect_version": genai_types.Schema(
+                        type=genai_types.Type.INTEGER,
+                        description="Expected document version",
+                    ),
+                    "decision": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        enum=["publish", "hold"],
+                        description="publish: post is ready | hold: needs human review",
+                    ),
                 },
-                "required": ["expect_version", "decision", "notes"],
-            },
+                required=["expect_version", "decision"],
+            ),
         )
     ]
 )
@@ -181,26 +182,36 @@ async def _query_rag_tool(
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 
-    results = await query_similar_posts(
-        query=query,
-        rag_dir=rag_dir,
-        client=client,
-        model_config=model_config,
-        max_results=max_results,
-    )
+    try:
+        store = VectorStore(rag_dir / "chunks.parquet")
+        embedding_model = model_config.get_model("embedding")
+        # Create a dummy DataFrame for query_similar_posts
+        dummy_df = ibis.memtable({"query_text": [query]})
 
-    if not results:
-        return f"No relevant results found for: {query}"
+        results = await query_similar_posts(
+            df=dummy_df,
+            batch_client=GeminiBatchClient(client, default_model=model_config.get_model("embedding")),
+            store=store,
+            embedding_model=embedding_model,
+            top_k=max_results,
+        )
 
-    # Format results for editor
-    formatted = [f"RAG Results for '{query}':\n"]
-    for i, result in enumerate(results, 1):
-        formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
-        formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
-        formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
-        formatted.append("")
+        if not results:
+            return f"No relevant results found for: {query}"
 
-    return "\n".join(formatted)
+        # Format results for editor
+        formatted = [f"RAG Results for '{query}':\n"]
+        for i, result in enumerate(results, 1):
+            formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
+            formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
+            formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
+            formatted.append("")
+
+        return "\n".join(formatted)
+
+    except Exception as e:
+        logger.error(f"RAG query failed: {e}")
+        return f"RAG query failed: {str(e)}"
 
 
 async def _ask_llm_tool(
@@ -234,7 +245,7 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
     client: genai.Client,
     model_config: ModelConfig,
     rag_dir: Path,
-    context: dict | None = None,
+    context: dict[str, Any] | None = None,
     max_turns: int = 15,
 ) -> EditorResult:
     """
@@ -329,42 +340,39 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                             result_str = str(result)
 
                         elif fc_name == "ask_llm":
-                            result = await _ask_llm_tool(
+                            result_str = await _ask_llm_tool(
                                 question=fc_args.get("question", ""),
                                 client=client,
                                 model=model,
                             )
-                            result_str = str(result)
 
                         elif fc_name == "edit_line":
-                            result = editor.edit_line(
+                            result_dict = editor.edit_line(
                                 expect_version=fc_args.get("expect_version", 0),
                                 index=fc_args.get("index", 0),
                                 new=fc_args.get("new", ""),
                             )
-                            result_str = str(result)
 
                         elif fc_name == "full_rewrite":
-                            result = editor.full_rewrite(
+                            result_dict = editor.full_rewrite(
                                 expect_version=fc_args.get("expect_version", 0),
                                 content=fc_args.get("content", ""),
                             )
-                            result_str = str(result)
 
                         elif fc_name == "finish":
-                            result = editor.finish(
+                            result_dict = editor.finish(
                                 expect_version=fc_args.get("expect_version", 0),
                                 decision=fc_args.get("decision", "hold"),
                                 notes=fc_args.get("notes", ""),
                             )
 
                             # Check if finish was successful
-                            if result.get("ok"):
-                                logger.info(f"Editor finished: {result}")
+                            if result_dict.get("ok"):
+                                logger.info(f"Editor finished: {result_dict}")
                                 return EditorResult(
                                     final_content=snapshot_to_markdown(editor.snapshot),
-                                    decision=result.get("decision", "hold"),
-                                    notes=result.get("notes", ""),
+                                    decision=result_dict.get("decision", "hold"),
+                                    notes=result_dict.get("notes", ""),
                                     edits_made=editor.snapshot.version > 1,
                                     tool_calls=tool_calls_log,
                                 )

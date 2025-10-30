@@ -21,8 +21,14 @@ def _resolve_level() -> int:
     """Return the logging level defined via environment variable."""
 
     level_name = os.getenv(_LOG_LEVEL_ENV, _DEFAULT_LEVEL_NAME).upper()
-    level = getattr(logging, level_name, logging.INFO)
-    return level
+    level = getattr(logging, level_name, None)
+    if isinstance(level, int):
+        return level
+
+        console.print(
+            f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]"
+        )
+    return logging.INFO
 
 
 def configure_logging() -> None:
@@ -48,12 +54,11 @@ def configure_logging() -> None:
             markup=True,
         )
         handler.setFormatter(logging.Formatter("%(message)s"))
-        handler._egregora_managed = True  # type: ignore[attr-defined]
+        handler._egregora_managed = True
         root_logger.addHandler(handler)
     else:
         handler = managed_handler
         handler.markup = True
-        handler.show_path = False
 
     root_logger.setLevel(level)
 

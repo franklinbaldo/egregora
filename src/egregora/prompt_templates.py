@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -154,7 +155,7 @@ def render_editor_prompt(
     doc_id: str,
     version: int,
     lines: dict[int, str],
-    context: dict | None = None,
+    context: dict[str, Any] | None = None,
 ) -> str:
     """
     Render editor system prompt from Jinja template.

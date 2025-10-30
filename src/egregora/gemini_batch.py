@@ -13,6 +13,8 @@ from google.genai import types as genai_types
 
 from .genai_utils import call_with_retries_sync, sleep_with_progress_sync
 
+_T = TypeVar("_T")
+
 logger = logging.getLogger(__name__)
 
 
@@ -285,7 +287,7 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests[T](items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
+def chunk_requests(items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
         raise ValueError("Batch size must be positive")

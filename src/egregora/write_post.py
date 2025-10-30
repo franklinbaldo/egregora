@@ -48,15 +48,20 @@ def write_post(
 
     validate_newsletter_privacy(content)
 
-    front_matter = {
-        "title": metadata["title"],
-        "date": metadata["date"],
-        "slug": metadata["slug"],
-        "tags": metadata.get("tags"),
-        "summary": metadata.get("summary"),
-        "authors": metadata.get("authors"),
-        "category": metadata.get("category"),
-    }
+    front_matter = {}
+    front_matter["title"] = metadata["title"]
+    front_matter["date"] = metadata["date"]
+
+    if "slug" in metadata:
+        front_matter["slug"] = metadata["slug"]
+    if "tags" in metadata:
+        front_matter["tags"] = metadata["tags"]
+    if "summary" in metadata:
+        front_matter["summary"] = metadata["summary"]
+    if "authors" in metadata:
+        front_matter["authors"] = metadata["authors"]
+    if "category" in metadata:
+        front_matter["category"] = metadata["category"]
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True)
 

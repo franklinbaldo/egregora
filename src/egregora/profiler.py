@@ -58,6 +58,12 @@ def write_profile(
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
 
+    # Validation: ensure no PII leakage
+    if any(
+        suspicious in content.lower()
+        for suspicious in ["phone", "email", "@", "whatsapp", "real name"]
+    ):
+        logger.warning(f"Profile for {author_uuid} contains suspicious content")
 
     profile_path.write_text(content, encoding="utf-8")
     logger.info(f"Saved profile for {author_uuid} to {profile_path}")
@@ -100,7 +106,11 @@ def get_active_authors(df: Any) -> list[str]:
             authors = list(column)
 
     # Filter out system and enrichment entries
-    return [author for author in authors if author not in ("system", "egregora", None, "")]
+    return [
+        author
+        for author in authors
+        if author is not None and author not in ("system", "egregora", "")
+    ]
 
 
 def _validate_alias(alias: str) -> str | None:
@@ -145,7 +155,7 @@ def _validate_alias(alias: str) -> str | None:
 
 def apply_command_to_profile(
     author_uuid: str,
-    command: dict,
+    command: dict[str, Any],
     timestamp: str,
     profiles_dir: Path = Path("output/profiles"),
 ) -> str:
@@ -180,8 +190,11 @@ def apply_command_to_profile(
 
     if cmd_type == "set" and target == "alias":
         # Validate and sanitize alias
-        value = _validate_alias(value)
-        if not value:
+        if not isinstance(value, str):
+            logger.warning(f"Invalid alias for {author_uuid} (not a string)")
+            return str(profile_path)
+        validated_value = _validate_alias(value)
+        if not validated_value:
             logger.warning(f"Invalid alias for {author_uuid} (rejected)")
             return str(profile_path)
 
@@ -189,7 +202,7 @@ def apply_command_to_profile(
             content,
             "Display Preferences",
             "alias",
-            f'- Alias: "{value}" (set on {timestamp})\n- Public: true',
+            f'- Alias: "{validated_value}" (set on {timestamp})\n- Public: true',
         )
         logger.info(f"Set alias for {author_uuid}")  # No PII in logs
 
@@ -321,7 +334,7 @@ def get_author_display_name(
 
 
 def process_commands(
-    commands: list[dict],
+    commands: list[dict[str, Any]],
     profiles_dir: Path = Path("output/profiles"),
 ) -> int:
     """

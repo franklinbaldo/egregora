@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import duckdb
 import ibis
@@ -40,7 +40,7 @@ class RankingStore:
 
         logger.info(f"Ranking store initialized: {self.db_path}")
 
-    def _init_schema(self):
+    def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
         # ELO ratings table
         self.conn.execute("""
@@ -111,15 +111,16 @@ class RankingStore:
                 ON CONFLICT (post_id) DO NOTHING
             """,
                 [post_id, now],
-            )
-            inserted += result.fetchone()[0]  # Returns number of rows inserted
+            ).fetchone()
+            if result is not None:
+                inserted += result[0]
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
 
         return inserted
 
-    def get_rating(self, post_id: str) -> dict | None:
+    def get_rating(self, post_id: str) -> Dict[str, Any] | None:
         """
         Get rating for a specific post.
 
@@ -136,7 +137,7 @@ class RankingStore:
             [post_id],
         ).fetchone()
 
-        if result:
+        if result is not None:
             return {"elo_global": result[0], "games_played": result[1]}
         return None
 
@@ -179,7 +180,7 @@ class RankingStore:
 
         return new_elo_a, new_elo_b
 
-    def save_comparison(self, comparison_data: dict):
+    def save_comparison(self, comparison_data: Dict[str, Any]) -> None:
         """
         Save comparison to history.
 
@@ -327,7 +328,7 @@ class RankingStore:
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
         return ibis.memtable(self._arrow_to_pydict(result))
 
-    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
+    def _arrow_to_pydict(self, arrow_object: Any) -> Dict[str, Any]:
         """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
         if isinstance(arrow_object, pa.RecordBatchReader):
@@ -363,7 +364,7 @@ class RankingStore:
 
         return table.to_pydict()
 
-    def export_to_parquet(self):
+    def export_to_parquet(self) -> None:
         """
         Export DuckDB tables to Parquet for sharing/analytics.
 
@@ -383,36 +384,36 @@ class RankingStore:
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
-    def stats(self) -> dict:
+    def stats(self) -> Dict[str, Any]:
         """
         Get ranking store statistics.
 
         Returns:
             dict with stats about ratings and history
         """
-        ratings_count = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()[0]
-        comparisons_count = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()[0]
+        ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
+        ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
 
-        avg_games = (
-            self.conn.execute("""
+        comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
+        comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
+
+        avg_games_result = self.conn.execute(
+            """
             SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()[0]
-            or 0
-        )
+        """).fetchone()
+        avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
 
-        top_elo = (
-            self.conn.execute("""
+        top_elo_result = self.conn.execute(
+            """
             SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
-        )
+        """).fetchone()
+        top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
 
-        bottom_elo = (
-            self.conn.execute("""
+        bottom_elo_result = self.conn.execute(
+            """
             SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()[0]
-            or 1500
-        )
+        """).fetchone()
+        bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
 
         return {
             "total_posts": ratings_count,

@@ -95,5 +95,9 @@ def _ensure_safe_path(member_name: str) -> None:
     if path.is_absolute():
         raise ZipValidationError(f"ZIP member uses absolute path: {member_name}")
 
-    if ".." in path.parts:
+    if any(part == ".." for part in path.parts):
         raise ZipValidationError(f"ZIP member attempts path traversal: {member_name}")
+
+    # Reject Windows drive prefixes such as C:\foo
+    if path.drive:
+        raise ZipValidationError(f"ZIP member uses unsupported drive prefix: {member_name}")

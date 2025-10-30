@@ -16,7 +16,7 @@ import uuid
 import zipfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -219,14 +219,14 @@ async def enrich_media(
     return str(enrichment_path)
 
 
-def _ensure_datetime(value):
+def _ensure_datetime(value: Any) -> datetime:
     """Convert pandas/ibis timestamp objects to ``datetime``."""
     if hasattr(value, "to_pydatetime"):
         return value.to_pydatetime()
     return value
 
 
-def _safe_timestamp_plus_one(timestamp) -> Any:
+def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
@@ -575,7 +575,7 @@ def enrich_dataframe(
 
                 enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
                 enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
-                job = UrlEnrichmentJob(
+                url_job = UrlEnrichmentJob(
                     key=cache_key,
                     url=url,
                     original_message=message,
@@ -587,10 +587,10 @@ def enrich_dataframe(
 
                 cache_entry = cache.load(cache_key)
                 if cache_entry:
-                    job.markdown = cache_entry.get("markdown")
-                    job.cached = True
+                    url_job.markdown = cache_entry.get("markdown")
+                    url_job.cached = True
 
-                url_jobs.append(job)
+                url_jobs.append(url_job)
                 seen_url_keys.add(cache_key)
                 enrichment_count += 1
 
@@ -610,7 +610,7 @@ def enrich_dataframe(
 
                     enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
                     enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
-                    job = MediaEnrichmentJob(
+                    media_job = MediaEnrichmentJob(
                         key=cache_key,
                         original_filename=original_filename,
                         file_path=file_path,
@@ -624,26 +624,26 @@ def enrich_dataframe(
 
                     cache_entry = cache.load(cache_key)
                     if cache_entry:
-                        job.markdown = cache_entry.get("markdown")
-                        job.cached = True
+                        media_job.markdown = cache_entry.get("markdown")
+                        media_job.cached = True
 
-                    media_jobs.append(job)
+                    media_jobs.append(media_job)
                     seen_media_keys.add(cache_key)
                     enrichment_count += 1
 
-    pending_url_jobs = [job for job in url_jobs if job.markdown is None]
+    pending_url_jobs = [url_job for url_job in url_jobs if url_job.markdown is None]
     if pending_url_jobs:
         url_records = []
-        for job in pending_url_jobs:
-            ts = _ensure_datetime(job.timestamp)
+        for url_job in pending_url_jobs:
+            ts = _ensure_datetime(url_job.timestamp)
             prompt = render_url_enrichment_detailed_prompt(
-                url=job.url,
-                original_message=job.original_message,
-                sender_uuid=job.sender_uuid,
+                url=url_job.url,
+                original_message=url_job.original_message,
+                sender_uuid=url_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
-            url_records.append({"tag": job.tag, "prompt": prompt})
+            url_records.append({"tag": url_job.tag, "prompt": prompt})
 
         url_table = ibis.memtable(url_records)
         requests = build_batch_requests(_table_to_pylist(url_table), url_model)
@@ -654,136 +654,136 @@ def enrich_dataframe(
         )
 
         result_map = map_batch_results(responses)
-        for job in pending_url_jobs:
-            result = result_map.get(job.tag)
+        for url_job in pending_url_jobs:
+            result = result_map.get(url_job.tag)
             if not result or result.error or not result.response:
-                logger.warning("Failed to enrich URL %s: %s", job.url, result.error if result else "no result")
-                job.markdown = f"[Failed to enrich URL: {job.url}]"
+                logger.warning("Failed to enrich URL %s: %s", url_job.url, result.error if result else "no result")
+                url_job.markdown = f"[Failed to enrich URL: {url_job.url}]"
                 continue
 
             markdown_content = (result.response.text or "").strip()
             if not markdown_content:
-                markdown_content = f"[No enrichment generated for URL: {job.url}]"
+                markdown_content = f"[No enrichment generated for URL: {url_job.url}]"
 
-            job.markdown = markdown_content
-            cache.store(job.key, {"markdown": markdown_content, "type": "url"})
+            url_job.markdown = markdown_content
+            cache.store(url_job.key, {"markdown": markdown_content, "type": "url"})
 
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
     if pending_media_jobs:
         media_records = []
-        for job in pending_media_jobs:
+        for media_job in pending_media_jobs:
             uploaded_file = vision_batch_client.upload_file(
-                path=str(job.file_path),
-                display_name=job.file_path.name,
+                path=str(media_job.file_path),
+                display_name=media_job.file_path.name,
             )
-            job.upload_uri = getattr(uploaded_file, "uri", None)
-            job.mime_type = getattr(uploaded_file, "mime_type", None)
+            media_job.upload_uri = getattr(uploaded_file, "uri", None)
+            media_job.mime_type = getattr(uploaded_file, "mime_type", None)
 
-            ts = _ensure_datetime(job.timestamp)
+            ts = _ensure_datetime(media_job.timestamp)
             try:
-                media_path = job.file_path.relative_to(docs_dir)
+                media_path = media_job.file_path.relative_to(docs_dir)
             except ValueError:
-                media_path = job.file_path
+                media_path = media_job.file_path
 
             prompt = render_media_enrichment_detailed_prompt(
-                media_type=job.media_type,
-                media_filename=job.file_path.name,
+                media_type=media_job.media_type or "unknown",
+                media_filename=media_job.file_path.name,
                 media_path=str(media_path),
-                original_message=job.original_message,
-                sender_uuid=job.sender_uuid,
+                original_message=media_job.original_message,
+                sender_uuid=media_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
             media_records.append(
                 {
-                    "tag": job.tag,
+                    "tag": media_job.tag,
                     "prompt": prompt,
-                    "file_uri": job.upload_uri,
-                    "mime_type": job.mime_type,
+                    "file_uri": media_job.upload_uri,
+                    "mime_type": media_job.mime_type,
                 }
             )
 
-        responses: list[BatchPromptResult] = []
+        media_responses: list[BatchPromptResult] = []
         if media_records:
             media_table = ibis.memtable(media_records)
             records = _table_to_pylist(media_table)
             requests = build_batch_requests(records, vision_model, include_file=True)
 
             if requests:
-                responses = vision_batch_client.generate_content(
+                media_responses = vision_batch_client.generate_content(
                     requests,
                     display_name="Egregora Media Enrichment",
                 )
 
-        result_map = map_batch_results(responses)
-        for job in pending_media_jobs:
-            if job.markdown is not None:
+        result_map = map_batch_results(media_responses)
+        for media_job in pending_media_jobs:
+            if media_job.markdown is not None:
                 continue
 
-            result = result_map.get(job.tag)
+            result = result_map.get(media_job.tag)
             if not result or result.error or not result.response:
                 logger.warning(
                     "Failed to enrich media %s: %s",
-                    job.file_path.name,
+                    media_job.file_path.name,
                     result.error if result else "no result",
                 )
-                job.markdown = f"[Failed to enrich media: {job.file_path.name}]"
+                media_job.markdown = f"[Failed to enrich media: {media_job.file_path.name}]"
                 continue
 
             markdown_content = (result.response.text or "").strip()
             if not markdown_content:
-                markdown_content = f"[No enrichment generated for media: {job.file_path.name}]"
+                markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
 
             if "PII_DETECTED" in markdown_content:
                 logger.warning(
                     "PII detected in media: %s. Media will be deleted after redaction.",
-                    job.file_path.name,
+                    media_job.file_path.name,
                 )
                 markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
                 try:
-                    job.file_path.unlink()
-                    logger.info("Deleted media file containing PII: %s", job.file_path)
+                    media_job.file_path.unlink()
+                    logger.info("Deleted media file containing PII: %s", media_job.file_path)
                     pii_media_deleted = True
                     pii_detected_count += 1
                 except Exception as delete_error:
-                    logger.error("Failed to delete %s: %s", job.file_path, delete_error)
+                    logger.error("Failed to delete %s: %s", media_job.file_path, delete_error)
 
-            job.markdown = markdown_content
-            cache.store(job.key, {"markdown": markdown_content, "type": "media"})
+            media_job.markdown = markdown_content
+            cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
 
-    for job in url_jobs:
-        if not job.markdown:
+    for url_job in url_jobs:
+        if not url_job.markdown:
             continue
 
-        job.path.parent.mkdir(parents=True, exist_ok=True)
-        job.path.write_text(job.markdown, encoding="utf-8")
+        url_job.path.parent.mkdir(parents=True, exist_ok=True)
+        url_job.path.write_text(url_job.markdown, encoding="utf-8")
 
-        enrichment_timestamp = _safe_timestamp_plus_one(job.timestamp)
+        enrichment_timestamp = _safe_timestamp_plus_one(url_job.timestamp)
         new_rows.append(
             {
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[URL Enrichment] {job.url}\\nEnrichment saved: {job.path}",
+                "message": f"[URL Enrichment] {url_job.url}\nEnrichment saved: {url_job.path}",
                 "original_line": "",
                 "tagged_line": "",
             }
         )
 
-    for job in media_jobs:
-        if not job.markdown:
+    for media_job in media_jobs:
+        if not media_job.markdown:
             continue
 
-        job.path.parent.mkdir(parents=True, exist_ok=True)
-        job.path.write_text(job.markdown, encoding="utf-8")
+        media_job.path.parent.mkdir(parents=True, exist_ok=True)
+        media_job.path.write_text(media_job.markdown, encoding="utf-8")
 
-        enrichment_timestamp = _safe_timestamp_plus_one(job.timestamp)
+        enrichment_timestamp = _safe_timestamp_plus_one(media_job.timestamp)
         new_rows.append(
             {
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[Media Enrichment] {job.file_path.name}\\nEnrichment saved: {job.path}",
+                "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
                 "original_line": "",
                 "tagged_line": "",
             }
