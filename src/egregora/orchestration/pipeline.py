@@ -123,7 +123,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-    client: genai.client.Client | None = None,
+    client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Complete pipeline: ZIP → posts + profiles.
@@ -420,7 +420,7 @@ def process_whatsapp_export(  # noqa: PLR0912, PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-    client: genai.client.Client | None = None,
+    client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Public entry point that manages DuckDB/Ibis backend state for processing."""
 

@@ -8,8 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from google import genai
-from google.generativeai.client import File, GenerativeModel
-from google.generativeai.types import content_types
+from google.genai import types as genai_types
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class GeminiClientRecorder:
         model.generate_content(...)
     """
 
-    def __init__(self, client: genai.client.Client, output_dir: Path):
+    def __init__(self, client: genai.Client, output_dir: Path):
         """
         Initializes the recorder.
 
@@ -45,39 +44,67 @@ class GeminiClientRecorder:
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_model(self, model_name: str) -> "GenerativeModel":
-        """
-        Gets a model and wraps it to record its API calls.
-        """
-        model = self._client.get_model(model_name)
-        # It's easier to just monkey-patch the methods on the model instance
-        # than to create a full wrapper class for GenerativeModel.
-        original_embed_content = model.embed_content
-        original_generate_content = model.generate_content
+    def embed_content(self, **kwargs):
+        """Record embedding API calls."""
+        response = self._client.embed_content(**kwargs)
+        # Convert response to dict for serialization
+        response_dict = dict(response)
+        self._record_request("embeddings", kwargs, response_dict)
+        return response
 
-        def recorded_embed_content(*args, **kwargs):
-            response = original_embed_content(*args, **kwargs)
-            self._record_request("embeddings", kwargs, response)
-            return response
+    def models(self):
+        """Provide access to models with recording."""
+        # Return a wrapper that records generate_content calls
+        class ModelsWrapper:
+            def __init__(self, client, recorder):
+                self._client = client
+                self._recorder = recorder
 
-        def recorded_generate_content(*args, **kwargs):
-            response = original_generate_content(*args, **kwargs)
-            # The response object from generate_content is complex, so we convert to dict
-            self._record_request("generation", kwargs, response.to_dict())
-            return response
+            def generate_content(self, **kwargs):
+                response = self._client.models.generate_content(**kwargs)
+                # Convert response to dict
+                response_dict = {
+                    "text": response.text if hasattr(response, 'text') else str(response),
+                    "candidates": [c.to_dict() if hasattr(c, 'to_dict') else str(c)
+                                   for c in (response.candidates if hasattr(response, 'candidates') else [])]
+                }
+                self._recorder._record_request("generation", kwargs, response_dict)
+                return response
 
-        model.embed_content = recorded_embed_content
-        model.generate_content = recorded_generate_content
-        return model
+            def __getattr__(self, name):
+                return getattr(self._client.models, name)
 
-    def upload_file(self, path: str, **kwargs) -> File:
+        return ModelsWrapper(self._client, self)
+
+    def upload_file(self, path: str, **kwargs) -> genai_types.File:
         """
         Records a `upload_file` call.
         """
-        response = self._client.upload_file(path, **kwargs)
+        response = self._client.files.upload(file=path, **kwargs)
         request_data = {"path": str(path), **kwargs}
-        self._record_request("files", request_data, response.to_dict())
+        # Convert File object to dict
+        response_dict = {
+            "name": response.name if hasattr(response, 'name') else str(response),
+            "uri": response.uri if hasattr(response, 'uri') else None,
+        }
+        self._record_request("files", request_data, response_dict)
         return response
+
+    @property
+    def files(self):
+        """Provide access to files API with recording."""
+        class FilesWrapper:
+            def __init__(self, client, recorder):
+                self._client = client
+                self._recorder = recorder
+
+            def upload(self, **kwargs):
+                return self._recorder.upload_file(**kwargs.get('file', kwargs.get('path', '')), **kwargs)
+
+            def __getattr__(self, name):
+                return getattr(self._client.files, name)
+
+        return FilesWrapper(self._client, self)
 
     def _record_request(self, category: str, request_data: Dict, response_data: Dict):
         """
@@ -112,7 +139,14 @@ class GeminiClientRecorder:
     def _prepare_request_for_hashing(self, request_data: Dict) -> Dict:
         """Creates a deep copy of the request and makes it JSON serializable."""
         # Create a deep copy to avoid modifying the original request object
-        data_copy = json.loads(json.dumps(request_data, default=content_types.to_dict))
+        def _convert_to_dict(obj):
+            if hasattr(obj, 'to_dict'):
+                return obj.to_dict()
+            elif hasattr(obj, '__dict__'):
+                return obj.__dict__
+            return str(obj)
+
+        data_copy = json.loads(json.dumps(request_data, default=_convert_to_dict))
         return data_copy
 
 
