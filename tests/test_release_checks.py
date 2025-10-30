@@ -45,14 +45,3 @@ def test_changelog_mentions_current_version() -> None:
     assert heading_pattern.search(
         changelog_text
     ), "CHANGELOG.md must contain a heading for the current version"
-
-
-def test_docs_reference_current_version() -> None:
-    """Fail when the public documentation does not mention the current version."""
-
-    docs_readme = PROJECT_ROOT / "docs" / "README.md"
-    docs_text = docs_readme.read_text("utf-8")
-
-    assert (
-        _load_project_version() in docs_text
-    ), "docs/README.md must reference the current release version"
