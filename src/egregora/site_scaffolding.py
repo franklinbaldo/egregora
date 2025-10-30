@@ -1,6 +1,8 @@
 """Site scaffolding utilities for MkDocs-based Egregora sites."""
 
+from os import PathLike
 from pathlib import Path
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -33,6 +35,18 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
     return docs_dir, created
 
 
+def _ensure_pathlike(value: Any, setting_name: str) -> str | PathLike[str]:
+    """Validate that ``value`` can be used to construct a ``Path``."""
+
+    if isinstance(value, (str, PathLike)):
+        return value
+    message = (
+        f"The '{setting_name}' configuration must be a string or path-like object; "
+        f"got {type(value).__name__} instead."
+    )
+    raise TypeError(message)
+
+
 def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Return the docs directory defined by an existing mkdocs.yml."""
     payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
@@ -41,7 +55,8 @@ def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     if docs_dir_setting in (None, "", "."):
         return site_root
 
-    docs_dir = Path(docs_dir_setting)
+    docs_dir_raw = _ensure_pathlike(docs_dir_setting, "docs_dir")
+    docs_dir = Path(docs_dir_raw)
     if not docs_dir.is_absolute():
         docs_dir = (site_root / docs_dir).resolve()
     return docs_dir
