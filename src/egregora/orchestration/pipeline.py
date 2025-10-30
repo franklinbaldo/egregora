@@ -11,14 +11,14 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
+from ..augmentation.enrichment import enrich_table, extract_and_replace_media
+from ..augmentation.profiler import filter_opted_out_authors, process_commands
 from ..config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
-from ..load.writer import write_posts_for_period
-from ..extract.parser import extract_commands, filter_egregora_messages, parse_export
-from ..rag import VectorStore, index_all_media
-from ..transform.enricher import enrich_table, extract_and_replace_media
-from ..transform.models import WhatsAppExport
-from ..transform.profiler import filter_opted_out_authors, process_commands
-from ..transform.types import GroupSlug
+from ..core.models import WhatsAppExport
+from ..core.types import GroupSlug
+from ..generation.writer import write_posts_for_period
+from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
+from ..knowledge.rag import VectorStore, index_all_media
 from ..utils import CheckpointStore, EnrichmentCache, GeminiBatchClient
 
 logger = logging.getLogger(__name__)

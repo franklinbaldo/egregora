@@ -5,8 +5,8 @@ from pathlib import Path
 
 from ibis.expr.types import Table
 
-from ...rag import VectorStore, query_similar_posts
-from ...transform.profiler import get_active_authors, read_profile
+from ...augmentation.profiler import get_active_authors, read_profile
+from ...knowledge.rag import VectorStore, query_similar_posts
 from ...utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)

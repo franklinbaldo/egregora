@@ -7,10 +7,10 @@ from typing import Any
 
 from google.genai import types as genai_types
 
-from ...pipeline.write_post import write_post
-from ...rag import VectorStore, query_media
-from ...transform.annotations import AnnotationStore
-from ...transform.profiler import read_profile, write_profile
+from ...augmentation.profiler import read_profile, write_profile
+from ...knowledge.annotations import AnnotationStore
+from ...knowledge.rag import VectorStore, query_media
+from ...orchestration.write_post import write_post
 from ...utils import GeminiBatchClient
 from .formatting import _stringify_value
 

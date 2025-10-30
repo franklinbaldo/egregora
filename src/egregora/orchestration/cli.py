@@ -23,8 +23,8 @@ from ..config import (
     load_site_config,
     resolve_site_paths,
 )
-from ..editor import run_editor_session
-from ..load.site import ensure_mkdocs_project
+from ..generation.editor import run_editor_session
+from ..publication.site import ensure_mkdocs_project
 from .logging_setup import configure_logging, console
 from .pipeline import process_whatsapp_export
 

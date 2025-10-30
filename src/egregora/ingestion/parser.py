@@ -23,9 +23,9 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
-from ..transform.anonymizer import anonymize_table
-from ..transform.models import WhatsAppExport
-from ..transform.schema import MESSAGE_SCHEMA, ensure_message_schema
+from ..core.models import WhatsAppExport
+from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
+from ..privacy.anonymizer import anonymize_table
 from ..utils import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
