@@ -136,10 +136,12 @@ class VectorStore:
         self._owns_connection = connection is None
         if self._owns_connection:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
-            self.conn = duckdb.connect(str(self.index_path))
+            raw_connection = duckdb.connect(str(self.index_path))
         else:
-            self.conn = connection
-        self.conn = _ConnectionProxy(self.conn)
+            if connection is None:  # pragma: no cover - defensive
+                raise ValueError("Connection must be provided when not owning it")
+            raw_connection = connection
+        self.conn: _ConnectionProxy = _ConnectionProxy(raw_connection)
         self._init_vss()
         self._vss_function = self._detect_vss_function()
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -837,10 +839,13 @@ class VectorStore:
     def _ensure_local_table(self, table: Table) -> Table:
         """Materialize a table on the store backend when necessary."""
 
-        try:
-            backend = table._find_backend()  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover - defensive against Ibis internals
-            backend = None
+        backend: Any | None = None
+        find_backend = getattr(table, "_find_backend", None)
+        if callable(find_backend):
+            try:
+                backend = find_backend()
+            except Exception:  # pragma: no cover - defensive against Ibis internals
+                backend = None
 
         if backend is self._client:
             return table

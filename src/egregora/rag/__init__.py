@@ -1,21 +1,9 @@
-"""RAG system for blog post and media indexing and retrieval.
+"""RAG system for blog post and media indexing and retrieval."""
 
-DuckDB-based vector store for context-aware post enrichment and media search.
-Uses Google's text-embedding-004 model (3072 dimensions).
+from __future__ import annotations
 
-Documentation:
-- RAG Feature: docs/features/rag.md
-- API Reference: docs/reference/api.md#rag-system
-"""
-
-from .retriever import (
-    index_all_media,
-    index_media_enrichment,
-    index_post,
-    query_media,
-    query_similar_posts,
-)
-from .store import VectorStore
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "VectorStore",
@@ -25,3 +13,26 @@ __all__ = [
     "index_all_media",
     "query_media",
 ]
+
+_EXPORTS = {
+    "VectorStore": (".store", "VectorStore"),
+    "query_similar_posts": (".retriever", "query_similar_posts"),
+    "index_post": (".retriever", "index_post"),
+    "index_media_enrichment": (".retriever", "index_media_enrichment"),
+    "index_all_media": (".retriever", "index_all_media"),
+    "query_media": (".retriever", "query_media"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr_name = _EXPORTS[name]
+    except KeyError:
+        msg = f"module '{__name__}' has no attribute '{name}'"
+        raise AttributeError(msg) from None
+    module = import_module(module_name, package=__name__)
+    return getattr(module, attr_name)
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)
