@@ -61,11 +61,13 @@ def test_pipeline_with_vcr_fixtures(
     # Run the pipeline with the real client
     # VCR will record/replay the HTTP interactions
     # Note: enrichment disabled to avoid binary file upload issues with VCR
+    # Note: retrieval_mode="exact" avoids VSS extension requirement in tests
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
         period="day",
         enable_enrichment=False,  # Disabled to avoid binary upload recording issues
+        retrieval_mode="exact",  # Use exact mode to avoid VSS extension dependency
         client=client,
     )
 
