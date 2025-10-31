@@ -70,7 +70,8 @@ class TestRagErrorHandling:
         )
 
         assert isinstance(result, Failure)
-        assert result.failure() == RagErrorReason.SYSTEM_ERROR
+        failure_reason = result.failure()
+        assert failure_reason == RagErrorReason.SYSTEM_ERROR
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
@@ -91,7 +92,8 @@ class TestRagErrorHandling:
         )
 
         assert isinstance(result, Failure)
-        assert result.failure() == RagErrorReason.NO_HITS
+        failure_reason = result.failure()
+        assert failure_reason == RagErrorReason.NO_HITS
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
@@ -217,7 +219,8 @@ class TestRagErrorHandling:
 
         # Result is a Failure with error reason
         assert isinstance(result, Failure)
-        assert result.failure() == RagErrorReason.SYSTEM_ERROR
+        failure_reason = result.failure()
+        assert failure_reason == RagErrorReason.SYSTEM_ERROR
         # Check that error was logged
         assert "RAG query failed" in caplog.text
         assert "Invalid index format" in caplog.text
