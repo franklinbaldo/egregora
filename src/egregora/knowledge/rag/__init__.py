@@ -1,7 +1,10 @@
 """RAG system for blog post and media indexing and retrieval.
 
 DuckDB-based vector store for context-aware post enrichment and media search.
-Uses Google's text-embedding-004 model (3072 dimensions).
+Uses Google Gemini embedding models (default: gemini-embedding-001, 3072 dimensions).
+
+The embedding model is configurable via ModelConfig. See config.model.DEFAULT_EMBEDDING_MODEL
+and config.model.KNOWN_EMBEDDING_DIMENSIONS for supported models and their dimensions.
 
 Documentation:
 - RAG Feature: docs/features/rag.md

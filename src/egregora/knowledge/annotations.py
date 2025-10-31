@@ -197,9 +197,16 @@ class AnnotationStore:
             created_at = created_at_obj.to_pydatetime()
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
-            created_at = datetime.fromisoformat(str(created_at_obj))
+        else:
+            # Handle string with potential 'Z' suffix
+            dt_str = str(created_at_obj).replace("Z", "+00:00")
+            created_at = datetime.fromisoformat(dt_str)
+
+        # Normalize timezone to UTC
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
+        else:
+            created_at = created_at.astimezone(UTC)
 
         parent_raw = row.get("parent_annotation_id")
         parent_id = int(parent_raw) if parent_raw is not None else None

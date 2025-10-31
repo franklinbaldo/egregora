@@ -33,16 +33,36 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
 
     with zipfile.ZipFile(zip_path) as zf:
+        # Collect all .txt candidates
+        candidates = []
         for member in zf.namelist():
             if member.endswith(".txt") and not member.startswith("__"):
                 # Generic pattern to capture group name from WhatsApp chat files
                 pattern = r"WhatsApp(?: Chat with|.*) (.+)\.txt"
                 match = re.match(pattern, Path(member).name)
-                if match:
-                    return match.group(1), member
-                return Path(member).stem, member
 
-    raise ValueError(f"No WhatsApp chat file found in {zip_path}")
+                # Calculate heuristic score: file size + pattern match bonus
+                file_info = zf.getinfo(member)
+                score = file_info.file_size
+
+                if match:
+                    # Pattern match gives high priority
+                    score += 1_000_000
+                    group_name = match.group(1)
+                else:
+                    # No pattern match, use stem as fallback
+                    group_name = Path(member).stem
+
+                candidates.append((score, group_name, member))
+
+        if not candidates:
+            raise ValueError(f"No WhatsApp chat file found in {zip_path}")
+
+        # Sort by score (descending) and pick the best
+        candidates.sort(reverse=True, key=lambda x: x[0])
+        _, group_name, member = candidates[0]
+
+        return group_name, member
 
 
 def period_has_posts(period_key: str, posts_dir: Path) -> bool:
@@ -75,8 +95,29 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
         table = table.mutate(period=table.timestamp.date().cast("string"))
     elif period == "week":
         # ISO week format: YYYY-Wnn
-        year_str = table.timestamp.year().cast("string")
+        # Use ISO week-year to handle weeks that cross calendar year boundaries
+        # (e.g., 2024-W52 can include days from early January 2025)
         week_num = table.timestamp.week_of_year()
+
+        # ISO week-year: if week number is 52/53 and month is January,
+        # the ISO year is previous calendar year
+        # if week number is 1 and month is December,
+        # the ISO year is next calendar year
+        iso_year = (
+            ibis.case()
+            .when(
+                (week_num >= 52) & (table.timestamp.month() == 1),
+                table.timestamp.year() - 1,
+            )
+            .when(
+                (week_num == 1) & (table.timestamp.month() == 12),
+                table.timestamp.year() + 1,
+            )
+            .else_(table.timestamp.year())
+            .end()
+        )
+
+        year_str = iso_year.cast("string")
         week_str = ibis.ifelse(
             week_num < SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + week_num.cast("string"),
