@@ -1,0 +1,48 @@
+# API Reference
+
+This section contains automatically generated API documentation for Egregora.
+
+All documentation is extracted from docstrings in the source code using [mkdocstrings](https://mkdocstrings.github.io/).
+
+## Package Structure
+
+- **Core**: Database schemas and core data structures
+- **Ingestion**: WhatsApp export parsing
+- **Privacy**: Anonymization and PII detection
+- **Augmentation**: Content enrichment pipeline
+- **Generation**: Blog post writing and editing agents
+- **Knowledge**: RAG retrieval and ranking systems
+- **Publication**: MkDocs site scaffolding
+- **Orchestration**: CLI and pipeline orchestration
+- **Utils**: Shared utilities and helpers
+
+## Quick Links
+
+- [Parser](ingestion/parser.md) - Parse WhatsApp exports
+- [Anonymizer](privacy/anonymizer.md) - Privacy transformations
+- [Writer](generation/writer.md) - Blog post generation
+- [RAG](knowledge/rag.md) - Retrieval-augmented generation
+- [CLI](orchestration/cli.md) - Command-line interface
+
+## Documentation Style
+
+All modules follow Google-style docstrings:
+
+```python
+def my_function(arg: str) -> bool:
+    """One-line summary.
+
+    Longer description if needed.
+
+    Args:
+        arg: Description of argument
+
+    Returns:
+        Description of return value
+
+    Example:
+        >>> my_function("test")
+        True
+    """
+    ...
+```

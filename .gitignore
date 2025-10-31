@@ -19,6 +19,7 @@ cache/
 
 docs/reports/
 site/
+!src/egregora/publication/site/
 mkdocs-dev.yml
 
 # OS generated files
