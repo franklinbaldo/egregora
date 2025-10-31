@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for all Egregora modules.
+Complete API documentation for all Egregora modules, automatically generated from source code docstrings.
 
 ## Overview
 
@@ -24,14 +24,14 @@ egregora/
 
 ### Pipeline Stages
 
-| Module | Description | Key Classes |
-|--------|-------------|-------------|
-| [Ingestion](ingestion/parser.md) | Parse WhatsApp exports | `parse_whatsapp_export()` |
-| [Privacy](privacy/anonymizer.md) | Anonymization | `anonymize_dataframe()`, `detect_pii()` |
-| [Augmentation](augmentation/enrichment.md) | Enrich context | `enrich_urls()`, `create_profiles()` |
-| [Knowledge](knowledge/rag.md) | RAG & annotations | `RAGStore`, `Annotator` |
-| [Generation](generation/writer.md) | Content generation | `Writer`, `Editor` |
-| [Publication](publication/scaffolding.md) | Site creation | `scaffold_site()` |
+| Module | Description |
+|--------|-------------|
+| [Ingestion](ingestion/parser.md) | Parse WhatsApp exports |
+| [Privacy](privacy/anonymizer.md) | Anonymization & PII detection |
+| [Augmentation](augmentation/enrichment.md) | Enrich context with LLMs |
+| [Knowledge](knowledge/rag.md) | RAG, annotations, rankings |
+| [Generation](generation/writer.md) | Content generation |
+| [Publication](publication/scaffolding.md) | Site creation |
 
 ### Core Modules
 
@@ -48,103 +48,33 @@ egregora/
 | [Pipeline](orchestration/pipeline.md) | End-to-end workflow |
 | [CLI](orchestration/cli.md) | Command-line interface |
 
-## Usage Examples
+## Using the API Documentation
 
-### Parse WhatsApp Export
+Each module's documentation is **automatically generated** from the source code docstrings. Click on any module above to see:
 
-```python
-from egregora.ingestion import parse_whatsapp_export
-
-df = parse_whatsapp_export("whatsapp-export.zip")
-```
-
-### Anonymize Data
-
-```python
-from egregora.privacy import anonymize_dataframe
-
-df_anon = anonymize_dataframe(df)
-```
-
-### Generate Posts
-
-```python
-from egregora.generation import generate_posts
-from google import genai
-
-client = genai.Client(api_key="your-key")
-posts = generate_posts(df_anon, client, rag_store)
-```
-
-### Run Full Pipeline
-
-```python
-from egregora.orchestration import run_pipeline
-
-run_pipeline(
-    export_path="whatsapp-export.zip",
-    output_dir="my-blog/",
-    api_key="your-key"
-)
-```
+- All public functions and classes
+- Parameter types and descriptions
+- Return values
+- Usage examples from docstrings
+- Source code
 
 ## Common Patterns
 
 ### DataFrame Transformations
 
-All data flows through Ibis DataFrames:
-
-```python
-import ibis
-
-# Create connection
-conn = ibis.duckdb.connect("egregora.db")
-
-# Load data
-df = conn.table("rag_chunks")
-
-# Query
-results = df.filter(df.score > 0.8).execute()
-```
+All data flows through Ibis DataFrames. See individual module documentation for specific functions and their signatures.
 
 ### Batch Processing
 
-Process large datasets efficiently:
-
-```python
-from egregora.utils.batch import batch_process
-
-results = batch_process(
-    items=messages,
-    func=embed_text,
-    batch_size=100
-)
-```
+The `utils.batch` module provides utilities for processing large datasets efficiently.
 
 ### Caching
 
-Cache expensive operations:
-
-```python
-from egregora.utils.cache import get_cache
-
-cache = get_cache(".egregora/cache/")
-result = cache.get("key", default=lambda: expensive_operation())
-```
+The `utils.cache` module provides disk-based caching for expensive operations.
 
 ## Type Hints
 
-Egregora uses type hints throughout:
-
-```python
-from typing import List
-from egregora.core.types import ConversationRow, BlogPost
-
-def process_messages(
-    messages: List[ConversationRow]
-) -> List[BlogPost]:
-    ...
-```
+Egregora uses type hints throughout. Check the [Types](core/types.md) module for custom type definitions and the individual module pages for function signatures.
 
 ## Next Steps
 
