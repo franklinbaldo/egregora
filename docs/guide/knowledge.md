@@ -25,23 +25,47 @@ graph LR
 
 ### Vector Store
 
-Egregora uses **DuckDB with VSS extension** for vector search:
+Egregora uses **DuckDB with the VSS extension** for vector search. The
+high-level helpers live in `egregora.knowledge.rag`:
 
 ```python
-from egregora.knowledge.rag import create_rag_store, embed_and_store
+import os
+from pathlib import Path
 
-# Create store
-store = create_rag_store(
-    db_path="egregora.db",
-    embedding_model="models/text-embedding-004",
-    dimensions=768
+from google import genai
+
+from egregora.config import ModelConfig, load_site_config
+from egregora.knowledge.rag import VectorStore, index_post, query_similar_posts
+from egregora.utils.batch import GeminiBatchClient
+
+# Load model preferences from mkdocs.yml (used by the CLI as well)
+site_config = load_site_config(Path("output"))
+model_config = ModelConfig(site_config=site_config)
+embedding_model = model_config.get_model("embedding")
+embedding_dims = model_config.get_embedding_output_dimensionality()
+
+# Batch client for embeddings
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+batch_client = GeminiBatchClient(client, default_model=embedding_model)
+
+# Open (or create) the vector store managed by the CLI
+store = VectorStore(Path("output/rag/chunks.parquet"))
+
+# Index a generated post
+indexed = index_post(
+    Path("output/posts/2025-01-01-new-year-retro.md"),
+    batch_client,
+    store,
+    embedding_model=embedding_model,
+    output_dimensionality=embedding_dims,
 )
 
-# Embed and store messages
-embed_and_store(
-    df=messages,
+# Later, retrieve similar posts for a conversation table produced by the pipeline
+similar = query_similar_posts(
+    table=period_table,
+    batch_client=batch_client,
     store=store,
-    batch_size=100
+    embedding_model=embedding_model,
 )
 ```
 
@@ -84,13 +108,13 @@ egregora process export.zip --retrieval-mode=exact
 Messages are chunked for better retrieval:
 
 ```python
-from egregora.knowledge.rag import chunk_messages
+from pathlib import Path
 
-chunks = chunk_messages(
-    df=messages,
-    chunk_size=512,      # tokens
-    overlap=50,          # token overlap
-    by_conversation=True # respect thread boundaries
+from egregora.knowledge.rag.chunker import chunk_document
+
+chunks = chunk_document(
+    Path("output/posts/2025-01-01-new-year-retro.md"),
+    max_tokens=1800,
 )
 ```
 
@@ -105,14 +129,19 @@ chunks = chunk_messages(
 When generating a blog post:
 
 ```python
-from egregora.knowledge.rag import retrieve_context
+from egregora.knowledge.rag import query_similar_posts
 
-context = retrieve_context(
-    query="What did we discuss about AI safety?",
+results = query_similar_posts(
+    table=period_table,
+    batch_client=batch_client,
     store=store,
-    top_k=10,           # Retrieve top 10 chunks
-    nprobe=10           # ANN search quality
+    embedding_model=embedding_model,
+    top_k=10,
+    retrieval_mode="ann",
+    retrieval_nprobe=10,
 )
+
+context = results.execute().to_pylist()
 ```
 
 **Returns**:
@@ -132,19 +161,24 @@ context = retrieve_context(
 
 ### Models
 
-Egregora supports Google's embedding models:
+Egregora relies on Google's Gemini embedding models. The active model and
+vector dimensionality are resolved by `ModelConfig`, using the same
+configuration hierarchy as the CLI:
 
-| Model | Dimensions | Performance | Use Case |
-|-------|-----------|-------------|----------|
-| `text-embedding-004` | 768 | Fast | Recommended |
-| `text-embedding-005` | 768 | Faster | Latest |
+1. `--model` flag on `egregora process`
+2. `extra.egregora.models.embedding` inside `mkdocs.yml`
+3. Global `extra.egregora.model` override
+4. Built-in defaults (`models/gemini-embedding-001`, 3072 dimensions)
 
-Configure via CLI:
+To pin a specific embedding model or dimensionality, update `mkdocs.yml`:
 
-```bash
-egregora process export.zip \
-  --embedding-model=models/text-embedding-004 \
-  --embedding-dimensions=768
+```yaml
+extra:
+  egregora:
+    models:
+      embedding: models/gemini-embedding-001
+    embedding:
+      output_dimensionality: 3072
 ```
 
 ### Batching
@@ -152,12 +186,14 @@ egregora process export.zip \
 Embeddings are batched for efficiency:
 
 ```python
-from egregora.knowledge.rag import embed_batch
+from egregora.knowledge.rag.embedder import embed_chunks
 
-embeddings = embed_batch(
-    texts=chunks,
-    model=gemini_client,
-    batch_size=100
+embeddings = embed_chunks(
+    chunks,
+    batch_client,
+    model=embedding_model,
+    batch_size=100,
+    output_dimensionality=embedding_dims,
 )
 ```
 
@@ -166,9 +202,16 @@ embeddings = embed_batch(
 Beyond embeddings, Egregora stores conversation metadata:
 
 ```python
-from egregora.knowledge import annotate_conversations
+from pathlib import Path
 
-annotations = annotate_conversations(df)
+from egregora.knowledge import AnnotationStore
+
+annotation_store = AnnotationStore(Path("output/annotations.duckdb"))
+annotation_store.save_annotation(
+    msg_id="msg-2025-01-01-0001",
+    commentary="Follow up on the launch checklist",
+)
+annotations = annotation_store.list_annotations_for_message("msg-2025-01-01-0001")
 ```
 
 **Stored data**:
