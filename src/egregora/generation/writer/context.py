@@ -1,6 +1,7 @@
 """Context building utilities for writer - RAG and profile loading."""
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,16 @@ from ...knowledge.rag import VectorStore, query_similar_posts
 from ...utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RagResult:
+    """Structured outcome from RAG query with failure reason tracking."""
+
+    ok: bool
+    text: str = ""
+    reason: str = ""  # "success" | "no_hits" | "rag_error" | "disabled"
+    records: list[dict[str, Any]] | None = None
 
 
 def _query_rag_for_context(  # noqa: PLR0913
@@ -24,8 +35,11 @@ def _query_rag_for_context(  # noqa: PLR0913
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
     return_records: bool = False,
-) -> str | tuple[str, list[dict[str, Any]]]:
+) -> RagResult | str | tuple[str, list[dict[str, Any]]]:
     """Query RAG system for similar previous posts.
+
+    Returns a structured RagResult with observability data, or legacy string/tuple
+    format when return_records is specified for backward compatibility.
 
     When ``return_records`` is ``True`` both the formatted markdown string and the raw
     records are returned. This is helpful for callers that need to persist the RAG output
@@ -50,7 +64,9 @@ def _query_rag_for_context(  # noqa: PLR0913
 
         if similar_posts.count().execute() == 0:
             logger.info("No similar previous posts found")
-            return ("", []) if return_records else ""
+            if return_records:
+                return ("", [])
+            return RagResult(ok=False, reason="no_hits")
 
         post_count = similar_posts.count().execute()
         logger.info(f"Found {post_count} similar previous posts")
@@ -68,10 +84,12 @@ def _query_rag_for_context(  # noqa: PLR0913
 
         if return_records:
             return rag_context, records
-        return rag_context
+        return RagResult(ok=True, text=rag_context, reason="success", records=records)
     except Exception as e:
-        logger.warning(f"RAG query failed: {e}")
-        return ("", []) if return_records else ""
+        logger.error(f"RAG query failed: {e}", exc_info=True)
+        if return_records:
+            return ("", [])
+        return RagResult(ok=False, reason="rag_error")
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:

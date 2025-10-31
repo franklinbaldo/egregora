@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from ..privacy.detector import validate_newsletter_privacy
+from ..utils import slugify, safe_path_join
 
 
 def write_post(
@@ -69,8 +70,21 @@ def write_post(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    filename = f"{metadata['date']}-{metadata['slug']}.md"
-    filepath = output_dir / filename
+    # Sanitize slug to prevent path traversal
+    safe_slug = slugify(metadata["slug"])
+    filename = f"{metadata['date']}-{safe_slug}.md"
+
+    # Ensure path stays within output_dir
+    filepath = safe_path_join(output_dir, filename)
+
+    # Handle duplicates by appending suffix
+    if filepath.exists():
+        base_name = f"{metadata['date']}-{safe_slug}"
+        suffix = 2
+        while filepath.exists():
+            filename = f"{base_name}-{suffix}.md"
+            filepath = safe_path_join(output_dir, filename)
+            suffix += 1
 
     filepath.write_text(full_post, encoding="utf-8")
 
