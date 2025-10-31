@@ -49,6 +49,9 @@ class SmartGeminiClient:
         *,
         force_batch: bool = False,
         force_individual: bool = False,
+        display_name: str | None = None,
+        poll_interval: float | None = None,
+        timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:
         """Smart embedding with automatic strategy selection."""
         if not requests:
@@ -59,7 +62,7 @@ class SmartGeminiClient:
 
         # Allow manual override
         if force_batch:
-            return self._embed_batch(requests)
+            return self._embed_batch(requests, display_name, poll_interval, timeout)
         if force_individual:
             return self._embed_individual(requests)
 
@@ -69,7 +72,7 @@ class SmartGeminiClient:
             return self._embed_individual(requests)
         else:
             logger.info(f"Using batch API for {len(requests)} items")
-            return self._embed_batch(requests)
+            return self._embed_batch(requests, display_name, poll_interval, timeout)
 
     def _embed_individual(
         self, requests: Sequence[EmbeddingBatchRequest]
@@ -82,16 +85,30 @@ class SmartGeminiClient:
     def _embed_one(self, request: EmbeddingBatchRequest) -> EmbeddingBatchResult:
         """Single embedding via direct API."""
         try:
+            from google.genai import types as genai_types
+
+            # Build config for task_type and output_dimensionality
+            config = None
+            if request.task_type or request.output_dimensionality:
+                config = genai_types.EmbedContentConfig(
+                    task_type=request.task_type,
+                    output_dimensionality=request.output_dimensionality,
+                )
+
             response = call_with_retries_sync(
-                self._client.embed_content,
+                self._client.models.embed_content,
                 model=request.model or self._default_model,
-                content=request.text,
-                task_type=request.task_type,
-                output_dimensionality=request.output_dimensionality,
+                contents=request.text,
+                config=config,
             )
-            return EmbeddingBatchResult(
-                tag=request.tag, embedding=list(response["embedding"])
-            )
+            # Extract embedding from response object
+            if response.embeddings and len(response.embeddings) > 0:
+                embedding = response.embeddings[0].values
+                return EmbeddingBatchResult(
+                    tag=request.tag, embedding=list(embedding) if embedding else None
+                )
+            else:
+                return EmbeddingBatchResult(tag=request.tag, embedding=None)
         except Exception as e:
             logger.warning(
                 f"Individual embedding failed for tag={request.tag}: {e}",
@@ -101,10 +118,19 @@ class SmartGeminiClient:
             return EmbeddingBatchResult(tag=request.tag, embedding=None, error=e)
 
     def _embed_batch(
-        self, requests: Sequence[EmbeddingBatchRequest]
+        self,
+        requests: Sequence[EmbeddingBatchRequest],
+        display_name: str | None = None,
+        poll_interval: float | None = None,
+        timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:
         """Use batch API."""
-        return self._batch_client.embed_content(requests)
+        return self._batch_client.embed_content(
+            requests,
+            display_name=display_name,
+            poll_interval=poll_interval,
+            timeout=timeout,
+        )
 
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file (always uses direct API, no batching)."""
