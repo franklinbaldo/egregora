@@ -1004,7 +1004,8 @@ def gather_context(  # noqa: PLR0913
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
-            freeform_memory = _load_freeform_memory(site_paths.posts_dir)
+            posts_output_dir = site_paths.posts_dir / ".posts"
+            freeform_memory = _load_freeform_memory(posts_output_dir)
 
             # RAG context (if enabled)
             rag_similar_posts: list[dict[str, Any]] = []
@@ -1168,12 +1169,13 @@ def write_posts(  # noqa: PLR0913
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
+            posts_output_dir = site_paths.posts_dir / ".posts"
             result = write_posts_for_period(
                 enriched_table,
                 period_key,
                 client,
                 embedding_batch_client,
-                site_paths.posts_dir,
+                posts_output_dir,
                 site_paths.profiles_dir,
                 site_paths.rag_dir,
                 model_config,
@@ -1191,7 +1193,7 @@ def write_posts(  # noqa: PLR0913
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
 
             if posts_count > 0:
-                console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
+                console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
                 if posts_count > 5:

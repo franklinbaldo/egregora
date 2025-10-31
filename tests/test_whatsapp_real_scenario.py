@@ -95,7 +95,7 @@ class DummyGenaiClient:
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.orchestration.pipeline.genai.Client", DummyGenaiClient)
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiBatchClient",
+        "egregora.orchestration.pipeline.GeminiDispatcher",
         lambda client, model, **kwargs: DummyBatchClient(model),
     )
 
