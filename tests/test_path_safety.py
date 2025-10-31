@@ -89,9 +89,42 @@ class TestSafePathJoin:
             safe_path_join(tmp_path, "/etc/passwd")
 
     def test_windows_path_traversal(self, tmp_path):
-        """Test Windows-style path traversal attempts."""
+        """Test Windows-style path traversal attempts are blocked on POSIX.
+
+        Critical security test: On POSIX systems, backslashes are valid filename
+        characters. Without normalization, "..\\..\\windows\\system32" would create
+        a file literally named "..\\..\\windows\\system32" instead of traversing
+        directories, bypassing our security checks.
+
+        This test verifies that backslashes are normalized to forward slashes
+        before path validation, preventing cross-platform bypass attacks.
+        """
+        # Test simple Windows-style traversal
         with pytest.raises(PathTraversalError):
             safe_path_join(tmp_path, "..\\..\\windows\\system32")
+
+        # Test mixed separators
+        with pytest.raises(PathTraversalError):
+            safe_path_join(tmp_path, "..\\../etc/passwd")
+
+        # Test Windows absolute paths with backslashes
+        with pytest.raises(PathTraversalError):
+            safe_path_join(tmp_path, "C:\\windows\\system32")
+
+        # Test deep Windows-style traversal
+        with pytest.raises(PathTraversalError):
+            safe_path_join(tmp_path, "..\\..\\..\\..\\..\\etc\\passwd")
+
+    def test_backslash_normalization_in_safe_paths(self, tmp_path):
+        """Test that backslashes in safe paths are normalized correctly.
+
+        Verifies that legitimate Windows-style paths that don't escape
+        the base directory are normalized to POSIX-style paths.
+        """
+        # A path with backslashes that doesn't escape should be normalized
+        result = safe_path_join(tmp_path, "subdir\\file.txt")
+        # Should normalize to forward slash
+        assert result == tmp_path / "subdir" / "file.txt"
 
 
 class TestWritePostSecurity:
