@@ -43,6 +43,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths: [src]  # Tell mkdocstrings where to find the source code
           options:
             docstring_style: google
             show_source: true
