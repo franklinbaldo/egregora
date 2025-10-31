@@ -815,7 +815,7 @@ def enrich(  # noqa: PLR0913
     from ..augmentation.enrichment import enrich_table, extract_and_replace_media
     from ..config import ModelConfig, load_site_config, resolve_site_paths
     from ..utils.cache import EnrichmentCache
-    from ..utils.smart_client import SmartGeminiClient
+    from ..utils.gemini_dispatcher import GeminiDispatcher
     from .database import duckdb_backend
     from .serialization import load_table, save_table
 
@@ -877,8 +877,8 @@ def enrich(  # noqa: PLR0913
             console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
 
             # Setup smart clients and cache
-            text_batch_client = SmartGeminiClient(client, model_config.get_model("enricher"))
-            vision_batch_client = SmartGeminiClient(client, model_config.get_model("enricher_vision"))
+            text_batch_client = GeminiDispatcher(client, model_config.get_model("enricher"))
+            vision_batch_client = GeminiDispatcher(client, model_config.get_model("enricher_vision"))
 
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
             enrichment_cache = EnrichmentCache(cache_dir)
@@ -961,7 +961,7 @@ def gather_context(  # noqa: PLR0913
     from ..config import ModelConfig, load_mkdocs_config, load_site_config, resolve_site_paths
     from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
     from ..generation.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-    from ..utils.smart_client import SmartGeminiClient
+    from ..utils.gemini_dispatcher import GeminiDispatcher
     from .database import duckdb_backend
     from .serialization import load_table
 
@@ -1020,7 +1020,7 @@ def gather_context(  # noqa: PLR0913
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                     client = genai.Client(api_key=api_key)
-                    embedding_batch_client = SmartGeminiClient(
+                    embedding_batch_client = GeminiDispatcher(
                         client, model_config.get_model("embedding")
                     )
 
@@ -1117,7 +1117,7 @@ def write_posts(  # noqa: PLR0913
 
     from ..config import ModelConfig, load_site_config, resolve_site_paths
     from ..generation.writer import write_posts_for_period
-    from ..utils.smart_client import SmartGeminiClient
+    from ..utils.gemini_dispatcher import GeminiDispatcher
     from .database import duckdb_backend
     from .serialization import load_table
 
@@ -1170,12 +1170,15 @@ def write_posts(  # noqa: PLR0913
                 console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
             # Setup embedding client for RAG
-            embedding_batch_client = SmartGeminiClient(
+            embedding_batch_client = GeminiDispatcher(
                 client, model_config.get_model("embedding")
             )
             embedding_dimensionality = model_config.embedding_output_dimensionality
 
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
+            console.print(
+                f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}"
+            )
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)

@@ -250,6 +250,11 @@ def vcr_config():
         "filter_query_parameters": [
             ("key", "DUMMY_API_KEY"),
         ],
-        # Match requests on method, scheme, host, port, path, and body
-        "match_on": ["method", "scheme", "host", "port", "path", "body"],
+        # Match requests on method, scheme, host, port, and path (not body for binary uploads)
+        "match_on": ["method", "scheme", "host", "port", "path"],
+        # Decode compressed responses
+        "decode_compressed_response": True,
+        # Handle binary content in requests/responses
+        "before_record_request": lambda request: request,
+        "before_record_response": lambda response: response,
     }

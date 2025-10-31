@@ -22,7 +22,7 @@ from ..knowledge.rag import VectorStore, index_all_media
 from ..utils.batch import GeminiBatchClient
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
-from ..utils.smart_client import SmartGeminiClient
+from ..utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +174,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         client = genai.Client(api_key=gemini_api_key)
 
     try:
-        text_batch_client = SmartGeminiClient(
+        text_batch_client = GeminiDispatcher(
             client, model_config.get_model("enricher"), batch_threshold=batch_threshold
         )
-        vision_batch_client = SmartGeminiClient(
+        vision_batch_client = GeminiDispatcher(
             client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
         )
         embedding_model_name = model_config.get_model("embedding")
-        embedding_batch_client = SmartGeminiClient(
+        embedding_batch_client = GeminiDispatcher(
             client, embedding_model_name, batch_threshold=batch_threshold
         )
         embedding_dimensionality = model_config.embedding_output_dimensionality
