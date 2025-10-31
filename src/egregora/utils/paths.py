@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from slugify import slugify as _slugify
-from werkzeug.security import safe_join as _werkzeug_safe_join
+from werkzeug.utils import safe_join as _werkzeug_safe_join
 
 
 class PathTraversalError(Exception):
@@ -46,7 +46,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     """
     Safely join path parts and ensure result stays within base_dir.
 
-    Uses werkzeug.security.safe_join, the industry-standard path security
+    Uses werkzeug.utils.safe_join, the industry-standard path security
     function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
     against path traversal attacks on all platforms.
 
@@ -74,17 +74,17 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         PathTraversalError: Path escaped output directory
 
     Security:
-        Uses werkzeug.security.safe_join (industry standard since 2007).
+        Uses werkzeug.utils.safe_join (industry standard since 2007).
         Protects against Unix (/) and Windows (\\) path traversal on all platforms.
         Werkzeug normalizes path separators and validates containment automatically.
 
     References:
-        https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.security.safe_join
+        https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.utils.safe_join
     """
     # Convert Path to string for werkzeug compatibility
     base_str = str(base_dir.resolve())
 
-    # werkzeug.security.safe_join returns None if path would escape
+    # werkzeug.utils.safe_join returns None if path would escape
     result_str = _werkzeug_safe_join(base_str, *parts)
 
     if result_str is None:
