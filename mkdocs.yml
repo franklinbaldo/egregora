@@ -1,0 +1,120 @@
+site_name: Egregora Documentation
+site_description: Transform WhatsApp conversations into intelligent, privacy-first blogs
+site_url: https://franklinbaldo.github.io/egregora/
+repo_url: https://github.com/franklinbaldo/egregora
+repo_name: franklinbaldo/egregora
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]  # Tell mkdocstrings where to find the source code
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Architecture Overview: guide/architecture.md
+    - Privacy & Anonymization: guide/privacy.md
+    - RAG & Knowledge Base: guide/knowledge.md
+    - Content Generation: guide/generation.md
+  - API Reference:
+    - Overview: api/index.md
+    - Ingestion:
+      - Parser: api/ingestion/parser.md
+    - Privacy:
+      - Anonymizer: api/privacy/anonymizer.md
+      - Detector: api/privacy/detector.md
+    - Augmentation:
+      - Enrichment: api/augmentation/enrichment.md
+      - Profiler: api/augmentation/profiler.md
+    - Knowledge:
+      - RAG: api/knowledge/rag.md
+      - Annotations: api/knowledge/annotations.md
+      - Ranking: api/knowledge/ranking.md
+    - Generation:
+      - Writer: api/generation/writer.md
+      - Editor: api/generation/editor.md
+    - Publication:
+      - Scaffolding: api/publication/scaffolding.md
+    - Core:
+      - Schema: api/core/schema.md
+      - Models: api/core/models.md
+      - Types: api/core/types.md
+    - Orchestration:
+      - Pipeline: api/orchestration/pipeline.md
+      - CLI: api/orchestration/cli.md
+  - Development:
+    - Contributing: development/contributing.md
+    - Testing: development/testing.md
+    - Project Structure: development/structure.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/franklinbaldo/egregora

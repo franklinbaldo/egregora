@@ -1,0 +1,6 @@
+# Repomix ignore file
+# Exclude documentation, distribution, and test directories
+
+docs/
+dist/
+tests/
