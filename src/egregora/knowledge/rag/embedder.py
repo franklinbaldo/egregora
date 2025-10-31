@@ -24,9 +24,7 @@ def embed_chunks(
 
     embeddings: list[list[float]] = []
 
-    logger.info(
-        "[blue]📚 Embedding model:[/] %s — %d chunk(s)", model, len(chunks)
-    )
+    logger.info("[blue]📚 Embedding model:[/] %s — %d chunk(s)", model, len(chunks))
 
     for index in range(0, len(chunks), batch_size):
         batch = chunks[index : index + batch_size]

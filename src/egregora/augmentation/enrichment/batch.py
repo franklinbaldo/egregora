@@ -1,6 +1,5 @@
 """Batch processing utilities for enrichment - dataclasses and helpers."""
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path

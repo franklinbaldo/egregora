@@ -5,14 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
-from typing import Any
 
-from .elo import calculate_elo_update
 from ...utils.genai import call_with_retries_sync
+from .elo import calculate_elo_update
 from .store import RankingStore
 
 console = Console()
@@ -93,9 +93,6 @@ COMMENT_POST_B_TOOL = genai_types.Tool(
         )
     ],
 )
-    
-    
-    
 
 
 def load_post_content(post_path: Path) -> str:
@@ -218,7 +215,9 @@ def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tu
     return content_a, content_b
 
 
-def _extract_tool_call_result(response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]) -> dict[str, Any] | None:
+def _extract_tool_call_result(
+    response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]
+) -> dict[str, Any] | None:
     """Extract tool call arguments from LLM response."""
     if not response.candidates:
         return None
@@ -228,7 +227,12 @@ def _extract_tool_call_result(response: genai_types.GenerateContentResponse, too
         return None
 
     for part in response.candidates[0].content.parts:
-        if hasattr(part, "function_call") and part.function_call and part.function_call.args and part.function_call.name == tool_name:
+        if (
+            hasattr(part, "function_call")
+            and part.function_call
+            and part.function_call.args
+            and part.function_call.name == tool_name
+        ):
             return {arg: part.function_call.args[arg] for arg in arg_names}
 
     return None

@@ -19,7 +19,6 @@ from ..core.types import GroupSlug
 from ..generation.writer import write_posts_for_period
 from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from ..knowledge.rag import VectorStore, index_all_media
-from ..utils.batch import GeminiBatchClient
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
 from ..utils.gemini_dispatcher import GeminiDispatcher
@@ -296,14 +295,10 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 )
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() >= from_date
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} onwards")
             elif to_date:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() <= to_date
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
                 logger.info(f"📅 [cyan]Filtering[/] messages up to {to_date}")
 
             filtered_count = messages_table.count().execute()
@@ -326,7 +321,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             return {}
 
         results = {}
-        posts_dir = site_paths.posts_dir
+        posts_dir = site_paths.posts_dir / ".posts"
         profiles_dir = site_paths.profiles_dir
         site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
 
@@ -359,7 +354,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     except FileNotFoundError:
                         logger.info("Cached enrichment missing; regenerating %s", period_key)
                         if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                            steps_state = checkpoint_store.update_step(
+                                period_key, "enrichment", "in_progress"
+                            )["steps"]
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
@@ -372,10 +369,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                            steps_state = checkpoint_store.update_step(
+                                period_key, "enrichment", "completed"
+                            )["steps"]
                 else:
                     if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                        steps_state = checkpoint_store.update_step(
+                            period_key, "enrichment", "in_progress"
+                        )["steps"]
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
@@ -388,7 +389,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                        steps_state = checkpoint_store.update_step(
+                            period_key, "enrichment", "completed"
+                        )["steps"]
             else:
                 enriched_table = period_table
                 enriched_table.execute().to_csv(enriched_path, index=False)
@@ -402,7 +405,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 }
             else:
                 if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
+                    steps_state = checkpoint_store.update_step(
+                        period_key, "writing", "in_progress"
+                    )["steps"]
                 result = write_posts_for_period(
                     enriched_table,
                     period_key,
@@ -419,7 +424,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     retrieval_overfetch=retrieval_overfetch,
                 )
                 if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")[
+                        "steps"
+                    ]
 
             results[period_key] = result
             logger.info(
@@ -449,7 +456,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         return results
     finally:
         try:
-            if 'enrichment_cache' in locals():
+            if "enrichment_cache" in locals():
                 enrichment_cache.close()
         finally:
             if client:

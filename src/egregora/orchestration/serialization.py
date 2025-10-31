@@ -13,8 +13,6 @@ from typing import Literal
 import ibis
 from ibis.expr.types import Table
 
-from ..core.schema import MESSAGE_SCHEMA
-
 logger = logging.getLogger(__name__)
 
 SerializationFormat = Literal["csv", "parquet"]

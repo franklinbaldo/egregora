@@ -6,7 +6,8 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TypedDict
+
 
 class MediaEnrichmentMetadata(TypedDict):
     message_date: datetime | None
@@ -14,6 +15,7 @@ class MediaEnrichmentMetadata(TypedDict):
     media_type: str | None
     media_path: str | None
     original_filename: str
+
 
 import ibis
 from ibis.expr.types import Table

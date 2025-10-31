@@ -148,6 +148,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 # Helper Functions
 # ============================================================================
 
+
 def create_table_if_not_exists(
     conn,
     table_name: str,
@@ -184,13 +185,17 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         This must be called on raw DuckDB connection, not Ibis connection.
     """
     try:
-        conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
+        conn.execute(
+            f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})"
+        )
     except Exception:
         # Constraint may already exist
         pass
 
 
-def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
+def create_index(
+    conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
+) -> None:
     """Create an index on a table.
 
     Args:
@@ -216,4 +221,5 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
     except Exception as e:
         # Index may already exist or column may not support this index type
         import logging
+
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")
