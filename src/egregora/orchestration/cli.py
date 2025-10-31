@@ -996,7 +996,7 @@ def gather_context(  # noqa: PLR0913
 
             # Build conversation markdown
             console.print("[yellow]Formatting conversation...[/yellow]")
-            conversation_md = _build_conversation_markdown(enriched_table)
+            conversation_md = _build_conversation_markdown(enriched_table.to_pyarrow(), None)
 
             # Get active authors
             active_authors = get_active_authors(enriched_table)
@@ -1004,7 +1004,7 @@ def gather_context(  # noqa: PLR0913
 
             # Load profiles
             console.print("[yellow]Loading profiles...[/yellow]")
-            profiles = _load_profiles_context(active_authors, site_paths.profiles_dir)
+            profiles = _load_profiles_context(enriched_table, site_paths.profiles_dir)
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
