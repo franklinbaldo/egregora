@@ -1045,7 +1045,7 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
                 rag_context = rag_result[0]
             case _:
                 # Modern Result type
-                if rag_result.is_success():
+                if rag_result.is_success:
                     context_obj = rag_result.unwrap()
                     rag_context = context_obj.text
                     logger.info("RAG context retrieved successfully")
