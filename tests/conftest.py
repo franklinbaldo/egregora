@@ -231,10 +231,25 @@ def mock_batch_client(monkeypatch):
     }
 
 
-@pytest.fixture
-def playback_client():
-    """Gemini client that replays golden fixtures."""
-    from egregora.testing.gemini_playback import GeminiClientPlayback
+@pytest.fixture(scope="module")
+def vcr_config():
+    """
+    VCR configuration for recording and replaying HTTP interactions.
 
-    fixtures_dir = Path(__file__).parent / "fixtures/golden/api_responses"
-    return GeminiClientPlayback(fixtures_dir)
+    This configuration filters out sensitive data like API keys from cassettes.
+    """
+    return {
+        # Record mode: 'once' means record the first time, then replay
+        "record_mode": "once",
+        # Filter API keys from recordings
+        "filter_headers": [
+            ("x-goog-api-key", "DUMMY_API_KEY"),
+            ("authorization", "DUMMY_AUTH"),
+        ],
+        # Filter query parameters with API keys
+        "filter_query_parameters": [
+            ("key", "DUMMY_API_KEY"),
+        ],
+        # Match requests on method, scheme, host, port, path, and body
+        "match_on": ["method", "scheme", "host", "port", "path", "body"],
+    }
