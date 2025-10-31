@@ -1087,6 +1087,7 @@ def write_posts(  # noqa: PLR0913
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (overrides mkdocs.yml)")
     ] = None,
+    enable_rag: Annotated[bool, typer.Option(help="Enable RAG retrieval")] = True,
 ):
     """
     Generate blog posts from enriched messages using LLM.
@@ -1166,6 +1167,9 @@ def write_posts(  # noqa: PLR0913
             embedding_dimensionality = model_config.embedding_output_dimensionality
 
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
+            console.print(
+                f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}"
+            )
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
@@ -1178,7 +1182,7 @@ def write_posts(  # noqa: PLR0913
                 site_paths.profiles_dir,
                 site_paths.rag_dir,
                 model_config,
-                enable_rag=True,  # RAG is handled by existing logic
+                enable_rag=enable_rag,
                 embedding_output_dimensionality=embedding_dimensionality,
                 retrieval_mode="ann",  # Default, context already includes RAG results if needed
             )
