@@ -855,6 +855,7 @@ def enrich(  # noqa: PLR0913
 
     # Setup paths and config
     site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir / ".posts"
     site_config = load_site_config(site_path)
     model_config = ModelConfig(site_config=site_config)
 
@@ -878,7 +879,7 @@ def enrich(  # noqa: PLR0913
                 messages_table,
                 zip_path,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 "chat",  # generic group slug for standalone enrichment
             )
 
@@ -905,7 +906,7 @@ def enrich(  # noqa: PLR0913
                 vision_batch_client,
                 enrichment_cache,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 model_config,
                 enable_url=enable_url,
                 enable_media=enable_media,
