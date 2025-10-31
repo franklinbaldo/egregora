@@ -215,7 +215,9 @@ class TestRagErrorHandling:
             embedding_model="models/text-embedding-004",
         )
 
-        assert result.reason == "rag_error"
+        # Result is a Failure with error reason
+        assert isinstance(result, Failure)
+        assert result.failure() == RagErrorReason.SYSTEM_ERROR
         # Check that error was logged
         assert "RAG query failed" in caplog.text
         assert "Invalid index format" in caplog.text

@@ -49,12 +49,15 @@ def write_post(
 
     validate_newsletter_privacy(content)
 
+    # Sanitize slug FIRST to ensure consistency between filename and front matter
+    safe_slug = slugify(metadata["slug"])
+
+    # Build front matter with sanitized slug
     front_matter = {}
     front_matter["title"] = metadata["title"]
     front_matter["date"] = metadata["date"]
+    front_matter["slug"] = safe_slug  # ✅ Use sanitized slug in front matter
 
-    if "slug" in metadata:
-        front_matter["slug"] = metadata["slug"]
     if "tags" in metadata:
         front_matter["tags"] = metadata["tags"]
     if "summary" in metadata:
@@ -69,9 +72,6 @@ def write_post(
     full_post = f"---\n{yaml_front}---\n\n{content}"
 
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Sanitize slug to prevent path traversal
-    safe_slug = slugify(metadata["slug"])
     filename = f"{metadata['date']}-{safe_slug}.md"
 
     # Ensure path stays within output_dir

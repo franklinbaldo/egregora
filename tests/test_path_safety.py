@@ -244,3 +244,41 @@ class TestWritePostSecurity:
             # Verify result is within output_dir
             assert result.parent == output_dir
             assert output_dir in result.parents or result.parent == output_dir
+
+    def test_slug_sanitized_in_front_matter(self, tmp_path):
+        """Test that slug in YAML front matter is sanitized to match filename.
+
+        SECURITY: This prevents downstream static site generators from using an
+        unsanitized slug when constructing URLs, which could reintroduce path
+        traversal vulnerabilities or cause broken links.
+
+        The slug in front matter MUST match the slug used in the filename to
+        maintain consistency and prevent security issues.
+        """
+        import yaml
+
+        output_dir = tmp_path / "posts"
+        output_dir.mkdir()
+
+        metadata = {
+            "title": "Test Post",
+            "slug": "../../etc/passwd",  # Malicious slug
+            "date": "2025-01-01",
+        }
+
+        result_path = write_post("Test content", metadata, output_dir)
+        result = Path(result_path)
+
+        # Read the front matter
+        content = result.read_text(encoding="utf-8")
+        # Extract YAML front matter
+        parts = content.split("---")
+        front_matter_yaml = parts[1]
+        front_matter = yaml.safe_load(front_matter_yaml)
+
+        # Verify slug in front matter is sanitized
+        assert front_matter["slug"] == "etc-passwd"
+        # Verify filename uses same sanitized slug
+        assert result.name == "2025-01-01-etc-passwd.md"
+        # Ensure they match
+        assert result.stem == f"2025-01-01-{front_matter['slug']}"
