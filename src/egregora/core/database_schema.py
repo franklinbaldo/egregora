@@ -167,7 +167,7 @@ def create_table_if_not_exists(
     # Check if table exists using Ibis
     if table_name not in conn.list_tables():
         # Create empty table with schema
-        empty_table = ibis.memtable([], schema=schema, name=table_name)
+        empty_table = ibis.memtable([], schema=schema)
         conn.create_table(table_name, empty_table, overwrite=False)
 
 

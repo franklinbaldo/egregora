@@ -1,4 +1,4 @@
-# Golden Test Fixtures Design
+# Golden Test Fixtures Design (pytest-vcr)
 
 ## Problem Statement
 
@@ -14,146 +14,227 @@ Even with `--no-enable-enrichment`, the system still makes multiple batch API ca
 3. Profile generation
 4. Post indexing
 
-## Solution: Golden Test Fixtures
+## Solution: pytest-vcr
 
-Create a system to:
-1. **Record** API responses when running with real API keys
-2. **Replay** those responses in tests without API calls
-3. **Validate** that the pipeline produces expected outputs
+We use **pytest-vcr** (VCR.py for pytest) to record and replay HTTP interactions with the Gemini API. This is the industry-standard approach for testing code that makes HTTP requests.
+
+### Why pytest-vcr?
+
+- **Industry standard**: VCR.py pattern is widely used across languages
+- **Automatic**: Records all HTTP interactions transparently
+- **Well-maintained**: Active community and regular updates
+- **Secure**: Built-in filtering for sensitive data (API keys, auth tokens)
+- **Simple**: Just add a decorator to tests
+- **Flexible**: Multiple record modes (once, new_episodes, all, none)
 
 ## Architecture
 
-### 1. Fixture Structure
+### 1. Cassette Storage
 
 ```
-tests/fixtures/golden/
-├── api_responses/           # Mocked API responses
-│   ├── embeddings/
-│   │   ├── request_<hash>.json     # Request metadata
-│   │   └── response_<hash>.json    # Response data
-│   ├── generation/
-│   │   ├── request_<hash>.json
-│   │   └── response_<hash>.json
-│   └── batch_jobs/
-│       ├── job_<id>_status.json
-│       └── job_<id>_result.json
-└── expected_output/         # Expected pipeline outputs
-    └── docs/               # Already captured!
-        ├── posts/
-        ├── profiles/
-        └── media/
+tests/fixtures/vcr_cassettes/
+├── test_with_golden_fixtures/
+│   └── test_pipeline_with_vcr_fixtures.yaml  # Recorded HTTP interactions
+└── ... (other test cassettes)
 ```
 
-### 2. Recording Mode
+Cassettes are YAML files that contain:
+- HTTP request details (method, URL, headers, body)
+- HTTP response details (status, headers, body)
+- Automatically filtered to remove API keys
 
-Create a `GeminiClientRecorder` wrapper that:
-- Intercepts all `genai.Client` calls
-- Saves request/response pairs to `tests/fixtures/golden/api_responses/`
-- Uses content hash to identify unique requests
-- Saves batch job states and polling results
+### 2. Configuration
 
-Usage:
+**In `pyproject.toml`:**
+```toml
+[tool.pytest.ini_options]
+vcr_record_mode = "once"  # Record once, then replay
+vcr_cassette_dir = "tests/fixtures/vcr_cassettes"
+```
+
+**In `tests/conftest.py`:**
 ```python
-with GeminiClientRecorder(output_dir="tests/fixtures/golden/api_responses"):
-    # Run pipeline - responses are recorded
-    process_whatsapp_export(...)
+@pytest.fixture(scope="module")
+def vcr_config():
+    """VCR configuration with API key filtering."""
+    return {
+        "record_mode": "once",
+        "filter_headers": [
+            ("x-goog-api-key", "DUMMY_API_KEY"),
+            ("authorization", "DUMMY_AUTH"),
+        ],
+        "filter_query_parameters": [
+            ("key", "DUMMY_API_KEY"),
+        ],
+        "match_on": ["method", "scheme", "host", "port", "path", "body"],
+    }
 ```
 
-### 3. Playback Mode
+### 3. Recording Workflow
 
-Create a `GeminiClientMock` that:
-- Returns pre-recorded responses based on request content hash
-- Simulates batch job lifecycle (PENDING → RUNNING → SUCCEEDED)
-- Fails loudly if a request doesn't have a recorded response
+**To record new cassettes (requires GOOGLE_API_KEY):**
 
-Usage:
-```python
-@pytest.fixture
-def gemini_client_mock():
-    return GeminiClientMock(fixtures_dir="tests/fixtures/golden/api_responses")
+```bash
+# Set your API key
+export GOOGLE_API_KEY="your-actual-api-key"
 
-def test_with_mocks(gemini_client_mock):
-    # No API calls - uses fixtures
-    process_whatsapp_export(..., client=gemini_client_mock)
+# Delete old cassettes (if regenerating)
+rm -rf tests/fixtures/vcr_cassettes/test_with_golden_fixtures/
+
+# Record new cassettes
+pytest tests/test_with_golden_fixtures.py --vcr-record=all
 ```
 
-### 4. Modified Tests
+This will:
+1. Run the test with real API calls
+2. Record all HTTP interactions to cassette files
+3. Filter out sensitive data (API keys)
+4. Save cassettes to `tests/fixtures/vcr_cassettes/`
 
-Transform `test_e2e_with_api.py` to:
-- Use `GeminiClientMock` by default (fast, no API)
-- Keep one `@pytest.mark.slow` test with real API for validation
-- Add fixture comparison helpers
+### 4. Playback Workflow
 
-Example:
+**To use existing cassettes (default):**
+
+```bash
+# No API key needed!
+pytest tests/test_with_golden_fixtures.py
+```
+
+When tests run:
+1. pytest-vcr intercepts HTTP requests
+2. Matches requests against recorded cassettes
+3. Returns recorded responses instantly
+4. No actual API calls are made
+
+### 5. Writing Tests with VCR
+
+**Example test:**
+
 ```python
-def test_e2e_with_golden_fixtures(whatsapp_fixture, gemini_client_mock, tmp_path):
-    """Fast test using pre-recorded API responses."""
+import pytest
+import os
+from google import genai
+
+@pytest.mark.vcr
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY"),
+    reason="API key required for recording"
+)
+def test_pipeline_with_vcr_fixtures(whatsapp_fixture, tmp_path):
+    """Test using VCR-recorded API responses."""
+    # Create a real Gemini client
+    # VCR will intercept the HTTP calls
+    api_key = os.getenv("GOOGLE_API_KEY", "dummy-key-for-replay")
+    client = genai.Client(api_key=api_key)
+
+    # Run the pipeline
+    # VCR records/replays HTTP interactions automatically
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
-        output_dir=tmp_path,
-        client=gemini_client_mock,
-        # ...
+        output_dir=output_dir,
+        client=client,  # Real client, but VCR intercepts
     )
 
-    # Compare outputs with golden fixtures
-    assert_posts_match_golden(tmp_path / "docs/posts", "tests/fixtures/golden/expected_output/docs/posts")
-
-@pytest.mark.slow
-@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="Real API test")
-def test_e2e_with_real_api_for_validation(whatsapp_fixture, gemini_api_key, tmp_path):
-    """Occasional test with real API to validate fixtures are still accurate."""
-    # Current test, but marked as slow
+    # Assertions...
 ```
 
-## Implementation Plan
+The `@pytest.mark.vcr` decorator automatically:
+- Records HTTP interactions on first run
+- Replays from cassettes on subsequent runs
+- Applies filters from `vcr_config` fixture
 
-### Phase 1: Mock Infrastructure (Jules - no API key needed)
-- [ ] Create `GeminiClientMock` class that replays fixtures
-- [ ] Add request hashing for fixture lookup
-- [ ] Handle batch job state simulation (PENDING → RUNNING → SUCCEEDED)
-- [ ] Create pytest fixtures for mock client
-- [ ] Add output comparison helpers for golden files
+### 6. Regenerating Cassettes
 
-### Phase 2: Test Refactoring (Jules - no API key needed)
-- [ ] Refactor `test_e2e_with_api.py` to accept mock client
-- [ ] Create new `test_with_golden_fixtures.py` using mocks
-- [ ] Add output comparison against `tests/fixtures/golden/expected_output/`
-- [ ] Keep one `@pytest.mark.slow` real API test in `test_e2e_with_api.py`
-- [ ] Add documentation for test structure
+**When to regenerate:**
+- You change prompts or request parameters
+- You upgrade the Gemini API client library
+- You add new API calls to the pipeline
+- Cassettes become outdated
 
-### Phase 3: Recording Infrastructure (Jules - no API key needed)
-- [ ] Create `GeminiClientRecorder` wrapper class
-- [ ] Implement request/response serialization
-- [ ] Add CLI script `scripts/record_golden_fixtures.py`
-- [ ] Document how to regenerate fixtures (for humans with API keys)
+**How to regenerate:**
 
-### Phase 4: Record Actual Fixtures (Claude - REQUIRES API KEY)
-- [ ] Run pipeline with `GeminiClientRecorder` enabled
-- [ ] Capture all API responses to `tests/fixtures/golden/api_responses/`
-- [ ] Verify mocked tests pass with recorded fixtures
-- [ ] Commit API response fixtures
+```bash
+# 1. Delete old cassettes
+rm -rf tests/fixtures/vcr_cassettes/test_with_golden_fixtures/
 
-### Phase 5: CI/CD Integration (Jules)
-- [ ] Update GitHub Actions to run mocked tests
-- [ ] Add weekly job for real API validation (with secrets)
-- [ ] Update testing documentation
+# 2. Set API key
+export GOOGLE_API_KEY="your-actual-api-key"
+
+# 3. Re-record
+pytest tests/test_with_golden_fixtures.py --vcr-record=all
+
+# 4. Verify cassettes were created
+ls -la tests/fixtures/vcr_cassettes/test_with_golden_fixtures/
+
+# 5. Commit new cassettes
+git add tests/fixtures/vcr_cassettes/
+git commit -m "chore: regenerate VCR cassettes"
+```
+
+## VCR Record Modes
+
+pytest-vcr supports different record modes:
+
+- **`once`** (default): Record once, error if cassette missing
+- **`new_episodes`**: Record new interactions, replay existing
+- **`all`**: Always make real requests and update cassettes
+- **`none`**: Always use cassettes, error if missing
+
+Set via:
+```bash
+pytest --vcr-record=<mode>
+```
 
 ## Benefits
 
 - **Speed**: Tests run in seconds instead of minutes
-- **Determinism**: Same inputs → same outputs
+- **Determinism**: Same inputs → same outputs (HTTP-level replay)
 - **CI-friendly**: No API keys needed in CI
-- **Cost**: Zero API costs for most test runs
+- **Cost**: Zero API costs for replayed tests
 - **Debugging**: Easier to debug with reproducible behavior
+- **Standard**: Uses industry-standard VCR.py pattern
+- **Security**: Automatic filtering of sensitive data
+- **Maintenance**: Well-maintained by active community
 
 ## Trade-offs
 
-- **Maintenance**: Fixtures need updating when prompts/API changes
-- **Storage**: Fixtures add ~1-5MB to repo
-- **Coverage**: Need occasional real API tests to catch regressions
+- **Cassette size**: YAML files can be large for complex responses
+- **Maintenance**: Cassettes need updating when API changes
+- **Coverage**: Still need occasional real API tests for validation
+- **Binary data**: Large binary responses increase repo size
+- **HTTP-level**: Records at HTTP level, not at SDK method level
+
+## Comparison with Custom Implementation
+
+| Feature | Custom Playback | pytest-vcr |
+|---------|----------------|------------|
+| Implementation | Custom code to maintain | Standard library |
+| Recording level | SDK methods | HTTP requests |
+| Maintenance | Manual updates needed | Community maintained |
+| Filtering | Manual implementation | Built-in |
+| Flexibility | High (custom logic) | High (configurable) |
+| Learning curve | Codebase-specific | Standard pattern |
+| File format | Custom JSON | Standard YAML |
+
+## Best Practices
+
+1. **Commit cassettes**: Check cassettes into version control
+2. **Filter secrets**: Always filter API keys and tokens
+3. **Document regeneration**: Note when/why cassettes were updated
+4. **Regular updates**: Periodically run with real API to validate
+5. **Small cassettes**: Keep tests focused to reduce cassette size
+6. **CI/CD**: Run with cassettes in CI, real API in scheduled jobs
+7. **Review changes**: Review cassette diffs when regenerating
+
+## Related Files
+
+- `pyproject.toml`: pytest-vcr configuration
+- `tests/conftest.py`: VCR fixture with filtering
+- `tests/test_with_golden_fixtures.py`: Example test using VCR
+- `tests/fixtures/vcr_cassettes/`: Recorded cassettes
 
 ## References
 
-- VCR.py pattern for HTTP mocking
-- pytest-recording for similar approach
-- Existing golden fixtures in `/tests/fixtures/golden/expected_output/`
+- [VCR.py documentation](https://vcrpy.readthedocs.io/)
+- [pytest-vcr documentation](https://pytest-vcr.readthedocs.io/)
+- [VCR pattern origin (Ruby)](https://github.com/vcr/vcr)
