@@ -99,23 +99,36 @@ class VectorStore:
             self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
             self.conn = _ConnectionProxy(connection)
-        
-        self._init_vss()
-        self._vss_function = self._detect_vss_function()
+
+        # Lazy loading: VSS is only initialized when needed (ANN mode)
+        self._vss_available = False
+        self._vss_function = "vss_search"  # Default function name
         self._client = ibis.duckdb.from_connection(self.conn)
         self._table_synced = False
         self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
 
-    def _init_vss(self) -> None:
-        """Initialize DuckDB VSS extension."""
+    def _init_vss(self) -> bool:
+        """
+        Initialize DuckDB VSS extension (lazy loading).
+
+        Returns:
+            True if VSS was successfully loaded, False otherwise.
+        """
+        if self._vss_available:
+            return True
+
         try:
             self.conn.execute("INSTALL vss")
             self.conn.execute("LOAD vss")
+            self._vss_available = True
+            self._vss_function = self._detect_vss_function()
             logger.info("DuckDB VSS extension loaded")
+            return True
         except Exception as e:
-            logger.error(f"Failed to load VSS extension: {e}")
-            raise
+            logger.warning(f"VSS extension unavailable, falling back to exact search: {e}")
+            self._vss_available = False
+            return False
 
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
@@ -180,10 +193,21 @@ class VectorStore:
                     row_count BIGINT,
                     threshold BIGINT,
                     nlist INTEGER,
+                    embedding_dim INTEGER,
                     updated_at TIMESTAMPTZ
                 )
                 """
             )
+        else:
+            # Migrate existing table to add embedding_dim column if missing
+            columns = self.conn.execute(
+                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{INDEX_META_TABLE}'"
+            ).fetchall()
+            column_names = {str(row[0]).lower() for row in columns}
+            if "embedding_dim" not in column_names:
+                self.conn.execute(
+                    f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN embedding_dim INTEGER"
+                )
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
@@ -264,6 +288,12 @@ class VectorStore:
             self._clear_index_meta()
             return
 
+        # Only attempt to create VSS index if extension is available
+        if not self._init_vss():
+            logger.info("VSS not available, skipping index creation")
+            self._clear_index_meta()
+            return
+
         try:
             self.conn.execute(
                 f"""
@@ -282,22 +312,24 @@ class VectorStore:
         row_count: int,
         threshold: int,
         nlist: int | None,
+        embedding_dim: int | None = None,
     ) -> None:
         """Persist the latest index configuration for observability and telemetry."""
 
         timestamp = datetime.now()
         self.conn.execute(
             f"""
-            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, embedding_dim, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(index_name) DO UPDATE SET
                 mode=excluded.mode,
                 row_count=excluded.row_count,
                 threshold=excluded.threshold,
                 nlist=excluded.nlist,
+                embedding_dim=excluded.embedding_dim,
                 updated_at=excluded.updated_at
             """,
-            [INDEX_NAME, mode, row_count, threshold, nlist, timestamp],
+            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp],
         )
 
     def _clear_index_meta(self) -> None:
@@ -307,6 +339,51 @@ class VectorStore:
             f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?",
             [INDEX_NAME],
         )
+
+    def _get_stored_embedding_dim(self) -> int | None:
+        """Fetch the stored embedding dimensionality from index metadata."""
+        row = self.conn.execute(
+            f"SELECT embedding_dim FROM {INDEX_META_TABLE} WHERE index_name = ?",
+            [INDEX_NAME],
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+
+    def _validate_embedding_dimension(self, embeddings: list[list[float]], context: str) -> int:
+        """
+        Validate embedding dimensionality consistency.
+
+        Args:
+            embeddings: List of embedding vectors to validate
+            context: Description of where these embeddings come from (for error messages)
+
+        Returns:
+            The consistent embedding dimension
+
+        Raises:
+            ValueError: If embeddings have inconsistent dimensions or don't match stored dimension
+        """
+        if not embeddings:
+            raise ValueError(f"{context}: No embeddings provided")
+
+        # Check consistency within this batch
+        dimensions = {len(emb) for emb in embeddings}
+        if len(dimensions) > 1:
+            raise ValueError(
+                f"{context}: Inconsistent embedding dimensions within batch: {sorted(dimensions)}"
+            )
+
+        current_dim = dimensions.pop()
+
+        # Check against stored dimension
+        stored_dim = self._get_stored_embedding_dim()
+        if stored_dim is not None and current_dim != stored_dim:
+            raise ValueError(
+                f"{context}: Embedding dimension mismatch. "
+                f"Expected {stored_dim} (from existing data), got {current_dim}. "
+                f"Cannot mix different embedding models/dimensions in the same store."
+            )
+
+        return current_dim
 
     def add(self, chunks_table: Table) -> None:
         """
@@ -344,6 +421,15 @@ class VectorStore:
 
         chunks_table = self._ensure_local_table(chunks_table)
 
+        # Validate embedding dimensionality
+        chunks_df = chunks_table.execute()
+        if len(chunks_df) > 0 and "embedding" in chunks_df.columns:
+            embeddings = chunks_df["embedding"].tolist()
+            embedding_dim = self._validate_embedding_dimension(embeddings, "New chunks")
+            logger.info(f"Validated embedding dimension: {embedding_dim}")
+        else:
+            embedding_dim = None
+
         if self.parquet_path.exists():
             # Read existing and append
             existing_table = self._client.read_parquet(self.parquet_path)
@@ -364,6 +450,17 @@ class VectorStore:
 
         self._table_synced = False
         self._ensure_dataset_loaded(force=True)
+
+        # Persist embedding dimension in metadata
+        if embedding_dim is not None:
+            row_count = combined_table.count().execute()
+            self._upsert_index_meta(
+                mode="unknown",  # Will be updated when index is rebuilt
+                row_count=row_count,
+                threshold=0,
+                nlist=None,
+                embedding_dim=embedding_dim,
+            )
 
         logger.info(f"Vector store saved to {self.parquet_path}")
 
@@ -463,9 +560,23 @@ class VectorStore:
         if embedding_dimensionality == 0:
             raise ValueError("Query embedding vector must not be empty")
 
+        # Validate query vector dimension against stored dimension
+        stored_dim = self._get_stored_embedding_dim()
+        if stored_dim is not None and embedding_dimensionality != stored_dim:
+            raise ValueError(
+                f"Query embedding dimension mismatch. "
+                f"Expected {stored_dim} (from indexed data), got {embedding_dimensionality}. "
+                f"Ensure you're using the same embedding model as when indexing."
+            )
+
         mode_normalized = mode.lower()
         if mode_normalized not in {"ann", "exact"}:
             raise ValueError("mode must be either 'ann' or 'exact'")
+
+        # Fallback to exact mode if ANN requested but VSS not available
+        if mode_normalized == "ann" and not self._init_vss():
+            logger.info("ANN mode requested but VSS unavailable, using exact search")
+            mode_normalized = "exact"
 
         if nprobe is not None and nprobe <= 0:
             raise ValueError("nprobe must be a positive integer")

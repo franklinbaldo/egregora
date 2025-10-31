@@ -36,22 +36,44 @@ app = typer.Typer(
 logger = logging.getLogger(__name__)
 
 
-def _make_json_safe(value: Any) -> Any:
-    """Return a JSON-serializable representation of ``value``."""
+def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
+    """
+    Return a JSON-serializable representation of ``value``.
 
+    Args:
+        value: Value to convert
+        strict: If True, raise TypeError for non-serializable types instead of
+                converting to string. Default False for backward compatibility.
+
+    Raises:
+        TypeError: If strict=True and value is not JSON-serializable
+    """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value, dict):
-        return {key: _make_json_safe(val) for key, val in value.items()}
+        return {key: _make_json_safe(val, strict=strict) for key, val in value.items()}
     if isinstance(value, (list, tuple, set)):
-        return [_make_json_safe(item) for item in value]
+        return [_make_json_safe(item, strict=strict) for item in value]
     if hasattr(value, "item"):
         try:
             return value.item()
-        except Exception:  # pragma: no cover - fallback to raising below
+        except Exception:  # pragma: no cover - fallback to string or error
             pass
+
+    # Unknown type - log warning and convert to string (or raise in strict mode)
+    if strict:
+        raise TypeError(
+            f"Cannot serialize type {type(value).__name__} to JSON. "
+            f"Value: {value!r}"
+        )
+
+    logger.warning(
+        "Converting non-serializable type %s to string for JSON export: %r",
+        type(value).__name__,
+        value,
+    )
     return str(value)
 
 

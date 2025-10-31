@@ -689,31 +689,6 @@ def _query_rag_for_context(  # noqa: PLR0913
         return ""
 
 
-def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
-    """Load profiles for top active authors."""
-    top_authors = get_top_authors(table, limit=20)
-    if not top_authors:
-        return ""
-
-    logger.info(f"Loading profiles for {len(top_authors)} active authors")
-    profiles_context = "\n\n## Active Participants (Profiles):\n"
-    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
-
-    for author_uuid in top_authors:
-        profile_content = read_profile(author_uuid, profiles_dir)
-
-        if profile_content:
-            profiles_context += f"### Author: {author_uuid}\n"
-            profiles_context += f"{profile_content}\n\n"
-        else:
-            # No profile yet (first time seeing this author)
-            profiles_context += f"### Author: {author_uuid}\n"
-            profiles_context += "(No profile yet - first appearance)\n\n"
-
-    logger.info(f"Profiles context: {len(profiles_context)} characters")
-    return profiles_context
-
-
 def _handle_write_post_tool(
     fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path, saved_posts: list[str]
 ) -> genai_types.Content:

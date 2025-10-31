@@ -184,7 +184,7 @@ extra:
     models:
       writer: models/gemini-2.0-flash-exp
       enricher: models/gemini-1.5-flash
-      embeddings: models/text-embedding-004
+      embedding: models/gemini-embedding-001  # Default: 3072 dimensions
 ```
 
 ### RAG Configuration
