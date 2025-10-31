@@ -810,20 +810,19 @@ def enrich(  # noqa: PLR0913
 
     Requires GOOGLE_API_KEY environment variable or --gemini-key flag.
     """
-    import duckdb
-    import ibis
     from google import genai
 
     from ..augmentation.enrichment import enrich_table, extract_and_replace_media
     from ..config import ModelConfig, load_site_config, resolve_site_paths
     from ..utils.cache import EnrichmentCache
     from ..utils.smart_client import SmartGeminiClient
-    from .serialization import load_table_with_auto_schema, save_table_to_csv
+    from .database import duckdb_backend
+    from .serialization import load_table, save_table
 
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
-        console.print(f"[red]Input CSV not found: {input_path}[/red]")
+        console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
 
     zip_path = zip_file.resolve()
@@ -851,78 +850,72 @@ def enrich(  # noqa: PLR0913
     site_config = load_site_config(site_path)
     model_config = ModelConfig(site_config=site_config)
 
-    # Setup DuckDB backend
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
-    old_backend = getattr(ibis.options, "default_backend", None)
-
+    # Use DuckDB backend context manager
     client: genai.Client | None = None
+    enrichment_cache: EnrichmentCache | None = None
+
     try:
-        ibis.options.default_backend = backend
-        client = genai.Client(api_key=api_key)
+        with duckdb_backend():
+            client = genai.Client(api_key=api_key)
 
-        console.print(f"[cyan]Loading:[/cyan] {input_path}")
-        messages_table = load_table_with_auto_schema(input_path)
-        original_count = messages_table.count().execute()
+            console.print(f"[cyan]Loading:[/cyan] {input_path}")
+            messages_table = load_table(input_path)
+            original_count = messages_table.count().execute()
 
-        console.print(f"[cyan]Loaded {original_count} messages[/cyan]")
+            console.print(f"[cyan]Loaded {original_count} messages[/cyan]")
 
-        # Extract media from ZIP
-        console.print("[yellow]Extracting media from ZIP...[/yellow]")
-        messages_table, media_mapping = extract_and_replace_media(
-            messages_table,
-            zip_path,
-            site_paths.docs_dir,
-            site_paths.posts_dir,
-            "chat",  # generic group slug for standalone enrichment
-        )
+            # Extract media from ZIP
+            console.print("[yellow]Extracting media from ZIP...[/yellow]")
+            messages_table, media_mapping = extract_and_replace_media(
+                messages_table,
+                zip_path,
+                site_paths.docs_dir,
+                site_paths.posts_dir,
+                "chat",  # generic group slug for standalone enrichment
+            )
 
-        console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
+            console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
 
-        # Setup smart clients and cache
-        text_batch_client = SmartGeminiClient(client, model_config.get_model("enricher"))
-        vision_batch_client = SmartGeminiClient(client, model_config.get_model("enricher_vision"))
+            # Setup smart clients and cache
+            text_batch_client = SmartGeminiClient(client, model_config.get_model("enricher"))
+            vision_batch_client = SmartGeminiClient(client, model_config.get_model("enricher_vision"))
 
-        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
-        enrichment_cache = EnrichmentCache(cache_dir)
+            cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+            enrichment_cache = EnrichmentCache(cache_dir)
 
-        console.print(
-            f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}"
-        )
+            console.print(
+                f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}"
+            )
 
-        # Enrich table
-        enriched_table = enrich_table(
-            messages_table,
-            media_mapping,
-            text_batch_client,
-            vision_batch_client,
-            enrichment_cache,
-            site_paths.docs_dir,
-            site_paths.posts_dir,
-            model_config,
-            enable_url=enable_url,
-            enable_media=enable_media,
-            max_enrichments=max_enrichments,
-        )
+            # Enrich table
+            enriched_table = enrich_table(
+                messages_table,
+                media_mapping,
+                text_batch_client,
+                vision_batch_client,
+                enrichment_cache,
+                site_paths.docs_dir,
+                site_paths.posts_dir,
+                model_config,
+                enable_url=enable_url,
+                enable_media=enable_media,
+                max_enrichments=max_enrichments,
+            )
 
-        enriched_count = enriched_table.count().execute()
-        added_rows = enriched_count - original_count
+            enriched_count = enriched_table.count().execute()
+            added_rows = enriched_count - original_count
 
-        console.print(f"[green]✅ Added {added_rows} enrichment rows[/green]")
+            console.print(f"[green]✅ Added {added_rows} enrichment rows[/green]")
 
-        # Save enriched table
-        save_table_to_csv(enriched_table, output_path)
-        console.print(f"[green]💾 Saved to {output_path}[/green]")
+            # Save enriched table (format auto-detected)
+            save_table(enriched_table, output_path)
+            console.print(f"[green]💾 Saved to {output_path}[/green]")
 
     finally:
-        try:
-            if "enrichment_cache" in locals():
-                enrichment_cache.close()
-        finally:
-            if client:
-                client.close()
-            ibis.options.default_backend = old_backend
-            connection.close()
+        if enrichment_cache:
+            enrichment_cache.close()
+        if client:
+            client.close()
 
 
 @app.command()
@@ -962,8 +955,6 @@ def gather_context(  # noqa: PLR0913
     """
     import json
 
-    import duckdb
-    import ibis
     from google import genai
 
     from ..augmentation.profiler import get_active_authors
@@ -971,12 +962,13 @@ def gather_context(  # noqa: PLR0913
     from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
     from ..generation.writer.formatting import _build_conversation_markdown, _load_freeform_memory
     from ..utils.smart_client import SmartGeminiClient
-    from .serialization import load_table_with_auto_schema
+    from .database import duckdb_backend
+    from .serialization import load_table
 
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
-        console.print(f"[red]Input CSV not found: {input_path}[/red]")
+        console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
 
     site_path = site_dir.resolve()
@@ -993,98 +985,91 @@ def gather_context(  # noqa: PLR0913
     model_config = ModelConfig(site_config=site_config)
     mkdocs_config = load_mkdocs_config(site_path)
 
-    # Setup DuckDB backend
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
-    old_backend = getattr(ibis.options, "default_backend", None)
-
+    # Use DuckDB backend context manager
     client: genai.Client | None = None
     try:
-        ibis.options.default_backend = backend
+        with duckdb_backend():
+            console.print(f"[cyan]Loading:[/cyan] {input_path}")
+            enriched_table = load_table(input_path)
+            message_count = enriched_table.count().execute()
+            console.print(f"[cyan]Loaded {message_count} messages[/cyan]")
 
-        console.print(f"[cyan]Loading:[/cyan] {input_path}")
-        enriched_table = load_table_with_auto_schema(input_path)
-        message_count = enriched_table.count().execute()
-        console.print(f"[cyan]Loaded {message_count} messages[/cyan]")
+            # Build conversation markdown
+            console.print("[yellow]Formatting conversation...[/yellow]")
+            conversation_md = _build_conversation_markdown(enriched_table)
 
-        # Build conversation markdown
-        console.print("[yellow]Formatting conversation...[/yellow]")
-        conversation_md = _build_conversation_markdown(enriched_table)
+            # Get active authors
+            active_authors = get_active_authors(enriched_table)
+            console.print(f"[cyan]Active authors: {len(active_authors)}[/cyan]")
 
-        # Get active authors
-        active_authors = get_active_authors(enriched_table)
-        console.print(f"[cyan]Active authors: {len(active_authors)}[/cyan]")
+            # Load profiles
+            console.print("[yellow]Loading profiles...[/yellow]")
+            profiles = _load_profiles_context(active_authors, site_paths.profiles_dir)
 
-        # Load profiles
-        console.print("[yellow]Loading profiles...[/yellow]")
-        profiles = _load_profiles_context(active_authors, site_paths.profiles_dir)
+            # Load freeform memory
+            console.print("[yellow]Loading freeform memory...[/yellow]")
+            freeform_memory = _load_freeform_memory(site_paths.posts_dir)
 
-        # Load freeform memory
-        console.print("[yellow]Loading freeform memory...[/yellow]")
-        freeform_memory = _load_freeform_memory(site_paths.posts_dir)
+            # RAG context (if enabled)
+            rag_similar_posts: list[dict[str, Any]] = []
+            rag_context_markdown = ""
+            if enable_rag:
+                api_key = _resolve_gemini_key(gemini_key)
+                if not api_key:
+                    console.print("[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]")
+                else:
+                    console.print("[yellow]Querying RAG for similar posts...[/yellow]")
+                    client = genai.Client(api_key=api_key)
+                    embedding_batch_client = SmartGeminiClient(
+                        client, model_config.get_model("embedding")
+                    )
 
-        # RAG context (if enabled)
-        rag_similar_posts: list[dict[str, Any]] = []
-        rag_context_markdown = ""
-        if enable_rag:
-            api_key = _resolve_gemini_key(gemini_key)
-            if not api_key:
-                console.print("[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]")
-            else:
-                console.print("[yellow]Querying RAG for similar posts...[/yellow]")
-                client = genai.Client(api_key=api_key)
-                embedding_batch_client = SmartGeminiClient(
-                    client, model_config.get_model("embedding")
-                )
+                    rag_context_markdown, rag_similar_posts = _query_rag_for_context(
+                        enriched_table,
+                        embedding_batch_client,
+                        site_paths.rag_dir,
+                        embedding_model=model_config.get_model("embedding"),
+                        embedding_output_dimensionality=model_config.embedding_output_dimensionality,
+                        retrieval_mode=retrieval_mode,
+                        retrieval_nprobe=retrieval_nprobe,
+                        retrieval_overfetch=retrieval_overfetch,
+                        return_records=True,
+                    )
+                    console.print(f"[green]Found {len(rag_similar_posts)} similar posts[/green]")
 
-                rag_context_markdown, rag_similar_posts = _query_rag_for_context(
-                    enriched_table,
-                    embedding_batch_client,
-                    site_paths.rag_dir,
-                    embedding_model=model_config.get_model("embedding"),
-                    embedding_output_dimensionality=model_config.embedding_output_dimensionality,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
-                    return_records=True,
-                )
-                console.print(f"[green]Found {len(rag_similar_posts)} similar posts[/green]")
+            if rag_similar_posts:
+                rag_similar_posts = [_make_json_safe(record) for record in rag_similar_posts]
 
-        if rag_similar_posts:
-            rag_similar_posts = [_make_json_safe(record) for record in rag_similar_posts]
+            # Build context structure
+            context = {
+                "period_key": period_key,
+                "conversation_markdown": conversation_md,
+                "active_authors": list(active_authors),
+                "profiles": profiles,
+                "freeform_memory": freeform_memory,
+                "rag_similar_posts": rag_similar_posts,
+                "rag_context_markdown": rag_context_markdown,
+                "site_config": {
+                    "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
+                    "custom_writer_prompt": site_config.get("custom_writer_prompt"),
+                },
+                "message_count": message_count,
+            }
 
-        # Build context structure
-        context = {
-            "period_key": period_key,
-            "conversation_markdown": conversation_md,
-            "active_authors": list(active_authors),
-            "profiles": profiles,
-            "freeform_memory": freeform_memory,
-            "rag_similar_posts": rag_similar_posts,
-            "rag_context_markdown": rag_context_markdown,
-            "site_config": {
-                "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
-                "custom_writer_prompt": site_config.get("custom_writer_prompt"),
-            },
-            "message_count": message_count,
-        }
+            # Save to JSON
+            with output_path.open("w", encoding="utf-8") as f:
+                json.dump(context, f, indent=2, ensure_ascii=False)
 
-        # Save to JSON
-        with output_path.open("w", encoding="utf-8") as f:
-            json.dump(context, f, indent=2, ensure_ascii=False)
-
-        console.print(f"[green]✅ Saved context to {output_path}[/green]")
-        console.print("[cyan]Context includes:[/cyan]")
-        console.print(f"  • {message_count} messages")
-        console.print(f"  • {len(active_authors)} active authors")
-        console.print(f"  • {len(rag_similar_posts)} RAG results")
-        console.print(f"  • Freeform memory: {'Yes' if freeform_memory else 'No'}")
+            console.print(f"[green]✅ Saved context to {output_path}[/green]")
+            console.print("[cyan]Context includes:[/cyan]")
+            console.print(f"  • {message_count} messages")
+            console.print(f"  • {len(active_authors)} active authors")
+            console.print(f"  • {len(rag_similar_posts)} RAG results")
+            console.print(f"  • Freeform memory: {'Yes' if freeform_memory else 'No'}")
 
     finally:
         if client:
             client.close()
-        ibis.options.default_backend = old_backend
-        connection.close()
 
 
 @app.command()
@@ -1118,19 +1103,18 @@ def write_posts(  # noqa: PLR0913
     """
     import json
 
-    import duckdb
-    import ibis
     from google import genai
 
     from ..config import ModelConfig, load_site_config, resolve_site_paths
     from ..generation.writer import write_posts_for_period
     from ..utils.smart_client import SmartGeminiClient
-    from .serialization import load_table_with_auto_schema
+    from .database import duckdb_backend
+    from .serialization import load_table
 
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
-        console.print(f"[red]Input CSV not found: {input_path}[/red]")
+        console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
 
     site_path = site_dir.resolve()
@@ -1155,72 +1139,66 @@ def write_posts(  # noqa: PLR0913
     site_config = load_site_config(site_path)
     model_config = ModelConfig(cli_model=model, site_config=site_config)
 
-    # Setup DuckDB backend
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
-    old_backend = getattr(ibis.options, "default_backend", None)
-
+    # Use DuckDB backend context manager
     client: genai.Client | None = None
     try:
-        ibis.options.default_backend = backend
-        client = genai.Client(api_key=api_key)
+        with duckdb_backend():
+            client = genai.Client(api_key=api_key)
 
-        console.print(f"[cyan]Loading:[/cyan] {input_path}")
-        enriched_table = load_table_with_auto_schema(input_path)
-        message_count = enriched_table.count().execute()
-        console.print(f"[cyan]Loaded {message_count} messages[/cyan]")
+            console.print(f"[cyan]Loading:[/cyan] {input_path}")
+            enriched_table = load_table(input_path)
+            message_count = enriched_table.count().execute()
+            console.print(f"[cyan]Loaded {message_count} messages[/cyan]")
 
-        # Load or note context source
-        if context_path:
-            console.print(f"[cyan]Using context from:[/cyan] {context_path}")
-            with context_path.open("r", encoding="utf-8") as f:
-                context_data = json.load(f)
-            console.print(f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]")
-        else:
-            console.print("[yellow]No context file provided, will gather context inline[/yellow]")
+            # Load or note context source
+            if context_path:
+                console.print(f"[cyan]Using context from:[/cyan] {context_path}")
+                with context_path.open("r", encoding="utf-8") as f:
+                    context_data = json.load(f)
+                console.print(f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]")
+            else:
+                console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
-        # Setup embedding client for RAG
-        embedding_batch_client = SmartGeminiClient(
-            client, model_config.get_model("embedding")
-        )
-        embedding_dimensionality = model_config.embedding_output_dimensionality
+            # Setup embedding client for RAG
+            embedding_batch_client = SmartGeminiClient(
+                client, model_config.get_model("embedding")
+            )
+            embedding_dimensionality = model_config.embedding_output_dimensionality
 
-        console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
-        console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
+            console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
+            console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
-        # Write posts (this uses the existing write_posts_for_period function)
-        result = write_posts_for_period(
-            enriched_table,
-            period_key,
-            client,
-            embedding_batch_client,
-            site_paths.posts_dir,
-            site_paths.profiles_dir,
-            site_paths.rag_dir,
-            model_config,
-            enable_rag=True,  # RAG is handled by existing logic
-            embedding_output_dimensionality=embedding_dimensionality,
-            retrieval_mode="ann",  # Default, context already includes RAG results if needed
-        )
+            # Write posts (this uses the existing write_posts_for_period function)
+            result = write_posts_for_period(
+                enriched_table,
+                period_key,
+                client,
+                embedding_batch_client,
+                site_paths.posts_dir,
+                site_paths.profiles_dir,
+                site_paths.rag_dir,
+                model_config,
+                enable_rag=True,  # RAG is handled by existing logic
+                embedding_output_dimensionality=embedding_dimensionality,
+                retrieval_mode="ann",  # Default, context already includes RAG results if needed
+            )
 
-        posts_count = len(result.get("posts", []))
-        profiles_count = len(result.get("profiles", []))
+            posts_count = len(result.get("posts", []))
+            profiles_count = len(result.get("profiles", []))
 
-        console.print(f"[green]✅ Generated {posts_count} posts[/green]")
-        console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
+            console.print(f"[green]✅ Generated {posts_count} posts[/green]")
+            console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
 
-        if posts_count > 0:
-            console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
-            for post_path in result.get("posts", [])[:5]:  # Show first 5
-                console.print(f"  • {Path(post_path).name}")
-            if posts_count > 5:
-                console.print(f"  ... and {posts_count - 5} more")
+            if posts_count > 0:
+                console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
+                for post_path in result.get("posts", [])[:5]:  # Show first 5
+                    console.print(f"  • {Path(post_path).name}")
+                if posts_count > 5:
+                    console.print(f"  ... and {posts_count - 5} more")
 
     finally:
         if client:
             client.close()
-        ibis.options.default_backend = old_backend
-        connection.close()
 
 
 _register_ranking_cli(app)
