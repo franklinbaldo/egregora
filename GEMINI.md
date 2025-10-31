@@ -1,3 +1,9 @@
+<!--
+⚠️  AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
+This file is generated from scripts/templates/AGENT_GUIDE.md.jinja2
+To update this documentation, edit the template and run: python scripts/generate_docs.py
+-->
+
 # GEMINI.md
 
 This file provides guidance to Gemini when working with code in this repository.
@@ -110,6 +116,54 @@ python .claude/skills/jules-api/jules_client.py get <session-id>
 4. **Iterate with feedback** - Use `sendMessage` to guide Jules if needed
 5. **Use AUTO_CREATE_PR mode** - Let Jules create PRs automatically
 6. **Document context** - Add relevant context in commit messages
+
+### CRITICAL: Jules Has No Memory Between Sessions
+
+**⚠️ IMPORTANT**: Each Jules session is completely isolated. Jules CANNOT access:
+- Previous session conversations or context
+- Files created in other sessions (even by Jules itself)
+- Session history or outcomes
+- References like "session #123456789" (meaningless to Jules)
+
+**What this means:**
+- ❌ DON'T say: "Continue the work from session #4842758738209255752"
+- ❌ DON'T say: "See the files you created earlier"
+- ❌ DON'T say: "Follow up on your previous implementation"
+
+**Instead, always provide complete context:**
+- ✅ DO: Include full task description with all relevant details
+- ✅ DO: Reference files BY PATH if they exist in the repo/branch
+- ✅ DO: Describe what needs to be done from scratch
+- ✅ DO: Include design docs, requirements, and examples
+- ✅ DO: Explain the "why" behind the task
+
+**Example - Bad Prompt:**
+```
+"Continue implementing the golden fixtures from your previous session"
+```
+
+**Example - Good Prompt:**
+```
+"Implement golden test fixtures infrastructure. See GOLDEN_FIXTURES_DESIGN.md
+in branch feature/golden-test-fixtures for full design.
+
+Tasks:
+1. Create src/egregora/testing/gemini_recorder.py with GeminiClientRecorder class
+   - Wraps google.genai.Client to record API calls
+   - Saves requests/responses to JSON files in tests/fixtures/golden/api_responses/
+   - Implements same interface as genai.Client for drop-in replacement
+
+2. Create scripts/record_golden_fixtures.py CLI script
+   - Requires GOOGLE_API_KEY environment variable
+   - Runs egregora pipeline with recording enabled
+   - Usage instructions in docstring
+
+3. Create dummy fixture files for testing the infrastructure
+
+Commit the code even if using dummy fixtures - we'll generate real ones later."
+```
+
+**Key insight**: Treat every Jules session as if Jules is seeing the codebase for the first time. Provide complete, self-contained instructions.
 
 ### Typical Workflow
 

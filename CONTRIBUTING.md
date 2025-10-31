@@ -346,6 +346,34 @@ tests/
 
 ## Documentation
 
+### Auto-Generated Documentation
+
+**IMPORTANT:** Some documentation files are auto-generated from templates to prevent drift and ensure consistency.
+
+**Auto-generated files (DO NOT EDIT DIRECTLY):**
+- `CLAUDE.md` - Guide for Claude Code
+- `AGENTS.md` - Guide for generic AI agents
+- `GEMINI.md` - Guide for Gemini
+
+These files include a warning header at the top. To update them:
+
+1. **Edit the template** in `scripts/templates/` (e.g., `AGENT_GUIDE.md.jinja2`)
+2. **Run the generator:**
+   ```bash
+   python scripts/generate_docs.py
+   ```
+3. **Commit both** the template and generated files
+
+The CI will fail if auto-generated docs are out of sync with their templates.
+
+**Manual documentation files (can be edited directly):**
+- `README.md`
+- `CONTRIBUTING.md` (this file)
+- Design documents (`*_DESIGN.md`)
+- Setup guides (`.github/AUTO_REVIEW_SETUP.md`)
+
+See `scripts/templates/README.md` for more details on the documentation generation system.
+
 ### Docstrings
 
 Use Google-style docstrings:

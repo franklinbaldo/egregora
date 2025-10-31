@@ -1,3 +1,9 @@
+<!--
+⚠️  AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
+This file is generated from scripts/templates/AGENT_GUIDE.md.jinja2
+To update this documentation, edit the template and run: python scripts/generate_docs.py
+-->
+
 # AGENTS.md
 
 This file provides guidance to the Agent when working with code in this repository.
@@ -111,10 +117,58 @@ python .claude/skills/jules-api/jules_client.py get <session-id>
 5. **Use AUTO_CREATE_PR mode** - Let Jules create PRs automatically
 6. **Document context** - Add relevant context in commit messages
 
+### CRITICAL: Jules Has No Memory Between Sessions
+
+**⚠️ IMPORTANT**: Each Jules session is completely isolated. Jules CANNOT access:
+- Previous session conversations or context
+- Files created in other sessions (even by Jules itself)
+- Session history or outcomes
+- References like "session #123456789" (meaningless to Jules)
+
+**What this means:**
+- ❌ DON'T say: "Continue the work from session #4842758738209255752"
+- ❌ DON'T say: "See the files you created earlier"
+- ❌ DON'T say: "Follow up on your previous implementation"
+
+**Instead, always provide complete context:**
+- ✅ DO: Include full task description with all relevant details
+- ✅ DO: Reference files BY PATH if they exist in the repo/branch
+- ✅ DO: Describe what needs to be done from scratch
+- ✅ DO: Include design docs, requirements, and examples
+- ✅ DO: Explain the "why" behind the task
+
+**Example - Bad Prompt:**
+```
+"Continue implementing the golden fixtures from your previous session"
+```
+
+**Example - Good Prompt:**
+```
+"Implement golden test fixtures infrastructure. See GOLDEN_FIXTURES_DESIGN.md
+in branch feature/golden-test-fixtures for full design.
+
+Tasks:
+1. Create src/egregora/testing/gemini_recorder.py with GeminiClientRecorder class
+   - Wraps google.genai.Client to record API calls
+   - Saves requests/responses to JSON files in tests/fixtures/golden/api_responses/
+   - Implements same interface as genai.Client for drop-in replacement
+
+2. Create scripts/record_golden_fixtures.py CLI script
+   - Requires GOOGLE_API_KEY environment variable
+   - Runs egregora pipeline with recording enabled
+   - Usage instructions in docstring
+
+3. Create dummy fixture files for testing the infrastructure
+
+Commit the code even if using dummy fixtures - we'll generate real ones later."
+```
+
+**Key insight**: Treat every Jules session as if Jules is seeing the codebase for the first time. Provide complete, self-contained instructions.
+
 ### Typical Workflow
 
 ```
-The Agent creates initial implementation
+the Agent creates initial implementation
     ↓
 Push to feature branch
     ↓
@@ -126,7 +180,7 @@ Delegate to Jules for:
     ↓
 Jules creates PR with improvements
     ↓
-The Agent reviews Jules' changes
+the Agent reviews Jules' changes
     ↓
 Merge when ready
 ```
@@ -150,11 +204,11 @@ python .claude/skills/jules-api/jules_client.py activities <session-id>
 
 ### Success Pattern from This Repository
 
-1. The Agent created GitHub Actions workflow + Jules API skill
+1. the Agent created GitHub Actions workflow + Jules API skill
 2. Pushed to `feature/claude-code-integrations`
 3. Created Jules session for code review
 4. Jules found P1 auth bug and suggested improvements
-5. The Agent fixed the bug
+5. the Agent fixed the bug
 6. Created new Jules session to verify the fix
 7. Jules validated and enhanced the implementation
 
