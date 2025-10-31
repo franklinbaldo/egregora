@@ -66,6 +66,7 @@ similar = query_similar_posts(
     batch_client=batch_client,
     store=store,
     embedding_model=embedding_model,
+    output_dimensionality=embedding_dims,
 )
 ```
 
@@ -139,6 +140,7 @@ results = query_similar_posts(
     top_k=10,
     retrieval_mode="ann",
     retrieval_nprobe=10,
+    output_dimensionality=embedding_dims,
 )
 
 context = results.execute().to_pylist()
