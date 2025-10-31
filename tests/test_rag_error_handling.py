@@ -5,8 +5,13 @@ from unittest.mock import Mock, patch
 
 import ibis
 import pytest
+from returns.result import Failure, Success
 
-from egregora.generation.writer.context import RagResult, _query_rag_for_context
+from egregora.generation.writer.context import (
+    RagContext,
+    RagErrorReason,
+    _query_rag_for_context,
+)
 from egregora.utils import GeminiBatchClient
 
 
@@ -30,29 +35,19 @@ def test_rag_dir(tmp_path):
     return rag_dir
 
 
-class TestRagResult:
-    """Tests for RagResult dataclass."""
+class TestRagContext:
+    """Tests for RagContext dataclass."""
 
-    def test_success_result(self):
-        """Test creating a successful result."""
-        result = RagResult(ok=True, text="Test content", reason="success")
-        assert result.ok is True
-        assert result.text == "Test content"
-        assert result.reason == "success"
+    def test_success_context(self):
+        """Test creating a successful context."""
+        context = RagContext(text="Test content", records=[{"post_title": "Test"}])
+        assert context.text == "Test content"
+        assert len(context.records) == 1
 
-    def test_no_hits_result(self):
-        """Test creating a no-hits result."""
-        result = RagResult(ok=False, reason="no_hits")
-        assert result.ok is False
-        assert result.text == ""
-        assert result.reason == "no_hits"
-
-    def test_error_result(self):
-        """Test creating an error result."""
-        result = RagResult(ok=False, reason="rag_error")
-        assert result.ok is False
-        assert result.text == ""
-        assert result.reason == "rag_error"
+    def test_error_reasons(self):
+        """Test error reason constants."""
+        assert RagErrorReason.NO_HITS == "no_hits"
+        assert RagErrorReason.SYSTEM_ERROR == "rag_error"
 
 
 class TestRagErrorHandling:
@@ -60,10 +55,10 @@ class TestRagErrorHandling:
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
-    def test_rag_error_returns_structured_result(
+    def test_rag_error_returns_failure_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
-        """Test that RAG errors return structured RagResult."""
+        """Test that RAG errors return Failure result."""
         # Simulate VectorStore raising an exception
         mock_store.side_effect = Exception("Index file not found")
 
@@ -74,17 +69,15 @@ class TestRagErrorHandling:
             embedding_model="models/text-embedding-004",
         )
 
-        assert isinstance(result, RagResult)
-        assert result.ok is False
-        assert result.reason == "rag_error"
-        assert result.text == ""
+        assert isinstance(result, Failure)
+        assert result.failure() == RagErrorReason.SYSTEM_ERROR
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
-    def test_no_hits_returns_structured_result(
+    def test_no_hits_returns_failure_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
-        """Test that no hits return structured RagResult."""
+        """Test that no hits return Failure result."""
         # Mock empty result
         mock_result = Mock()
         mock_result.count.return_value.execute.return_value = 0
@@ -97,17 +90,15 @@ class TestRagErrorHandling:
             embedding_model="models/text-embedding-004",
         )
 
-        assert isinstance(result, RagResult)
-        assert result.ok is False
-        assert result.reason == "no_hits"
-        assert result.text == ""
+        assert isinstance(result, Failure)
+        assert result.failure() == RagErrorReason.NO_HITS
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
-    def test_successful_query_returns_structured_result(
+    def test_successful_query_returns_success_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
-        """Test that successful queries return structured RagResult."""
+        """Test that successful queries return Success result."""
         # Mock successful result
         mock_result = Mock()
         mock_result.count.return_value.execute.return_value = 2
@@ -138,12 +129,13 @@ class TestRagErrorHandling:
             embedding_model="models/text-embedding-004",
         )
 
-        assert isinstance(result, RagResult)
-        assert result.ok is True
-        assert result.reason == "success"
-        assert result.text != ""
-        assert "Test Post 1" in result.text
-        assert "Test Post 2" in result.text
+        assert isinstance(result, Success)
+        context = result.unwrap()
+        assert isinstance(context, RagContext)
+        assert context.text != ""
+        assert "Test Post 1" in context.text
+        assert "Test Post 2" in context.text
+        assert len(context.records) == 2
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")

@@ -1,8 +1,8 @@
 """Path safety utilities for secure file operations."""
 
-import re
-import unicodedata
 from pathlib import Path
+
+from slugify import slugify as _slugify
 
 
 class PathTraversalError(Exception):
@@ -13,10 +13,10 @@ class PathTraversalError(Exception):
 
 def slugify(text: str, max_len: int = 60) -> str:
     """
-    Convert text to a safe URL-friendly slug.
+    Convert text to a safe URL-friendly slug using python-slugify.
 
-    Normalizes Unicode to ASCII, lowercases, replaces non-alphanumeric
-    characters with hyphens, and truncates to max_len.
+    Uses the industry-standard python-slugify library with Unicode transliteration
+    support (100M+ downloads). Handles Cyrillic, Greek, Arabic, CJK, and more.
 
     Args:
         text: Input text to slugify
@@ -30,25 +30,14 @@ def slugify(text: str, max_len: int = 60) -> str:
         'hello-world'
         >>> slugify("Café à Paris")
         'cafe-a-paris'
+        >>> slugify("Привет мир")
+        'privet-mir'
         >>> slugify("../../etc/passwd")
         'etc-passwd'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
     """
-    # Normalize Unicode to ASCII
-    normalized = unicodedata.normalize("NFKD", text)
-    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
-
-    # Lowercase and replace non-alphanumeric with hyphens
-    ascii_text = ascii_text.lower()
-    slug = re.sub(r"[^a-z0-9-]+", "-", ascii_text)
-
-    # Clean up hyphens
-    slug = slug.strip("-")
-    slug = re.sub(r"-{2,}", "-", slug)
-
-    # Truncate and provide fallback
-    slug = slug[:max_len]
+    slug = _slugify(text, max_length=max_len, separator="-")
     return slug if slug else "post"
 
 

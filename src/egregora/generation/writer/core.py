@@ -52,7 +52,7 @@ from .formatting import (
     _stringify_value,
 )
 from .tools import PostMetadata, _writer_tools
-from .context import RagResult, _query_rag_for_context, _load_profiles_context
+from .context import RagContext, RagErrorReason, _query_rag_for_context, _load_profiles_context
 from .handlers import (
     _handle_write_post_tool,
     _handle_read_profile_tool,
@@ -1037,18 +1037,26 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
         )
-        if isinstance(rag_result, RagResult):
-            if rag_result.ok:
-                rag_context = rag_result.text
-                logger.info(f"RAG context retrieved successfully: {rag_result.reason}")
-            else:
-                logger.warning(f"RAG query unsuccessful: {rag_result.reason}")
-                if rag_result.reason == "rag_error":
-                    # RAG system failure - this is a real problem we want to track
-                    logger.error("RAG system error detected - content quality may be degraded")
-        else:
-            # Legacy string return for backward compatibility
-            rag_context = rag_result
+
+        # Handle Result type from returns library
+        match rag_result:
+            case tuple():
+                # Legacy tuple return for backward compatibility (return_records=True)
+                rag_context = rag_result[0]
+            case _:
+                # Modern Result type
+                if rag_result.is_success():
+                    context_obj = rag_result.unwrap()
+                    rag_context = context_obj.text
+                    logger.info("RAG context retrieved successfully")
+                else:
+                    error_reason = rag_result.failure()
+                    if error_reason == RagErrorReason.NO_HITS:
+                        logger.info("No similar previous posts found")
+                    elif error_reason == RagErrorReason.SYSTEM_ERROR:
+                        logger.error("RAG system error - content quality may be degraded")
+                    else:
+                        logger.warning(f"RAG query unsuccessful: {error_reason}")
     profiles_context = _load_profiles_context(table, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)
