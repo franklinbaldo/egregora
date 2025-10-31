@@ -444,3 +444,69 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
     with pytest.raises(ZipValidationError, match="path traversal"):
         with zipfile.ZipFile(malicious_zip) as archive:
             validate_zip_contents(archive)
+
+
+def test_enrichment_handles_extra_schema_columns(
+    whatsapp_fixture: WhatsAppFixture,
+    tmp_path: Path,
+):
+    """Test that enrich_table handles tables with extra columns (time, group_slug, group_name)."""
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+
+    # Verify the parser adds extra columns
+    assert "time" in table.columns
+    assert "group_slug" in table.columns
+    assert "group_name" in table.columns
+
+    docs_dir = tmp_path / "docs"
+    posts_dir = docs_dir / "posts"
+    docs_dir.mkdir()
+    posts_dir.mkdir()
+
+    updated_table, media_mapping = extract_and_replace_media(
+        table,
+        export.zip_path,
+        docs_dir,
+        posts_dir,
+        str(export.group_slug),
+    )
+
+    cache = EnrichmentCache(tmp_path / "cache")
+    text_client = DummyBatchClient("text-model")
+    vision_client = DummyBatchClient("vision-model")
+
+    try:
+        enriched = enrich_table(
+            updated_table,
+            media_mapping,
+            text_client,
+            vision_client,
+            cache,
+            docs_dir,
+            posts_dir,
+            enable_url=False,
+        )
+    finally:
+        cache.close()
+
+    # Verify enriched table preserves extra columns
+    assert "time" in enriched.columns
+    assert "group_slug" in enriched.columns
+    assert "group_name" in enriched.columns
+
+    # Verify schema consistency - all rows should have same columns
+    enriched_data = enriched.execute().to_dict("records")
+    assert len(enriched_data) > 0
+
+    # Check that egregora enrichment rows have proper values for extra columns
+    egregora_rows = [row for row in enriched_data if row["author"] == "egregora"]
+    assert len(egregora_rows) > 0
+
+    for row in egregora_rows:
+        # time should be derived from timestamp
+        assert "time" in row
+        assert row["time"] is not None
+        # group_slug and group_name should be preserved from original messages
+        assert "group_slug" in row
+        assert "group_name" in row

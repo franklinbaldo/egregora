@@ -68,6 +68,9 @@ def enrich_table(
     if messages_table.count().execute() == 0:
         return messages_table
 
+    # Get schema early to understand what columns we need to preserve
+    table_schema = messages_table.schema()
+
     rows = messages_table.execute().to_dict("records")
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
@@ -75,6 +78,14 @@ def enrich_table(
     pii_media_deleted = False
     seen_url_keys: set[str] = set()
     seen_media_keys: set[str] = set()
+
+    # Extract default values for extra columns from the first row
+    default_extra_columns = {}
+    if rows:
+        first_row = rows[0]
+        for col_name in table_schema.names:
+            if col_name not in ["timestamp", "date", "author", "message", "original_line", "tagged_line"]:
+                default_extra_columns[col_name] = first_row.get(col_name, "")
 
     url_jobs: list[UrlEnrichmentJob] = []
     media_jobs: list[MediaEnrichmentJob] = []
@@ -282,16 +293,23 @@ def enrich_table(
         url_job.path.write_text(url_job.markdown, encoding="utf-8")
 
         enrichment_timestamp = _safe_timestamp_plus_one(url_job.timestamp)
-        new_rows.append(
-            {
-                "timestamp": enrichment_timestamp,
-                "date": enrichment_timestamp.date(),
-                "author": "egregora",
-                "message": f"[URL Enrichment] {url_job.url}\nEnrichment saved: {url_job.path}",
-                "original_line": "",
-                "tagged_line": "",
-            }
-        )
+        new_row = {
+            "timestamp": enrichment_timestamp,
+            "date": enrichment_timestamp.date(),
+            "author": "egregora",
+            "message": f"[URL Enrichment] {url_job.url}\nEnrichment saved: {url_job.path}",
+            "original_line": "",
+            "tagged_line": "",
+        }
+        # Add extra columns (time, group_slug, group_name, etc.) with appropriate defaults
+        for col_name, default_value in default_extra_columns.items():
+            if col_name == "time":
+                # Derive time from timestamp
+                new_row[col_name] = enrichment_timestamp.strftime("%H:%M")
+            else:
+                # Use the default value from the first row
+                new_row[col_name] = default_value
+        new_rows.append(new_row)
 
     for media_job in media_jobs:
         if not media_job.markdown:
@@ -301,16 +319,23 @@ def enrich_table(
         media_job.path.write_text(media_job.markdown, encoding="utf-8")
 
         enrichment_timestamp = _safe_timestamp_plus_one(media_job.timestamp)
-        new_rows.append(
-            {
-                "timestamp": enrichment_timestamp,
-                "date": enrichment_timestamp.date(),
-                "author": "egregora",
-                "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
-                "original_line": "",
-                "tagged_line": "",
-            }
-        )
+        new_row = {
+            "timestamp": enrichment_timestamp,
+            "date": enrichment_timestamp.date(),
+            "author": "egregora",
+            "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
+            "original_line": "",
+            "tagged_line": "",
+        }
+        # Add extra columns (time, group_slug, group_name, etc.) with appropriate defaults
+        for col_name, default_value in default_extra_columns.items():
+            if col_name == "time":
+                # Derive time from timestamp
+                new_row[col_name] = enrichment_timestamp.strftime("%H:%M")
+            else:
+                # Use the default value from the first row
+                new_row[col_name] = default_value
+        new_rows.append(new_row)
 
     if pii_media_deleted:
         @ibis.udf.scalar.python
