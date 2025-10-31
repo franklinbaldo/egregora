@@ -52,7 +52,7 @@ from .formatting import (
     _stringify_value,
 )
 from .tools import PostMetadata, _writer_tools
-from .context import _query_rag_for_context, _load_profiles_context
+from .context import RagContext, RagErrorReason, _query_rag_for_context, _load_profiles_context
 from .handlers import (
     _handle_write_post_tool,
     _handle_read_profile_tool,
@@ -639,54 +639,6 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-def _query_rag_for_context(  # noqa: PLR0913
-    table: Table,
-    batch_client: GeminiBatchClient,
-    rag_dir: Path,
-    *,
-    embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> str:
-    """Query RAG system for similar previous posts."""
-    try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-        similar_posts = query_similar_posts(
-            table,
-            batch_client,
-            store,
-            embedding_model=embedding_model,
-            top_k=5,
-            deduplicate=True,
-            output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-
-        if similar_posts.count().execute() == 0:
-            logger.info("No similar previous posts found")
-            return ""
-
-        post_count = similar_posts.count().execute()
-        logger.info(f"Found {post_count} similar previous posts")
-        rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
-        rag_context += (
-            "You can reference these posts in your writing to maintain conversation continuity.\n\n"
-        )
-
-        for row in similar_posts.execute().to_dict("records"):
-            rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
-            rag_context += f"{row['content'][:400]}...\n"
-            rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
-            rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
-
-        return rag_context
-    except Exception as e:
-        logger.warning(f"RAG query failed: {e}")
-        return ""
 
 
 def _handle_write_post_tool(
@@ -1073,8 +1025,9 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     markdown_table = _build_conversation_markdown(messages_table, annotations_store)
 
     # Query RAG and load profiles for context
-    rag_context = (
-        _query_rag_for_context(
+    rag_context = ""
+    if enable_rag:
+        rag_result = _query_rag_for_context(
             table,
             batch_client,
             rag_dir,
@@ -1084,9 +1037,26 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
         )
-        if enable_rag
-        else ""
-    )
+
+        # Handle Result type from returns library
+        match rag_result:
+            case tuple():
+                # Legacy tuple return for backward compatibility (return_records=True)
+                rag_context = rag_result[0]
+            case _:
+                # Modern Result type
+                if rag_result.is_success:
+                    context_obj = rag_result.unwrap()
+                    rag_context = context_obj.text
+                    logger.info("RAG context retrieved successfully")
+                else:
+                    error_reason = rag_result.failure()
+                    if error_reason == RagErrorReason.NO_HITS:
+                        logger.info("No similar previous posts found")
+                    elif error_reason == RagErrorReason.SYSTEM_ERROR:
+                        logger.error("RAG system error - content quality may be degraded")
+                    else:
+                        logger.warning(f"RAG query unsuccessful: {error_reason}")
     profiles_context = _load_profiles_context(table, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)

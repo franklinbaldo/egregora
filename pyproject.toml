@@ -26,6 +26,9 @@ dependencies = [
     "toml>=0.10.2",
     "duckdb-engine>=0.17.0",
     "pytest>=8.4.2",
+    "python-slugify>=8.0.1",  # Industry-standard slug generation
+    "returns>=0.22.0",  # Result types for error handling
+    "werkzeug>=3.0.0",  # Industry-standard path security (safe_join)
 ]
 
 [project.optional-dependencies]
@@ -136,6 +139,11 @@ module = [
     "pydantic",
     "pydantic.fields",
     "pandas",
+    "slugify",
+    "returns",
+    "returns.result",
+    "werkzeug",
+    "werkzeug.security",
 ]
 ignore_missing_imports = true
 
