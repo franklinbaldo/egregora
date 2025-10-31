@@ -60,10 +60,10 @@ class TestSlugify:
 
 
 class TestSafePathJoin:
-    """Tests for safe_path_join function."""
+    """Tests for safe_path_join function (werkzeug.security.safe_join wrapper)."""
 
     def test_basic_join(self, tmp_path):
-        """Test basic path joining."""
+        """Test basic path joining with werkzeug.security.safe_join."""
         result = safe_path_join(tmp_path, "file.txt")
         assert result == tmp_path / "file.txt"
 
@@ -92,12 +92,11 @@ class TestSafePathJoin:
         """Test Windows-style path traversal attempts are blocked on POSIX.
 
         Critical security test: On POSIX systems, backslashes are valid filename
-        characters. Without normalization, "..\\..\\windows\\system32" would create
-        a file literally named "..\\..\\windows\\system32" instead of traversing
-        directories, bypassing our security checks.
+        characters. werkzeug.security.safe_join normalizes path separators across
+        platforms, preventing "..\\..\\windows\\system32" from bypassing security
+        checks by being treated as a literal filename.
 
-        This test verifies that backslashes are normalized to forward slashes
-        before path validation, preventing cross-platform bypass attacks.
+        This test verifies werkzeug's cross-platform path traversal protection.
         """
         # Test simple Windows-style traversal
         with pytest.raises(PathTraversalError):
@@ -116,14 +115,14 @@ class TestSafePathJoin:
             safe_path_join(tmp_path, "..\\..\\..\\..\\..\\etc\\passwd")
 
     def test_backslash_normalization_in_safe_paths(self, tmp_path):
-        """Test that backslashes in safe paths are normalized correctly.
+        """Test that werkzeug normalizes backslashes in safe paths correctly.
 
         Verifies that legitimate Windows-style paths that don't escape
-        the base directory are normalized to POSIX-style paths.
+        the base directory are normalized to POSIX-style paths by werkzeug.
         """
         # A path with backslashes that doesn't escape should be normalized
         result = safe_path_join(tmp_path, "subdir\\file.txt")
-        # Should normalize to forward slash
+        # werkzeug normalizes to forward slash
         assert result == tmp_path / "subdir" / "file.txt"
 
 

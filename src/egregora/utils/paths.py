@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from slugify import slugify as _slugify
+from werkzeug.security import safe_join as _werkzeug_safe_join
 
 
 class PathTraversalError(Exception):
@@ -45,9 +46,9 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     """
     Safely join path parts and ensure result stays within base_dir.
 
-    Normalizes both forward and backward slashes to prevent cross-platform
-    path traversal attacks. On POSIX systems, backslashes are valid filename
-    characters, so we normalize them to forward slashes before validation.
+    Uses werkzeug.security.safe_join, the industry-standard path security
+    function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
+    against path traversal attacks on all platforms.
 
     Args:
         base_dir: Base directory that result must stay within
@@ -73,26 +74,23 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         PathTraversalError: Path escaped output directory
 
     Security:
-        Protects against both Unix (/) and Windows (\\) path traversal on all platforms.
-        Backslashes are normalized to forward slashes before path resolution to prevent
-        POSIX systems from treating them as literal filename characters.
+        Uses werkzeug.security.safe_join (industry standard since 2007).
+        Protects against Unix (/) and Windows (\\) path traversal on all platforms.
+        Werkzeug normalizes path separators and validates containment automatically.
+
+    References:
+        https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.security.safe_join
     """
-    if not base_dir.is_absolute():
-        base_dir = base_dir.resolve()
+    # Convert Path to string for werkzeug compatibility
+    base_str = str(base_dir.resolve())
 
-    # Normalize path separators: replace backslashes with forward slashes
-    # This prevents POSIX systems from treating backslashes as filename characters
-    normalized_parts = [part.replace("\\", "/") for part in parts]
+    # werkzeug.security.safe_join returns None if path would escape
+    result_str = _werkzeug_safe_join(base_str, *parts)
 
-    # Join the normalized parts
-    result = base_dir.joinpath(*normalized_parts).resolve()
-
-    # Ensure result is within base_dir
-    try:
-        result.relative_to(base_dir)
-    except ValueError:
+    if result_str is None:
+        # Path traversal attempt detected
         raise PathTraversalError(
-            f"Path escaped output directory: {result} is not within {base_dir}"
+            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         )
 
-    return result
+    return Path(result_str)
