@@ -36,6 +36,7 @@ docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocs-static-i18n>=1.2",
+    "mkdocstrings[python]>=0.24.0",
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
     "codespell>=2.3.0",

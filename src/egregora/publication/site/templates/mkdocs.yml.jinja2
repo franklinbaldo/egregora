@@ -41,6 +41,24 @@ plugins:
       post_url_date_format: yyyy/MM/dd
       post_url_format: '{date}/{slug}'
       pagination_per_page: 10
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            group_by_category: true
+            show_category_heading: true
+            show_if_no_docstring: false
+            inherited_members: false
+            filters: ["!^_"]
 
 # Markdown extensions available for posts
 # (This section is automatically sent to the writer agent)
@@ -79,6 +97,32 @@ nav:
   - Blog: {{ blog_dir }}/index.md
   - Profiles: profiles/index.md
   - About: about.md
+  - API Reference:
+      - Overview: api/index.md
+      - Core:
+          - Database Schema: api/core/database_schema.md
+      - Ingestion:
+          - Parser: api/ingestion/parser.md
+      - Privacy:
+          - Anonymizer: api/privacy/anonymizer.md
+          - Detector: api/privacy/detector.md
+      - Augmentation:
+          - Enrichment: api/augmentation/enrichment.md
+      - Generation:
+          - Writer: api/generation/writer.md
+          - Editor: api/generation/editor.md
+      - Knowledge:
+          - RAG: api/knowledge/rag.md
+          - Ranking: api/knowledge/ranking.md
+      - Publication:
+          - Site Scaffolding: api/publication/site.md
+      - Orchestration:
+          - CLI: api/orchestration/cli.md
+          - Pipeline: api/orchestration/pipeline.md
+      - Utils:
+          - Gemini Client: api/utils/genai.md
+          - Batch Processing: api/utils/batch.md
+          - Caching: api/utils/cache.md
 
 # Egregora configuration
 extra:

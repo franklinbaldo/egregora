@@ -140,5 +140,71 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         content = template.render(**context)
         profiles_index_path.write_text(content, encoding="utf-8")
 
+    # Create API reference structure (100% auto-generated)
+    _create_api_reference(docs_dir, env)
+
+
+def _create_api_reference(docs_dir: Path, env: Environment) -> None:
+    """Create auto-generated API reference documentation structure.
+
+    All API documentation is generated from module docstrings using mkdocstrings.
+    No manual documentation needed - everything is 100% automatic.
+    """
+    api_dir = docs_dir / "api"
+    api_dir.mkdir(exist_ok=True)
+
+    # Create API overview index
+    api_index_path = api_dir / "index.md"
+    if not api_index_path.exists():
+        template = env.get_template("api_index.md.jinja2")
+        content = template.render()
+        api_index_path.write_text(content, encoding="utf-8")
+
+    # API modules to document - each maps to a source module
+    api_modules = [
+        # Core
+        ("core/database_schema", "egregora.core.database_schema", "Database Schema"),
+        # Ingestion
+        ("ingestion/parser", "egregora.ingestion.parser", "WhatsApp Parser"),
+        # Privacy
+        ("privacy/anonymizer", "egregora.privacy.anonymizer", "Anonymizer"),
+        ("privacy/detector", "egregora.privacy.detector", "PII Detector"),
+        # Augmentation
+        (
+            "augmentation/enrichment",
+            "egregora.augmentation.enrichment.core",
+            "Content Enrichment",
+        ),
+        # Generation
+        ("generation/writer", "egregora.generation.writer.core", "Blog Post Writer"),
+        ("generation/editor", "egregora.generation.editor.agent", "Editor Agent"),
+        # Knowledge
+        ("knowledge/rag", "egregora.knowledge.rag", "RAG System"),
+        ("knowledge/ranking", "egregora.knowledge.ranking", "Ranking System"),
+        # Publication
+        (
+            "publication/site",
+            "egregora.publication.site.scaffolding",
+            "Site Scaffolding",
+        ),
+        # Orchestration
+        ("orchestration/cli", "egregora.orchestration.cli", "CLI"),
+        ("orchestration/pipeline", "egregora.orchestration.pipeline", "Pipeline"),
+        # Utils
+        ("utils/genai", "egregora.utils.genai", "Gemini Client"),
+        ("utils/batch", "egregora.utils.batch", "Batch Processing"),
+        ("utils/cache", "egregora.utils.cache", "Caching"),
+    ]
+
+    # Generate each API module page
+    module_template = env.get_template("api_module.md.jinja2")
+    for page_path, module_path, title in api_modules:
+        full_path = api_dir / f"{page_path}.md"
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if not full_path.exists():
+            content = module_template.render(title=title, module_path=module_path)
+            full_path.write_text(content, encoding="utf-8")
+
 
 __all__ = ["ensure_mkdocs_project"]
