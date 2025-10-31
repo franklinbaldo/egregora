@@ -616,13 +616,12 @@ def parse(
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
-    import duckdb
-    import ibis
-
     from ..core.models import WhatsAppExport
+    from ..core.types import GroupSlug
     from ..ingestion.parser import parse_export
+    from .database import duckdb_backend
     from .pipeline import discover_chat_file
-    from .serialization import save_table_to_csv
+    from .serialization import save_table
 
     # Validate inputs
     zip_path = zip_file.resolve()
@@ -642,20 +641,12 @@ def parse(
             console.print(f"[red]Invalid timezone '{timezone}': {e}[/red]")
             raise typer.Exit(1) from e
 
-    # Setup DuckDB backend
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
-    old_backend = getattr(ibis.options, "default_backend", None)
-
-    try:
-        ibis.options.default_backend = backend
-
+    # Use DuckDB backend context manager
+    with duckdb_backend():
         console.print(f"[cyan]Parsing:[/cyan] {zip_path}")
 
         # Discover chat file
         group_name, chat_file = discover_chat_file(zip_path)
-        from ..core.types import GroupSlug
-
         group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
         console.print(f"[yellow]Group:[/yellow] {group_name}")
 
@@ -675,13 +666,9 @@ def parse(
 
         console.print(f"[green]✅ Parsed {total_messages} messages[/green]")
 
-        # Save to CSV
-        save_table_to_csv(messages_table, output_path)
+        # Save with automatic format detection from extension
+        save_table(messages_table, output_path)
         console.print(f"[green]💾 Saved to {output_path}[/green]")
-
-    finally:
-        ibis.options.default_backend = old_backend
-        connection.close()
 
 
 @app.command()
@@ -711,16 +698,14 @@ def group(
     """
     from datetime import datetime
 
-    import duckdb
-    import ibis
-
+    from .database import duckdb_backend
     from .pipeline import group_by_period
-    from .serialization import load_table_from_csv, save_table_to_csv
+    from .serialization import load_table, save_table
 
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
-        console.print(f"[red]Input CSV not found: {input_path}[/red]")
+        console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
 
     if period not in {"day", "week", "month"}:
@@ -748,16 +733,10 @@ def group(
             console.print(f"[red]Invalid to_date format: {e}[/red]")
             raise typer.Exit(1) from e
 
-    # Setup DuckDB backend
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
-    old_backend = getattr(ibis.options, "default_backend", None)
-
-    try:
-        ibis.options.default_backend = backend
-
+    # Use DuckDB backend context manager
+    with duckdb_backend():
         console.print(f"[cyan]Loading:[/cyan] {input_path}")
-        messages_table = load_table_from_csv(input_path)
+        messages_table = load_table(input_path)
 
         # Filter by date range if specified
         if from_date_obj or to_date_obj:
@@ -792,18 +771,14 @@ def group(
 
         console.print(f"[green]Found {len(periods)} periods[/green]")
 
-        # Save each period to CSV
+        # Save each period (format auto-detected from extension)
         for period_key, period_table in periods.items():
             period_output = output_path / f"{period_key}.csv"
             period_count = period_table.count().execute()
             console.print(f"  [cyan]{period_key}:[/cyan] {period_count} messages → {period_output}")
-            save_table_to_csv(period_table, period_output)
+            save_table(period_table, period_output)
 
         console.print(f"[green]✅ Saved {len(periods)} period files to {output_path}[/green]")
-
-    finally:
-        ibis.options.default_backend = old_backend
-        connection.close()
 
 
 @app.command()
