@@ -327,7 +327,8 @@ def enrich_table(
         return messages_table
 
     schema = messages_table.schema()
-    normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
+    # Normalize rows to match schema, filling missing columns with None
+    normalized_rows = [{column: row.get(column, None) for column in schema.names} for row in new_rows]
 
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
     combined = messages_table.union(enrichment_table, distinct=False)

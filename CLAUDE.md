@@ -6,48 +6,175 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Setup
 ```bash
-pip install egregora
-pip install '.[docs,lint]'  # Install optional dependencies
+# Clone and install dependencies
+git clone https://github.com/franklinbaldo/egregora.git
+cd egregora
+uv sync --all-extras
+
+# Install optional dependencies
+uv sync --extra docs --extra lint --extra test
 ```
 
 ### Testing
 ```bash
 # Run all tests
-pytest tests/
+uv run pytest tests/
+
+# Run specific test suites
+uv run pytest tests/test_gemini_dispatcher.py  # Dispatcher tests
+uv run pytest tests/test_with_golden_fixtures.py  # VCR integration tests
 
 # Lint code
-ruff check src/
-black --check src/
+uv run ruff check src/
+uv run ruff format src/ --check
+```
+
+### Running Egregora Locally
+```bash
+# Set API key
+export GOOGLE_API_KEY="your-key"
+
+# Process WhatsApp export
+uv run egregora process /path/to/export.zip --output ./output
+
+# Initialize new site
+uv run egregora init my-blog
+
+# Run editor on existing post
+uv run egregora edit posts/2025-01-15-post.md
+
+# Serve generated site locally
+cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
 ### Key Project Configurations
-- Python 3.11+ required
-- Linting: ruff, black
-- Type checking: mypy
-- Line length: 100 characters
-- Main CLI entry point: `egregora.cli:main`
+- **Python**: 3.12+ required
+- **Package manager**: uv (modern Python package management)
+- **Linting**: ruff (replaces black + isort)
+- **Type checking**: mypy (strict mode with per-file overrides)
+- **Line length**: 100 characters
+- **CLI entry point**: `egregora.orchestration.cli:main`
+- **Testing**: pytest with VCR cassettes for API replay
 
 ## Architecture Overview
 
-### Key Design Principles
-- Ultra-simple pipeline
-- LLM-driven content generation
-- Privacy-first approach
-- DataFrame-based processing
+### Design Philosophy
+**"Trust the LLM"** - Give AI complete context and let it make editorial decisions (how many posts, what to write). Use tool calling for structured output. Keep the pipeline simple and composable.
 
-### Main Pipeline Components
-- `parser.py`: Convert WhatsApp export to DataFrame
-- `anonymizer.py`: Privacy transformations
-- `enricher.py`: Add context to messages
-- `write_post.py`: Generate blog posts
-- `pipeline.py`: Orchestrate entire process
+### Core Design Principles
+1. **Staged Pipeline Architecture** (not ETL) - Distinct phases with clear responsibilities
+2. **Privacy-First** - Real names converted to deterministic UUIDs before any LLM interaction
+3. **Stateful Knowledge** - RAG indexes posts for context-aware writing
+4. **DataFrame-Based** - Ibis + DuckDB for transformations and vector search
+5. **LLM-Driven Content** - AI decides what's worth writing, how many posts per period, all metadata
 
-### Workflow
-1. Parse WhatsApp export
-2. Anonymize messages
-3. Group by period
-4. Optional enrichment
-5. LLM generates posts
+### Pipeline Stages (6 Stages)
+
+```
+Ingestion → Privacy → Augmentation → Knowledge → Generation → Publication
+```
+
+1. **Ingestion** (`src/egregora/ingestion/`)
+   - `parser.py`: Parse WhatsApp ZIP to Ibis tables (CONVERSATION_SCHEMA)
+   - Extracts: messages, timestamps, authors, media references
+   - Detects `/egregora` commands (opt-out, set alias, set bio)
+
+2. **Privacy** (`src/egregora/privacy/`)
+   - `anonymizer.py`: Convert names → deterministic UUIDs
+   - `detector.py`: Scan for PII (phone, email, addresses)
+   - Opt-out management from WhatsApp commands
+
+3. **Augmentation** (`src/egregora/augmentation/`)
+   - `enrichment/core.py`: LLM descriptions for URLs/media
+   - `enrichment/batch.py`: Batch processing with GeminiBatchClient
+   - `profiler.py`: Generate author bios from conversations
+   - Uses `EnrichmentCache` (diskcache) to avoid re-enriching
+
+4. **Knowledge** (`src/egregora/knowledge/`)
+   - `rag/`: Vector store (RAG_CHUNKS_SCHEMA in DuckDB)
+     - `embedder.py`: Generate embeddings with Gemini
+     - `store.py`: DuckDB VSS extension for ANN search
+     - `retriever.py`: Retrieve similar past posts/media
+     - `chunker.py`: Split documents for indexing
+   - `annotations.py`: Conversation metadata, threading
+   - `ranking/`: Elo-based content quality scoring
+     - `elo.py`: Elo rating calculations
+     - `agent.py`: LLM judges post quality
+     - `store.py`: Persist ratings in DuckDB
+
+5. **Generation** (`src/egregora/generation/`)
+   - `writer/core.py`: LLM generates 0-N posts per period with tool calling
+   - `writer/context.py`: Assemble RAG context for writer
+   - `writer/tools.py`: Pydantic models for structured output
+   - `editor/agent.py`: Interactive AI-powered post refinement
+   - `editor/document.py`: Document state management for editing
+
+6. **Publication** (`src/egregora/publication/`)
+   - `site/scaffolding.py`: MkDocs project initialization
+   - Templates in `src/egregora/templates/` (Jinja2)
+
+### Core Infrastructure
+
+- **Database Schemas** (`src/egregora/core/database_schema.py`)
+  - All table schemas defined with Ibis for type safety
+  - **Ephemeral schemas**: CONVERSATION_SCHEMA (in-memory, never persisted)
+  - **Persistent schemas**: RAG_CHUNKS_SCHEMA, ELO_RATINGS_SCHEMA, ANNOTATIONS_SCHEMA
+
+- **Configuration** (`src/egregora/config/`)
+  - `site.py`: Load egregora config from mkdocs.yml
+  - `model.py`: Model names, retrieval settings
+  - Settings loaded from `extra.egregora` in mkdocs.yml
+
+- **Orchestration** (`src/egregora/orchestration/`)
+  - `cli.py`: Typer-based CLI (commands: init, process, edit, parse, group, etc.)
+  - `pipeline.py`: Main pipeline orchestration
+  - `write_post.py`: Per-period post generation
+  - `database.py`: DuckDB connection management
+  - `checkpoints.py`: Save/restore pipeline state
+
+- **Utils** (`src/egregora/utils/`)
+  - `gemini_dispatcher.py`: Retry logic, error handling for Gemini API
+  - `batch.py`: GeminiBatchClient for batch API requests
+  - `cache.py`: EnrichmentCache (diskcache wrapper)
+  - `genai.py`: Gemini client initialization
+
+- **Testing** (`src/egregora/testing/`)
+  - `gemini_recorder.py`: Record/replay Gemini API calls for VCR tests
+
+### Data Flow Example
+
+```
+WhatsApp export.zip
+  ↓ [Ingestion] parser.py
+Ibis Table (CONVERSATION_SCHEMA)
+  ↓ [Privacy] anonymizer.py
+Anonymized Table (author = UUID)
+  ↓ [Augmentation] enrichment + profiler
+Enriched Table + Author Profiles
+  ↓ group_by_period() in pipeline.py
+Dict[period_key, Table]
+  ↓ [Knowledge] RAG retrieval + annotations
+Context for each period
+  ↓ [Generation] writer with tool calling
+Posts (.md with frontmatter)
+  ↓ [Publication] MkDocs templates
+Static site (mkdocs serve)
+```
+
+### Important Invariants
+
+1. **Real names never reach LLM** - Anonymization happens in privacy stage before any LLM calls
+2. **UUIDs are deterministic** - Same author always gets same UUID (stable across runs)
+3. **Schemas enforce contracts** - All data transformations validated by Ibis schemas
+4. **RAG is stateful** - Vector store persists across runs for context continuity
+5. **VCR tests use exact mode** - `retrieval_mode="exact"` avoids VSS extension dependency in tests
+
+### File Organization Patterns
+
+- **Staged architecture**: Code organized by pipeline stage, not layer
+- **Schemas centralized**: `core/database_schema.py` is single source of truth
+- **Prompts externalized**: Jinja2 templates in `prompts/` (future - currently in code)
+- **Tests mirror src**: `tests/` structure matches `src/egregora/`
 
 ## Working with Jules API
 

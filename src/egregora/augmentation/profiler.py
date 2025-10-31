@@ -71,12 +71,13 @@ def write_profile(
     return str(profile_path)
 
 
-def get_active_authors(table: Any) -> list[str]:
+def get_active_authors(table: Any, limit: int | None = None) -> list[str]:
     """
     Get list of unique authors from a Table.
 
     Args:
         table: Ibis Table with 'author' column
+        limit: Optional limit on number of authors to return (most active first)
 
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
@@ -106,11 +107,25 @@ def get_active_authors(table: Any) -> list[str]:
             authors = list(column)
 
     # Filter out system and enrichment entries
-    return [
+    filtered_authors = [
         author
         for author in authors
         if author is not None and author not in ("system", "egregora", "")
     ]
+
+    # Apply limit if specified (return most active authors first)
+    if limit is not None and limit > 0:
+        # Count messages per author to get most active
+        author_counts = {}
+        for author in filtered_authors:
+            count = table.filter(table.author == author).count().execute()
+            author_counts[author] = count
+
+        # Sort by message count descending and take top N
+        sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
+        return [author for author, _ in sorted_authors[:limit]]
+
+    return filtered_authors
 
 
 def _validate_alias(alias: str) -> str | None:
