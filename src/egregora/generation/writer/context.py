@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from ibis.expr.types import Table
 
@@ -22,8 +23,16 @@ def _query_rag_for_context(  # noqa: PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-) -> str:
-    """Query RAG system for similar previous posts."""
+    return_records: bool = False,
+) -> str | tuple[str, list[dict[str, Any]]]:
+    """Query RAG system for similar previous posts.
+
+    When ``return_records`` is ``True`` both the formatted markdown string and the raw
+    records are returned. This is helpful for callers that need to persist the RAG output
+    for later inspection while keeping backward compatibility with existing string-only
+    callers.
+    """
+
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         similar_posts = query_similar_posts(
@@ -41,7 +50,7 @@ def _query_rag_for_context(  # noqa: PLR0913
 
         if similar_posts.count().execute() == 0:
             logger.info("No similar previous posts found")
-            return ""
+            return ("", []) if return_records else ""
 
         post_count = similar_posts.count().execute()
         logger.info(f"Found {post_count} similar previous posts")
@@ -50,16 +59,19 @@ def _query_rag_for_context(  # noqa: PLR0913
             "You can reference these posts in your writing to maintain conversation continuity.\n\n"
         )
 
-        for row in similar_posts.execute().to_dict("records"):
+        records = similar_posts.execute().to_dict("records")
+        for row in records:
             rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
             rag_context += f"{row['content'][:400]}...\n"
             rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
             rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
 
+        if return_records:
+            return rag_context, records
         return rag_context
     except Exception as e:
         logger.warning(f"RAG query failed: {e}")
-        return ""
+        return ("", []) if return_records else ""
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
