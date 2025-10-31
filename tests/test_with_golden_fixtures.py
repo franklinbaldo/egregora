@@ -8,11 +8,40 @@ data structures and content returned by the Gemini API.
 The tests are fast because no live API calls are made after initial recording.
 They are also deterministic, ensuring that the output is consistent.
 
+## Recording Cassettes:
+
 To record new cassettes (requires GOOGLE_API_KEY):
     pytest tests/test_with_golden_fixtures.py --vcr-record=all
 
 To use existing cassettes (default):
     pytest tests/test_with_golden_fixtures.py
+
+## Test Configuration:
+
+**Enrichment Disabled:** Binary file uploads (images) cause VCR encoding issues.
+The test focuses on LLM API interactions which are the core of the pipeline.
+
+**Exact Retrieval Mode:** Tests use `retrieval_mode="exact"` instead of the
+default "ann" (Approximate Nearest Neighbor) mode for the following reasons:
+
+1. **No VSS Extension Required:** The DuckDB VSS extension is downloaded at
+   runtime when you run `INSTALL vss`. In CI/CD or test environments, this
+   download can fail due to network restrictions or permissions.
+
+2. **Faster Tests:** Exact mode uses simple cosine similarity without index
+   building, making tests faster and more deterministic.
+
+3. **Production vs Testing:** VSS with ANN indexing is beneficial for production
+   use with large datasets (>1000 documents). For small test datasets, exact
+   mode is perfectly adequate and more reliable.
+
+4. **Zero Dependencies:** No need to pre-install extensions or configure network
+   access for extension downloads.
+
+If you need to test VSS functionality specifically:
+    # Pre-install VSS extension in your environment
+    python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
+    # Then run tests with retrieval_mode="ann"
 """
 
 from __future__ import annotations
@@ -58,16 +87,13 @@ def test_pipeline_with_vcr_fixtures(
     api_key = os.getenv("GOOGLE_API_KEY", "dummy-key-for-replay")
     client = genai.Client(api_key=api_key)
 
-    # Run the pipeline with the real client
-    # VCR will record/replay the HTTP interactions
-    # Note: enrichment disabled to avoid binary file upload issues with VCR
-    # Note: retrieval_mode="exact" avoids VSS extension requirement in tests
+    # Run the pipeline with the real client - VCR will record/replay HTTP interactions
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
         period="day",
-        enable_enrichment=False,  # Disabled to avoid binary upload recording issues
-        retrieval_mode="exact",  # Use exact mode to avoid VSS extension dependency
+        enable_enrichment=False,  # Binary uploads cause VCR encoding issues
+        retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see module docstring)
         client=client,
     )
 

@@ -252,10 +252,28 @@ uv sync --all-extras
 # Run tests
 uv run pytest tests/
 
+# Run specific test suites
+uv run pytest tests/test_gemini_dispatcher.py  # Dispatcher tests
+uv run pytest tests/test_with_golden_fixtures.py  # VCR integration tests
+
 # Lint code
 uv run ruff check src/
 uv run black --check src/
 ```
+
+### Testing Notes
+
+**VCR Tests:** The integration tests use `pytest-vcr` to record and replay API interactions.
+They use `retrieval_mode="exact"` to avoid requiring the DuckDB VSS extension in test environments.
+
+**VSS Extension:** For production use, the VSS extension is auto-downloaded at runtime.
+In restricted environments (CI/CD), you may need to pre-install it:
+
+```bash
+python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
+```
+
+For testing purposes, exact mode (`--retrieval-mode=exact`) works perfectly and requires no additional setup.
 
 ### Project Structure
 
