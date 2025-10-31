@@ -1087,6 +1087,16 @@ def write_posts(  # noqa: PLR0913
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (overrides mkdocs.yml)")
     ] = None,
+    enable_rag: Annotated[bool, typer.Option(help="Enable RAG retrieval")] = True,
+    retrieval_mode: Annotated[
+        str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
+    ] = "ann",
+    retrieval_nprobe: Annotated[
+        int | None, typer.Option(help="DuckDB VSS nprobe for ANN")
+    ] = None,
+    retrieval_overfetch: Annotated[
+        int | None, typer.Option(help="Multiply ANN candidate pool")
+    ] = None,
 ):
     """
     Generate blog posts from enriched messages using LLM.
@@ -1178,9 +1188,11 @@ def write_posts(  # noqa: PLR0913
                 site_paths.profiles_dir,
                 site_paths.rag_dir,
                 model_config,
-                enable_rag=True,  # RAG is handled by existing logic
+                enable_rag=enable_rag,
                 embedding_output_dimensionality=embedding_dimensionality,
-                retrieval_mode="ann",  # Default, context already includes RAG results if needed
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
             )
 
             posts_count = len(result.get("posts", []))
