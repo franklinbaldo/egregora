@@ -1,6 +1,10 @@
 # Repomix ignore file
 # Exclude documentation, distribution, and test directories
-
+.claude/
 docs/
 dist/
 tests/
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+
