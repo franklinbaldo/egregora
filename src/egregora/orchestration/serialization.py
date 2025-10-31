@@ -43,7 +43,7 @@ def load_table_from_csv(input_path: Path, *, schema: dict | None = None) -> Tabl
 
     Args:
         input_path: Path to input CSV file
-        schema: Optional Ibis schema dict. If None, uses MESSAGE_SCHEMA.
+        schema: Optional Ibis schema dict (currently unused, kept for API compatibility)
 
     Returns:
         Ibis Table loaded from CSV
@@ -57,11 +57,9 @@ def load_table_from_csv(input_path: Path, *, schema: dict | None = None) -> Tabl
     if not input_path.exists():
         raise FileNotFoundError(f"CSV file not found: {input_path}")
 
-    if schema is None:
-        schema = MESSAGE_SCHEMA
-
-    # Read CSV with schema inference
-    table = ibis.read_csv(str(input_path), table_schema=ibis.schema(schema))
+    # Let DuckDB auto-detect schema from CSV
+    # Note: Passing schema directly to ibis.read_csv doesn't work well with DuckDB backend
+    table = ibis.read_csv(str(input_path))
 
     row_count = table.count().execute()
     logger.info(f"Loaded {row_count} rows from {input_path}")
