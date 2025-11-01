@@ -33,6 +33,9 @@ SET_COMMAND_PARTS = 2
 
 logger = logging.getLogger(__name__)
 
+_IMPORT_ORDER_COLUMN = "_import_order"
+_IMPORT_SOURCE_COLUMN = "_import_source"
+
 # Pattern for egregora commands: /egregora <command> <args>
 EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
@@ -200,6 +203,10 @@ def _add_message_ids(messages: Table) -> Table:
     # Add row number for uniqueness (0-indexed)
     # Explicit ordering ensures deterministic IDs even if the backend reorders rows
     order_columns = [messages.timestamp]
+    if _IMPORT_SOURCE_COLUMN in messages.columns:
+        order_columns.append(messages[_IMPORT_SOURCE_COLUMN])
+    if _IMPORT_ORDER_COLUMN in messages.columns:
+        order_columns.append(messages[_IMPORT_ORDER_COLUMN])
     if "author" in messages.columns:
         order_columns.append(messages.author)
     if "message" in messages.columns:
@@ -288,9 +295,20 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table, timezone=timezone)
 
-    messages = ibis.memtable(rows).order_by("timestamp")
-    messages = ensure_message_schema(messages, timezone=timezone)
+    messages = ibis.memtable(rows)
+    if _IMPORT_ORDER_COLUMN in messages.columns:
+        messages = messages.order_by(
+            [messages.timestamp, messages[_IMPORT_ORDER_COLUMN]]
+        )
+    else:
+        messages = messages.order_by("timestamp")
+
     messages = _add_message_ids(messages)
+
+    if _IMPORT_ORDER_COLUMN in messages.columns:
+        messages = messages.drop(_IMPORT_ORDER_COLUMN)
+
+    messages = ensure_message_schema(messages, timezone=timezone)
     messages = anonymize_table(messages)
     return messages
 
@@ -317,9 +335,17 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
                     ) from exc
 
             if rows:
-                messages = ibis.memtable(rows).order_by("timestamp")
-                messages = ensure_message_schema(messages)
-                messages = anonymize_table(messages)
+                for row in rows:
+                    row[_IMPORT_SOURCE_COLUMN] = len(tables)
+
+                messages = ibis.memtable(rows)
+                if _IMPORT_ORDER_COLUMN in messages.columns:
+                    messages = messages.order_by(
+                        [messages.timestamp, messages[_IMPORT_ORDER_COLUMN]]
+                    )
+                else:
+                    messages = messages.order_by("timestamp")
+
                 tables.append(messages)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
@@ -335,10 +361,30 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
         combined = combined.union(table, distinct=False)
 
     # Order by timestamp first, then add message IDs globally
-    combined = combined.order_by("timestamp")
+    if _IMPORT_ORDER_COLUMN in combined.columns or _IMPORT_SOURCE_COLUMN in combined.columns:
+        order_keys = [combined.timestamp]
+        if _IMPORT_SOURCE_COLUMN in combined.columns:
+            order_keys.append(combined[_IMPORT_SOURCE_COLUMN])
+        if _IMPORT_ORDER_COLUMN in combined.columns:
+            order_keys.append(combined[_IMPORT_ORDER_COLUMN])
+        combined = combined.order_by(order_keys)
+    else:
+        combined = combined.order_by("timestamp")
+
     combined = _add_message_ids(combined)
 
-    return ensure_message_schema(combined)
+    drop_columns: list[str] = []
+    if _IMPORT_ORDER_COLUMN in combined.columns:
+        drop_columns.append(_IMPORT_ORDER_COLUMN)
+    if _IMPORT_SOURCE_COLUMN in combined.columns:
+        drop_columns.append(_IMPORT_SOURCE_COLUMN)
+    if drop_columns:
+        combined = combined.drop(*drop_columns)
+
+    combined = ensure_message_schema(combined)
+    combined = anonymize_table(combined)
+
+    return combined
 
 
 # Pattern captures optional date, mandatory time, separator (dash/en dash),
@@ -388,6 +434,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     rows: list[dict] = []
     current_date = export.export_date
     builder: _MessageBuilder | None = None
+    position = 0
 
     for raw_line in lines:
         prepared = _prepare_line(raw_line)
@@ -408,7 +455,10 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             continue
 
         if builder is not None:
-            rows.append(builder.finalize())
+            row = builder.finalize()
+            row[_IMPORT_ORDER_COLUMN] = position
+            rows.append(row)
+            position += 1
 
         builder = _start_message_builder(
             export=export,
@@ -420,7 +470,9 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
         )
 
     if builder is not None:
-        rows.append(builder.finalize())
+        row = builder.finalize()
+        row[_IMPORT_ORDER_COLUMN] = position
+        rows.append(row)
 
     return rows
 
