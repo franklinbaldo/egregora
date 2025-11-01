@@ -498,7 +498,10 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             raise typer.Exit(1)
 
         site_paths = resolve_site_paths(site_path)
-        posts_dir = site_paths.posts_dir
+        posts_root = site_paths.posts_dir
+        posts_dir = posts_root / ".posts"
+        if not posts_dir.exists():
+            posts_dir = posts_root
         rankings_dir = site_paths.rankings_dir
         profiles_dir = site_paths.profiles_dir
 

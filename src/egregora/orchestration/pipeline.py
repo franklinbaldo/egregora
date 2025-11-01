@@ -19,6 +19,7 @@ from ..core.types import GroupSlug
 from ..generation.writer import write_posts_for_period
 from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from ..knowledge.rag import VectorStore, index_all_media
+from ..utils.batch import GeminiBatchClient  # noqa: F401  # Backwards compatibility for tests
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
 from ..utils.gemini_dispatcher import GeminiDispatcher

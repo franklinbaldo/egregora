@@ -173,10 +173,17 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
 def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     """Locate a post file within the MkDocs posts directory."""
 
-    candidates = []
-    hidden_posts_dir = posts_dir / ".posts"
+    candidates: list[Path] = []
 
-    for directory in (hidden_posts_dir, posts_dir):
+    search_dirs: list[Path] = []
+    if posts_dir.name == ".posts":
+        search_dirs.append(posts_dir)
+        search_dirs.append(posts_dir.parent)
+    else:
+        search_dirs.append(posts_dir / ".posts")
+        search_dirs.append(posts_dir)
+
+    for directory in search_dirs:
         if not directory.exists():
             continue
 
@@ -193,7 +200,7 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
                 raise ValueError(f"Multiple posts found for {post_id}: {matches_str}")
             return matches[0]
 
-    searched = ", ".join(str(candidate.parent) for candidate in candidates)
+    searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
     raise ValueError(f"Post not found for id '{post_id}'. Looked in: {searched}")
 
 
