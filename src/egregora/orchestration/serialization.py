@@ -8,7 +8,7 @@ more human-readable and useful for debugging.
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import ibis
 from ibis.expr.types import Table
@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 SerializationFormat = Literal["csv", "parquet"]
 
 
-def save_table_to_csv(table: Table, output_path: Path, *, index: bool = False) -> None:
+def save_table_to_csv(
+    table: Annotated[Table, "The Ibis table to save"],
+    output_path: Annotated[Path, "The path to the output CSV file"],
+    *,
+    index: Annotated[bool, "Whether to include the row index in the output"] = False,
+) -> None:
     """
     Save an Ibis Table to CSV file.
 
@@ -41,7 +46,11 @@ def save_table_to_csv(table: Table, output_path: Path, *, index: bool = False) -
     logger.info(f"Saved {row_count} rows to {output_path}")
 
 
-def load_table_from_csv(input_path: Path, *, schema: dict | None = None) -> Table:
+def load_table_from_csv(
+    input_path: Annotated[Path, "The path to the input CSV file"],
+    *,
+    schema: Annotated[dict | None, "An optional Ibis schema to apply to the loaded table"] = None,
+) -> Table:
     """
     Load an Ibis Table from CSV file.
 
@@ -71,7 +80,9 @@ def load_table_from_csv(input_path: Path, *, schema: dict | None = None) -> Tabl
     return table
 
 
-def load_table_with_auto_schema(input_path: Path) -> Table:
+def load_table_with_auto_schema(
+    input_path: Annotated[Path, "The path to the input CSV file"],
+) -> Table:
     """
     Load an Ibis Table from CSV with automatic schema detection.
 
@@ -100,7 +111,10 @@ def load_table_with_auto_schema(input_path: Path) -> Table:
     return table
 
 
-def save_table_to_parquet(table: Table, output_path: Path) -> None:
+def save_table_to_parquet(
+    table: Annotated[Table, "The Ibis table to save"],
+    output_path: Annotated[Path, "The path to the output Parquet file"],
+) -> None:
     """
     Save an Ibis Table to Parquet file.
 
@@ -125,7 +139,9 @@ def save_table_to_parquet(table: Table, output_path: Path) -> None:
     logger.info(f"Saved {row_count} rows to {output_path} (Parquet)")
 
 
-def load_table_from_parquet(input_path: Path) -> Table:
+def load_table_from_parquet(
+    input_path: Annotated[Path, "The path to the input Parquet file"],
+) -> Table:
     """
     Load an Ibis Table from Parquet file.
 
@@ -155,7 +171,15 @@ def load_table_from_parquet(input_path: Path) -> Table:
 
 
 def save_table(
-    table: Table, output_path: Path, *, format: SerializationFormat = "csv", index: bool = False
+    table: Annotated[Table, "The Ibis table to save"],
+    output_path: Annotated[
+        Path, "The path to the output file, extension determines format if not specified"
+    ],
+    *,
+    format: Annotated[SerializationFormat, "The output format ('csv' or 'parquet')"] = "csv",
+    index: Annotated[
+        bool, "Whether to include the row index (only for CSV, ignored for Parquet)"
+    ] = False,
 ) -> None:
     """
     Save an Ibis Table to file with automatic format detection or explicit format.
@@ -188,7 +212,14 @@ def save_table(
         )
 
 
-def load_table(input_path: Path, *, format: SerializationFormat | None = None) -> Table:
+def load_table(
+    input_path: Annotated[Path, "The path to the input file"],
+    *,
+    format: Annotated[
+        SerializationFormat | None,
+        "The input format ('csv' or 'parquet'), auto-detected from extension if not provided",
+    ] = None,
+) -> Table:
     """
     Load an Ibis Table from file with automatic format detection.
 

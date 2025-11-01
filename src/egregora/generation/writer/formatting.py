@@ -7,7 +7,6 @@ import importlib
 import json
 import logging
 import math
-import numbers
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
@@ -100,29 +99,22 @@ def _stringify_value(value: Any) -> str:  # noqa: PLR0911
 
     if isinstance(value, str):
         return value
-    if value is None:
-        return ""
-    if isinstance(value, pa.Scalar):  # pragma: no branch - defensive conversion
-        if not value.is_valid:
-            return ""
-        return _stringify_value(value.as_py())
+
     pandas_na = _pandas_na_singleton()
-    if pandas_na is not None and value is pandas_na:
+    pyarrow_na = getattr(pa, "NA", None)
+
+    if value is None or value is pandas_na or value is pyarrow_na:
         return ""
-    if value is getattr(pa, "NA", None):
-        return ""
-    if isinstance(value, numbers.Real):
-        try:
-            if math.isnan(value):
-                return ""
-        except TypeError:  # pragma: no cover - Decimal('NaN') and similar types
-            pass
-    else:  # pragma: no branch - defensive guard for exotic numeric types
-        try:
-            if math.isnan(value):
-                return ""
-        except TypeError:
-            pass
+
+    if isinstance(value, pa.Scalar):
+        return _stringify_value(value.as_py()) if value.is_valid else ""
+
+    try:
+        if math.isnan(value):
+            return ""
+    except TypeError:
+        pass
+
     return str(value)
 
 

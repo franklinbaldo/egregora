@@ -1,6 +1,6 @@
 """A minimal, line-based editing protocol for Egregora."""
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel
 
@@ -10,10 +10,10 @@ class DocumentSnapshot(BaseModel):
     A versioned, line-indexed representation of a document for editing.
     """
 
-    doc_id: str
-    version: int
-    meta: dict[str, Any]
-    lines: dict[int, str]
+    doc_id: Annotated[str, "The unique ID of the document"]
+    version: Annotated[int, "The version number of the document"]
+    meta: Annotated[dict[str, Any], "Metadata associated with the document"]
+    lines: Annotated[dict[int, str], "The lines of the document, indexed by line number"]
 
 
 class Editor:
@@ -21,10 +21,19 @@ class Editor:
     A class to encapsulate the editor tools.
     """
 
-    def __init__(self, snapshot: DocumentSnapshot):
+    def __init__(
+        self, snapshot: Annotated[DocumentSnapshot, "The initial snapshot of the document"]
+    ):
         self.snapshot = snapshot
 
-    def edit_line(self, expect_version: int, index: int, new: str) -> dict[str, Any]:
+    def edit_line(
+        self,
+        expect_version: Annotated[
+            int, "The expected version of the document for optimistic concurrency"
+        ],
+        index: Annotated[int, "The 0-based index of the line to edit"],
+        new: Annotated[str, "The new content for the line"],
+    ) -> dict[str, Any]:
         """
         Replaces a single line in the document.
         """
@@ -46,7 +55,13 @@ class Editor:
         self.snapshot.version += 1
         return {"ok": True, "new_version": self.snapshot.version}
 
-    def full_rewrite(self, expect_version: int, content: str) -> dict[str, Any]:
+    def full_rewrite(
+        self,
+        expect_version: Annotated[
+            int, "The expected version of the document for optimistic concurrency"
+        ],
+        content: Annotated[str, "The new, complete content of the document"],
+    ) -> dict[str, Any]:
         """
         Replaces the entire document content.
         """
@@ -65,7 +80,14 @@ class Editor:
         self.snapshot.version += 1
         return {"ok": True, "new_version": self.snapshot.version, "line_count": len(lines)}
 
-    def finish(self, expect_version: int, decision: str, notes: str) -> dict[str, Any]:
+    def finish(
+        self,
+        expect_version: Annotated[
+            int, "The expected version of the document for optimistic concurrency"
+        ],
+        decision: Annotated[str, "The decision: 'publish' or 'hold'"],
+        notes: Annotated[str, "Notes on the decision"],
+    ) -> dict[str, Any]:
         """
         Marks the document for the publish queue or holds it.
         """

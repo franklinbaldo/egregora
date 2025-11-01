@@ -1,6 +1,7 @@
 """ELO rating system for blog post quality ranking."""
 
 from pathlib import Path
+from typing import Annotated
 
 from .store import RankingStore
 
@@ -9,7 +10,10 @@ K_FACTOR = 32
 MIN_POSTS_TO_COMPARE = 2
 
 
-def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, float]:
+def calculate_expected_score(
+    rating_a: Annotated[float, "ELO rating of player A"],
+    rating_b: Annotated[float, "ELO rating of player B"],
+) -> Annotated[tuple[float, float], "A tuple of expected scores for A and B"]:
     """
     Calculate expected scores for two players.
 
@@ -22,8 +26,11 @@ def calculate_expected_score(rating_a: float, rating_b: float) -> tuple[float, f
 
 
 def calculate_elo_update(
-    rating_a: float, rating_b: float, winner: str, k_factor: int = K_FACTOR
-) -> tuple[float, float]:
+    rating_a: Annotated[float, "Current ELO rating for post A"],
+    rating_b: Annotated[float, "Current ELO rating for post B"],
+    winner: Annotated[str, "The winning post ('A' or 'B')"],
+    k_factor: Annotated[int, "The K-factor for ELO calculation"] = K_FACTOR,
+) -> Annotated[tuple[float, float], "A tuple of updated ELO ratings for A and B"]:
     """
     Calculate new ELO ratings after a comparison.
 
@@ -49,7 +56,10 @@ def calculate_elo_update(
     return new_rating_a, new_rating_b
 
 
-def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
+def initialize_ratings(
+    posts_dir: Annotated[Path, "Directory containing the blog post files"],
+    rankings_dir: Annotated[Path, "Directory to store the ranking database"],
+) -> Annotated[RankingStore, "An initialized RankingStore instance"]:
     """
     Initialize ELO ratings for all posts.
 
@@ -98,8 +108,11 @@ def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
 
 
 def update_ratings(
-    rankings_dir: Path, post_a: str, post_b: str, winner: str
-) -> tuple[float, float]:
+    rankings_dir: Annotated[Path, "Directory containing the ranking database"],
+    post_a: Annotated[str, "The ID of post A"],
+    post_b: Annotated[str, "The ID of post B"],
+    winner: Annotated[str, "The winning post ('A' or 'B')"],
+) -> Annotated[tuple[float, float], "A tuple of the new ELO ratings for A and B"]:
     """
     Update ELO ratings after a comparison.
 
@@ -135,7 +148,10 @@ def update_ratings(
     return new_rating_a, new_rating_b
 
 
-def get_posts_to_compare(rankings_dir: Path, strategy: str = "fewest_games") -> tuple[str, str]:
+def get_posts_to_compare(
+    rankings_dir: Annotated[Path, "Directory containing the ranking database"],
+    strategy: Annotated[str, "The selection strategy to use"] = "fewest_games",
+) -> Annotated[tuple[str, str], "A tuple of two post IDs to compare"]:
     """
     Select two posts to compare based on strategy.
 

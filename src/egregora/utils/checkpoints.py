@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,14 @@ class CheckpointStore:
         self.root = resolved
         logger.debug("Checkpoint store initialized at %s", self.root)
 
-    def path_for_period(self, period: str) -> Path:
+    def path_for_period(
+        self, period: Annotated[str, "The period identifier, e.g., '2024-01-01'"]
+    ) -> Annotated[Path, "The full path to the checkpoint file"]:
         return self.root / f"{period}.json"
 
-    def load(self, period: str) -> dict[str, Any]:
+    def load(
+        self, period: Annotated[str, "The period identifier to load"]
+    ) -> Annotated[dict[str, Any], "The loaded or default checkpoint data"]:
         """Load checkpoint data or return default structure."""
         path = self.path_for_period(period)
         if not path.exists():
@@ -58,7 +62,11 @@ class CheckpointStore:
 
         return data
 
-    def save(self, period: str, data: dict[str, Any]) -> None:
+    def save(
+        self,
+        period: Annotated[str, "The period identifier to save"],
+        data: Annotated[dict[str, Any], "The checkpoint data to save"],
+    ) -> None:
         """Persist checkpoint to disk."""
         path = self.path_for_period(period)
         data = dict(data)  # shallow copy
@@ -71,7 +79,12 @@ class CheckpointStore:
         tmp_path.replace(path)
         logger.debug("Checkpoint saved: %s", path)
 
-    def update_step(self, period: str, step: str, status: str) -> dict[str, Any]:
+    def update_step(
+        self,
+        period: Annotated[str, "The period identifier to update"],
+        step: Annotated[str, "The pipeline step to update"],
+        status: Annotated[str, "The new status for the step"],
+    ) -> Annotated[dict[str, Any], "The updated checkpoint data"]:
         """Update status for ``step`` and persist changes."""
         data = self.load(period)
         data.setdefault("steps", {})
@@ -79,7 +92,7 @@ class CheckpointStore:
         self.save(period, data)
         return data
 
-    def clear(self, period: str) -> None:
+    def clear(self, period: Annotated[str, "The period identifier to clear"]) -> None:
         """Remove checkpoint for ``period`` if present."""
         path = self.path_for_period(period)
         try:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
 
@@ -48,7 +48,9 @@ class SitePaths:
     config: dict[str, Any]
 
 
-def find_mkdocs_file(start: Path) -> Path | None:
+def find_mkdocs_file(
+    start: Annotated[Path, "The starting directory for the upward search"],
+) -> Annotated[Path | None, "The path to mkdocs.yml, or None if not found"]:
     """Search upward from ``start`` for ``mkdocs.yml``."""
     current = start.expanduser().resolve()
     for candidate in (current, *current.parents):
@@ -58,7 +60,12 @@ def find_mkdocs_file(start: Path) -> Path | None:
     return None
 
 
-def load_mkdocs_config(start: Path) -> tuple[dict[str, Any], Path | None]:
+def load_mkdocs_config(
+    start: Annotated[Path, "The starting directory to search for mkdocs.yml"],
+) -> tuple[
+    Annotated[dict[str, Any], "The loaded mkdocs.yml as a dictionary"],
+    Annotated[Path | None, "The path to the found mkdocs.yml, or None"],
+]:
     """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
     mkdocs_path = find_mkdocs_file(start)
     if not mkdocs_path:
@@ -104,7 +111,9 @@ def _extract_blog_dir(config: dict[str, Any]) -> str | None:
     return None
 
 
-def resolve_site_paths(start: Path) -> SitePaths:
+def resolve_site_paths(
+    start: Annotated[Path, "The starting directory for path resolution"],
+) -> SitePaths:
     """Resolve all important directories for the site."""
     start = start.expanduser().resolve()
     config, mkdocs_path = load_mkdocs_config(start)

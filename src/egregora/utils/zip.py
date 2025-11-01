@@ -5,6 +5,7 @@ from __future__ import annotations
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Annotated
 
 __all__ = [
     "ZipValidationError",
@@ -31,7 +32,9 @@ class ZipValidationLimits:
 _DEFAULT_LIMITS: ZipValidationLimits = ZipValidationLimits()
 
 
-def configure_default_limits(limits: ZipValidationLimits) -> None:
+def configure_default_limits(
+    limits: Annotated[ZipValidationLimits, "The new default validation limits"],
+) -> None:
     """Override module-wide validation limits."""
 
     global _DEFAULT_LIMITS  # noqa: PLW0603
@@ -39,9 +42,9 @@ def configure_default_limits(limits: ZipValidationLimits) -> None:
 
 
 def validate_zip_contents(
-    zf: zipfile.ZipFile,
+    zf: Annotated[zipfile.ZipFile, "The ZIP file to validate"],
     *,
-    limits: ZipValidationLimits | None = None,
+    limits: Annotated[ZipValidationLimits | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Validate members of a ZIP archive.
 
@@ -74,10 +77,10 @@ def validate_zip_contents(
 
 
 def ensure_safe_member_size(
-    zf: zipfile.ZipFile,
-    member_name: str,
+    zf: Annotated[zipfile.ZipFile, "The ZIP file to check"],
+    member_name: Annotated[str, "The name of the member to check"],
     *,
-    limits: ZipValidationLimits | None = None,
+    limits: Annotated[ZipValidationLimits | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Ensure an individual member stays within safe boundaries before reading."""
 
