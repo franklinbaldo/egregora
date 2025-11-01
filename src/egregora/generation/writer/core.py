@@ -25,7 +25,7 @@ import yaml
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
-from returns.pipeline import is_successful
+from returns.result import Failure, Success
 
 from ...augmentation.profiler import get_active_authors
 from ...config import ModelConfig, load_mkdocs_config
@@ -347,20 +347,20 @@ def write_posts_for_period(  # noqa: PLR0912, PLR0913, PLR0915
             case tuple():
                 # Legacy tuple return for backward compatibility (return_records=True)
                 rag_context = rag_result[0]
-            case _:
-                # Modern Result type
-                if is_successful(rag_result):
-                    context_obj = rag_result.unwrap()
-                    rag_context = context_obj.text
-                    logger.info("RAG context retrieved successfully")
+            case Success():
+                # Modern Result type - Success case
+                context_obj = rag_result.unwrap()
+                rag_context = context_obj.text
+                logger.info("RAG context retrieved successfully")
+            case Failure():
+                # Modern Result type - Failure case
+                error_reason = rag_result.failure()
+                if error_reason == RagErrorReason.NO_HITS:
+                    logger.info("No similar previous posts found")
+                elif error_reason == RagErrorReason.SYSTEM_ERROR:
+                    logger.error("RAG system error - content quality may be degraded")
                 else:
-                    error_reason = rag_result.failure()
-                    if error_reason == RagErrorReason.NO_HITS:
-                        logger.info("No similar previous posts found")
-                    elif error_reason == RagErrorReason.SYSTEM_ERROR:
-                        logger.error("RAG system error - content quality may be degraded")
-                    else:
-                        logger.warning(f"RAG query unsuccessful: {error_reason}")
+                    logger.warning(f"RAG query unsuccessful: {error_reason}")
     profiles_context = _load_profiles_context(table, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)
