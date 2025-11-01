@@ -3,6 +3,8 @@
 from pathlib import Path
 
 from slugify import slugify as _slugify
+from werkzeug.exceptions import NotFound as _WerkzeugNotFound
+from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError
 from werkzeug.utils import safe_join as _werkzeug_safe_join
 
 
@@ -84,11 +86,16 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     # Convert Path to string for werkzeug compatibility
     base_str = str(base_dir.resolve())
 
-    # werkzeug.utils.safe_join returns None if path would escape
-    result_str = _werkzeug_safe_join(base_str, *parts)
+    try:
+        # werkzeug.utils.safe_join returns None on older versions and raises on >=3.0
+        result_str = _werkzeug_safe_join(base_str, *parts)
+    except (_WerkzeugNotFound, _WerkzeugSecurityError) as exc:
+        raise PathTraversalError(
+            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+        ) from exc
 
     if result_str is None:
-        # Path traversal attempt detected
+        # Path traversal attempt detected (Werkzeug < 3.0)
         raise PathTraversalError(
             f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         )
