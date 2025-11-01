@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
 from ...utils import BatchPromptRequest, BatchPromptResult
+from ...utils.batching import batch_table_to_records
 
 
 @dataclass
@@ -60,96 +60,16 @@ def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     return dt_value + timedelta(seconds=1)
 
 
-_STABLE_ORDER_CANDIDATES: tuple[str, ...] = (
-    "timestamp",
-    "created_at",
-    "datetime",
-    "date",
-    "ts",
-    "time",
-    "id",
-    "uuid",
-    "key",
-)
-
-
-def _get_stable_ordering(table: Table) -> list:
-    """Return a deterministic ordering for ``table`` when batching rows."""
-
-    columns = list(table.columns)
-    for candidate in _STABLE_ORDER_CANDIDATES:
-        if candidate in columns:
-            return [table[candidate]]
-
-    if columns:
-        return [table[column] for column in columns]
-
-    return []
-
-
-def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
-    """Convert backend frames into ``dict`` records consistently."""
-
-    if hasattr(frame, "to_dict"):
-        return [dict(row) for row in frame.to_dict("records")]
-    if hasattr(frame, "to_pylist"):
-        return [dict(row) for row in frame.to_pylist()]
-    if isinstance(frame, list):
-        return [dict(row) for row in frame]
-
-    return [dict(row) for row in frame]
-
-
 def _iter_table_record_batches(
     table: Table, batch_size: int = 1000
 ) -> Iterator[list[dict[str, Any]]]:
-    """Yield batches of table rows as dictionaries in a deterministic order."""
+    """
+    Yield batches of table rows as dictionaries in a deterministic order.
 
-    to_pylist = getattr(table, "to_pylist", None)
-    if callable(to_pylist):
-        rows = [dict(row) for row in to_pylist()]
-        if rows:
-            yield rows
-        return
-
-    count = table.count().execute()
-    if not count:
-        return
-
-    ordering = _get_stable_ordering(table)
-    fallback_ordering = ordering or [table[column] for column in table.columns]
-
-    if not fallback_ordering:
-        # Degenerate table (no columns) – just execute once and chunk locally
-        dataframe = table.execute()
-        records = _frame_to_records(dataframe)
-        if not records:
-            return
-        for start in range(0, len(records), batch_size):
-            yield records[start : start + batch_size]
-        return
-
-    ordered_table = table.order_by(fallback_ordering)
-    window = ibis.window(order_by=fallback_ordering)
-    numbered = ordered_table.mutate(
-        _batch_row_number=ibis.row_number().over(window)
-    )
-    row_number = numbered._batch_row_number
-
-    for start in range(0, count, batch_size):
-        upper = start + batch_size
-        batch_expr = numbered.filter(
-            ((row_number >= start) & (row_number < upper))
-            if start
-            else (row_number < upper)
-        ).order_by(row_number)
-        # Drop helper column only after enforcing deterministic ordering
-        batch_expr = batch_expr.drop("_batch_row_number")
-        dataframe = batch_expr.execute()
-        batch_records = _frame_to_records(dataframe)
-        if not batch_records:
-            continue
-        yield batch_records
+    Uses canonical batching utility from utils.batching for consistent behavior.
+    """
+    # Use canonical batching utility - it handles ordering inference automatically
+    yield from batch_table_to_records(table, batch_size=batch_size)
 
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:

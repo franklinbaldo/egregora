@@ -11,6 +11,12 @@ import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
 
+from egregora.core.database_schema import (
+    ELO_HISTORY_SCHEMA,
+    ELO_RATINGS_SCHEMA,
+    create_table_if_not_exists,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,84 +30,94 @@ class RankingStore:
     Follows the same pattern as VectorStore (rag/store.py).
     """
 
-    def __init__(self, rankings_dir: Path):
+    def __init__(
+        self,
+        rankings_dir: Path | None = None,
+        *,
+        connection: duckdb.DuckDBPyConnection | None = None,
+    ):
         """
         Initialize ranking store.
 
         Args:
-            rankings_dir: Directory for ranking data (e.g., site_root/rankings/)
+            rankings_dir: Directory for ranking data (e.g., site_root/rankings/).
+                         Only used if connection is None.
+            connection: Optional shared DuckDB connection. If provided, uses this
+                       instead of creating a new rankings.duckdb file.
         """
-        self.rankings_dir = rankings_dir
-        rankings_dir.mkdir(parents=True, exist_ok=True)
+        self._owns_connection = connection is None
 
-        self.db_path = rankings_dir / "rankings.duckdb"
-        self.conn = duckdb.connect(str(self.db_path))
+        if self._owns_connection:
+            if rankings_dir is None:
+                raise ValueError("rankings_dir required when not providing shared connection")
+            self.rankings_dir = rankings_dir
+            rankings_dir.mkdir(parents=True, exist_ok=True)
+            self.db_path = rankings_dir / "rankings.duckdb"
+            self.conn = duckdb.connect(str(self.db_path))
+            logger.info(f"Ranking store initialized: {self.db_path}")
+        else:
+            self.rankings_dir = rankings_dir  # May be None
+            self.db_path = None  # Using shared connection
+            self.conn = connection
+            logger.info("Ranking store initialized with shared connection")
+
         self._init_schema()
-
-        logger.info(f"Ranking store initialized: {self.db_path}")
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
-        # Note: Ranking store schema has extra fields beyond database_schema definitions
-        # (profile_id, post_a/b, comment_a/b, stars_a/b, games_played)
-        # Keeping existing SQL for now - can migrate to Ibis later
+        # Use centralized schemas from core/database_schema.py
+        # Wrap DuckDB connection in Ibis backend
+        ibis_conn = ibis.duckdb.from_connection(self.conn)
 
-        # ELO ratings table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_ratings (
-                post_id VARCHAR PRIMARY KEY,
-                elo_global DOUBLE NOT NULL DEFAULT 1500,
-                games_played INTEGER NOT NULL DEFAULT 0,
-                last_updated TIMESTAMP NOT NULL
-            )
-        """
-        )
+        # Create tables using centralized schemas
+        create_table_if_not_exists(ibis_conn, "elo_ratings", ELO_RATINGS_SCHEMA)
+        create_table_if_not_exists(ibis_conn, "elo_history", ELO_HISTORY_SCHEMA)
 
-        # Comparison history table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_history (
-                comparison_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                profile_id VARCHAR NOT NULL,
-                post_a VARCHAR NOT NULL,
-                post_b VARCHAR NOT NULL,
-                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-                comment_a VARCHAR NOT NULL,
-                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-                comment_b VARCHAR NOT NULL,
-                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
+        # Add primary key constraints
+        try:
+            self.conn.execute(
+                "ALTER TABLE elo_ratings ADD CONSTRAINT pk_elo_ratings PRIMARY KEY (post_id)"
             )
-        """
-        )
+        except Exception:
+            # Constraint may already exist
+            pass
+
+        try:
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT pk_elo_history PRIMARY KEY (comparison_id)"
+            )
+        except Exception:
+            # Constraint may already exist
+            pass
+
+        # Add CHECK constraints
+        try:
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_winner CHECK (winner IN ('A', 'B'))"
+            )
+        except Exception:
+            pass
+
+        try:
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_stars_a CHECK (stars_a BETWEEN 1 AND 5)"
+            )
+        except Exception:
+            pass
+
+        try:
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_stars_b CHECK (stars_b BETWEEN 1 AND 5)"
+            )
+        except Exception:
+            pass
 
         # Create indexes for efficient queries
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """
-        )
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """
-        )
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """
-        )
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """
-        )
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """
-        )
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)")
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
         """

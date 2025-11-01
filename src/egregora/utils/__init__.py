@@ -8,6 +8,10 @@ from .batch import (
     GeminiBatchClient,
     chunk_requests,
 )
+from .batching import (
+    batch_table,
+    batch_table_to_records,
+)
 from .cache import (
     ENRICHMENT_CACHE_VERSION,
     EnrichmentCache,
@@ -23,6 +27,10 @@ from .genai import (
     extract_retry_delay,
     is_rate_limit_error,
     sleep_with_progress_sync,
+)
+from .normalization import (
+    ensure_schema_compliance,
+    normalize_timestamps,
 )
 from .paths import (
     PathTraversalError,
@@ -45,6 +53,9 @@ __all__ = [
     "EmbeddingBatchResult",
     "GeminiBatchClient",
     "chunk_requests",
+    # Batching utilities
+    "batch_table",
+    "batch_table_to_records",
     # Cache
     "EnrichmentCache",
     "make_enrichment_cache_key",
@@ -58,6 +69,9 @@ __all__ = [
     "is_rate_limit_error",
     "extract_retry_delay",
     "sleep_with_progress_sync",
+    # Normalization utilities
+    "normalize_timestamps",
+    "ensure_schema_compliance",
     # ZIP validation
     "ZipValidationError",
     "ZipValidationLimits",
