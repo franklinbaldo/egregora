@@ -5,9 +5,9 @@ on:
     branches: [main]
   push:
     branches:
-      - 'feature/**'
-      - 'fix/**'
-      - 'refactor/**'
+      - '**'
+    branches-ignore:
+      - 'main'
 
 permissions:
   contents: write
