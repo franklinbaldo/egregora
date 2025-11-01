@@ -192,11 +192,11 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
             else annotation.created_at.replace(tzinfo=UTC)
         )
         timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
-        parent_note = (
-            f" · parent #{annotation.parent_annotation_id}"
-            if getattr(annotation, "parent_annotation_id", None) is not None
-            else ""
-        )
+
+        parent_note = ""
+        if annotation.parent_type == "annotation":
+            parent_note = f" · parent #{annotation.parent_id}"
+
         commentary = _stringify_value(annotation.commentary)
         formatted_blocks.append(
             f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"

@@ -53,12 +53,7 @@ import pytest
 
 
 @pytest.mark.vcr
-@pytest.mark.skip(
-    reason=(
-        "VCR cassettes need regeneration with valid API key. "
-        "Run: GOOGLE_API_KEY=<key> pytest tests/test_with_golden_fixtures.py --vcr-record=all"
-    )
-)
+@pytest.mark.skip(reason="VCR cassettes need to be re-recorded after annotation schema change.")
 def test_pipeline_with_vcr_fixtures(
     whatsapp_fixture,
     tmp_path: Path,

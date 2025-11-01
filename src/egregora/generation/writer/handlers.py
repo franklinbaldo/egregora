@@ -180,39 +180,24 @@ def _handle_annotate_conversation_tool(
     if annotations_store is None:
         raise RuntimeError("Annotation store is not configured")
 
-    msg_id = _stringify_value(fn_args.get("msg_id"))
-    commentary = _stringify_value(fn_args.get("my_commentary"))
-    parent_raw = fn_args.get("parent_annotation_id")
-
-    if isinstance(parent_raw, str):
-        parent_raw = parent_raw.strip()
-
-    parent_annotation_id: int | None
-    if parent_raw in (None, ""):
-        parent_annotation_id = None
-    else:
-        if not isinstance(parent_raw, str):
-            raise ValueError("parent_annotation_id must be a string or None")
-        try:
-            parent_annotation_id = int(parent_raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("parent_annotation_id must be an integer when provided") from exc
+    parent_id = _stringify_value(fn_args.get("parent_id"))
+    parent_type = _stringify_value(fn_args.get("parent_type"))
+    commentary = _stringify_value(fn_args.get("commentary"))
 
     annotation = annotations_store.save_annotation(
-        msg_id,
+        parent_id,
+        parent_type,
         commentary,
-        parent_annotation_id=parent_annotation_id,
     )
 
     response_payload = {
         "status": "ok",
         "annotation_id": annotation.id,
-        "msg_id": annotation.msg_id,
+        "parent_id": annotation.parent_id,
+        "parent_type": annotation.parent_type,
         "created_at": annotation.created_at.isoformat(),
         "author": annotation.author,
     }
-    if parent_annotation_id is not None:
-        response_payload["parent_annotation_id"] = parent_annotation_id
 
     return genai_types.Content(
         role="user",
