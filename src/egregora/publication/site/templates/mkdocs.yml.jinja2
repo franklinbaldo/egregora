@@ -36,7 +36,6 @@ plugins:
       lang: en
   - blog:
       blog_dir: {{ blog_dir }}
-      post_dir: "{blog}"  # Posts directly in blog_dir, not blog_dir/posts (Material default)
       blog_toc: true
       post_date_format: long
       post_url_date_format: yyyy/MM/dd
@@ -77,7 +76,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Blog: {{ blog_dir }}/index.md
+  - Blog:
+    - {{ blog_dir }}/index.md
   - Profiles: profiles/index.md
   - About: about.md
 

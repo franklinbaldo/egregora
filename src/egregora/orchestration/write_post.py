@@ -1,5 +1,6 @@
 """write_post tool: Save blog posts with front matter (CMS-like interface for LLM)."""
 
+import datetime
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +72,12 @@ def write_post(
     # Build front matter with the final slug candidate
     front_matter = {}
     front_matter["title"] = metadata["title"]
-    front_matter["date"] = date_prefix
+    # Parse date string to date object so YAML doesn't quote it (Material blog plugin requires unquoted dates)
+    try:
+        front_matter["date"] = datetime.date.fromisoformat(date_prefix)
+    except (ValueError, AttributeError):
+        # Fallback to string if parsing fails
+        front_matter["date"] = date_prefix
     front_matter["slug"] = slug_candidate  # ✅ Use sanitized slug in front matter
 
     if "tags" in metadata:
