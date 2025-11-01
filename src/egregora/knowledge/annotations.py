@@ -52,6 +52,7 @@ class AnnotationStore:
             ANNOTATIONS_TABLE,
             database_schema.ANNOTATIONS_SCHEMA,
         )
+        self._migrate_annotations_table_if_needed()
         # Add primary key using raw connection
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self._backend.raw_sql(
@@ -60,6 +61,92 @@ class AnnotationStore:
             ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)
             """
         )
+
+    def _migrate_annotations_table_if_needed(self) -> None:
+        """Upgrade legacy annotation tables to the unified parent schema."""
+
+        if ANNOTATIONS_TABLE not in self._backend.list_tables():
+            return
+
+        cursor = self._connection.execute(f"PRAGMA table_info('{ANNOTATIONS_TABLE}')")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        has_parent_id = "parent_id" in existing_columns
+        has_parent_type = "parent_type" in existing_columns
+
+        if has_parent_id and has_parent_type:
+            return
+
+        has_msg_id = "msg_id" in existing_columns
+        has_parent_annotation_id = "parent_annotation_id" in existing_columns
+
+        # Ensure the new columns exist before attempting to backfill data.
+        if not has_parent_id:
+            self._connection.execute(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ADD COLUMN parent_id VARCHAR"
+            )
+        if not has_parent_type:
+            self._connection.execute(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ADD COLUMN parent_type VARCHAR"
+            )
+
+        annotation_condition = "FALSE"
+        annotation_value = "NULL"
+        if has_parent_annotation_id:
+            annotation_condition = (
+                "(parent_annotation_id IS NOT NULL AND "
+                "CAST(parent_annotation_id AS VARCHAR) <> '')"
+            )
+            annotation_value = "CAST(parent_annotation_id AS VARCHAR)"
+
+        message_condition = "FALSE"
+        message_value = "NULL"
+        if has_msg_id:
+            message_condition = "(msg_id IS NOT NULL AND CAST(msg_id AS VARCHAR) <> '')"
+            message_value = "CAST(msg_id AS VARCHAR)"
+
+        self._connection.execute(
+            f"""
+            UPDATE {ANNOTATIONS_TABLE}
+            SET parent_id = CASE
+                    WHEN {annotation_condition} THEN {annotation_value}
+                    WHEN {message_condition} THEN {message_value}
+                    ELSE parent_id
+                END,
+                parent_type = CASE
+                    WHEN {annotation_condition} THEN 'annotation'
+                    WHEN {message_condition} THEN 'message'
+                    ELSE parent_type
+                END
+            WHERE parent_id IS NULL OR parent_id = ''
+               OR parent_type IS NULL OR parent_type = ''
+            """
+        )
+
+        remaining = self._connection.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM {ANNOTATIONS_TABLE}
+            WHERE parent_id IS NULL OR parent_id = ''
+               OR parent_type IS NULL OR parent_type = ''
+            """
+        ).fetchone()
+        if remaining and int(remaining[0]) > 0:
+            raise RuntimeError(
+                "Failed to migrate annotations table to parent_id/parent_type schema"
+            )
+
+        if has_parent_annotation_id:
+            self._connection.execute(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} DROP COLUMN parent_annotation_id"
+            )
+        if has_msg_id:
+            self._connection.execute("DROP INDEX IF EXISTS idx_annotations_msg_id_created")
+            self._connection.execute(f"ALTER TABLE {ANNOTATIONS_TABLE} DROP COLUMN msg_id")
+
+        invalidate_metadata = getattr(self._backend, "invalidate_metadata", None)
+        if callable(invalidate_metadata):
+            invalidate_metadata(ANNOTATIONS_TABLE)
 
     def _fetch_records(
         self, query: str, params: Sequence[object] | None = None
