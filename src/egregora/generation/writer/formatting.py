@@ -95,7 +95,7 @@ def _pandas_na_singleton() -> Any | None:
     return pandas_module.NA
 
 
-def _stringify_value(value: Any) -> str:
+def _stringify_value(value: Any) -> str:  # noqa: PLR0911
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
@@ -270,7 +270,7 @@ def _build_conversation_markdown(
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
-                annotations_map[msg_id_value] = annotations_store.get_annotations_for_message(
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(
                     msg_id_value
                 )
 

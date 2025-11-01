@@ -24,17 +24,17 @@ from .genai import (
     is_rate_limit_error,
     sleep_with_progress_sync,
 )
+from .paths import (
+    PathTraversalError,
+    safe_path_join,
+    slugify,
+)
 from .zip import (
     ZipValidationError,
     ZipValidationLimits,
     configure_default_limits,
     ensure_safe_member_size,
     validate_zip_contents,
-)
-from .paths import (
-    PathTraversalError,
-    slugify,
-    safe_path_join,
 )
 
 __all__ = [
