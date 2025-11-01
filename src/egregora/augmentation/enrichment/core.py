@@ -310,7 +310,10 @@ def enrich_table(
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
+                "message": (
+                    f"[Media Enrichment] {media_job.file_path.name}\n"
+                    f"Enrichment saved: {media_job.path}"
+                ),
                 "original_line": "",
                 "tagged_line": "",
             }
@@ -331,14 +334,28 @@ def enrich_table(
     if not new_rows:
         return messages_table
 
-    schema = messages_table.schema()
-    # Normalize rows to match schema, filling missing columns with None
-    normalized_rows = [
-        {column: row.get(column, None) for column in schema.names} for row in new_rows
-    ]
+    # TENET-BREAK: Downstream consumers (e.g., writer) expect CONVERSATION_SCHEMA
+    # and will fail if extra columns are present.
+    # To isolate enrichment from upstream changes, we filter `messages_table`
+    # to match the core schema before uniting it with `enrichment_table`.
+    # This ensures that `enrich_table` always returns a table with a predictable
+    # schema, preventing downstream errors.
+    from ...core.database_schema import CONVERSATION_SCHEMA
 
+    schema = CONVERSATION_SCHEMA
+    # Normalize rows to match schema, filling missing columns with None
+    normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
-    combined = messages_table.union(enrichment_table, distinct=False)
+
+    # Filter messages_table to only include columns from CONVERSATION_SCHEMA
+    messages_table_filtered = messages_table.select(*schema.names)
+
+    # Ensure timestamp column is in UTC to match CONVERSATION_SCHEMA
+    messages_table_filtered = messages_table_filtered.mutate(
+        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+    )
+
+    combined = messages_table_filtered.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
 
     if pii_detected_count > 0:

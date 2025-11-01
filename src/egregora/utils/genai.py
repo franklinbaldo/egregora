@@ -160,7 +160,7 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
             time.sleep(min(0.5, delay - elapsed))
 
 
-async def call_with_retries(
+async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
     async_fn: _RateLimitFn,
     *args: Any,
     max_attempts: int = 5,

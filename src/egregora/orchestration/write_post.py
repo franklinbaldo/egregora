@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 from ..privacy.detector import validate_newsletter_privacy
-from ..utils import slugify, safe_path_join
+from ..utils import safe_path_join, slugify
 
 
 def write_post(

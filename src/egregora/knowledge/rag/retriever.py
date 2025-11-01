@@ -8,15 +8,6 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TypedDict
 
-
-class MediaEnrichmentMetadata(TypedDict):
-    message_date: datetime | None
-    author_uuid: str | None
-    media_type: str | None
-    media_path: str | None
-    original_filename: str
-
-
 import ibis
 from ibis.expr.types import Table
 
@@ -27,6 +18,14 @@ from .embedder import embed_chunks, embed_query
 from .store import VECTOR_STORE_SCHEMA, VectorStore
 
 logger = logging.getLogger(__name__)
+
+
+class MediaEnrichmentMetadata(TypedDict):
+    message_date: datetime | None
+    author_uuid: str | None
+    media_type: str | None
+    media_path: str | None
+    original_filename: str
 
 DEDUP_MAX_RANK = 2
 

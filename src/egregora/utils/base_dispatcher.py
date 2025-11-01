@@ -6,7 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ TRequest = TypeVar("TRequest")
 TResult = TypeVar("TResult")
 
 
-class BaseDispatcher(ABC, Generic[TRequest, TResult]):
+class BaseDispatcher[TRequest, TResult](ABC):
     """Abstract base for intelligent dispatchers that route between batch and individual API calls.
 
     This class implements the common logic for choosing between batch API operations

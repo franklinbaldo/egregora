@@ -8,6 +8,8 @@ This module contains both:
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
 
+import logging
+
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -221,6 +223,4 @@ def create_index(
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
     except Exception as e:
         # Index may already exist or column may not support this index type
-        import logging
-
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")

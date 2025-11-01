@@ -95,7 +95,7 @@ def _pandas_na_singleton() -> Any | None:
     return pandas_module.NA
 
 
-def _stringify_value(value: Any) -> str:
+def _stringify_value(value: Any) -> str:  # noqa: PLR0911
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):

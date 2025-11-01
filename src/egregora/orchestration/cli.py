@@ -486,7 +486,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(  # noqa: PLR0915
+    def _run_ranking_session(  # noqa: PLR0912, PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
         if config.debug:
@@ -692,7 +692,7 @@ def parse(
 
 
 @app.command()
-def group(
+def group(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
     output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path(
@@ -800,7 +800,7 @@ def group(
 
 
 @app.command()
-def enrich(  # noqa: PLR0913
+def enrich(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     zip_file: Annotated[
         Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")
@@ -933,7 +933,7 @@ def enrich(  # noqa: PLR0913
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913
+def gather_context(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1076,7 +1076,7 @@ def gather_context(  # noqa: PLR0913
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913
+def write_posts(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1200,8 +1200,8 @@ def write_posts(  # noqa: PLR0913
                 console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > 5:  # noqa: PLR2004
+                    console.print(f"  ... and {posts_count - 5} more")  # noqa: PLR2004
 
     finally:
         if client:
