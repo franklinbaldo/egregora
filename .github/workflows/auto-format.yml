@@ -1,0 +1,62 @@
+name: Auto-format and lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - 'feature/**'
+      - 'fix/**'
+      - 'refactor/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run ruff format
+        run: |
+          uv run ruff format src/ tests/
+
+      - name: Run ruff check --fix
+        run: |
+          uv run ruff check --fix src/ tests/ || true
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code || echo "changes=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push if changes
+        if: steps.git-check.outputs.changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          git commit -m "style: Auto-format with ruff
+
+          🤖 Automated formatting by GitHub Actions
+          - ruff format
+          - ruff check --fix"
+          git push
