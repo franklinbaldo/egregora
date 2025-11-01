@@ -198,7 +198,7 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient
+    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient  # noqa: PLC0415
 
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(

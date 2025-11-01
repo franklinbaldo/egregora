@@ -1,6 +1,5 @@
 """Tests for RAG error handling and observability."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import ibis
@@ -137,7 +136,7 @@ class TestRagErrorHandling:
         assert context.text != ""
         assert "Test Post 1" in context.text
         assert "Test Post 2" in context.text
-        assert len(context.records) == 2
+        assert len(context.records) == 2  # noqa: PLR2004
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
@@ -171,7 +170,7 @@ class TestRagErrorHandling:
 
         # Should return tuple for backward compatibility
         assert isinstance(result, tuple)
-        assert len(result) == 2
+        assert len(result) == 2  # noqa: PLR2004
         text, records = result
         assert isinstance(text, str)
         assert isinstance(records, list)
@@ -199,11 +198,11 @@ class TestRagErrorHandling:
 
     @patch("egregora.generation.writer.context.VectorStore")
     @patch("egregora.generation.writer.context.query_similar_posts")
-    def test_rag_error_logging(
+    def test_rag_error_logging(  # noqa: PLR0913
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""
-        import logging
+        import logging  # noqa: PLC0415
 
         caplog.set_level(logging.ERROR)
 

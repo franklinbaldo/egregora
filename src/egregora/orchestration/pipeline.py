@@ -103,18 +103,10 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
         # the ISO year is previous calendar year
         # if week number is 1 and month is December,
         # the ISO year is next calendar year
-        iso_year = (
-            ibis.case()
-            .when(
-                (week_num >= 52) & (table.timestamp.month() == 1),
-                table.timestamp.year() - 1,
-            )
-            .when(
-                (week_num == 1) & (table.timestamp.month() == 12),
-                table.timestamp.year() + 1,
-            )
-            .else_(table.timestamp.year())
-            .end()
+        iso_year = ibis.cases(
+            ((week_num >= 52) & (table.timestamp.month() == 1), table.timestamp.year() - 1),  # noqa: PLR2004
+            ((week_num == 1) & (table.timestamp.month() == 12), table.timestamp.year() + 1),  # noqa: PLR2004
+            else_=table.timestamp.year()
         )
 
         year_str = iso_year.cast("string")
