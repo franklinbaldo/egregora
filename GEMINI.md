@@ -21,7 +21,7 @@ black --check src/
 ```
 
 ### Key Project Configurations
-- Python 3.11+ required
+- Python 3.12+ required
 - Linting: ruff, black
 - Type checking: mypy
 - Line length: 100 characters
