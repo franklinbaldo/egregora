@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+    "pytest-vcr>=1.0.2",  # HTTP interaction recording for deterministic API tests
     "ruff>=0.4.4",
 ]
 docs = [
@@ -151,7 +152,7 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 # pytest-vcr configuration
 vcr_record_mode = "once"  # Record once, then replay
-vcr_cassette_dir = "tests/fixtures/vcr_cassettes"
+vcr_cassette_dir = "tests/cassettes"
 
 [dependency-groups]
 dev = [

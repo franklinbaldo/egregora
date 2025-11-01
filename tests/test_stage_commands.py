@@ -428,7 +428,7 @@ class TestSerializationFormats:
         assert result.exit_code == 0
         assert output_parquet.exists()
         # Verify it's a valid Parquet file
-        import pandas as pd
+        import pandas as pd  # noqa: PLC0415
 
         df = pd.read_parquet(output_parquet)
         assert len(df) > 0

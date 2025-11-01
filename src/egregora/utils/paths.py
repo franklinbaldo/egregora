@@ -83,12 +83,25 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     References:
         https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.utils.safe_join
     """
+    # Additional security: reject paths with backslashes to prevent
+    # cross-platform path traversal attacks. On POSIX, backslashes are
+    # valid filename chars, but we normalize them to forward slashes for consistency.
+    normalized_parts = []
+    for part in parts:
+        # Check for Windows-style absolute paths (C:\, D:\, etc.)
+        if len(part) >= 3 and part[1:3] == ':\\':  # noqa: PLR2004
+            raise PathTraversalError(
+                f"Absolute Windows paths not allowed: {part}"
+            )
+        # Normalize backslashes to forward slashes
+        normalized_parts.append(part.replace('\\', '/'))
+
     # Convert Path to string for werkzeug compatibility
     base_str = str(base_dir.resolve())
 
     try:
         # werkzeug.utils.safe_join returns None on older versions and raises on >=3.0
-        result_str = _werkzeug_safe_join(base_str, *parts)
+        result_str = _werkzeug_safe_join(base_str, *normalized_parts)
     except (_WerkzeugNotFound, _WerkzeugSecurityError) as exc:
         raise PathTraversalError(
             f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"

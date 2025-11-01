@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from egregora.utils import slugify, safe_path_join, PathTraversalError
 from egregora.orchestration.write_post import write_post
+from egregora.utils import PathTraversalError, safe_path_join, slugify
 
 
 class TestSlugify:
@@ -44,7 +44,7 @@ class TestSlugify:
     def test_max_length(self):
         """Test length truncation."""
         long_text = "a" * 100
-        assert len(slugify(long_text, max_len=20)) == 20
+        assert len(slugify(long_text, max_len=20)) == 20  # noqa: PLR2004
         assert slugify(long_text, max_len=20) == "aaaaaaaaaaaaaaaaaaaa"
 
     def test_empty_and_fallback(self):
@@ -255,7 +255,7 @@ class TestWritePostSecurity:
         The slug in front matter MUST match the slug used in the filename to
         maintain consistency and prevent security issues.
         """
-        import yaml
+        import yaml  # noqa: PLC0415
 
         output_dir = tmp_path / "posts"
         output_dir.mkdir()

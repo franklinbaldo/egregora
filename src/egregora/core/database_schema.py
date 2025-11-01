@@ -8,6 +8,8 @@ This module contains both:
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
 
+import logging
+
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -30,6 +32,7 @@ CONVERSATION_SCHEMA = ibis.schema(
         "message": dt.string,
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
+        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
     }
 )
 
@@ -220,6 +223,4 @@ def create_index(
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
     except Exception as e:
         # Index may already exist or column may not support this index type
-        import logging
-
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")
