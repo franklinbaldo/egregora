@@ -12,6 +12,7 @@ from ...knowledge.annotations import AnnotationStore
 from ...knowledge.rag import VectorStore, query_media
 from ...orchestration.write_post import write_post
 from ...utils import GeminiBatchClient
+from ..banner import generate_banner_for_post
 from .formatting import _stringify_value
 
 logger = logging.getLogger(__name__)
@@ -211,6 +212,78 @@ def _handle_annotate_conversation_tool(
             )
         ],
     )
+
+
+def _handle_generate_banner_tool(
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    output_dir: Path,
+) -> genai_types.Content:
+    """Handle generate_banner tool call."""
+    post_slug = fn_args.get("post_slug", "")
+    title = fn_args.get("title", "")
+    summary = fn_args.get("summary", "")
+
+    try:
+        # Generate banner image for the post
+        banner_path = generate_banner_for_post(
+            post_title=title,
+            post_summary=summary,
+            output_dir=output_dir / "media" / "banners",
+            slug=post_slug,
+        )
+
+        if banner_path:
+            # Return relative path for use in post frontmatter
+            relative_path = f"../media/banners/{banner_path.name}"
+            logger.info(f"Banner generated at: {relative_path}")
+            return genai_types.Content(
+                role="user",
+                parts=[
+                    genai_types.Part(
+                        function_response=genai_types.FunctionResponse(
+                            id=getattr(fn_call, "id", None),
+                            name="generate_banner",
+                            response={
+                                "status": "success",
+                                "banner_path": relative_path,
+                                "message": f"Banner generated successfully for '{title}'",
+                            },
+                        )
+                    )
+                ],
+            )
+        else:
+            logger.warning(f"Banner generation returned None for post: {title}")
+            return genai_types.Content(
+                role="user",
+                parts=[
+                    genai_types.Part(
+                        function_response=genai_types.FunctionResponse(
+                            id=getattr(fn_call, "id", None),
+                            name="generate_banner",
+                            response={
+                                "status": "failed",
+                                "message": "Banner generation did not produce an image",
+                            },
+                        )
+                    )
+                ],
+            )
+    except Exception as e:
+        logger.error(f"Failed to generate banner for {title}: {e}")
+        return genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        id=getattr(fn_call, "id", None),
+                        name="generate_banner",
+                        response={"status": "error", "error": str(e)},
+                    )
+                )
+            ],
+        )
 
 
 def _handle_tool_error(

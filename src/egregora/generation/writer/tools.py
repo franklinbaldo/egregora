@@ -173,6 +173,33 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
         ),
     )
 
+    generate_banner_decl = genai_types.FunctionDeclaration(
+        name="generate_banner",
+        description=(
+            "Generate a cover/banner image for a blog post using AI. "
+            "Creates a striking, concept-driven visual that captures the essence of the article. "
+            "Use this AFTER writing a post to create its banner image."
+        ),
+        parameters=genai_types.Schema(
+            type=genai_types.Type.OBJECT,
+            properties={
+                "post_slug": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="The slug of the post to generate a banner for",
+                ),
+                "title": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="The post title to base the banner design on",
+                ),
+                "summary": genai_types.Schema(
+                    type=genai_types.Type.STRING,
+                    description="Brief summary or key themes to inform the banner design",
+                ),
+            },
+            required=["post_slug", "title", "summary"],
+        ),
+    )
+
     return [
         genai_types.Tool(
             function_declarations=[
@@ -181,6 +208,7 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
                 write_profile_decl,
                 search_media_decl,
                 annotate_conversation_decl,
+                generate_banner_decl,
             ]
         )
     ]

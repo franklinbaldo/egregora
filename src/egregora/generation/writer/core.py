@@ -43,6 +43,7 @@ from .formatting import (
 )
 from .handlers import (
     _handle_annotate_conversation_tool,
+    _handle_generate_banner_tool,
     _handle_read_profile_tool,
     _handle_search_media_tool,
     _handle_tool_error,
@@ -225,6 +226,10 @@ def _process_tool_calls(  # noqa: PLR0913
                 elif fn_name == "annotate_conversation":
                     tool_responses.append(
                         _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
+                    )
+                elif fn_name == "generate_banner":
+                    tool_responses.append(
+                        _handle_generate_banner_tool(fn_args, fn_call, output_dir)
                     )
             except Exception as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
