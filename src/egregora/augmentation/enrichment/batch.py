@@ -136,12 +136,13 @@ def _iter_table_record_batches(
     )
     row_number = numbered._batch_row_number
 
+    # Fix off-by-one bug: row_number() is 0-based in DuckDB, use >= and < for proper coverage
+    # For start=0, upper=1000: row_number >= 0 AND row_number < 1000 gets rows 0-999 (1000 rows)
+    # For start=1000, upper=2000: row_number >= 1000 AND row_number < 2000 gets rows 1000-1999 (1000 rows)
     for start in range(0, count, batch_size):
         upper = start + batch_size
         batch_expr = numbered.filter(
-            ((row_number >= start) & (row_number < upper))
-            if start
-            else (row_number < upper)
+            (row_number >= start) & (row_number < upper)
         ).order_by(row_number)
         # Drop helper column only after enforcing deterministic ordering
         batch_expr = batch_expr.drop("_batch_row_number")

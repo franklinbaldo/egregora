@@ -11,6 +11,8 @@ import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
 
+from ...core.database_schema import ELO_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,39 +44,38 @@ class RankingStore:
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
-        # Note: Ranking store schema has extra fields beyond database_schema definitions
-        # (profile_id, post_a/b, comment_a/b, stars_a/b, games_played)
-        # Keeping existing SQL for now - can migrate to Ibis later
+        # Use Ibis schemas from core/database_schema.py as single source of truth
+        ibis_conn = ibis.duckdb.connect(str(self.db_path))
 
-        # ELO ratings table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_ratings (
-                post_id VARCHAR PRIMARY KEY,
-                elo_global DOUBLE NOT NULL DEFAULT 1500,
-                games_played INTEGER NOT NULL DEFAULT 0,
-                last_updated TIMESTAMP NOT NULL
+        # Create elo_ratings table using Ibis schema
+        if "elo_ratings" not in ibis_conn.list_tables():
+            empty_ratings = ibis.memtable([], schema=ELO_RATINGS_SCHEMA)
+            ibis_conn.create_table("elo_ratings", empty_ratings, overwrite=False)
+            # Add primary key constraint
+            self.conn.execute(
+                "ALTER TABLE elo_ratings ADD CONSTRAINT pk_elo_ratings PRIMARY KEY (post_id)"
             )
-        """
-        )
+            # Add default values via ALTER TABLE
+            self.conn.execute("ALTER TABLE elo_ratings ALTER COLUMN elo_global SET DEFAULT 1500")
+            self.conn.execute("ALTER TABLE elo_ratings ALTER COLUMN games_played SET DEFAULT 0")
 
-        # Comparison history table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_history (
-                comparison_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                profile_id VARCHAR NOT NULL,
-                post_a VARCHAR NOT NULL,
-                post_b VARCHAR NOT NULL,
-                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-                comment_a VARCHAR NOT NULL,
-                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-                comment_b VARCHAR NOT NULL,
-                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
+        # Create elo_history table using Ibis schema
+        if "elo_history" not in ibis_conn.list_tables():
+            empty_history = ibis.memtable([], schema=ELO_HISTORY_SCHEMA)
+            ibis_conn.create_table("elo_history", empty_history, overwrite=False)
+            # Add primary key and check constraints
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT pk_elo_history PRIMARY KEY (comparison_id)"
             )
-        """
-        )
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_winner CHECK (winner IN ('A', 'B'))"
+            )
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_stars_a CHECK (stars_a BETWEEN 1 AND 5)"
+            )
+            self.conn.execute(
+                "ALTER TABLE elo_history ADD CONSTRAINT chk_stars_b CHECK (stars_b BETWEEN 1 AND 5)"
+            )
 
         # Create indexes for efficient queries
         self.conn.execute(

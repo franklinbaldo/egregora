@@ -38,7 +38,10 @@ jobs:
 
           COMMENT_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--)")
           CONTINUATION_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--|\*)")
-          SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".ruff_cache"}
+          # Allowlist: only scan these directories
+          ALLOWED_DIRS = {"src", "docs", "tests", "scripts", ".github"}
+          # Blocklist: never scan these (even if in allowlist)
+          IGNORE_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "dist", "build", "*.egg-info"}
           SKIP_SUFFIXES = {
               ".png",
               ".jpg",
@@ -48,22 +51,37 @@ jobs:
               ".pyc",
               ".so",
               ".dylib",
+              ".whl",
+              ".egg",
           }
 
           def is_comment_line(line: str, *, allow_block_continuation: bool = False) -> bool:
               pattern = CONTINUATION_LINE_RE if allow_block_continuation else COMMENT_LINE_RE
               return bool(pattern.match(line))
 
-          def should_skip(path: pathlib.Path) -> bool:
-              if any(part in SKIP_DIRS for part in path.parts):
+          def should_check(path: pathlib.Path) -> bool:
+              """Return True if path should be checked (allowlist + ignore approach)."""
+              # Skip binary files
+              if path.suffix.lower() in SKIP_SUFFIXES:
+                  return False
+
+              # Skip ignored directories
+              if any(part in IGNORE_DIRS for part in path.parts):
+                  return False
+
+              # Check if path is in allowlist (or is a top-level file)
+              path_parts = path.parts
+              if len(path_parts) == 1:  # Top-level files
                   return True
-              return path.suffix.lower() in SKIP_SUFFIXES
+
+              # First directory must be in allowlist
+              return path_parts[0] in ALLOWED_DIRS
 
           invalid_entries = []
           found_any = False
 
           for path in pathlib.Path(".").rglob("*"):
-              if not path.is_file() or should_skip(path):
+              if not path.is_file() or not should_check(path):
                   continue
               try:
                   lines = path.read_text(errors="ignore").splitlines()
@@ -174,8 +192,22 @@ jobs:
                   yield index + 1, "\n".join(block_lines), block_lines
                   index = lookahead
 
+          ALLOWED_DIRS = {"src", "docs", "tests", "scripts", ".github"}
+          IGNORE_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "dist", "build"}
+          SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".pdf", ".bin", ".pyc", ".so", ".dylib", ".whl", ".egg"}
+
+          def should_check(path: pathlib.Path) -> bool:
+              if path.suffix.lower() in SKIP_SUFFIXES:
+                  return False
+              if any(part in IGNORE_DIRS for part in path.parts):
+                  return False
+              path_parts = path.parts
+              if len(path_parts) == 1:
+                  return True
+              return path_parts[0] in ALLOWED_DIRS
+
           for path in pathlib.Path(".").rglob("*"):
-              if not path.is_file() or path.suffix in {".png", ".jpg", ".jpeg", ".pdf", ".bin", ".pyc", ".so", ".dylib", ".git"}:
+              if not path.is_file() or not should_check(path):
                   continue
 
               for start_line, block_text, block_lines in iter_tenet_break_blocks(path):
