@@ -58,6 +58,36 @@ def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     return dt_value + timedelta(seconds=1)
 
 
+def prepare_table_for_batch_iteration(table: Table) -> tuple[Table, bool]:
+    """Return a table ordered for deterministic batch iteration."""
+
+    schema = table.schema()
+    order_expressions = []
+
+    for name, dtype in zip(schema.names, schema.types):
+        orderable = True
+        for attr in ("is_array", "is_struct", "is_map", "is_geospatial", "is_json"):
+            predicate = getattr(dtype, attr, None)
+            if callable(predicate) and predicate():
+                orderable = False
+                break
+
+        if not orderable:
+            continue
+
+        column = table[name]
+
+        try:
+            order_expressions.append(column.asc())
+        except Exception:  # pragma: no cover - backend specific
+            continue
+
+    if not order_expressions:
+        return table, False
+
+    return table.order_by(order_expressions), True
+
+
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies.
 
@@ -68,13 +98,19 @@ def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
         return list(to_pylist())
 
     # Stream in batches to reduce memory pressure on large tables
+    ordered_table, can_batch = prepare_table_for_batch_iteration(table)
+
+    if not can_batch:
+        dataframe = ordered_table.execute()
+        batch_records = dataframe.to_dict("records")
+        return [dict(record) for record in batch_records]
+
     batch_size = 1000
     count = table.count().execute()
     results = []
 
     for offset in range(0, count, batch_size):
-        batch = table.limit(batch_size, offset=offset).execute()
-        # Convert batch to records (this is now limited in size)
+        batch = ordered_table.limit(batch_size, offset=offset).execute()
         batch_records = batch.to_dict("records")
         results.extend(dict(record) for record in batch_records)
 
