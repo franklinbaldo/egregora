@@ -777,12 +777,16 @@ def group(  # noqa: PLR0915
                 )
                 console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
             elif to_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
+                messages_table = messages_table.filter(
+                    messages_table.timestamp.date() <= to_date_obj
+                )
                 console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
 
             filtered_count = messages_table.count().execute()
             removed = original_count - filtered_count
-            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+            console.print(
+                f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]"
+            )
 
         # Group by period
         console.print(f"[cyan]Grouping by:[/cyan] {period}")
@@ -805,9 +809,11 @@ def group(  # noqa: PLR0915
 
 
 @app.command()
-def enrich(  # noqa: PLR0913, PLR0915
+def enrich(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
-    zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
+    zip_file: Annotated[
+        Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")
+    ],
     output: Annotated[Path, typer.Option(help="Output enriched CSV file")],
     site_dir: Annotated[Path, typer.Option(help="Site directory (for media storage)")],
     gemini_key: Annotated[
@@ -861,6 +867,7 @@ def enrich(  # noqa: PLR0913, PLR0915
 
     # Setup paths and config
     site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir
     site_config = load_site_config(site_path)
     model_config = ModelConfig(site_config=site_config)
 
@@ -884,7 +891,7 @@ def enrich(  # noqa: PLR0913, PLR0915
                 messages_table,
                 zip_path,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 "chat",  # generic group slug for standalone enrichment
             )
 
@@ -892,7 +899,9 @@ def enrich(  # noqa: PLR0913, PLR0915
 
             # Setup smart clients and cache
             text_batch_client = GeminiDispatcher(client, model_config.get_model("enricher"))
-            vision_batch_client = GeminiDispatcher(client, model_config.get_model("enricher_vision"))
+            vision_batch_client = GeminiDispatcher(
+                client, model_config.get_model("enricher_vision")
+            )
 
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
             enrichment_cache = EnrichmentCache(cache_dir)
@@ -909,7 +918,7 @@ def enrich(  # noqa: PLR0913, PLR0915
                 vision_batch_client,
                 enrichment_cache,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 model_config,
                 enable_url=enable_url,
                 enable_media=enable_media,
@@ -933,7 +942,7 @@ def enrich(  # noqa: PLR0913, PLR0915
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913, PLR0915
+def gather_context(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -946,9 +955,7 @@ def gather_context(  # noqa: PLR0913, PLR0915
     retrieval_mode: Annotated[
         str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
     ] = "ann",
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="DuckDB VSS nprobe for ANN")
-    ] = None,
+    retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[
         int | None, typer.Option(help="Multiply ANN candidate pool")
     ] = None,
@@ -967,7 +974,6 @@ def gather_context(  # noqa: PLR0913, PLR0915
 
     The JSON output can be inspected and reused for multiple generation runs.
     """
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -1011,7 +1017,8 @@ def gather_context(  # noqa: PLR0913, PLR0915
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
-            freeform_memory = _load_freeform_memory(site_paths.posts_dir)
+            posts_output_dir = site_paths.posts_dir / ".posts"
+            freeform_memory = _load_freeform_memory(posts_output_dir)
 
             # RAG context (if enabled)
             rag_similar_posts: list[dict[str, Any]] = []
@@ -1019,7 +1026,9 @@ def gather_context(  # noqa: PLR0913, PLR0915
             if enable_rag:
                 api_key = _resolve_gemini_key(gemini_key)
                 if not api_key:
-                    console.print("[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]")
+                    console.print(
+                        "[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]"
+                    )
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                     client = genai.Client(api_key=api_key)
@@ -1076,7 +1085,7 @@ def gather_context(  # noqa: PLR0913, PLR0915
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913, PLR0915
+def write_posts(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1094,9 +1103,7 @@ def write_posts(  # noqa: PLR0913, PLR0915
     retrieval_mode: Annotated[
         str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
     ] = "ann",
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="DuckDB VSS nprobe for ANN")
-    ] = None,
+    retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[
         int | None, typer.Option(help="Multiply ANN candidate pool")
     ] = None,
@@ -1114,7 +1121,6 @@ def write_posts(  # noqa: PLR0913, PLR0915
 
     The LLM has full editorial control via function calling.
     """
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -1159,29 +1165,30 @@ def write_posts(  # noqa: PLR0913, PLR0915
                 console.print(f"[cyan]Using context from:[/cyan] {context_path}")
                 with context_path.open("r", encoding="utf-8") as f:
                     context_data = json.load(f)
-                console.print(f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]")
+                console.print(
+                    f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]"
+                )
             else:
-                console.print("[yellow]No context file provided, will gather context inline[/yellow]")
+                console.print(
+                    "[yellow]No context file provided, will gather context inline[/yellow]"
+                )
 
             # Setup embedding client for RAG
-            embedding_batch_client = GeminiDispatcher(
-                client, model_config.get_model("embedding")
-            )
+            embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
             embedding_dimensionality = model_config.embedding_output_dimensionality
 
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
-            console.print(
-                f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}"
-            )
+            console.print(f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
+            posts_output_dir = site_paths.posts_dir / ".posts"
             result = write_posts_for_period(
                 enriched_table,
                 period_key,
                 client,
                 embedding_batch_client,
-                site_paths.posts_dir,
+                posts_output_dir,
                 site_paths.profiles_dir,
                 site_paths.rag_dir,
                 model_config,
@@ -1199,10 +1206,10 @@ def write_posts(  # noqa: PLR0913, PLR0915
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
 
             if posts_count > 0:
-                console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
+                console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:  # noqa: PLR2004
+                if posts_count > 5:
                     console.print(f"  ... and {posts_count - 5} more")
 
     finally:

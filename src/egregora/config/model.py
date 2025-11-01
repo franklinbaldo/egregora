@@ -36,7 +36,9 @@ class ModelConfig:
 
     def __init__(
         self,
-        cli_model: Annotated[str | None, "Model specified via CLI flag (highest priority)"] = None,
+        cli_model: Annotated[
+            str | None, "Model specified via CLI flag (highest priority)"
+        ] = None,
         site_config: Annotated[
             dict[str, Any] | None, "Configuration from mkdocs.yml extra.egregora section"
         ] = None,
@@ -156,7 +158,9 @@ class ModelConfig:
 
 
 def load_site_config(
-    output_dir: Annotated[Path, "The output directory, used to find mkdocs.yml in parent/root"],
+    output_dir: Annotated[
+        Path, "The output directory, used to find mkdocs.yml in parent/root"
+    ],
 ) -> Annotated[
     dict[str, Any], "A dictionary with the egregora config from the extra.egregora section"
 ]:

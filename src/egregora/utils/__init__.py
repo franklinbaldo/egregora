@@ -31,6 +31,11 @@ from .zip import (
     ensure_safe_member_size,
     validate_zip_contents,
 )
+from .paths import (
+    PathTraversalError,
+    slugify,
+    safe_path_join,
+)
 
 __all__ = [
     # Batch API
@@ -59,4 +64,8 @@ __all__ = [
     "configure_default_limits",
     "validate_zip_contents",
     "ensure_safe_member_size",
+    # Path safety
+    "PathTraversalError",
+    "slugify",
+    "safe_path_join",
 ]

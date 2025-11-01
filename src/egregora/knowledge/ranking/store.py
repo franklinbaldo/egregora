@@ -26,7 +26,9 @@ class RankingStore:
 
     def __init__(
         self,
-        rankings_dir: Annotated[Path, "Directory for ranking data (e.g., site_root/rankings/)"],
+        rankings_dir: Annotated[
+            Path, "Directory for ranking data (e.g., site_root/rankings/)"
+        ],
     ) -> None:
         """
         Initialize ranking store.
@@ -309,11 +311,7 @@ class RankingStore:
         ]
         return ibis.memtable(rows)
 
-    def get_top_posts(
-        self,
-        n: Annotated[int, "The number of top posts to return"] = 10,
-        min_games: Annotated[int, "The minimum number of games played to be included"] = 5,
-    ) -> Annotated[Table, "An Ibis table of the top-rated posts"]:
+    def get_top_posts(self, n: int = 10, min_games: int = 5) -> Table:
         """
         Get top-rated posts.
 
@@ -336,9 +334,7 @@ class RankingStore:
 
         return ibis.memtable(self._arrow_to_pydict(result))
 
-    def get_all_ratings(
-        self,
-    ) -> Annotated[Table, "An Ibis table of all post ratings"]:
+    def get_all_ratings(self) -> Table:
         """
         Get all ratings as Ibis Table.
 
@@ -348,9 +344,7 @@ class RankingStore:
         result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
         return ibis.memtable(self._arrow_to_pydict(result))
 
-    def get_all_history(
-        self,
-    ) -> Annotated[Table, "An Ibis table of all comparison history"]:
+    def get_all_history(self) -> Table:
         """
         Get all comparison history as Ibis Table.
 
@@ -407,16 +401,20 @@ class RankingStore:
         ratings_path = self.rankings_dir / "elo_ratings.parquet"
         history_path = self.rankings_dir / "elo_history.parquet"
 
-        self.conn.execute(f"""
+        self.conn.execute(
+            f"""
             COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
-        """)
-        self.conn.execute(f"""
+        """
+        )
+        self.conn.execute(
+            f"""
             COPY elo_history TO '{history_path}' (FORMAT PARQUET)
-        """)
+        """
+        )
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
-    def stats(self) -> Annotated[dict[str, Any], "A dictionary of ranking store statistics"]:
+    def stats(self) -> dict[str, Any]:
         """
         Get ranking store statistics.
 

@@ -8,6 +8,15 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, TypedDict
 
+
+class MediaEnrichmentMetadata(TypedDict):
+    message_date: datetime | None
+    author_uuid: str | None
+    media_type: str | None
+    media_path: str | None
+    original_filename: str
+
+
 import ibis
 from ibis.expr.types import Table
 
@@ -16,14 +25,6 @@ from ...utils.batch import GeminiBatchClient
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
 from .store import VECTOR_STORE_SCHEMA, VectorStore
-
-
-class MediaEnrichmentMetadata(TypedDict):
-    message_date: datetime | None
-    author_uuid: str | None
-    media_type: str | None
-    media_path: str | None
-    original_filename: str
 
 logger = logging.getLogger(__name__)
 
@@ -204,9 +205,7 @@ def query_similar_posts(
     return results
 
 
-def _parse_media_enrichment(
-    enrichment_path: Annotated[Path, "Path to the media enrichment markdown file"],
-) -> Annotated[MediaEnrichmentMetadata | None, "A dict of metadata or None on failure"]:
+def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | None:
     """
     Parse a media enrichment markdown file to extract metadata.
 
@@ -267,14 +266,14 @@ def _parse_media_enrichment(
 
 
 def index_media_enrichment(
-    enrichment_path: Annotated[Path, "Path to the media enrichment markdown file"],
-    docs_dir: Annotated[Path, "Path to the MkDocs 'docs' directory"],
-    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
-    store: Annotated[VectorStore, "The vector store for saving the chunks"],
+    enrichment_path: Path,
+    docs_dir: Path,
+    batch_client: GeminiBatchClient,
+    store: VectorStore,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    output_dimensionality: Annotated[int, "The target dimensionality for the embeddings"] = 3072,
-) -> Annotated[int, "The number of chunks indexed from the media file"]:
+    embedding_model: str,
+    output_dimensionality: int = 3072,
+) -> int:
     """
     Chunk, embed, and index a media enrichment file.
 
