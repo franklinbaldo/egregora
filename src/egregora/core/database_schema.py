@@ -30,6 +30,7 @@ CONVERSATION_SCHEMA = ibis.schema(
         "message": dt.string,
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
+        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
     }
 )
 

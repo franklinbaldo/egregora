@@ -137,6 +137,8 @@ def _escape_table_cell(value: Any) -> str:
 def _compute_message_id(row: Any) -> str:
     """Derive a deterministic identifier for a conversation row.
 
+    Prefers stored message_id field if available, otherwise computes a hash.
+
     The helper accepts any object exposing ``get`` and ``items`` (for example,
     :class:`dict` as well as mapping-like table rows). Legacy helpers passed both ``(row_index, row)``
     positional arguments, but that form is no longer accepted because the index
@@ -146,6 +148,11 @@ def _compute_message_id(row: Any) -> str:
 
     if not (hasattr(row, "get") and hasattr(row, "items")):
         raise TypeError("_compute_message_id expects an object with mapping-style access")
+
+    # Prefer stored message_id if available
+    stored_message_id = row.get("message_id")
+    if stored_message_id:
+        return _stringify_value(stored_message_id)
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
@@ -256,21 +263,34 @@ def _build_conversation_markdown(
 
     rows = [dict(record) for record in records]
 
+    # Prefer stored message_id, fall back to msg_id, then compute if needed
     if "msg_id" not in column_order:
-        msg_ids = [_compute_message_id(row) for row in rows]
-        column_order = ["msg_id", *column_order]
-        for row, msg_id in zip(rows, msg_ids, strict=False):
-            row["msg_id"] = msg_id
+        if "message_id" in column_order:
+            # Use the stored message_id as msg_id for display
+            column_order = ["msg_id", *column_order]
+            for row in rows:
+                row["msg_id"] = _stringify_value(row.get("message_id"))
+        else:
+            # Fall back to computing hash-based IDs
+            msg_ids = [_compute_message_id(row) for row in rows]
+            column_order = ["msg_id", *column_order]
+            for row, msg_id in zip(rows, msg_ids, strict=False):
+                row["msg_id"] = msg_id
     else:
         for row in rows:
-            row["msg_id"] = _stringify_value(row.get("msg_id"))
+            # Use existing msg_id if present, otherwise use message_id
+            existing_msg_id = row.get("msg_id")
+            if existing_msg_id:
+                row["msg_id"] = _stringify_value(existing_msg_id)
+            else:
+                row["msg_id"] = _stringify_value(row.get("message_id"))
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
-                annotations_map[msg_id_value] = annotations_store.get_annotations_for_message(
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(
                     msg_id_value
                 )
 

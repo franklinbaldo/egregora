@@ -188,6 +188,35 @@ class AnnotationStore:
         for row in records:
             yield self._row_to_annotation(row)
 
+    def join_with_messages(self, messages_table: ibis.expr.types.Table) -> ibis.expr.types.Table:
+        """Join annotations with messages using message_id as foreign key.
+
+        This enables vectorized operations on the combined data.
+
+        Args:
+            messages_table: Ibis Table with 'message_id' column
+
+        Returns:
+            Joined Ibis Table with both message and annotation columns
+
+        Example:
+            >>> # Assuming messages_table has message_id column
+            >>> annotations_store = AnnotationStore(db_path)
+            >>> joined = annotations_store.join_with_messages(messages_table)
+            >>> # Now you can do vectorized operations like:
+            >>> annotated_messages = joined.filter(joined.commentary.notnull())
+        """
+        # Get annotations as an Ibis table
+        annotations_table = self._backend.table(ANNOTATIONS_TABLE)
+
+        # Perform left join: messages with their annotations (if any)
+        # This preserves all messages even if they don't have annotations
+        joined = messages_table.left_join(
+            annotations_table, messages_table.message_id == annotations_table.msg_id
+        )
+
+        return joined
+
     @staticmethod
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
         created_at_obj = row["created_at"]

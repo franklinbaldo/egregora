@@ -154,6 +154,58 @@ def extract_commands(messages: Table) -> list[dict]:
     return commands
 
 
+def _add_message_ids(messages: Table) -> Table:
+    """
+    Add deterministic message_id column based on milliseconds since group creation.
+
+    The message_id is calculated as milliseconds since the earliest message timestamp.
+    This creates a timezone-independent, deterministic ID that's consistent across runs.
+
+    Args:
+        messages: Ibis Table with 'timestamp' column
+
+    Returns:
+        Table with added 'message_id' column
+    """
+    if int(messages.count().execute()) == 0:
+        return messages
+
+    # Find the minimum timestamp (group creation time)
+    min_timestamp_scalar = messages.timestamp.min().execute()
+
+    # Convert to UTC if needed
+    if hasattr(min_timestamp_scalar, "tz_convert"):
+        # Pandas Timestamp - convert to UTC
+        min_timestamp = min_timestamp_scalar.tz_convert("UTC")
+    elif hasattr(min_timestamp_scalar, "astimezone"):
+        # Python datetime - convert to UTC
+        min_timestamp = min_timestamp_scalar.astimezone(UTC)
+    elif hasattr(min_timestamp_scalar, "replace") and min_timestamp_scalar.tzinfo is None:
+        # Naive datetime - assume UTC
+        min_timestamp = min_timestamp_scalar.replace(tzinfo=UTC)
+    else:
+        min_timestamp = min_timestamp_scalar
+
+    # Get min_timestamp as integer milliseconds since epoch
+    if hasattr(min_timestamp, "timestamp"):
+        min_ms = int(min_timestamp.timestamp() * 1000)
+    else:
+        # Fallback for datetime objects
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)
+        min_ms = int((min_timestamp - epoch).total_seconds() * 1000)
+
+    # Calculate milliseconds since group creation for each message
+    # We use epoch() to convert timestamp to seconds, then multiply by 1000 for milliseconds
+    messages_with_id = messages.mutate(
+        message_id=(
+            # Convert timestamp to epoch milliseconds, then subtract minimum
+            (messages.timestamp.epoch_seconds() * 1000).cast("int64") - min_ms
+        ).cast("string")
+    )
+
+    return messages_with_id
+
+
 def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     """
     Remove all messages starting with /egregora from Table.
@@ -230,6 +282,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     messages = ibis.memtable(rows).order_by("timestamp")
     messages = ensure_message_schema(messages, timezone=timezone)
+    messages = _add_message_ids(messages)
     messages = anonymize_table(messages)
     return messages
 
@@ -241,12 +294,28 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
 
     for export in exports:
         try:
-            messages = parse_export(export)
+            # Parse without adding message IDs yet - we'll do it globally
+            with zipfile.ZipFile(export.zip_path) as zf:
+                validate_zip_contents(zf)
+                ensure_safe_member_size(zf, export.chat_file)
+
+                try:
+                    with zf.open(export.chat_file) as raw:
+                        text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+                        rows = _parse_messages(text_stream, export)
+                except UnicodeDecodeError as exc:
+                    raise ZipValidationError(
+                        f"Failed to decode chat file '{export.chat_file}': {exc}"
+                    ) from exc
+
+            if rows:
+                messages = ibis.memtable(rows).order_by("timestamp")
+                messages = ensure_message_schema(messages)
+                messages = anonymize_table(messages)
+                tables.append(messages)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
-        if int(messages.count().execute()) > 0:
-            tables.append(messages)
 
     if not tables:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
@@ -257,7 +326,11 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
     for table in tables[1:]:
         combined = combined.union(table, distinct=False)
 
-    return ensure_message_schema(combined.order_by("timestamp"))
+    # Order by timestamp first, then add message IDs globally
+    combined = combined.order_by("timestamp")
+    combined = _add_message_ids(combined)
+
+    return ensure_message_schema(combined)
 
 
 # Pattern captures optional date, mandatory time, separator (dash/en dash),

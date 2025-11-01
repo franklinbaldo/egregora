@@ -467,8 +467,16 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_export(export, timezone=whatsapp_fixture.timezone)
 
-    # Verify table only has MESSAGE_SCHEMA columns
-    expected_columns = {"timestamp", "date", "author", "message", "original_line", "tagged_line"}
+    # Verify table only has MESSAGE_SCHEMA columns (including message_id)
+    expected_columns = {
+        "timestamp",
+        "date",
+        "author",
+        "message",
+        "original_line",
+        "tagged_line",
+        "message_id",
+    }
     assert set(table.columns) == expected_columns
 
     # Verify no extra columns
