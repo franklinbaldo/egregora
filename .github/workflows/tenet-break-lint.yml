@@ -21,56 +21,109 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ripgrep
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep
-
       - name: Check TENET-BREAK required fields
         run: |
-          echo "Checking TENET-BREAK entries for required fields..."
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import sys
 
-          # Find all TENET-BREAK entries
-          if ! rg -n 'TENET-BREAK' > /tmp/tenet_breaks.txt 2>&1; then
-            echo "✅ No TENET-BREAK entries found"
-            exit 0
-          fi
+          REQUIRED_PATTERNS = {
+              "tenet": re.compile(r"tenet=(no-compat|clean|no-defensive|propagate-errors)"),
+              "why": re.compile(r"why="),
+              "exit": re.compile(r"exit="),
+              "due": re.compile(r"due:\d{4}-\d{2}-\d{2}"),
+              "reference": re.compile(r"#\d+"),
+          }
 
-          # Check that all entries have required fields:
-          # - tenet=(no-compat|clean|no-defensive|propagate-errors)
-          # - why=...
-          # - exit=...
-          # - due:YYYY-MM-DD
-          # - #<reference>
+          COMMENT_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--)")
+          CONTINUATION_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--|\*)")
+          SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".ruff_cache"}
+          SKIP_SUFFIXES = {
+              ".png",
+              ".jpg",
+              ".jpeg",
+              ".pdf",
+              ".bin",
+              ".pyc",
+              ".so",
+              ".dylib",
+          }
 
-          invalid_entries=0
-          while IFS= read -r line; do
-            # Skip if line matches the complete pattern
-            if echo "$line" | grep -qE 'tenet=(no-compat|clean|no-defensive|propagate-errors).*why=.*exit=.*due:[0-9]{4}-[0-9]{2}-[0-9]{2}.*#[0-9]+'; then
-              continue
-            fi
+          def is_comment_line(line: str, *, allow_block_continuation: bool = False) -> bool:
+              pattern = CONTINUATION_LINE_RE if allow_block_continuation else COMMENT_LINE_RE
+              return bool(pattern.match(line))
 
-            # This line is missing required fields
-            echo "❌ Invalid TENET-BREAK (missing required fields): $line"
-            invalid_entries=$((invalid_entries + 1))
-          done < /tmp/tenet_breaks.txt
+          def should_skip(path: pathlib.Path) -> bool:
+              if any(part in SKIP_DIRS for part in path.parts):
+                  return True
+              return path.suffix.lower() in SKIP_SUFFIXES
 
-          if [ $invalid_entries -gt 0 ]; then
-            echo ""
-            echo "TENET-BREAK entries must include:"
-            echo "  - tenet=(no-compat|clean|no-defensive|propagate-errors)"
-            echo "  - why=<reason>"
-            echo "  - exit=<condition>"
-            echo "  - due:YYYY-MM-DD"
-            echo "  - #<issue_number>"
-            echo ""
-            echo "Example:"
-            echo '  # TENET-BREAK(scope)[@owner][P1][due:2025-12-01]:'
-            echo '  # tenet=no-compat; why=partner still on v1; exit=partner migrates (#742)'
-            exit 1
-          fi
+          invalid_entries = []
+          found_any = False
 
-          echo "✅ All TENET-BREAK entries have required fields"
+          for path in pathlib.Path(".").rglob("*"):
+              if not path.is_file() or should_skip(path):
+                  continue
+              try:
+                  lines = path.read_text(errors="ignore").splitlines()
+              except Exception:
+                  continue
+
+              line_index = 0
+              while line_index < len(lines):
+                  line = lines[line_index]
+                  if "TENET-BREAK" not in line or not is_comment_line(line):
+                      line_index += 1
+                      continue
+
+                  found_any = True
+                  block_lines = [line]
+                  lookahead = line_index + 1
+
+                  while lookahead < len(lines):
+                      next_line = lines[lookahead]
+                      stripped = next_line.lstrip()
+                      if stripped.startswith("*/"):
+                          break
+                      if not is_comment_line(next_line, allow_block_continuation=True):
+                          break
+                      block_lines.append(next_line)
+                      lookahead += 1
+
+                  block_text = "\n".join(block_lines)
+                  missing = [name for name, pattern in REQUIRED_PATTERNS.items() if not pattern.search(block_text)]
+                  if missing:
+                      invalid_entries.append((path, line_index + 1, missing, block_lines))
+
+                  line_index = lookahead
+
+          if not found_any:
+              print("✅ No TENET-BREAK entries found")
+              sys.exit(0)
+
+          if invalid_entries:
+              print("❌ Invalid TENET-BREAK entries (missing required metadata):\n")
+              for path, line_no, missing, block in invalid_entries:
+                  print(f"- {path}:{line_no} missing {', '.join(missing)}")
+                  for entry_line in block:
+                      print(f"    {entry_line}")
+                  print()
+
+              print("TENET-BREAK entries must include:")
+              print("  - tenet=(no-compat|clean|no-defensive|propagate-errors)")
+              print("  - why=<reason>")
+              print("  - exit=<condition>")
+              print("  - due:YYYY-MM-DD")
+              print("  - #<issue_number>")
+              print()
+              print("Example:")
+              print("  # TENET-BREAK(scope)[@owner][P1][due:2025-12-01]:")
+              print("  # tenet=no-compat; why=partner still on v1; exit=partner migrates (#742)")
+              sys.exit(1)
+
+          print("✅ All TENET-BREAK entries have required fields")
+          PY
 
       - name: Check for overdue TENET-BREAK entries
         run: |
