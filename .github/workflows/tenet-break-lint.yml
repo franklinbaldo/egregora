@@ -138,21 +138,57 @@ jobs:
           today = datetime.date.today()
           bad = []
 
-          for path in pathlib.Path(".").rglob("*"):
-              # Skip binary/media files
-              if path.is_file() and path.suffix not in {".png", ".jpg", ".jpeg", ".pdf", ".bin", ".pyc", ".so", ".dylib", ".git"}:
-                  try:
-                      content = path.read_text(errors="ignore")
-                  except Exception:
+          COMMENT_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--)")
+          CONTINUATION_LINE_RE = re.compile(r"^\s*(#(?!#)|//|--|;|/\*|<!--|\*)")
+
+          def is_comment_line(line: str, *, allow_block_continuation: bool = False) -> bool:
+              pattern = CONTINUATION_LINE_RE if allow_block_continuation else COMMENT_LINE_RE
+              return bool(pattern.match(line))
+
+          def iter_tenet_break_blocks(path: pathlib.Path):
+              try:
+                  lines = path.read_text(errors="ignore").splitlines()
+              except Exception:
+                  return
+
+              index = 0
+              while index < len(lines):
+                  line = lines[index]
+                  if "TENET-BREAK" not in line or not is_comment_line(line):
+                      index += 1
                       continue
 
-                  for idx, line in enumerate(content.splitlines(), 1):
-                      if "TENET-BREAK" in line:
-                          match = re.search(r"due:(\d{4})-(\d{2})-(\d{2})", line)
-                          if match:
-                              due_date = datetime.date(*map(int, match.groups()))
-                              if due_date < today:
-                                  bad.append(f"{path}:{idx}: overdue TENET-BREAK (due {due_date}) -> {line.strip()}")
+                  block_lines = [line]
+                  lookahead = index + 1
+
+                  while lookahead < len(lines):
+                      next_line = lines[lookahead]
+                      stripped = next_line.lstrip()
+                      if stripped.startswith("*/"):
+                          break
+                      if not is_comment_line(next_line, allow_block_continuation=True):
+                          break
+                      block_lines.append(next_line)
+                      lookahead += 1
+
+                  yield index + 1, "\n".join(block_lines), block_lines
+                  index = lookahead
+
+          for path in pathlib.Path(".").rglob("*"):
+              if not path.is_file() or path.suffix in {".png", ".jpg", ".jpeg", ".pdf", ".bin", ".pyc", ".so", ".dylib", ".git"}:
+                  continue
+
+              for start_line, block_text, block_lines in iter_tenet_break_blocks(path):
+                  match = re.search(r"due:(\d{4})-(\d{2})-(\d{2})", block_text)
+                  if not match:
+                      continue
+
+                  due_date = datetime.date(*map(int, match.groups()))
+                  if due_date < today:
+                      first_line = block_lines[0].strip()
+                      bad.append(
+                          f"{path}:{start_line}: overdue TENET-BREAK (due {due_date}) -> {first_line}"
+                      )
 
           if bad:
               print("❌ Found overdue TENET-BREAK entries:\n")
