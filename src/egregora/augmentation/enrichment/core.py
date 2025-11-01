@@ -310,7 +310,10 @@ def enrich_table(
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
+                "message": (
+                    f"[Media Enrichment] {media_job.file_path.name}\n"
+                    f"Enrichment saved: {media_job.path}"
+                ),
                 "original_line": "",
                 "tagged_line": "",
             }

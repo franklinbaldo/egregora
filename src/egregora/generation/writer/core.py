@@ -6,7 +6,8 @@ Uses function calling (write_post tool) to generate 0-N posts per period.
 Documentation:
 - Multi-Post Generation: docs/features/multi-post.md
 - Architecture (Writer): docs/guides/architecture.md#5-writer-writerpy
-- Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
+- Core Concepts (Editorial Control):
+  docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
 from __future__ import annotations
