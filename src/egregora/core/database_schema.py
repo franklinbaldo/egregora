@@ -129,9 +129,9 @@ ANNOTATIONS_SCHEMA = ibis.schema(
 ELO_RATINGS_SCHEMA = ibis.schema(
     {
         "post_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
-        "elo_global": dt.float64,  # DEFAULT 1500
-        "num_comparisons": dt.int64,  # DEFAULT 0
-        "last_updated": dt.timestamp,
+        "elo_global": dt.float64,  # NOT NULL, DEFAULT 1500
+        "games_played": dt.int64,  # NOT NULL, DEFAULT 0
+        "last_updated": dt.timestamp,  # NOT NULL
     }
 )
 
@@ -139,10 +139,14 @@ ELO_HISTORY_SCHEMA = ibis.schema(
     {
         "comparison_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
         "timestamp": dt.timestamp,  # NOT NULL
-        "winner_id": dt.string,  # NOT NULL
-        "loser_id": dt.string,  # NOT NULL
-        "elo_change": dt.float64,  # NOT NULL
-        "tie": dt.boolean,  # DEFAULT FALSE
+        "profile_id": dt.string,  # NOT NULL
+        "post_a": dt.string,  # NOT NULL
+        "post_b": dt.string,  # NOT NULL
+        "winner": dt.string,  # NOT NULL, CHECK (winner IN ('A', 'B'))
+        "comment_a": dt.string,  # NOT NULL
+        "stars_a": dt.int64,  # NOT NULL, CHECK (stars_a BETWEEN 1 AND 5)
+        "comment_b": dt.string,  # NOT NULL
+        "stars_b": dt.int64,  # NOT NULL, CHECK (stars_b BETWEEN 1 AND 5)
     }
 )
 

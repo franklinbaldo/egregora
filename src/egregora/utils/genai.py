@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import re
 import threading
 import time
@@ -181,9 +182,14 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
+                # Honor server's Retry-After, but also respect our minimum interval
+                base_delay_value = max(recommended_delay, _MIN_INTERVAL_SECONDS)
             else:
-                delay = base_delay * (2 ** (attempt - 1))
+                base_delay_value = base_delay * (2 ** (attempt - 1))
+
+            # Add jitter to prevent thundering herd (±20% random variation)
+            jitter = base_delay_value * 0.2 * (2 * random.random() - 1)
+            delay = max(base_delay_value + jitter, _MIN_INTERVAL_SECONDS)
 
             logger.info(
                 f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
@@ -215,9 +221,14 @@ def call_with_retries_sync(
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
+                # Honor server's Retry-After, but also respect our minimum interval
+                base_delay_value = max(recommended_delay, _MIN_INTERVAL_SECONDS)
             else:
-                delay = base_delay * (2 ** (attempt - 1))
+                base_delay_value = base_delay * (2 ** (attempt - 1))
+
+            # Add jitter to prevent thundering herd (±20% random variation)
+            jitter = base_delay_value * 0.2 * (2 * random.random() - 1)
+            delay = max(base_delay_value + jitter, _MIN_INTERVAL_SECONDS)
 
             logger.info(
                 f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
