@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 from .site import load_mkdocs_config
 
@@ -36,12 +36,8 @@ class ModelConfig:
 
     def __init__(
         self,
-        cli_model: Annotated[
-            str | None, "Model specified via CLI flag (highest priority)"
-        ] = None,
-        site_config: Annotated[
-            dict[str, Any] | None, "Configuration from mkdocs.yml extra.egregora section"
-        ] = None,
+        cli_model: str | None = None,
+        site_config: dict[str, Any] | None = None,
     ):
         """
         Initialize model config with CLI override and site config.
@@ -54,9 +50,7 @@ class ModelConfig:
         self.site_config = site_config or {}
         self.embedding_output_dimensionality = self._resolve_embedding_output_dimensionality()
 
-    def get_model(
-        self, model_type: Annotated[ModelType, "The type of model to retrieve"]
-    ) -> Annotated[str, "The model name to use for the specified task"]:
+    def get_model(self, model_type: ModelType) -> str:
         """
         Get model name for a specific task with fallback hierarchy.
 
@@ -157,13 +151,7 @@ class ModelConfig:
         return self.embedding_output_dimensionality
 
 
-def load_site_config(
-    output_dir: Annotated[
-        Path, "The output directory, used to find mkdocs.yml in parent/root"
-    ],
-) -> Annotated[
-    dict[str, Any], "A dictionary with the egregora config from the extra.egregora section"
-]:
+def load_site_config(output_dir: Path) -> dict[str, Any]:
     """
     Load egregora configuration from mkdocs.yml if it exists.
 

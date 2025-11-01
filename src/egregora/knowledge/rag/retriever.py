@@ -6,16 +6,7 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Annotated, TypedDict
-
-
-class MediaEnrichmentMetadata(TypedDict):
-    message_date: datetime | None
-    author_uuid: str | None
-    media_type: str | None
-    media_path: str | None
-    original_filename: str
-
+from typing import TypedDict
 
 import ibis
 from ibis.expr.types import Table
@@ -28,17 +19,25 @@ from .store import VECTOR_STORE_SCHEMA, VectorStore
 
 logger = logging.getLogger(__name__)
 
+
+class MediaEnrichmentMetadata(TypedDict):
+    message_date: datetime | None
+    author_uuid: str | None
+    media_type: str | None
+    media_path: str | None
+    original_filename: str
+
 DEDUP_MAX_RANK = 2
 
 
 def index_post(
-    post_path: Annotated[Path, "Path to the markdown blog post file"],
-    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
-    store: Annotated[VectorStore, "The vector store for saving the chunks"],
+    post_path: Path,
+    batch_client: GeminiBatchClient,
+    store: VectorStore,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    output_dimensionality: Annotated[int, "The target dimensionality for the embeddings"] = 3072,
-) -> Annotated[int, "The number of chunks indexed from the post"]:
+    embedding_model: str,
+    output_dimensionality: int = 3072,
+) -> int:
     """
     Chunk, embed, and index a blog post.
 
@@ -118,20 +117,18 @@ def index_post(
 
 
 def query_similar_posts(
-    table: Annotated[Table, "The Ibis table of messages for the period"],
-    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
-    store: Annotated[VectorStore, "The vector store to search"],
+    table: Table,
+    batch_client: GeminiBatchClient,
+    store: VectorStore,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    top_k: Annotated[int, "The maximum number of similar posts to return"] = 5,
-    deduplicate: Annotated[bool, "Whether to return only the most relevant chunk per post"] = True,
-    output_dimensionality: Annotated[
-        int, "The target dimensionality for the query embedding"
-    ] = 3072,
-    retrieval_mode: Annotated[str, "The vector retrieval mode ('ann' or 'exact')"] = "ann",
-    retrieval_nprobe: Annotated[int | None, "The number of probes for ANN retrieval"] = None,
-    retrieval_overfetch: Annotated[int | None, "The overfetch factor for ANN retrieval"] = None,
-) -> Annotated[Table, "An Ibis table of similar posts with similarity scores"]:
+    embedding_model: str,
+    top_k: int = 5,
+    deduplicate: bool = True,
+    output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> Table:
     """
     Find similar previous blog posts for a period's table.
 
@@ -355,13 +352,13 @@ def index_media_enrichment(
 
 
 def index_all_media(
-    docs_dir: Annotated[Path, "Path to the MkDocs 'docs' directory"],
-    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
-    store: Annotated[VectorStore, "The vector store for saving the chunks"],
+    docs_dir: Path,
+    batch_client: GeminiBatchClient,
+    store: VectorStore,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    output_dimensionality: Annotated[int, "The target dimensionality for the embeddings"] = 3072,
-) -> Annotated[int, "The total number of chunks indexed from all media files"]:
+    embedding_model: str,
+    output_dimensionality: int = 3072,
+) -> int:
     """
     Index all media enrichment files from output/media/enrichments/.
 
@@ -404,9 +401,7 @@ def index_all_media(
     return total_chunks
 
 
-def _coerce_post_date(
-    value: Annotated[object, "The input value, can be str, date, or datetime"],
-) -> Annotated[date | None, "A date object or None if parsing fails"]:
+def _coerce_post_date(value: object) -> date | None:
     """Normalize post metadata values to ``date`` objects."""
 
     if value is None:
@@ -438,9 +433,7 @@ def _coerce_post_date(
     return result
 
 
-def _coerce_message_datetime(
-    value: Annotated[object, "The input value, can be str or datetime"],
-) -> Annotated[datetime | None, "A timezone-aware UTC datetime or None"]:
+def _coerce_message_datetime(value: object) -> datetime | None:
     """Ensure message timestamps are timezone-aware UTC datetimes."""
 
     if value is None:
@@ -474,24 +467,20 @@ def _coerce_message_datetime(
 
 
 def query_media(  # noqa: PLR0913
-    query: Annotated[str, "The natural language query to search for media"],
-    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
-    store: Annotated[VectorStore, "The vector store to search"],
-    media_types: Annotated[list[str] | None, "Optional list of media types to filter by"] = None,
-    top_k: Annotated[int, "The maximum number of media files to return"] = 5,
-    min_similarity: Annotated[float, "The minimum similarity score for results"] = 0.7,
-    deduplicate: Annotated[
-        bool, "Whether to return only the most relevant chunk per media file"
-    ] = True,
+    query: str,
+    batch_client: GeminiBatchClient,
+    store: VectorStore,
+    media_types: list[str] | None = None,
+    top_k: int = 5,
+    min_similarity: float = 0.7,
+    deduplicate: bool = True,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    output_dimensionality: Annotated[
-        int, "The target dimensionality for the query embedding"
-    ] = 3072,
-    retrieval_mode: Annotated[str, "The vector retrieval mode ('ann' or 'exact')"] = "ann",
-    retrieval_nprobe: Annotated[int | None, "The number of probes for ANN retrieval"] = None,
-    retrieval_overfetch: Annotated[int | None, "The overfetch factor for ANN retrieval"] = None,
-) -> Annotated[Table, "An Ibis table of similar media files with similarity scores"]:
+    embedding_model: str,
+    output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> Table:
     """
     Search for relevant media by description or topic.
 

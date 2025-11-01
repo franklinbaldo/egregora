@@ -1,10 +1,12 @@
 """Batch processing utilities for enrichment - dataclasses and helpers."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
+import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
@@ -15,34 +17,34 @@ from ...utils import BatchPromptRequest, BatchPromptResult
 class UrlEnrichmentJob:
     """Metadata for a URL enrichment batch item."""
 
-    key: Annotated[str, "Unique key for the enrichment job"]
-    url: Annotated[str, "The URL to be enriched"]
-    original_message: Annotated[str, "The original message containing the URL"]
-    sender_uuid: Annotated[str, "The UUID of the message sender"]
-    timestamp: Annotated[Any, "The timestamp of the message"]
-    path: Annotated[Path, "The path to the original message"]
-    tag: Annotated[str, "A tag for identifying the job in batch results"]
-    markdown: Annotated[str | None, "The enriched markdown content"] = None
-    cached: Annotated[bool, "Whether the result was retrieved from cache"] = False
+    key: str
+    url: str
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    markdown: str | None = None
+    cached: bool = False
 
 
 @dataclass
 class MediaEnrichmentJob:
     """Metadata for a media enrichment batch item."""
 
-    key: Annotated[str, "Unique key for the enrichment job"]
-    original_filename: Annotated[str, "The original filename of the media"]
-    file_path: Annotated[Path, "The path to the media file on disk"]
-    original_message: Annotated[str, "The original message containing the media"]
-    sender_uuid: Annotated[str, "The UUID of the message sender"]
-    timestamp: Annotated[Any, "The timestamp of the message"]
-    path: Annotated[Path, "The path to the original message"]
-    tag: Annotated[str, "A tag for identifying the job in batch results"]
-    media_type: Annotated[str | None, "The type of media (e.g., 'image', 'video')"] = None
-    markdown: Annotated[str | None, "The enriched markdown content"] = None
-    cached: Annotated[bool, "Whether the result was retrieved from cache"] = False
-    upload_uri: Annotated[str | None, "The URI of the uploaded media file"] = None
-    mime_type: Annotated[str | None, "The MIME type of the media file"] = None
+    key: str
+    original_filename: str
+    file_path: Path
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    media_type: str | None = None
+    markdown: str | None = None
+    cached: bool = False
+    upload_uri: str | None = None
+    mime_type: str | None = None
 
 
 def _ensure_datetime(value: Any) -> datetime:
@@ -58,23 +60,113 @@ def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     return dt_value + timedelta(seconds=1)
 
 
-def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
-    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+_STABLE_ORDER_CANDIDATES: tuple[str, ...] = (
+    "timestamp",
+    "created_at",
+    "datetime",
+    "date",
+    "ts",
+    "time",
+    "id",
+    "uuid",
+    "key",
+)
+
+
+def _get_stable_ordering(table: Table) -> list:
+    """Return a deterministic ordering for ``table`` when batching rows."""
+
+    columns = list(table.columns)
+    for candidate in _STABLE_ORDER_CANDIDATES:
+        if candidate in columns:
+            return [table[candidate]]
+
+    if columns:
+        return [table[column] for column in columns]
+
+    return []
+
+
+def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
+    """Convert backend frames into ``dict`` records consistently."""
+
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
+        return [dict(row) for row in frame.to_pylist()]
+    if isinstance(frame, list):
+        return [dict(row) for row in frame]
+
+    return [dict(row) for row in frame]
+
+
+def _iter_table_record_batches(
+    table: Table, batch_size: int = 1000
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield batches of table rows as dictionaries in a deterministic order."""
 
     to_pylist = getattr(table, "to_pylist", None)
     if callable(to_pylist):
-        return list(to_pylist())
+        rows = [dict(row) for row in to_pylist()]
+        if rows:
+            yield rows
+        return
 
-    records = table.execute().to_dict("records")
-    return [dict(record) for record in records]
+    count = table.count().execute()
+    if not count:
+        return
+
+    ordering = _get_stable_ordering(table)
+    fallback_ordering = ordering or [table[column] for column in table.columns]
+
+    if not fallback_ordering:
+        # Degenerate table (no columns) – just execute once and chunk locally
+        dataframe = table.execute()
+        records = _frame_to_records(dataframe)
+        if not records:
+            return
+        for start in range(0, len(records), batch_size):
+            yield records[start : start + batch_size]
+        return
+
+    ordered_table = table.order_by(fallback_ordering)
+    window = ibis.window(order_by=fallback_ordering)
+    numbered = ordered_table.mutate(
+        _batch_row_number=ibis.row_number().over(window)
+    )
+    row_number = numbered._batch_row_number
+
+    for start in range(0, count, batch_size):
+        upper = start + batch_size
+        batch_expr = numbered.filter(
+            ((row_number >= start) & (row_number < upper))
+            if start
+            else (row_number < upper)
+        ).order_by(row_number)
+        # Drop helper column only after enforcing deterministic ordering
+        batch_expr = batch_expr.drop("_batch_row_number")
+        dataframe = batch_expr.execute()
+        batch_records = _frame_to_records(dataframe)
+        if not batch_records:
+            continue
+        yield batch_records
+
+
+def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
+    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+
+    results: list[dict[str, Any]] = []
+    for batch in _iter_table_record_batches(table):
+        results.extend(batch)
+    return results
 
 
 def build_batch_requests(
-    records: Annotated[list[dict[str, Any]], "A list of prompt records to be converted"],
-    model: Annotated[str, "The name of the model to use for the requests"],
+    records: list[dict[str, Any]],
+    model: str,
     *,
-    include_file: Annotated[bool, "Whether to include file data in the requests"] = False,
-) -> Annotated[list[BatchPromptRequest], "A list of BatchPromptRequest objects"]:
+    include_file: bool = False,
+) -> list[BatchPromptRequest]:
     """Convert prompt records into ``BatchPromptRequest`` objects."""
 
     requests: list[BatchPromptRequest] = []
@@ -97,10 +189,13 @@ def build_batch_requests(
             "contents": [genai_types.Content(role="user", parts=parts)],
             "model": model,
             "tag": record.get("tag"),
+            # Always provide explicit config for deterministic behavior across text and vision
+            "config": genai_types.GenerateContentConfig(
+                temperature=0.3,
+                top_k=40,
+                top_p=0.95,
+            ),
         }
-
-        if not include_file:
-            request_kwargs["config"] = genai_types.GenerateContentConfig(temperature=0.3)
 
         requests.append(BatchPromptRequest(**request_kwargs))
 
@@ -108,11 +203,8 @@ def build_batch_requests(
 
 
 def map_batch_results(
-    responses: Annotated[list[BatchPromptResult], "A list of BatchPromptResult objects"],
-) -> Annotated[
-    dict[str | None, BatchPromptResult],
-    "A mapping from result tag to the BatchPromptResult",
-]:
+    responses: list[BatchPromptResult],
+) -> dict[str | None, BatchPromptResult]:
     """Return a mapping from result tag to the ``BatchPromptResult``."""
 
     return {result.tag: result for result in responses}

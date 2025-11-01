@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import duckdb
 import ibis
@@ -24,12 +24,7 @@ class RankingStore:
     Follows the same pattern as VectorStore (rag/store.py).
     """
 
-    def __init__(
-        self,
-        rankings_dir: Annotated[
-            Path, "Directory for ranking data (e.g., site_root/rankings/)"
-        ],
-    ) -> None:
+    def __init__(self, rankings_dir: Path):
         """
         Initialize ranking store.
 
@@ -52,17 +47,20 @@ class RankingStore:
         # Keeping existing SQL for now - can migrate to Ibis later
 
         # ELO ratings table
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS elo_ratings (
                 post_id VARCHAR PRIMARY KEY,
                 elo_global DOUBLE NOT NULL DEFAULT 1500,
                 games_played INTEGER NOT NULL DEFAULT 0,
                 last_updated TIMESTAMP NOT NULL
             )
-        """)
+        """
+        )
 
         # Comparison history table
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS elo_history (
                 comparison_id VARCHAR PRIMARY KEY,
                 timestamp TIMESTAMP NOT NULL,
@@ -75,28 +73,37 @@ class RankingStore:
                 comment_b VARCHAR NOT NULL,
                 stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
             )
-        """)
+        """
+        )
 
         # Create indexes for efficient queries
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """)
+        """
+        )
 
-    def initialize_ratings(
-        self, post_ids: Annotated[list[str], "A list of post IDs to initialize"]
-    ) -> Annotated[int, "The number of new posts that were initialized"]:
+    def initialize_ratings(self, post_ids: list[str]) -> int:
         """
         Initialize ratings for new posts.
 
@@ -131,9 +138,7 @@ class RankingStore:
 
         return inserted
 
-    def get_rating(
-        self, post_id: Annotated[str, "The ID of the post to retrieve the rating for"]
-    ) -> Annotated[dict[str, Any] | None, "A dict of rating data, or None if not found"]:
+    def get_rating(self, post_id: str) -> dict[str, Any] | None:
         """
         Get rating for a specific post.
 
@@ -155,12 +160,8 @@ class RankingStore:
         return None
 
     def update_ratings(
-        self,
-        post_a: Annotated[str, "The ID of post A"],
-        post_b: Annotated[str, "The ID of post B"],
-        new_elo_a: Annotated[float, "The new ELO rating for post A"],
-        new_elo_b: Annotated[float, "The new ELO rating for post B"],
-    ) -> Annotated[tuple[float, float], "A tuple of the new ELO ratings for A and B"]:
+        self, post_a: str, post_b: str, new_elo_a: float, new_elo_b: float
+    ) -> tuple[float, float]:
         """
         Update ELO ratings after a comparison.
 
@@ -197,10 +198,7 @@ class RankingStore:
 
         return new_elo_a, new_elo_b
 
-    def save_comparison(
-        self,
-        comparison_data: Annotated[dict[str, Any], "A dictionary of comparison data"],
-    ) -> None:
+    def save_comparison(self, comparison_data: dict[str, Any]) -> None:
         """
         Save comparison to history.
 
@@ -237,11 +235,7 @@ class RankingStore:
 
         logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
 
-    def get_posts_to_compare(
-        self,
-        strategy: Annotated[str, "The selection strategy to use"] = "fewest_games",
-        n: Annotated[int, "The number of posts to return"] = 2,
-    ) -> Annotated[list[str], "A list of post IDs to compare"]:
+    def get_posts_to_compare(self, strategy: str = "fewest_games", n: int = 2) -> list[str]:
         """
         Select posts to compare based on strategy.
 
@@ -265,9 +259,7 @@ class RankingStore:
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
-    def get_comments_for_post(
-        self, post_id: Annotated[str, "The ID of the post to retrieve comments for"]
-    ) -> Annotated[Table, "An Ibis table of comments for the post"]:
+    def get_comments_for_post(self, post_id: str) -> Table:
         """
         Get all comments for a specific post.
 

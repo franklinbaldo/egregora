@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
@@ -96,9 +96,7 @@ COMMENT_POST_B_TOOL = genai_types.Tool(
 )
 
 
-def load_post_content(
-    post_path: Annotated[Path, "Path to the markdown blog post file"],
-) -> Annotated[str, "The content of the post with frontmatter removed"]:
+def load_post_content(post_path: Path) -> str:
     """Load markdown content from a blog post, excluding front matter."""
     content = post_path.read_text()
 
@@ -111,9 +109,7 @@ def load_post_content(
     return content.strip()
 
 
-def load_profile(
-    profile_path: Annotated[Path, "Path to the author's profile markdown file"],
-) -> Annotated[dict[str, Any], "A dictionary of profile metadata"]:
+def load_profile(profile_path: Path) -> dict[str, Any]:
     """Load author profile metadata."""
     content = profile_path.read_text()
 
@@ -149,10 +145,7 @@ def load_profile(
     return profile
 
 
-def load_comments_for_post(
-    post_id: Annotated[str, "The ID of the post to load comments for"],
-    store: Annotated[RankingStore, "The ranking store to load comments from"],
-) -> Annotated[str | None, "Formatted markdown of comments, or None if no comments"]:
+def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     """
     Load all existing comments for a post from DuckDB.
     Format as markdown for agent context.
@@ -212,15 +205,15 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
 
 
 def save_comparison(  # noqa: PLR0913
-    store: Annotated[RankingStore, "The ranking store to save the comparison to"],
-    profile_id: Annotated[str, "The ID of the profile that made the comparison"],
-    post_a: Annotated[str, "The ID of post A"],
-    post_b: Annotated[str, "The ID of post B"],
-    winner: Annotated[str, "The winning post ('A' or 'B')"],
-    comment_a: Annotated[str, "The comment for post A"],
-    stars_a: Annotated[int, "The star rating for post A"],
-    comment_b: Annotated[str, "The comment for post B"],
-    stars_b: Annotated[int, "The star rating for post B"],
+    store: RankingStore,
+    profile_id: str,
+    post_a: str,
+    post_b: str,
+    winner: str,
+    comment_a: str,
+    stars_a: int,
+    comment_b: str,
+    stars_b: int,
 ) -> None:
     """Save comparison result to DuckDB."""
     comparison_data = {
@@ -239,11 +232,7 @@ def save_comparison(  # noqa: PLR0913
     store.save_comparison(comparison_data)
 
 
-def _load_comparison_posts(
-    site_dir: Annotated[Path, "The root directory of the MkDocs site"],
-    post_a_id: Annotated[str, "The ID of post A"],
-    post_b_id: Annotated[str, "The ID of post B"],
-) -> Annotated[tuple[str, str], "A tuple containing the content of post A and post B"]:
+def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tuple[str, str]:
     """Load content for both posts."""
     site_paths = resolve_site_paths(site_dir)
     posts_dir = site_paths.posts_dir
@@ -258,10 +247,8 @@ def _load_comparison_posts(
 
 
 def _extract_tool_call_result(
-    response: Annotated[genai_types.GenerateContentResponse, "The response from the Gemini API"],
-    tool_name: Annotated[str, "The name of the tool to extract results for"],
-    arg_names: Annotated[list[str], "A list of argument names to extract"],
-) -> Annotated[dict[str, Any] | None, "A dict of extracted arguments, or None"]:
+    response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]
+) -> dict[str, Any] | None:
     """Extract tool call arguments from LLM response."""
     if not response.candidates:
         return None
@@ -283,14 +270,14 @@ def _extract_tool_call_result(
 
 
 def _run_turn1_choose_winner(  # noqa: PLR0913 # type: ignore[no-untyped-def]
-    client: Annotated[genai.Client, "The Gemini API client"],
-    model: Annotated[str, "The name of the model to use"],
-    profile: Annotated[dict[str, Any], "The profile of the author to impersonate"],
-    post_a_id: Annotated[str, "The ID of post A"],
-    post_b_id: Annotated[str, "The ID of post B"],
-    content_a: Annotated[str, "The content of post A"],
-    content_b: Annotated[str, "The content of post B"],
-) -> Annotated[str, "The winning post ('A' or 'B')"]:
+    client: genai.Client,
+    model: str,
+    profile: dict[str, Any],
+    post_a_id: str,
+    post_b_id: str,
+    content_a: str,
+    content_b: str,
+) -> str:
     """Run turn 1: Choose winner."""
     console.print("\n[bold cyan]Turn 1: Choosing winner...[/bold cyan]")
 
@@ -325,13 +312,13 @@ Use the choose_winner tool to declare the winner."""
 
 
 def _run_turn2_comment_post_a(  # noqa: PLR0913
-    client: Annotated[genai.Client, "The Gemini API client"],
-    model: Annotated[str, "The name of the model to use"],
-    winner: Annotated[str, "The winning post ('A' or 'B')"],
-    post_a_id: Annotated[str, "The ID of post A"],
-    content_a: Annotated[str, "The content of post A"],
-    existing_comments_a: Annotated[str | None, "Existing comments for post A"],
-) -> Annotated[tuple[str, int], "A tuple of the comment and star rating for post A"]:
+    client: genai.Client,
+    model: str,
+    winner: str,
+    post_a_id: str,
+    content_a: str,
+    existing_comments_a: str | None,
+) -> tuple[str, int]:
     """Run turn 2: Comment on Post A."""
     console.print("\n[bold cyan]Turn 2: Commenting on Post A...[/bold cyan]")
 
@@ -378,13 +365,13 @@ Use the comment_post_A tool to:
 
 
 def _run_turn3_comment_post_b(  # noqa: PLR0913
-    client: Annotated[genai.Client, "The Gemini API client"],
-    model: Annotated[str, "The name of the model to use"],
-    winner: Annotated[str, "The winning post ('A' or 'B')"],
-    post_b_id: Annotated[str, "The ID of post B"],
-    content_b: Annotated[str, "The content of post B"],
-    existing_comments_b: Annotated[str | None, "Existing comments for post B"],
-) -> Annotated[tuple[str, int], "A tuple of the comment and star rating for post B"]:
+    client: genai.Client,
+    model: str,
+    winner: str,
+    post_b_id: str,
+    content_b: str,
+    existing_comments_b: str | None,
+) -> tuple[str, int]:
     """Run turn 3: Comment on Post B."""
     console.print("\n[bold cyan]Turn 3: Commenting on Post B...[/bold cyan]")
 
@@ -431,13 +418,13 @@ Use the comment_post_B tool to:
 
 
 def run_comparison(  # noqa: PLR0913
-    site_dir: Annotated[Path, "The root directory of the MkDocs site"],
-    post_a_id: Annotated[str, "The ID of post A"],
-    post_b_id: Annotated[str, "The ID of post B"],
-    profile_path: Annotated[Path, "Path to the profile to impersonate"],
-    api_key: Annotated[str, "The Gemini API key"],
-    model: Annotated[str, "The name of the model to use"] = "models/gemini-flash-latest",
-) -> Annotated[dict[str, Any], "A dictionary of comparison results"]:
+    site_dir: Path,
+    post_a_id: str,
+    post_b_id: str,
+    profile_path: Path,
+    api_key: str,
+    model: str = "models/gemini-flash-latest",
+) -> dict[str, Any]:
     """
     Run a three-turn comparison between two posts.
 

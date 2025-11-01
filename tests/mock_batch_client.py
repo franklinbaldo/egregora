@@ -198,6 +198,10 @@ class MockGeminiClient:
         else:
             text = str(contents)
 
+        # Generate deterministic fake response based on input
+        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        _rng = random.Random(text_hash)  # noqa: F841
+
         # Generate mock response text
         mock_response_text = f"""---
 title: Mock Generated Post

@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Any
 
 import duckdb
 import ibis
@@ -79,15 +79,11 @@ class VectorStore:
 
     def __init__(
         self,
-        parquet_path: Annotated[Path, "Path to the Parquet file for the vector store"],
+        parquet_path: Path,
         *,
-        connection: Annotated[
-            duckdb.DuckDBPyConnection | None, "Optional existing DuckDB connection"
-        ] = None,
-        exact_index_threshold: Annotated[
-            int, "Row count threshold to switch from exact to ANN search"
-        ] = DEFAULT_EXACT_INDEX_THRESHOLD,
-    ) -> None:
+        connection: duckdb.DuckDBPyConnection | None = None,
+        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
+    ):
         """
         Initialize vector store.
 
@@ -102,7 +98,7 @@ class VectorStore:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
             self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
-            self.conn = _ConnectionProxy(cast(duckdb.DuckDBPyConnection, connection))
+            self.conn = _ConnectionProxy(connection)
 
         # Lazy loading: VSS is only initialized when needed (ANN mode)
         self._vss_available = False
@@ -125,7 +121,6 @@ class VectorStore:
         try:
             self.conn.execute("INSTALL vss")
             self.conn.execute("LOAD vss")
-            self.conn.execute("SET hnsw_enable_experimental_persistence=true")
             self._vss_available = True
             self._vss_function = self._detect_vss_function()
             logger.info("DuckDB VSS extension loaded")
@@ -390,7 +385,7 @@ class VectorStore:
 
         return current_dim
 
-    def add(self, chunks_table: Annotated[Table, "An Ibis table of chunks to add"]) -> None:
+    def add(self, chunks_table: Table) -> None:
         """
         Add chunks to the vector store.
 
@@ -511,22 +506,18 @@ class VectorStore:
 
     def search(  # noqa: PLR0911, PLR0913, PLR0915
         self,
-        query_vec: Annotated[list[float], "The query embedding vector"],
-        top_k: Annotated[int, "The maximum number of results to return"] = 5,
-        min_similarity: Annotated[float, "The minimum similarity score for results"] = 0.7,
-        tag_filter: Annotated[list[str] | None, "A list of tags to filter by (OR logic)"] = None,
-        date_after: Annotated[
-            date | datetime | str | None, "A temporal boundary for the search"
-        ] = None,
-        document_type: Annotated[
-            str | None, "A document type to filter by ('post' or 'media')"
-        ] = None,
-        media_types: Annotated[list[str] | None, "A list of media types to filter by"] = None,
+        query_vec: list[float],
+        top_k: int = 5,
+        min_similarity: float = 0.7,
+        tag_filter: list[str] | None = None,
+        date_after: date | datetime | str | None = None,
+        document_type: str | None = None,
+        media_types: list[str] | None = None,
         *,
-        mode: Annotated[str, "The search mode ('ann' or 'exact')"] = "ann",
-        nprobe: Annotated[int | None, "The 'nprobe' parameter for ANN search"] = None,
-        overfetch: Annotated[int | None, "The overfetch factor for ANN search"] = None,
-    ) -> Annotated[Table, "An Ibis table of search results with similarity scores"]:
+        mode: str = "ann",
+        nprobe: int | None = None,
+        overfetch: int | None = None,
+    ) -> Table:
         """
         Search for similar chunks using cosine similarity.
 
@@ -968,7 +959,7 @@ class VectorStore:
         if self._owns_connection:
             self.conn.close()
 
-    def get_all(self) -> Annotated[Table, "An Ibis table of all chunks in the store"]:
+    def get_all(self) -> Table:
         """
         Read entire vector store.
 
@@ -979,7 +970,7 @@ class VectorStore:
 
         return self._client.read_parquet(self.parquet_path)
 
-    def stats(self) -> Annotated[dict[str, Any], "A dictionary of vector store statistics"]:
+    def stats(self) -> dict[str, Any]:
         """Get vector store statistics."""
         if not self.parquet_path.exists():
             return {

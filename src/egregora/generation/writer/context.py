@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
@@ -31,22 +31,16 @@ class RagErrorReason:
 
 
 def _query_rag_for_context(  # noqa: PLR0913
-    table: Annotated[Table, "The table of messages to query for"],
-    batch_client: Annotated[GeminiBatchClient, "A Gemini client for batch processing"],
-    rag_dir: Annotated[Path, "The directory of the RAG index"],
+    table: Table,
+    batch_client: GeminiBatchClient,
+    rag_dir: Path,
     *,
-    embedding_model: Annotated[str, "The name of the embedding model to use"],
-    embedding_output_dimensionality: Annotated[
-        int, "The output dimensionality of the embedding model"
-    ] = 3072,
-    retrieval_mode: Annotated[
-        str, "The retrieval mode for the RAG query ('ann' or 'exact')"
-    ] = "ann",
-    retrieval_nprobe: Annotated[int | None, "The number of probes for ANN retrieval"] = None,
-    retrieval_overfetch: Annotated[int | None, "The overfetch factor for ANN retrieval"] = None,
-    return_records: Annotated[
-        bool, "Whether to return the raw records along with the formatted string"
-    ] = False,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    return_records: bool = False,
 ) -> Result[RagContext, str] | tuple[str, list[dict[str, Any]]]:
     """Query RAG system for similar previous posts.
 
@@ -121,10 +115,7 @@ def _query_rag_for_context(  # noqa: PLR0913
         return Failure(RagErrorReason.SYSTEM_ERROR)
 
 
-def _load_profiles_context(
-    table: Annotated[Table, "The table of messages to extract authors from"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"],
-) -> Annotated[str, "The formatted context string of author profiles"]:
+def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
     """Load profiles for top active authors."""
     top_authors = get_active_authors(table, limit=20)
     if not top_authors:

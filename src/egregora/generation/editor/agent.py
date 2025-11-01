@@ -12,7 +12,7 @@ Documentation:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import ibis
 from google import genai
@@ -163,10 +163,7 @@ FINISH_TOOL = genai_types.Tool(
 )
 
 
-def markdown_to_snapshot(
-    content: Annotated[str, "The markdown content to convert"],
-    doc_id: Annotated[str, "The ID of the document"],
-) -> DocumentSnapshot:
+def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
     """Convert markdown content to DocumentSnapshot."""
     lines = content.split("\n")
     return DocumentSnapshot(
@@ -174,9 +171,7 @@ def markdown_to_snapshot(
     )
 
 
-def snapshot_to_markdown(
-    snapshot: Annotated[DocumentSnapshot, "The DocumentSnapshot to convert"],
-) -> Annotated[str, "The markdown content"]:
+def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
     """Convert DocumentSnapshot back to markdown."""
     sorted_lines = [snapshot.lines[i] for i in sorted(snapshot.lines.keys())]
     return "\n".join(sorted_lines)
@@ -254,14 +249,12 @@ async def _ask_llm_tool(
 
 
 async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
-    post_path: Annotated[Path, "Path to the post markdown file"],
-    client: Annotated[genai.Client, "The Gemini client"],
-    model_config: Annotated[ModelConfig, "The model configuration"],
-    rag_dir: Annotated[Path, "Path to the RAG database"],
-    context: Annotated[
-        dict[str, Any] | None, "Optional context (ELO score, ranking comments, etc.)"
-    ] = None,
-    max_turns: Annotated[int, "The maximum number of turns for the editor session"] = 15,
+    post_path: Path,
+    client: genai.Client,
+    model_config: ModelConfig,
+    rag_dir: Path,
+    context: dict[str, Any] | None = None,
+    max_turns: int = 15,
 ) -> EditorResult:
     """
     Run a full editing session on a post using LLM with editor tools.

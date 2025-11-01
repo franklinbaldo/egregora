@@ -32,6 +32,7 @@ CONVERSATION_SCHEMA = ibis.schema(
         "message": dt.string,
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
+        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
     }
 )
 
@@ -113,11 +114,11 @@ RAG_SEARCH_RESULT_SCHEMA = ibis.schema(
 ANNOTATIONS_SCHEMA = ibis.schema(
     {
         "id": dt.int64,  # PRIMARY KEY
-        "msg_id": dt.string,  # NOT NULL
-        "author": dt.string,  # NOT NULL
-        "commentary": dt.string,  # NOT NULL
-        "created_at": dt.timestamp,  # NOT NULL (TIMESTAMPTZ in DuckDB)
-        "parent_annotation_id": dt.Int64(nullable=True),
+        "parent_id": dt.string,  # NOT NULL - can reference msg_id or annotation_id
+        "parent_type": dt.string,  # NOT NULL - 'message' or 'annotation'
+        "author": dt.string,
+        "commentary": dt.string,
+        "created_at": dt.timestamp,
     }
 )
 

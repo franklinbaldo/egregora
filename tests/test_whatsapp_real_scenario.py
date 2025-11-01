@@ -467,11 +467,71 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_export(export, timezone=whatsapp_fixture.timezone)
 
-    # Verify table only has MESSAGE_SCHEMA columns
-    expected_columns = {"timestamp", "date", "author", "message", "original_line", "tagged_line"}
+    # Verify table only has MESSAGE_SCHEMA columns (including message_id)
+    expected_columns = {
+        "timestamp",
+        "date",
+        "author",
+        "message",
+        "original_line",
+        "tagged_line",
+        "message_id",
+    }
     assert set(table.columns) == expected_columns
 
     # Verify no extra columns
     assert "time" not in table.columns
     assert "group_slug" not in table.columns
     assert "group_name" not in table.columns
+
+
+def test_enrichment_handles_schema_mismatch(
+    whatsapp_fixture: WhatsAppFixture,
+    tmp_path: Path,
+):
+    """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+
+    # Add extra columns to simulate the schema mismatch
+    table = table.mutate(
+        time=table.timestamp.strftime("%H:%M:%S"),
+        group_slug=ibis.literal("test-group"),
+        group_name=ibis.literal("Test Group"),
+    )
+
+    docs_dir = tmp_path / "docs"
+    posts_dir = docs_dir / "posts"
+    docs_dir.mkdir()
+    posts_dir.mkdir()
+
+    updated_table, media_mapping = extract_and_replace_media(
+        table,
+        export.zip_path,
+        docs_dir,
+        posts_dir,
+        str(export.group_slug),
+    )
+
+    cache = EnrichmentCache(tmp_path / "cache")
+    text_client = DummyBatchClient("text-model")
+    vision_client = DummyBatchClient("vision-model")
+
+    try:
+        # This should not raise an exception
+        enriched = enrich_table(
+            updated_table,
+            media_mapping,
+            text_client,
+            vision_client,
+            cache,
+            docs_dir,
+            posts_dir,
+            enable_url=False,
+        )
+        # Verify that the new rows have been added
+        assert enriched.count().execute() > updated_table.count().execute()
+        assert "egregora" in enriched.author.execute().tolist()
+
+    finally:
+        cache.close()

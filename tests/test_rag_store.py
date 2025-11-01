@@ -9,8 +9,6 @@ import ibis
 import pyarrow as pa
 import pytest
 
-from egregora.knowledge.rag import store
-
 
 def _vector_store_row(store_module, **overrides):
     """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
@@ -67,6 +65,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     """VectorStore.add must materialize tables built on other backends."""
 
     store_module = _load_vector_store()
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
     other_backend = ibis.duckdb.connect()
@@ -173,6 +172,8 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
 def _load_vector_store():
     """Load the vector store module."""
+    from egregora.knowledge.rag import store  # noqa: PLC0415
+
     return store
 
 
@@ -180,7 +181,7 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
     """ANN mode should emit vss_search while exact mode falls back to cosine scans."""
 
     store_module = _load_vector_store()
-    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
+    monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: True)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
     conn = duckdb.connect(":memory:")

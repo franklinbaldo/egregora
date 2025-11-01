@@ -54,7 +54,7 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
         """Return the default embedding model."""
         return self._default_model
 
-    def embed_content(
+    def embed_content(  # noqa: PLR0913
         self,
         requests: Annotated[Sequence[EmbeddingBatchRequest], "A sequence of embedding requests"],
         **kwargs,
@@ -143,7 +143,7 @@ class GeminiGenerationDispatcher(BaseDispatcher[BatchPromptRequest, BatchPromptR
         """Return the default generation model."""
         return self._default_model
 
-    def generate_content(
+    def generate_content(  # noqa: PLR0913
         self,
         requests: Annotated[Sequence[BatchPromptRequest], "A sequence of prompt requests"],
         **kwargs,
@@ -235,7 +235,7 @@ class GeminiDispatcher:
         """Return the default model."""
         return self._default_model
 
-    def embed_content(
+    def embed_content(  # noqa: PLR0913
         self,
         requests: Annotated[Sequence[EmbeddingBatchRequest], "A sequence of embedding requests"],
         **kwargs,
@@ -243,7 +243,7 @@ class GeminiDispatcher:
         """Embed content - delegates to embedding dispatcher."""
         return self._embedding_dispatcher.embed_content(requests, **kwargs)
 
-    def generate_content(
+    def generate_content(  # noqa: PLR0913
         self,
         requests: Annotated[Sequence[BatchPromptRequest], "A sequence of prompt requests"],
         **kwargs,

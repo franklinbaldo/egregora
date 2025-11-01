@@ -31,7 +31,10 @@ from ..core.models import WhatsAppExport
 from ..core.types import GroupSlug
 from ..generation.editor import run_editor_session
 from ..generation.writer import write_posts_for_period
-from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
+from ..generation.writer.context import (
+    _load_profiles_context,
+    _query_rag_for_context,
+)
 from ..generation.writer.formatting import (
     _build_conversation_markdown,
     _load_freeform_memory,
@@ -82,8 +85,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:
         raise TypeError(
-            f"Cannot serialize type {type(value).__name__} to JSON. "
-            f"Value: {value!r}"
+            f"Cannot serialize type {type(value).__name__} to JSON. " f"Value: {value!r}"
         )
 
     logger.warning(
@@ -177,9 +179,7 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
         raise typer.Exit(1)
 
     if retrieval_mode == "exact" and config.retrieval_nprobe:
-        console.print(
-            "[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]"
-        )
+        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
         config.retrieval_nprobe = None
 
     if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
@@ -463,12 +463,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         @app.command(hidden=True)
         def rank(  # noqa: PLR0913
             site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
-            comparisons: Annotated[
-                int, typer.Option(help="Number of comparisons to run")
-            ] = 1,
-            strategy: Annotated[
-                str, typer.Option(help="Post selection strategy")
-            ] = "fewest_games",
+            comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+            strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
             export_parquet: Annotated[
                 bool, typer.Option(help="Export rankings to Parquet after comparisons")
             ] = False,
@@ -483,16 +479,14 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
         ) -> None:
             install_cmd = escape("pip install 'egregora[ranking]'")
-            console.print(
-                f"[red]Ranking commands require the optional extra: {install_cmd}[/red]"
-            )
+            console.print(f"[red]Ranking commands require the optional extra: {install_cmd}[/red]")
             console.print(f"[yellow]Missing dependency: {escape(missing)}[/yellow]")
             raise typer.Exit(1)
 
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(  # noqa: PLR0915
+    def _run_ranking_session(  # noqa: PLR0912, PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
         if config.debug:
@@ -545,9 +539,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             )
 
             try:
-                post_a_id, post_b_id = get_posts_to_compare(
-                    rankings_dir, strategy=config.strategy
-                )
+                post_a_id, post_b_id = get_posts_to_compare(rankings_dir, strategy=config.strategy)
                 console.print(f"[cyan]Comparing: {post_a_id} vs {post_b_id}[/cyan]")
             except ValueError as e:
                 console.print(f"[red]{e}[/red]")
@@ -601,12 +593,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     @app.command()
     def rank(  # noqa: PLR0913
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
-        comparisons: Annotated[
-            int, typer.Option(help="Number of comparisons to run")
-        ] = 1,
-        strategy: Annotated[
-            str, typer.Option(help="Post selection strategy")
-        ] = "fewest_games",
+        comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+        strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
         export_parquet: Annotated[
             bool, typer.Option(help="Export rankings to Parquet after comparisons")
         ] = False,
@@ -650,7 +638,7 @@ def parse(
     - Anonymizes author names to UUID5 pseudonyms
     - Saves structured data to CSV
 
-    Output CSV contains: timestamp, date, time, author, message, group_slug, group_name
+    Output CSV contains: timestamp, date, author, message, original_line, tagged_line
     """
     # Validate inputs
     zip_path = zip_file.resolve()
@@ -809,7 +797,7 @@ def group(  # noqa: PLR0915
 
 
 @app.command()
-def enrich(  # noqa: PLR0913
+def enrich(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     zip_file: Annotated[
         Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")
@@ -942,7 +930,7 @@ def enrich(  # noqa: PLR0913
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913
+def gather_context(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1017,7 +1005,7 @@ def gather_context(  # noqa: PLR0913
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
-            posts_output_dir = site_paths.posts_dir / ".posts"
+            posts_output_dir = site_paths.posts_dir
             freeform_memory = _load_freeform_memory(posts_output_dir)
 
             # RAG context (if enabled)
@@ -1085,7 +1073,7 @@ def gather_context(  # noqa: PLR0913
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913
+def write_posts(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1182,7 +1170,7 @@ def write_posts(  # noqa: PLR0913
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
-            posts_output_dir = site_paths.posts_dir / ".posts"
+            posts_output_dir = site_paths.posts_dir
             result = write_posts_for_period(
                 enriched_table,
                 period_key,
@@ -1209,8 +1197,8 @@ def write_posts(  # noqa: PLR0913
                 console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > 5:  # noqa: PLR2004
+                    console.print(f"  ... and {posts_count - 5} more")  # noqa: PLR2004
 
     finally:
         if client:

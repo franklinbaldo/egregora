@@ -21,6 +21,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "message": dt.String(),
     "original_line": dt.String(),
     "tagged_line": dt.String(),
+    "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
 }
 
 # Alias for MESSAGE_SCHEMA - represents full WhatsApp conversation data

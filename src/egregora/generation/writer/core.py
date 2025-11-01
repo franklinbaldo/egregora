@@ -24,6 +24,7 @@ import yaml
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
+from returns.result import Failure, Success
 
 from ...augmentation.profiler import get_active_authors
 from ...config import ModelConfig, load_mkdocs_config
@@ -31,7 +32,7 @@ from ...knowledge.annotations import AnnotationStore
 from ...knowledge.rag import VectorStore, index_post
 from ...prompt_templates import WriterPromptTemplate
 from ...utils import GeminiBatchClient, call_with_retries_sync
-from .context import _load_profiles_context, _query_rag_for_context
+from .context import RagErrorReason, _load_profiles_context, _query_rag_for_context
 
 # Import split modules
 from .formatting import (
@@ -41,6 +42,7 @@ from .formatting import (
 )
 from .handlers import (
     _handle_annotate_conversation_tool,
+    _handle_generate_banner_tool,
     _handle_read_profile_tool,
     _handle_search_media_tool,
     _handle_tool_error,
@@ -235,6 +237,10 @@ def _process_tool_calls(  # noqa: PLR0913
                     tool_responses.append(
                         _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
                     )
+                elif fn_name == "generate_banner":
+                    tool_responses.append(
+                        _handle_generate_banner_tool(fn_args, fn_call, output_dir)
+                    )
             except Exception as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
@@ -275,7 +281,7 @@ def _index_posts_in_rag(
         logger.error(f"Failed to index posts in RAG: {e}")
 
 
-def write_posts_for_period(  # noqa: PLR0913, PLR0915
+def write_posts_for_period(  # noqa: PLR0912, PLR0913, PLR0915
     table: Annotated[Table, "The table of messages for the period"],
     period_date: Annotated[str, "The period identifier (e.g., '2025-01-01')"],
     client: Annotated[genai.Client, "The Gemini client"],
@@ -346,8 +352,9 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
     markdown_table = _build_conversation_markdown(messages_table, annotations_store)
 
     # Query RAG and load profiles for context
-    rag_context = (
-        _query_rag_for_context(
+    rag_context = ""
+    if enable_rag:
+        rag_result = _query_rag_for_context(
             table,
             batch_client,
             rag_dir,
@@ -357,9 +364,26 @@ def write_posts_for_period(  # noqa: PLR0913, PLR0915
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
         )
-        if enable_rag
-        else ""
-    )
+
+        # Handle Result type from returns library
+        match rag_result:
+            case tuple():
+                # Legacy tuple return for backward compatibility (return_records=True)
+                rag_context = rag_result[0]
+            case Success():
+                # Modern Result type - Success case
+                context_obj = rag_result.unwrap()
+                rag_context = context_obj.text
+                logger.info("RAG context retrieved successfully")
+            case Failure():
+                # Modern Result type - Failure case
+                error_reason = rag_result.failure()
+                if error_reason == RagErrorReason.NO_HITS:
+                    logger.info("No similar previous posts found")
+                elif error_reason == RagErrorReason.SYSTEM_ERROR:
+                    logger.error("RAG system error - content quality may be degraded")
+                else:
+                    logger.warning(f"RAG query unsuccessful: {error_reason}")
     profiles_context = _load_profiles_context(table, profiles_dir)
 
     # Load previous freeform memo (only persisted memory between periods)
