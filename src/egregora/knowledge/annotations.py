@@ -141,6 +141,7 @@ class AnnotationStore:
                 f"ALTER TABLE {ANNOTATIONS_TABLE} DROP COLUMN parent_annotation_id"
             )
         if has_msg_id:
+            self._connection.execute("DROP INDEX IF EXISTS idx_annotations_msg_id_created")
             self._connection.execute(f"ALTER TABLE {ANNOTATIONS_TABLE} DROP COLUMN msg_id")
 
         invalidate_metadata = getattr(self._backend, "invalidate_metadata", None)
