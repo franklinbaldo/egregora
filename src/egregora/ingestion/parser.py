@@ -154,15 +154,21 @@ def extract_commands(messages: Table) -> list[dict]:
     return commands
 
 
-def _add_message_ids(messages: Table) -> Table:
+def _add_message_ids(
+    messages: Table,
+    *,
+    conversation_column: str | None = None,
+    conversation_key: str | None = None,
+) -> Table:
     """
     Add deterministic message_id column based on milliseconds since group creation.
 
-    The message_id combines two components:
-    1. Time delta in milliseconds from first message (timezone-independent)
-    2. Row number within that timestamp (for uniqueness)
+    The message_id combines three components:
+    1. Conversation identifier (slug or export name) to prevent cross-talk
+    2. Time delta in milliseconds from first message within that conversation
+    3. Row number within the conversation (for deterministic uniqueness)
 
-    Format: "{delta_ms}_{row_num}"
+    Format: "{conversation}:{delta_ms}_{row_num}"
 
     This ensures:
     - Idempotence: same group from different timezone exports produces same IDs
@@ -181,27 +187,55 @@ def _add_message_ids(messages: Table) -> Table:
     if int(messages.count().execute()) == 0:
         return messages
 
-    # Calculate milliseconds since first message using relative time deltas
-    # We keep min_timestamp as an Ibis expression (not executed) so the entire
-    # calculation happens in the database query. This ensures consistent timezone
-    # handling and avoids issues with different timezone interpretations.
-    min_timestamp = messages.timestamp.min()
+    temp_column_name: str | None = None
 
-    # Calculate the time difference from minimum timestamp to each message timestamp
-    # epoch_seconds() converts both to seconds since epoch, then we subtract to get delta
-    # The delta is timezone-independent because both timestamps use the same timezone
-    # Multiply by 1000 to convert seconds to milliseconds, round to ensure integer
+    if conversation_column and conversation_column in messages.columns:
+        conversation_col = messages[conversation_column]
+    else:
+        temp_column_name = "__conversation_key"
+        key_value = conversation_key or "global"
+        messages = messages.mutate(**{temp_column_name: ibis.literal(key_value)})
+        conversation_col = messages[temp_column_name]
+
+    # Normalise conversation key to non-null string values
+    default_key = ibis.literal(conversation_key or "global")
+    conversation_col = conversation_col.cast("string").coalesce(default_key)
+
+    conversation_window = ibis.window(group_by=[conversation_col], order_by=[messages.timestamp])
+
+    min_timestamp = messages.timestamp.min().over(conversation_window)
+
     delta_ms = (
         ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000)
         .round()
         .cast("int64")
     )
 
-    # Add row number for uniqueness (0-indexed)
-    # Since messages are already sorted by timestamp, row_number preserves order
-    messages_with_id = messages.mutate(
-        message_id=(delta_ms.cast("string") + "_" + ibis.row_number().cast("string"))
+    ordering_columns = [
+        messages.timestamp,
+        messages.author,
+        messages.message,
+        messages.original_line,
+    ]
+    row_number = ibis.row_number().over(
+        ibis.window(group_by=[conversation_col], order_by=ordering_columns)
     )
+
+    message_id = (
+        conversation_col
+        + ibis.literal(":")
+        + delta_ms.cast("string")
+        + ibis.literal("_")
+        + row_number.cast("string")
+    )
+
+    messages_with_id = messages.mutate(message_id=message_id)
+
+    if temp_column_name is not None and temp_column_name in messages_with_id.columns:
+        keep_columns = [
+            col for col in messages_with_id.columns if col != temp_column_name
+        ]
+        messages_with_id = messages_with_id.select(*keep_columns)
 
     return messages_with_id
 
@@ -282,7 +316,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     messages = ibis.memtable(rows).order_by("timestamp")
     messages = ensure_message_schema(messages, timezone=timezone)
-    messages = _add_message_ids(messages)
+    messages = _add_message_ids(messages, conversation_key=export.group_slug)
     messages = anonymize_table(messages)
     return messages
 
@@ -312,6 +346,9 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
                 messages = ibis.memtable(rows).order_by("timestamp")
                 messages = ensure_message_schema(messages)
                 messages = anonymize_table(messages)
+                messages = messages.mutate(
+                    conversation_key=ibis.literal(export.group_slug)
+                )
                 tables.append(messages)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
@@ -328,7 +365,11 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
 
     # Order by timestamp first, then add message IDs globally
     combined = combined.order_by("timestamp")
-    combined = _add_message_ids(combined)
+    combined = _add_message_ids(combined, conversation_column="conversation_key")
+
+    if "conversation_key" in combined.columns:
+        keep_columns = [col for col in combined.columns if col != "conversation_key"]
+        combined = combined.select(*keep_columns)
 
     return ensure_message_schema(combined)
 

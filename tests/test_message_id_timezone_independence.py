@@ -64,18 +64,18 @@ def test_message_id_is_timezone_independent(tmp_path: Path):
     )
 
     # Verify the deltas make sense
-    # Format is "{delta_ms}_{row_num}"
-    # First message should be "0_0" (0 ms since start, row 0)
-    assert ids_utc[0] == "0_0"
-    assert ids_utc5[0] == "0_0"
+    # Format is "{conversation}:{delta_ms}_{row_num}"
+    # First message should be "test-group:0_0" (0 ms since start, row 0)
+    assert ids_utc[0] == "test-group:0_0"
+    assert ids_utc5[0] == "test-group:0_0"
 
     # Second message is 30 minutes later = 1800000 milliseconds, row 1
-    assert ids_utc[1] == "1800000_1"
-    assert ids_utc5[1] == "1800000_1"
+    assert ids_utc[1] == "test-group:1800000_1"
+    assert ids_utc5[1] == "test-group:1800000_1"
 
     # Third message is 60 minutes later = 3600000 milliseconds, row 2
-    assert ids_utc[2] == "3600000_2"
-    assert ids_utc5[2] == "3600000_2"
+    assert ids_utc[2] == "test-group:3600000_2"
+    assert ids_utc5[2] == "test-group:3600000_2"
 
 
 def test_message_id_handles_same_minute_messages(tmp_path: Path):
@@ -99,13 +99,19 @@ def test_message_id_handles_same_minute_messages(tmp_path: Path):
     ids = df["message_id"].tolist()
 
     # Messages in the same minute (12:00) should have same delta but different row numbers
-    # Format: "{delta_ms}_{row_num}"
-    assert ids[0] == "0_0", f"First message should be 0_0, got {ids[0]}"
-    assert ids[1] == "0_1", f"Second message in same minute should be 0_1, got {ids[1]}"
-    assert ids[2] == "0_2", f"Third message in same minute should be 0_2, got {ids[2]}"
+    # Format: "{conversation}:{delta_ms}_{row_num}"
+    assert ids[0] == "test-group:0_0", f"First message should be test-group:0_0, got {ids[0]}"
+    assert ids[1] == "test-group:0_1", (
+        f"Second message in same minute should be test-group:0_1, got {ids[1]}"
+    )
+    assert ids[2] == "test-group:0_2", (
+        f"Third message in same minute should be test-group:0_2, got {ids[2]}"
+    )
 
     # Message in the next minute (12:01) should be 60000 milliseconds later, row 3
-    assert ids[3] == "60000_3", f"Message in next minute should be 60000_3, got {ids[3]}"
+    assert ids[3] == "test-group:60000_3", (
+        f"Message in next minute should be test-group:60000_3, got {ids[3]}"
+    )
 
     # Verify all IDs are unique (critical for annotations)
     assert len(ids) == len(set(ids)), f"Duplicate message_ids found: {ids}"
