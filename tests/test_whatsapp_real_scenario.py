@@ -460,3 +460,18 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
     with pytest.raises(ZipValidationError, match="path traversal"):
         with zipfile.ZipFile(malicious_zip) as archive:
             validate_zip_contents(archive)
+
+
+def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
+    """Test that parser strictly enforces MESSAGE_SCHEMA without extra columns."""
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+
+    # Verify table only has MESSAGE_SCHEMA columns
+    expected_columns = {"timestamp", "date", "author", "message", "original_line", "tagged_line"}
+    assert set(table.columns) == expected_columns
+
+    # Verify no extra columns
+    assert "time" not in table.columns
+    assert "group_slug" not in table.columns
+    assert "group_name" not in table.columns

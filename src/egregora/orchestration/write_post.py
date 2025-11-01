@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from ..privacy.detector import validate_newsletter_privacy
+from ..utils import slugify, safe_path_join
 
 
 def write_post(
@@ -48,12 +49,31 @@ def write_post(
 
     validate_newsletter_privacy(content)
 
+    output_dir.mkdir(parents=True, exist_ok=True)
+    date_prefix = metadata["date"]
+
+    # Sanitize slug FIRST to ensure consistency between filename and front matter
+    base_slug = slugify(metadata["slug"])
+    slug_candidate = base_slug
+
+    # Ensure path stays within output_dir
+    filename = f"{date_prefix}-{slug_candidate}.md"
+    filepath = safe_path_join(output_dir, filename)
+
+    # Handle duplicates by appending suffix in lockstep with slug/front matter
+    suffix = 2
+    while filepath.exists():
+        slug_candidate = f"{base_slug}-{suffix}"
+        filename = f"{date_prefix}-{slug_candidate}.md"
+        filepath = safe_path_join(output_dir, filename)
+        suffix += 1
+
+    # Build front matter with the final slug candidate
     front_matter = {}
     front_matter["title"] = metadata["title"]
-    front_matter["date"] = metadata["date"]
+    front_matter["date"] = date_prefix
+    front_matter["slug"] = slug_candidate  # ✅ Use sanitized slug in front matter
 
-    if "slug" in metadata:
-        front_matter["slug"] = metadata["slug"]
     if "tags" in metadata:
         front_matter["tags"] = metadata["tags"]
     if "summary" in metadata:
@@ -66,11 +86,6 @@ def write_post(
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True)
 
     full_post = f"---\n{yaml_front}---\n\n{content}"
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    filename = f"{metadata['date']}-{metadata['slug']}.md"
-    filepath = output_dir / filename
 
     filepath.write_text(full_post, encoding="utf-8")
 

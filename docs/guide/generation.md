@@ -361,17 +361,17 @@ extra:
 
 ### Filtering
 
-Control what gets written:
+Control what gets written with the supported CLI options:
 
 ```bash
-# Minimum message threshold
-egregora process export.zip --min-messages=20
+# Switch cadence
+egregora process export.zip --period=week
 
-# Topic filter
-egregora process export.zip --topics=ai,ml,tech
+# Restrict to a specific window
+egregora process export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
-# Date range
-egregora process export.zip --start-date=2025-01-01
+# Override timezone handling
+egregora process export.zip --timezone="America/New_York"
 ```
 
 ## Troubleshooting

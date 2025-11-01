@@ -638,7 +638,7 @@ def parse(
     - Anonymizes author names to UUID5 pseudonyms
     - Saves structured data to CSV
 
-    Output CSV contains: timestamp, date, time, author, message, group_slug, group_name
+    Output CSV contains: timestamp, date, author, message, original_line, tagged_line
     """
     # Validate inputs
     zip_path = zip_file.resolve()

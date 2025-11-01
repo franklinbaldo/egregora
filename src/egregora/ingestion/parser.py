@@ -410,8 +410,6 @@ def _start_message_builder(  # noqa: PLR0913
         timestamp=datetime.combine(msg_date, msg_time),
         date=msg_date,
         author=author,
-        group_slug=export.group_slug,
-        group_name=export.group_name,
     )
     builder.append(initial_message, original_line)
     return builder
@@ -426,14 +424,10 @@ class _MessageBuilder:
         timestamp: datetime,
         date: date,
         author: str,
-        group_slug: str,
-        group_name: str,
     ) -> None:
         self.timestamp = timestamp
         self.date = date
         self.author = author
-        self.group_slug = group_slug
-        self.group_name = group_name
         self._message_lines: list[str] = []
         self._original_lines: list[str] = []
 
@@ -447,11 +441,8 @@ class _MessageBuilder:
         return {
             "timestamp": self.timestamp,
             "date": self.date,
-            "time": self.timestamp.strftime("%H:%M"),
             "author": self.author,
             "message": message_text,
-            "group_slug": self.group_slug,
-            "group_name": self.group_name,
             "original_line": original_text or None,
             "tagged_line": None,
         }
