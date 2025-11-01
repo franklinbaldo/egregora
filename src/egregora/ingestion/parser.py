@@ -198,9 +198,17 @@ def _add_message_ids(messages: Table) -> Table:
     )
 
     # Add row number for uniqueness (0-indexed)
-    # Since messages are already sorted by timestamp, row_number preserves order
+    # Explicit ordering ensures deterministic IDs even if the backend reorders rows
+    order_columns = [messages.timestamp]
+    if "author" in messages.columns:
+        order_columns.append(messages.author)
+    if "message" in messages.columns:
+        order_columns.append(messages.message)
+
+    row_number = ibis.row_number().over(order_by=order_columns)
+
     messages_with_id = messages.mutate(
-        message_id=(delta_ms.cast("string") + "_" + ibis.row_number().cast("string"))
+        message_id=(delta_ms.cast("string") + "_" + row_number.cast("string"))
     )
 
     return messages_with_id
