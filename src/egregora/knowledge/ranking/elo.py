@@ -62,6 +62,10 @@ def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
     Returns:
         RankingStore instance
     """
+    # Find all markdown posts (including nested directories like .posts)
+    post_files = sorted(
+        p for p in posts_dir.rglob("*.md") if p.is_file()
+    )
     # Find all markdown posts, preferring the hidden .posts directory when present
     search_dirs = []
     hidden_posts_dir = posts_dir / ".posts"
