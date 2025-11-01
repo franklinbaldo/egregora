@@ -313,7 +313,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
     return messages
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
+def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
     """Parse multiple exports and concatenate them ordered by timestamp."""
 
     tables: list[Table] = []
