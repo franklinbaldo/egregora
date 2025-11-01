@@ -1,10 +1,12 @@
 """Batch processing utilities for enrichment - dataclasses and helpers."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
@@ -85,29 +87,75 @@ def _get_stable_ordering(table: Table) -> list:
     return []
 
 
-def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
-    """Convert an Ibis table to a list of dictionaries without heavy dependencies.
+def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
+    """Convert backend frames into ``dict`` records consistently."""
 
-    Uses batched iteration to avoid loading entire table into memory at once.
-    """
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
+        return [dict(row) for row in frame.to_pylist()]
+    if isinstance(frame, list):
+        return [dict(row) for row in frame]
+
+    return [dict(row) for row in frame]
+
+
+def _iter_table_record_batches(
+    table: Table, batch_size: int = 1000
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield batches of table rows as dictionaries in a deterministic order."""
+
     to_pylist = getattr(table, "to_pylist", None)
     if callable(to_pylist):
-        return list(to_pylist())
+        rows = [dict(row) for row in to_pylist()]
+        if rows:
+            yield rows
+        return
 
-    # Stream in batches to reduce memory pressure on large tables
-    batch_size = 1000
     count = table.count().execute()
-    results = []
+    if not count:
+        return
 
     ordering = _get_stable_ordering(table)
-    ordered_table = table.order_by(ordering) if ordering else table
+    fallback_ordering = ordering or [table[column] for column in table.columns]
 
-    for offset in range(0, count, batch_size):
-        batch = ordered_table.limit(batch_size, offset=offset).execute()
-        # Convert batch to records (this is now limited in size)
-        batch_records = batch.to_dict("records")
-        results.extend(dict(record) for record in batch_records)
+    if not fallback_ordering:
+        # Degenerate table (no columns) – just execute once and chunk locally
+        dataframe = table.execute()
+        records = _frame_to_records(dataframe)
+        if not records:
+            return
+        for start in range(0, len(records), batch_size):
+            yield records[start : start + batch_size]
+        return
 
+    ordered_table = table.order_by(fallback_ordering)
+    window = ibis.window(order_by=fallback_ordering)
+    numbered = ordered_table.mutate(
+        _batch_row_number=ibis.row_number().over(window)
+    )
+    row_number = numbered._batch_row_number
+
+    for start in range(0, count, batch_size):
+        upper = start + batch_size
+        batch_expr = numbered.filter(
+            ((row_number >= start) & (row_number < upper))
+            if start
+            else (row_number < upper)
+        ).drop("_batch_row_number")
+        dataframe = batch_expr.execute()
+        batch_records = _frame_to_records(dataframe)
+        if not batch_records:
+            continue
+        yield batch_records
+
+
+def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
+    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+
+    results: list[dict[str, Any]] = []
+    for batch in _iter_table_record_batches(table):
+        results.extend(batch)
     return results
 
 
