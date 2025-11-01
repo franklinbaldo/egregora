@@ -6,9 +6,16 @@ Use these schemas to create tables via Ibis instead of raw SQL.
 This module contains both:
 - Persistent schemas: Tables that are stored in DuckDB files
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
+
+Pipeline Stage Pattern:
+- Each pipeline stage (ingestion, privacy, augmentation, knowledge, generation)
+  can be represented as an Ibis view or materialized table
+- Stages have explicit inputs/outputs defined by schemas
+- Use create_stage_view() to define declarative transformations
 """
 
 import logging
+from enum import Enum
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -150,6 +157,40 @@ ELO_HISTORY_SCHEMA = ibis.schema(
     }
 )
 
+# ============================================================================
+# Media Files Schema
+# ============================================================================
+
+MEDIA_FILES_SCHEMA = ibis.schema(
+    {
+        "media_id": dt.string,  # PRIMARY KEY - Deterministic hash of original path + timestamp
+        "message_timestamp": dt.Timestamp(timezone="UTC", scale=9),  # Link to conversation
+        "original_filename": dt.string,  # Original filename from WhatsApp export
+        "site_relative_path": dt.string,  # Path relative to site root (e.g., "assets/media/abc123.jpg")
+        "description": dt.String(nullable=True),  # LLM-generated description
+        "media_type": dt.String(nullable=True),  # MIME type or category (image, video, audio, document)
+        "pii_redacted": dt.boolean,  # Whether PII placeholder was applied
+    }
+)
+
+# ============================================================================
+# Pipeline Stage Definitions
+# ============================================================================
+
+
+class PipelineStage(str, Enum):
+    """
+    Pipeline stages that can be materialized as views or tables.
+
+    Each stage represents a transformation step with well-defined
+    inputs and outputs conforming to schemas.
+    """
+
+    INGESTED = "ingested_messages"  # Raw parsed data (CONVERSATION_SCHEMA)
+    ANONYMIZED = "anonymized_messages"  # Post-privacy (CONVERSATION_SCHEMA with UUIDs)
+    ENRICHED = "enriched_messages"  # Post-augmentation (CONVERSATION_SCHEMA + enrichments)
+    KNOWLEDGE = "knowledge_context"  # Post-RAG retrieval (context for generation)
+
 
 # ============================================================================
 # Helper Functions
@@ -228,3 +269,78 @@ def create_index(
     except Exception as e:
         # Index may already exist or column may not support this index type
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")
+
+
+# ============================================================================
+# Pipeline Stage View Helpers
+# ============================================================================
+
+
+def create_stage_view(
+    conn,
+    stage: PipelineStage,
+    source_table,
+    *,
+    overwrite: bool = True,
+) -> None:
+    """
+    Create or replace a pipeline stage view.
+
+    Views provide a declarative way to define pipeline transformations.
+    They are computed on-demand and don't consume storage.
+
+    Args:
+        conn: Ibis connection
+        stage: Pipeline stage enum value
+        source_table: Ibis table expression defining the view
+        overwrite: Whether to replace existing view (default: True)
+
+    Example:
+        >>> conn = ibis.duckdb.connect("pipeline.duckdb")
+        >>> anonymized = conversations.mutate(author=anonymize_udf(conversations.author))
+        >>> create_stage_view(conn, PipelineStage.ANONYMIZED, anonymized)
+    """
+    conn.create_view(stage.value, source_table, overwrite=overwrite)
+    logging.getLogger(__name__).info(f"Created view: {stage.value}")
+
+
+def materialize_stage(
+    conn,
+    stage: PipelineStage,
+    source_table,
+    *,
+    overwrite: bool = True,
+) -> None:
+    """
+    Materialize a pipeline stage as a table (not a view).
+
+    Use for expensive transformations that shouldn't be recomputed each time.
+    Examples: enrichment (LLM calls), embeddings, complex joins.
+
+    Args:
+        conn: Ibis connection
+        stage: Pipeline stage enum value
+        source_table: Ibis table expression to materialize
+        overwrite: Whether to replace existing table (default: True)
+
+    Example:
+        >>> conn = ibis.duckdb.connect("pipeline.duckdb")
+        >>> enriched = enrich_conversations(anonymized)  # Expensive LLM calls
+        >>> materialize_stage(conn, PipelineStage.ENRICHED, enriched)
+    """
+    conn.create_table(stage.value, source_table, overwrite=overwrite)
+    logging.getLogger(__name__).info(f"Materialized table: {stage.value}")
+
+
+def stage_exists(conn, stage: PipelineStage) -> bool:
+    """
+    Check if a pipeline stage view or table exists.
+
+    Args:
+        conn: Ibis connection
+        stage: Pipeline stage enum value
+
+    Returns:
+        True if stage exists as view or table, False otherwise
+    """
+    return stage.value in conn.list_tables()
