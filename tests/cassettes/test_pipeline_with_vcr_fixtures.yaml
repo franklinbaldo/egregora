@@ -908,7 +908,7 @@ interactions:
       the `annotate_conversation` tool to stash private notes tied to the `msg_id`
       column above. Provide:\n\n- `msg_id`: The identifier from the table row you
       want to annotate.\n- `my_commentary`: The insight or reminder you want future
-      sessions to remember.\n- `parent_annotation_id` (optional): Reference a previous
+      sessions to remember.\n- `parent_id` (optional): Reference a previous
       annotation ID if you''re following up on it.\n\nAnnotations are visible only
       to you and will reappear the next time this message shows up. Keep them concise,
       factual, and focused on why the message matters for future writing decisions.\n\n##
@@ -1030,14 +1030,13 @@ interactions:
       searches all media types.", "items": {"type": "STRING"}, "nullable": true, "type":
       "ARRAY"}, "limit": {"description": "Maximum number of results to return (default:
       5)", "nullable": true, "type": "INTEGER"}}, "required": ["query"], "type": "OBJECT"}},
-      {"description": "Store a private annotation linked to a conversation message
-      so it can be surfaced automatically during future writing sessions.", "name":
-      "annotate_conversation", "parameters": {"properties": {"msg_id": {"description":
-      "Identifier of the conversation message being annotated", "type": "STRING"},
-      "my_commentary": {"description": "Commentary to remember for the specified message",
-      "type": "STRING"}, "parent_annotation_id": {"description": "Optional prior annotation
-      ID that this elaborates on", "nullable": true, "type": "STRING"}}, "required":
-      ["msg_id", "my_commentary"], "type": "OBJECT"}}]}], "generationConfig": {"temperature":
+      {"description": "Store a private annotation linked to a conversation message or another annotation, so it can be surfaced automatically during future writing sessions.", "name":
+      "annotate_conversation", "parameters": {"properties": {"parent_id": {"description":
+      "Identifier of the parent object (message or annotation)", "type": "STRING"},
+      "parent_type": {"description": "Type of the parent object (''message'' or ''annotation'')",
+      "type": "STRING"}, "commentary": {"description": "Commentary to remember for the specified parent object",
+      "type": "STRING"}}, "required":
+      ["parent_id", "parent_type", "commentary"], "type": "OBJECT"}}]}], "generationConfig": {"temperature":
       0.7}}'
     headers:
       accept:
@@ -1064,8 +1063,9 @@ interactions:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"functionCall\": {\n              \"name\": \"annotate_conversation\",\n
-        \             \"args\": {\n                \"msg_id\": \"8042a313fb5a33f2\",\n
-        \               \"my_commentary\": \"This message confirms the entire conversation
+        \             \"args\": {\n                \"parent_id\": \"8042a313fb5a33f2\",\n
+        \               \"parent_type\": \"message\",\n
+        \               \"commentary\": \"This message confirms the entire conversation
         thread is a system test/setup, not a substantive discussion. No post should
         be generated from this content, as it violates the quality bar.\"\n              }\n
         \           },\n            \"thoughtSignature\": \"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\"\n
@@ -1255,8 +1255,8 @@ interactions:
       a substantive discussion. No post should be generated from this content, as
       it violates the quality bar."}, "name": "annotate_conversation"}}], "role":
       "model"}, {"parts": [{"functionResponse": {"name": "annotate_conversation",
-      "response": {"status": "ok", "annotation_id": 1, "msg_id": "8042a313fb5a33f2",
-      "created_at": "2025-10-31T14:15:37.434620+00:00", "author": "egregora"}}}],
+      "response": {"status": "ok", "annotation_id": 1, "parent_id": "8042a313fb5a33f2",
+      "parent_type": "message", "created_at": "2025-10-31T14:15:37.434620+00:00", "author": "egregora"}}}],
       "role": "user"}], "tools": [{"functionDeclarations": [{"description": "Save
       a blog post with metadata (CMS tool)", "name": "write_post", "parameters": {"properties":
       {"content": {"description": "Markdown post content", "type": "STRING"}, "metadata":
@@ -3302,14 +3302,13 @@ interactions:
       searches all media types.", "items": {"type": "STRING"}, "nullable": true, "type":
       "ARRAY"}, "limit": {"description": "Maximum number of results to return (default:
       5)", "nullable": true, "type": "INTEGER"}}, "required": ["query"], "type": "OBJECT"}},
-      {"description": "Store a private annotation linked to a conversation message
-      so it can be surfaced automatically during future writing sessions.", "name":
-      "annotate_conversation", "parameters": {"properties": {"msg_id": {"description":
-      "Identifier of the conversation message being annotated", "type": "STRING"},
-      "my_commentary": {"description": "Commentary to remember for the specified message",
-      "type": "STRING"}, "parent_annotation_id": {"description": "Optional prior annotation
-      ID that this elaborates on", "nullable": true, "type": "STRING"}}, "required":
-      ["msg_id", "my_commentary"], "type": "OBJECT"}}]}], "generationConfig": {"temperature":
+      {"description": "Store a private annotation linked to a conversation message or another annotation, so it can be surfaced automatically during future writing sessions.", "name":
+      "annotate_conversation", "parameters": {"properties": {"parent_id": {"description":
+      "Identifier of the parent object (message or annotation)", "type": "STRING"},
+      "parent_type": {"description": "Type of the parent object (''message'' or ''annotation'')",
+      "type": "STRING"}, "commentary": {"description": "Commentary to remember for the specified parent object",
+      "type": "STRING"}}, "required":
+      ["parent_id", "parent_type", "commentary"], "type": "OBJECT"}}]}], "generationConfig": {"temperature":
       0.7}}'
     headers:
       accept:

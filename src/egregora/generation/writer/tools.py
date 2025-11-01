@@ -150,27 +150,26 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
     annotate_conversation_decl = genai_types.FunctionDeclaration(
         name="annotate_conversation",
         description=(
-            "Store a private annotation linked to a conversation message so it can be "
-            "surfaced automatically during future writing sessions."
+            "Store a private annotation linked to a conversation message or another annotation, "
+            "so it can be surfaced automatically during future writing sessions."
         ),
         parameters=genai_types.Schema(
             type=genai_types.Type.OBJECT,
             properties={
-                "msg_id": genai_types.Schema(
+                "parent_id": genai_types.Schema(
                     type=genai_types.Type.STRING,
-                    description="Identifier of the conversation message being annotated",
+                    description="Identifier of the parent object (message or annotation)",
                 ),
-                "my_commentary": genai_types.Schema(
+                "parent_type": genai_types.Schema(
                     type=genai_types.Type.STRING,
-                    description="Commentary to remember for the specified message",
+                    description="Type of the parent object ('message' or 'annotation')",
                 ),
-                "parent_annotation_id": genai_types.Schema(
+                "commentary": genai_types.Schema(
                     type=genai_types.Type.STRING,
-                    description="Optional prior annotation ID that this elaborates on",
-                    nullable=True,
+                    description="Commentary to remember for the specified parent object",
                 ),
             },
-            required=["msg_id", "my_commentary"],
+            required=["parent_id", "parent_type", "commentary"],
         ),
     )
 
