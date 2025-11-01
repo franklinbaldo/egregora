@@ -139,5 +139,12 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         content = template.render(**context)
         profiles_index_path.write_text(content, encoding="utf-8")
 
+    # Create media index
+    media_index_path = media_dir / "index.md"
+    if not media_index_path.exists():
+        template = env.get_template("media_index.md.jinja2")
+        content = template.render(**context)
+        media_index_path.write_text(content, encoding="utf-8")
+
 
 __all__ = ["ensure_mkdocs_project"]
