@@ -51,7 +51,9 @@ _BRAZILIAN_ID_PATTERNS: tuple[_PrivacyPattern, ...] = (
     ),
 )
 
-_PII_PATTERNS: tuple[_PrivacyPattern, ...] = _PHONE_PATTERNS + (_EMAIL_PATTERN,) + _BRAZILIAN_ID_PATTERNS
+_PII_PATTERNS: tuple[_PrivacyPattern, ...] = (
+    _PHONE_PATTERNS + (_EMAIL_PATTERN,) + _BRAZILIAN_ID_PATTERNS
+)
 
 _UUID_PATTERN = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"

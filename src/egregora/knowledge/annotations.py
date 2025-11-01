@@ -102,9 +102,7 @@ class AnnotationStore:
                 .execute()
             )
             if parent_exists == 0:
-                raise ValueError(
-                    f"parent_annotation_id {parent_annotation_id} does not exist"
-                )
+                raise ValueError(f"parent_annotation_id {parent_annotation_id} does not exist")
 
         next_id_cursor = self._connection.execute(
             f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"

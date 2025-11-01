@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def _handle_write_post_tool(
-    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path, saved_posts: list[str]
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    output_dir: Path,
+    saved_posts: list[str],
 ) -> genai_types.Content:
     """Handle write_post tool call."""
     content = fn_args.get("content", "")
@@ -40,7 +43,9 @@ def _handle_write_post_tool(
     )
 
 
-def _handle_read_profile_tool(fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path) -> genai_types.Content:
+def _handle_read_profile_tool(
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path
+) -> genai_types.Content:
     """Handle read_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
     profile_content = read_profile(author_uuid, profiles_dir)
@@ -60,7 +65,10 @@ def _handle_read_profile_tool(fn_args: dict[str, Any], fn_call: genai_types.Func
 
 
 def _handle_write_profile_tool(
-    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path, saved_profiles: list[str]
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    profiles_dir: Path,
+    saved_profiles: list[str],
 ) -> genai_types.Content:
     """Handle write_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
@@ -220,7 +228,9 @@ def _handle_annotate_conversation_tool(
     )
 
 
-def _handle_tool_error(fn_call: genai_types.FunctionCall, fn_name: str, error: Exception) -> genai_types.Content:
+def _handle_tool_error(
+    fn_call: genai_types.FunctionCall, fn_name: str, error: Exception
+) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
         role="user",

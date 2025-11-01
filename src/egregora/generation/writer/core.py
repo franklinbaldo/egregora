@@ -17,15 +17,14 @@ import json
 import logging
 import math
 import numbers
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Optional, Type, TYPE_CHECKING, cast, Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     import pandas as pd
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
 import ibis
 import pyarrow as pa
@@ -42,25 +41,27 @@ from ...knowledge.rag import VectorStore, index_post, query_media, query_similar
 from ...orchestration.write_post import write_post
 from ...prompt_templates import WriterPromptTemplate
 from ...utils import GeminiBatchClient, call_with_retries_sync
+from .context import _load_profiles_context, _query_rag_for_context
 
 # Import split modules
 from .formatting import (
-    _write_freeform_markdown,
-    _load_freeform_memory,
     _build_conversation_markdown,
     _compute_message_id,
+    _load_freeform_memory,
     _stringify_value,
+    _write_freeform_markdown,
 )
 from .tools import PostMetadata, _writer_tools
 from .context import RagContext, RagErrorReason, _query_rag_for_context, _load_profiles_context
 from .handlers import (
-    _handle_write_post_tool,
-    _handle_read_profile_tool,
-    _handle_write_profile_tool,
-    _handle_search_media_tool,
     _handle_annotate_conversation_tool,
+    _handle_read_profile_tool,
+    _handle_search_media_tool,
     _handle_tool_error,
+    _handle_write_post_tool,
+    _handle_write_profile_tool,
 )
+from .tools import PostMetadata, _writer_tools
 
 
 def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
@@ -113,7 +114,7 @@ def _load_freeform_memory(output_dir: Path) -> str:
 
 
 @lru_cache(maxsize=1)
-def _pandas_dataframe_type() -> Type[pd.DataFrame] | None:
+def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
     """Return the pandas DataFrame type when pandas is available."""
 
     try:
@@ -184,9 +185,7 @@ def _compute_message_id(row: Any) -> str:
     """
 
     if not (hasattr(row, "get") and hasattr(row, "items")):
-        raise TypeError(
-            "_compute_message_id expects an object with mapping-style access"
-        )
+        raise TypeError("_compute_message_id expects an object with mapping-style access")
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
@@ -206,9 +205,7 @@ def _compute_message_id(row: Any) -> str:
         if fallback_pairs:
             parts.extend(fallback_pairs)
         else:
-            parts.append(
-                json.dumps(row, sort_keys=True, default=_stringify_value)
-            )
+            parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
 
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
@@ -256,16 +253,13 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
 
 
 def _table_to_records(
-    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]]
+    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Normalize heterogeneous tabular inputs into row dictionaries."""
 
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
-        columns = {
-            name: data.column(index).to_pylist()
-            for index, name in enumerate(column_names)
-        }
+        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
         records = [
             {name: columns[name][row_index] for name in column_names}
             for row_index in range(data.num_rows)
@@ -315,8 +309,7 @@ def _build_conversation_markdown(
     if annotations_store is not None:
         ordered_ids = list(dict.fromkeys(row["msg_id"] for row in rows))
         annotations_map = {
-            msg_id: annotations_store.list_annotations_for_message(msg_id)
-            for msg_id in ordered_ids
+            msg_id: annotations_store.list_annotations_for_message(msg_id) for msg_id in ordered_ids
         }
 
     message_column = next(
@@ -354,6 +347,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 MAX_CONVERSATION_TURNS = 10
+
 
 def _memes_enabled(site_config: dict[str, Any]) -> bool:
     """Return True when meme helper text should be appended to the prompt."""
@@ -642,7 +636,10 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
 
 
 def _handle_write_post_tool(
-    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path, saved_posts: list[str]
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    output_dir: Path,
+    saved_posts: list[str],
 ) -> genai_types.Content:
     """Handle write_post tool call."""
     content = fn_args.get("content", "")
@@ -664,7 +661,9 @@ def _handle_write_post_tool(
     )
 
 
-def _handle_read_profile_tool(fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path) -> genai_types.Content:
+def _handle_read_profile_tool(
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path
+) -> genai_types.Content:
     """Handle read_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
     profile_content = read_profile(author_uuid, profiles_dir)
@@ -684,7 +683,10 @@ def _handle_read_profile_tool(fn_args: dict[str, Any], fn_call: genai_types.Func
 
 
 def _handle_write_profile_tool(
-    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path, saved_profiles: list[str]
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    profiles_dir: Path,
+    saved_profiles: list[str],
 ) -> genai_types.Content:
     """Handle write_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
@@ -844,7 +846,9 @@ def _handle_annotate_conversation_tool(
     )
 
 
-def _handle_tool_error(fn_call: genai_types.FunctionCall, fn_name: str, error: Exception) -> genai_types.Content:
+def _handle_tool_error(
+    fn_call: genai_types.FunctionCall, fn_name: str, error: Exception
+) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
         role="user",
@@ -857,7 +861,7 @@ def _handle_tool_error(fn_call: genai_types.FunctionCall, fn_name: str, error: E
                 )
             )
         ],
-        )
+    )
 
 
 def _process_tool_calls(  # noqa: PLR0913
@@ -1150,7 +1154,9 @@ Use these features appropriately in your posts. You understand how each extensio
                     part.strip() for part in freeform_parts if part and part.strip()
                 )
                 if freeform_content:
-                    freeform_path = _write_freeform_markdown(freeform_content, period_date, output_dir)
+                    freeform_path = _write_freeform_markdown(
+                        freeform_content, period_date, output_dir
+                    )
                     saved_posts.append(str(freeform_path))
             break
 

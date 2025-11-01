@@ -1,4 +1,4 @@
-import unittest.mock as mock
+from unittest import mock
 
 from egregora.utils.batch import EmbeddingBatchRequest
 from egregora.utils.gemini_dispatcher import GeminiDispatcher

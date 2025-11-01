@@ -36,7 +36,6 @@ class PromptTemplate(ABC):
         """Render the template with the configured context."""
 
 
-
 @dataclass(slots=True)
 class WriterPromptTemplate(PromptTemplate):  # noqa: PLR0913
     """Prompt template for the writer agent."""

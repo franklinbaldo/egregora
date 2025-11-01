@@ -52,7 +52,9 @@ class DummyBatchClient:
             results.append(
                 BatchPromptResult(
                     tag=getattr(request, "tag", None),
-                    response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
+                    response=SimpleNamespace(
+                        text=f"Generated content for {getattr(request, 'tag', 'unknown')}"
+                    ),
                     error=None,
                 )
             )
@@ -72,7 +74,9 @@ class DummyGenaiClient:
         response = SimpleNamespace(candidates=[])
         self.models = SimpleNamespace(generate_content=lambda *a, **k: response)
         self.aio = SimpleNamespace(models=self.models)
-        self.files = SimpleNamespace(upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg"))
+        self.files = SimpleNamespace(
+            upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg")
+        )
         dummy_job = SimpleNamespace(
             name="stub-job",
             dest=SimpleNamespace(inlined_responses=[]),
@@ -80,7 +84,9 @@ class DummyGenaiClient:
             done=True,
             error=None,
         )
-        self.batches = SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
+        self.batches = SimpleNamespace(
+            create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
+        )
 
     def close(self):  # pragma: no cover - compatibility shim
         return None
@@ -88,7 +94,10 @@ class DummyGenaiClient:
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.orchestration.pipeline.genai.Client", DummyGenaiClient)
-    monkeypatch.setattr("egregora.orchestration.pipeline.GeminiBatchClient", lambda client, model, **kwargs: DummyBatchClient(model))
+    monkeypatch.setattr(
+        "egregora.orchestration.pipeline.GeminiDispatcher",
+        lambda client, model, **kwargs: DummyBatchClient(model),
+    )
 
     def _stub_writer(
         table,
@@ -266,8 +275,12 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     posts_one.mkdir()
     posts_two.mkdir()
 
-    _, mapping_one = extract_and_replace_media(table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug))
-    _, mapping_two = extract_and_replace_media(table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug))
+    _, mapping_one = extract_and_replace_media(
+        table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug)
+    )
+    _, mapping_two = extract_and_replace_media(
+        table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug)
+    )
 
     assert mapping_one.keys() == mapping_two.keys()
     for key in mapping_one:
@@ -415,7 +428,10 @@ def test_pipeline_handles_missing_media_gracefully(
     gemini_api_key: str,
 ):
     corrupted_zip = tmp_path / "corrupted.zip"
-    with zipfile.ZipFile(whatsapp_fixture.zip_path) as source, zipfile.ZipFile(corrupted_zip, "w") as target:
+    with (
+        zipfile.ZipFile(whatsapp_fixture.zip_path) as source,
+        zipfile.ZipFile(corrupted_zip, "w") as target,
+    ):
         for info in source.infolist():
             if info.filename.endswith("WA0035.jpg"):
                 continue

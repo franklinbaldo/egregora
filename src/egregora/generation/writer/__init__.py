@@ -10,10 +10,10 @@ Documentation:
 """
 
 from .core import (
-    write_posts_for_period,
-    load_site_config,
-    load_markdown_extensions,
     get_top_authors,
+    load_markdown_extensions,
+    load_site_config,
+    write_posts_for_period,
 )
 from .tools import PostMetadata
 

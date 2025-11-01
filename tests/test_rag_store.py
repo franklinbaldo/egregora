@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from datetime import UTC, date, datetime
-from pathlib import Path
 
 import duckdb
 import ibis
@@ -53,7 +50,9 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
     try:
         store_module = _load_vector_store()
         monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
-        store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+        store = store_module.VectorStore(
+            tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
+        )
         try:
             assert ibis.get_backend() is custom_backend
         finally:
@@ -74,7 +73,9 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     ibis.set_backend(other_backend)
 
     try:
-        store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+        store = store_module.VectorStore(
+            tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
+        )
         try:
             first_batch = ibis.memtable(
                 [
@@ -123,7 +124,9 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
-    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
+    store = store_module.VectorStore(
+        tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
+    )
 
     try:
         missing_column_rows = [
@@ -170,6 +173,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 def _load_vector_store():
     """Load the vector store module."""
     from egregora.knowledge.rag import store
+
     return store
 
 
@@ -206,10 +210,7 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
             def execute(self, sql: str, params=None):
                 captured["sql"] = sql
                 if "vss_search" in sql:
-                    empty = {
-                        name: []
-                        for name in store_module.SEARCH_RESULT_SCHEMA.names
-                    }
+                    empty = {name: [] for name in store_module.SEARCH_RESULT_SCHEMA.names}
                     empty["similarity"] = []
 
                     class _Result:
@@ -250,6 +251,7 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
         store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=connection)
 
         try:
+
             def build_row(chunk_id: str, embedding: list[float], *, chunk_index: int) -> dict:
                 base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
                 base.update(
@@ -297,6 +299,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
     store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
 
     try:
+
         def build_row(chunk_id: str, embedding: list[float], **overrides) -> dict:
             base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
             base.update(
@@ -343,51 +346,39 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
 
         query_vector = [1.0, 0.0]
 
-        baseline = (
-            store.search(
-                query_vec=query_vector,
-                top_k=5,
-                min_similarity=0.0,
-                mode="exact",
-            )
-            .execute()
-        )
+        baseline = store.search(
+            query_vec=query_vector,
+            top_k=5,
+            min_similarity=0.0,
+            mode="exact",
+        ).execute()
         assert list(baseline["chunk_id"]) == ["chunk-after", "media-jan", "chunk-before"]
 
-        filtered_by_date = (
-            store.search(
-                query_vec=query_vector,
-                top_k=5,
-                min_similarity=0.0,
-                mode="exact",
-                date_after=date(2024, 1, 1),
-            )
-            .execute()
-        )
+        filtered_by_date = store.search(
+            query_vec=query_vector,
+            top_k=5,
+            min_similarity=0.0,
+            mode="exact",
+            date_after=date(2024, 1, 1),
+        ).execute()
         assert list(filtered_by_date["chunk_id"]) == ["chunk-after", "media-jan"]
 
-        filtered_by_datetime = (
-            store.search(
-                query_vec=query_vector,
-                top_k=5,
-                min_similarity=0.0,
-                mode="exact",
-                date_after=datetime(2023, 12, 31, 18, 0),
-            )
-            .execute()
-        )
+        filtered_by_datetime = store.search(
+            query_vec=query_vector,
+            top_k=5,
+            min_similarity=0.0,
+            mode="exact",
+            date_after=datetime(2023, 12, 31, 18, 0),
+        ).execute()
         assert list(filtered_by_datetime["chunk_id"]) == ["chunk-after", "media-jan"]
 
-        filtered_with_timezone = (
-            store.search(
-                query_vec=query_vector,
-                top_k=5,
-                min_similarity=0.0,
-                mode="exact",
-                date_after="2023-12-31T23:00:00+00:00",
-            )
-            .execute()
-        )
+        filtered_with_timezone = store.search(
+            query_vec=query_vector,
+            top_k=5,
+            min_similarity=0.0,
+            mode="exact",
+            date_after="2023-12-31T23:00:00+00:00",
+        ).execute()
         assert list(filtered_with_timezone["chunk_id"]) == ["chunk-after", "media-jan"]
     finally:
         store.close()

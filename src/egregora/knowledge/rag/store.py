@@ -5,11 +5,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any
 
 import duckdb
 import ibis
-import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
@@ -53,6 +52,7 @@ class _ConnectionProxy:
             del overrides[name]
             return
         delattr(object.__getattribute__(self, "_inner"), name)
+
 
 # Use schemas from centralized database_schema module
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
@@ -488,9 +488,7 @@ class VectorStore:
             if unexpected:
                 parts.append(f"unexpected columns: {', '.join(unexpected)}")
             detail = "; ".join(parts)
-            raise ValueError(
-                f"{context} do not match the vector store schema ({detail})."
-            )
+            raise ValueError(f"{context} do not match the vector store schema ({detail}).")
 
     def _cast_to_vector_store_schema(self, table: Table) -> Table:
         """Cast the table to the canonical vector store schema ordering and types."""
@@ -611,7 +609,9 @@ class VectorStore:
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
 
-        order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        order_clause = (
+            f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        )
 
         exact_base_query = f"""
             WITH candidates AS (
@@ -661,7 +661,10 @@ class VectorStore:
                 logger.error("ANN search aborted: %s", exc)
                 break
 
-        if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
+        if (
+            last_error is not None
+            and "does not support the supplied arguments" in str(last_error).lower()
+        ):
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
                 return self._execute_search_query(
@@ -733,9 +736,7 @@ class VectorStore:
                 candidates.append(function_name)
         return candidates
 
-    def _execute_search_query(
-        self, query: str, params: list[Any], min_similarity: float
-    ) -> Table:
+    def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
         """Execute the provided search query and normalize the results."""
 
         result_arrow = self.conn.execute(query, params).arrow()
@@ -849,9 +850,7 @@ class VectorStore:
 
             return VectorStore._ensure_utc_datetime(parsed_dt)
 
-        raise TypeError(
-            "date_after must be a date, datetime, or ISO8601 string"
-        )
+        raise TypeError("date_after must be a date, datetime, or ISO8601 string")
 
     @staticmethod
     def _ensure_utc_datetime(value: datetime) -> datetime:
@@ -890,7 +889,9 @@ class VectorStore:
 
         raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
 
-    def _table_from_arrow(self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema) -> Table:
+    def _table_from_arrow(
+        self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema
+    ) -> Table:
         """Register an Arrow table with DuckDB and return an Ibis table."""
 
         arrow_table = self._ensure_arrow_table(arrow_table)
@@ -969,7 +970,7 @@ class VectorStore:
 
         return self._client.read_parquet(self.parquet_path)
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get vector store statistics."""
         if not self.parquet_path.exists():
             return {
@@ -1007,7 +1008,9 @@ class VectorStore:
             media_count = media_table.count().execute()
 
             stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
+            stats["total_media"] = (
+                media_table.media_uuid.nunique().execute() if media_count > 0 else 0
+            )
 
             # Media breakdown by type
             if media_count > 0:

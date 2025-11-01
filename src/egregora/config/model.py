@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Any, Dict
+from typing import Any, Literal
 
 from .site import load_mkdocs_config
 
@@ -37,7 +37,7 @@ class ModelConfig:
     def __init__(
         self,
         cli_model: str | None = None,
-        site_config: Dict[str, Any] | None = None,
+        site_config: dict[str, Any] | None = None,
     ):
         """
         Initialize model config with CLI override and site config.
@@ -48,9 +48,7 @@ class ModelConfig:
         """
         self.cli_model = cli_model
         self.site_config = site_config or {}
-        self.embedding_output_dimensionality = (
-            self._resolve_embedding_output_dimensionality()
-        )
+        self.embedding_output_dimensionality = self._resolve_embedding_output_dimensionality()
 
     def get_model(self, model_type: ModelType) -> str:
         """
@@ -134,9 +132,7 @@ class ModelConfig:
                 try:
                     return int(value)
                 except (TypeError, ValueError):
-                    logger.warning(
-                        "Invalid embedding dimensionality %r for key %s", value, key
-                    )
+                    logger.warning("Invalid embedding dimensionality %r for key %s", value, key)
 
         resolved_model = self.get_model("embedding")
         if resolved_model in KNOWN_EMBEDDING_DIMENSIONS:
@@ -155,7 +151,7 @@ class ModelConfig:
         return self.embedding_output_dimensionality
 
 
-def load_site_config(output_dir: Path) -> Dict[str, Any]:
+def load_site_config(output_dir: Path) -> dict[str, Any]:
     """
     Load egregora configuration from mkdocs.yml if it exists.
 
