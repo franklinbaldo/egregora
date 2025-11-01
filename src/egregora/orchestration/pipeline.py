@@ -314,7 +314,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             return {}
 
         results = {}
-        posts_dir = site_paths.posts_dir / ".posts"
+        posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
         site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
 

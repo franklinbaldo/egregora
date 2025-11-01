@@ -498,10 +498,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             raise typer.Exit(1)
 
         site_paths = resolve_site_paths(site_path)
-        posts_root = site_paths.posts_dir
-        posts_dir = posts_root / ".posts"
-        if not posts_dir.exists():
-            posts_dir = posts_root
+        posts_dir = site_paths.posts_dir
         rankings_dir = site_paths.rankings_dir
         profiles_dir = site_paths.profiles_dir
 
@@ -858,7 +855,7 @@ def enrich(  # noqa: PLR0913, PLR0915
 
     # Setup paths and config
     site_paths = resolve_site_paths(site_path)
-    posts_dir = site_paths.posts_dir / ".posts"
+    posts_dir = site_paths.posts_dir
     site_config = load_site_config(site_path)
     model_config = ModelConfig(site_config=site_config)
 
@@ -1008,7 +1005,7 @@ def gather_context(  # noqa: PLR0913, PLR0915
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
-            posts_output_dir = site_paths.posts_dir / ".posts"
+            posts_output_dir = site_paths.posts_dir
             freeform_memory = _load_freeform_memory(posts_output_dir)
 
             # RAG context (if enabled)
@@ -1173,7 +1170,7 @@ def write_posts(  # noqa: PLR0913, PLR0915
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
-            posts_output_dir = site_paths.posts_dir / ".posts"
+            posts_output_dir = site_paths.posts_dir
             result = write_posts_for_period(
                 enriched_table,
                 period_key,
