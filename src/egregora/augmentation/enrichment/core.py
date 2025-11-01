@@ -366,7 +366,9 @@ def enrich_table(
         return ts.astimezone(timezone.utc)
 
     messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=ensure_timestamp_utc(messages_table_filtered.timestamp)
+        timestamp=ensure_timestamp_utc(messages_table_filtered.timestamp).cast(
+            schema["timestamp"]
+        )
     )
 
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
