@@ -6,12 +6,14 @@ import logging
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Annotated, TypeVar
+from typing import TypeVar
 
 from google import genai
 from google.genai import types as genai_types
 
 from .genai import call_with_retries_sync, sleep_with_progress_sync
+
+_T = TypeVar("_T")
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +65,10 @@ class GeminiBatchClient:
 
     def __init__(
         self,
-        client: Annotated[genai.Client, "The Gemini API client"],
-        default_model: Annotated[str, "The default model to use for batch jobs"],
-        poll_interval: Annotated[float, "The interval in seconds to poll for job status"] = 5.0,
-        timeout: Annotated[float | None, "The maximum time to wait for a job to complete"] = 900.0,
+        client: genai.Client,
+        default_model: str,
+        poll_interval: float = 5.0,
+        timeout: float | None = 900.0,
     ) -> None:
         self._client = client
         self._default_model = default_model
@@ -78,12 +80,7 @@ class GeminiBatchClient:
         """Return the default generative model for this batch client."""
         return self._default_model
 
-    def upload_file(
-        self,
-        *,
-        path: Annotated[str, "The path to the file to upload"],
-        display_name: Annotated[str | None, "An optional display name for the file"] = None,
-    ) -> Annotated[genai_types.File, "The uploaded file object"]:
+    def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file so it can be referenced in batch prompts."""
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
@@ -92,12 +89,12 @@ class GeminiBatchClient:
 
     def generate_content(
         self,
-        requests: Annotated[Sequence[BatchPromptRequest], "A sequence of prompt requests"],
+        requests: Sequence[BatchPromptRequest],
         *,
-        display_name: Annotated[str | None, "An optional display name for the batch job"] = None,
-        poll_interval: Annotated[float | None, "The interval to poll for job status"] = None,
-        timeout: Annotated[float | None, "The maximum time to wait for the job"] = None,
-    ) -> Annotated[list[BatchPromptResult], "A list of prompt results"]:
+        display_name: str | None = None,
+        poll_interval: float | None = None,
+        timeout: float | None = None,
+    ) -> list[BatchPromptResult]:
         """Execute a batch generate job and return responses in order."""
         if not requests:
             return []
@@ -160,12 +157,12 @@ class GeminiBatchClient:
 
     def embed_content(
         self,
-        requests: Annotated[Sequence[EmbeddingBatchRequest], "A sequence of embedding requests"],
+        requests: Sequence[EmbeddingBatchRequest],
         *,
-        display_name: Annotated[str | None, "An optional display name for the batch job"] = None,
-        poll_interval: Annotated[float | None, "The interval to poll for job status"] = None,
-        timeout: Annotated[float | None, "The maximum time to wait for the job"] = None,
-    ) -> Annotated[list[EmbeddingBatchResult], "A list of embedding results"]:
+        display_name: str | None = None,
+        poll_interval: float | None = None,
+        timeout: float | None = None,
+    ) -> list[EmbeddingBatchResult]:
         """Execute a batch embedding job."""
         if not requests:
             return []
@@ -252,11 +249,11 @@ class GeminiBatchClient:
 
     def _poll_until_done(
         self,
-        job_name: Annotated[str, "The name of the batch job to poll"],
+        job_name: str,
         *,
-        interval: Annotated[float | None, "The polling interval in seconds"],
-        timeout: Annotated[float | None, "The maximum time to wait for the job"],
-    ) -> Annotated[genai_types.BatchJob, "The completed batch job"]:
+        interval: float | None,
+        timeout: float | None,
+    ) -> genai_types.BatchJob:
         """Poll the batch job until it reaches a terminal state."""
         poll_interval = interval or self._poll_interval
         max_timeout = timeout or self._timeout
@@ -269,9 +266,7 @@ class GeminiBatchClient:
 
             if state != last_state:
                 logger.info(
-                    "[cyan]📡 Batch job %s state:[/] %s",
-                    job_name,
-                    state.replace("JOB_STATE_", ""),
+                    "[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", "")
                 )
                 last_state = state
 
@@ -296,11 +291,7 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests[T](
-    items: Annotated[Sequence[T], "The sequence of items to chunk"],
-    *,
-    size: Annotated[int, "The desired size of each chunk"],
-) -> Annotated[Iterable[Sequence[T]], "An iterable of the chunked sequences"]:
+def chunk_requests(items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
         raise ValueError("Batch size must be positive")

@@ -52,7 +52,9 @@ class DummyBatchClient:
             results.append(
                 BatchPromptResult(
                     tag=getattr(request, "tag", None),
-                    response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
+                    response=SimpleNamespace(
+                        text=f"Generated content for {getattr(request, 'tag', 'unknown')}"
+                    ),
                     error=None,
                 )
             )
@@ -72,7 +74,9 @@ class DummyGenaiClient:
         response = SimpleNamespace(candidates=[])
         self.models = SimpleNamespace(generate_content=lambda *a, **k: response)
         self.aio = SimpleNamespace(models=self.models)
-        self.files = SimpleNamespace(upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg"))
+        self.files = SimpleNamespace(
+            upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg")
+        )
         dummy_job = SimpleNamespace(
             name="stub-job",
             dest=SimpleNamespace(inlined_responses=[]),
@@ -80,7 +84,9 @@ class DummyGenaiClient:
             done=True,
             error=None,
         )
-        self.batches = SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
+        self.batches = SimpleNamespace(
+            create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
+        )
 
     def close(self):  # pragma: no cover - compatibility shim
         return None
@@ -269,8 +275,12 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     posts_one.mkdir()
     posts_two.mkdir()
 
-    _, mapping_one = extract_and_replace_media(table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug))
-    _, mapping_two = extract_and_replace_media(table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug))
+    _, mapping_one = extract_and_replace_media(
+        table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug)
+    )
+    _, mapping_two = extract_and_replace_media(
+        table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug)
+    )
 
     assert mapping_one.keys() == mapping_two.keys()
     for key in mapping_one:
@@ -418,7 +428,10 @@ def test_pipeline_handles_missing_media_gracefully(
     gemini_api_key: str,
 ):
     corrupted_zip = tmp_path / "corrupted.zip"
-    with zipfile.ZipFile(whatsapp_fixture.zip_path) as source, zipfile.ZipFile(corrupted_zip, "w") as target:
+    with (
+        zipfile.ZipFile(whatsapp_fixture.zip_path) as source,
+        zipfile.ZipFile(corrupted_zip, "w") as target,
+    ):
         for info in source.infolist():
             if info.filename.endswith("WA0035.jpg"):
                 continue
@@ -447,3 +460,18 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
     with pytest.raises(ZipValidationError, match="path traversal"):
         with zipfile.ZipFile(malicious_zip) as archive:
             validate_zip_contents(archive)
+
+
+def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
+    """Test that parser strictly enforces MESSAGE_SCHEMA without extra columns."""
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+
+    # Verify table only has MESSAGE_SCHEMA columns
+    expected_columns = {"timestamp", "date", "author", "message", "original_line", "tagged_line"}
+    assert set(table.columns) == expected_columns
+
+    # Verify no extra columns
+    assert "time" not in table.columns
+    assert "group_slug" not in table.columns
+    assert "group_name" not in table.columns

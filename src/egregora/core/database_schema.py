@@ -1,9 +1,4 @@
-import logging
-
-import ibis
-import ibis.expr.datatypes as dt
-
-"""Central-ized database schema definitions for all DuckDB tables.
+"""Centralized database schema definitions for all DuckDB tables.
 
 All table schemas are defined using Ibis for type safety and consistency.
 Use these schemas to create tables via Ibis instead of raw SQL.
@@ -12,6 +7,11 @@ This module contains both:
 - Persistent schemas: Tables that are stored in DuckDB files
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
+
+import logging
+
+import ibis
+import ibis.expr.datatypes as dt
 
 # ============================================================================
 # Ephemeral/In-Memory Schemas (Not Persisted)
@@ -150,6 +150,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 # Helper Functions
 # ============================================================================
 
+
 def create_table_if_not_exists(
     conn,
     table_name: str,
@@ -186,13 +187,17 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         This must be called on raw DuckDB connection, not Ibis connection.
     """
     try:
-        conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
+        conn.execute(
+            f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})"
+        )
     except Exception:
         # Constraint may already exist
         pass
 
 
-def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
+def create_index(
+    conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
+) -> None:
     """Create an index on a table.
 
     Args:

@@ -74,9 +74,7 @@ class MockGeminiBatchClient:
                 text=mock_text,
                 candidates=[
                     genai_types.Candidate(
-                        content=genai_types.Content(
-                            parts=[genai_types.Part(text=mock_text)]
-                        ),
+                        content=genai_types.Content(parts=[genai_types.Part(text=mock_text)]),
                         finish_reason=genai_types.FinishReason.STOP,
                     )
                 ],
@@ -216,16 +214,16 @@ This is a mock generated post. Original content length: {len(text)} chars.
         return genai_types.GenerateContentResponse(
             candidates=[
                 genai_types.Candidate(
-                    content=genai_types.Content(
-                        parts=[genai_types.Part(text=mock_response_text)]
-                    ),
+                    content=genai_types.Content(parts=[genai_types.Part(text=mock_response_text)]),
                     finish_reason=genai_types.FinishReason.STOP,
                 )
             ],
         )
 
 
-def create_mock_batch_client(default_model: str = "models/gemini-flash-latest") -> MockGeminiBatchClient:
+def create_mock_batch_client(
+    default_model: str = "models/gemini-flash-latest",
+) -> MockGeminiBatchClient:
     """Factory function to create a mock batch client.
 
     Usage in tests:

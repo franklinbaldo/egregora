@@ -1,16 +1,33 @@
 """Context building utilities for writer - RAG and profile loading."""
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
 from ibis.expr.types import Table
+from returns.result import Failure, Result, Success
 
 from ...augmentation.profiler import get_active_authors, read_profile
 from ...knowledge.rag import VectorStore, query_similar_posts
 from ...utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RagContext:
+    """RAG query result with formatted text and metadata."""
+
+    text: str
+    records: list[dict[str, Any]]
+
+
+class RagErrorReason:
+    """Error reason constants for RAG failures."""
+
+    NO_HITS = "no_hits"
+    SYSTEM_ERROR = "rag_error"
 
 
 def _query_rag_for_context(  # noqa: PLR0913
@@ -30,13 +47,33 @@ def _query_rag_for_context(  # noqa: PLR0913
     return_records: Annotated[
         bool, "Whether to return the raw records along with the formatted string"
     ] = False,
-) -> str | tuple[str, list[dict[str, Any]]]:
+) -> Result[RagContext, str] | tuple[str, list[dict[str, Any]]]:
     """Query RAG system for similar previous posts.
 
-    When ``return_records`` is ``True`` both the formatted markdown string and the raw
-    records are returned. This is helpful for callers that need to persist the RAG output
-    for later inspection while keeping backward compatibility with existing string-only
-    callers.
+    Returns a Result[RagContext, str] with observability data, or legacy tuple
+    format when return_records is specified for backward compatibility.
+
+    Args:
+        table: Conversation table to query
+        batch_client: Gemini batch client for embeddings
+        rag_dir: Directory containing RAG vector store
+        embedding_model: Model name for embeddings
+        embedding_output_dimensionality: Embedding dimension size
+        retrieval_mode: "ann" or "exact" retrieval mode
+        retrieval_nprobe: ANN nprobe parameter
+        retrieval_overfetch: ANN overfetch multiplier
+        return_records: If True, return legacy (str, list) tuple for backward compatibility
+
+    Returns:
+        Result[RagContext, str] where:
+        - Success contains RagContext with text and records
+        - Failure contains error reason ("no_hits" or "rag_error")
+        OR tuple[str, list] if return_records=True (legacy mode)
+
+    Examples:
+        >>> result = _query_rag_for_context(table, client, rag_dir, embedding_model="...")
+        >>> if isinstance(result, Success):
+        ...     print(result.unwrap().text)
     """
 
     try:
@@ -56,28 +93,32 @@ def _query_rag_for_context(  # noqa: PLR0913
 
         if similar_posts.count().execute() == 0:
             logger.info("No similar previous posts found")
-            return ("", []) if return_records else ""
+            if return_records:
+                return ("", [])
+            return Failure(RagErrorReason.NO_HITS)
 
         post_count = similar_posts.count().execute()
         logger.info(f"Found {post_count} similar previous posts")
-        rag_context = "\n\n## Related Previous Posts (for continuity and linking):\n"
-        rag_context += (
+        rag_text = "\n\n## Related Previous Posts (for continuity and linking):\n"
+        rag_text += (
             "You can reference these posts in your writing to maintain conversation continuity.\n\n"
         )
 
         records = similar_posts.execute().to_dict("records")
         for row in records:
-            rag_context += f"### [{row['post_title']}] ({row['post_date']})\n"
-            rag_context += f"{row['content'][:400]}...\n"
-            rag_context += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
-            rag_context += f"- Similarity: {row['similarity']:.2f}\n\n"
+            rag_text += f"### [{row['post_title']}] ({row['post_date']})\n"
+            rag_text += f"{row['content'][:400]}...\n"
+            rag_text += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
+            rag_text += f"- Similarity: {row['similarity']:.2f}\n\n"
 
         if return_records:
-            return rag_context, records
-        return rag_context
+            return rag_text, records
+        return Success(RagContext(text=rag_text, records=records))
     except Exception as e:
-        logger.warning(f"RAG query failed: {e}")
-        return ("", []) if return_records else ""
+        logger.error(f"RAG query failed: {e}", exc_info=True)
+        if return_records:
+            return ("", [])
+        return Failure(RagErrorReason.SYSTEM_ERROR)
 
 
 def _load_profiles_context(

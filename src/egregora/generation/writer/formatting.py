@@ -137,9 +137,7 @@ def _compute_message_id(row: Any) -> str:
     """
 
     if not (hasattr(row, "get") and hasattr(row, "items")):
-        raise TypeError(
-            "_compute_message_id expects an object with mapping-style access"
-        )
+        raise TypeError("_compute_message_id expects an object with mapping-style access")
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
@@ -159,9 +157,7 @@ def _compute_message_id(row: Any) -> str:
         if fallback_pairs:
             parts.extend(fallback_pairs)
         else:
-            parts.append(
-                json.dumps(row, sort_keys=True, default=_stringify_value)
-            )
+            parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
 
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
@@ -209,16 +205,13 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
 
 
 def _table_to_records(
-    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]]
+    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Normalize heterogeneous tabular inputs into row dictionaries."""
 
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
-        columns = {
-            name: data.column(index).to_pylist()
-            for index, name in enumerate(column_names)
-        }
+        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
         records = [
             {name: columns[name][row_index] for name in column_names}
             for row_index in range(data.num_rows)
