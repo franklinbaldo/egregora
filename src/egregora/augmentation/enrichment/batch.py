@@ -58,6 +58,33 @@ def _safe_timestamp_plus_one(timestamp: Any) -> Any:
     return dt_value + timedelta(seconds=1)
 
 
+_STABLE_ORDER_CANDIDATES: tuple[str, ...] = (
+    "timestamp",
+    "created_at",
+    "datetime",
+    "date",
+    "ts",
+    "time",
+    "id",
+    "uuid",
+    "key",
+)
+
+
+def _get_stable_ordering(table: Table) -> list:
+    """Return a deterministic ordering for ``table`` when batching rows."""
+
+    columns = list(table.columns)
+    for candidate in _STABLE_ORDER_CANDIDATES:
+        if candidate in columns:
+            return [table[candidate]]
+
+    if columns:
+        return [table[column] for column in columns]
+
+    return []
+
+
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies.
 
@@ -72,8 +99,11 @@ def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     count = table.count().execute()
     results = []
 
+    ordering = _get_stable_ordering(table)
+    ordered_table = table.order_by(ordering) if ordering else table
+
     for offset in range(0, count, batch_size):
-        batch = table.limit(batch_size, offset=offset).execute()
+        batch = ordered_table.limit(batch_size, offset=offset).execute()
         # Convert batch to records (this is now limited in size)
         batch_records = batch.to_dict("records")
         results.extend(dict(record) for record in batch_records)

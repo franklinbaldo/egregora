@@ -11,6 +11,7 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import MEDIA_DIR_NAME
+from .batch import _get_stable_ordering
 
 # WhatsApp attachment markers (special Unicode)
 ATTACHMENT_MARKERS = (
@@ -249,8 +250,11 @@ def extract_and_replace_media(
     batch_size = 1000
     count = messages_table.count().execute()
 
+    ordering = _get_stable_ordering(messages_table)
+    ordered_table = messages_table.order_by(ordering) if ordering else messages_table
+
     for offset in range(0, count, batch_size):
-        batch = messages_table.limit(batch_size, offset=offset).execute()
+        batch = ordered_table.limit(batch_size, offset=offset).execute()
         batch_records = batch.to_dict("records")
         for row in batch_records:
             message = row.get("message", "")
