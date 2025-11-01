@@ -10,6 +10,7 @@ Documentation:
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -336,15 +337,36 @@ def enrich_table(
 
     schema = CONVERSATION_SCHEMA
     # Normalize rows to match schema, filling missing columns with None
-    normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
+    def _normalize_timestamp(value: Any) -> Any:
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value
+            return value.astimezone(timezone.utc)
+        return value
+
+    normalized_rows = [
+        {
+            column: _normalize_timestamp(row.get(column)) if column == "timestamp" else row.get(column)
+            for column in schema.names
+        }
+        for row in new_rows
+    ]
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
 
     # Filter messages_table to only include columns from CONVERSATION_SCHEMA
     messages_table_filtered = messages_table.select(*schema.names)
 
     # Ensure timestamp column is in UTC to match CONVERSATION_SCHEMA
+    @ibis.udf.scalar.python
+    def ensure_timestamp_utc(ts: datetime | None) -> datetime | None:
+        if ts is None:
+            return None
+        if ts.tzinfo is None:
+            return ts
+        return ts.astimezone(timezone.utc)
+
     messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+        timestamp=ensure_timestamp_utc(messages_table_filtered.timestamp)
     )
 
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
