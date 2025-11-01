@@ -130,8 +130,8 @@ ELO_RATINGS_SCHEMA = ibis.schema(
     {
         "post_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
         "elo_global": dt.float64,  # DEFAULT 1500
-        "num_comparisons": dt.int64,  # DEFAULT 0
-        "last_updated": dt.timestamp,
+        "games_played": dt.int64,  # DEFAULT 0
+        "last_updated": dt.timestamp,  # NOT NULL
     }
 )
 
@@ -139,10 +139,14 @@ ELO_HISTORY_SCHEMA = ibis.schema(
     {
         "comparison_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
         "timestamp": dt.timestamp,  # NOT NULL
-        "winner_id": dt.string,  # NOT NULL
-        "loser_id": dt.string,  # NOT NULL
-        "elo_change": dt.float64,  # NOT NULL
-        "tie": dt.boolean,  # DEFAULT FALSE
+        "profile_id": dt.string,  # NOT NULL - User who made the comparison
+        "post_a": dt.string,  # NOT NULL - First post being compared
+        "post_b": dt.string,  # NOT NULL - Second post being compared
+        "winner": dt.string,  # NOT NULL - 'A' or 'B'
+        "comment_a": dt.string,  # NOT NULL - LLM comment for post A
+        "stars_a": dt.int64,  # NOT NULL - Star rating for post A (1-5)
+        "comment_b": dt.string,  # NOT NULL - LLM comment for post B
+        "stars_b": dt.int64,  # NOT NULL - Star rating for post B (1-5)
     }
 )
 
