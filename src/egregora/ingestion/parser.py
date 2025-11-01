@@ -158,49 +158,49 @@ def _add_message_ids(messages: Table) -> Table:
     """
     Add deterministic message_id column based on milliseconds since group creation.
 
-    The message_id is calculated as milliseconds since the earliest message timestamp.
-    This creates a timezone-independent, deterministic ID that's consistent across runs.
+    The message_id combines two components:
+    1. Time delta in milliseconds from first message (timezone-independent)
+    2. Row number within that timestamp (for uniqueness)
+
+    Format: "{delta_ms}_{row_num}"
+
+    This ensures:
+    - Idempotence: same group from different timezone exports produces same IDs
+    - Uniqueness: multiple messages in same minute (same timestamp) get unique IDs
+    - Order preservation: row numbers maintain message order within same minute
+
+    WhatsApp exports only have minute-level precision, so multiple messages
+    sent in the same minute have identical timestamps. The row number disambiguates them.
 
     Args:
-        messages: Ibis Table with 'timestamp' column
+        messages: Ibis Table with 'timestamp' column (must be pre-sorted by timestamp)
 
     Returns:
-        Table with added 'message_id' column
+        Table with added 'message_id' column containing "{delta_ms}_{row_num}"
     """
     if int(messages.count().execute()) == 0:
         return messages
 
-    # Find the minimum timestamp (group creation time)
-    min_timestamp_scalar = messages.timestamp.min().execute()
+    # Calculate milliseconds since first message using relative time deltas
+    # We keep min_timestamp as an Ibis expression (not executed) so the entire
+    # calculation happens in the database query. This ensures consistent timezone
+    # handling and avoids issues with different timezone interpretations.
+    min_timestamp = messages.timestamp.min()
 
-    # Convert to UTC if needed
-    if hasattr(min_timestamp_scalar, "tz_convert"):
-        # Pandas Timestamp - convert to UTC
-        min_timestamp = min_timestamp_scalar.tz_convert("UTC")
-    elif hasattr(min_timestamp_scalar, "astimezone"):
-        # Python datetime - convert to UTC
-        min_timestamp = min_timestamp_scalar.astimezone(UTC)
-    elif hasattr(min_timestamp_scalar, "replace") and min_timestamp_scalar.tzinfo is None:
-        # Naive datetime - assume UTC
-        min_timestamp = min_timestamp_scalar.replace(tzinfo=UTC)
-    else:
-        min_timestamp = min_timestamp_scalar
+    # Calculate the time difference from minimum timestamp to each message timestamp
+    # epoch_seconds() converts both to seconds since epoch, then we subtract to get delta
+    # The delta is timezone-independent because both timestamps use the same timezone
+    # Multiply by 1000 to convert seconds to milliseconds, round to ensure integer
+    delta_ms = (
+        ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000)
+        .round()
+        .cast("int64")
+    )
 
-    # Get min_timestamp as integer milliseconds since epoch
-    if hasattr(min_timestamp, "timestamp"):
-        min_ms = int(min_timestamp.timestamp() * 1000)
-    else:
-        # Fallback for datetime objects
-        epoch = datetime(1970, 1, 1, tzinfo=UTC)
-        min_ms = int((min_timestamp - epoch).total_seconds() * 1000)
-
-    # Calculate milliseconds since group creation for each message
-    # We use epoch() to convert timestamp to seconds, then multiply by 1000 for milliseconds
+    # Add row number for uniqueness (0-indexed)
+    # Since messages are already sorted by timestamp, row_number preserves order
     messages_with_id = messages.mutate(
-        message_id=(
-            # Convert timestamp to epoch milliseconds, then subtract minimum
-            (messages.timestamp.epoch_seconds() * 1000).cast("int64") - min_ms
-        ).cast("string")
+        message_id=(delta_ms.cast("string") + "_" + ibis.row_number().cast("string"))
     )
 
     return messages_with_id
