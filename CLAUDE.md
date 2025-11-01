@@ -168,6 +168,7 @@ Static site (mkdocs serve)
 3. **Schemas enforce contracts** - All data transformations validated by Ibis schemas
 4. **RAG is stateful** - Vector store persists across runs for context continuity
 5. **VCR tests use exact mode** - `retrieval_mode="exact"` avoids VSS extension dependency in tests
+6. **CONVERSATION_SCHEMA is canonical** - All pipeline stages must return tables conforming to `CONVERSATION_SCHEMA` from `core/database_schema.py`. Stages that add columns during processing MUST filter them out before returning (see `augmentation/enrichment/core.py` for reference implementation). This prevents schema drift and downstream errors.
 
 ### File Organization Patterns
 

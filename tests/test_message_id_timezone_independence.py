@@ -4,11 +4,10 @@ This test verifies that the same WhatsApp conversation exported from
 phones in different timezones produces identical message_ids.
 """
 
-from datetime import datetime, timedelta
+import zipfile
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import ibis
 
 from egregora.core.models import WhatsAppExport
 from egregora.ingestion.parser import parse_export
@@ -114,8 +113,6 @@ def test_message_id_handles_same_minute_messages(tmp_path: Path):
 
 def _create_test_export(tmp_path: Path, filename: str, chat_content: str) -> WhatsAppExport:
     """Helper to create a test WhatsApp export ZIP file."""
-    import zipfile
-
     zip_path = tmp_path / filename
     chat_filename = "chat.txt"
 

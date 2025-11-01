@@ -17,6 +17,7 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import ModelConfig
+from ...core.database_schema import CONVERSATION_SCHEMA
 from ...prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
@@ -340,8 +341,6 @@ def enrich_table(
     # to match the core schema before uniting it with `enrichment_table`.
     # This ensures that `enrich_table` always returns a table with a predictable
     # schema, preventing downstream errors.
-    from ...core.database_schema import CONVERSATION_SCHEMA
-
     schema = CONVERSATION_SCHEMA
     # Normalize rows to match schema, filling missing columns with None
     normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]

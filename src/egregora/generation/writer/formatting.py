@@ -251,6 +251,36 @@ def _table_to_records(
     raise TypeError("Unsupported data source for markdown rendering")
 
 
+def _ensure_msg_id_column(
+    rows: list[dict[str, Any]], column_order: list[str]
+) -> list[str]:
+    """Ensure all rows have msg_id field and return updated column order.
+
+    Prefers stored message_id field, falls back to existing msg_id,
+    or computes hash-based IDs as last resort.
+    """
+    if "msg_id" not in column_order:
+        if "message_id" in column_order:
+            # Use the stored message_id as msg_id for display
+            for row in rows:
+                row["msg_id"] = _stringify_value(row.get("message_id"))
+        else:
+            # Fall back to computing hash-based IDs
+            msg_ids = [_compute_message_id(row) for row in rows]
+            for row, msg_id in zip(rows, msg_ids, strict=False):
+                row["msg_id"] = msg_id
+        return ["msg_id", *column_order]
+
+    # msg_id already in column order - normalize values
+    for row in rows:
+        existing_msg_id = row.get("msg_id")
+        if existing_msg_id:
+            row["msg_id"] = _stringify_value(existing_msg_id)
+        else:
+            row["msg_id"] = _stringify_value(row.get("message_id"))
+    return column_order
+
+
 def _build_conversation_markdown(
     data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
     annotations_store: AnnotationStore | None,
@@ -262,28 +292,7 @@ def _build_conversation_markdown(
         return ""
 
     rows = [dict(record) for record in records]
-
-    # Prefer stored message_id, fall back to msg_id, then compute if needed
-    if "msg_id" not in column_order:
-        if "message_id" in column_order:
-            # Use the stored message_id as msg_id for display
-            column_order = ["msg_id", *column_order]
-            for row in rows:
-                row["msg_id"] = _stringify_value(row.get("message_id"))
-        else:
-            # Fall back to computing hash-based IDs
-            msg_ids = [_compute_message_id(row) for row in rows]
-            column_order = ["msg_id", *column_order]
-            for row, msg_id in zip(rows, msg_ids, strict=False):
-                row["msg_id"] = msg_id
-    else:
-        for row in rows:
-            # Use existing msg_id if present, otherwise use message_id
-            existing_msg_id = row.get("msg_id")
-            if existing_msg_id:
-                row["msg_id"] = _stringify_value(existing_msg_id)
-            else:
-                row["msg_id"] = _stringify_value(row.get("message_id"))
+    column_order = _ensure_msg_id_column(rows, column_order)
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:

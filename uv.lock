@@ -504,6 +504,7 @@ lint = [
     { name = "ruff" },
 ]
 test = [
+    { name = "pytest-vcr" },
     { name = "ruff" },
 ]
 
@@ -542,6 +543,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=0.1.1" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
     { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-vcr", marker = "extra == 'test'", specifier = ">=1.0.2" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "python-dateutil", marker = "extra == 'docs'", specifier = ">=2.9" },
     { name = "python-frontmatter", specifier = ">=1.0.0" },
