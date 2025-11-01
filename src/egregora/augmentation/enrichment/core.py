@@ -11,7 +11,7 @@ Documentation:
 import logging
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import ibis
 from ibis.expr.types import Table
@@ -21,7 +21,12 @@ from ...prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
-from ...utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
+from ...utils import (
+    BatchPromptResult,
+    EnrichmentCache,
+    GeminiBatchClient,
+    make_enrichment_cache_key,
+)
 from .batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
@@ -33,7 +38,6 @@ from .batch import (
 )
 from .media import (
     detect_media_type,
-    extract_and_replace_media,
     extract_urls,
     replace_media_mentions,
 )
@@ -41,21 +45,23 @@ from .media import (
 logger = logging.getLogger(__name__)
 
 
-
-
 def enrich_table(
-    messages_table: Table,
-    media_mapping: dict[str, Path],
-    text_batch_client: GeminiBatchClient,
-    vision_batch_client: GeminiBatchClient,
-    cache: EnrichmentCache,
-    docs_dir: Path,
-    posts_dir: Path,
-    model_config: ModelConfig | None = None,
-    enable_url: bool = True,
-    enable_media: bool = True,
-    max_enrichments: int = 50,
-) -> Table:
+    messages_table: Annotated[Table, "The table of messages to enrich"],
+    media_mapping: Annotated[
+        dict[str, Path], "A mapping from original media filenames to their paths on disk"
+    ],
+    text_batch_client: Annotated[GeminiBatchClient, "A Gemini client for text-based enrichment"],
+    vision_batch_client: Annotated[
+        GeminiBatchClient, "A Gemini client for vision-based enrichment"
+    ],
+    cache: Annotated[EnrichmentCache, "A cache for enrichment results"],
+    docs_dir: Annotated[Path, "The MkDocs docs directory"],
+    posts_dir: Annotated[Path, "The directory where posts are stored"],
+    model_config: Annotated[ModelConfig | None, "The model configuration"] = None,
+    enable_url: Annotated[bool, "Whether to enable URL enrichment"] = True,
+    enable_media: Annotated[bool, "Whether to enable media enrichment"] = True,
+    max_enrichments: Annotated[int, "The maximum number of enrichments to perform"] = 50,
+) -> Annotated[Table, "The enriched table"]:
     """Add LLM-generated enrichment rows to Table for URLs and media."""
     if model_config is None:
         model_config = ModelConfig()
@@ -180,7 +186,11 @@ def enrich_table(
         for url_job in pending_url_jobs:
             result = result_map.get(url_job.tag)
             if not result or result.error or not result.response:
-                logger.warning("Failed to enrich URL %s: %s", url_job.url, result.error if result else "no result")
+                logger.warning(
+                    "Failed to enrich URL %s: %s",
+                    url_job.url,
+                    result.error if result else "no result",
+                )
                 url_job.markdown = f"[Failed to enrich URL: {url_job.url}]"
                 continue
 
@@ -255,7 +265,9 @@ def enrich_table(
 
             markdown_content = (result.response.text or "").strip()
             if not markdown_content:
-                markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
+                markdown_content = (
+                    f"[No enrichment generated for media: {media_job.file_path.name}]"
+                )
 
             if "PII_DETECTED" in markdown_content:
                 logger.warning(
@@ -313,6 +325,7 @@ def enrich_table(
         )
 
     if pii_media_deleted:
+
         @ibis.udf.scalar.python
         def replace_media_udf(message: str) -> str:
             return (
@@ -328,7 +341,9 @@ def enrich_table(
 
     schema = messages_table.schema()
     # Normalize rows to match schema, filling missing columns with None
-    normalized_rows = [{column: row.get(column, None) for column in schema.names} for row in new_rows]
+    normalized_rows = [
+        {column: row.get(column, None) for column in schema.names} for row in new_rows
+    ]
 
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
     combined = messages_table.union(enrichment_table, distinct=False)

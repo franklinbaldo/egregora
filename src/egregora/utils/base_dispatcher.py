@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Generic, TypeVar
+from typing import Annotated, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ TRequest = TypeVar("TRequest")
 TResult = TypeVar("TResult")
 
 
-class BaseDispatcher(ABC, Generic[TRequest, TResult]):
+class BaseDispatcher[TRequest, TResult](ABC):
     """Abstract base for intelligent dispatchers that route between batch and individual API calls.
 
     This class implements the common logic for choosing between batch API operations
@@ -27,9 +27,9 @@ class BaseDispatcher(ABC, Generic[TRequest, TResult]):
 
     def __init__(
         self,
-        batch_threshold: int = 10,
-        max_parallel: int = 5,
-    ):
+        batch_threshold: Annotated[int, "Minimum number of requests to trigger the batch API"] = 10,
+        max_parallel: Annotated[int, "Maximum parallel workers for individual API calls"] = 5,
+    ) -> None:
         """Initialize dispatcher with routing configuration.
 
         Args:
@@ -41,12 +41,14 @@ class BaseDispatcher(ABC, Generic[TRequest, TResult]):
 
     def dispatch(
         self,
-        requests: Sequence[TRequest],
+        requests: Annotated[Sequence[TRequest], "A sequence of request objects"],
         *,
-        force_batch: bool = False,
-        force_individual: bool = False,
+        force_batch: Annotated[bool, "Force the use of the batch API"] = False,
+        force_individual: Annotated[
+            bool, "Force the use of individual, parallel API calls"
+        ] = False,
         **kwargs,
-    ) -> list[TResult]:
+    ) -> Annotated[list[TResult], "A list of result objects"]:
         """Dispatch requests using the optimal strategy.
 
         Routes requests to either batch or individual execution based on:
@@ -87,7 +89,9 @@ class BaseDispatcher(ABC, Generic[TRequest, TResult]):
             logger.info(f"Using batch API for {len(requests)} items")
             return self._execute_batch(requests, **kwargs)
 
-    def _execute_individual(self, requests: Sequence[TRequest]) -> list[TResult]:
+    def _execute_individual(
+        self, requests: Annotated[Sequence[TRequest], "A sequence of request objects"]
+    ) -> Annotated[list[TResult], "A list of result objects"]:
         """Execute requests individually with parallelism.
 
         Uses ThreadPoolExecutor to run requests in parallel up to max_parallel limit.
@@ -103,7 +107,9 @@ class BaseDispatcher(ABC, Generic[TRequest, TResult]):
             return [f.result() for f in futures]
 
     @abstractmethod
-    def _execute_one(self, request: TRequest) -> TResult:
+    def _execute_one(
+        self, request: Annotated[TRequest, "A single request object"]
+    ) -> Annotated[TResult, "A single result object"]:
         """Execute a single request.
 
         Subclasses must implement this to handle individual API calls.
@@ -118,7 +124,11 @@ class BaseDispatcher(ABC, Generic[TRequest, TResult]):
         pass
 
     @abstractmethod
-    def _execute_batch(self, requests: Sequence[TRequest], **kwargs) -> list[TResult]:
+    def _execute_batch(
+        self,
+        requests: Annotated[Sequence[TRequest], "A sequence of request objects"],
+        **kwargs,
+    ) -> Annotated[list[TResult], "A list of result objects"]:
         """Execute requests as a batch.
 
         Subclasses must implement this to handle batch API calls.

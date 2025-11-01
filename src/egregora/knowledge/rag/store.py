@@ -5,11 +5,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Annotated, Any, cast
 
 import duckdb
 import ibis
-import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
@@ -54,6 +53,7 @@ class _ConnectionProxy:
             return
         delattr(object.__getattribute__(self, "_inner"), name)
 
+
 # Use schemas from centralized database_schema module
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
@@ -79,11 +79,15 @@ class VectorStore:
 
     def __init__(
         self,
-        parquet_path: Path,
+        parquet_path: Annotated[Path, "Path to the Parquet file for the vector store"],
         *,
-        connection: duckdb.DuckDBPyConnection | None = None,
-        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
-    ):
+        connection: Annotated[
+            duckdb.DuckDBPyConnection | None, "Optional existing DuckDB connection"
+        ] = None,
+        exact_index_threshold: Annotated[
+            int, "Row count threshold to switch from exact to ANN search"
+        ] = DEFAULT_EXACT_INDEX_THRESHOLD,
+    ) -> None:
         """
         Initialize vector store.
 
@@ -98,7 +102,7 @@ class VectorStore:
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
             self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
         else:
-            self.conn = _ConnectionProxy(connection)
+            self.conn = _ConnectionProxy(cast(duckdb.DuckDBPyConnection, connection))
 
         # Lazy loading: VSS is only initialized when needed (ANN mode)
         self._vss_available = False
@@ -121,6 +125,7 @@ class VectorStore:
         try:
             self.conn.execute("INSTALL vss")
             self.conn.execute("LOAD vss")
+            self.conn.execute("SET hnsw_enable_experimental_persistence=true")
             self._vss_available = True
             self._vss_function = self._detect_vss_function()
             logger.info("DuckDB VSS extension loaded")
@@ -385,7 +390,7 @@ class VectorStore:
 
         return current_dim
 
-    def add(self, chunks_table: Table) -> None:
+    def add(self, chunks_table: Annotated[Table, "An Ibis table of chunks to add"]) -> None:
         """
         Add chunks to the vector store.
 
@@ -488,9 +493,7 @@ class VectorStore:
             if unexpected:
                 parts.append(f"unexpected columns: {', '.join(unexpected)}")
             detail = "; ".join(parts)
-            raise ValueError(
-                f"{context} do not match the vector store schema ({detail})."
-            )
+            raise ValueError(f"{context} do not match the vector store schema ({detail}).")
 
     def _cast_to_vector_store_schema(self, table: Table) -> Table:
         """Cast the table to the canonical vector store schema ordering and types."""
@@ -508,18 +511,22 @@ class VectorStore:
 
     def search(  # noqa: PLR0911, PLR0913, PLR0915
         self,
-        query_vec: list[float],
-        top_k: int = 5,
-        min_similarity: float = 0.7,
-        tag_filter: list[str] | None = None,
-        date_after: date | datetime | str | None = None,
-        document_type: str | None = None,
-        media_types: list[str] | None = None,
+        query_vec: Annotated[list[float], "The query embedding vector"],
+        top_k: Annotated[int, "The maximum number of results to return"] = 5,
+        min_similarity: Annotated[float, "The minimum similarity score for results"] = 0.7,
+        tag_filter: Annotated[list[str] | None, "A list of tags to filter by (OR logic)"] = None,
+        date_after: Annotated[
+            date | datetime | str | None, "A temporal boundary for the search"
+        ] = None,
+        document_type: Annotated[
+            str | None, "A document type to filter by ('post' or 'media')"
+        ] = None,
+        media_types: Annotated[list[str] | None, "A list of media types to filter by"] = None,
         *,
-        mode: str = "ann",
-        nprobe: int | None = None,
-        overfetch: int | None = None,
-    ) -> Table:
+        mode: Annotated[str, "The search mode ('ann' or 'exact')"] = "ann",
+        nprobe: Annotated[int | None, "The 'nprobe' parameter for ANN search"] = None,
+        overfetch: Annotated[int | None, "The overfetch factor for ANN search"] = None,
+    ) -> Annotated[Table, "An Ibis table of search results with similarity scores"]:
         """
         Search for similar chunks using cosine similarity.
 
@@ -611,7 +618,9 @@ class VectorStore:
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
 
-        order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        order_clause = (
+            f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
+        )
 
         exact_base_query = f"""
             WITH candidates AS (
@@ -661,7 +670,10 @@ class VectorStore:
                 logger.error("ANN search aborted: %s", exc)
                 break
 
-        if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
+        if (
+            last_error is not None
+            and "does not support the supplied arguments" in str(last_error).lower()
+        ):
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
                 return self._execute_search_query(
@@ -733,9 +745,7 @@ class VectorStore:
                 candidates.append(function_name)
         return candidates
 
-    def _execute_search_query(
-        self, query: str, params: list[Any], min_similarity: float
-    ) -> Table:
+    def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
         """Execute the provided search query and normalize the results."""
 
         result_arrow = self.conn.execute(query, params).arrow()
@@ -849,9 +859,7 @@ class VectorStore:
 
             return VectorStore._ensure_utc_datetime(parsed_dt)
 
-        raise TypeError(
-            "date_after must be a date, datetime, or ISO8601 string"
-        )
+        raise TypeError("date_after must be a date, datetime, or ISO8601 string")
 
     @staticmethod
     def _ensure_utc_datetime(value: datetime) -> datetime:
@@ -890,7 +898,9 @@ class VectorStore:
 
         raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
 
-    def _table_from_arrow(self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema) -> Table:
+    def _table_from_arrow(
+        self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema
+    ) -> Table:
         """Register an Arrow table with DuckDB and return an Ibis table."""
 
         arrow_table = self._ensure_arrow_table(arrow_table)
@@ -958,7 +968,7 @@ class VectorStore:
         if self._owns_connection:
             self.conn.close()
 
-    def get_all(self) -> Table:
+    def get_all(self) -> Annotated[Table, "An Ibis table of all chunks in the store"]:
         """
         Read entire vector store.
 
@@ -969,7 +979,7 @@ class VectorStore:
 
         return self._client.read_parquet(self.parquet_path)
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> Annotated[dict[str, Any], "A dictionary of vector store statistics"]:
         """Get vector store statistics."""
         if not self.parquet_path.exists():
             return {
@@ -1007,7 +1017,9 @@ class VectorStore:
             media_count = media_table.count().execute()
 
             stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
+            stats["total_media"] = (
+                media_table.media_uuid.nunique().execute() if media_count > 0 else 0
+            )
 
             # Media breakdown by type
             if media_count > 0:

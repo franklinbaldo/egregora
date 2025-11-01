@@ -50,6 +50,9 @@ import os
 from pathlib import Path
 
 import pytest
+from google import genai
+
+from egregora.orchestration.pipeline import process_whatsapp_export
 
 
 @pytest.mark.vcr
@@ -68,10 +71,6 @@ def test_pipeline_with_vcr_fixtures(
     The @pytest.mark.vcr decorator automatically records HTTP interactions
     to cassettes and replays them on subsequent test runs.
     """
-    from google import genai
-
-    from egregora.orchestration.pipeline import process_whatsapp_export
-
     output_dir = tmp_path / "site"
     output_dir.mkdir()
 

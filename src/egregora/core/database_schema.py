@@ -1,4 +1,9 @@
-"""Centralized database schema definitions for all DuckDB tables.
+import logging
+
+import ibis
+import ibis.expr.datatypes as dt
+
+"""Central-ized database schema definitions for all DuckDB tables.
 
 All table schemas are defined using Ibis for type safety and consistency.
 Use these schemas to create tables via Ibis instead of raw SQL.
@@ -7,9 +12,6 @@ This module contains both:
 - Persistent schemas: Tables that are stored in DuckDB files
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
-
-import ibis
-import ibis.expr.datatypes as dt
 
 # ============================================================================
 # Ephemeral/In-Memory Schemas (Not Persisted)
@@ -215,5 +217,4 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
     except Exception as e:
         # Index may already exist or column may not support this index type
-        import logging
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")

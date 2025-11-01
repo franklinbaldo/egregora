@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
@@ -107,7 +107,7 @@ class GeminiClientRecorder:
 
         return FilesWrapper(self._client, self)
 
-    def _record_request(self, category: str, request_data: Dict, response_data: Dict):
+    def _record_request(self, category: str, request_data: dict, response_data: dict):
         """
         Saves the request and response data to a file.
         """
@@ -137,7 +137,7 @@ class GeminiClientRecorder:
         except Exception as e:
             logger.error(f"Failed to record {category} to {filepath.name}: {e}")
 
-    def _prepare_request_for_hashing(self, request_data: Dict) -> Dict:
+    def _prepare_request_for_hashing(self, request_data: dict) -> dict:
         """Creates a deep copy of the request and makes it JSON serializable."""
         # Create a deep copy to avoid modifying the original request object
         def _convert_to_dict(obj):
@@ -151,7 +151,7 @@ class GeminiClientRecorder:
         return data_copy
 
 
-    def _hash_request(self, request_data: Dict) -> str:
+    def _hash_request(self, request_data: dict) -> str:
         """
         Generates a SHA256 hash of the request data.
         """

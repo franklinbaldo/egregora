@@ -28,6 +28,8 @@ except ImportError:  # pragma: no cover - depends on test env
         allow_module_level=True,
     )
 
+from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient
+
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
@@ -194,8 +196,6 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient
-
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(
         "google.genai.Client",
@@ -211,13 +211,13 @@ def mock_batch_client(monkeypatch):
         MockGeminiClient,
     )
 
-    # Patch the GeminiBatchClient class at import locations
+    # Patch the GeminiDispatcher class at import locations
     monkeypatch.setattr(
-        "egregora.utils.batch.GeminiBatchClient",
+        "egregora.utils.gemini_dispatcher.GeminiDispatcher",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiBatchClient",
+        "egregora.orchestration.pipeline.GeminiDispatcher",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(

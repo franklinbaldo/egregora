@@ -3,8 +3,9 @@
 import logging
 import re
 import zipfile
-from datetime import datetime
+from datetime import date, datetime, tzinfo
 from pathlib import Path
+from typing import Annotated
 
 import duckdb
 import ibis
@@ -19,7 +20,6 @@ from ..core.types import GroupSlug
 from ..generation.writer import write_posts_for_period
 from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from ..knowledge.rag import VectorStore, index_all_media
-from ..utils.batch import GeminiBatchClient
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
 from ..utils.gemini_dispatcher import GeminiDispatcher
@@ -27,9 +27,16 @@ from ..utils.gemini_dispatcher import GeminiDispatcher
 logger = logging.getLogger(__name__)
 
 SINGLE_DIGIT_THRESHOLD = 10
+WEEKS_IN_YEAR = 52
+MONTHS_IN_YEAR = 12
 
 
-def discover_chat_file(zip_path: Path) -> tuple[str, str]:
+def discover_chat_file(
+    zip_path: Annotated[Path, "Path to the WhatsApp export ZIP file"],
+) -> tuple[
+    Annotated[str, "The name of the WhatsApp group"],
+    Annotated[str, "The path to the chat file within the ZIP archive"],
+]:
     """Find the chat .txt file in the ZIP and extract group name."""
 
     with zipfile.ZipFile(zip_path) as zf:
@@ -65,7 +72,10 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
         return group_name, member
 
 
-def period_has_posts(period_key: str, posts_dir: Path) -> bool:
+def period_has_posts(
+    period_key: Annotated[str, "The period key, e.g., '2025-W03'"],
+    posts_dir: Annotated[Path, "The directory where posts are stored"],
+) -> bool:
     """Check if posts already exist for this period."""
     if not posts_dir.exists():
         return False
@@ -77,7 +87,10 @@ def period_has_posts(period_key: str, posts_dir: Path) -> bool:
     return len(existing_posts) > 0
 
 
-def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
+def group_by_period(
+    table: Annotated[Table, "The Ibis table to group"],
+    period: Annotated[str, "The time period to group by: 'day', 'week', or 'month'"] = "day",
+) -> dict[str, Table]:
     """
     Group Table by time period.
 
@@ -103,18 +116,16 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
         # the ISO year is previous calendar year
         # if week number is 1 and month is December,
         # the ISO year is next calendar year
-        iso_year = (
-            ibis.case()
-            .when(
-                (week_num >= 52) & (table.timestamp.month() == 1),
+        iso_year = ibis.cases(
+            (
+                (week_num >= WEEKS_IN_YEAR) & (table.timestamp.month() == 1),
                 table.timestamp.year() - 1,
-            )
-            .when(
-                (week_num == 1) & (table.timestamp.month() == 12),
+            ),
+            (
+                (week_num == 1) & (table.timestamp.month() == MONTHS_IN_YEAR),
                 table.timestamp.year() + 1,
-            )
-            .else_(table.timestamp.year())
-            .end()
+            ),
+            else_=table.timestamp.year(),
         )
 
         year_str = iso_year.cast("string")
@@ -296,14 +307,10 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 )
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() >= from_date
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} onwards")
             elif to_date:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() <= to_date
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
                 logger.info(f"📅 [cyan]Filtering[/] messages up to {to_date}")
 
             filtered_count = messages_table.count().execute()
@@ -359,7 +366,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     except FileNotFoundError:
                         logger.info("Cached enrichment missing; regenerating %s", period_key)
                         if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                            steps_state = checkpoint_store.update_step(
+                                period_key, "enrichment", "in_progress"
+                            )["steps"]
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
@@ -372,10 +381,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                            steps_state = checkpoint_store.update_step(
+                                period_key, "enrichment", "completed"
+                            )["steps"]
                 else:
                     if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")["steps"]
+                        steps_state = checkpoint_store.update_step(
+                            period_key, "enrichment", "in_progress"
+                        )["steps"]
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
@@ -388,7 +401,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")["steps"]
+                        steps_state = checkpoint_store.update_step(
+                            period_key, "enrichment", "completed"
+                        )["steps"]
             else:
                 enriched_table = period_table
                 enriched_table.execute().to_csv(enriched_path, index=False)
@@ -402,7 +417,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 }
             else:
                 if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
+                    steps_state = checkpoint_store.update_step(
+                        period_key, "writing", "in_progress"
+                    )["steps"]
                 result = write_posts_for_period(
                     enriched_table,
                     period_key,
@@ -419,7 +436,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     retrieval_overfetch=retrieval_overfetch,
                 )
                 if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")[
+                        "steps"
+                    ]
 
             results[period_key] = result
             logger.info(
@@ -449,7 +468,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         return results
     finally:
         try:
-            if 'enrichment_cache' in locals():
+            if "enrichment_cache" in locals():
                 enrichment_cache.close()
         finally:
             if client:
@@ -457,21 +476,21 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
 
 def process_whatsapp_export(  # noqa: PLR0912, PLR0913
-    zip_path: Path,
-    output_dir: Path = Path("output"),
-    period: str = "day",
-    enable_enrichment: bool = True,
-    from_date=None,
-    to_date=None,
-    timezone=None,
-    gemini_api_key: str | None = None,
-    model: str | None = None,
-    resume: bool = True,
-    batch_threshold: int = 10,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-    client: genai.Client | None = None,
+    zip_path: Annotated[Path, "Path to the WhatsApp export ZIP file"],
+    output_dir: Annotated[Path, "The directory to save posts and profiles"] = Path("output"),
+    period: Annotated[str, "The time period to group by: 'day', 'week', or 'month'"] = "day",
+    enable_enrichment: Annotated[bool, "Whether to add URL/media context with an LLM"] = True,
+    from_date: Annotated[date | None, "Only process messages from this date onwards"] = None,
+    to_date: Annotated[date | None, "Only process messages up to this date"] = None,
+    timezone: Annotated[tzinfo | None, "The timezone of the WhatsApp export"] = None,
+    gemini_api_key: Annotated[str | None, "Google Gemini API key"] = None,
+    model: Annotated[str | None, "The Gemini model to use, overriding mkdocs.yml config"] = None,
+    resume: Annotated[bool, "Whether to resume from a previous run"] = True,
+    batch_threshold: Annotated[int, "The threshold for switching to batch processing"] = 10,
+    retrieval_mode: Annotated[str, "The retrieval mode to use"] = "ann",
+    retrieval_nprobe: Annotated[int | None, "The number of probes to use for retrieval"] = None,
+    retrieval_overfetch: Annotated[int | None, "The overfetch factor to use for retrieval"] = None,
+    client: Annotated[genai.Client | None, "An optional google.generativeai.Client"] = None,
 ) -> dict[str, dict[str, list[str]]]:
     """
     Public entry point that manages DuckDB/Ibis backend state for processing.

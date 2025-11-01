@@ -8,16 +8,14 @@ import os
 import re
 import threading
 import time
-from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from collections.abc import Callable
+from typing import Annotated, Any
 
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TimeRemainingColumn
 
 logger = logging.getLogger(__name__)
 _console = Console(stderr=True, soft_wrap=True)
-
-_RateLimitFn = TypeVar("_RateLimitFn", bound=Callable[..., Awaitable[Any]])
 
 # Ensure we space out requests so we do not burst through short-term quota limits.
 _rate_lock = asyncio.Lock()
@@ -59,12 +57,16 @@ def _extract_retry_delay(error: Exception) -> float | None:
     return None
 
 
-def is_rate_limit_error(error: Exception) -> bool:
+def is_rate_limit_error(
+    error: Annotated[Exception, "The exception to check"],
+) -> Annotated[bool, "True if the error is a rate limit error"]:
     """Public helper to determine if an error is retryable."""
     return _is_rate_limit_error(error)
 
 
-def extract_retry_delay(error: Exception) -> float | None:
+def extract_retry_delay(
+    error: Annotated[Exception, "The exception to parse"],
+) -> Annotated[float | None, "The recommended retry delay in seconds, or None"]:
     """Expose retry delay parsing for synchronous helpers."""
     return _extract_retry_delay(error)
 
@@ -160,11 +162,11 @@ def _sleep_with_progress_sync(delay: float, description: str) -> None:
             time.sleep(min(0.5, delay - elapsed))
 
 
-async def call_with_retries(
-    async_fn: _RateLimitFn,
+async def call_with_retries[RateLimitFn](
+    async_fn: Annotated[RateLimitFn, "The asynchronous function to call"],
     *args: Any,
-    max_attempts: int = 5,
-    base_delay: float = 2.0,
+    max_attempts: Annotated[int, "The maximum number of attempts"] = 5,
+    base_delay: Annotated[float, "The base delay for exponential backoff"] = 2.0,
     **kwargs: Any,
 ) -> Any:
     """Invoke ``async_fn`` retrying on rate-limit errors with adaptive delays."""
@@ -195,10 +197,10 @@ async def call_with_retries(
 
 
 def call_with_retries_sync(
-    fn: Callable[..., Any],
+    fn: Annotated[Callable[..., Any], "The synchronous function to call"],
     *args: Any,
-    max_attempts: int = 5,
-    base_delay: float = 2.0,
+    max_attempts: Annotated[int, "The maximum number of attempts"] = 5,
+    base_delay: Annotated[float, "The base delay for exponential backoff"] = 2.0,
     **kwargs: Any,
 ) -> Any:
     """Synchronous twin of ``call_with_retries`` for Batch API usage."""
@@ -228,6 +230,9 @@ def call_with_retries_sync(
             attempt += 1
 
 
-def sleep_with_progress_sync(delay: float, description: str) -> None:
+def sleep_with_progress_sync(
+    delay: Annotated[float, "The number of seconds to sleep"],
+    description: Annotated[str, "The description to display in the progress bar"],
+) -> None:
     """Public wrapper around the synchronous sleep helper."""
     _sleep_with_progress_sync(delay, description)

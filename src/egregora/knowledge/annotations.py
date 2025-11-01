@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import duckdb
 import ibis
@@ -33,14 +33,16 @@ class Annotation:
 class AnnotationStore:
     """DuckDB-backed storage for writer annotations accessed via Ibis."""
 
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Annotated[Path, "The file path for the DuckDB database"]) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._backend = ibis.duckdb.connect(str(self.db_path))
         self._initialize()
 
     @property
-    def _connection(self) -> duckdb.DuckDBPyConnection:
+    def _connection(
+        self,
+    ) -> Annotated[duckdb.DuckDBPyConnection, "The active DuckDB database connection"]:
         """Return the underlying DuckDB connection."""
 
         return self._backend.con
@@ -62,19 +64,23 @@ class AnnotationStore:
         )
 
     def _fetch_records(
-        self, query: str, params: Sequence[object] | None = None
-    ) -> list[dict[str, object]]:
+        self,
+        query: Annotated[str, "The SQL query to execute"],
+        params: Annotated[
+            Sequence[object] | None, "Optional sequence of parameters for the SQL query"
+        ] = None,
+    ) -> Annotated[list[dict[str, object]], "A list of dictionaries representing the fetched rows"]:
         cursor = self._connection.execute(query, params or [])
         column_names = [description[0] for description in cursor.description]
         return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
     def save_annotation(
         self,
-        msg_id: str,
-        commentary: str,
+        msg_id: Annotated[str, "The identifier of the message being annotated"],
+        commentary: Annotated[str, "The commentary text for the annotation"],
         *,
-        parent_annotation_id: int | None = None,
-    ) -> Annotation:
+        parent_annotation_id: Annotated[int | None, "Optional ID of a parent annotation"] = None,
+    ) -> Annotated[Annotation, "The newly created and saved annotation object"]:
         """Persist an annotation and return the saved record."""
 
         sanitized_msg_id = (msg_id or "").strip()
@@ -102,9 +108,7 @@ class AnnotationStore:
                 .execute()
             )
             if parent_exists == 0:
-                raise ValueError(
-                    f"parent_annotation_id {parent_annotation_id} does not exist"
-                )
+                raise ValueError(f"parent_annotation_id {parent_annotation_id} does not exist")
 
         next_id_cursor = self._connection.execute(
             f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
@@ -138,7 +142,9 @@ class AnnotationStore:
             parent_annotation_id=parent_annotation_id,
         )
 
-    def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
+    def list_annotations_for_message(
+        self, msg_id: Annotated[str, "The message ID to retrieve annotations for"]
+    ) -> Annotated[list[Annotation], "A list of annotations for the given message"]:
         """Return annotations for ``msg_id`` ordered by creation time."""
 
         sanitized_msg_id = (msg_id or "").strip()
@@ -157,7 +163,9 @@ class AnnotationStore:
 
         return [self._row_to_annotation(row) for row in records]
 
-    def get_last_annotation_id(self, msg_id: str) -> int | None:
+    def get_last_annotation_id(
+        self, msg_id: Annotated[str, "The message ID to find the last annotation for"]
+    ) -> Annotated[int | None, "The ID of the most recent annotation, or None"]:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
 
         sanitized_msg_id = (msg_id or "").strip()
@@ -176,7 +184,9 @@ class AnnotationStore:
         row = cursor.fetchone()
         return int(row[0]) if row else None
 
-    def iter_all_annotations(self) -> Iterable[Annotation]:
+    def iter_all_annotations(
+        self,
+    ) -> Annotated[Iterable[Annotation], "An iterator over all stored annotations"]:
         """Yield all annotations sorted by insertion order."""
 
         records = self._fetch_records(
@@ -191,7 +201,9 @@ class AnnotationStore:
             yield self._row_to_annotation(row)
 
     @staticmethod
-    def _row_to_annotation(row: dict[str, Any]) -> Annotation:
+    def _row_to_annotation(
+        row: Annotated[dict[str, Any], "A dictionary representing a row from the database"],
+    ) -> Annotated[Annotation, "An Annotation data object"]:
         created_at_obj = row["created_at"]
         if hasattr(created_at_obj, "to_pydatetime"):
             created_at = created_at_obj.to_pydatetime()

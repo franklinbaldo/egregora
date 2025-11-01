@@ -4,8 +4,9 @@ Provides context managers and helpers for working with DuckDB/Ibis backends.
 """
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
+from typing import Annotated
 
 import duckdb
 import ibis
@@ -14,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def duckdb_backend() -> Generator[ibis.BaseBackend, None, None]:
+def duckdb_backend() -> Generator[
+    Annotated[ibis.BaseBackend, "Ibis backend connected to DuckDB"], None, None
+]:
     """
     Context manager for temporary DuckDB backend.
 

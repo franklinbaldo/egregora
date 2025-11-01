@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import random
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 from unittest.mock import MagicMock
 
 from google import genai
@@ -198,10 +199,6 @@ class MockGeminiClient:
             text = "\n".join(parts)
         else:
             text = str(contents)
-
-        # Generate deterministic fake response based on input
-        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
-        rng = random.Random(text_hash)
 
         # Generate mock response text
         mock_response_text = f"""---

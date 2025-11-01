@@ -1,10 +1,9 @@
 """Batch processing utilities for enrichment - dataclasses and helpers."""
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from google.genai import types as genai_types
 from ibis.expr.types import Table
@@ -16,34 +15,34 @@ from ...utils import BatchPromptRequest, BatchPromptResult
 class UrlEnrichmentJob:
     """Metadata for a URL enrichment batch item."""
 
-    key: str
-    url: str
-    original_message: str
-    sender_uuid: str
-    timestamp: Any
-    path: Path
-    tag: str
-    markdown: str | None = None
-    cached: bool = False
+    key: Annotated[str, "Unique key for the enrichment job"]
+    url: Annotated[str, "The URL to be enriched"]
+    original_message: Annotated[str, "The original message containing the URL"]
+    sender_uuid: Annotated[str, "The UUID of the message sender"]
+    timestamp: Annotated[Any, "The timestamp of the message"]
+    path: Annotated[Path, "The path to the original message"]
+    tag: Annotated[str, "A tag for identifying the job in batch results"]
+    markdown: Annotated[str | None, "The enriched markdown content"] = None
+    cached: Annotated[bool, "Whether the result was retrieved from cache"] = False
 
 
 @dataclass
 class MediaEnrichmentJob:
     """Metadata for a media enrichment batch item."""
 
-    key: str
-    original_filename: str
-    file_path: Path
-    original_message: str
-    sender_uuid: str
-    timestamp: Any
-    path: Path
-    tag: str
-    media_type: str | None = None
-    markdown: str | None = None
-    cached: bool = False
-    upload_uri: str | None = None
-    mime_type: str | None = None
+    key: Annotated[str, "Unique key for the enrichment job"]
+    original_filename: Annotated[str, "The original filename of the media"]
+    file_path: Annotated[Path, "The path to the media file on disk"]
+    original_message: Annotated[str, "The original message containing the media"]
+    sender_uuid: Annotated[str, "The UUID of the message sender"]
+    timestamp: Annotated[Any, "The timestamp of the message"]
+    path: Annotated[Path, "The path to the original message"]
+    tag: Annotated[str, "A tag for identifying the job in batch results"]
+    media_type: Annotated[str | None, "The type of media (e.g., 'image', 'video')"] = None
+    markdown: Annotated[str | None, "The enriched markdown content"] = None
+    cached: Annotated[bool, "Whether the result was retrieved from cache"] = False
+    upload_uri: Annotated[str | None, "The URI of the uploaded media file"] = None
+    mime_type: Annotated[str | None, "The MIME type of the media file"] = None
 
 
 def _ensure_datetime(value: Any) -> datetime:
@@ -71,11 +70,11 @@ def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
 
 
 def build_batch_requests(
-    records: list[dict[str, Any]],
-    model: str,
+    records: Annotated[list[dict[str, Any]], "A list of prompt records to be converted"],
+    model: Annotated[str, "The name of the model to use for the requests"],
     *,
-    include_file: bool = False,
-) -> list[BatchPromptRequest]:
+    include_file: Annotated[bool, "Whether to include file data in the requests"] = False,
+) -> Annotated[list[BatchPromptRequest], "A list of BatchPromptRequest objects"]:
     """Convert prompt records into ``BatchPromptRequest`` objects."""
 
     requests: list[BatchPromptRequest] = []
@@ -109,8 +108,11 @@ def build_batch_requests(
 
 
 def map_batch_results(
-    responses: list[BatchPromptResult],
-) -> dict[str | None, BatchPromptResult]:
+    responses: Annotated[list[BatchPromptResult], "A list of BatchPromptResult objects"],
+) -> Annotated[
+    dict[str | None, BatchPromptResult],
+    "A mapping from result tag to the BatchPromptResult",
+]:
     """Return a mapping from result tag to the ``BatchPromptResult``."""
 
     return {result.tag: result for result in responses}

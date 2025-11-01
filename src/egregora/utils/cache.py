@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import diskcache
 
@@ -17,10 +17,12 @@ ENRICHMENT_CACHE_VERSION = "v1"
 
 def make_enrichment_cache_key(
     *,
-    kind: str,
-    identifier: str,
-    version: str = ENRICHMENT_CACHE_VERSION,
-) -> str:
+    kind: Annotated[str, "The type of enrichment, e.g., 'url' or 'media'"],
+    identifier: Annotated[str, "A unique identifier for the content being enriched"],
+    version: Annotated[
+        str, "A version string to invalidate caches when the format changes"
+    ] = ENRICHMENT_CACHE_VERSION,
+) -> Annotated[str, "A stable, unique cache key"]:
     """
     Create a stable cache key using the enrichment type and identifier.
 
@@ -49,7 +51,9 @@ class EnrichmentCache:
         self._cache = diskcache.Cache(str(base_dir))
         self.directory = base_dir
 
-    def load(self, key: str) -> dict[str, Any] | None:
+    def load(
+        self, key: Annotated[str, "The cache key to look up"]
+    ) -> Annotated[dict[str, Any] | None, "The cached payload, or None if not found"]:
         """Return cached payload when present."""
         if self._cache is None:
             return None
@@ -62,14 +66,18 @@ class EnrichmentCache:
             return None
         return value
 
-    def store(self, key: str, payload: dict[str, Any]) -> None:
+    def store(
+        self,
+        key: Annotated[str, "The cache key to store the payload under"],
+        payload: Annotated[dict[str, Any], "The payload to store"],
+    ) -> None:
         """Persist enrichment payload."""
         if self._cache is None:
             raise RuntimeError("Cache not initialised")
         self._cache.set(key, payload, expire=None)
         logger.debug("Cached enrichment entry for key %s", key)
 
-    def delete(self, key: str) -> None:
+    def delete(self, key: Annotated[str, "The cache key to delete"]) -> None:
         """Remove an entry from the cache if present."""
         try:
             if self._cache is not None:

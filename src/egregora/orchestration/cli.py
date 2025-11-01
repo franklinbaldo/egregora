@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib
+import json
 import logging
 import os
 import random
@@ -15,18 +16,34 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
+from ..augmentation.enrichment import enrich_table, extract_and_replace_media
+from ..augmentation.profiler import get_active_authors
 from ..config import (
     ModelConfig,
     ProcessConfig,
     RankingCliConfig,
     find_mkdocs_file,
+    load_mkdocs_config,
     load_site_config,
     resolve_site_paths,
 )
+from ..core.models import WhatsAppExport
+from ..core.types import GroupSlug
 from ..generation.editor import run_editor_session
+from ..generation.writer import write_posts_for_period
+from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
+from ..generation.writer.formatting import (
+    _build_conversation_markdown,
+    _load_freeform_memory,
+)
+from ..ingestion.parser import parse_export
 from ..publication.site import ensure_mkdocs_project
+from ..utils.cache import EnrichmentCache
+from ..utils.gemini_dispatcher import GeminiDispatcher
+from .database import duckdb_backend
 from .logging_setup import configure_logging, console
-from .pipeline import process_whatsapp_export
+from .pipeline import discover_chat_file, group_by_period, process_whatsapp_export
+from .serialization import load_table, save_table
 
 app = typer.Typer(
     name="egregora",
@@ -635,16 +652,6 @@ def parse(
 
     Output CSV contains: timestamp, date, time, author, message, group_slug, group_name
     """
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    from ..core.models import WhatsAppExport
-    from ..core.types import GroupSlug
-    from ..ingestion.parser import parse_export
-    from .database import duckdb_backend
-    from .pipeline import discover_chat_file
-    from .serialization import save_table
-
     # Validate inputs
     zip_path = zip_file.resolve()
     if not zip_path.exists():
@@ -694,7 +701,7 @@ def parse(
 
 
 @app.command()
-def group(
+def group(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
     output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path(
@@ -718,12 +725,6 @@ def group(
 
     Output files are named: {period_key}.csv (e.g., 2025-01-15.csv, 2025-W03.csv)
     """
-    from datetime import datetime
-
-    from .database import duckdb_backend
-    from .pipeline import group_by_period
-    from .serialization import load_table, save_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -804,7 +805,7 @@ def group(
 
 
 @app.command()
-def enrich(  # noqa: PLR0913
+def enrich(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
     output: Annotated[Path, typer.Option(help="Output enriched CSV file")],
@@ -832,15 +833,6 @@ def enrich(  # noqa: PLR0913
 
     Requires GOOGLE_API_KEY environment variable or --gemini-key flag.
     """
-    from google import genai
-
-    from ..augmentation.enrichment import enrich_table, extract_and_replace_media
-    from ..config import ModelConfig, load_site_config, resolve_site_paths
-    from ..utils.cache import EnrichmentCache
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table, save_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -941,7 +933,7 @@ def enrich(  # noqa: PLR0913
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913
+def gather_context(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -975,17 +967,6 @@ def gather_context(  # noqa: PLR0913
 
     The JSON output can be inspected and reused for multiple generation runs.
     """
-    import json
-
-    from google import genai
-
-    from ..augmentation.profiler import get_active_authors
-    from ..config import ModelConfig, load_mkdocs_config, load_site_config, resolve_site_paths
-    from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
-    from ..generation.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table
 
     # Validate inputs
     input_path = input_csv.resolve()
@@ -1095,7 +1076,7 @@ def gather_context(  # noqa: PLR0913
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913
+def write_posts(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1133,15 +1114,6 @@ def write_posts(  # noqa: PLR0913
 
     The LLM has full editorial control via function calling.
     """
-    import json
-
-    from google import genai
-
-    from ..config import ModelConfig, load_site_config, resolve_site_paths
-    from ..generation.writer import write_posts_for_period
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table
 
     # Validate inputs
     input_path = input_csv.resolve()
@@ -1230,7 +1202,7 @@ def write_posts(  # noqa: PLR0913
                 console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
+                if posts_count > 5:  # noqa: PLR2004
                     console.print(f"  ... and {posts_count - 5} more")
 
     finally:

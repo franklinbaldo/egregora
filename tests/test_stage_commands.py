@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
@@ -403,8 +404,6 @@ class TestSerializationFormats:
         assert result.exit_code == 0
         assert output_parquet.exists()
         # Verify it's a valid Parquet file
-        import pandas as pd
-
         df = pd.read_parquet(output_parquet)
         assert len(df) > 0
         assert "message" in df.columns
