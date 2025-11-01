@@ -62,8 +62,10 @@ def initialize_ratings(posts_dir: Path, rankings_dir: Path) -> RankingStore:
     Returns:
         RankingStore instance
     """
-    # Find all markdown posts
-    post_files = list(posts_dir.glob("*.md"))
+    # Find all markdown posts (including nested directories like .posts)
+    post_files = sorted(
+        p for p in posts_dir.rglob("*.md") if p.is_file()
+    )
 
     if not post_files:
         raise ValueError(f"No posts found in {posts_dir}")
