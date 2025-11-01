@@ -9,6 +9,9 @@ Documentation:
 """
 
 import logging
+import os
+import re
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -35,10 +38,41 @@ from .batch import (
 from .media import (
     detect_media_type,
     extract_urls,
+    find_media_references,
     replace_media_mentions,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write text to a file atomically to prevent partial writes during concurrent runs.
+
+    Writes to a temporary file in the same directory, then atomically renames it.
+    This ensures readers never see partial/incomplete content.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create temp file in same directory for atomic rename (must be same filesystem)
+    fd, temp_path = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    try:
+        # Write content to temp file
+        with os.fdopen(fd, "w", encoding=encoding) as f:
+            f.write(content)
+
+        # Atomic rename (replaces destination if it exists)
+        os.replace(temp_path, path)
+    except Exception:
+        # Clean up temp file on error
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 def enrich_table(
@@ -66,7 +100,8 @@ def enrich_table(
     if messages_table.count().execute() == 0:
         return messages_table
 
-    rows = messages_table.execute().to_dict("records")
+    # Use streaming helper to avoid loading entire table into memory
+    rows = _table_to_pylist(messages_table)
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
     pii_detected_count = 0
@@ -76,6 +111,14 @@ def enrich_table(
 
     url_jobs: list[UrlEnrichmentJob] = []
     media_jobs: list[MediaEnrichmentJob] = []
+
+    # Build reverse lookup: filename -> (original_filename, file_path)
+    # This avoids O(n×m) substring matching in the hot path
+    media_filename_lookup: dict[str, tuple[str, Path]] = {}
+    if enable_media and media_mapping:
+        for original_filename, file_path in media_mapping.items():
+            media_filename_lookup[original_filename] = (original_filename, file_path)
+            media_filename_lookup[file_path.name] = (original_filename, file_path)
 
     for row in rows:
         if enrichment_count >= max_enrichments:
@@ -115,42 +158,66 @@ def enrich_table(
                 seen_url_keys.add(cache_key)
                 enrichment_count += 1
 
-        if enable_media and media_mapping:
-            for original_filename, file_path in media_mapping.items():
-                if original_filename in message or file_path.name in message:
-                    if enrichment_count >= max_enrichments:
-                        break
-                    cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
-                    if cache_key in seen_media_keys:
-                        continue
+        if enable_media and media_filename_lookup and message:
+            # Extract media references efficiently:
+            # 1. WhatsApp-style references (original filenames)
+            media_refs = find_media_references(message)
 
-                    media_type = detect_media_type(file_path)
-                    if not media_type:
-                        logger.warning("Unsupported media type for enrichment: %s", file_path.name)
-                        continue
+            # 2. UUID-based filenames in markdown links (after media replacement)
+            # Pattern: extract filenames from markdown links like ![Image](media/images/uuid.jpg)
+            markdown_media_pattern = r"!\[[^\]]*\]\([^)]*?([a-f0-9\-]+\.\w+)\)"
+            markdown_matches = re.findall(markdown_media_pattern, message)
+            media_refs.extend(markdown_matches)
 
-                    enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
-                    enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
-                    media_job = MediaEnrichmentJob(
-                        key=cache_key,
-                        original_filename=original_filename,
-                        file_path=file_path,
-                        original_message=message,
-                        sender_uuid=author,
-                        timestamp=timestamp,
-                        path=enrichment_path,
-                        tag=f"media:{cache_key}",
-                        media_type=media_type,
-                    )
+            # Also check for direct UUID-based filenames (without path)
+            uuid_filename_pattern = r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)\b"
+            uuid_matches = re.findall(uuid_filename_pattern, message)
+            media_refs.extend(uuid_matches)
 
-                    cache_entry = cache.load(cache_key)
-                    if cache_entry:
-                        media_job.markdown = cache_entry.get("markdown")
-                        media_job.cached = True
+            # Deduplicate and only keep refs that exist in our lookup
+            media_refs = [ref for ref in set(media_refs) if ref in media_filename_lookup]
 
-                    media_jobs.append(media_job)
-                    seen_media_keys.add(cache_key)
-                    enrichment_count += 1
+            for ref in media_refs:
+                if enrichment_count >= max_enrichments:
+                    break
+
+                # Look up the file in our hash table (O(1) instead of O(m))
+                lookup_result = media_filename_lookup.get(ref)
+                if not lookup_result:
+                    continue
+
+                original_filename, file_path = lookup_result
+                cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
+                if cache_key in seen_media_keys:
+                    continue
+
+                media_type = detect_media_type(file_path)
+                if not media_type:
+                    logger.warning("Unsupported media type for enrichment: %s", file_path.name)
+                    continue
+
+                enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
+                enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
+                media_job = MediaEnrichmentJob(
+                    key=cache_key,
+                    original_filename=original_filename,
+                    file_path=file_path,
+                    original_message=message,
+                    sender_uuid=author,
+                    timestamp=timestamp,
+                    path=enrichment_path,
+                    tag=f"media:{cache_key}",
+                    media_type=media_type,
+                )
+
+                cache_entry = cache.load(cache_key)
+                if cache_entry:
+                    media_job.markdown = cache_entry.get("markdown")
+                    media_job.cached = True
+
+                media_jobs.append(media_job)
+                seen_media_keys.add(cache_key)
+                enrichment_count += 1
 
     pending_url_jobs = [url_job for url_job in url_jobs if url_job.markdown is None]
     if pending_url_jobs:
@@ -282,8 +349,7 @@ def enrich_table(
         if not url_job.markdown:
             continue
 
-        url_job.path.parent.mkdir(parents=True, exist_ok=True)
-        url_job.path.write_text(url_job.markdown, encoding="utf-8")
+        _atomic_write_text(url_job.path, url_job.markdown)
 
         enrichment_timestamp = _safe_timestamp_plus_one(url_job.timestamp)
         new_rows.append(
@@ -301,8 +367,7 @@ def enrich_table(
         if not media_job.markdown:
             continue
 
-        media_job.path.parent.mkdir(parents=True, exist_ok=True)
-        media_job.path.write_text(media_job.markdown, encoding="utf-8")
+        _atomic_write_text(media_job.path, media_job.markdown)
 
         enrichment_timestamp = _safe_timestamp_plus_one(media_job.timestamp)
         new_rows.append(

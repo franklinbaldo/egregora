@@ -1,0 +1,115 @@
+name: TENET-BREAK Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'claude/**'
+      - 'feature/**'
+      - 'fix/**'
+  push:
+    branches:
+      - main
+      - 'claude/**'
+      - 'feature/**'
+      - 'fix/**'
+
+jobs:
+  tenet-break-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Check TENET-BREAK required fields
+        run: |
+          echo "Checking TENET-BREAK entries for required fields..."
+
+          # Find all TENET-BREAK entries
+          if ! rg -n 'TENET-BREAK' > /tmp/tenet_breaks.txt 2>&1; then
+            echo "✅ No TENET-BREAK entries found"
+            exit 0
+          fi
+
+          # Check that all entries have required fields:
+          # - tenet=(no-compat|clean|no-defensive|propagate-errors)
+          # - why=...
+          # - exit=...
+          # - due:YYYY-MM-DD
+          # - #<reference>
+
+          invalid_entries=0
+          while IFS= read -r line; do
+            # Skip if line matches the complete pattern
+            if echo "$line" | grep -qE 'tenet=(no-compat|clean|no-defensive|propagate-errors).*why=.*exit=.*due:[0-9]{4}-[0-9]{2}-[0-9]{2}.*#[0-9]+'; then
+              continue
+            fi
+
+            # This line is missing required fields
+            echo "❌ Invalid TENET-BREAK (missing required fields): $line"
+            invalid_entries=$((invalid_entries + 1))
+          done < /tmp/tenet_breaks.txt
+
+          if [ $invalid_entries -gt 0 ]; then
+            echo ""
+            echo "TENET-BREAK entries must include:"
+            echo "  - tenet=(no-compat|clean|no-defensive|propagate-errors)"
+            echo "  - why=<reason>"
+            echo "  - exit=<condition>"
+            echo "  - due:YYYY-MM-DD"
+            echo "  - #<issue_number>"
+            echo ""
+            echo "Example:"
+            echo '  # TENET-BREAK(scope)[@owner][P1][due:2025-12-01]:'
+            echo '  # tenet=no-compat; why=partner still on v1; exit=partner migrates (#742)'
+            exit 1
+          fi
+
+          echo "✅ All TENET-BREAK entries have required fields"
+
+      - name: Check for overdue TENET-BREAK entries
+        run: |
+          echo "Checking for overdue TENET-BREAK entries..."
+
+          python3 - <<'PY'
+          import re
+          import sys
+          import datetime
+          import pathlib
+
+          today = datetime.date.today()
+          bad = []
+
+          for path in pathlib.Path(".").rglob("*"):
+              # Skip binary/media files
+              if path.is_file() and path.suffix not in {".png", ".jpg", ".jpeg", ".pdf", ".bin", ".pyc", ".so", ".dylib", ".git"}:
+                  try:
+                      content = path.read_text(errors="ignore")
+                  except Exception:
+                      continue
+
+                  for idx, line in enumerate(content.splitlines(), 1):
+                      if "TENET-BREAK" in line:
+                          match = re.search(r"due:(\d{4})-(\d{2})-(\d{2})", line)
+                          if match:
+                              due_date = datetime.date(*map(int, match.groups()))
+                              if due_date < today:
+                                  bad.append(f"{path}:{idx}: overdue TENET-BREAK (due {due_date}) -> {line.strip()}")
+
+          if bad:
+              print("❌ Found overdue TENET-BREAK entries:\n")
+              print("\n".join(bad))
+              print("\n")
+              print("TENET-BREAK entries with past due dates must be:")
+              print("  1. Fixed/removed if the exit condition was met")
+              print("  2. Updated with a new due date if still blocked")
+              print("  3. Escalated if the breach is becoming permanent")
+              sys.exit(1)
+
+          print("✅ No overdue TENET-BREAK entries found")
+          PY

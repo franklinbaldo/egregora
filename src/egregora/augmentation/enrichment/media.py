@@ -244,12 +244,18 @@ def extract_and_replace_media(
         - Updated Table with new media paths
         - Media mapping (original → extracted path)
     """
-    # Step 1: Find all media references
+    # Step 1: Find all media references using batched iteration to avoid memory pressure
     all_media = set()
-    for row in messages_table.execute().to_dict("records"):
-        message = row.get("message", "")
-        media_refs = find_media_references(message)
-        all_media.update(media_refs)
+    batch_size = 1000
+    count = messages_table.count().execute()
+
+    for offset in range(0, count, batch_size):
+        batch = messages_table.limit(batch_size, offset=offset).execute()
+        batch_records = batch.to_dict("records")
+        for row in batch_records:
+            message = row.get("message", "")
+            media_refs = find_media_references(message)
+            all_media.update(media_refs)
 
     # Step 2: Extract from ZIP
     media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir, group_slug)

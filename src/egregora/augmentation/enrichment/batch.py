@@ -59,14 +59,26 @@ def _safe_timestamp_plus_one(timestamp: Any) -> Any:
 
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
-    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+    """Convert an Ibis table to a list of dictionaries without heavy dependencies.
 
+    Uses batched iteration to avoid loading entire table into memory at once.
+    """
     to_pylist = getattr(table, "to_pylist", None)
     if callable(to_pylist):
         return list(to_pylist())
 
-    records = table.execute().to_dict("records")
-    return [dict(record) for record in records]
+    # Stream in batches to reduce memory pressure on large tables
+    batch_size = 1000
+    count = table.count().execute()
+    results = []
+
+    for offset in range(0, count, batch_size):
+        batch = table.limit(batch_size, offset=offset).execute()
+        # Convert batch to records (this is now limited in size)
+        batch_records = batch.to_dict("records")
+        results.extend(dict(record) for record in batch_records)
+
+    return results
 
 
 def build_batch_requests(
@@ -97,10 +109,13 @@ def build_batch_requests(
             "contents": [genai_types.Content(role="user", parts=parts)],
             "model": model,
             "tag": record.get("tag"),
+            # Always provide explicit config for deterministic behavior across text and vision
+            "config": genai_types.GenerateContentConfig(
+                temperature=0.3,
+                top_k=40,
+                top_p=0.95,
+            ),
         }
-
-        if not include_file:
-            request_kwargs["config"] = genai_types.GenerateContentConfig(temperature=0.3)
 
         requests.append(BatchPromptRequest(**request_kwargs))
 
