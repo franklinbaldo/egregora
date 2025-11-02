@@ -21,6 +21,7 @@ from ibis.expr.types import Table
 
 from ...config import ModelConfig
 from ...core.database_schema import CONVERSATION_SCHEMA
+from ...core.schema import ensure_message_schema
 from ...prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
@@ -411,13 +412,9 @@ def enrich_table(
     normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
 
-    # Filter messages_table to only include columns from CONVERSATION_SCHEMA
-    messages_table_filtered = messages_table.select(*schema.names)
-
-    # Ensure timestamp column is in UTC to match CONVERSATION_SCHEMA
-    messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
-    )
+    # Use canonical ensure_message_schema to normalize timezone and enforce schema
+    # This replaces manual cast("timestamp('UTC', 9)") with the single source of truth
+    messages_table_filtered = ensure_message_schema(messages_table, timezone='UTC')
 
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
