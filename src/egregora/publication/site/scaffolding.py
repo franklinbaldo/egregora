@@ -146,5 +146,29 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         content = template.render(**context)
         media_index_path.write_text(content, encoding="utf-8")
 
+    # Create .github/workflows directory for GitHub Actions
+    github_workflows_dir = site_paths.site_root / ".github" / "workflows"
+    github_workflows_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create auto-update workflow
+    workflow_path = github_workflows_dir / "auto-update.yml"
+    if not workflow_path.exists():
+        template = env.get_template("github-workflow-auto-update.yml.jinja2")
+        content = template.render(**context)
+        workflow_path.write_text(content, encoding="utf-8")
+
+    # Create .github/scripts directory for helper scripts
+    github_scripts_dir = site_paths.site_root / ".github" / "scripts"
+    github_scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create Google Drive download script
+    download_script_path = github_scripts_dir / "download-latest-export.py"
+    if not download_script_path.exists():
+        template = env.get_template("github-scripts-download-latest-export.py.jinja2")
+        content = template.render(**context)
+        download_script_path.write_text(content, encoding="utf-8")
+        # Make script executable
+        download_script_path.chmod(0o755)
+
 
 __all__ = ["ensure_mkdocs_project"]

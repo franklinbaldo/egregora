@@ -1,0 +1,160 @@
+name: Auto-Update Site from Google Drive
+
+on:
+  # Run daily at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: 'Force refresh (ignore cache)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-site:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install egregora and dependencies
+        run: |
+          pip install uv
+          uv pip install --system egregora google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Set up Google Drive credentials
+        env:
+          GOOGLE_CREDENTIALS: {% raw %}${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}{% endraw %}
+        run: |
+          echo "$GOOGLE_CREDENTIALS" > /tmp/gdrive-credentials.json
+          chmod 600 /tmp/gdrive-credentials.json
+
+      - name: Download latest WhatsApp export from Google Drive
+        env:
+          GDRIVE_FOLDER_ID: {% raw %}${{ secrets.GDRIVE_FOLDER_ID }}{% endraw %}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gdrive-credentials.json
+        run: |
+          python .github/scripts/download-latest-export.py \
+            --folder-id "$GDRIVE_FOLDER_ID" \
+            --output /tmp/latest-export.zip
+
+      - name: Check if new export exists
+        id: check-export
+        run: |
+          if [ -f /tmp/latest-export.zip ]; then
+            echo "export_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Found new WhatsApp export"
+
+            # Get file hash to check if it's different from last run
+            export_hash=$(sha256sum /tmp/latest-export.zip | cut -d' ' -f1)
+            echo "export_hash=$export_hash" >> $GITHUB_OUTPUT
+
+            # Check if we've processed this exact file before
+            if [ -f .last-export-hash ]; then
+              last_hash=$(cat .last-export-hash)
+              if [ "$export_hash" = "$last_hash" ]; then
+                echo "skip_processing=true" >> $GITHUB_OUTPUT
+                echo "ℹ️  Export unchanged since last run, skipping"
+              else
+                echo "skip_processing=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "skip_processing=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "export_exists=false" >> $GITHUB_OUTPUT
+            echo "❌ No export found in Google Drive folder"
+            exit 1
+          fi
+
+      - name: Process WhatsApp export
+        if: steps.check-export.outputs.export_exists == 'true' && steps.check-export.outputs.skip_processing == 'false'
+        env:
+          GOOGLE_API_KEY: {% raw %}${{ secrets.GEMINI_API_KEY }}{% endraw %}
+        run: |
+          egregora process /tmp/latest-export.zip \
+            --output . \
+            --timezone 'UTC' \
+            {% raw %}${{ github.event.inputs.force_refresh == 'true' && '--force-refresh' || '' }}{% endraw %}
+
+      - name: Save export hash
+        if: steps.check-export.outputs.export_exists == 'true' && steps.check-export.outputs.skip_processing == 'false'
+        run: |
+          echo {% raw %}"${{ steps.check-export.outputs.export_hash }}"{% endraw %} > .last-export-hash
+
+      - name: Commit and push changes
+        if: steps.check-export.outputs.export_exists == 'true' && steps.check-export.outputs.skip_processing == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add generated content
+          git add docs/ .last-export-hash
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit"
+            exit 0
+          fi
+
+          # Commit with details
+          export_date=$(date -u +"%Y-%m-%d %H:%M UTC")
+          git commit -m "chore: Auto-update site from WhatsApp export
+
+Updated: $export_date
+Export hash: {% raw %}${{ steps.check-export.outputs.export_hash }}{% endraw %}
+Triggered by: {% raw %}${{ github.event_name }}{% endraw %}
+
+🤖 Automated update via GitHub Actions"
+
+          git push
+
+      - name: Deploy to GitHub Pages
+        if: steps.check-export.outputs.export_exists == 'true' && steps.check-export.outputs.skip_processing == 'false'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy updated site from {% raw %}${{ steps.check-export.outputs.export_hash }}{% endraw %}'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/gdrive-credentials.json
+          rm -f /tmp/latest-export.zip
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Auto-Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "{% raw %}${{ steps.check-export.outputs.export_exists }}{% endraw %}" = "true" ]; then
+            if [ "{% raw %}${{ steps.check-export.outputs.skip_processing }}{% endraw %}" = "true" ]; then
+              echo "✅ Export found but unchanged - no update needed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ Site updated successfully" >> $GITHUB_STEP_SUMMARY
+              echo "- Export hash: \`{% raw %}${{ steps.check-export.outputs.export_hash }}{% endraw %}\`" >> $GITHUB_STEP_SUMMARY
+              echo "- Deployed to GitHub Pages" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ No export found in Google Drive" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Download the latest WhatsApp export ZIP from a Google Drive folder.
+
+This script is used by the auto-update GitHub Actions workflow to fetch
+the most recent WhatsApp export for processing.
+
+Requirements:
+    - google-auth
+    - google-auth-oauthlib
+    - google-api-python-client
+
+Environment:
+    GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON key file
+
+Usage:
+    python download-latest-export.py --folder-id FOLDER_ID --output OUTPUT_PATH
+"""
+
+import argparse
+import logging
+import sys
+from pathlib import Path
+
+from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# Google Drive API scopes
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+
+def get_drive_service(credentials_path: str):
+    """Create and return a Google Drive service object."""
+    try:
+        credentials = service_account.Credentials.from_service_account_file(
+            credentials_path,
+            scopes=SCOPES
+        )
+        service = build('drive', 'v3', credentials=credentials)
+        return service
+    except Exception as e:
+        logger.error(f"Failed to authenticate with Google Drive: {e}")
+        raise
+
+
+def find_latest_zip(service, folder_id: str) -> dict | None:
+    """Find the most recently created ZIP file in the specified folder.
+
+    Args:
+        service: Google Drive API service object
+        folder_id: ID of the Google Drive folder to search
+
+    Returns:
+        File metadata dict with 'id', 'name', 'createdTime', or None if no ZIPs found
+    """
+    try:
+        # Query for ZIP files in the folder, sorted by creation time (newest first)
+        query = f"'{folder_id}' in parents and mimeType='application/zip' and trashed=false"
+
+        logger.info(f"Searching for ZIP files in folder {folder_id}...")
+
+        results = service.files().list(
+            q=query,
+            orderBy='createdTime desc',
+            pageSize=10,
+            fields="files(id, name, createdTime, size)"
+        ).execute()
+
+        files = results.get('files', [])
+
+        if not files:
+            logger.warning("No ZIP files found in the specified folder")
+            return None
+
+        # Get the newest file
+        latest_file = files[0]
+        logger.info(f"Found {len(files)} ZIP file(s), latest: {latest_file['name']}")
+        logger.info(f"  Created: {latest_file['createdTime']}")
+        logger.info(f"  Size: {int(latest_file.get('size', 0)) / 1024 / 1024:.2f} MB")
+
+        return latest_file
+
+    except Exception as e:
+        logger.error(f"Error searching for files: {e}")
+        raise
+
+
+def download_file(service, file_id: str, file_name: str, output_path: Path) -> None:
+    """Download a file from Google Drive.
+
+    Args:
+        service: Google Drive API service object
+        file_id: ID of the file to download
+        file_name: Name of the file (for logging)
+        output_path: Path where the file should be saved
+    """
+    try:
+        logger.info(f"Downloading {file_name} to {output_path}...")
+
+        request = service.files().get_media(fileId=file_id)
+
+        # Download in chunks
+        with output_path.open('wb') as fh:
+            downloader = MediaIoBaseDownload(fh, request, chunksize=1024*1024)  # 1MB chunks
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+                if status:
+                    progress = int(status.progress() * 100)
+                    logger.info(f"  Download progress: {progress}%")
+
+        logger.info(f"✅ Successfully downloaded to {output_path}")
+
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download the latest WhatsApp export ZIP from Google Drive"
+    )
+    parser.add_argument(
+        '--folder-id',
+        required=True,
+        help='Google Drive folder ID containing WhatsApp exports'
+    )
+    parser.add_argument(
+        '--output',
+        type=Path,
+        required=True,
+        help='Output path for the downloaded ZIP file'
+    )
+    parser.add_argument(
+        '--credentials',
+        type=Path,
+        default=None,
+        help='Path to service account credentials JSON (default: from GOOGLE_APPLICATION_CREDENTIALS env var)'
+    )
+
+    args = parser.parse_args()
+
+    # Determine credentials path
+    if args.credentials:
+        credentials_path = args.credentials
+    else:
+        import os
+        credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if not credentials_path:
+            logger.error("No credentials provided. Use --credentials or set GOOGLE_APPLICATION_CREDENTIALS")
+            sys.exit(1)
+
+    if not Path(credentials_path).exists():
+        logger.error(f"Credentials file not found: {credentials_path}")
+        sys.exit(1)
+
+    try:
+        # Authenticate and create service
+        service = get_drive_service(credentials_path)
+
+        # Find latest ZIP
+        latest_file = find_latest_zip(service, args.folder_id)
+
+        if not latest_file:
+            logger.error("No ZIP files found in the specified folder")
+            sys.exit(1)
+
+        # Download the file
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        download_file(service, latest_file['id'], latest_file['name'], args.output)
+
+        logger.info(f"✅ Download complete!")
+
+    except Exception as e:
+        logger.error(f"Failed to download latest export: {e}")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

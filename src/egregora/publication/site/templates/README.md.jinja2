@@ -66,10 +66,67 @@ Edit `mkdocs.yml` to customize:
   - RAG configuration
   - Profile settings
 
+## 🤖 Automated Updates (GitHub Actions)
+
+This site includes a GitHub Actions workflow that automatically updates content from Google Drive.
+
+### Setup Instructions
+
+1. **Create a Google Cloud Service Account**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the Google Drive API
+   - Create a Service Account with Drive read access
+   - Download the JSON credentials file
+
+2. **Share your Google Drive folder with the Service Account**
+   - Create a folder in Google Drive for your WhatsApp exports
+   - Share the folder with the service account email (found in the JSON file)
+   - Give it "Viewer" access
+   - Copy the folder ID from the folder URL: `https://drive.google.com/drive/folders/FOLDER_ID_HERE`
+
+3. **Add GitHub Secrets**
+
+   Go to your GitHub repository → Settings → Secrets → Actions, and add:
+
+   - `GOOGLE_DRIVE_CREDENTIALS`: Paste the entire contents of your service account JSON file
+   - `GEMINI_API_KEY`: Your Google Gemini API key from [AI Studio](https://aistudio.google.com/apikey)
+   - `GDRIVE_FOLDER_ID`: The folder ID from step 2
+
+4. **Workflow Behavior**
+
+   The workflow (`.github/workflows/auto-update.yml`):
+   - Runs daily at 2 AM UTC (customizable)
+   - Can be triggered manually from Actions tab
+   - Downloads the newest ZIP file from your Google Drive folder
+   - Skips processing if the file hasn't changed (uses hash tracking)
+   - Processes the export with egregora
+   - Commits and deploys to GitHub Pages
+
+5. **Manual Trigger**
+
+   ```bash
+   # Via GitHub CLI
+   gh workflow run auto-update.yml
+
+   # Or go to Actions → Auto-Update Site → Run workflow
+   ```
+
+### Files Structure
+
+```
+.github/
+├── workflows/
+│   └── auto-update.yml              # Main workflow
+└── scripts/
+    └── download-latest-export.py    # Google Drive downloader
+```
+
 ## 📖 Documentation
 
 - [Egregora v2 Documentation](https://github.com/franklinbaldo/egregora)
 - [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
 ---
 
