@@ -132,13 +132,15 @@ def _iter_table_record_batches(
     ordered_table = table.order_by(fallback_ordering)
     window = ibis.window(order_by=fallback_ordering)
     numbered = ordered_table.mutate(
-        _batch_row_number=ibis.row_number().over(window)
+        # DuckDB's ``row_number`` starts at 1, so convert to a 0-based index to ensure
+        # consistent batching semantics across backends. Subtracting one here avoids
+        # off-by-one bugs when filtering each batch range below.
+        _batch_row_number=ibis.row_number().over(window) - 1
     )
     row_number = numbered._batch_row_number
 
-    # Fix off-by-one bug: row_number() is 0-based in DuckDB, use >= and < for proper coverage
-    # For start=0, upper=1000: row_number >= 0 AND row_number < 1000 gets rows 0-999 (1000 rows)
-    # For start=1000, upper=2000: row_number >= 1000 AND row_number < 2000 gets rows 1000-1999 (1000 rows)
+    # With 0-based numbering, ``start`` and ``upper`` now align with Python slicing
+    # semantics, ensuring every row is yielded exactly once across all batches.
     for start in range(0, count, batch_size):
         upper = start + batch_size
         batch_expr = numbered.filter(
