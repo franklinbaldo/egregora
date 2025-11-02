@@ -1,11 +1,12 @@
 """
 A recorder for Gemini API calls to generate golden test fixtures.
 """
+
 import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
@@ -55,6 +56,7 @@ class GeminiClientRecorder:
     @property
     def models(self):
         """Provide access to models with recording."""
+
         # Return a wrapper that records generate_content calls
         class ModelsWrapper:
             def __init__(self, client, recorder):
@@ -65,9 +67,11 @@ class GeminiClientRecorder:
                 response = self._client.models.generate_content(**kwargs)
                 # Convert response to dict
                 response_dict = {
-                    "text": response.text if hasattr(response, 'text') else str(response),
-                    "candidates": [c.to_dict() if hasattr(c, 'to_dict') else str(c)
-                                   for c in (response.candidates if hasattr(response, 'candidates') else [])]
+                    "text": response.text if hasattr(response, "text") else str(response),
+                    "candidates": [
+                        c.to_dict() if hasattr(c, "to_dict") else str(c)
+                        for c in (response.candidates if hasattr(response, "candidates") else [])
+                    ],
                 }
                 self._recorder._record_request("generation", kwargs, response_dict)
                 return response
@@ -85,8 +89,8 @@ class GeminiClientRecorder:
         request_data = {"path": str(path), **kwargs}
         # Convert File object to dict
         response_dict = {
-            "name": response.name if hasattr(response, 'name') else str(response),
-            "uri": response.uri if hasattr(response, 'uri') else None,
+            "name": response.name if hasattr(response, "name") else str(response),
+            "uri": response.uri if hasattr(response, "uri") else None,
         }
         self._record_request("files", request_data, response_dict)
         return response
@@ -94,20 +98,23 @@ class GeminiClientRecorder:
     @property
     def files(self):
         """Provide access to files API with recording."""
+
         class FilesWrapper:
             def __init__(self, client, recorder):
                 self._client = client
                 self._recorder = recorder
 
             def upload(self, **kwargs):
-                return self._recorder.upload_file(**kwargs.get('file', kwargs.get('path', '')), **kwargs)
+                return self._recorder.upload_file(
+                    **kwargs.get("file", kwargs.get("path", "")), **kwargs
+                )
 
             def __getattr__(self, name):
                 return getattr(self._client.files, name)
 
         return FilesWrapper(self._client, self)
 
-    def _record_request(self, category: str, request_data: Dict, response_data: Dict):
+    def _record_request(self, category: str, request_data: dict, response_data: dict):
         """
         Saves the request and response data to a file.
         """
@@ -132,26 +139,28 @@ class GeminiClientRecorder:
 
         try:
             with open(filepath, "w") as f:
-                json.dump(fixture_data, f, indent=2, default=str) # Use default=str for any other non-serializable types
+                json.dump(
+                    fixture_data, f, indent=2, default=str
+                )  # Use default=str for any other non-serializable types
             logger.info(f"Recorded {category} to {filepath.name}")
         except Exception as e:
             logger.error(f"Failed to record {category} to {filepath.name}: {e}")
 
-    def _prepare_request_for_hashing(self, request_data: Dict) -> Dict:
+    def _prepare_request_for_hashing(self, request_data: dict) -> dict:
         """Creates a deep copy of the request and makes it JSON serializable."""
+
         # Create a deep copy to avoid modifying the original request object
         def _convert_to_dict(obj):
-            if hasattr(obj, 'to_dict'):
+            if hasattr(obj, "to_dict"):
                 return obj.to_dict()
-            elif hasattr(obj, '__dict__'):
+            elif hasattr(obj, "__dict__"):
                 return obj.__dict__
             return str(obj)
 
         data_copy = json.loads(json.dumps(request_data, default=_convert_to_dict))
         return data_copy
 
-
-    def _hash_request(self, request_data: Dict) -> str:
+    def _hash_request(self, request_data: dict) -> str:
         """
         Generates a SHA256 hash of the request data.
         """

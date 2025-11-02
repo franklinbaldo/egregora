@@ -5,14 +5,15 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
-from typing import Any
 
-from .elo import calculate_elo_update
+from ...config import resolve_site_paths
 from ...utils.genai import call_with_retries_sync
+from .elo import calculate_elo_update
 from .store import RankingStore
 
 console = Console()
@@ -93,9 +94,6 @@ COMMENT_POST_B_TOOL = genai_types.Tool(
         )
     ],
 )
-    
-    
-    
 
 
 def load_post_content(post_path: Path) -> str:
@@ -172,6 +170,40 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     return "\n".join(lines)
 
 
+def _find_post_path(posts_dir: Path, post_id: str) -> Path:
+    """Locate a post file within the MkDocs posts directory."""
+
+    candidates: list[Path] = []
+
+    search_dirs: list[Path] = []
+    if posts_dir.name == ".posts":
+        search_dirs.append(posts_dir)
+        search_dirs.append(posts_dir.parent)
+    else:
+        search_dirs.append(posts_dir / ".posts")
+        search_dirs.append(posts_dir)
+
+    for directory in search_dirs:
+        if not directory.exists():
+            continue
+
+        direct_candidate = directory / f"{post_id}.md"
+        candidates.append(direct_candidate)
+        if direct_candidate.exists():
+            return direct_candidate
+
+        matches = list(directory.rglob(f"{post_id}.md"))
+        candidates.extend(matches)
+        if matches:
+            if len(matches) > 1:
+                matches_str = ", ".join(str(match) for match in matches)
+                raise ValueError(f"Multiple posts found for {post_id}: {matches_str}")
+            return matches[0]
+
+    searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
+    raise ValueError(f"Post not found for id '{post_id}'. Looked in: {searched}")
+
+
 def save_comparison(  # noqa: PLR0913
     store: RankingStore,
     profile_id: str,
@@ -202,15 +234,11 @@ def save_comparison(  # noqa: PLR0913
 
 def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tuple[str, str]:
     """Load content for both posts."""
-    posts_dir = site_dir / "posts"
+    site_paths = resolve_site_paths(site_dir)
+    posts_dir = site_paths.posts_dir
 
-    post_a_path = posts_dir / f"{post_a_id}.md"
-    post_b_path = posts_dir / f"{post_b_id}.md"
-
-    if not post_a_path.exists():
-        raise ValueError(f"Post not found: {post_a_path}")
-    if not post_b_path.exists():
-        raise ValueError(f"Post not found: {post_b_path}")
+    post_a_path = _find_post_path(posts_dir, post_a_id)
+    post_b_path = _find_post_path(posts_dir, post_b_id)
 
     content_a = load_post_content(post_a_path)
     content_b = load_post_content(post_b_path)
@@ -218,7 +246,9 @@ def _load_comparison_posts(site_dir: Path, post_a_id: str, post_b_id: str) -> tu
     return content_a, content_b
 
 
-def _extract_tool_call_result(response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]) -> dict[str, Any] | None:
+def _extract_tool_call_result(
+    response: genai_types.GenerateContentResponse, tool_name: str, arg_names: list[str]
+) -> dict[str, Any] | None:
     """Extract tool call arguments from LLM response."""
     if not response.candidates:
         return None
@@ -228,7 +258,12 @@ def _extract_tool_call_result(response: genai_types.GenerateContentResponse, too
         return None
 
     for part in response.candidates[0].content.parts:
-        if hasattr(part, "function_call") and part.function_call and part.function_call.args and part.function_call.name == tool_name:
+        if (
+            hasattr(part, "function_call")
+            and part.function_call
+            and part.function_call.args
+            and part.function_call.name == tool_name
+        ):
             return {arg: part.function_call.args[arg] for arg in arg_names}
 
     return None

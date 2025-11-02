@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -74,7 +74,7 @@ def _load_freeform_memory(output_dir: Path) -> str:
 
 
 @lru_cache(maxsize=1)
-def _pandas_dataframe_type() -> Type[pd.DataFrame] | None:
+def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
     """Return the pandas DataFrame type when pandas is available."""
 
     try:
@@ -95,7 +95,7 @@ def _pandas_na_singleton() -> Any | None:
     return pandas_module.NA
 
 
-def _stringify_value(value: Any) -> str:
+def _stringify_value(value: Any) -> str:  # noqa: PLR0911
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
@@ -137,6 +137,8 @@ def _escape_table_cell(value: Any) -> str:
 def _compute_message_id(row: Any) -> str:
     """Derive a deterministic identifier for a conversation row.
 
+    Prefers stored message_id field if available, otherwise computes a hash.
+
     The helper accepts any object exposing ``get`` and ``items`` (for example,
     :class:`dict` as well as mapping-like table rows). Legacy helpers passed both ``(row_index, row)``
     positional arguments, but that form is no longer accepted because the index
@@ -145,9 +147,12 @@ def _compute_message_id(row: Any) -> str:
     """
 
     if not (hasattr(row, "get") and hasattr(row, "items")):
-        raise TypeError(
-            "_compute_message_id expects an object with mapping-style access"
-        )
+        raise TypeError("_compute_message_id expects an object with mapping-style access")
+
+    # Prefer stored message_id if available
+    stored_message_id = row.get("message_id")
+    if stored_message_id:
+        return _stringify_value(stored_message_id)
 
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
@@ -167,9 +172,7 @@ def _compute_message_id(row: Any) -> str:
         if fallback_pairs:
             parts.extend(fallback_pairs)
         else:
-            parts.append(
-                json.dumps(row, sort_keys=True, default=_stringify_value)
-            )
+            parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
 
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
@@ -189,11 +192,11 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
             else annotation.created_at.replace(tzinfo=UTC)
         )
         timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
-        parent_note = (
-            f" · parent #{annotation.parent_annotation_id}"
-            if getattr(annotation, "parent_annotation_id", None) is not None
-            else ""
-        )
+
+        parent_note = ""
+        if annotation.parent_type == "annotation":
+            parent_note = f" · parent #{annotation.parent_id}"
+
         commentary = _stringify_value(annotation.commentary)
         formatted_blocks.append(
             f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
@@ -217,16 +220,13 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
 
 
 def _table_to_records(
-    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]]
+    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Normalize heterogeneous tabular inputs into row dictionaries."""
 
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
-        columns = {
-            name: data.column(index).to_pylist()
-            for index, name in enumerate(column_names)
-        }
+        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
         records = [
             {name: columns[name][row_index] for name in column_names}
             for row_index in range(data.num_rows)
@@ -251,6 +251,36 @@ def _table_to_records(
     raise TypeError("Unsupported data source for markdown rendering")
 
 
+def _ensure_msg_id_column(
+    rows: list[dict[str, Any]], column_order: list[str]
+) -> list[str]:
+    """Ensure all rows have msg_id field and return updated column order.
+
+    Prefers stored message_id field, falls back to existing msg_id,
+    or computes hash-based IDs as last resort.
+    """
+    if "msg_id" not in column_order:
+        if "message_id" in column_order:
+            # Use the stored message_id as msg_id for display
+            for row in rows:
+                row["msg_id"] = _stringify_value(row.get("message_id"))
+        else:
+            # Fall back to computing hash-based IDs
+            msg_ids = [_compute_message_id(row) for row in rows]
+            for row, msg_id in zip(rows, msg_ids, strict=False):
+                row["msg_id"] = msg_id
+        return ["msg_id", *column_order]
+
+    # msg_id already in column order - normalize values
+    for row in rows:
+        existing_msg_id = row.get("msg_id")
+        if existing_msg_id:
+            row["msg_id"] = _stringify_value(existing_msg_id)
+        else:
+            row["msg_id"] = _stringify_value(row.get("message_id"))
+    return column_order
+
+
 def _build_conversation_markdown(
     data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
     annotations_store: AnnotationStore | None,
@@ -262,22 +292,14 @@ def _build_conversation_markdown(
         return ""
 
     rows = [dict(record) for record in records]
-
-    if "msg_id" not in column_order:
-        msg_ids = [_compute_message_id(row) for row in rows]
-        column_order = ["msg_id", *column_order]
-        for row, msg_id in zip(rows, msg_ids, strict=False):
-            row["msg_id"] = msg_id
-    else:
-        for row in rows:
-            row["msg_id"] = _stringify_value(row.get("msg_id"))
+    column_order = _ensure_msg_id_column(rows, column_order)
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
-                annotations_map[msg_id_value] = annotations_store.get_annotations_for_message(
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(
                     msg_id_value
                 )
 

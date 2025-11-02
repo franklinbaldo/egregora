@@ -3,15 +3,13 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 import pyarrow as pa
 from ibis.expr.types import Table
-
-from ...core import database_schema
 
 logger = logging.getLogger(__name__)
 
@@ -49,17 +47,20 @@ class RankingStore:
         # Keeping existing SQL for now - can migrate to Ibis later
 
         # ELO ratings table
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS elo_ratings (
                 post_id VARCHAR PRIMARY KEY,
                 elo_global DOUBLE NOT NULL DEFAULT 1500,
                 games_played INTEGER NOT NULL DEFAULT 0,
                 last_updated TIMESTAMP NOT NULL
             )
-        """)
+        """
+        )
 
         # Comparison history table
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS elo_history (
                 comparison_id VARCHAR PRIMARY KEY,
                 timestamp TIMESTAMP NOT NULL,
@@ -72,24 +73,35 @@ class RankingStore:
                 comment_b VARCHAR NOT NULL,
                 stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
             )
-        """)
+        """
+        )
 
         # Create indexes for efficient queries
-        self.conn.execute("""
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """)
-        self.conn.execute("""
+        """
+        )
+        self.conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """)
+        """
+        )
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
         """
@@ -126,7 +138,7 @@ class RankingStore:
 
         return inserted
 
-    def get_rating(self, post_id: str) -> Dict[str, Any] | None:
+    def get_rating(self, post_id: str) -> dict[str, Any] | None:
         """
         Get rating for a specific post.
 
@@ -186,7 +198,7 @@ class RankingStore:
 
         return new_elo_a, new_elo_b
 
-    def save_comparison(self, comparison_data: Dict[str, Any]) -> None:
+    def save_comparison(self, comparison_data: dict[str, Any]) -> None:
         """
         Save comparison to history.
 
@@ -334,7 +346,7 @@ class RankingStore:
         result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
         return ibis.memtable(self._arrow_to_pydict(result))
 
-    def _arrow_to_pydict(self, arrow_object: Any) -> Dict[str, Any]:
+    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
         """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
         if isinstance(arrow_object, pa.RecordBatchReader):
@@ -381,16 +393,20 @@ class RankingStore:
         ratings_path = self.rankings_dir / "elo_ratings.parquet"
         history_path = self.rankings_dir / "elo_history.parquet"
 
-        self.conn.execute(f"""
+        self.conn.execute(
+            f"""
             COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
-        """)
-        self.conn.execute(f"""
+        """
+        )
+        self.conn.execute(
+            f"""
             COPY elo_history TO '{history_path}' (FORMAT PARQUET)
-        """)
+        """
+        )
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """
         Get ranking store statistics.
 
@@ -401,24 +417,29 @@ class RankingStore:
         ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
 
         comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
-        comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
+        comparisons_count = (
+            comparisons_count_result[0] if comparisons_count_result is not None else 0
+        )
 
         avg_games_result = self.conn.execute(
             """
             SELECT AVG(games_played) FROM elo_ratings
-        """).fetchone()
+        """
+        ).fetchone()
         avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
 
         top_elo_result = self.conn.execute(
             """
             SELECT MAX(elo_global) FROM elo_ratings
-        """).fetchone()
+        """
+        ).fetchone()
         top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
 
         bottom_elo_result = self.conn.execute(
             """
             SELECT MIN(elo_global) FROM elo_ratings
-        """).fetchone()
+        """
+        ).fetchone()
         bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
 
         return {

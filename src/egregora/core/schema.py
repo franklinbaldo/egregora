@@ -21,6 +21,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "message": dt.String(),
     "original_line": dt.String(),
     "tagged_line": dt.String(),
+    "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
 }
 
 # Alias for MESSAGE_SCHEMA - represents full WhatsApp conversation data
@@ -49,9 +50,12 @@ def ensure_message_schema(
     """Return ``table`` cast to the canonical :data:`MESSAGE_SCHEMA`.
 
     The pipeline relies on consistent dtypes so schema validation is performed
-    eagerly at ingestion boundaries (parser and render stages). The function is
-    intentionally forgiving: missing columns are created and timezone
-    normalisation is applied when necessary.
+    eagerly at ingestion boundaries (parser and render stages). This function
+    strictly enforces MESSAGE_SCHEMA by:
+    - Adding missing columns with nulls
+    - Casting existing columns to correct types
+    - Dropping any extra columns not in MESSAGE_SCHEMA
+    - Normalizing timezone information
     """
 
     target_schema = dict(MESSAGE_SCHEMA)
@@ -91,6 +95,12 @@ def ensure_message_schema(
 
     result = _normalise_timestamp(result, tz_name)
     result = _ensure_date_column(result)
+
+    # Drop any extra columns not in MESSAGE_SCHEMA
+    # This enforces strict schema compliance
+    extra_columns = set(result.columns) - set(target_schema.keys())
+    if extra_columns:
+        result = result.select(*target_schema.keys())
 
     return result
 

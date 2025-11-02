@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import random
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 from unittest.mock import MagicMock
 
 from google import genai
@@ -73,9 +74,7 @@ class MockGeminiBatchClient:
                 text=mock_text,
                 candidates=[
                     genai_types.Candidate(
-                        content=genai_types.Content(
-                            parts=[genai_types.Part(text=mock_text)]
-                        ),
+                        content=genai_types.Content(parts=[genai_types.Part(text=mock_text)]),
                         finish_reason=genai_types.FinishReason.STOP,
                     )
                 ],
@@ -201,7 +200,7 @@ class MockGeminiClient:
 
         # Generate deterministic fake response based on input
         text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
-        rng = random.Random(text_hash)
+        _rng = random.Random(text_hash)  # noqa: F841
 
         # Generate mock response text
         mock_response_text = f"""---
@@ -219,16 +218,16 @@ This is a mock generated post. Original content length: {len(text)} chars.
         return genai_types.GenerateContentResponse(
             candidates=[
                 genai_types.Candidate(
-                    content=genai_types.Content(
-                        parts=[genai_types.Part(text=mock_response_text)]
-                    ),
+                    content=genai_types.Content(parts=[genai_types.Part(text=mock_response_text)]),
                     finish_reason=genai_types.FinishReason.STOP,
                 )
             ],
         )
 
 
-def create_mock_batch_client(default_model: str = "models/gemini-flash-latest") -> MockGeminiBatchClient:
+def create_mock_batch_client(
+    default_model: str = "models/gemini-flash-latest",
+) -> MockGeminiBatchClient:
     """Factory function to create a mock batch client.
 
     Usage in tests:

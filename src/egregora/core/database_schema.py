@@ -8,6 +8,8 @@ This module contains both:
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
 """
 
+import logging
+
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -30,6 +32,7 @@ CONVERSATION_SCHEMA = ibis.schema(
         "message": dt.string,
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
+        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
     }
 )
 
@@ -111,11 +114,11 @@ RAG_SEARCH_RESULT_SCHEMA = ibis.schema(
 ANNOTATIONS_SCHEMA = ibis.schema(
     {
         "id": dt.int64,  # PRIMARY KEY
-        "msg_id": dt.string,  # NOT NULL
-        "author": dt.string,  # NOT NULL
-        "commentary": dt.string,  # NOT NULL
-        "created_at": dt.timestamp,  # NOT NULL (TIMESTAMPTZ in DuckDB)
-        "parent_annotation_id": dt.Int64(nullable=True),
+        "parent_id": dt.string,  # NOT NULL - can reference msg_id or annotation_id
+        "parent_type": dt.string,  # NOT NULL - 'message' or 'annotation'
+        "author": dt.string,
+        "commentary": dt.string,
+        "created_at": dt.timestamp,
     }
 )
 
@@ -147,6 +150,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def create_table_if_not_exists(
     conn,
@@ -184,13 +188,17 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         This must be called on raw DuckDB connection, not Ibis connection.
     """
     try:
-        conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
+        conn.execute(
+            f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})"
+        )
     except Exception:
         # Constraint may already exist
         pass
 
 
-def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
+def create_index(
+    conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
+) -> None:
     """Create an index on a table.
 
     Args:
@@ -215,5 +223,4 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
     except Exception as e:
         # Index may already exist or column may not support this index type
-        import logging
         logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")

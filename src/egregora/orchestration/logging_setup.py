@@ -39,9 +39,7 @@ def configure_logging() -> None:
 
     managed_handler = None
     for handler in root_logger.handlers:
-        if isinstance(handler, RichHandler) and getattr(
-            handler, "_egregora_managed", False
-        ):
+        if isinstance(handler, RichHandler) and getattr(handler, "_egregora_managed", False):
             managed_handler = handler
             break
 

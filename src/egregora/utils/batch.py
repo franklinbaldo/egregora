@@ -127,9 +127,7 @@ class GeminiBatchClient:
             timeout=timeout,
         )
 
-        responses = (
-            completed_job.dest.inlined_responses if completed_job.dest else None
-        ) or []
+        responses = (completed_job.dest.inlined_responses if completed_job.dest else None) or []
 
         results: list[BatchPromptResult] = []
 
@@ -267,12 +265,18 @@ class GeminiBatchClient:
             state = job.state.name if job.state else "JOB_STATE_UNSPECIFIED"
 
             if state != last_state:
-                logger.info("[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", ""))
+                logger.info(
+                    "[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", "")
+                )
                 last_state = state
 
             if job.done:
                 if state not in {"JOB_STATE_SUCCEEDED", "JOB_STATE_PARTIALLY_SUCCEEDED"}:
-                    error_message = getattr(job.error, "message", "unknown error") if job.error else "unknown error"
+                    error_message = (
+                        getattr(job.error, "message", "unknown error")
+                        if job.error
+                        else "unknown error"
+                    )
                     raise RuntimeError(
                         f"Batch job {job_name} finished with state {state}: {error_message}"
                     )
@@ -287,7 +291,7 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests(items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
+def chunk_requests[T](items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
         raise ValueError("Batch size must be positive")

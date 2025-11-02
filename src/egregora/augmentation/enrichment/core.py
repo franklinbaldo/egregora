@@ -17,11 +17,13 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import ModelConfig
+from ...core.database_schema import CONVERSATION_SCHEMA
 from ...prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
 from ...utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
+from ...utils.batch import BatchPromptResult
 from .batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
@@ -33,14 +35,11 @@ from .batch import (
 )
 from .media import (
     detect_media_type,
-    extract_and_replace_media,
     extract_urls,
     replace_media_mentions,
 )
 
 logger = logging.getLogger(__name__)
-
-
 
 
 def enrich_table(
@@ -180,7 +179,11 @@ def enrich_table(
         for url_job in pending_url_jobs:
             result = result_map.get(url_job.tag)
             if not result or result.error or not result.response:
-                logger.warning("Failed to enrich URL %s: %s", url_job.url, result.error if result else "no result")
+                logger.warning(
+                    "Failed to enrich URL %s: %s",
+                    url_job.url,
+                    result.error if result else "no result",
+                )
                 url_job.markdown = f"[Failed to enrich URL: {url_job.url}]"
                 continue
 
@@ -255,7 +258,9 @@ def enrich_table(
 
             markdown_content = (result.response.text or "").strip()
             if not markdown_content:
-                markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
+                markdown_content = (
+                    f"[No enrichment generated for media: {media_job.file_path.name}]"
+                )
 
             if "PII_DETECTED" in markdown_content:
                 logger.warning(
@@ -306,13 +311,17 @@ def enrich_table(
                 "timestamp": enrichment_timestamp,
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
-                "message": f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}",
+                "message": (
+                    f"[Media Enrichment] {media_job.file_path.name}\n"
+                    f"Enrichment saved: {media_job.path}"
+                ),
                 "original_line": "",
                 "tagged_line": "",
             }
         )
 
     if pii_media_deleted:
+
         @ibis.udf.scalar.python
         def replace_media_udf(message: str) -> str:
             return (
@@ -326,12 +335,26 @@ def enrich_table(
     if not new_rows:
         return messages_table
 
-    schema = messages_table.schema()
+    # TENET-BREAK: Downstream consumers (e.g., writer) expect CONVERSATION_SCHEMA
+    # and will fail if extra columns are present.
+    # To isolate enrichment from upstream changes, we filter `messages_table`
+    # to match the core schema before uniting it with `enrichment_table`.
+    # This ensures that `enrich_table` always returns a table with a predictable
+    # schema, preventing downstream errors.
+    schema = CONVERSATION_SCHEMA
     # Normalize rows to match schema, filling missing columns with None
-    normalized_rows = [{column: row.get(column, None) for column in schema.names} for row in new_rows]
-
+    normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
     enrichment_table = ibis.memtable(normalized_rows, schema=schema)
-    combined = messages_table.union(enrichment_table, distinct=False)
+
+    # Filter messages_table to only include columns from CONVERSATION_SCHEMA
+    messages_table_filtered = messages_table.select(*schema.names)
+
+    # Ensure timestamp column is in UTC to match CONVERSATION_SCHEMA
+    messages_table_filtered = messages_table_filtered.mutate(
+        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+    )
+
+    combined = messages_table_filtered.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
 
     if pii_detected_count > 0:

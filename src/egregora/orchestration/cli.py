@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib
+import json
 import logging
 import os
 import random
@@ -15,18 +16,37 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
+from ..augmentation.enrichment import enrich_table, extract_and_replace_media
+from ..augmentation.profiler import get_active_authors
 from ..config import (
     ModelConfig,
     ProcessConfig,
     RankingCliConfig,
     find_mkdocs_file,
+    load_mkdocs_config,
     load_site_config,
     resolve_site_paths,
 )
+from ..core.models import WhatsAppExport
+from ..core.types import GroupSlug
 from ..generation.editor import run_editor_session
-from ..publication.site import ensure_mkdocs_project
+from ..generation.writer import write_posts_for_period
+from ..generation.writer.context import (
+    _load_profiles_context,
+    _query_rag_for_context,
+)
+from ..generation.writer.formatting import (
+    _build_conversation_markdown,
+    _load_freeform_memory,
+)
+from ..ingestion.parser import parse_export
+from ..init.scaffolding import ensure_mkdocs_project
+from ..utils.cache import EnrichmentCache
+from ..utils.gemini_dispatcher import GeminiDispatcher
+from .database import duckdb_backend
 from .logging_setup import configure_logging, console
-from .pipeline import process_whatsapp_export
+from .pipeline import discover_chat_file, group_by_period, process_whatsapp_export
+from .serialization import load_table, save_table
 
 app = typer.Typer(
     name="egregora",
@@ -65,8 +85,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:
         raise TypeError(
-            f"Cannot serialize type {type(value).__name__} to JSON. "
-            f"Value: {value!r}"
+            f"Cannot serialize type {type(value).__name__} to JSON. " f"Value: {value!r}"
         )
 
     logger.warning(
@@ -160,9 +179,7 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
         raise typer.Exit(1)
 
     if retrieval_mode == "exact" and config.retrieval_nprobe:
-        console.print(
-            "[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]"
-        )
+        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
         config.retrieval_nprobe = None
 
     if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
@@ -446,12 +463,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         @app.command(hidden=True)
         def rank(  # noqa: PLR0913
             site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
-            comparisons: Annotated[
-                int, typer.Option(help="Number of comparisons to run")
-            ] = 1,
-            strategy: Annotated[
-                str, typer.Option(help="Post selection strategy")
-            ] = "fewest_games",
+            comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+            strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
             export_parquet: Annotated[
                 bool, typer.Option(help="Export rankings to Parquet after comparisons")
             ] = False,
@@ -466,16 +479,14 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
         ) -> None:
             install_cmd = escape("pip install 'egregora[ranking]'")
-            console.print(
-                f"[red]Ranking commands require the optional extra: {install_cmd}[/red]"
-            )
+            console.print(f"[red]Ranking commands require the optional extra: {install_cmd}[/red]")
             console.print(f"[yellow]Missing dependency: {escape(missing)}[/yellow]")
             raise typer.Exit(1)
 
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(  # noqa: PLR0915
+    def _run_ranking_session(  # noqa: PLR0912, PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
         if config.debug:
@@ -528,9 +539,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             )
 
             try:
-                post_a_id, post_b_id = get_posts_to_compare(
-                    rankings_dir, strategy=config.strategy
-                )
+                post_a_id, post_b_id = get_posts_to_compare(rankings_dir, strategy=config.strategy)
                 console.print(f"[cyan]Comparing: {post_a_id} vs {post_b_id}[/cyan]")
             except ValueError as e:
                 console.print(f"[red]{e}[/red]")
@@ -584,12 +593,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     @app.command()
     def rank(  # noqa: PLR0913
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
-        comparisons: Annotated[
-            int, typer.Option(help="Number of comparisons to run")
-        ] = 1,
-        strategy: Annotated[
-            str, typer.Option(help="Post selection strategy")
-        ] = "fewest_games",
+        comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+        strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
         export_parquet: Annotated[
             bool, typer.Option(help="Export rankings to Parquet after comparisons")
         ] = False,
@@ -633,18 +638,8 @@ def parse(
     - Anonymizes author names to UUID5 pseudonyms
     - Saves structured data to CSV
 
-    Output CSV contains: timestamp, date, time, author, message, group_slug, group_name
+    Output CSV contains: timestamp, date, author, message, original_line, tagged_line
     """
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    from ..core.models import WhatsAppExport
-    from ..core.types import GroupSlug
-    from ..ingestion.parser import parse_export
-    from .database import duckdb_backend
-    from .pipeline import discover_chat_file
-    from .serialization import save_table
-
     # Validate inputs
     zip_path = zip_file.resolve()
     if not zip_path.exists():
@@ -694,7 +689,7 @@ def parse(
 
 
 @app.command()
-def group(
+def group(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
     output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path(
@@ -718,12 +713,6 @@ def group(
 
     Output files are named: {period_key}.csv (e.g., 2025-01-15.csv, 2025-W03.csv)
     """
-    from datetime import datetime
-
-    from .database import duckdb_backend
-    from .pipeline import group_by_period
-    from .serialization import load_table, save_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -776,12 +765,16 @@ def group(
                 )
                 console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
             elif to_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
+                messages_table = messages_table.filter(
+                    messages_table.timestamp.date() <= to_date_obj
+                )
                 console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
 
             filtered_count = messages_table.count().execute()
             removed = original_count - filtered_count
-            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+            console.print(
+                f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]"
+            )
 
         # Group by period
         console.print(f"[cyan]Grouping by:[/cyan] {period}")
@@ -804,9 +797,11 @@ def group(
 
 
 @app.command()
-def enrich(  # noqa: PLR0913
+def enrich(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
-    zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
+    zip_file: Annotated[
+        Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")
+    ],
     output: Annotated[Path, typer.Option(help="Output enriched CSV file")],
     site_dir: Annotated[Path, typer.Option(help="Site directory (for media storage)")],
     gemini_key: Annotated[
@@ -832,15 +827,6 @@ def enrich(  # noqa: PLR0913
 
     Requires GOOGLE_API_KEY environment variable or --gemini-key flag.
     """
-    from google import genai
-
-    from ..augmentation.enrichment import enrich_table, extract_and_replace_media
-    from ..config import ModelConfig, load_site_config, resolve_site_paths
-    from ..utils.cache import EnrichmentCache
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table, save_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -869,6 +855,7 @@ def enrich(  # noqa: PLR0913
 
     # Setup paths and config
     site_paths = resolve_site_paths(site_path)
+    posts_dir = site_paths.posts_dir
     site_config = load_site_config(site_path)
     model_config = ModelConfig(site_config=site_config)
 
@@ -892,7 +879,7 @@ def enrich(  # noqa: PLR0913
                 messages_table,
                 zip_path,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 "chat",  # generic group slug for standalone enrichment
             )
 
@@ -900,7 +887,9 @@ def enrich(  # noqa: PLR0913
 
             # Setup smart clients and cache
             text_batch_client = GeminiDispatcher(client, model_config.get_model("enricher"))
-            vision_batch_client = GeminiDispatcher(client, model_config.get_model("enricher_vision"))
+            vision_batch_client = GeminiDispatcher(
+                client, model_config.get_model("enricher_vision")
+            )
 
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
             enrichment_cache = EnrichmentCache(cache_dir)
@@ -917,7 +906,7 @@ def enrich(  # noqa: PLR0913
                 vision_batch_client,
                 enrichment_cache,
                 site_paths.docs_dir,
-                site_paths.posts_dir,
+                posts_dir,
                 model_config,
                 enable_url=enable_url,
                 enable_media=enable_media,
@@ -941,7 +930,7 @@ def enrich(  # noqa: PLR0913
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913
+def gather_context(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -954,9 +943,7 @@ def gather_context(  # noqa: PLR0913
     retrieval_mode: Annotated[
         str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
     ] = "ann",
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="DuckDB VSS nprobe for ANN")
-    ] = None,
+    retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[
         int | None, typer.Option(help="Multiply ANN candidate pool")
     ] = None,
@@ -975,18 +962,6 @@ def gather_context(  # noqa: PLR0913
 
     The JSON output can be inspected and reused for multiple generation runs.
     """
-    import json
-
-    from google import genai
-
-    from ..augmentation.profiler import get_active_authors
-    from ..config import ModelConfig, load_mkdocs_config, load_site_config, resolve_site_paths
-    from ..generation.writer.context import _load_profiles_context, _query_rag_for_context
-    from ..generation.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -1030,7 +1005,8 @@ def gather_context(  # noqa: PLR0913
 
             # Load freeform memory
             console.print("[yellow]Loading freeform memory...[/yellow]")
-            freeform_memory = _load_freeform_memory(site_paths.posts_dir)
+            posts_output_dir = site_paths.posts_dir
+            freeform_memory = _load_freeform_memory(posts_output_dir)
 
             # RAG context (if enabled)
             rag_similar_posts: list[dict[str, Any]] = []
@@ -1038,7 +1014,9 @@ def gather_context(  # noqa: PLR0913
             if enable_rag:
                 api_key = _resolve_gemini_key(gemini_key)
                 if not api_key:
-                    console.print("[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]")
+                    console.print(
+                        "[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]"
+                    )
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                     client = genai.Client(api_key=api_key)
@@ -1095,7 +1073,7 @@ def gather_context(  # noqa: PLR0913
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913
+def write_posts(  # noqa: PLR0913, PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1113,9 +1091,7 @@ def write_posts(  # noqa: PLR0913
     retrieval_mode: Annotated[
         str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
     ] = "ann",
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="DuckDB VSS nprobe for ANN")
-    ] = None,
+    retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[
         int | None, typer.Option(help="Multiply ANN candidate pool")
     ] = None,
@@ -1133,16 +1109,6 @@ def write_posts(  # noqa: PLR0913
 
     The LLM has full editorial control via function calling.
     """
-    import json
-
-    from google import genai
-
-    from ..config import ModelConfig, load_site_config, resolve_site_paths
-    from ..generation.writer import write_posts_for_period
-    from ..utils.gemini_dispatcher import GeminiDispatcher
-    from .database import duckdb_backend
-    from .serialization import load_table
-
     # Validate inputs
     input_path = input_csv.resolve()
     if not input_path.exists():
@@ -1187,29 +1153,30 @@ def write_posts(  # noqa: PLR0913
                 console.print(f"[cyan]Using context from:[/cyan] {context_path}")
                 with context_path.open("r", encoding="utf-8") as f:
                     context_data = json.load(f)
-                console.print(f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]")
+                console.print(
+                    f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]"
+                )
             else:
-                console.print("[yellow]No context file provided, will gather context inline[/yellow]")
+                console.print(
+                    "[yellow]No context file provided, will gather context inline[/yellow]"
+                )
 
             # Setup embedding client for RAG
-            embedding_batch_client = GeminiDispatcher(
-                client, model_config.get_model("embedding")
-            )
+            embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
             embedding_dimensionality = model_config.embedding_output_dimensionality
 
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
-            console.print(
-                f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}"
-            )
+            console.print(f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
             # Write posts (this uses the existing write_posts_for_period function)
+            posts_output_dir = site_paths.posts_dir
             result = write_posts_for_period(
                 enriched_table,
                 period_key,
                 client,
                 embedding_batch_client,
-                site_paths.posts_dir,
+                posts_output_dir,
                 site_paths.profiles_dir,
                 site_paths.rag_dir,
                 model_config,
@@ -1227,11 +1194,11 @@ def write_posts(  # noqa: PLR0913
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
 
             if posts_count > 0:
-                console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
+                console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > 5:  # noqa: PLR2004
+                    console.print(f"  ... and {posts_count - 5} more")  # noqa: PLR2004
 
     finally:
         if client:

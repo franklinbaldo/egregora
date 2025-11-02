@@ -40,9 +40,7 @@ class TestParseCommand:
         """Test basic parse command functionality."""
         output_csv = test_output_dir / "messages.csv"
 
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_csv)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_csv)])
 
         assert result.exit_code == 0, f"Command failed: {result.stdout}"
         assert output_csv.exists(), "Output CSV was not created"
@@ -109,9 +107,7 @@ class TestGroupCommand:
     def parsed_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV for group tests."""
         output_csv = test_output_dir / "messages.csv"
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_csv)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_csv)])
         assert result.exit_code == 0
         return output_csv
 
@@ -247,9 +243,7 @@ class TestEnrichCommand:
     def parsed_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV for enrich tests."""
         output_csv = test_output_dir / "messages.csv"
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_csv)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_csv)])
         assert result.exit_code == 0
         return output_csv
 
@@ -299,9 +293,7 @@ class TestGatherContextCommand:
     def enriched_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV (enrichment optional for testing)."""
         output_csv = test_output_dir / "messages.csv"
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_csv)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_csv)])
         assert result.exit_code == 0
         return output_csv
 
@@ -352,9 +344,7 @@ class TestWritePostsCommand:
     def enriched_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV."""
         output_csv = test_output_dir / "messages.csv"
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_csv)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_csv)])
         assert result.exit_code == 0
         return output_csv
 
@@ -388,6 +378,43 @@ class TestWritePostsCommand:
         # May fail if context gathering fails, which is OK for basic test
         assert result.exit_code in (0, 1)
 
+    def test_write_posts_output_directory(self, enriched_csv, site_dir):
+        """Test that write-posts command writes to the correct '.posts' subdirectory."""
+        # Run the command that writes posts
+        runner.invoke(
+            app,
+            [
+                "write-posts",
+                str(enriched_csv),
+                "--period-key",
+                "2025-10-28",
+                "--site-dir",
+                str(site_dir),
+                "--no-enable-rag",
+            ],
+        )
+
+        # Check that the posts are in the correct subdirectory
+        posts_base_dir = site_dir / "docs" / "posts"
+        posts_target_dir = posts_base_dir / ".posts"
+
+        # It's possible no posts were generated, which is okay.
+        # If the directory exists, we check for posts inside.
+        if posts_target_dir.exists():
+            post_files = list(posts_target_dir.glob("*.md"))
+            # If there are posts, ensure they are in the right place
+            if post_files:
+                assert all(
+                    p.parent == posts_target_dir for p in post_files
+                ), "Posts should be in the '.posts' subdirectory."
+        else:
+            # If the directory doesn't exist, it means no posts were written, which is a valid outcome.
+            # We can also check that no posts were written to the *wrong* directory.
+            stray_posts = list(posts_base_dir.glob("2025-10-28-*.md"))
+            assert (
+                not stray_posts
+            ), f"Posts should not be in the base 'posts' directory: {stray_posts}"
+
 
 class TestSerializationFormats:
     """Tests for CSV and Parquet serialization formats."""
@@ -396,14 +423,12 @@ class TestSerializationFormats:
         """Test parsing to Parquet format."""
         output_parquet = test_output_dir / "messages.parquet"
 
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(output_parquet)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(output_parquet)])
 
         assert result.exit_code == 0
         assert output_parquet.exists()
         # Verify it's a valid Parquet file
-        import pandas as pd
+        import pandas as pd  # noqa: PLC0415
 
         df = pd.read_parquet(output_parquet)
         assert len(df) > 0

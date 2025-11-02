@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from .model import ModelConfig
 from ..core.types import GroupSlug
+from .model import ModelConfig
 
 
 @dataclass

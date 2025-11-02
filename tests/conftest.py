@@ -56,7 +56,9 @@ def _install_google_stubs() -> None:
             self.models = types.SimpleNamespace(generate_content=lambda *a, **k: empty_response)
             self.aio = types.SimpleNamespace(models=self.models)
             self.files = types.SimpleNamespace(
-                upload=lambda *a, **k: types.SimpleNamespace(uri="stub://file", mime_type="application/octet-stream")
+                upload=lambda *a, **k: types.SimpleNamespace(
+                    uri="stub://file", mime_type="application/octet-stream"
+                )
             )
 
             dummy_job = types.SimpleNamespace(
@@ -66,7 +68,9 @@ def _install_google_stubs() -> None:
                 done=True,
                 error=None,
             )
-            self.batches = types.SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
+            self.batches = types.SimpleNamespace(
+                create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
+            )
 
         def close(self) -> None:  # pragma: no cover - compatibility stub
             return None
@@ -194,7 +198,7 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient
+    from tests.mock_batch_client import MockGeminiBatchClient, MockGeminiClient  # noqa: PLC0415
 
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(

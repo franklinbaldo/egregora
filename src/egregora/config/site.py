@@ -115,9 +115,10 @@ def resolve_site_paths(start: Path) -> SitePaths:
 
     blog_path = Path(blog_dir)
     if blog_path.is_absolute():
-        posts_dir = blog_path
+        posts_dir = blog_path / "posts"
     else:
-        posts_dir = (docs_dir / blog_path).resolve()
+        # Material blog plugin expects posts in blog_dir/posts/ by default
+        posts_dir = (docs_dir / blog_path / "posts").resolve()
 
     profiles_dir = (docs_dir / PROFILES_DIR_NAME).resolve()
     media_dir = (docs_dir / MEDIA_DIR_NAME).resolve()

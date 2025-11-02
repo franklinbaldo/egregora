@@ -23,11 +23,11 @@ class Annotation:
     """Representation of a stored conversation annotation."""
 
     id: int
-    msg_id: str
+    parent_id: str
+    parent_type: str
     author: str
     commentary: str
     created_at: datetime
-    parent_annotation_id: int | None
 
 
 class AnnotationStore:
@@ -56,8 +56,8 @@ class AnnotationStore:
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self._backend.raw_sql(
             f"""
-            CREATE INDEX IF NOT EXISTS idx_annotations_msg_id_created
-            ON {ANNOTATIONS_TABLE} (msg_id, created_at)
+            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created
+            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)
             """
         )
 
@@ -70,20 +70,22 @@ class AnnotationStore:
 
     def save_annotation(
         self,
-        msg_id: str,
+        parent_id: str,
+        parent_type: str,
         commentary: str,
-        *,
-        parent_annotation_id: int | None = None,
     ) -> Annotation:
         """Persist an annotation and return the saved record."""
 
-        sanitized_msg_id = (msg_id or "").strip()
+        sanitized_parent_id = (parent_id or "").strip()
+        sanitized_parent_type = (parent_type or "").strip().lower()
         sanitized_commentary = (commentary or "").strip()
 
-        if not sanitized_msg_id:
-            raise ValueError("msg_id is required")
+        if not sanitized_parent_id:
+            raise ValueError("parent_id is required")
+        if sanitized_parent_type not in ("message", "annotation"):
+            raise ValueError("parent_type must be 'message' or 'annotation'")
         if not sanitized_commentary:
-            raise ValueError("my_commentary must not be empty")
+            raise ValueError("commentary must not be empty")
 
         try:
             validate_newsletter_privacy(sanitized_commentary)
@@ -92,19 +94,16 @@ class AnnotationStore:
 
         created_at = datetime.now(UTC)
 
-        annotations_table = self._backend.table(ANNOTATIONS_TABLE)
-
-        if parent_annotation_id is not None:
+        if sanitized_parent_type == "annotation":
+            annotations_table = self._backend.table(ANNOTATIONS_TABLE)
             parent_exists = int(
-                annotations_table.filter(annotations_table.id == parent_annotation_id)
+                annotations_table.filter(annotations_table.id == int(sanitized_parent_id))
                 .limit(1)
                 .count()
                 .execute()
             )
             if parent_exists == 0:
-                raise ValueError(
-                    f"parent_annotation_id {parent_annotation_id} does not exist"
-                )
+                raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
 
         next_id_cursor = self._connection.execute(
             f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
@@ -116,26 +115,26 @@ class AnnotationStore:
 
         self._connection.execute(
             f"""
-            INSERT INTO {ANNOTATIONS_TABLE} (id, msg_id, author, commentary, created_at, parent_annotation_id)
+            INSERT INTO {ANNOTATIONS_TABLE} (id, parent_id, parent_type, author, commentary, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             [
                 annotation_id,
-                sanitized_msg_id,
+                sanitized_parent_id,
+                sanitized_parent_type,
                 ANNOTATION_AUTHOR,
                 sanitized_commentary,
                 created_at,
-                parent_annotation_id,
             ],
         )
 
         return Annotation(
             id=annotation_id,
-            msg_id=sanitized_msg_id,
+            parent_id=sanitized_parent_id,
+            parent_type=sanitized_parent_type,
             author=ANNOTATION_AUTHOR,
             commentary=sanitized_commentary,
             created_at=created_at,
-            parent_annotation_id=parent_annotation_id,
         )
 
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
@@ -147,9 +146,9 @@ class AnnotationStore:
 
         records = self._fetch_records(
             f"""
-            SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
+            SELECT id, parent_id, parent_type, author, commentary, created_at
             FROM {ANNOTATIONS_TABLE}
-            WHERE msg_id = ?
+            WHERE parent_id = ? AND parent_type = 'message'
             ORDER BY created_at ASC, id ASC
             """,
             [sanitized_msg_id],
@@ -167,7 +166,7 @@ class AnnotationStore:
         cursor = self._connection.execute(
             f"""
             SELECT id FROM {ANNOTATIONS_TABLE}
-            WHERE msg_id = ?
+            WHERE parent_id = ? AND parent_type = 'message'
             ORDER BY created_at DESC, id DESC
             LIMIT 1
             """,
@@ -181,7 +180,7 @@ class AnnotationStore:
 
         records = self._fetch_records(
             f"""
-            SELECT id, msg_id, author, commentary, created_at, parent_annotation_id
+            SELECT id, parent_id, parent_type, author, commentary, created_at
             FROM {ANNOTATIONS_TABLE}
             ORDER BY created_at ASC, id ASC
             """
@@ -189,6 +188,38 @@ class AnnotationStore:
 
         for row in records:
             yield self._row_to_annotation(row)
+
+    def join_with_messages(self, messages_table: ibis.expr.types.Table) -> ibis.expr.types.Table:
+        """Join annotations with messages using message_id as foreign key.
+
+        This enables vectorized operations on the combined data.
+
+        Args:
+            messages_table: Ibis Table with 'message_id' column
+
+        Returns:
+            Joined Ibis Table with both message and annotation columns
+
+        Example:
+            >>> # Assuming messages_table has message_id column
+            >>> annotations_store = AnnotationStore(db_path)
+            >>> joined = annotations_store.join_with_messages(messages_table)
+            >>> # Now you can do vectorized operations like:
+            >>> annotated_messages = joined.filter(joined.commentary.notnull())
+        """
+        # Get annotations as an Ibis table
+        annotations_table = self._backend.table(ANNOTATIONS_TABLE)
+
+        # Filter for annotations that are direct replies to messages
+        message_annotations = annotations_table[annotations_table.parent_type == 'message']
+
+        # Perform left join: messages with their annotations (if any)
+        # This preserves all messages even if they don't have annotations
+        joined = messages_table.left_join(
+            message_annotations, messages_table.message_id == message_annotations.parent_id
+        )
+
+        return joined
 
     @staticmethod
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
@@ -208,16 +239,13 @@ class AnnotationStore:
         else:
             created_at = created_at.astimezone(UTC)
 
-        parent_raw = row.get("parent_annotation_id")
-        parent_id = int(parent_raw) if parent_raw is not None else None
-
         return Annotation(
             id=int(row["id"]),
-            msg_id=str(row["msg_id"]),
+            parent_id=str(row["parent_id"]),
+            parent_type=str(row["parent_type"]),
             author=str(row["author"]),
             commentary=str(row["commentary"]),
             created_at=created_at,
-            parent_annotation_id=parent_id,
         )
 
 

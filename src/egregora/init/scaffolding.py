@@ -6,8 +6,8 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from ...config import DEFAULT_BLOG_DIR, SitePaths
-from ...config.site import _ConfigLoader, resolve_site_paths
+from ..config import DEFAULT_BLOG_DIR, SitePaths
+from ..config.site import _ConfigLoader, resolve_site_paths
 
 DEFAULT_SITE_NAME = "Egregora Archive"
 DEFAULT_DOCS_SETTING = "docs"
@@ -43,7 +43,7 @@ def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         payload = {}
 
     docs_dir_setting = payload.get("docs_dir")
-    if docs_dir_setting is None or docs_dir_setting == "." or docs_dir_setting == "":
+    if docs_dir_setting in {None, ".", ""}:
         return site_root
 
     docs_dir = Path(str(docs_dir_setting))
@@ -57,7 +57,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     site_name = site_root.name or DEFAULT_SITE_NAME
 
     # Setup Jinja2 environment to load templates from file system
-    templates_dir = Path(__file__).parent / "templates"
+    templates_dir = Path(__file__).parent.parent / "templates" / "site"
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
         autoescape=select_autoescape(),  # Only autoescape when appropriate
@@ -108,37 +108,43 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     # Create .gitignore
     gitignore_path = site_paths.site_root / ".gitignore"
     if not gitignore_path.exists():
-        template = env.get_template("gitignore.jinja2")
+        template = env.get_template(".gitignore.jinja2")
         content = template.render(**context)
         gitignore_path.write_text(content, encoding="utf-8")
 
     # Create homepage
     homepage_path = docs_dir / "index.md"
     if not homepage_path.exists():
-        template = env.get_template("homepage.md.jinja2")
+        template = env.get_template("docs/index.md.jinja2")
         content = template.render(**context)
         homepage_path.write_text(content, encoding="utf-8")
 
     # Create about page
     about_path = docs_dir / "about.md"
     if not about_path.exists():
-        template = env.get_template("about.md.jinja2")
+        template = env.get_template("docs/about.md.jinja2")
         content = template.render(**context)
         about_path.write_text(content, encoding="utf-8")
 
-    # Create blog index page
-    blog_index_path = posts_dir / "index.md"
+    # Create blog index page - Material expects this as entry point but keeps it simple
+    blog_index_path = posts_dir.parent / "index.md"  # posts_dir is blog_dir/posts/, we want blog_dir/index.md
     if not blog_index_path.exists():
-        template = env.get_template("posts_index.md.jinja2")
-        content = template.render(**context)
-        blog_index_path.write_text(content, encoding="utf-8")
+        # Simple heading - Material blog plugin renders blog list below this
+        blog_index_path.write_text("# Blog\n", encoding="utf-8")
 
     # Create profiles index
     profiles_index_path = profiles_dir / "index.md"
     if not profiles_index_path.exists():
-        template = env.get_template("profiles_index.md.jinja2")
+        template = env.get_template("docs/profiles/index.md.jinja2")
         content = template.render(**context)
         profiles_index_path.write_text(content, encoding="utf-8")
+
+    # Create media index
+    media_index_path = media_dir / "index.md"
+    if not media_index_path.exists():
+        template = env.get_template("media_index.md.jinja2")
+        content = template.render(**context)
+        media_index_path.write_text(content, encoding="utf-8")
 
 
 __all__ = ["ensure_mkdocs_project"]

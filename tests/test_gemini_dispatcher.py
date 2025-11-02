@@ -1,4 +1,4 @@
-import unittest.mock as mock
+from unittest import mock
 
 from egregora.utils.batch import EmbeddingBatchRequest
 from egregora.utils.gemini_dispatcher import GeminiDispatcher
@@ -73,7 +73,7 @@ def test_force_individual_overrides_threshold():
 
 def test_backward_compatibility_with_smart_client_alias():
     """Verify that SmartGeminiClient alias still works."""
-    from egregora.utils.gemini_dispatcher import SmartGeminiClient
+    from egregora.utils.gemini_dispatcher import SmartGeminiClient  # noqa: PLC0415
 
     mock_client = mock.MagicMock()
     # Should work the same as GeminiDispatcher
