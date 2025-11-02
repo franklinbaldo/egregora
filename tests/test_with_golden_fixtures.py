@@ -53,7 +53,6 @@ import pytest
 
 
 @pytest.mark.vcr
-@pytest.mark.skip(reason="VCR cassettes need to be re-recorded after annotation schema change.")
 def test_pipeline_with_vcr_fixtures(
     whatsapp_fixture,
     tmp_path: Path,
@@ -89,11 +88,13 @@ def test_pipeline_with_vcr_fixtures(
     client = genai.Client(api_key=api_key)
 
     # Run the pipeline with the real client - VCR will record/replay HTTP interactions
+    # NOTE: Enrichment disabled because VCR cannot serialize binary file uploads (images)
+    # Media enrichment is tested separately in test_fast_with_mock.py
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
         period="day",
-        enable_enrichment=False,  # Binary uploads cause VCR encoding issues
+        enable_enrichment=False,  # VCR limitation: binary uploads cause serialization errors
         retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see module docstring)
         client=client,
     )
