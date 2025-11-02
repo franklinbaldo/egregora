@@ -53,12 +53,6 @@ import pytest
 
 
 @pytest.mark.vcr
-@pytest.mark.skip(
-    reason="VCR cannot properly replay complex genai SDK responses. "
-    "The HTTP responses are recorded correctly, but the SDK doesn't reconstruct "
-    "Python objects properly during replay (embedding=None even though response has data). "
-    "Use test_fast_with_mock.py for pipeline validation instead."
-)
 def test_pipeline_with_vcr_fixtures(
     whatsapp_fixture,
     tmp_path: Path,
@@ -68,15 +62,17 @@ def test_pipeline_with_vcr_fixtures(
 
     This test validates that the pipeline can successfully run from start to
     finish using pytest-vcr to replay HTTP interactions.
-    It checks that the output matches the expected structure and content that
-    would be generated with real API calls.
+
+    Unlike the original SDK-based approach, this uses a raw HTTP client adapter
+    (VCRCompatibleClient) that makes direct httpx calls. This allows VCR to
+    properly record and replay responses, since the HTTP layer is simple enough
+    for VCR to handle correctly.
 
     The @pytest.mark.vcr decorator automatically records HTTP interactions
     to cassettes and replays them on subsequent test runs.
     """
-    from google import genai  # noqa: PLC0415
-
     from egregora.orchestration.pipeline import process_whatsapp_export  # noqa: PLC0415
+    from tests.utils.vcr_adapter import VCRCompatibleClient  # noqa: PLC0415
 
     output_dir = tmp_path / "site"
     output_dir.mkdir()
@@ -88,10 +84,10 @@ def test_pipeline_with_vcr_fixtures(
     docs_dir = output_dir / "docs"
     docs_dir.mkdir()
 
-    # Create a real Gemini client
-    # VCR will intercept the HTTP calls and replay from cassettes
+    # Create VCR-compatible client that uses raw HTTP calls
+    # This works with VCR because it bypasses the genai SDK's complex response parsing
     api_key = os.getenv("GOOGLE_API_KEY", "dummy-key-for-replay")
-    client = genai.Client(api_key=api_key)
+    client = VCRCompatibleClient(api_key=api_key)
 
     # Run the pipeline with the real client - VCR will record/replay HTTP interactions
     # NOTE: Enrichment disabled because VCR cannot serialize binary file uploads (images)
