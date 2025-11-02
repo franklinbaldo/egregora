@@ -5,8 +5,8 @@ This package handles final output:
 - Template rendering for homepage, about, etc.
 """
 
-from . import site
-from .site import ensure_mkdocs_project
+from egregora.publication import site
+from egregora.publication.site import ensure_mkdocs_project
 
 __all__ = [
     "site",

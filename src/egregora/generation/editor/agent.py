@@ -18,12 +18,12 @@ import ibis
 from google import genai
 from google.genai import types as genai_types
 
-from ...config import ModelConfig
-from ...knowledge.rag import VectorStore, query_similar_posts
-from ...prompt_templates import EditorPromptTemplate
-from ...utils.batch import GeminiBatchClient
-from ...utils.genai import call_with_retries
-from .document import DocumentSnapshot, Editor
+from egregora.config import ModelConfig
+from egregora.generation.editor.document import DocumentSnapshot, Editor
+from egregora.knowledge.rag import VectorStore, query_similar_posts
+from egregora.prompt_templates import EditorPromptTemplate
+from egregora.utils.batch import GeminiBatchClient
+from egregora.utils.genai import call_with_retries
 
 logger = logging.getLogger(__name__)
 

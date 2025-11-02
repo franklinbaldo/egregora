@@ -11,14 +11,14 @@ Documentation:
 - API Reference: docs/reference/api.md#rag-system
 """
 
-from .retriever import (
+from egregora.knowledge.rag.retriever import (
     index_all_media,
     index_media_enrichment,
     index_post,
     query_media,
     query_similar_posts,
 )
-from .store import VectorStore
+from egregora.knowledge.rag.store import VectorStore
 
 __all__ = [
     "VectorStore",

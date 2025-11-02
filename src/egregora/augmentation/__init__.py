@@ -6,8 +6,8 @@ This package handles optional data enrichment:
 - Profile generation for active authors
 """
 
-from . import enrichment
-from .profiler import (
+from egregora.augmentation import enrichment
+from egregora.augmentation.profiler import (
     apply_command_to_profile,
     filter_opted_out_authors,
     get_active_authors,

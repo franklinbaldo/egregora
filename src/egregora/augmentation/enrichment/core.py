@@ -19,15 +19,7 @@ from typing import Any
 import ibis
 from ibis.expr.types import Table
 
-from ...config import ModelConfig
-from ...core.database_schema import CONVERSATION_SCHEMA
-from ...prompt_templates import (
-    DetailedMediaEnrichmentPromptTemplate,
-    DetailedUrlEnrichmentPromptTemplate,
-)
-from ...utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
-from ...utils.batch import BatchPromptResult
-from .batch import (
+from egregora.augmentation.enrichment.batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
     _ensure_datetime,
@@ -36,12 +28,20 @@ from .batch import (
     build_batch_requests,
     map_batch_results,
 )
-from .media import (
+from egregora.augmentation.enrichment.media import (
     detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
+from egregora.config import ModelConfig
+from egregora.core.database_schema import CONVERSATION_SCHEMA
+from egregora.prompt_templates import (
+    DetailedMediaEnrichmentPromptTemplate,
+    DetailedUrlEnrichmentPromptTemplate,
+)
+from egregora.utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
+from egregora.utils.batch import BatchPromptResult
 
 logger = logging.getLogger(__name__)
 

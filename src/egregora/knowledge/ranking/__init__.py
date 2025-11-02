@@ -9,9 +9,13 @@ Documentation:
 - CLI Reference: docs/reference/cli.md#egregora-rank
 """
 
-from .agent import run_comparison
-from .elo import calculate_elo_update, initialize_ratings, update_ratings
-from .store import RankingStore
+from egregora.knowledge.ranking.agent import run_comparison
+from egregora.knowledge.ranking.elo import (
+    calculate_elo_update,
+    initialize_ratings,
+    update_ratings,
+)
+from egregora.knowledge.ranking.store import RankingStore
 
 __all__ = [
     "calculate_elo_update",
