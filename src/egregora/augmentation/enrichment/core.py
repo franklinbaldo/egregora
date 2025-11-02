@@ -198,8 +198,8 @@ def enrich_table(
                     logger.warning("Unsupported media type for enrichment: %s", file_path.name)
                     continue
 
-                enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
-                enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
+                # Place enrichment alongside media file (e.g., photo.jpg → photo.md)
+                enrichment_path = file_path.with_suffix(".md")
                 media_job = MediaEnrichmentJob(
                     key=cache_key,
                     original_filename=original_filename,
