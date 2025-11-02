@@ -1,14 +1,24 @@
 # Egregora Refactor Plan: Unified Data Contract & DAG Architecture
 
+**Status**: Phase 1-2 ✅ COMPLETE | Phase 3-4 🚧 IN PROGRESS | Phase 5 ⏳ NOT STARTED
+
+**Last Updated**: 2025-11-02
+
+---
+
 ## Executive Summary
 
 **Goal**: Unify on a single DuckDB database with centralized schemas and declarative DAG-based pipeline stages.
 
 **Impact**: Improves correctness (deterministic outputs), speed (single DB connection), and simplicity (one source of truth for schemas).
 
-**Effort**: 4 phases, each shippable independently. Estimated 2-4 weeks total.
+**Current State**:
+- ✅ **Phases 1-2 DONE**: Utilities, schemas, RankingStore refactored
+- 🚧 **Phase 4 PARTIAL**: DAG infrastructure exists but NOT WIRED UP to pipeline
+- ⏳ **Phase 3 NOT STARTED**: Pipeline stages still imperative, not declarative views
+- ⏳ **Phase 5 NOT STARTED**: CLI integration missing
 
-**Risk**: Low - each phase is backwards-compatible until final cutover.
+**To Complete**: ~800-1200 lines of code across 3 remaining phases
 
 ---
 
@@ -16,623 +26,671 @@
 
 ### Current Pain Points
 
-1. **Schema Drift**: `RankingStore` defines tables via raw SQL instead of centralized Ibis schemas
-2. **Multiple Databases**: `rankings.duckdb` separate from main pipeline DB
-3. **Scattered Logic**: Batching and timezone normalization duplicated across stages
-4. **Inconsistent Patterns**: RAG follows shared schema approach; ranking doesn't
+1. **Schema Drift**: ~~`RankingStore` defines tables via raw SQL~~ ✅ FIXED
+2. **Multiple Databases**: ~~`rankings.duckdb` separate from main pipeline DB~~ ✅ FIXED
+3. **Scattered Logic**: ~~Batching and timezone normalization duplicated~~ ✅ FIXED
+4. **Inconsistent Patterns**: ~~RAG follows shared schema; ranking doesn't~~ ✅ FIXED
+5. **🚧 Imperative Pipeline**: Stages are still procedural functions, not declarative views
+6. **🚧 No Incremental Computation**: Can't resume/skip stages
+7. **🚧 DAG Infrastructure Unused**: Well-tested DAG code exists but pipeline doesn't use it
 
 ### Target State
 
-- **One Database**: All pipeline data (messages, enrichments, RAG, rankings) in single DuckDB file
-- **One Schema Source**: All table definitions in `src/egregora/core/database_schema.py`
-- **DAG Stages**: Each pipeline stage as materialized view with explicit dependencies
-- **Shared Utilities**: Canonical batching and timezone handling
+- ✅ **One Database**: All pipeline data in single DuckDB file
+- ✅ **One Schema Source**: All table definitions in `src/egregora/core/database_schema.py`
+- 🚧 **DAG Stages**: Each pipeline stage as materialized view with explicit dependencies (INFRASTRUCTURE READY, NOT INTEGRATED)
+- ✅ **Shared Utilities**: Canonical batching and timezone handling
 
 ---
 
-## Phase 1: Contract First
+## COMPLETED WORK (Phases 1-2)
 
-**Goal**: Centralize all schema definitions and consolidate databases.
+### ✅ Phase 1: Contract First - DONE
 
-### Tasks
+**Files Created/Modified**:
+- ✅ `src/egregora/core/database_schema.py` - Added ELO_RATINGS_SCHEMA, ELO_HISTORY_SCHEMA, MEDIA_FILES_SCHEMA, PipelineStage enum
+- ✅ `src/egregora/knowledge/ranking/store.py` - Refactored to use central schemas + shared connections
+- ✅ `tests/test_ranking_store.py` - 162 lines of tests (all passing)
 
-#### 1.1 Add Ranking Schemas to Central Schema Module
+**Achievements**:
+- All schemas centralized in `database_schema.py` (no raw DDL)
+- RankingStore supports shared DuckDB connections
+- Test coverage for schema parity
 
-**File**: `src/egregora/core/database_schema.py`
+### ✅ Phase 2: Shared Utilities - DONE
 
-- [ ] Define `ELO_RATINGS_SCHEMA` as Ibis schema
-  - Columns: `post_id`, `rating`, `num_comparisons`, `last_updated`
-  - Match current `RankingStore.create_tables()` DDL
-- [ ] Define `ELO_COMPARISONS_SCHEMA` (if tracking comparison history)
-  - Columns: `comparison_id`, `winner_id`, `loser_id`, `timestamp`
-- [ ] Add schemas to `__all__` export
+**Files Created**:
+- ✅ `src/egregora/utils/batching.py` - 160 lines, offset-based batching (simpler than row_number)
+- ✅ `src/egregora/utils/normalization.py` - 49 lines, canonical timezone handling
+- ✅ `tests/test_batching.py` - 202 lines of property tests (all passing)
+- ✅ `tests/test_batch.py` - 96 lines of integration tests
 
-**Acceptance**:
+**Files Modified**:
+- ✅ `src/egregora/augmentation/enrichment/batch.py` - Now uses `batch_table_to_records()`
+
+**Achievements**:
+- Cleaner batching (DuckDB optimizer friendly, no temp columns)
+- Single source of truth for timestamp normalization
+- Property tests ensure correctness (no gaps, no overlaps)
+
+---
+
+## 🚧 INCOMPLETE WORK - WHAT'S NEEDED
+
+### Phase 3: Declarative Pipeline Stages (NOT STARTED)
+
+**Goal**: Refactor imperative pipeline functions into declarative Ibis queries that can be registered as DAG compute functions.
+
+**Current Problem**:
+- Pipeline stages in `orchestration/pipeline.py` are procedural Python functions
+- They execute immediately and don't return Ibis expressions
+- Can't be used with DAG executor which expects `Callable[[conn, upstream_tables], Table]`
+
+**What Needs To Happen**:
+
+#### 3.1 Extract Stage Compute Functions
+
+**File**: `src/egregora/orchestration/stages.py` (NEW FILE)
+
+Create wrapper functions for each pipeline stage that return Ibis table expressions:
+
 ```python
-# Can import and use schemas
-from egregora.core.database_schema import ELO_RATINGS_SCHEMA
-assert "post_id" in ELO_RATINGS_SCHEMA.names
+"""Pipeline stage compute functions for DAG execution.
+
+Each function takes:
+- conn: Ibis connection
+- upstream_tables: Dict[PipelineStage, Table] of dependencies
+
+Returns:
+- Table: Ibis expression (not executed)
+"""
+
+from ibis.expr.types import Table
+from ..core.database_schema import PipelineStage
+from ..ingestion.parser import parse_whatsapp_zip
+from ..privacy.anonymizer import anonymize_authors
+from ..augmentation.enrichment.core import enrich_table
+
+def compute_ingested(
+    conn,
+    upstream_tables: dict[PipelineStage, Table],
+    *,
+    export_path: Path,
+    timezone: str = "UTC"
+) -> Table:
+    """
+    Stage 1: Parse WhatsApp export to CONVERSATION_SCHEMA table.
+
+    This is the only stage with no dependencies (source stage).
+    """
+    from ..utils.normalization import normalize_timestamps
+
+    # Parse ZIP to Ibis table
+    conversations = parse_whatsapp_zip(export_path, backend=conn)
+
+    # Normalize timestamps immediately
+    conversations = normalize_timestamps(conversations, timezone=timezone)
+
+    return conversations
+
+
+def compute_anonymized(
+    conn,
+    upstream_tables: dict[PipelineStage, Table],
+) -> Table:
+    """
+    Stage 2: Replace real names with deterministic UUIDs.
+
+    Depends on: INGESTED
+    """
+    ingested = upstream_tables[PipelineStage.INGESTED]
+
+    # Anonymize (this returns Ibis expression, doesn't execute)
+    anonymized = anonymize_authors(ingested)
+
+    return anonymized
+
+
+def compute_enriched(
+    conn,
+    upstream_tables: dict[PipelineStage, Table],
+    *,
+    model_config: ModelConfig,
+    enable_url: bool = True,
+    enable_media: bool = True,
+    max_enrichments: int = 50,
+) -> Table:
+    """
+    Stage 3: Add LLM descriptions for URLs and media.
+
+    Depends on: ANONYMIZED
+
+    NOTE: This stage is EXPENSIVE (LLM calls), so it's materialized.
+    """
+    anonymized = upstream_tables[PipelineStage.ANONYMIZED]
+
+    # CHALLENGE: enrich_table() currently executes batches and makes API calls
+    # NEED TO: Refactor enrichment to be lazy OR accept that this stage
+    # must execute during DAG computation (materialized=True)
+
+    # For now: Execute enrichment during compute (expensive but necessary)
+    enriched = enrich_table(
+        anonymized,
+        posts_dir=Path("temp"),  # FIXME: Need to pass this in
+        model_config=model_config,
+        enable_url=enable_url,
+        enable_media=enable_media,
+        max_enrichments=max_enrichments
+    )
+
+    return enriched
+
+
+# CONTINUE for other stages: KNOWLEDGE, GENERATED...
 ```
 
-#### 1.2 Update RankingStore to Use Central Schemas
+**Tasks**:
+- [ ] Create `src/egregora/orchestration/stages.py`
+- [ ] Implement `compute_ingested()` - wraps `parse_whatsapp_zip()`
+- [ ] Implement `compute_anonymized()` - wraps `anonymize_authors()`
+- [ ] Implement `compute_enriched()` - wraps `enrich_table()` (may need refactoring)
+- [ ] Implement `compute_grouped()` - wraps `group_by_period()` (QUESTION: Is this a stage or post-processing?)
+- [ ] Implement `compute_knowledge()` - RAG indexing (if declarative)
+- [ ] Add tests for each stage function (verify returns Table, not executed)
 
-**File**: `src/egregora/knowledge/ranking/store.py`
+**Challenges**:
+1. **Enrichment is side-effectful** (makes API calls during execution)
+   - **Solution**: Mark as `materialized=True` in DAG, accept that it executes during compute
+2. **Some stages need context** (export_path, model_config, output directories)
+   - **Solution**: Use functools.partial or closure to bind parameters before passing to DAG
+3. **Grouping by period** - not clear if this fits DAG model (1 table → N tables)
+   - **Solution**: May need to keep grouping outside DAG, apply DAG per-period
 
-- [ ] Replace `create_tables()` raw SQL with `create_table_if_not_exists()`
-  - Use `ELO_RATINGS_SCHEMA` from core module
-  - Remove hardcoded DDL strings
-- [ ] Update `_ensure_tables()` to use Ibis table creation helpers
-- [ ] Verify all queries still work with new schema definitions
+#### 3.2 Refactor Existing Functions to Return Expressions (OPTIONAL)
 
-**Before**:
+**Goal**: Make core pipeline functions lazy (return Ibis expressions instead of executing).
+
+**Files to potentially modify**:
+- `src/egregora/ingestion/parser.py` - `parse_whatsapp_zip()` already returns Table ✅
+- `src/egregora/privacy/anonymizer.py` - `anonymize_authors()` - check if lazy
+- `src/egregora/augmentation/enrichment/core.py` - `enrich_table()` - EXECUTES (problem)
+
+**For enrichment specifically**:
 ```python
-def create_tables(self):
-    self.conn.execute("""
-        CREATE TABLE IF NOT EXISTS elo_ratings (
-            post_id TEXT PRIMARY KEY,
-            rating DOUBLE,
+# Current: enrich_table() executes batches and makes API calls immediately
+# Problem: Can't defer execution for DAG
+
+# Option A: Accept enrichment must execute (materialized=True)
+# Option B: Refactor to return enrichment plan, execute later
+# Option C: Make enrichment a multi-stage DAG (enriched_urls, enriched_media, etc.)
+
+# RECOMMENDATION: Option A for MVP (mark as materialized)
+```
+
+**Tasks**:
+- [ ] Audit which functions execute vs. return expressions
+- [ ] Document which stages MUST materialize (enrichment, RAG, etc.)
+- [ ] Ensure all compute functions return Ibis Table (even if executed inside)
+
+#### 3.3 Media Files as Table (OPTIONAL - NICE TO HAVE)
+
+**Goal**: Track media files in `media_files` table instead of file scanning.
+
+**File**: `src/egregora/augmentation/enrichment/media.py`
+
+**Current**: Media extraction creates files, returns mapping dict
+**Target**: Media extraction writes to `media_files` table, links via query
+
+**Tasks**:
+- [ ] Modify `extract_media()` to INSERT into `media_files` table
+- [ ] Update `replace_media_mentions()` to JOIN against table instead of dict
+- [ ] Add `media_id` generation (deterministic hash)
+- [ ] Test media table determinism (same input = same IDs)
+
+**Benefit**: Better auditability, supports GDPR deletion tracking
+
+**Complexity**: Medium - requires schema migration, not critical for DAG
+
+---
+
+### Phase 4: Complete DAG Integration (PARTIAL - Infrastructure Done, Wiring Missing)
+
+**Current Status**:
+- ✅ `src/egregora/orchestration/dag.py` exists (361 lines)
+- ✅ DAGExecutor class implemented
+- ✅ Topological sorting (Kahn's algorithm)
+- ✅ Caching/materialization logic
+- ✅ 14/14 tests passing
+- ❌ **NOT USED ANYWHERE** - pipeline.py still calls functions directly
+
+**What's Missing**: DAG executor is never instantiated or called in actual pipeline.
+
+#### 4.1 ✅ DAG Infrastructure - DONE
+
+Already exists in `src/egregora/orchestration/dag.py`:
+- `StageDependency` dataclass ✅
+- `DAGExecutor` class ✅
+- `execute_to_stage()` method ✅
+- `_topological_sort()` ✅
+- `_execute_stage()` ✅
+
+#### 4.2 Define Pipeline DAG
+
+**File**: `src/egregora/orchestration/stages.py` (same file as Phase 3)
+
+Add DAG definition using compute functions from Phase 3:
+
+```python
+from .dag import StageDependency, DAGExecutor
+from ..core.database_schema import PipelineStage
+
+# Import all compute functions
+from .stages import (
+    compute_ingested,
+    compute_anonymized,
+    compute_enriched,
+    compute_knowledge,
+)
+
+def build_pipeline_dag(
+    export_path: Path,
+    model_config: ModelConfig,
+    timezone: str = "UTC",
+    enable_enrichment: bool = True,
+) -> list[StageDependency]:
+    """
+    Build pipeline DAG with all dependencies.
+
+    Parameters are bound to compute functions using closures.
+    """
+    from functools import partial
+
+    dag = [
+        # Stage 1: Ingestion (no dependencies)
+        StageDependency(
+            stage=PipelineStage.INGESTED,
+            depends_on=[],
+            materialized=False,  # Fast, can be view
+            compute_fn=partial(
+                compute_ingested,
+                export_path=export_path,
+                timezone=timezone
+            )
+        ),
+
+        # Stage 2: Anonymization
+        StageDependency(
+            stage=PipelineStage.ANONYMIZED,
+            depends_on=[PipelineStage.INGESTED],
+            materialized=False,  # Fast transformation
+            compute_fn=compute_anonymized
+        ),
+    ]
+
+    # Stage 3: Enrichment (optional, expensive)
+    if enable_enrichment:
+        dag.append(
+            StageDependency(
+                stage=PipelineStage.ENRICHED,
+                depends_on=[PipelineStage.ANONYMIZED],
+                materialized=True,  # EXPENSIVE - cache results
+                compute_fn=partial(
+                    compute_enriched,
+                    model_config=model_config,
+                )
+            )
+        )
+
+    # More stages...
+
+    return dag
+```
+
+**Tasks**:
+- [ ] Create `build_pipeline_dag()` function
+- [ ] Wire up all compute functions from Phase 3
+- [ ] Use `functools.partial` to bind context (export_path, config, etc.)
+- [ ] Mark expensive stages as `materialized=True` (enrichment, RAG)
+- [ ] Add tests for DAG construction
+
+#### 4.3 🚧 Wire DAG Into Pipeline - CRITICAL MISSING PIECE
+
+**File**: `src/egregora/orchestration/pipeline.py`
+
+**Current**: `_process_whatsapp_export()` is 300+ lines of imperative code
+
+**Target**: Replace with DAG executor call
+
+**Before** (simplified):
+```python
+def _process_whatsapp_export(export_path, output_dir, ...):
+    # Step 1: Parse
+    conversations = parse_whatsapp_zip(export_path)
+
+    # Step 2: Anonymize
+    conversations = anonymize_authors(conversations)
+
+    # Step 3: Extract media
+    media_mapping = extract_media(export_path, output_dir)
+    conversations = replace_media_mentions(conversations, media_mapping)
+
+    # Step 4: Enrich
+    if enable_enrichment:
+        conversations = enrich_table(conversations, ...)
+
+    # Step 5: Group by period
+    periods = group_by_period(conversations)
+
+    # Step 6: Generate posts per period
+    for period_key, period_table in periods.items():
+        write_posts_for_period(period_table, ...)
+```
+
+**After** (DAG-based):
+```python
+def _process_whatsapp_export(
+    export_path: Path,
+    output_dir: Path,
+    model_config: ModelConfig,
+    enable_enrichment: bool = True,
+    force_refresh: bool = False,
+    ...
+):
+    """Process WhatsApp export using DAG executor."""
+
+    # 1. Setup database connection
+    conn = get_or_create_database(output_dir / "egregora.duckdb")
+
+    # 2. Build DAG with context-bound compute functions
+    dag = build_pipeline_dag(
+        export_path=export_path,
+        model_config=model_config,
+        timezone=timezone,
+        enable_enrichment=enable_enrichment
+    )
+
+    # 3. Execute DAG up to enrichment stage
+    executor = DAGExecutor(conn, dag)
+    results = executor.execute_to_stage(
+        target=PipelineStage.ENRICHED,
+        force_refresh=force_refresh
+    )
+
+    # 4. Log stage execution
+    for result in results:
+        logger.info(
+            f"[{result.stage.value}] "
+            f"{'CACHED' if result.was_cached else 'COMPUTED'} "
+            f"({result.row_count} rows, {result.duration_seconds:.2f}s)"
+        )
+
+    # 5. Get enriched table for downstream processing
+    enriched_table = conn.table(PipelineStage.ENRICHED.value)
+
+    # 6. Group by period (not yet DAG-ified)
+    periods = group_by_period(enriched_table, period=grouping)
+
+    # 7. Generate posts per period (existing code)
+    for period_key, period_table in periods.items():
+        write_posts_for_period(
+            period_table,
+            period_key,
+            client,
+            batch_client,
+            output_dir=site_paths.posts_dir,
             ...
         )
-    """)
 ```
 
-**After**:
-```python
-from egregora.core.database_schema import ELO_RATINGS_SCHEMA, create_table_if_not_exists
+**Tasks**:
+- [ ] Refactor `_process_whatsapp_export()` to use DAG executor
+- [ ] Keep backward compatibility (feature flag or gradual rollout)
+- [ ] Handle grouping by period (either as DAG stage or post-processing)
+- [ ] Update tests to verify DAG path works
+- [ ] Add integration test: full pipeline via DAG
 
-def create_tables(self):
-    create_table_if_not_exists(self.conn, "elo_ratings", ELO_RATINGS_SCHEMA)
-```
+**Challenges**:
+1. **Grouping by period** - DAG assumes 1 table → 1 table, but grouping is 1 → N
+   - **Solution A**: Keep grouping outside DAG (current approach above)
+   - **Solution B**: Make periods separate DAG runs (more complex)
+   - **Solution C**: Flatten periods into single table with `period_key` column
 
-#### 1.3 Consolidate rankings.duckdb into Main Database
-
-**Files**:
-- `src/egregora/orchestration/database.py`
-- `src/egregora/knowledge/ranking/store.py`
-- `src/egregora/config/model.py` (if DB path is configurable)
-
-- [ ] Add `rankings_db_path` parameter to database connection manager
-  - Default to same DB as main pipeline
-  - Support override for backwards compatibility during transition
-- [ ] Update `RankingStore.__init__()` to accept shared connection
-- [ ] Create migration script to copy existing `rankings.duckdb` into main DB
-  - Script: `scripts/migrate_rankings_db.py`
-  - Handle table name conflicts (prefix with `elo_` if needed)
-- [ ] Update all ranking imports to use unified connection
-
-**Migration Script**:
-```python
-# scripts/migrate_rankings_db.py
-"""Migrate rankings.duckdb into main pipeline database."""
-import duckdb
-from pathlib import Path
-
-def migrate(old_rankings_db: Path, main_db: Path):
-    # Attach old DB and copy tables
-    conn = duckdb.connect(str(main_db))
-    conn.execute(f"ATTACH '{old_rankings_db}' AS old_rankings")
-    conn.execute("CREATE TABLE elo_ratings AS SELECT * FROM old_rankings.elo_ratings")
-    conn.execute("DETACH old_rankings")
-```
-
-- [ ] Document migration in `CLAUDE.md` under "Database Management"
-- [ ] Add warning if old `rankings.duckdb` found (point to migration script)
-
-#### 1.4 Update Tests
-
-**Files**: `tests/knowledge/ranking/test_store.py`
-
-- [ ] Update tests to use centralized schemas
-- [ ] Verify schema parity (old DDL == new Ibis schema)
-- [ ] Add test for unified DB connection
-- [ ] Property test: same queries return same results before/after
-
-**Test Cases**:
-```python
-def test_schema_parity():
-    """Ensure new Ibis schema matches old DDL structure."""
-    # Compare column names, types, constraints
-
-def test_unified_db_connection():
-    """Ranking operations work with shared DB connection."""
-    # Create tables, insert ratings, query - all via one connection
-```
-
-### Phase 1 Acceptance Criteria
-
-- [ ] All schemas defined in `core/database_schema.py` (no raw DDL elsewhere)
-- [ ] `RankingStore` uses `create_table_if_not_exists()` helper
-- [ ] Single DuckDB file contains messages + RAG + rankings
-- [ ] All existing tests pass
-- [ ] Migration script tested on real `rankings.duckdb` file
+2. **Post generation per period** - currently loops over periods
+   - **Solution**: Keep loop, but each period gets enriched data from DAG-materialized table
 
 ---
 
-## Phase 2: Shared Utilities
+### Phase 5: CLI Integration & Observability (NOT STARTED)
 
-**Goal**: Centralize batching and timezone logic to eliminate duplication and edge cases.
+**Goal**: Expose DAG controls via CLI, add visibility into stage execution.
 
-### Tasks
-
-#### 2.1 Create Canonical Batching Utility
-
-**File**: `src/egregora/utils/batching.py` (new file)
-
-- [ ] Implement `batch_table(table, batch_size, order_by)` using Ibis
-  - Returns iterator of table slices
-  - Uses `.order_by(...).limit(batch_size, offset=offset)`
-  - Replaces row_number window logic
-- [ ] Add property tests for exact coverage (no gaps, no overlaps)
-- [ ] Document why this is preferred over window functions
-
-**Implementation**:
-```python
-from typing import Iterator
-import ibis
-from ibis.expr.types import Table
-
-def batch_table(
-    table: Table,
-    batch_size: int,
-    order_by: list[str]
-) -> Iterator[Table]:
-    """
-    Yield batches of table using stable ordering.
-
-    Preferred over row_number windowing because:
-    - Simpler mental model
-    - No custom column pollution
-    - DuckDB optimizer friendly
-    """
-    offset = 0
-    while True:
-        batch = (
-            table
-            .order_by(order_by)
-            .limit(batch_size, offset=offset)
-        )
-        # Execute to check if empty
-        batch_data = batch.execute()
-        if len(batch_data) == 0:
-            break
-        yield batch
-        offset += batch_size
-```
-
-**Property Tests**:
-```python
-@given(st.lists(st.integers()), st.integers(min_value=1, max_value=100))
-def test_batch_coverage(rows, batch_size):
-    """All rows appear exactly once across batches."""
-    table = ibis.memtable({"id": rows})
-    batched_ids = []
-    for batch in batch_table(table, batch_size, ["id"]):
-        batched_ids.extend(batch.execute()["id"].tolist())
-    assert sorted(batched_ids) == sorted(rows)
-```
-
-#### 2.2 Replace Existing Batching Logic
-
-**Files to Update**:
-- `src/egregora/augmentation/enrichment/batch.py`
-- Any other files using row_number batching
-
-- [ ] Replace window function batching with `batch_table()`
-- [ ] Update `_iter_table_record_batches()` to use new utility
-- [ ] Remove custom row_number column logic
-- [ ] Verify batch sizes match expectations in tests
-
-**Before**:
-```python
-# Complex windowing with temp columns
-batch_col = table.mutate(
-    _batch_id=ibis.row_number().over(order_by=["timestamp"]) // batch_size
-)
-for batch_id in range(num_batches):
-    yield batch_col.filter(batch_col._batch_id == batch_id)
-```
-
-**After**:
-```python
-from egregora.utils.batching import batch_table
-for batch in batch_table(table, batch_size, order_by=["timestamp"]):
-    yield batch
-```
-
-#### 2.3 Centralize Timezone Normalization
-
-**File**: `src/egregora/utils/normalization.py` (new file)
-
-- [ ] Create `normalize_timestamps(table)` function
-  - Ensures all timestamp columns are UTC scale-9
-  - Uses `ensure_message_schema()` under the hood
-  - Validates timezone consistency
-- [ ] Add to pipeline entry points (ingestion, augmentation)
-- [ ] Document timezone contract in `CLAUDE.md`
-
-**Implementation**:
-```python
-def normalize_timestamps(table: Table, timezone: str = "UTC") -> Table:
-    """
-    Normalize all timestamp columns to UTC with scale-9 precision.
-
-    This is the canonical entry point for timezone handling.
-    All downstream stages assume UTC timestamps.
-    """
-    from egregora.core.database_schema import ensure_message_schema
-    return ensure_message_schema(table, timezone=timezone)
-```
-
-**Usage at Pipeline Entry**:
-```python
-# In orchestration/pipeline.py
-def run_pipeline(conversations: Table) -> None:
-    # Normalize immediately after ingestion
-    conversations = normalize_timestamps(conversations, timezone="UTC")
-    # ... rest of pipeline
-```
-
-#### 2.4 Update Tests
-
-- [ ] Add tests for `batch_table()` edge cases (empty table, batch_size > table size)
-- [ ] Add tests for timezone normalization idempotency
-- [ ] Update existing tests to use new utilities
-
-### Phase 2 Acceptance Criteria
-
-- [ ] `batch_table()` passes property tests (no gaps, no overlaps)
-- [ ] All pipeline stages use `batch_table()` (no custom batching)
-- [ ] Timezone normalization happens once at ingestion
-- [ ] All tests pass with new utilities
-- [ ] Performance parity or improvement over old batching
-
----
-
-## Phase 3: Views Over Steps
-
-**Goal**: Express pipeline stages as Ibis views/materialized tables instead of imperative transforms.
-
-### Tasks
-
-#### 3.1 Define Stage Views in Schema Module
-
-**File**: `src/egregora/core/database_schema.py`
-
-- [ ] Add `PIPELINE_STAGES` enum or config
-  - `INGESTED_MESSAGES` (raw parsed data)
-  - `ANONYMIZED_MESSAGES` (post-privacy)
-  - `ENRICHED_MESSAGES` (post-augmentation)
-  - `KNOWLEDGE_CONTEXT` (post-RAG retrieval)
-- [ ] Define view creation helpers
-  - `create_stage_view(conn, stage_name, query)`
-  - `materialize_stage(conn, stage_name, query)`
-
-**Example**:
-```python
-from enum import Enum
-
-class PipelineStage(str, Enum):
-    INGESTED = "ingested_messages"
-    ANONYMIZED = "anonymized_messages"
-    ENRICHED = "enriched_messages"
-    KNOWLEDGE = "knowledge_context"
-
-def create_stage_view(
-    conn: ibis.BaseBackend,
-    stage: PipelineStage,
-    source_table: Table
-) -> None:
-    """Create or replace a pipeline stage view."""
-    conn.create_view(stage.value, source_table, overwrite=True)
-```
-
-#### 3.2 Refactor Augmentation as Views
-
-**File**: `src/egregora/augmentation/enrichment/core.py`
-
-- [ ] Change `enrich_conversations()` to return Ibis expression (not executed)
-- [ ] Keep `replace_media_mentions()` but track outputs in table
-  - Add `media_files` table with columns: `media_id`, `original_path`, `site_path`, `description`
-  - Media extraction outputs deterministic table rows
-- [ ] Create `ENRICHED_MESSAGES` view from enrichment query
-- [ ] Ensure schema compliance via `ensure_message_schema()` in view definition
-
-**Current (Imperative)**:
-```python
-def enrich_conversations(table: Table) -> Table:
-    enriched = _add_enrichments(table)  # Side effects
-    result = replace_media_mentions(enriched)  # File operations
-    return result
-```
-
-**Target (Declarative)**:
-```python
-def define_enrichment_view(source_table: Table) -> Table:
-    """Define enrichment as Ibis expression (lazy)."""
-    enriched = _add_enrichment_columns(source_table)
-    # Media handling becomes join with media_files table
-    with_media = enriched.join(media_files, ...)
-    return ensure_message_schema(with_media)
-
-# In pipeline:
-conn.create_view("enriched_messages", define_enrichment_view(anonymized))
-```
-
-#### 3.3 Refactor Media Pipeline as Table Outputs
-
-**Files**:
-- `src/egregora/augmentation/media.py`
-- `src/egregora/core/database_schema.py` (add `MEDIA_FILES_SCHEMA`)
-
-- [ ] Define `MEDIA_FILES_SCHEMA`
-  - Columns: `media_id`, `message_timestamp`, `original_filename`, `site_relative_path`, `description`, `pii_redacted`
-- [ ] Change media extraction to write to `media_files` table
-  - Deterministic `media_id` (hash of original path + timestamp)
-  - Track PII redaction status
-- [ ] Link rewriting uses join instead of file scanning
-- [ ] Add `media_files` table to unified DB
-
-**Schema**:
-```python
-MEDIA_FILES_SCHEMA = ibis.schema({
-    "media_id": "string",           # Deterministic hash
-    "message_timestamp": "timestamp(9, 'UTC')",
-    "original_filename": "string",
-    "site_relative_path": "string", # e.g., "assets/media/abc123.jpg"
-    "description": "string",        # LLM-generated
-    "pii_redacted": "boolean",      # Placeholder applied?
-})
-```
-
-#### 3.4 Update RAG to Use Views
-
-**File**: `src/egregora/knowledge/rag/store.py`
-
-- [ ] RAG indexing consumes `ENRICHED_MESSAGES` view instead of passed table
-- [ ] Chunk generation becomes deterministic query over view
-- [ ] No changes needed to RAG logic (already follows pattern)
-
-#### 3.5 Update Tests
-
-- [ ] Test view creation and querying
-- [ ] Test media table determinism (same input = same `media_id`)
-- [ ] Verify enrichment view matches old imperative output
-- [ ] Add tests for PII redaction tracking in media table
-
-### Phase 3 Acceptance Criteria
-
-- [ ] All pipeline stages defined as views or materialized tables
-- [ ] Media extraction outputs to `media_files` table
-- [ ] `ENRICHED_MESSAGES` view queryable via Ibis
-- [ ] No loss of functionality (all old features still work)
-- [ ] Tests validate view outputs match old imperative outputs
-- [ ] PII redactions tracked explicitly in media table
-
----
-
-## Phase 4: CLI as DAG Runner
-
-**Goal**: CLI computes dependency graph and materializes only needed stages.
-
-### Tasks
-
-#### 4.1 Define Stage Dependencies
-
-**File**: `src/egregora/orchestration/dag.py` (new file)
-
-- [ ] Create `StageDependency` dataclass
-  - `name: PipelineStage`
-  - `depends_on: list[PipelineStage]`
-  - `materialized: bool` (vs. view)
-- [ ] Define full pipeline DAG
-  - `INGESTED` → `ANONYMIZED` → `ENRICHED` → `KNOWLEDGE` → `GENERATED`
-- [ ] Implement topological sort for execution order
-- [ ] Add `needs_refresh(conn, stage)` to check if recomputation needed
-
-**DAG Definition**:
-```python
-from dataclasses import dataclass
-from egregora.core.database_schema import PipelineStage
-
-@dataclass
-class StageDependency:
-    name: PipelineStage
-    depends_on: list[PipelineStage]
-    materialized: bool = False
-
-PIPELINE_DAG = [
-    StageDependency(PipelineStage.INGESTED, depends_on=[]),
-    StageDependency(PipelineStage.ANONYMIZED, depends_on=[PipelineStage.INGESTED]),
-    StageDependency(PipelineStage.ENRICHED, depends_on=[PipelineStage.ANONYMIZED], materialized=True),
-    StageDependency(PipelineStage.KNOWLEDGE, depends_on=[PipelineStage.ENRICHED]),
-]
-
-def topological_sort(dag: list[StageDependency]) -> list[PipelineStage]:
-    """Return stages in execution order."""
-    # Standard topo sort implementation
-```
-
-#### 4.2 Implement DAG Executor
-
-**File**: `src/egregora/orchestration/dag.py`
-
-- [ ] Create `execute_dag(conn, target_stage, force_refresh)` function
-  - Computes all upstream dependencies
-  - Materializes or refreshes as needed
-  - Caches view creation (don't recreate if exists and not stale)
-- [ ] Add `materialize_stage(conn, stage)` function
-  - Creates table from view (for expensive stages like enrichment)
-  - Tracks materialization timestamps
-
-**Implementation**:
-```python
-def execute_dag(
-    conn: ibis.BaseBackend,
-    target: PipelineStage,
-    force_refresh: bool = False
-) -> None:
-    """Execute pipeline DAG up to target stage."""
-    stages = topological_sort(PIPELINE_DAG)
-    stages_to_run = stages[:stages.index(target) + 1]
-
-    for stage_def in stages_to_run:
-        if force_refresh or needs_refresh(conn, stage_def.name):
-            logger.info(f"Computing stage: {stage_def.name}")
-            # Get view definition from registry
-            view_query = get_stage_query(stage_def.name)
-            if stage_def.materialized:
-                materialize_stage(conn, stage_def.name, view_query)
-            else:
-                create_stage_view(conn, stage_def.name, view_query)
-```
-
-#### 4.3 Update CLI Commands
+#### 5.1 Update CLI Commands
 
 **File**: `src/egregora/orchestration/cli.py`
 
-- [ ] Add `--target-stage` option to `process` command
-  - Default: `GENERATED` (run full pipeline)
-  - Options: `ingested`, `anonymized`, `enriched`, `knowledge`, `generated`
-- [ ] Add `--force-refresh` flag to recompute stages even if cached
-- [ ] Convert granular commands to debug subcommands
-  - `egregora parse` → `egregora debug run-stage ingested`
-  - `egregora group` → `egregora debug run-stage anonymized`
-  - Keep for backwards compatibility but mark as debug/advanced
+**New CLI options**:
+```bash
+# Run full pipeline (default)
+egregora process export.zip --output ./site
 
-**Updated CLI**:
+# Stop at specific stage
+egregora process export.zip --output ./site --target-stage enriched
+
+# Force recompute even if cached
+egregora process export.zip --output ./site --force-refresh
+
+# Show DAG status
+egregora debug dag-status --output ./site
+```
+
+**Implementation**:
 ```python
 @app.command()
 def process(
     export_path: Path,
     output: Path,
-    target_stage: PipelineStage = PipelineStage.GENERATED,
+    target_stage: str = "generated",  # ingested|anonymized|enriched|knowledge|generated
     force_refresh: bool = False,
+    ...
 ):
     """Process WhatsApp export through pipeline stages."""
-    conn = get_database_connection(output)
-    execute_dag(conn, target=target_stage, force_refresh=force_refresh)
+
+    # Parse stage name to enum
+    try:
+        target = PipelineStage[target_stage.upper()]
+    except KeyError:
+        console.print(f"[red]Invalid stage: {target_stage}[/red]")
+        console.print(f"Valid stages: {[s.value for s in PipelineStage]}")
+        raise typer.Exit(1)
+
+    # Run pipeline with DAG
+    _process_whatsapp_export(
+        export_path=export_path,
+        output_dir=output,
+        target_stage=target,
+        force_refresh=force_refresh,
+        ...
+    )
+
+@app.command()
+def dag_status(output: Path):
+    """Show DAG stage status and freshness."""
+    conn = get_database(output / "egregora.duckdb")
+
+    for stage in PipelineStage:
+        if stage_exists(conn, stage):
+            table = conn.table(stage.value)
+            row_count = table.count().execute()
+            # TODO: Get materialization timestamp
+            print(f"✓ {stage.value:20s} {row_count:8d} rows")
+        else:
+            print(f"✗ {stage.value:20s} NOT COMPUTED")
 ```
 
-#### 4.4 Add Observability
+**Tasks**:
+- [ ] Add `--target-stage` parameter to `process` command
+- [ ] Add `--force-refresh` flag
+- [ ] Implement `egregora debug dag-status` command
+- [ ] Update help text to explain stage options
+- [ ] Add validation for stage names
 
-**Files**:
-- `src/egregora/orchestration/dag.py`
-- `src/egregora/utils/logging.py` (if custom logging)
+#### 5.2 Enhanced Logging & Progress
 
-- [ ] Log stage execution times
-- [ ] Log stage output row counts
-- [ ] Add `egregora debug dag-status` command to show stage freshness
-- [ ] Optional: Progress bars for long-running stages
+**Goal**: Show user-friendly progress during pipeline execution.
 
-**Example Output**:
+**Current**: Basic logger.info() messages
+**Target**: Rich progress bars, stage timing, row counts
+
+**Implementation**:
+```python
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
+
+def execute_dag_with_progress(
+    conn,
+    dag: list[StageDependency],
+    target: PipelineStage,
+    force_refresh: bool = False
+):
+    """Execute DAG with progress bar."""
+
+    executor = DAGExecutor(conn, dag)
+    stages_to_run = executor._get_execution_order(target)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+    ) as progress:
+
+        task = progress.add_task(
+            f"Pipeline to {target.value}",
+            total=len(stages_to_run)
+        )
+
+        for i, stage_def in enumerate(stages_to_run, 1):
+            progress.update(
+                task,
+                description=f"[{i}/{len(stages_to_run)}] {stage_def.stage.value}"
+            )
+
+            result = executor._execute_stage(stage_def, force_refresh=force_refresh)
+
+            # Log result
+            status = "CACHED" if result.was_cached else "COMPUTED"
+            progress.console.print(
+                f"  ✓ {result.row_count:,} rows in {result.duration_seconds:.2f}s ({status})"
+            )
+
+            progress.advance(task)
 ```
-$ egregora process export.zip --output ./output
-[1/5] Ingesting messages... (2.3s, 1,234 rows)
-[2/5] Anonymizing authors... (0.5s, 1,234 rows)
-[3/5] Enriching content... (45.2s, 1,234 rows) [MATERIALIZED]
-[4/5] Building knowledge graph... (3.1s, 456 chunks)
-[5/5] Generating posts... (12.3s, 3 posts)
-✓ Pipeline complete
+
+**Tasks**:
+- [ ] Add `rich` progress bars for stage execution
+- [ ] Log row counts and timing for each stage
+- [ ] Show cache hit/miss status
+- [ ] Add `--quiet` flag to disable progress bars
+- [ ] Color-code stage types (view vs. materialized)
+
+#### 5.3 Debug Commands
+
+**New commands for debugging pipeline**:
+
+```bash
+# Show DAG execution order
+egregora debug dag-order --target enriched
+
+# Visualize DAG as ASCII graph
+egregora debug dag-graph
+
+# Show table schemas
+egregora debug show-schema --stage enriched
+
+# Validate database integrity
+egregora debug validate-db --output ./site
 ```
 
-#### 4.5 Update Tests
+**Tasks**:
+- [ ] Implement `dag-order` command (show topological sort)
+- [ ] Implement `dag-graph` command (ASCII visualization)
+- [ ] Implement `show-schema` command (print table schema)
+- [ ] Implement `validate-db` command (check foreign keys, schema compliance)
 
-- [ ] Test DAG topological sort
+---
+
+## Implementation Plan - Recommended Order
+
+### Step 1: Phase 3.1 - Extract Stage Compute Functions
+**Effort**: 2-3 days
+**Files**: Create `src/egregora/orchestration/stages.py`
+**Deliverable**: Compute functions for all stages that return Ibis tables
+
+### Step 2: Phase 4.2 - Define Pipeline DAG
+**Effort**: 1 day
+**Files**: Add `build_pipeline_dag()` to `stages.py`
+**Deliverable**: DAG definition with bound compute functions
+
+### Step 3: Phase 4.3 - Wire DAG Into Pipeline
+**Effort**: 3-4 days
+**Files**: Refactor `orchestration/pipeline.py`
+**Deliverable**: Pipeline uses DAG executor (with backward compat)
+
+### Step 4: Integration Testing
+**Effort**: 2 days
+**Files**: Add end-to-end tests
+**Deliverable**: Full pipeline test via DAG executor
+
+### Step 5: Phase 5.1 - CLI Integration
+**Effort**: 1-2 days
+**Files**: Update `orchestration/cli.py`
+**Deliverable**: CLI supports --target-stage, --force-refresh
+
+### Step 6: Phase 5.2 - Logging & Progress
+**Effort**: 1 day
+**Files**: Add rich progress bars
+**Deliverable**: User-friendly pipeline output
+
+### Step 7: Phase 3.3 - Media Files Table (OPTIONAL)
+**Effort**: 2-3 days
+**Files**: Refactor media extraction
+**Deliverable**: Media tracked in database
+
+**Total Estimated Effort**: 10-15 days (2-3 weeks)
+
+---
+
+## Testing Strategy
+
+### Unit Tests (Per Phase)
+
+**Phase 3**:
+- [ ] Test each compute function returns Table (not executed)
+- [ ] Test compute functions with mock upstream tables
+- [ ] Test stage functions handle missing dependencies gracefully
+
+**Phase 4**:
+- [ ] Test `build_pipeline_dag()` creates valid dependencies
+- [ ] Test DAG executor with pipeline stages (not just toy examples)
 - [ ] Test partial execution (stop at intermediate stage)
-- [ ] Test force refresh (recomputes even if cached)
-- [ ] Test stage freshness detection
-- [ ] Integration test: full pipeline via DAG executor
 
-### Phase 4 Acceptance Criteria
+**Phase 5**:
+- [ ] Test CLI parsing of stage names
+- [ ] Test --force-refresh recomputes stages
+- [ ] Test dag-status command output
 
-- [ ] `execute_dag()` correctly orders and executes stages
-- [ ] CLI supports `--target-stage` for partial runs
-- [ ] Materialization caching works (doesn't recompute unnecessarily)
-- [ ] All old CLI commands still work (backwards compatibility)
-- [ ] Stage execution logged with timing and row counts
-- [ ] Tests validate DAG execution correctness
+### Integration Tests
 
----
+- [ ] Full pipeline test: export.zip → posts (via DAG)
+- [ ] Incremental test: run twice, verify caching works
+- [ ] Force refresh test: --force-refresh recomputes all
+- [ ] Partial execution test: --target-stage enriched stops early
+- [ ] Backward compat test: old pipeline.py code path still works
 
-## Implementation Order
+### Property Tests
 
-### Recommended Sequence
-
-1. **Week 1: Phase 1** (Contract First)
-   - Low risk, high value
-   - Unblocks subsequent phases
-   - Can ship independently
-
-2. **Week 2: Phase 2** (Shared Utilities)
-   - Medium risk (touching core logic)
-   - High test coverage needed
-   - Immediate correctness benefits
-
-3. **Week 3: Phase 3** (Views Over Steps)
-   - Medium-high complexity
-   - Most architectural change
-   - Enables Phase 4
-
-4. **Week 4: Phase 4** (CLI as DAG Runner)
-   - Low risk (mainly orchestration)
-   - High UX value
-   - Final integration
-
-### Parallel Work Opportunities
-
-- Phase 1.1 (schema definitions) + Phase 2.1 (batching utility) can run in parallel
-- Phase 1.4 (tests) can start as soon as Phase 1.2 completes
-- Phase 3.3 (media pipeline) can be developed independently of Phase 3.2
-
----
-
-## Risk Mitigation
-
-### Rollback Plan
-
-Each phase includes:
-- Feature flags for gradual rollout
-- Backwards compatibility shims
-- A/B testing (old vs. new path) in tests
-
-**Example Feature Flag**:
-```python
-# In config/model.py
-USE_UNIFIED_DB: bool = os.getenv("EGREGORA_UNIFIED_DB", "false").lower() == "true"
-
-# In code:
-if USE_UNIFIED_DB:
-    store = RankingStore(conn=unified_conn)
-else:
-    store = RankingStore(db_path="rankings.duckdb")
-```
-
-### Testing Strategy
-
-1. **Property Tests**: Batching coverage, schema roundtrips
-2. **Parity Tests**: Old output == new output for same input
-3. **Integration Tests**: Full pipeline runs with real data
-4. **Performance Tests**: No regression in query/batch speed
-
-### Migration Safety
-
-- **Database Backups**: Auto-backup before migrations
-- **Schema Versioning**: Track schema version in DB metadata table
-- **Gradual Cutover**: Run old and new paths in parallel during transition
-
-**Schema Version Table**:
-```python
-SCHEMA_VERSION_TABLE = ibis.schema({
-    "version": "int64",
-    "applied_at": "timestamp(9, 'UTC')",
-    "description": "string",
-})
-
-# Check version before applying migrations
-current_version = get_schema_version(conn)
-if current_version < REQUIRED_VERSION:
-    run_migrations(conn, current_version, REQUIRED_VERSION)
-```
+- [ ] Same input → same output (determinism)
+- [ ] Cached execution == fresh execution (correctness)
+- [ ] Stage order is topological (no dependency violations)
 
 ---
 
@@ -640,85 +698,341 @@ if current_version < REQUIRED_VERSION:
 
 ### Correctness
 
-- [ ] **Determinism**: Re-running pipeline yields byte-identical outputs for unchanged inputs
-- [ ] **Parity**: Old vs. new ranking queries return same rows on same dataset
-- [ ] **No Broken Media**: All media links resolve correctly under site-root paths
-- [ ] **PII Tracking**: PII deletions surface as explicit placeholders (no silent failures)
+- [ ] **Determinism**: Re-running pipeline yields identical outputs
+- [ ] **Parity**: DAG path produces same results as old imperative path
+- [ ] **No Regressions**: All existing tests pass with DAG executor
 
 ### Performance
 
-- [ ] **Query Speed**: No regression (target: <5% slower, ideally faster)
-- [ ] **Batch Processing**: Edge cases handled (empty batches, last batch < batch_size)
-- [ ] **Single DB**: Connection overhead reduced (measure with profiling)
+- [ ] **Caching Works**: Second run skips already-computed stages
+- [ ] **No Slowdown**: DAG overhead < 5% vs. old pipeline
+- [ ] **Materialization**: Expensive stages (enrichment) cached correctly
 
-### Maintainability
+### Usability
 
-- [ ] **Schema Centralization**: 100% of schemas in `core/database_schema.py` (zero raw DDL)
-- [ ] **Code Reduction**: Estimated 15-20% fewer lines (remove duplicate batching/TZ logic)
-- [ ] **Test Coverage**: No decrease (target: +5% from new property tests)
-
----
-
-## Post-Refactor Opportunities
-
-Once this refactor is complete, you unlock:
-
-1. **Incremental Computation**: Re-run only changed stages (checkpoint/resume)
-2. **Parallel Stage Execution**: Independent stages run concurrently
-3. **Schema Evolution**: Automated migrations via Alembic or similar
-4. **Query Optimization**: Single-DB enables cross-stage query pushdown
-5. **Monitoring**: Built-in observability (stage timings, row counts, cache hit rates)
+- [ ] **Clear Progress**: User sees what stage is running + timing
+- [ ] **Partial Runs**: Can stop at intermediate stage for debugging
+- [ ] **Resume Support**: Can skip already-computed stages (via caching)
 
 ---
 
-## Appendix: File Manifest
+## Migration & Rollout
 
-### New Files
+### Backward Compatibility
 
-- `src/egregora/utils/batching.py` - Canonical batching utility
-- `src/egregora/utils/normalization.py` - Timezone normalization
-- `src/egregora/orchestration/dag.py` - DAG definition and executor
-- `scripts/migrate_rankings_db.py` - Database migration script
+**Strategy**: Feature flag for gradual rollout
 
-### Modified Files
+```python
+# In cli.py or config
+USE_DAG_EXECUTOR = os.getenv("EGREGORA_USE_DAG", "false").lower() == "true"
 
-- `src/egregora/core/database_schema.py` - Add ELO, media, stage schemas
-- `src/egregora/knowledge/ranking/store.py` - Use central schemas
-- `src/egregora/augmentation/enrichment/core.py` - Declarative views
-- `src/egregora/augmentation/enrichment/batch.py` - Use `batch_table()`
-- `src/egregora/augmentation/media.py` - Table-based outputs
-- `src/egregora/orchestration/cli.py` - DAG-based commands
-- `src/egregora/orchestration/pipeline.py` - Use DAG executor
+if USE_DAG_EXECUTOR:
+    _process_whatsapp_export_dag(...)  # New DAG path
+else:
+    _process_whatsapp_export_legacy(...)  # Old imperative path
+```
 
-### Test Files
+**Rollout phases**:
+1. **Alpha**: DAG path behind feature flag, opt-in testing
+2. **Beta**: DAG path default, legacy path available via flag
+3. **GA**: Remove legacy path after 1-2 releases
 
-- `tests/utils/test_batching.py` - Batching property tests
-- `tests/orchestration/test_dag.py` - DAG execution tests
-- `tests/knowledge/ranking/test_store.py` - Schema parity tests
-- `tests/augmentation/test_media.py` - Media table determinism tests
+### Database Migration
 
----
+**No migration needed** - DAG uses same DuckDB schema, just different execution path.
 
-## Getting Started
-
-### Immediate Next Steps
-
-1. **Review this plan** with team/stakeholders
-2. **Create feature branch**: `git checkout -b refactor/unified-dag`
-3. **Start with Phase 1.1**: Add ELO schemas to `database_schema.py`
-4. **Set up tests**: Create `tests/core/test_schema_parity.py`
-5. **Iterate**: Ship Phase 1 before starting Phase 2
-
-### Questions to Resolve Before Starting
-
-- [ ] Which DuckDB file path for unified DB? (default: `{output_dir}/egregora.duckdb`)
-- [ ] Keep old `rankings.duckdb` for backwards compat period? (suggest: yes, 1 release)
-- [ ] Materialization strategy: always materialize enrichment? (suggest: yes, it's expensive)
-- [ ] Feature flag naming convention? (suggest: `EGREGORA_ENABLE_*`)
+**Cleanup**:
+- Old materialized stages can be dropped (they'll be recreated)
+- Or keep for backward compatibility period
 
 ---
 
-**Last Updated**: 2025-11-01
-**Status**: Draft - Ready for Review
+## Open Questions & Decisions Needed
+
+### Q1: How to handle period grouping in DAG?
+
+**Current**: `group_by_period()` returns `dict[str, Table]` (1 table → N tables)
+**DAG Model**: Assumes 1 table → 1 table per stage
+
+**Options**:
+- **A**: Keep grouping outside DAG (simpler, current approach)
+- **B**: Flatten periods into single table with `period_key` column
+- **C**: Run separate DAG per period (more complex, better parallelism)
+
+**Recommendation**: Start with **Option A**, consider B/C later.
+
+---
+
+### Q2: Should generation (write_posts_for_period) be a DAG stage?
+
+**Current**: Generation loops over periods, calls LLM, writes markdown files (side effects)
+
+**Challenges for DAG**:
+- Not a Table → Table transformation
+- Has side effects (writes files, makes API calls)
+- Output is markdown files, not database table
+
+**Options**:
+- **A**: Keep generation outside DAG (current approach)
+- **B**: Model generation as table of "post requests" → "generated posts" table
+- **C**: Create `GENERATED_POSTS` table with markdown content as column
+
+**Recommendation**: Start with **Option A** (generation stays imperative).
+
+---
+
+### Q3: Feature flag naming convention?
+
+**Proposal**: `EGREGORA_USE_DAG=true`
+
+**Alternative**: `EGREGORA_EXECUTOR=dag` (vs `legacy`)
+
+**Decision**: TBD
+
+---
+
+## Appendix: Current DAG Infrastructure (Already Built)
+
+### Existing Files (From PR #520)
+
+**Core DAG**:
+- ✅ `src/egregora/orchestration/dag.py` (361 lines)
+  - `StageDependency` dataclass
+  - `DAGExecutor` class
+  - Topological sorting
+  - Stage caching logic
+
+**Utilities**:
+- ✅ `src/egregora/utils/batching.py` (160 lines)
+- ✅ `src/egregora/utils/normalization.py` (49 lines)
+
+**Schema Updates**:
+- ✅ `src/egregora/core/database_schema.py`
+  - `PipelineStage` enum
+  - `create_stage_view()`, `materialize_stage()` helpers
+  - `MEDIA_FILES_SCHEMA`
+
+**Tests**:
+- ✅ `tests/test_dag.py` (384 lines, 14 tests, all passing)
+- ✅ `tests/test_batching.py` (202 lines)
+- ✅ `tests/test_pipeline_stages.py` (222 lines)
+
+**What's Missing**: Integration (Phases 3-5 above)
+
+---
+
+## Files to Create
+
+### New Files Needed
+
+1. `src/egregora/orchestration/stages.py` - Stage compute functions + DAG builder
+2. `src/egregora/orchestration/executor.py` - Pipeline-specific executor wrapper (optional)
+3. `tests/integration/test_dag_pipeline.py` - End-to-end DAG tests
+
+### Files to Modify
+
+1. `src/egregora/orchestration/pipeline.py` - Wire in DAG executor
+2. `src/egregora/orchestration/cli.py` - Add CLI options
+3. `src/egregora/ingestion/parser.py` - Ensure returns lazy Table
+4. `src/egregora/augmentation/enrichment/core.py` - Document execution model
+
+---
+
+## Next Steps (Immediate Actions)
+
+1. **Review this plan** - Get alignment on approach
+2. **Decide on open questions** (Q1-Q3 above)
+3. **Create feature branch**: `git checkout -b refactor/complete-dag-integration`
+4. **Start with Phase 3.1**: Create `stages.py` with first compute function
+5. **Iterate**: Ship incrementally, test frequently
+
+**First Concrete Task**:
+```bash
+# Create stages.py with ingestion stage
+touch src/egregora/orchestration/stages.py
+
+# Write compute_ingested() function
+# Test it returns Table without executing
+# Add to git and commit
+```
+
+---
+
+**Status**: Ready for implementation
 **Owner**: TBD
 **Reviewers**: TBD
+**Target Completion**: 2-3 weeks from start
+
+---
+
+## Appendix B: DAG Libraries - Should We Use One?
+
+### Current Implementation
+
+**Custom DAG** in `src/egregora/orchestration/dag.py`:
+- 361 lines of hand-written code
+- Kahn's algorithm for topological sorting
+- Basic caching/materialization
+- 14 unit tests (all passing)
+
+### Alternative: Use Existing DAG Library
+
+**Popular Python DAG Libraries**:
+
+1. **Apache Airflow** ❌
+   - **Pros**: Industry standard, mature, web UI, scheduling
+   - **Cons**: MASSIVE overkill (requires web server, database, workers), heavy dependency
+   - **Verdict**: Too heavyweight for local data pipeline
+
+2. **Prefect** ❌
+   - **Pros**: Modern, Python-native, good caching
+   - **Cons**: Requires server/cloud, adds complexity
+   - **Verdict**: Over-engineered for our use case
+
+3. **Luigi** (by Spotify) ❌
+   - **Pros**: Simpler than Airflow, file-based targets
+   - **Cons**: Still designed for distributed batch jobs, extra dependency
+   - **Verdict**: Adds complexity without clear benefit
+
+4. **Dask** ❌
+   - **Pros**: Great for parallel computation, DataFrame-native
+   - **Cons**: Focused on parallelism/distributed compute, not pipeline orchestration
+   - **Verdict**: Wrong tool for the job
+
+5. **Hamilton** (by Stitch Fix) ⚠️
+   - **Pros**: Lightweight, function-based DAG, data-centric, minimal deps
+   - **Cons**: Less mature, smaller community
+   - **Verdict**: **MOST PROMISING** if we switch
+
+6. **NetworkX** (graph library) ⚠️
+   - **Pros**: Python stdlib-adjacent, topological sort built-in, no DAG-specific opinions
+   - **Cons**: Just a graph library (no execution, caching, etc.)
+   - **Verdict**: Could simplify our topological sort (replace 30 lines with 3)
+
+### Recommendation: **Keep Custom DAG**
+
+**Why?**
+
+1. **Already Built & Tested**: 361 lines, 14 tests passing, works well
+2. **No External Deps**: Don't want heavy dependencies for simple orchestration
+3. **Perfect Fit**: Designed exactly for our use case (Ibis table transformations)
+4. **Learning Value**: Simple, understandable, easy to debug
+5. **Flexibility**: Can evolve with our needs without library constraints
+
+**Potential Improvement**: Use NetworkX for topological sorting
+
+```python
+# Current: 50 lines of Kahn's algorithm
+def _topological_sort(self, stages, stage_to_def):
+    in_degree = defaultdict(int)
+    adjacency = defaultdict(list)
+    # ... 40 more lines ...
+
+# With NetworkX: 5 lines
+import networkx as nx
+
+def _topological_sort(self, stages, stage_to_def):
+    G = nx.DiGraph()
+    for stage in stages:
+        stage_def = stage_to_def.get(stage)
+        if stage_def:
+            for dep in stage_def.depends_on:
+                G.add_edge(dep, stage)  # dep → stage
+    return list(nx.topological_sort(G))
+```
+
+**Trade-off**:
+- **Gain**: Simpler code (45 lines → 5 lines), cycle detection, more algorithms
+- **Cost**: New dependency (`networkx`), slight performance overhead
+- **Verdict**: **Worth it** - NetworkX is widely used, small dep, big simplification
+
+### Decision Matrix
+
+| Library     | Lines Saved | New Deps | Complexity | Verdict |
+|-------------|-------------|----------|------------|---------|
+| None (current) | 0        | 0        | Low        | ✅ **Default** |
+| NetworkX    | ~45         | 1 (small)| Lower      | ✅ **Recommended** |
+| Hamilton    | ~200        | 1 (medium)| Medium    | ⚠️ Consider later |
+| Airflow     | ~100        | MANY     | VERY HIGH  | ❌ No |
+| Prefect     | ~150        | MANY     | HIGH       | ❌ No |
+
+### Implementation Plan with NetworkX
+
+**Phase 0.5: Optional NetworkX Integration**
+
+**Effort**: 1 hour
+**Benefit**: Simpler, more maintainable topological sort
+
+**Tasks**:
+- [ ] Add `networkx` to `pyproject.toml` dependencies
+- [ ] Replace `_topological_sort()` with NetworkX version
+- [ ] Update tests (should all still pass)
+- [ ] Add cycle detection test (NetworkX gives better error messages)
+
+**Example**:
+```python
+# src/egregora/orchestration/dag.py
+
+import networkx as nx
+
+class DAGExecutor:
+    # ... existing code ...
+
+    def _topological_sort(
+        self,
+        stages: set[PipelineStage],
+        stage_to_def: dict[PipelineStage, StageDependency],
+    ) -> list[PipelineStage]:
+        """
+        Sort stages in topological order using NetworkX.
+
+        Raises:
+            nx.NetworkXError: If DAG contains a cycle
+        """
+        G = nx.DiGraph()
+
+        # Build dependency graph
+        for stage in stages:
+            stage_def = stage_to_def.get(stage)
+            if not stage_def:
+                continue
+
+            # Add edges: dependency → stage
+            for dep in stage_def.depends_on:
+                if dep in stages:
+                    G.add_edge(dep, stage)
+
+        # NetworkX topological sort (raises error if cycle detected)
+        try:
+            return list(nx.topological_sort(G))
+        except nx.NetworkXError as e:
+            raise ValueError(f"DAG contains a cycle: {e}") from e
+```
+
+**Benefits**:
+- Simpler code (50 lines → 15 lines)
+- Better error messages for cycles
+- Access to graph algorithms (if needed later)
+- Well-tested library (no bugs in our topo sort)
+
+**Cost**:
+- One extra dependency (~500KB)
+- Negligible performance difference
+
+**Verdict**: **Do this** - small win, low cost
+
+---
+
+## Final Recommendation
+
+1. **Keep custom DAG executor** - already built, works well, no need for Airflow/Prefect
+2. **Use NetworkX for topological sort** - simplifies code, better error messages
+3. **Don't add Hamilton/Dask** - not needed for our use case
+4. **Re-evaluate in 6 months** - if DAG complexity grows, consider Hamilton
+
+**Action Items**:
+- [ ] Add NetworkX to dependencies
+- [ ] Refactor `_topological_sort()` to use NetworkX
+- [ ] Verify all tests still pass
+- [ ] Ship it!
+
