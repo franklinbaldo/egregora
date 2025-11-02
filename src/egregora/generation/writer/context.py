@@ -8,9 +8,9 @@ from typing import Any
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
-from ...augmentation.profiler import get_active_authors, read_profile
-from ...knowledge.rag import VectorStore, query_similar_posts
-from ...utils import GeminiBatchClient
+from egregora.augmentation.profiler import get_active_authors, read_profile
+from egregora.knowledge.rag import VectorStore, query_similar_posts
+from egregora.utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 

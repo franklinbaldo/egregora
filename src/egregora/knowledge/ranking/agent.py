@@ -11,10 +11,10 @@ from google import genai
 from google.genai import types as genai_types
 from rich.console import Console
 
-from ...config import resolve_site_paths
-from ...utils.genai import call_with_retries_sync
-from .elo import calculate_elo_update
-from .store import RankingStore
+from egregora.config import resolve_site_paths
+from egregora.knowledge.ranking.elo import calculate_elo_update
+from egregora.knowledge.ranking.store import RankingStore
+from egregora.utils.genai import call_with_retries_sync
 
 console = Console()
 

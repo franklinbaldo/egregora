@@ -4,10 +4,10 @@ This package contains domain models and data structures used across
 all pipeline stages.
 """
 
-from . import database_schema
-from .models import GroupSource, MergeConfig, WhatsAppExport
-from .schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
-from .types import GroupSlug, PostSlug
+from egregora.core import database_schema
+from egregora.core.models import GroupSource, MergeConfig, WhatsAppExport
+from egregora.core.schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
+from egregora.core.types import GroupSlug, PostSlug
 
 __all__ = [
     # Models

@@ -10,7 +10,7 @@ import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from ...utils import BatchPromptRequest, BatchPromptResult
+from egregora.utils import BatchPromptRequest, BatchPromptResult
 
 
 @dataclass

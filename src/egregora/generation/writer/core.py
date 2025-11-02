@@ -27,21 +27,21 @@ from google.genai import types as genai_types
 from ibis.expr.types import Table
 from returns.result import Failure, Success
 
-from ...augmentation.profiler import get_active_authors
-from ...config import ModelConfig, load_mkdocs_config
-from ...knowledge.annotations import AnnotationStore
-from ...knowledge.rag import VectorStore, index_post
-from ...prompt_templates import WriterPromptTemplate
-from ...utils import GeminiBatchClient, call_with_retries_sync
-from .context import RagErrorReason, _load_profiles_context, _query_rag_for_context
+from egregora.augmentation.profiler import get_active_authors
+from egregora.config import ModelConfig, load_mkdocs_config
+from egregora.generation.writer.context import (
+    RagErrorReason,
+    _load_profiles_context,
+    _query_rag_for_context,
+)
 
 # Import split modules
-from .formatting import (
+from egregora.generation.writer.formatting import (
     _build_conversation_markdown,
     _load_freeform_memory,
     _write_freeform_markdown,
 )
-from .handlers import (
+from egregora.generation.writer.handlers import (
     _handle_annotate_conversation_tool,
     _handle_generate_banner_tool,
     _handle_read_profile_tool,
@@ -50,7 +50,11 @@ from .handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from .tools import _writer_tools
+from egregora.generation.writer.tools import _writer_tools
+from egregora.knowledge.annotations import AnnotationStore
+from egregora.knowledge.rag import VectorStore, index_post
+from egregora.prompt_templates import WriterPromptTemplate
+from egregora.utils import GeminiBatchClient, call_with_retries_sync
 
 logger = logging.getLogger(__name__)
 

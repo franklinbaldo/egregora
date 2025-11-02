@@ -78,9 +78,12 @@ profile = "black"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+src = ["src"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "PL"]
 ignore = ["E203", "E501"]
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 "src/egregora/augmentation/enrichment/core.py" = ["PLR0913", "PLR0912", "PLR0915"]

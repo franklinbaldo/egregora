@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .store import RankingStore
+from egregora.knowledge.ranking.store import RankingStore
 
 DEFAULT_ELO = 1500
 K_FACTOR = 32

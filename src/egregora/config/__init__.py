@@ -1,6 +1,6 @@
 """Configuration management for Egregora."""
 
-from .model import (
+from egregora.config.model import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_EMBEDDING_DIMENSIONALITY,
     DEFAULT_EMBEDDING_MODEL,
@@ -13,7 +13,7 @@ from .model import (
     ModelType,
     load_site_config,
 )
-from .site import (
+from egregora.config.site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
     MEDIA_DIR_NAME,
@@ -23,7 +23,7 @@ from .site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
-from .types import (
+from egregora.config.types import (
     ComparisonConfig,
     ComparisonData,
     EditorContext,
