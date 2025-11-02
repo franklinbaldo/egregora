@@ -117,7 +117,7 @@ Egregora uses a **staged pipeline architecture** that processes conversations th
    - **Writer**: LLM with tool calling generates 0-N posts per period
    - **Editor**: Interactive AI-powered document refinement
 
-6. **Publication** (`publication/`)
+6. **Initialization** (`init/`)
    - **Site Scaffolding**: MkDocs project structure
    - **Templates**: Homepage, about pages, post indexes
 
@@ -284,7 +284,7 @@ src/egregora/
 ├── augmentation/    # Enrichment & profiling
 ├── knowledge/       # RAG, annotations, rankings
 ├── generation/      # LLM writer & editor
-├── publication/     # Site scaffolding
+├── init/            # Site scaffolding
 ├── core/            # Shared models & schemas
 ├── orchestration/   # CLI & pipeline coordination
 ├── config/          # Configuration management

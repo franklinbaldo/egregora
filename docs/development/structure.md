@@ -68,11 +68,9 @@ src/egregora/
 │       ├── agent.py        # Interactive editor
 │       └── document.py     # Document handling
 │
-├── publication/            # Site scaffolding
+├── init/                   # Site scaffolding
 │   ├── __init__.py
-│   └── site/
-│       ├── __init__.py
-│       └── scaffolding.py  # MkDocs site creation
+│   └── scaffolding.py      # MkDocs site creation
 │
 ├── core/                   # Shared models & schemas
 │   ├── __init__.py

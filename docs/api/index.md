@@ -13,7 +13,7 @@ egregora/
 ├── augmentation/    # Enrichment & profiling
 ├── knowledge/       # RAG, annotations, rankings
 ├── generation/      # LLM writer & editor
-├── publication/     # Site scaffolding
+├── init/            # Site scaffolding
 ├── core/            # Shared models & schemas
 ├── orchestration/   # CLI & pipeline coordination
 ├── config/          # Configuration management
@@ -31,7 +31,7 @@ egregora/
 | [Augmentation](augmentation/enrichment.md) | Enrich context with LLMs |
 | [Knowledge](knowledge/rag.md) | RAG, annotations, rankings |
 | [Generation](generation/writer.md) | Content generation |
-| [Publication](publication/scaffolding.md) | Site creation |
+| [Initialization](init/scaffolding.md) | Site creation |
 
 ### Core Modules
 

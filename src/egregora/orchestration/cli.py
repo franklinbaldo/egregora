@@ -40,7 +40,7 @@ from ..generation.writer.formatting import (
     _load_freeform_memory,
 )
 from ..ingestion.parser import parse_export
-from ..publication.site import ensure_mkdocs_project
+from ..init import ensure_mkdocs_project
 from ..utils.cache import EnrichmentCache
 from ..utils.gemini_dispatcher import GeminiDispatcher
 from .database import duckdb_backend
