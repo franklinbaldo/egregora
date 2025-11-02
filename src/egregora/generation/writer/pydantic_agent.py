@@ -117,7 +117,7 @@ class WriterAgentState:
         self.saved_profiles.append(path)
 
 
-def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) -> None:
+def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) -> None:
     """Attach tool implementations to the agent."""
 
     @agent.tool
@@ -129,9 +129,9 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         path = write_post(
             content=content,
             metadata=metadata.model_dump(exclude_none=True),
-            output_dir=ctx.state.output_dir,
+            output_dir=ctx.deps.output_dir,
         )
-        ctx.state.record_post(path)
+        ctx.deps.record_post(path)
         return WritePostResult(status="success", path=path)
 
     @agent.tool
@@ -139,7 +139,7 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         ctx: RunContext[WriterAgentState],
         author_uuid: str,
     ) -> ReadProfileResult:
-        content = read_profile(author_uuid, ctx.state.profiles_dir)
+        content = read_profile(author_uuid, ctx.deps.profiles_dir)
         if not content:
             content = "No profile exists yet."
         return ReadProfileResult(content=content)
@@ -150,8 +150,8 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         author_uuid: str,
         content: str,
     ) -> WriteProfileResult:
-        path = write_profile(author_uuid, content, ctx.state.profiles_dir)
-        ctx.state.record_profile(path)
+        path = write_profile(author_uuid, content, ctx.deps.profiles_dir)
+        ctx.deps.record_profile(path)
         return WriteProfileResult(status="success", path=path)
 
     @agent.tool
@@ -161,19 +161,19 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         media_types: list[str] | None = None,
         limit: int = 5,
     ) -> SearchMediaResult:
-        store = VectorStore(ctx.state.rag_dir / "chunks.parquet")
+        store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            batch_client=ctx.state.batch_client,
+            batch_client=ctx.deps.batch_client,
             store=store,
             media_types=media_types,
             top_k=limit,
             min_similarity=0.7,
-            embedding_model=ctx.state.embedding_model,
-            output_dimensionality=ctx.state.embedding_output_dimensionality,
-            retrieval_mode=ctx.state.retrieval_mode,
-            retrieval_nprobe=ctx.state.retrieval_nprobe,
-            retrieval_overfetch=ctx.state.retrieval_overfetch,
+            embedding_model=ctx.deps.embedding_model,
+            output_dimensionality=ctx.deps.embedding_output_dimensionality,
+            retrieval_mode=ctx.deps.retrieval_mode,
+            retrieval_nprobe=ctx.deps.retrieval_nprobe,
+            retrieval_overfetch=ctx.deps.retrieval_overfetch,
         )
         executed = results.execute()
         items: list[MediaItem] = []
@@ -198,9 +198,9 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         parent_type: str,
         commentary: str,
     ) -> AnnotationResult:
-        if ctx.state.annotations_store is None:
+        if ctx.deps.annotations_store is None:
             raise RuntimeError("Annotation store is not configured")
-        annotation = ctx.state.annotations_store.save_annotation(
+        annotation = ctx.deps.annotations_store.save_annotation(
             parent_id=parent_id,
             parent_type=parent_type,
             commentary=commentary,
@@ -222,7 +222,7 @@ def _register_writer_tools(agent: Agent[WriterAgentReturn, WriterAgentState]) ->
         banner_path = generate_banner_for_post(
             post_title=title,
             post_summary=summary,
-            output_dir=ctx.state.output_dir,
+            output_dir=ctx.deps.output_dir,
             slug=post_slug,
         )
         if banner_path:
@@ -246,6 +246,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     retrieval_overfetch: int | None,
     annotations_store: AnnotationStore | None,
     agent_model: Any | None = None,
+    register_tools: bool = True,
 ) -> tuple[list[str], list[str]]:
     """
     Execute the writer flow using Pydantic-AI agent tooling.
@@ -254,11 +255,18 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         Tuple (saved_posts, saved_profiles, freeform_content_path)
     """
     logger.info("Running writer via Pydantic-AI backend")
-    agent = Agent(
-        model=agent_model or GoogleModel(model_name),
-        result_type=WriterAgentReturn,
-    )
-    _register_writer_tools(agent)
+    if register_tools:
+        agent = Agent[WriterAgentState, WriterAgentReturn](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+            output_type=WriterAgentReturn,
+        )
+        _register_writer_tools(agent)
+    else:
+        agent = Agent[WriterAgentState, str](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+        )
 
     state = WriterAgentState(
         period_date=period_date,
@@ -275,8 +283,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     )
 
     try:
-        result = agent.run_sync(prompt, context=state)
-        logger.info("Writer agent finished with summary: %s", getattr(result.data, "summary", None))
+        result = agent.run_sync(prompt, deps=state)
+        result_payload = getattr(result, "data", result)
+        logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
         record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
         if record_dir:
             output_path = Path(record_dir).expanduser()

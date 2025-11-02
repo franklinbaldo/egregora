@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.config import ModelConfig
 from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
 from tests.mock_batch_client import create_mock_batch_client
 
@@ -45,7 +44,8 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         retrieval_nprobe=None,
         retrieval_overfetch=None,
         annotations_store=None,
-        agent_model=TestModel(custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
+        agent_model=TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
+        register_tools=False,
     )
 
     assert saved_posts == []
