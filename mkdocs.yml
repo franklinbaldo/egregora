@@ -101,7 +101,7 @@ nav:
       - Writer: api/generation/writer.md
       - Editor: api/generation/editor.md
     - Publication:
-      - Scaffolding: api/publication/scaffolding.md
+      - Scaffolding: api/init/scaffolding.md
     - Core:
       - Schema: api/core/schema.md
       - Models: api/core/models.md

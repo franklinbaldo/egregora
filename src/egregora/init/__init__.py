@@ -1,4 +1,4 @@
-"""Site scaffolding utilities for MkDocs-based Egregora sites."""
+"""Site initialization utilities for MkDocs-based Egregora deployments."""
 
 from .scaffolding import ensure_mkdocs_project
 
