@@ -138,16 +138,21 @@ class RankingStore:
         inserted = 0
 
         for post_id in post_ids:
-            result = self.conn.execute(
+            cursor = self.conn.execute(
                 """
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
                 VALUES (?, 1500, 0, ?)
                 ON CONFLICT (post_id) DO NOTHING
             """,
                 [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+            )
+
+            # DuckDB does not return rows for INSERT statements. Instead we rely on the
+            # rowcount property, which reports how many rows were inserted. When the
+            # INSERT hits the ON CONFLICT branch rowcount is 0, otherwise it is 1.
+            rows_inserted = cursor.rowcount or 0
+            if rows_inserted > 0:
+                inserted += rows_inserted
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
