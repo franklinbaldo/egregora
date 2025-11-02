@@ -18,11 +18,11 @@ class BannerGenerator:
         """Initialize the banner generator.
 
         Args:
-            api_key: Gemini API key. If None, reads from GEMINI_API_KEY env var.
+            api_key: Gemini API key. If None, reads from GOOGLE_API_KEY or GEMINI_API_KEY env var.
         """
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY must be provided or set in environment")
+            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY must be provided or set in environment")
 
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.5-flash-image"
