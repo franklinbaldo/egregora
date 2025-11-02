@@ -1,5 +1,7 @@
 # Egregora 🤖 → 📝
 
+**Emergent Group Reflection Engine Generating Organized Relevant Articles**
+
 > **Turn your group chat into a magazine.**
 
 Transform messy WhatsApp conversations into beautifully written blog posts. An AI-powered publishing system that synthesizes your group's collective intelligence into coherent, insightful articles—while keeping everyone's privacy intact.
@@ -115,9 +117,68 @@ Egregora:
 
 ---
 
+## 🤖 Running with GitHub Actions
+
+Automate blog generation whenever you push new WhatsApp exports to your repository:
+
+<details>
+<summary><b>Click to see GitHub Actions setup</b></summary>
+
+Create `.github/workflows/egregora.yml`:
+
+```yaml
+name: Generate Blog
+
+on:
+  push:
+    paths:
+      - 'exports/*.zip'  # Trigger when new exports are added
+  workflow_dispatch:     # Manual trigger
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Process WhatsApp export
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          uvx --from git+https://github.com/franklinbaldo/egregora \
+            egregora process exports/latest.zip --output=./blog
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./blog/site
+```
+
+**Setup:**
+1. Add your WhatsApp export to `exports/latest.zip`
+2. Add your Gemini API key to GitHub Secrets:
+   - Go to repository Settings → Secrets and variables → Actions
+   - Create secret `GOOGLE_API_KEY` with your API key
+3. Push changes - the workflow runs automatically
+4. Your blog is published to `https://[username].github.io/[repo]/`
+
+**Benefits:**
+- ✅ Fully automated blog updates
+- ✅ No local setup required
+- ✅ Free hosting on GitHub Pages
+- ✅ Version control for all exports and generated content
+
+</details>
+
+---
+
 ## 🛡️ Privacy & Security
 
-**Your data never leaves your machine.** Egregora is designed with privacy as a core architectural principle:
+Egregora is designed with privacy as a core architectural principle:
 
 ### How Privacy Works
 
@@ -237,53 +298,6 @@ mkdocs gh-deploy
 
 See [MkDocs deployment docs](https://www.mkdocs.org/user-guide/deploying-your-docs/).
 </details>
-
----
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Problem**: `GOOGLE_API_KEY not set`
-```bash
-# Solution: Export the key in your shell
-export GOOGLE_API_KEY="your-key-here"
-
-# Or add to ~/.bashrc / ~/.zshrc for persistence
-echo 'export GOOGLE_API_KEY="your-key-here"' >> ~/.bashrc
-```
-
-**Problem**: `DuckDB VSS extension not found`
-```bash
-# Solution: Use exact mode (no vector search required)
-egregora process export.zip --retrieval-mode=exact
-```
-
-**Problem**: `Rate limit exceeded` (429 error)
-```bash
-# Solution: Gemini free tier limits hit. Wait or upgrade to paid tier
-# Or process in smaller batches with --batch-size=10
-```
-
-**Problem**: Generated posts seem generic or miss key discussions
-```bash
-# Solution: Adjust time period grouping
-egregora process export.zip --period=daily  # More focused posts
-# Or: --period=weekly (default), --period=monthly
-```
-
-**Problem**: Names aren't anonymized properly
-```bash
-# Solution: Check the privacy detector settings
-# This is a bug - please report at:
-# https://github.com/franklinbaldo/egregora/issues
-```
-
-### Getting Help
-
-- 📖 **Documentation**: [docs/](docs/)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/franklinbaldo/egregora/issues)
-- 💬 **Questions**: [GitHub Discussions](https://github.com/franklinbaldo/egregora/discussions)
 
 ---
 
