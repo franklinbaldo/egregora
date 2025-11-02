@@ -105,7 +105,7 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
 
             # Extract embedding from response object
             embedding = getattr(response, "embedding", None)
-            values = getattr(embedding, "values", None)
+            values = getattr(embedding, "values", None) if embedding else None
             if values:
                 return EmbeddingBatchResult(tag=request.tag, embedding=list(values))
             return EmbeddingBatchResult(tag=request.tag, embedding=None)
