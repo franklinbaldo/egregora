@@ -1,6 +1,7 @@
 import logging
 import re
 from pathlib import Path
+import ibis
 from typing import Annotated, Any
 import frontmatter
 
@@ -535,3 +536,26 @@ def load_author_aliases(
             logger.warning(f"Could not parse profile {profile_path}: {e}")
 
     return aliases
+
+
+def resolve_aliases(
+    table: Annotated[Any, "The Ibis table with an 'author' column"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"],
+) -> Annotated[Any, "The table with author aliases resolved to UUIDs"]:
+    """
+    Resolve author aliases to UUIDs.
+
+    Args:
+        table: Ibis Table with 'author' column
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        Table with author aliases resolved to UUIDs
+    """
+    aliases = load_author_aliases(profiles_dir)
+    if not aliases:
+        return table
+
+    df = table.to_pandas()
+    df["author"] = df["author"].replace(aliases)
+    return ibis.memtable(df)
