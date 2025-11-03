@@ -1,78 +1,39 @@
 """
-Tests for the main pipeline using pytest-vcr to replay HTTP interactions.
+Golden-fixture test that exercises the WhatsApp pipeline through the new
+Pydantic-AI writer backend.
 
-These tests use pytest-vcr to record and replay HTTP interactions with the
-Gemini API. This ensures that the pipeline behaves correctly with the actual
-data structures and content returned by the Gemini API.
-
-The tests are fast because no live API calls are made after initial recording.
-They are also deterministic, ensuring that the output is consistent.
-
-## Recording Cassettes:
-
-To record new cassettes (requires GOOGLE_API_KEY):
-    pytest tests/test_with_golden_fixtures.py --vcr-record=all
-
-To use existing cassettes (default):
-    pytest tests/test_with_golden_fixtures.py
-
-## Test Configuration:
-
-**Enrichment Disabled:** Binary file uploads (images) cause VCR encoding issues.
-The test focuses on LLM API interactions which are the core of the pipeline.
-
-**Exact Retrieval Mode:** Tests use `retrieval_mode="exact"` instead of the
-default "ann" (Approximate Nearest Neighbor) mode for the following reasons:
-
-1. **No VSS Extension Required:** The DuckDB VSS extension is downloaded at
-   runtime when you run `INSTALL vss`. In CI/CD or test environments, this
-   download can fail due to network restrictions or permissions.
-
-2. **Faster Tests:** Exact mode uses simple cosine similarity without index
-   building, making tests faster and more deterministic.
-
-3. **Production vs Testing:** VSS with ANN indexing is beneficial for production
-   use with large datasets (>1000 documents). For small test datasets, exact
-   mode is perfectly adequate and more reliable.
-
-4. **Zero Dependencies:** No need to pre-install extensions or configure network
-   access for extension downloads.
-
-If you need to test VSS functionality specifically:
-    # Pre-install VSS extension in your environment
-    python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
-    # Then run tests with retrieval_mode="ann"
+Rather than replaying previously recorded Gemini HTTP traffic, we stub the
+`GoogleModel` with `pydantic_ai.models.test.TestModel`, which deterministically
+calls the writer tools and returns structured output. This keeps the test fast,
+deterministic, and completely offline while still validating that the Pydantic
+agent orchestrates file generation end-to-end.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
+from pydantic_ai.models.test import TestModel
+
+from egregora.config import resolve_site_paths
+from tests.mock_batch_client import create_mock_genai_client
 
 
 @pytest.mark.vcr
 def test_pipeline_with_vcr_fixtures(
     whatsapp_fixture,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """
-    Test the main pipeline using VCR-recorded API responses.
+    Run the full pipeline using the Pydantic-AI writer agent and deterministic
+    TestModel responses.
 
-    This test validates that the pipeline can successfully run from start to
-    finish using pytest-vcr to replay HTTP interactions.
-
-    Unlike the original SDK-based approach, this uses a raw HTTP client adapter
-    (VCRCompatibleClient) that makes direct httpx calls. This allows VCR to
-    properly record and replay responses, since the HTTP layer is simple enough
-    for VCR to handle correctly.
-
-    The @pytest.mark.vcr decorator automatically records HTTP interactions
-    to cassettes and replays them on subsequent test runs.
+    The VCR mark remains to ensure compatibility with the existing fixture
+    configuration, but no external HTTP traffic is generated.
     """
     from egregora.orchestration.pipeline import process_whatsapp_export  # noqa: PLC0415
-    from tests.utils.vcr_adapter import VCRCompatibleClient  # noqa: PLC0415
 
     output_dir = tmp_path / "site"
     output_dir.mkdir()
@@ -84,14 +45,61 @@ def test_pipeline_with_vcr_fixtures(
     docs_dir = output_dir / "docs"
     docs_dir.mkdir()
 
-    # Create VCR-compatible client that uses raw HTTP calls
-    # This works with VCR because it bypasses the genai SDK's complex response parsing
-    api_key = os.getenv("GOOGLE_API_KEY", "dummy-key-for-replay")
-    client = VCRCompatibleClient(api_key=api_key)
+    # Force the writer to use the Pydantic backend with deterministic tooling.
+    monkeypatch.setenv("EGREGORA_LLM_BACKEND", "pydantic")
 
-    # Run the pipeline with the real client - VCR will record/replay HTTP interactions
-    # NOTE: Enrichment disabled because VCR cannot serialize binary file uploads (images)
-    # Media enrichment is tested separately in test_fast_with_mock.py
+    class GoldenTestModel(TestModel):
+        """TestModel variant with scripted tool arguments for deterministic output."""
+
+        def __init__(self, *, period_date: str):
+            self._period_date = period_date
+            super().__init__(
+                call_tools=["write_post_tool", "write_profile_tool"],
+                custom_output_args={
+                    "summary": "Golden fixtures generated",
+                    "notes": "Deterministic TestModel",
+                },
+                seed=7,
+            )
+
+        def gen_tool_args(self, tool_def):  # type: ignore[override]
+            if tool_def.name == "write_post_tool":
+                return {
+                    "metadata": {
+                        "title": "Deterministic Insights",
+                        "slug": "deterministic-insights",
+                        "date": self._period_date,
+                        "tags": ["deterministic", "test"],
+                        "authors": ["ca71a986"],
+                        "summary": "Synthetic summary generated for golden fixture validation.",
+                    },
+                    "content": (
+                        "# Deterministic Post\n\n"
+                        "This content is emitted by GoldenTestModel to keep the pipeline test stable."
+                    ),
+                }
+            if tool_def.name == "write_profile_tool":
+                return {
+                    "author_uuid": "ca71a986",
+                    "content": (
+                        "Profile content generated by GoldenTestModel "
+                        "to ensure the writer records profile updates."
+                    ),
+                }
+            return super().gen_tool_args(tool_def)
+
+    def _make_test_model(model_name: str) -> TestModel:
+        # Period date is derived from the WhatsApp export metadata.
+        return GoldenTestModel(period_date=whatsapp_fixture.export_date.isoformat())
+
+    monkeypatch.setattr(
+        "egregora.generation.writer.pydantic_agent.GoogleModel",
+        _make_test_model,
+    )
+
+    client = create_mock_genai_client()
+
+    # Run the pipeline - enrichment remains disabled because we do not stub binary uploads here.
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
@@ -102,10 +110,11 @@ def test_pipeline_with_vcr_fixtures(
     )
 
     # Verify that the basic output structure was created
-    posts_dir = docs_dir / "posts"
+    site_paths = resolve_site_paths(output_dir)
+    posts_dir = site_paths.posts_dir
     assert posts_dir.exists(), "Posts directory should be created"
 
-    profiles_dir = docs_dir / "profiles"
+    profiles_dir = site_paths.profiles_dir
     assert profiles_dir.exists(), "Profiles directory should be created"
 
     # A more specific check to ensure content is being generated
