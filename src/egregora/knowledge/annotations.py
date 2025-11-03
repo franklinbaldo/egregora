@@ -83,6 +83,40 @@ class AnnotationStore:
             """
         )
 
+        max_id_row = self._connection.execute(
+            f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}"
+        ).fetchone()
+        if max_id_row and max_id_row[0] is not None:
+            max_id = int(max_id_row[0])
+            sequence_state = self._connection.execute(
+                """
+                SELECT start_value, increment_by, last_value
+                FROM duckdb_sequences()
+                WHERE schema_name = current_schema() AND sequence_name = ?
+                LIMIT 1
+                """,
+                [sequence_name],
+            ).fetchone()
+            if sequence_state is None:
+                raise RuntimeError(
+                    f"Could not find sequence metadata for {sequence_name}"
+                )
+
+            start_value, increment_by, last_value = sequence_state
+            current_next = (
+                int(start_value)
+                if last_value is None
+                else int(last_value) + int(increment_by)
+            )
+            desired_next = max(current_next, max_id + 1)
+            steps_needed = desired_next - current_next
+            if steps_needed > 0:
+                cursor = self._connection.execute(
+                    "SELECT nextval(?) FROM range(?)",
+                    [sequence_name, steps_needed],
+                )
+                cursor.fetchall()
+
     def _fetch_records(
         self, query: str, params: Sequence[object] | None = None
     ) -> list[dict[str, object]]:
