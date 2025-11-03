@@ -11,6 +11,7 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import MEDIA_DIR_NAME
+from .batch import _iter_table_record_batches
 
 # WhatsApp attachment markers (special Unicode)
 ATTACHMENT_MARKERS = (
@@ -244,12 +245,14 @@ def extract_and_replace_media(
         - Updated Table with new media paths
         - Media mapping (original → extracted path)
     """
-    # Step 1: Find all media references
+    # Step 1: Find all media references using batched iteration to avoid memory pressure
     all_media = set()
-    for row in messages_table.execute().to_dict("records"):
-        message = row.get("message", "")
-        media_refs = find_media_references(message)
-        all_media.update(media_refs)
+    batch_size = 1000
+    for batch_records in _iter_table_record_batches(messages_table, batch_size):
+        for row in batch_records:
+            message = row.get("message", "")
+            media_refs = find_media_references(message)
+            all_media.update(media_refs)
 
     # Step 2: Extract from ZIP
     media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir, group_slug)
