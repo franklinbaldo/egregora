@@ -179,9 +179,8 @@ def apply_command_to_profile(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"],
+    media_mapping: Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ) -> Annotated[str, "The path to the updated profile"]:
     """
     Apply an egregora command to an author's profile.
@@ -194,6 +193,7 @@ def apply_command_to_profile(
         command: Command dict from parser {'command': 'set', 'target': 'alias', 'value': 'Franklin'}
         timestamp: When the command was issued
         profiles_dir: Where profiles are stored
+        media_mapping: A mapping from original filenames to their new paths on disk
 
     Returns:
         Path to updated profile
@@ -271,6 +271,20 @@ def apply_command_to_profile(
         )
         logger.info(f"User {author_uuid} opted back in")
 
+    elif cmd_type == "set" and target == "avatar":
+        if value and value in media_mapping:
+            avatar_path = media_mapping[value]
+            content = _update_profile_metadata(
+                content, "Avatar", "avatar", f'![Avatar]({avatar_path} "Avatar")'
+            )
+            logger.info(f"Set avatar for {author_uuid}")
+        else:
+            logger.warning(f"Avatar command for {author_uuid} missing image attachment")
+
+    elif cmd_type == "remove" and target == "avatar":
+        content = _update_profile_metadata(content, "Avatar", "avatar", "")
+        logger.info(f"Removed avatar for {author_uuid}")
+
     # Save updated profile
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
@@ -298,11 +312,15 @@ def _update_profile_metadata(content: str, section_name: str, key: str, new_valu
     match = re.search(section_pattern, content, re.DOTALL)
 
     if match:
-        # Section exists - replace entire section content
-        # This ensures idempotence (no duplicate accumulation)
-        updated_section = f"{match.group(1)}{new_value}\n"
-        content = content[: match.start()] + updated_section + content[match.end() :]
-    else:
+        if new_value:
+            # Section exists - replace entire section content
+            # This ensures idempotence (no duplicate accumulation)
+            updated_section = f"{match.group(1)}{new_value}\n"
+            content = content[: match.start()] + updated_section + content[match.end() :]
+        else:
+            # Remove the entire section if new_value is empty
+            content = content[: match.start()] + content[match.end() :]
+    elif new_value:
         # Section doesn't exist, create it
         new_section = f"\n## {section_name}\n{new_value}\n"
         # Add before any existing sections or at end
@@ -363,9 +381,8 @@ def process_commands(
     commands: Annotated[
         list[dict[str, Any]], "A list of command dictionaries from extract_commands()"
     ],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"],
+    media_mapping: Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ) -> Annotated[int, "The number of commands processed"]:
     """
     Process a batch of egregora commands.
@@ -376,6 +393,7 @@ def process_commands(
     Args:
         commands: List of command dicts from extract_commands()
         profiles_dir: Where to save profiles
+        media_mapping: A mapping from original filenames to their new paths on disk
 
     Returns:
         Number of commands processed
@@ -395,7 +413,9 @@ def process_commands(
         command = cmd_data["command"]
 
         try:
-            apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
+            apply_command_to_profile(
+                author_uuid, command, timestamp, profiles_dir, media_mapping
+            )
         except Exception as e:
             logger.error(f"Failed to process command for {author_uuid}: {e}")
 

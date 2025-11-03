@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import random
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -18,6 +19,8 @@ from rich.panel import Panel
 
 from ..augmentation.enrichment import enrich_table, extract_and_replace_media
 from ..augmentation.profiler import get_active_authors
+from ..augmentation.profiler import _update_profile_metadata
+from ..augmentation.profiler import read_profile as read_author_profile
 from ..config import (
     ModelConfig,
     ProcessConfig,
@@ -1211,6 +1214,62 @@ _register_ranking_cli(app)
 def main():
     """Entry point for the CLI."""
     app()
+
+
+def _parse_avatar_from_profile(profile_content: str) -> str | None:
+    """Extract avatar path from profile markdown."""
+    match = re.search(r"## Avatar\s*\nImage: (.+)", profile_content)
+    return match.group(1) if match else None
+
+
+@app.command()
+def get_avatar(
+    author_uuid: Annotated[str, typer.Argument(help="Author's UUID")],
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+):
+    """Get the avatar path for a given author."""
+    site_paths = resolve_site_paths(site_dir)
+    profile_content = read_author_profile(author_uuid, site_paths.profiles_dir)
+    if profile_content:
+        avatar_path = _parse_avatar_from_profile(profile_content)
+        if avatar_path:
+            print(avatar_path)
+
+
+@app.command()
+def remove_avatar(
+    author_uuid: Annotated[str, typer.Argument(help="Author's UUID")],
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+):
+    """Remove an author's avatar for moderation."""
+    site_paths = resolve_site_paths(site_dir)
+    profiles_dir = site_paths.profiles_dir
+    profile_path = profiles_dir / f"{author_uuid}.md"
+
+    if not profile_path.exists():
+        console.print(f"[red]Profile not found for author: {author_uuid}[/red]")
+        raise typer.Exit(1)
+
+    profile_content = read_author_profile(author_uuid, profiles_dir)
+    avatar_path_str = _parse_avatar_from_profile(profile_content)
+
+    if not avatar_path_str:
+        console.print(f"[yellow]No avatar found for author: {author_uuid}[/yellow]")
+        raise typer.Exit()
+
+    # Attempt to delete the avatar file
+    avatar_path = Path(avatar_path_str)
+    if avatar_path.exists():
+        try:
+            avatar_path.unlink()
+            console.print(f"[green]Deleted avatar file: {avatar_path}[/green]")
+        except OSError as e:
+            console.print(f"[red]Error deleting avatar file: {e}[/red]")
+
+    # Remove the avatar from the profile
+    updated_content = _update_profile_metadata(profile_content, "Avatar", "avatar", "")
+    profile_path.write_text(updated_content, encoding="utf-8")
+    console.print(f"[green]Removed avatar from profile for author: {author_uuid}[/green]")
 
 
 if __name__ == "__main__":

@@ -257,10 +257,20 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 ) from exc
             directory.mkdir(parents=True, exist_ok=True)
 
+        # Globally extract all media attachments from the ZIP export.
+        # This replaces attachment placeholders with markdown links.
+        messages_table, _ = extract_and_replace_media(
+            messages_table,
+            zip_path,
+            site_paths.docs_dir,
+            site_paths.posts_dir,
+            str(group_slug),
+        )
+
         # Extract and process egregora commands (before filtering)
         commands = extract_commands(messages_table)
         if commands:
-            process_commands(commands, site_paths.profiles_dir)
+            process_commands(commands, site_paths.profiles_dir, media_mapping)
             logger.info(f"[magenta]🧾 Processed[/] {len(commands)} /egregora commands")
         else:
             logger.info("[magenta]🧾 No /egregora commands detected in this export[/]")
@@ -326,13 +336,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
             steps_state = checkpoint_data.get("steps", {})
 
-            period_table, media_mapping = extract_and_replace_media(
-                period_table,
-                zip_path,
-                site_paths.docs_dir,
-                posts_dir,
-                str(group_slug),
-            )
+            media_mapping = {}
 
             logger.info(f"Processing {period_key}...")
 

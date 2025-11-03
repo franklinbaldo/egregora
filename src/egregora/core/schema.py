@@ -19,6 +19,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "date": dt.Date(),
     "author": dt.String(),
     "message": dt.String(),
+    "attachment": dt.String(nullable=True),
     "original_line": dt.String(),
     "tagged_line": dt.String(),
     "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
