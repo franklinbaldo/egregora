@@ -160,7 +160,7 @@ def test_writer_with_real_whatsapp_data(
 
         # Setup agent directly (async-compatible)
         batch_client = create_mock_batch_client()
-        annotations_store = AnnotationStore(rag_dir / "annotations.parquet")
+        annotations_store = AnnotationStore(rag_dir / "annotations.duckdb")
 
         # Create agent with tools
         agent = Agent[WriterAgentState, WriterAgentReturn](
