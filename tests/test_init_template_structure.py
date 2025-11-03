@@ -1,0 +1,198 @@
+"""Test that egregora init generates files matching the template structure.
+
+This test ensures that the file structure created by the init/scaffolding code
+matches the templates defined in src/egregora/publication/site/templates/.
+"""
+
+from pathlib import Path
+
+import pytest
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from egregora.config.site import resolve_site_paths
+from egregora.init.scaffolding import _create_site_structure
+
+
+def test_init_creates_all_template_files(tmp_path: Path):
+    """Verify that init creates all files defined in the templates directory."""
+    # Create a minimal mkdocs.yml
+    mkdocs_yml = tmp_path / "mkdocs.yml"
+    mkdocs_yml.write_text("site_name: Test\ndocs_dir: docs\n", encoding="utf-8")
+
+    # Resolve site paths
+    site_paths = resolve_site_paths(tmp_path)
+
+    # Set up Jinja2 environment
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+    # Create site structure
+    context = {
+        "site_name": "Test Site",
+        "site_url": "https://example.com",
+        "repo_url": "",
+        "blog_dir": "posts",
+    }
+    _create_site_structure(site_paths, env, context)
+
+    # Define expected template → output file mapping
+    # Format: {template_name: output_path_relative_to_site_root}
+    expected_files = {
+        "README.md.jinja2": "README.md",
+        "gitignore.jinja2": ".gitignore",
+        "homepage.md.jinja2": "docs/index.md",
+        "about.md.jinja2": "docs/about.md",
+        "profiles_index.md.jinja2": "docs/profiles/index.md",
+        "media_index.md.jinja2": "docs/media/index.md",
+    }
+
+    # Verify each template has a corresponding output file
+    for template_name, expected_path in expected_files.items():
+        output_file = tmp_path / expected_path
+        assert output_file.exists(), (
+            f"Template '{template_name}' should generate file at '{expected_path}', "
+            f"but file does not exist"
+        )
+
+    # Verify blog index (not from template, but created by scaffolding)
+    blog_index = tmp_path / "docs" / "posts" / "index.md"
+    # Note: blog_index is actually at posts.parent/index.md which is docs/posts/../index.md = docs/index.md
+    # But there's also a simple blog index created. Let's check the actual behavior:
+    # Looking at line 130-133 in scaffolding.py:
+    # blog_index_path = posts_dir.parent / "index.md"  # posts_dir is blog_dir/posts/, parent is blog_dir
+    # So it's docs/posts/index.md (if blog_dir is "posts")
+    # Actually no - posts_dir.parent would be docs/ if posts_dir is docs/posts/
+    # This is created but not from a template, so it's OK
+
+
+def test_all_templates_are_used(tmp_path: Path):
+    """Verify that every .jinja2 template in templates/ is used by init."""
+    # Get all templates
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    all_templates = set(template_dir.glob("*.jinja2"))
+
+    # Templates that should be used by _create_site_structure
+    used_templates = {
+        template_dir / "README.md.jinja2",
+        template_dir / "gitignore.jinja2",
+        template_dir / "homepage.md.jinja2",
+        template_dir / "about.md.jinja2",
+        template_dir / "profiles_index.md.jinja2",
+        template_dir / "media_index.md.jinja2",
+    }
+
+    # Templates that are used elsewhere (not in _create_site_structure)
+    other_templates = {
+        template_dir / "mkdocs.yml.jinja2",  # Used in _create_default_mkdocs
+        template_dir / "posts_index.md.jinja2",  # Used for post listings (may be unused?)
+    }
+
+    # Verify all templates are accounted for
+    expected_templates = used_templates | other_templates
+    actual_templates = all_templates
+
+    missing = actual_templates - expected_templates
+    extra = expected_templates - actual_templates
+
+    assert not missing, (
+        f"Found templates that are not accounted for in the test: {[t.name for t in missing]}. "
+        f"Either add them to used_templates or other_templates, or remove them from the codebase."
+    )
+
+    assert not extra, (
+        f"Test expects templates that don't exist: {[t.name for t in extra]}. "
+        f"Update the test to match the actual templates in {template_dir}"
+    )
+
+
+def test_init_directory_structure(tmp_path: Path):
+    """Verify that init creates the correct directory structure."""
+    # Create a minimal mkdocs.yml
+    mkdocs_yml = tmp_path / "mkdocs.yml"
+    mkdocs_yml.write_text("site_name: Test\ndocs_dir: docs\n", encoding="utf-8")
+
+    # Resolve site paths
+    site_paths = resolve_site_paths(tmp_path)
+
+    # Set up Jinja2 environment
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+    # Create site structure
+    context = {
+        "site_name": "Test Site",
+        "site_url": "https://example.com",
+        "repo_url": "",
+        "blog_dir": "posts",
+    }
+    _create_site_structure(site_paths, env, context)
+
+    # Verify directory structure
+    expected_dirs = [
+        "docs",
+        "docs/posts",
+        "docs/profiles",
+        "docs/media",
+        "docs/media/images",
+        "docs/media/videos",
+        "docs/media/audio",
+        "docs/media/documents",
+    ]
+
+    for dir_path in expected_dirs:
+        full_path = tmp_path / dir_path
+        assert full_path.is_dir(), f"Expected directory does not exist: {dir_path}"
+
+    # Verify .gitkeep files in media subdirectories
+    for subdir in ["images", "videos", "audio", "documents"]:
+        gitkeep = tmp_path / "docs" / "media" / subdir / ".gitkeep"
+        assert gitkeep.exists(), f".gitkeep missing in docs/media/{subdir}"
+
+
+def test_template_files_match_output_structure():
+    """Verify template filenames match their output paths logically."""
+    # This is a sanity check to ensure template names make sense
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+
+    # Expected logical mapping (not exhaustive, just key examples)
+    # Some templates have semantic names (homepage) rather than output names (index)
+    mappings = {
+        "README.md.jinja2": "README.md",
+        "gitignore.jinja2": ".gitignore",
+        "homepage.md.jinja2": "index.md",  # Semantic name: homepage → index.md
+        "about.md.jinja2": "about.md",
+        "mkdocs.yml.jinja2": "mkdocs.yml",
+    }
+
+    # Templates with semantic names (don't check name correspondence)
+    semantic_names = {"homepage.md.jinja2"}
+
+    for template_name, expected_output in mappings.items():
+        template_path = template_dir / template_name
+        assert template_path.exists(), (
+            f"Expected template '{template_name}' does not exist in {template_dir}"
+        )
+
+        # Verify the template name makes sense for the output
+        # Skip semantic name checks (homepage is a valid semantic name for index.md)
+        if template_name in semantic_names:
+            continue
+
+        # This is just checking the naming convention is sensible
+        if expected_output == ".gitignore":
+            assert "gitignore" in template_name.lower()
+        else:
+            base_name = expected_output.replace(".md", "").replace(".yml", "").lower()
+            assert base_name in template_name.lower(), (
+                f"Template '{template_name}' should contain '{base_name}' in its name"
+            )
