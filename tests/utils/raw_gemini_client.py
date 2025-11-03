@@ -67,8 +67,8 @@ class RawGeminiClient:
         Raises:
             httpx.HTTPError: If request fails
         """
-        # Strip "models/" prefix if present (pipeline may pass "models/gemini-...")
-        if model.startswith("models/"):
+        # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
+        while model.startswith("models/"):
             model = model[7:]
 
         url = f"{self.BASE_URL}/models/{model}:embedContent"
@@ -115,8 +115,8 @@ class RawGeminiClient:
         Returns:
             List of embedding vectors (one per input text)
         """
-        # Strip "models/" prefix if present
-        if model.startswith("models/"):
+        # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
+        while model.startswith("models/"):
             model = model[7:]
 
         url = f"{self.BASE_URL}/models/{model}:batchEmbedContents"
@@ -164,8 +164,8 @@ class RawGeminiClient:
         Returns:
             Generated text content
         """
-        # Strip "models/" prefix if present
-        if model.startswith("models/"):
+        # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
+        while model.startswith("models/"):
             model = model[7:]
 
         url = f"{self.BASE_URL}/models/{model}:generateContent"
