@@ -450,15 +450,24 @@ def enrich_table(
         )
 
         # Replace table contents with enriched data (idempotent operation)
+        # Use transaction to make DELETE + INSERT atomic (prevents race conditions)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)
-            # Delete existing data and insert new data for idempotent behavior
-            duckdb_connection.raw_sql(f"DELETE FROM {target_table}")
             column_list = ", ".join(CONVERSATION_SCHEMA.names)
-            duckdb_connection.raw_sql(
-                f"INSERT INTO {target_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
-            )
+
+            # Atomic replace: BEGIN, DELETE, INSERT, COMMIT
+            # This prevents race conditions and ensures no window where table is empty
+            duckdb_connection.raw_sql("BEGIN TRANSACTION")
+            try:
+                duckdb_connection.raw_sql(f"DELETE FROM {target_table}")
+                duckdb_connection.raw_sql(
+                    f"INSERT INTO {target_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
+                )
+                duckdb_connection.raw_sql("COMMIT")
+            except Exception:
+                duckdb_connection.raw_sql("ROLLBACK")
+                raise
         finally:
             duckdb_connection.drop_view(temp_view, force=True)
 
