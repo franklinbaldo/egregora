@@ -2,6 +2,55 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow - CRITICAL
+
+**⚠️ NEVER commit directly to main branch. ALWAYS use feature branches and pull requests.**
+
+### Standard Workflow for New Features
+
+```bash
+# 1. Create feature branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/descriptive-name
+
+# 2. Make changes and commit
+git add .
+git commit -m "Your commit message"
+
+# 3. Push feature branch
+git push origin feature/descriptive-name
+
+# 4. Create pull request using gh CLI
+gh pr create --title "Feature: Description" --body "Details..."
+
+# 5. After PR is merged, delete local branch
+git checkout main
+git pull origin main
+git branch -d feature/descriptive-name
+```
+
+### When to Create Feature Branches
+
+**ALWAYS create a feature branch for:**
+- ✅ New features (e.g., banner generation, new tools)
+- ✅ Bug fixes
+- ✅ Refactoring
+- ✅ Documentation updates
+- ✅ Configuration changes
+- ✅ ANY code changes that will be committed
+
+**The ONLY exception:**
+- Emergency hotfixes explicitly requested by the user with "push directly to main"
+
+### Branch Naming Convention
+
+- `feature/` - New features (e.g., `feature/banner-generation`)
+- `fix/` - Bug fixes (e.g., `fix/date-parsing-error`)
+- `refactor/` - Code refactoring (e.g., `refactor/extract-handlers`)
+- `docs/` - Documentation only (e.g., `docs/add-architecture-guide`)
+- `test/` - Test additions/fixes (e.g., `test/add-banner-tests`)
+
 ## Development Commands
 
 ### Setup
