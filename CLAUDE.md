@@ -158,8 +158,8 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
    - `editor/agent.py`: Interactive AI-powered post refinement
    - `editor/document.py`: Document state management for editing
 
-6. **Publication** (`src/egregora/publication/`)
-   - `site/scaffolding.py`: MkDocs project initialization
+6. **Initialization** (`src/egregora/init/`)
+   - `scaffolding.py`: MkDocs project initialization
    - Templates in `src/egregora/templates/` (Jinja2)
 
 ### Core Infrastructure

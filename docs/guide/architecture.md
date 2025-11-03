@@ -143,23 +143,22 @@ posts = generate_posts(
 - **Editorial Freedom**: LLM decides how many posts and what to write
 - **Structured Output**: Pydantic models ensure valid frontmatter
 
-## 6. Publication
+## 6. Initialization
 
-**Module**: `egregora.publication`
+**Module**: `egregora.init`
 
-Creates MkDocs site structure.
+Creates the MkDocs site structure used to publish generated content.
 
 ```python
-from egregora.publication import scaffold_site, write_posts
+from pathlib import Path
 
-# Create site structure
-scaffold_site("my-blog/")
+from egregora.init import ensure_mkdocs_project
 
-# Write posts to docs/posts/
-write_posts(posts, "my-blog/docs/posts/")
+# Ensure site scaffolding exists and receive docs directory path
+docs_dir, created = ensure_mkdocs_project(Path("my-blog/"))
 ```
 
-**Output**:
+**Scaffold Output**:
 
 ```
 my-blog/

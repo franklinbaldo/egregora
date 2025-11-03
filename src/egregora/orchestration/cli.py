@@ -37,6 +37,7 @@ from egregora.generation.writer.formatting import (
     _load_freeform_memory,
 )
 from egregora.ingestion.parser import parse_export
+from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.database import duckdb_backend
 from egregora.orchestration.logging_setup import configure_logging, console
 from egregora.orchestration.pipeline import (
@@ -45,7 +46,6 @@ from egregora.orchestration.pipeline import (
     process_whatsapp_export,
 )
 from egregora.orchestration.serialization import load_table, save_table
-from egregora.publication.site import ensure_mkdocs_project
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.gemini_dispatcher import GeminiDispatcher
 
