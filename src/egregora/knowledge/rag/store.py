@@ -9,6 +9,7 @@ from typing import Any
 
 import duckdb
 import ibis
+import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
@@ -181,7 +182,50 @@ class VectorStore:
             INDEX_META_TABLE,
             database_schema.RAG_INDEX_META_SCHEMA,
         )
+        self._migrate_index_meta_table()
         database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
+
+    def _migrate_index_meta_table(self) -> None:
+        """Ensure legacy index metadata tables gain any newly introduced columns."""
+
+        existing_columns = {
+            row[1].lower()
+            for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
+        }
+
+        schema = database_schema.RAG_INDEX_META_SCHEMA
+        for column in schema.names:
+            if column.lower() in existing_columns:
+                continue
+
+            column_type = self._duckdb_type_from_ibis(schema[column])
+            if column_type is None:
+                logger.warning(
+                    "Skipping migration for %s.%s due to unsupported type %s",
+                    INDEX_META_TABLE,
+                    column,
+                    schema[column],
+                )
+                continue
+
+            self.conn.execute(
+                f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
+            )
+
+    @staticmethod
+    def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
+        """Map a subset of Ibis data types to DuckDB column definitions."""
+
+        if dtype.is_string():
+            return "VARCHAR"
+        if dtype.is_int64():
+            return "BIGINT"
+        if dtype.is_int32():
+            return "INTEGER"
+        if dtype.is_timestamp():
+            return "TIMESTAMP"
+
+        return None
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
