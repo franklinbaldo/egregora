@@ -16,7 +16,9 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import duckdb
 import ibis
+import pyarrow as pa
 from ibis.expr.types import Table
 
 from ...config import ModelConfig
@@ -95,6 +97,8 @@ def enrich_table(
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
+    persist_connection: duckdb.DuckDBPyConnection | None = None,
+    persist_table: str | None = None,
     *,
     duckdb_connection: "DuckDBBackend | None" = None,
     target_table: str | None = None,
@@ -463,5 +467,18 @@ def enrich_table(
             "Privacy summary: %d media file(s) deleted due to PII detection",
             pii_detected_count,
         )
+
+    if persist_connection and persist_table:
+        arrow_schema = schema.to_pyarrow()
+        arrow_rows = pa.Table.from_pylist(normalized_rows, schema=arrow_schema)
+        temp_view = "__enrichment_batch"
+        persist_connection.register(temp_view, arrow_rows)
+        column_list = ", ".join(schema.names)
+        try:
+            persist_connection.execute(
+                f"INSERT INTO {persist_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
+            )
+        finally:
+            persist_connection.unregister(temp_view)
 
     return combined

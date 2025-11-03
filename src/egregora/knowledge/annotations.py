@@ -62,6 +62,10 @@ class AnnotationStore:
             )
             """
         )
+        database_schema.ensure_identity_column(
+            self._connection, ANNOTATIONS_TABLE, "id", generated="ALWAYS"
+        )
+        # Add primary key using raw connection
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         column_default_row = self._connection.execute(
             """
@@ -161,7 +165,7 @@ class AnnotationStore:
             if parent_exists == 0:
                 raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
 
-        cursor = self._connection.execute(
+        row = self._connection.execute(
             f"""
             INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)
             VALUES (?, ?, ?, ?, ?)
@@ -174,10 +178,9 @@ class AnnotationStore:
                 sanitized_commentary,
                 created_at,
             ],
-        )
-        row = cursor.fetchone()
+        ).fetchone()
         if row is None:
-            raise RuntimeError("Could not insert annotation")
+            raise RuntimeError("Failed to insert annotation")
         annotation_id = int(row[0])
 
         return Annotation(
