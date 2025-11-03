@@ -45,6 +45,8 @@ try:
 except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
     from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
+from egregora.utils.logfire_config import logfire_info, logfire_span
+
 from egregora.augmentation.profiler import read_profile, write_profile
 from egregora.generation.banner import generate_banner_for_post
 from egregora.knowledge.annotations import AnnotationStore
@@ -305,23 +307,133 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     )
 
     try:
-        result = agent.run_sync(prompt, deps=state)
-        result_payload = getattr(result, "data", result)
-        logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
-        record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
-        if record_dir:
-            output_path = Path(record_dir).expanduser()
-            output_path.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{period_date}-{timestamp}.json"
-            try:
-                payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
-                filename.write_bytes(payload)
-                logger.info("Recorded writer agent conversation to %s", filename)
-            except Exception as record_exc:  # pragma: no cover - best effort recording
-                logger.warning("Failed to persist writer agent messages: %s", record_exc)
+        with logfire_span("writer_agent", period=period_date, model=model_name):
+            result = agent.run_sync(prompt, deps=state)
+            result_payload = getattr(result, "data", result)
+
+            # Log completion metrics
+            usage = result.usage()
+            logfire_info(
+                "Writer agent completed",
+                period=period_date,
+                posts_created=len(state.saved_posts),
+                profiles_updated=len(state.saved_profiles),
+                tokens_total=usage.total_tokens if usage else 0,
+                tokens_input=usage.input_tokens if usage else 0,
+                tokens_output=usage.output_tokens if usage else 0,
+            )
+
+            logger.info(
+                "Writer agent finished with summary: %s", getattr(result_payload, "summary", None)
+            )
+
+            record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
+            if record_dir:
+                output_path = Path(record_dir).expanduser()
+                output_path.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = output_path / f"writer-{period_date}-{timestamp}.json"
+                try:
+                    payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
+                    filename.write_bytes(payload)
+                    logger.info("Recorded writer agent conversation to %s", filename)
+                except Exception as record_exc:  # pragma: no cover - best effort recording
+                    logger.warning("Failed to persist writer agent messages: %s", record_exc)
     except Exception as exc:  # pragma: no cover - Pydantic-AI wraps HTTP errors
         logger.error("Pydantic writer agent failed: %s", exc)
         raise
 
     return state.saved_posts, state.saved_profiles
+
+
+class WriterStreamResult:
+    """Result from streaming writer agent."""
+
+    def __init__(self, response, state: WriterAgentState):
+        self.response = response
+        self.state = state
+
+    async def stream_text(self):
+        """Stream text chunks from the agent."""
+        async for chunk in self.response.stream_text():
+            yield chunk
+
+    async def get_posts(self) -> tuple[list[str], list[str]]:
+        """Get final posts and profiles after streaming completes."""
+        await self.response.get_result()
+        return self.state.saved_posts, self.state.saved_profiles
+
+
+async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
+    *,
+    prompt: str,
+    model_name: str,
+    period_date: str,
+    output_dir: Path,
+    profiles_dir: Path,
+    rag_dir: Path,
+    batch_client: Any,
+    embedding_model: str,
+    embedding_output_dimensionality: int,
+    retrieval_mode: str,
+    retrieval_nprobe: int | None,
+    retrieval_overfetch: int | None,
+    annotations_store: AnnotationStore | None,
+    agent_model: Any | None = None,
+    register_tools: bool = True,
+) -> WriterStreamResult:
+    """
+    Execute the writer flow using Pydantic-AI agent with streaming.
+
+    This is an async version that streams agent responses token-by-token.
+    Useful for interactive CLI tools and real-time progress updates.
+
+    Args:
+        (same as write_posts_with_pydantic_agent)
+
+    Returns:
+        WriterStreamResult that can be used to stream text and get final results
+
+    Example:
+        >>> result = await write_posts_with_pydantic_agent_stream(...)
+        >>> async for chunk in result.stream_text():
+        ...     print(chunk, end='', flush=True)
+        >>> posts, profiles = await result.get_posts()
+    """
+    logger.info("Running writer via Pydantic-AI backend (streaming)")
+
+    if register_tools:
+        agent = Agent[WriterAgentState, WriterAgentReturn](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+            output_type=WriterAgentReturn,
+        )
+        _register_writer_tools(agent)
+    else:
+        agent = Agent[WriterAgentState, str](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+        )
+
+    state = WriterAgentState(
+        period_date=period_date,
+        output_dir=output_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        batch_client=batch_client,
+        embedding_model=embedding_model,
+        embedding_output_dimensionality=embedding_output_dimensionality,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+        annotations_store=annotations_store,
+    )
+
+    try:
+        with logfire_span("writer_agent_stream", period=period_date, model=model_name):
+            response = await agent.run_stream(prompt, deps=state)
+            return WriterStreamResult(response, state)
+
+    except Exception as exc:  # pragma: no cover
+        logger.error("Pydantic writer agent (streaming) failed: %s", exc)
+        raise
