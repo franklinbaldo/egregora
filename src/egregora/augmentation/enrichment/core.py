@@ -449,10 +449,12 @@ def enrich_table(
             CONVERSATION_SCHEMA,
         )
 
-        # Insert enriched rows into the target table
+        # Replace table contents with enriched data (idempotent operation)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)
+            # Delete existing data and insert new data for idempotent behavior
+            duckdb_connection.raw_sql(f"DELETE FROM {target_table}")
             column_list = ", ".join(CONVERSATION_SCHEMA.names)
             duckdb_connection.raw_sql(
                 f"INSERT INTO {target_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
