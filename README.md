@@ -113,7 +113,7 @@ Egregora:
 4. ✅ Generated 0-N blog posts per time period
 5. ✅ Created a beautiful static site with MkDocs
 
-**No tracking, no cloud storage, everything runs locally.**
+**No tracking, no cloud storage, full user control.**
 
 ---
 
@@ -203,7 +203,7 @@ Participants can control their data **directly in WhatsApp**:
 ### Technical Guarantees
 
 - ✅ **Deterministic UUIDs**: Same person = same pseudonym across runs
-- ✅ **No API uploads**: All processing happens locally with Gemini API calls
+- ✅ **Anonymized API calls**: Only anonymized data is sent to the Gemini API
 - ✅ **PII scrubbing**: Automatic detection of phone numbers, emails, addresses
 - ✅ **No telemetry**: Zero tracking or analytics
 - ✅ **Open source**: Audit the code yourself
