@@ -52,6 +52,9 @@ class AnnotationStore:
             ANNOTATIONS_TABLE,
             database_schema.ANNOTATIONS_SCHEMA,
         )
+        database_schema.ensure_identity_column(
+            self._connection, ANNOTATIONS_TABLE, "id", generated="ALWAYS"
+        )
         # Add primary key using raw connection
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self._backend.raw_sql(
@@ -105,28 +108,23 @@ class AnnotationStore:
             if parent_exists == 0:
                 raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
 
-        next_id_cursor = self._connection.execute(
-            f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
-        )
-        row = next_id_cursor.fetchone()
-        if row is None:
-            raise RuntimeError("Could not get next annotation ID")
-        annotation_id = int(row[0])
-
-        self._connection.execute(
+        row = self._connection.execute(
             f"""
-            INSERT INTO {ANNOTATIONS_TABLE} (id, parent_id, parent_type, author, commentary, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            RETURNING id
             """,
             [
-                annotation_id,
                 sanitized_parent_id,
                 sanitized_parent_type,
                 ANNOTATION_AUTHOR,
                 sanitized_commentary,
                 created_at,
             ],
-        )
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Failed to insert annotation")
+        annotation_id = int(row[0])
 
         return Annotation(
             id=annotation_id,

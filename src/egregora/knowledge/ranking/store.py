@@ -119,19 +119,31 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
-        inserted = 0
 
-        for post_id in post_ids:
-            result = self.conn.execute(
+        posts_table = pa.table({"post_id": post_ids})
+        temp_view = "__elo_init_posts"
+        self.conn.register(temp_view, posts_table)
+
+        try:
+            inserted_rows = self.conn.execute(
                 """
+                WITH new_posts AS (
+                    SELECT DISTINCT p.post_id
+                    FROM __elo_init_posts AS p
+                    LEFT JOIN elo_ratings AS e ON p.post_id = e.post_id
+                    WHERE e.post_id IS NULL
+                )
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-                VALUES (?, 1500, 0, ?)
-                ON CONFLICT (post_id) DO NOTHING
+                SELECT post_id, 1500, 0, ?
+                FROM new_posts
+                RETURNING post_id
             """,
-                [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+                [now],
+            ).fetchall()
+        finally:
+            self.conn.unregister(temp_view)
+
+        inserted = len(inserted_rows)
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
@@ -179,19 +191,17 @@ class RankingStore:
         self.conn.execute(
             """
             UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
+            SET
+                elo_global = CASE
+                    WHEN post_id = ? THEN ?
+                    WHEN post_id = ? THEN ?
+                    ELSE elo_global
+                END,
+                games_played = games_played + 1,
+                last_updated = ?
+            WHERE post_id IN (?, ?)
         """,
-            [new_elo_a, now, post_a],
-        )
-
-        self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
-        """,
-            [new_elo_b, now, post_b],
+            [post_a, new_elo_a, post_b, new_elo_b, now, post_a, post_b],
         )
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")

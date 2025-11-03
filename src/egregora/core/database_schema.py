@@ -196,6 +196,25 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         pass
 
 
+def ensure_identity_column(
+    conn,
+    table_name: str,
+    column_name: str,
+    *,
+    generated: str = "ALWAYS",
+) -> None:
+    """Ensure a column is configured as an identity column in DuckDB."""
+
+    try:
+        conn.execute(
+            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
+            f"SET GENERATED {generated} AS IDENTITY"
+        )
+    except Exception:
+        # Identity already configured or column contains incompatible data
+        pass
+
+
 def create_index(
     conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
 ) -> None:
