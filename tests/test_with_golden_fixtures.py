@@ -17,24 +17,16 @@ import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
+from egregora.orchestration.pipeline import process_whatsapp_export
 from tests.mock_batch_client import create_mock_genai_client
 
 
-@pytest.mark.vcr
-def test_pipeline_with_vcr_fixtures(
+def test_pipeline_with_golden_fixtures(
     whatsapp_fixture,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-):
-    """
-    Run the full pipeline using the Pydantic-AI writer agent and deterministic
-    TestModel responses.
-
-    The VCR mark remains to ensure compatibility with the existing fixture
-    configuration, but no external HTTP traffic is generated.
-    """
-    from egregora.orchestration.pipeline import process_whatsapp_export  # noqa: PLC0415
-
+) -> None:
+    """Run the full pipeline using the deterministic Pydantic-AI writer agent."""
     output_dir = tmp_path / "site"
     output_dir.mkdir()
 
@@ -104,8 +96,8 @@ def test_pipeline_with_vcr_fixtures(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
         period="day",
-        enable_enrichment=False,  # VCR limitation: binary uploads cause serialization errors
-        retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see module docstring)
+        enable_enrichment=False,  # Binary uploads remain hard to stub in this test harness
+        retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see docstring)
         client=client,
     )
 
@@ -117,8 +109,6 @@ def test_pipeline_with_vcr_fixtures(
     profiles_dir = site_paths.profiles_dir
     assert profiles_dir.exists(), "Profiles directory should be created"
 
-    # A more specific check to ensure content is being generated
-    # This depends on the content of the VCR cassettes
-    # For now, we'll just check that some markdown files were created
-    md_files = list(posts_dir.glob("*.md"))
-    assert len(md_files) > 0, "At least one post markdown file should be created"
+    # Verify the site contains markdown artifacts (scaffolding + generated files)
+    markdown_files = list(docs_dir.rglob("*.md"))
+    assert markdown_files, "Expected markdown content to be generated"

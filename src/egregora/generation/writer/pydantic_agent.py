@@ -19,9 +19,31 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import json
+
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
-from pydantic_ai.models.google import GoogleModel
+
+try:  # Prefer the richer adapter API when available.
+    from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
+except ImportError:  # pragma: no cover - backwards compatibility for older releases
+    from pydantic_ai import Agent, RunContext  # type: ignore
+
+    class ModelMessagesTypeAdapter:  # type: ignore[override]
+        """Lightweight shim mirroring the adapter interface used in tests."""
+
+        @staticmethod
+        def dump_json(messages: Any) -> str:
+            if hasattr(messages, "model_dump_json"):
+                return messages.model_dump_json(indent=2)
+            if hasattr(messages, "model_dump"):
+                return json.dumps(messages.model_dump(mode="json"), indent=2)
+            if hasattr(messages, "to_json"):
+                return messages.to_json(indent=2)
+            return json.dumps(messages, indent=2, default=str)
+try:
+    from pydantic_ai.models.google import GoogleModel
+except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
+    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
 from egregora.augmentation.profiler import read_profile, write_profile
 from egregora.generation.banner import generate_banner_for_post

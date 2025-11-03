@@ -6,7 +6,6 @@ matches the templates defined in src/egregora/publication/site/templates/.
 
 from pathlib import Path
 
-import pytest
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.config.site import resolve_site_paths
@@ -60,14 +59,8 @@ def test_init_creates_all_template_files(tmp_path: Path):
         )
 
     # Verify blog index (not from template, but created by scaffolding)
-    blog_index = tmp_path / "docs" / "posts" / "index.md"
-    # Note: blog_index is actually at posts.parent/index.md which is docs/posts/../index.md = docs/index.md
-    # But there's also a simple blog index created. Let's check the actual behavior:
-    # Looking at line 130-133 in scaffolding.py:
-    # blog_index_path = posts_dir.parent / "index.md"  # posts_dir is blog_dir/posts/, parent is blog_dir
-    # So it's docs/posts/index.md (if blog_dir is "posts")
-    # Actually no - posts_dir.parent would be docs/ if posts_dir is docs/posts/
-    # This is created but not from a template, so it's OK
+    blog_index = tmp_path / "docs" / "index.md"
+    assert blog_index.exists(), "Blog index should be created in docs/index.md"
 
 
 def test_all_templates_are_used(tmp_path: Path):
