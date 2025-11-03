@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import pyarrow as pa
 
@@ -15,9 +15,11 @@ ASCII_CONTROL_CHARS_THRESHOLD = 32
 
 
 def read_profile(
-    author_uuid: str,
-    profiles_dir: Path = Path("output/profiles"),
-) -> str:
+    author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[str, "The profile content as markdown, or an empty string if no profile exists"]:
     """
     Read the current profile for an author.
 
@@ -40,10 +42,12 @@ def read_profile(
 
 
 def write_profile(
-    author_uuid: str,
-    content: str,
-    profiles_dir: Path = Path("output/profiles"),
-) -> str:
+    author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
+    content: Annotated[str, "The profile content in markdown format"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[str, "The path to the saved profile file"]:
     """
     Write or update an author's profile.
 
@@ -71,7 +75,10 @@ def write_profile(
     return str(profile_path)
 
 
-def get_active_authors(table: Any, limit: int | None = None) -> list[str]:
+def get_active_authors(
+    table: Annotated[Any, "The Ibis table with an 'author' column"],
+    limit: Annotated[int | None, "An optional limit on the number of authors to return"] = None,
+) -> Annotated[list[str], "A list of unique author UUIDs, excluding 'system' and 'egregora'"]:
     """
     Get list of unique authors from a Table.
 
@@ -169,11 +176,13 @@ def _validate_alias(alias: str) -> str | None:
 
 
 def apply_command_to_profile(
-    author_uuid: str,
-    command: dict[str, Any],
-    timestamp: str,
-    profiles_dir: Path = Path("output/profiles"),
-) -> str:
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    command: Annotated[dict[str, Any], "The command dictionary from the parser"],
+    timestamp: Annotated[str, "The timestamp of when the command was issued"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[str, "The path to the updated profile"]:
     """
     Apply an egregora command to an author's profile.
 
@@ -315,9 +324,11 @@ def _update_profile_metadata(content: str, section_name: str, key: str, new_valu
 
 
 def get_author_display_name(
-    author_uuid: str,
-    profiles_dir: Path = Path("output/profiles"),
-) -> str:
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[str, "The author's alias if set and public, otherwise their UUID"]:
     """
     Get display name for an author.
 
@@ -349,9 +360,13 @@ def get_author_display_name(
 
 
 def process_commands(
-    commands: list[dict[str, Any]],
-    profiles_dir: Path = Path("output/profiles"),
-) -> int:
+    commands: Annotated[
+        list[dict[str, Any]], "A list of command dictionaries from extract_commands()"
+    ],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[int, "The number of commands processed"]:
     """
     Process a batch of egregora commands.
 
@@ -387,7 +402,12 @@ def process_commands(
     return len(commands)
 
 
-def is_opted_out(author_uuid: str, profiles_dir: Path = Path("output/profiles")) -> bool:
+def is_opted_out(
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[bool, "True if the author has opted out, False otherwise"]:
     """
     Check if an author has opted out of processing.
 
@@ -407,7 +427,11 @@ def is_opted_out(author_uuid: str, profiles_dir: Path = Path("output/profiles"))
     return "Status: OPTED OUT" in profile
 
 
-def get_opted_out_authors(profiles_dir: Path = Path("output/profiles")) -> set[str]:
+def get_opted_out_authors(
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> Annotated[set[str], "A set of author UUIDs who have opted out"]:
     """
     Get set of all authors who have opted out.
 
@@ -433,9 +457,14 @@ def get_opted_out_authors(profiles_dir: Path = Path("output/profiles")) -> set[s
 
 
 def filter_opted_out_authors(
-    table: Any,
-    profiles_dir: Path = Path("output/profiles"),
-) -> tuple[Any, int]:
+    table: Annotated[Any, "The Ibis table with an 'author' column"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
+        "output/profiles"
+    ),
+) -> tuple[
+    Annotated[Any, "The filtered table"],
+    Annotated[int, "The number of removed messages"],
+]:
     """
     Remove all messages from opted-out authors.
 

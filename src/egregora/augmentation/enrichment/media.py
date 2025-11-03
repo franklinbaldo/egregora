@@ -6,6 +6,7 @@ import re
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Annotated
 
 import ibis
 from ibis.expr.types import Table
@@ -50,14 +51,18 @@ MEDIA_EXTENSIONS = {
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
 
-def extract_urls(text: str) -> list[str]:
+def extract_urls(
+    text: Annotated[str, "The text to extract URLs from"],
+) -> Annotated[list[str], "A list of URLs found in the text"]:
     """Extract all URLs from text."""
     if not text:
         return []
     return URL_PATTERN.findall(text)
 
 
-def get_media_subfolder(file_extension: str) -> str:
+def get_media_subfolder(
+    file_extension: Annotated[str, "The file extension, e.g., '.jpg'"],
+) -> Annotated[str, "The name of the subfolder for this media type"]:
     """Get subfolder based on media type."""
     ext = file_extension.lower()
     media_type = MEDIA_EXTENSIONS.get(ext, "file")
@@ -74,7 +79,9 @@ def get_media_subfolder(file_extension: str) -> str:
         return "files"
 
 
-def find_media_references(text: str) -> list[str]:
+def find_media_references(
+    text: Annotated[str, "The message text to search for media references"],
+) -> Annotated[list[str], "A list of media filenames found in the text"]:
     """
     Find media filenames in WhatsApp messages.
 
@@ -104,11 +111,11 @@ def find_media_references(text: str) -> list[str]:
 
 
 def extract_media_from_zip(
-    zip_path: Path,
-    filenames: set[str],
-    docs_dir: Path,
-    group_slug: str,
-) -> dict[str, Path]:
+    zip_path: Annotated[Path, "The path to the WhatsApp export ZIP file"],
+    filenames: Annotated[set[str], "A set of media filenames to extract"],
+    docs_dir: Annotated[Path, "The MkDocs docs directory"],
+    group_slug: Annotated[str, "The slug of the WhatsApp group"],
+) -> Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"]:
     """
     Extract media files from ZIP and save to output_dir/media/.
 
@@ -164,11 +171,13 @@ def extract_media_from_zip(
 
 
 def replace_media_mentions(
-    text: str,
-    media_mapping: dict[str, Path],
-    docs_dir: Path,
-    posts_dir: Path,
-) -> str:
+    text: Annotated[str, "The message text to process"],
+    media_mapping: Annotated[
+        dict[str, Path], "A mapping from original filenames to their new paths on disk"
+    ],
+    docs_dir: Annotated[Path, "The MkDocs docs directory"],
+    posts_dir: Annotated[Path, "The directory where posts are stored"],
+) -> Annotated[str, "The message text with media references replaced by markdown links"]:
     """
     Replace WhatsApp media filenames with new UUID5 paths.
 
@@ -232,12 +241,15 @@ def replace_media_mentions(
 
 
 def extract_and_replace_media(
-    messages_table: Table,
-    zip_path: Path,
-    docs_dir: Path,
-    posts_dir: Path,
-    group_slug: str = "shared",
-) -> tuple[Table, dict[str, Path]]:
+    messages_table: Annotated[Table, "The table of messages to process"],
+    zip_path: Annotated[Path, "The path to the WhatsApp export ZIP file"],
+    docs_dir: Annotated[Path, "The MkDocs docs directory"],
+    posts_dir: Annotated[Path, "The directory where posts are stored"],
+    group_slug: Annotated[str, "The slug of the WhatsApp group"] = "shared",
+) -> tuple[
+    Annotated[Table, "The updated table with media references replaced"],
+    Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
+]:
     """
     Extract media from ZIP and replace mentions in Table.
 
@@ -274,7 +286,9 @@ def extract_and_replace_media(
     return updated_table, media_mapping
 
 
-def detect_media_type(file_path: Path) -> str | None:
+def detect_media_type(
+    file_path: Annotated[Path, "The path to the media file"],
+) -> Annotated[str | None, "The detected media type, or None if unknown"]:
     """Detect media type from file extension."""
     ext = file_path.suffix.lower()
     for extension, media_type in MEDIA_EXTENSIONS.items():

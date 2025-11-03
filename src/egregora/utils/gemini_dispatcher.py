@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Annotated
 
 from google import genai
 from google.genai import types as genai_types
@@ -30,11 +31,11 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
 
     def __init__(
         self,
-        client: genai.Client,
-        default_model: str,
-        batch_threshold: int = 10,
-        max_parallel: int = 5,
-    ):
+        client: Annotated[genai.Client, "The Gemini API client"],
+        default_model: Annotated[str, "The default embedding model to use"],
+        batch_threshold: Annotated[int, "The batch size threshold"] = 10,
+        max_parallel: Annotated[int, "The maximum number of parallel workers"] = 5,
+    ) -> None:
         """Initialize embedding dispatcher.
 
         Args:
@@ -55,35 +56,18 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
 
     def embed_content(  # noqa: PLR0913
         self,
-        requests: Sequence[EmbeddingBatchRequest],
-        *,
-        force_batch: bool = False,
-        force_individual: bool = False,
-        display_name: str | None = None,
-        poll_interval: float | None = None,
-        timeout: float | None = None,
-    ) -> list[EmbeddingBatchResult]:
+        requests: Annotated[Sequence[EmbeddingBatchRequest], "A sequence of embedding requests"],
+        **kwargs,
+    ) -> Annotated[list[EmbeddingBatchResult], "A list of embedding results"]:
         """Embed content using optimal strategy (batch or individual).
-
         Args:
             requests: Embedding requests to execute
-            force_batch: Force batch API
-            force_individual: Force individual calls
-            display_name: Display name for batch job
-            poll_interval: Polling interval for batch job
-            timeout: Timeout for batch job
-
+            **kwargs: Additional arguments for dispatching, including `force_batch`,
+                `force_individual`, `display_name`, `poll_interval`, and `timeout`.
         Returns:
             List of embedding results
         """
-        return self.dispatch(
-            requests,
-            force_batch=force_batch,
-            force_individual=force_individual,
-            display_name=display_name,
-            poll_interval=poll_interval,
-            timeout=timeout,
-        )
+        return self.dispatch(requests, **kwargs)
 
     def _execute_one(self, request: EmbeddingBatchRequest) -> EmbeddingBatchResult:
         """Execute a single embedding request via direct API."""
@@ -136,11 +120,11 @@ class GeminiGenerationDispatcher(BaseDispatcher[BatchPromptRequest, BatchPromptR
 
     def __init__(
         self,
-        client: genai.Client,
-        default_model: str,
-        batch_threshold: int = 10,
-        max_parallel: int = 5,
-    ):
+        client: Annotated[genai.Client, "The Gemini API client"],
+        default_model: Annotated[str, "The default generation model to use"],
+        batch_threshold: Annotated[int, "The batch size threshold"] = 10,
+        max_parallel: Annotated[int, "The maximum number of parallel workers"] = 5,
+    ) -> None:
         """Initialize generation dispatcher.
 
         Args:
@@ -161,35 +145,18 @@ class GeminiGenerationDispatcher(BaseDispatcher[BatchPromptRequest, BatchPromptR
 
     def generate_content(  # noqa: PLR0913
         self,
-        requests: Sequence[BatchPromptRequest],
-        *,
-        force_batch: bool = False,
-        force_individual: bool = False,
-        display_name: str | None = None,
-        poll_interval: float | None = None,
-        timeout: float | None = None,
-    ) -> list[BatchPromptResult]:
+        requests: Annotated[Sequence[BatchPromptRequest], "A sequence of prompt requests"],
+        **kwargs,
+    ) -> Annotated[list[BatchPromptResult], "A list of prompt results"]:
         """Generate content using optimal strategy (batch or individual).
-
         Args:
             requests: Generation requests to execute
-            force_batch: Force batch API
-            force_individual: Force individual calls
-            display_name: Display name for batch job
-            poll_interval: Polling interval for batch job
-            timeout: Timeout for batch job
-
+            **kwargs: Additional arguments for dispatching, including `force_batch`,
+                `force_individual`, `display_name`, `poll_interval`, and `timeout`.
         Returns:
             List of generation results
         """
-        return self.dispatch(
-            requests,
-            force_batch=force_batch,
-            force_individual=force_individual,
-            display_name=display_name,
-            poll_interval=poll_interval,
-            timeout=timeout,
-        )
+        return self.dispatch(requests, **kwargs)
 
     def _execute_one(self, request: BatchPromptRequest) -> BatchPromptResult:
         """Execute a single generation request via direct API."""
@@ -234,11 +201,11 @@ class GeminiDispatcher:
 
     def __init__(
         self,
-        client: genai.Client,
-        default_model: str,
-        batch_threshold: int = 10,
-        max_parallel: int = 5,
-    ):
+        client: Annotated[genai.Client, "The Gemini API client"],
+        default_model: Annotated[str, "The default model to use for both embedding and generation"],
+        batch_threshold: Annotated[int, "The batch size threshold"] = 10,
+        max_parallel: Annotated[int, "The maximum number of parallel workers"] = 5,
+    ) -> None:
         """Initialize unified dispatcher.
 
         Args:
@@ -270,45 +237,26 @@ class GeminiDispatcher:
 
     def embed_content(  # noqa: PLR0913
         self,
-        requests: Sequence[EmbeddingBatchRequest],
-        *,
-        force_batch: bool = False,
-        force_individual: bool = False,
-        display_name: str | None = None,
-        poll_interval: float | None = None,
-        timeout: float | None = None,
-    ) -> list[EmbeddingBatchResult]:
+        requests: Annotated[Sequence[EmbeddingBatchRequest], "A sequence of embedding requests"],
+        **kwargs,
+    ) -> Annotated[list[EmbeddingBatchResult], "A list of embedding results"]:
         """Embed content - delegates to embedding dispatcher."""
-        return self._embedding_dispatcher.embed_content(
-            requests,
-            force_batch=force_batch,
-            force_individual=force_individual,
-            display_name=display_name,
-            poll_interval=poll_interval,
-            timeout=timeout,
-        )
+        return self._embedding_dispatcher.embed_content(requests, **kwargs)
 
     def generate_content(  # noqa: PLR0913
         self,
-        requests: Sequence[BatchPromptRequest],
-        *,
-        force_batch: bool = False,
-        force_individual: bool = False,
-        display_name: str | None = None,
-        poll_interval: float | None = None,
-        timeout: float | None = None,
-    ) -> list[BatchPromptResult]:
+        requests: Annotated[Sequence[BatchPromptRequest], "A sequence of prompt requests"],
+        **kwargs,
+    ) -> Annotated[list[BatchPromptResult], "A list of prompt results"]:
         """Generate content - delegates to generation dispatcher."""
-        return self._generation_dispatcher.generate_content(
-            requests,
-            force_batch=force_batch,
-            force_individual=force_individual,
-            display_name=display_name,
-            poll_interval=poll_interval,
-            timeout=timeout,
-        )
+        return self._generation_dispatcher.generate_content(requests, **kwargs)
 
-    def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
+    def upload_file(
+        self,
+        *,
+        path: Annotated[str, "The path to the file to upload"],
+        display_name: Annotated[str | None, "An optional display name for the file"] = None,
+    ) -> Annotated[genai_types.File, "The uploaded file object"]:
         """Upload a media file (uses direct API, no batching).
 
         File uploads are fast and don't benefit from batching, so they always
