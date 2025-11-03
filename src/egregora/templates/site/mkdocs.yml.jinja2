@@ -1,0 +1,106 @@
+site_name: {{ site_name }}
+site_description: Collective consciousness journal - {{ site_name }}
+docs_dir: {{ docs_dir }}
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: en
+  - blog:
+      blog_dir: {{ blog_dir }}
+      blog_toc: true
+      post_date_format: long
+      post_url_date_format: yyyy/MM/dd
+      post_url_format: '{date}/{slug}'
+      pagination_per_page: 10
+
+# Markdown extensions available for posts
+# (This section is automatically sent to the writer agent)
+markdown_extensions:
+  # Code blocks and diagrams
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+  # Content enhancements
+  - admonition
+  - pymdownx.details
+  - footnotes
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+  # Navigation and structure
+  - toc:
+      permalink: true
+  - attr_list
+  - tables
+
+  # Optional: Uncomment if you need math rendering
+  # - pymdownx.arithmatex:
+  #     generic: true
+
+nav:
+  - Home: index.md
+  - Blog:
+    - {{ blog_dir }}/index.md
+  - Profiles: profiles/index.md
+  - Media: media/index.md
+  - About: about.md
+
+# Egregora configuration
+extra:
+  egregora:
+    # Custom instructions for the writer agent (optional)
+    # Uncomment and customize as needed:
+    # writer_prompt: |
+    #   Write analytical posts in the style of Scott Alexander / LessWrong.
+    #   Focus on capturing narrative threads and preserving complexity.
+
+    # RAG settings
+    rag:
+      enabled: true
+      top_k: 5
+      min_similarity: 0.7
+
+    # Profile settings
+    profiles:
+      top_authors_count: 20
+      include_in_context: true
+
+  # Disable MkDocs generator notice
+  generator: false
