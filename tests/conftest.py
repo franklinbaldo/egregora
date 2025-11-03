@@ -33,8 +33,14 @@ except ImportError:  # pragma: no cover - depends on test env
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
-    if "google" in sys.modules:
-        return
+    try:  # Prefer the real SDK if it is available in the environment.
+        from google.genai import types as genai_types  # type: ignore[import-not-found]
+
+        # Some historical versions lacked the newer helper classes we rely on.
+        if hasattr(genai_types, "FunctionCall"):
+            return
+    except Exception:  # pragma: no cover - runtime safety for optional dependency
+        pass
 
     google_module = types.ModuleType("google")
     genai_module = types.ModuleType("google.genai")
