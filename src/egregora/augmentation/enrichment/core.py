@@ -207,8 +207,8 @@ def enrich_table(
                     logger.warning("Unsupported media type for enrichment: %s", file_path.name)
                     continue
 
-                enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
-                enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
+                # Place enrichment .md in the same folder as the media file
+                enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
                 media_job = MediaEnrichmentJob(
                     key=cache_key,
                     original_filename=original_filename,
@@ -330,7 +330,8 @@ def enrich_table(
                     media_job.file_path.name,
                     result.error if result else "no result",
                 )
-                media_job.markdown = f"[Failed to enrich media: {media_job.file_path.name}]"
+                # Don't save markdown on failure - leave it as None so it won't be written
+                media_job.markdown = None
                 continue
 
             markdown_content = (result.response.text or "").strip()

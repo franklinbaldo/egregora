@@ -546,7 +546,7 @@ def _write_posts_for_period_pydantic(
     embedding_model = model_config.get_model("embedding")
 
     # Initialize annotation store
-    annotations_store = AnnotationStore(rag_dir / "annotations.parquet")
+    annotations_store = AnnotationStore(rag_dir / "annotations.duckdb")
 
     # Convert Ibis table to PyArrow for formatting
     messages_table = table.to_pyarrow()
