@@ -93,7 +93,16 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
-        return [dict(row) for row in frame.to_pylist()]
+        try:
+            return [dict(row) for row in frame.to_pylist()]
+        except Exception:
+            # PyArrow can fail with timezone-aware timestamps
+            # Fall back to pandas conversion
+            import pandas as pd
+            if hasattr(frame, "to_pandas"):
+                df = frame.to_pandas()
+                return [dict(row) for row in df.to_dict("records")]
+            raise
     if isinstance(frame, list):
         return [dict(row) for row in frame]
 
@@ -105,12 +114,18 @@ def _iter_table_record_batches(
 ) -> Iterator[list[dict[str, Any]]]:
     """Yield batches of table rows as dictionaries in a deterministic order."""
 
-    to_pylist = getattr(table, "to_pylist", None)
-    if callable(to_pylist):
-        rows = [dict(row) for row in to_pylist()]
-        if rows:
-            yield rows
-        return
+    # Try to_pyarrow().to_pylist() for Ibis tables (handles timezones correctly)
+    to_pyarrow = getattr(table, "to_pyarrow", None)
+    if callable(to_pyarrow):
+        try:
+            arrow_table = to_pyarrow()
+            rows = arrow_table.to_pylist()
+            if rows:
+                yield rows
+            return
+        except Exception:
+            # Fall back to iterative approach if conversion fails
+            pass
 
     count = table.count().execute()
     if not count:
