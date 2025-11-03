@@ -18,3 +18,15 @@ repos:
       - id: end-of-file-fixer
       - id: mixed-line-ending
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: forbid-pandas-imports
+        name: "Forbid pandas imports"
+        entry: tools/check_forbidden_imports.py pandas
+        language: system
+        pass_filenames: false
+      - id: forbid-pyarrow-imports
+        name: "Forbid pyarrow imports"
+        entry: tools/check_forbidden_imports.py pyarrow
+        language: system
+        pass_filenames: false

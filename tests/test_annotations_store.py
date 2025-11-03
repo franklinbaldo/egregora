@@ -35,3 +35,17 @@ def test_concurrent_annotation_inserts_produce_unique_sequential_ids(tmp_path):
     assert len(ids) == 10
     assert len(set(ids)) == len(ids)
     assert sorted(ids) == list(range(1, len(ids) + 1))
+
+
+def test_annotation_store_identity_survives_restart(tmp_path):
+    db_path = tmp_path / "annotations.duckdb"
+    store = AnnotationStore(db_path)
+
+    first = store.save_annotation("message-1", "message", "First comment")
+    second = store.save_annotation("message-2", "message", "Second comment")
+
+    store = AnnotationStore(db_path)
+    third = store.save_annotation("message-3", "message", "Third comment")
+
+    assert second.id == first.id + 1
+    assert third.id == second.id + 1
