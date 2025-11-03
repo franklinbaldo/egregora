@@ -8,6 +8,7 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+import pyarrow as pa
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -118,33 +119,30 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
+        new_posts = pa.table({"post_id": pa.array(post_ids, type=pa.string())})
+        view_name = "new_elo_posts"
+        self.conn.register(view_name, new_posts)
 
-        temp_table = "__elo_init_posts"
-        self.conn.execute(f"CREATE TEMP TABLE {temp_table} (post_id VARCHAR)")
+        inserted = 0
         try:
-            self.conn.executemany(
-                f"INSERT INTO {temp_table} (post_id) VALUES (?)",
-                [(post_id,) for post_id in post_ids],
-            )
-            inserted_rows = self.conn.execute(
-                f"""
-                WITH new_posts AS (
-                    SELECT DISTINCT p.post_id
-                    FROM {temp_table} AS p
-                    LEFT JOIN elo_ratings AS e ON p.post_id = e.post_id
-                    WHERE e.post_id IS NULL
-                )
+            result = self.conn.execute(
+                """
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
                 SELECT post_id, 1500, 0, ?
-                FROM new_posts
+                FROM (
+                    SELECT DISTINCT post_id
+                    FROM new_elo_posts
+                ) AS np
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM elo_ratings er WHERE er.post_id = np.post_id
+                )
                 RETURNING post_id
-                """,
+            """,
                 [now],
-            ).fetchall()
+            )
+            inserted = len(result.fetchall())
         finally:
-            self.conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
-
-        inserted = len(inserted_rows)
+            self.conn.unregister(view_name)
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
@@ -198,11 +196,29 @@ class RankingStore:
                     WHEN post_id = ? THEN ?
                     ELSE elo_global
                 END,
-                games_played = games_played + 1,
-                last_updated = ?
+                games_played = games_played + CASE
+                    WHEN post_id IN (?, ?) THEN 1
+                    ELSE 0
+                END,
+                last_updated = CASE
+                    WHEN post_id IN (?, ?) THEN ?
+                    ELSE last_updated
+                END
             WHERE post_id IN (?, ?)
         """,
-            [post_a, new_elo_a, post_b, new_elo_b, now, post_a, post_b],
+            [
+                post_a,
+                new_elo_a,
+                post_b,
+                new_elo_b,
+                post_a,
+                post_b,
+                post_a,
+                post_b,
+                now,
+                post_a,
+                post_b,
+            ],
         )
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")

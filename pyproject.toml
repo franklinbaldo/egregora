@@ -153,9 +153,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-# pytest-vcr configuration
-vcr_record_mode = "once"  # Record once, then replay
-vcr_cassette_dir = "tests/cassettes"
 
 [dependency-groups]
 dev = [

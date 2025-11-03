@@ -12,7 +12,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 DEFAULT_DOCS_DIR = "docs"
-DEFAULT_BLOG_DIR = "posts"
+DEFAULT_BLOG_DIR = "."  # Blog is the main page
 PROFILES_DIR_NAME = "profiles"
 MEDIA_DIR_NAME = "media"
 
