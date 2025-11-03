@@ -6,6 +6,11 @@ Use these schemas to create tables via Ibis instead of raw SQL.
 This module contains both:
 - Persistent schemas: Tables that are stored in DuckDB files
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
+
+Type Constructor Pattern:
+- Lowercase types (dt.string, dt.int64, dt.date) = NOT NULL
+- Capitalized constructors (dt.String(nullable=True), dt.Timestamp(timezone=...)) = allow params
+This is standard Ibis convention for nullable vs non-nullable types.
 """
 
 import logging
@@ -69,9 +74,11 @@ RAG_CHUNKS_SCHEMA = ibis.schema(
 RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
     {
         "path": dt.string,  # PRIMARY KEY
-        "mtime_ns": dt.int64,
-        "size": dt.int64,
-        # Number of rows materialized in the Parquet dataset
+        "mtime_ns": dt.int64,  # File modification time (nanoseconds since epoch)
+        "size": dt.int64,  # File size in bytes
+        # Number of rows in the Parquet file at time of indexing
+        # Semantics: Physical row count from Parquet metadata, updated on write
+        # Used to detect stale indices when file is re-written with different row count
         "row_count": dt.int64,
         # Optional hash of the Parquet file for integrity checks
         "checksum": dt.String(nullable=True),
@@ -82,6 +89,9 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
     {
         "index_name": dt.string,  # PRIMARY KEY
         "mode": dt.string,  # 'ann' or 'exact'
+        # Number of rows indexed at time of last update
+        # Semantics: Logical row count from vector store at indexing time
+        # Used to determine whether to use ANN (if row_count >= threshold) or exact search
         "row_count": dt.int64,
         # Threshold after which ANN indexing should be used
         "threshold": dt.int64,
@@ -89,6 +99,8 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
         "nlist": dt.int32(nullable=True),
         # Persisted embedding dimensionality for consistency checks
         "embedding_dim": dt.int32(nullable=True),
+        # Timestamp when the index was created (preserved for provenance)
+        "created_at": dt.timestamp,
         # Timestamp of the last update to the index metadata
         "updated_at": dt.timestamp(nullable=True),
     }
@@ -183,6 +195,22 @@ def create_table_if_not_exists(
         # Create empty table with schema
         empty_table = ibis.memtable([], schema=schema)
         conn.create_table(table_name, empty_table, overwrite=False)
+
+
+def quote_identifier(identifier: str) -> str:
+    """Quote a SQL identifier to prevent injection and handle special characters.
+
+    Args:
+        identifier: The identifier to quote (table name, column name, etc.)
+
+    Returns:
+        Properly quoted identifier safe for use in SQL
+
+    Note:
+        DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
+        Example: my"table → "my""table"
+    """
+    return f'"{identifier.replace('"', '""')}"'
 
 
 def add_primary_key(conn, table_name: str, column_name: str) -> None:

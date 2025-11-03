@@ -355,9 +355,10 @@ class VectorStore:
                 threshold,
                 nlist,
                 embedding_dim,
+                created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(index_name) DO UPDATE SET
                 mode=excluded.mode,
                 row_count=excluded.row_count,
@@ -366,7 +367,7 @@ class VectorStore:
                 embedding_dim=excluded.embedding_dim,
                 updated_at=excluded.updated_at
             """,
-            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp],
+            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
         )
 
     def _clear_index_meta(self) -> None:

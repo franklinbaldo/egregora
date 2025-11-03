@@ -449,20 +449,24 @@ def enrich_table(
             CONVERSATION_SCHEMA,
         )
 
+        # Quote identifiers for SQL safety (defense in depth beyond regex validation)
+        quoted_table = database_schema.quote_identifier(target_table)
+        column_list = ", ".join(database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+
         # Replace table contents with enriched data (idempotent operation)
         # Use transaction to make DELETE + INSERT atomic (prevents race conditions)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)
-            column_list = ", ".join(CONVERSATION_SCHEMA.names)
+            quoted_view = database_schema.quote_identifier(temp_view)
 
             # Atomic replace: BEGIN, DELETE, INSERT, COMMIT
             # This prevents race conditions and ensures no window where table is empty
             duckdb_connection.raw_sql("BEGIN TRANSACTION")
             try:
-                duckdb_connection.raw_sql(f"DELETE FROM {target_table}")
+                duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")
                 duckdb_connection.raw_sql(
-                    f"INSERT INTO {target_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
+                    f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
                 )
                 duckdb_connection.raw_sql("COMMIT")
             except Exception:
