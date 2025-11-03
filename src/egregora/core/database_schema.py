@@ -71,7 +71,10 @@ RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
         "path": dt.string,  # PRIMARY KEY
         "mtime_ns": dt.int64,
         "size": dt.int64,
-        "checksum": dt.string,
+        # Number of rows materialized in the Parquet dataset
+        "row_count": dt.int64,
+        # Optional hash of the Parquet file for integrity checks
+        "checksum": dt.String(nullable=True),
     }
 )
 
@@ -80,7 +83,14 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
         "index_name": dt.string,  # PRIMARY KEY
         "mode": dt.string,  # 'ann' or 'exact'
         "row_count": dt.int64,
-        "created_at": dt.timestamp,
+        # Threshold after which ANN indexing should be used
+        "threshold": dt.int64,
+        # Number of lists used by ANN implementations (optional)
+        "nlist": dt.int32(nullable=True),
+        # Persisted embedding dimensionality for consistency checks
+        "embedding_dim": dt.int32(nullable=True),
+        # Timestamp of the last update to the index metadata
+        "updated_at": dt.timestamp(nullable=True),
     }
 )
 
