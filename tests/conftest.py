@@ -10,7 +10,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
 SRC_PATH = PROJECT_ROOT / "src"
+
+if str(STUBS_PATH) not in sys.path:
+    sys.path.insert(0, str(STUBS_PATH))
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
