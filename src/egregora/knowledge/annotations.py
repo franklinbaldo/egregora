@@ -46,14 +46,36 @@ class AnnotationStore:
         return self._backend.con
 
     def _initialize(self) -> None:
-        # Create table using consolidated schema
-        database_schema.create_table_if_not_exists(
-            self._backend,
-            ANNOTATIONS_TABLE,
-            database_schema.ANNOTATIONS_SCHEMA,
+        sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
+        self._connection.execute(
+            f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1"
         )
-        # Add primary key using raw connection
+        self._connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
+                id INTEGER PRIMARY KEY DEFAULT nextval('{sequence_name}'),
+                parent_id VARCHAR NOT NULL,
+                parent_type VARCHAR NOT NULL,
+                author VARCHAR,
+                commentary VARCHAR,
+                created_at TIMESTAMP
+            )
+            """
+        )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
+        column_default_row = self._connection.execute(
+            """
+            SELECT column_default
+            FROM information_schema.columns
+            WHERE lower(table_name) = lower(?) AND lower(column_name) = 'id'
+            LIMIT 1
+            """,
+            [ANNOTATIONS_TABLE],
+        ).fetchone()
+        if not column_default_row or column_default_row[0] != f"nextval('{sequence_name}')":
+            self._connection.execute(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+            )
         self._backend.raw_sql(
             f"""
             CREATE INDEX IF NOT EXISTS idx_annotations_parent_created
@@ -105,21 +127,13 @@ class AnnotationStore:
             if parent_exists == 0:
                 raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
 
-        next_id_cursor = self._connection.execute(
-            f"SELECT COALESCE(MAX(id), 0) + 1 FROM {ANNOTATIONS_TABLE}"
-        )
-        row = next_id_cursor.fetchone()
-        if row is None:
-            raise RuntimeError("Could not get next annotation ID")
-        annotation_id = int(row[0])
-
-        self._connection.execute(
+        cursor = self._connection.execute(
             f"""
-            INSERT INTO {ANNOTATIONS_TABLE} (id, parent_id, parent_type, author, commentary, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            RETURNING id
             """,
             [
-                annotation_id,
                 sanitized_parent_id,
                 sanitized_parent_type,
                 ANNOTATION_AUTHOR,
@@ -127,6 +141,10 @@ class AnnotationStore:
                 created_at,
             ],
         )
+        row = cursor.fetchone()
+        if row is None:
+            raise RuntimeError("Could not insert annotation")
+        annotation_id = int(row[0])
 
         return Annotation(
             id=annotation_id,
