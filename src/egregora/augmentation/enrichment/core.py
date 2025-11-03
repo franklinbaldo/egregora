@@ -14,12 +14,13 @@ import re
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
 from ibis.expr.types import Table
 
 from ...config import ModelConfig
+from ...core import database_schema
 from ...core.database_schema import CONVERSATION_SCHEMA
 from ...prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
@@ -44,6 +45,12 @@ from .media import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from ibis.backends.duckdb import Backend as DuckDBBackend
+else:  # pragma: no cover - duckdb backend available at runtime when installed
+    DuckDBBackend = Any
 
 
 def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
@@ -88,6 +95,9 @@ def enrich_table(
     enable_url: bool = True,
     enable_media: bool = True,
     max_enrichments: int = 50,
+    *,
+    duckdb_connection: "DuckDBBackend | None" = None,
+    target_table: str | None = None,
 ) -> Table:
     """Add LLM-generated enrichment rows to Table for URLs and media."""
     if model_config is None:
@@ -421,6 +431,34 @@ def enrich_table(
 
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
+
+    # Optional DuckDB persistence
+    if (duckdb_connection is None) != (target_table is None):
+        raise ValueError(
+            "duckdb_connection and target_table must be provided together when persisting"
+        )
+
+    if duckdb_connection and target_table:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", target_table):
+            raise ValueError("target_table must be a valid DuckDB identifier")
+
+        # Ensure target table exists with correct schema
+        database_schema.create_table_if_not_exists(
+            duckdb_connection,
+            target_table,
+            CONVERSATION_SCHEMA,
+        )
+
+        # Insert enriched rows into the target table
+        temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
+        try:
+            duckdb_connection.create_view(temp_view, combined, overwrite=True)
+            column_list = ", ".join(CONVERSATION_SCHEMA.names)
+            duckdb_connection.raw_sql(
+                f"INSERT INTO {target_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
+            )
+        finally:
+            duckdb_connection.drop_view(temp_view, force=True)
 
     if pii_detected_count > 0:
         logger.info(

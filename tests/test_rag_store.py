@@ -177,6 +177,97 @@ def _load_vector_store():
     return store
 
 
+def _table_columns(connection, table_name: str) -> list[tuple[str, bool]]:
+    """Return DuckDB column names and primary key flags for the given table."""
+
+    pragma_rows = connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    return [(str(row[1]), bool(row[5])) for row in pragma_rows]
+
+
+def test_metadata_tables_match_central_schema(tmp_path):
+    """Metadata tables must follow the centralized schema definitions."""
+
+    store_module = _load_vector_store()
+    conn = duckdb.connect(":memory:")
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
+
+    try:
+        # Explicitly rerun the guards to verify idempotency
+        store._ensure_metadata_table()
+        store._ensure_metadata_table()
+        store._ensure_index_meta_table()
+        store._ensure_index_meta_table()
+
+        metadata_columns = _table_columns(conn, store_module.METADATA_TABLE_NAME)
+        index_meta_columns = _table_columns(conn, store_module.INDEX_META_TABLE)
+
+        expected_metadata = set(store_module.database_schema.RAG_CHUNKS_METADATA_SCHEMA.names)
+        expected_index_meta = set(store_module.database_schema.RAG_INDEX_META_SCHEMA.names)
+
+        assert {name for name, _ in metadata_columns} == expected_metadata
+        assert {name for name, _ in index_meta_columns} == expected_index_meta
+
+        metadata_primary_keys = {name for name, is_pk in metadata_columns if is_pk}
+        index_meta_primary_keys = {name for name, is_pk in index_meta_columns if is_pk}
+
+        assert metadata_primary_keys == {"path"}
+        assert index_meta_primary_keys == {"index_name"}
+    finally:
+        store.close()
+
+
+def test_metadata_round_trip(tmp_path):
+    """Persisted dataset metadata should be retrievable and removable."""
+
+    store_module = _load_vector_store()
+    conn = duckdb.connect(":memory:")
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
+
+    try:
+        dataset_metadata = store_module.DatasetMetadata(mtime_ns=1, size=2, row_count=3)
+        store._store_metadata(dataset_metadata)
+
+        assert store._get_stored_metadata() == dataset_metadata
+
+        store._store_metadata(None)
+        assert store._get_stored_metadata() is None
+    finally:
+        store.close()
+
+
+def test_upsert_index_meta_persists_values(tmp_path):
+    """Index metadata upserts should reflect the latest configuration."""
+
+    store_module = _load_vector_store()
+    conn = duckdb.connect(":memory:")
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
+
+    try:
+        store._upsert_index_meta(
+            mode="ann",
+            row_count=42,
+            threshold=10,
+            nlist=8,
+            embedding_dim=1536,
+        )
+
+        row = conn.execute(
+            f"SELECT mode, row_count, threshold, nlist, embedding_dim, updated_at "
+            f"FROM {store_module.INDEX_META_TABLE} WHERE index_name = ?",
+            [store_module.INDEX_NAME],
+        ).fetchone()
+
+        assert row is not None
+        assert row[0] == "ann"
+        assert row[1] == 42
+        assert row[2] == 10
+        assert row[3] == 8
+        assert row[4] == 1536
+        assert row[5] is not None
+    finally:
+        store.close()
+
+
 def test_search_builds_expected_sql(tmp_path, monkeypatch):
     """ANN mode should emit vss_search while exact mode falls back to cosine scans."""
 

@@ -71,7 +71,10 @@ RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
         "path": dt.string,  # PRIMARY KEY
         "mtime_ns": dt.int64,
         "size": dt.int64,
-        "checksum": dt.string,
+        # Number of rows materialized in the Parquet dataset
+        "row_count": dt.int64,
+        # Optional hash of the Parquet file for integrity checks
+        "checksum": dt.String(nullable=True),
     }
 )
 
@@ -80,7 +83,14 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
         "index_name": dt.string,  # PRIMARY KEY
         "mode": dt.string,  # 'ann' or 'exact'
         "row_count": dt.int64,
-        "created_at": dt.timestamp,
+        # Threshold after which ANN indexing should be used
+        "threshold": dt.int64,
+        # Number of lists used by ANN implementations (optional)
+        "nlist": dt.int32(nullable=True),
+        # Persisted embedding dimensionality for consistency checks
+        "embedding_dim": dt.int32(nullable=True),
+        # Timestamp of the last update to the index metadata
+        "updated_at": dt.timestamp(nullable=True),
     }
 )
 
@@ -193,6 +203,35 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         )
     except Exception:
         # Constraint may already exist
+        pass
+
+
+def ensure_identity_column(
+    conn,
+    table_name: str,
+    column_name: str,
+    *,
+    generated: str = "ALWAYS",
+) -> None:
+    """Ensure a column is configured as an identity column in DuckDB.
+
+    Args:
+        conn: DuckDB connection (raw, not Ibis)
+        table_name: Name of the table
+        column_name: Column to configure as identity
+        generated: 'ALWAYS' or 'BY DEFAULT' for identity generation
+
+    Note:
+        This must be called on raw DuckDB connection, not Ibis connection.
+        If the column already has identity configured, this is a no-op.
+    """
+    try:
+        conn.execute(
+            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
+            f"SET GENERATED {generated} AS IDENTITY"
+        )
+    except Exception:
+        # Identity already configured or column contains incompatible data
         pass
 
 

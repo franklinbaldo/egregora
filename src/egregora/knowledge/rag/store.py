@@ -9,6 +9,7 @@ from typing import Any
 
 import duckdb
 import ibis
+import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
@@ -165,49 +166,66 @@ class VectorStore:
 
     def _ensure_metadata_table(self) -> None:
         """Create the internal metadata table when missing."""
-        # Note: RAG_CHUNKS_METADATA_SCHEMA has checksum field, but old code had row_count
-        # Keeping old behavior for now - add row_count if needed
-        if METADATA_TABLE_NAME not in self._client.list_tables():
-            # Create with row_count column (not in centralized schema yet)
-            self.conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
-                    path TEXT PRIMARY KEY,
-                    mtime_ns BIGINT,
-                    size BIGINT,
-                    row_count BIGINT
-                )
-                """
-            )
+
+        database_schema.create_table_if_not_exists(
+            self._client,
+            METADATA_TABLE_NAME,
+            database_schema.RAG_CHUNKS_METADATA_SCHEMA,
+        )
+        database_schema.add_primary_key(self.conn, METADATA_TABLE_NAME, "path")
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
-        # Note: Schema has extra fields (threshold, nlist) beyond database_schema definition
-        # Keeping old behavior for compatibility
-        if INDEX_META_TABLE not in self._client.list_tables():
+
+        database_schema.create_table_if_not_exists(
+            self._client,
+            INDEX_META_TABLE,
+            database_schema.RAG_INDEX_META_SCHEMA,
+        )
+        self._migrate_index_meta_table()
+        database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
+
+    def _migrate_index_meta_table(self) -> None:
+        """Ensure legacy index metadata tables gain any newly introduced columns."""
+
+        existing_columns = {
+            row[1].lower()
+            for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
+        }
+
+        schema = database_schema.RAG_INDEX_META_SCHEMA
+        for column in schema.names:
+            if column.lower() in existing_columns:
+                continue
+
+            column_type = self._duckdb_type_from_ibis(schema[column])
+            if column_type is None:
+                logger.warning(
+                    "Skipping migration for %s.%s due to unsupported type %s",
+                    INDEX_META_TABLE,
+                    column,
+                    schema[column],
+                )
+                continue
+
             self.conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
-                    index_name TEXT PRIMARY KEY,
-                    mode TEXT,
-                    row_count BIGINT,
-                    threshold BIGINT,
-                    nlist INTEGER,
-                    embedding_dim INTEGER,
-                    updated_at TIMESTAMPTZ
-                )
-                """
+                f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
             )
-        else:
-            # Migrate existing table to add embedding_dim column if missing
-            columns = self.conn.execute(
-                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{INDEX_META_TABLE}'"
-            ).fetchall()
-            column_names = {str(row[0]).lower() for row in columns}
-            if "embedding_dim" not in column_names:
-                self.conn.execute(
-                    f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN embedding_dim INTEGER"
-                )
+
+    @staticmethod
+    def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
+        """Map a subset of Ibis data types to DuckDB column definitions."""
+
+        if dtype.is_string():
+            return "VARCHAR"
+        if dtype.is_int64():
+            return "BIGINT"
+        if dtype.is_int32():
+            return "INTEGER"
+        if dtype.is_timestamp():
+            return "TIMESTAMP"
+
+        return None
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
@@ -219,7 +237,15 @@ class VectorStore:
         if not row:
             return None
 
-        return DatasetMetadata(mtime_ns=int(row[0]), size=int(row[1]), row_count=int(row[2]))
+        mtime_ns, size, row_count = row
+        if mtime_ns is None or size is None or row_count is None:
+            return None
+
+        return DatasetMetadata(
+            mtime_ns=int(mtime_ns),
+            size=int(size),
+            row_count=int(row_count),
+        )
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
@@ -233,7 +259,10 @@ class VectorStore:
             return
 
         self.conn.execute(
-            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            (
+                f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) "
+                "VALUES (?, ?, ?, ?)"
+            ),
             [
                 str(self.parquet_path),
                 metadata.mtime_ns,
@@ -319,7 +348,15 @@ class VectorStore:
         timestamp = datetime.now()
         self.conn.execute(
             f"""
-            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, embedding_dim, updated_at)
+            INSERT INTO {INDEX_META_TABLE} (
+                index_name,
+                mode,
+                row_count,
+                threshold,
+                nlist,
+                embedding_dim,
+                updated_at
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(index_name) DO UPDATE SET
                 mode=excluded.mode,
