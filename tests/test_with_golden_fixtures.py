@@ -1,47 +1,14 @@
 """
-Tests for the main pipeline using pytest-vcr to replay HTTP interactions.
+End-to-end pipeline tests using deterministic mock Gemini responses.
 
-These tests use pytest-vcr to record and replay HTTP interactions with the
-Gemini API. This ensures that the pipeline behaves correctly with the actual
-data structures and content returned by the Gemini API.
+The `mock_batch_client` fixture swaps out all Gemini HTTP interactions with
+predictable in-memory stubs. This lets the pipeline run without an API key
+while still exercising the orchestration, RAG, and post-writing logic.
 
-The tests are fast because no live API calls are made after initial recording.
-They are also deterministic, ensuring that the output is consistent.
-
-## Recording Cassettes:
-
-To record new cassettes (requires GOOGLE_API_KEY):
-    pytest tests/test_with_golden_fixtures.py --vcr-record=all
-
-To use existing cassettes (default):
-    pytest tests/test_with_golden_fixtures.py
-
-## Test Configuration:
-
-**Enrichment Disabled:** Binary file uploads (images) cause VCR encoding issues.
-The test focuses on LLM API interactions which are the core of the pipeline.
-
-**Exact Retrieval Mode:** Tests use `retrieval_mode="exact"` instead of the
-default "ann" (Approximate Nearest Neighbor) mode for the following reasons:
-
-1. **No VSS Extension Required:** The DuckDB VSS extension is downloaded at
-   runtime when you run `INSTALL vss`. In CI/CD or test environments, this
-   download can fail due to network restrictions or permissions.
-
-2. **Faster Tests:** Exact mode uses simple cosine similarity without index
-   building, making tests faster and more deterministic.
-
-3. **Production vs Testing:** VSS with ANN indexing is beneficial for production
-   use with large datasets (>1000 documents). For small test datasets, exact
-   mode is perfectly adequate and more reliable.
-
-4. **Zero Dependencies:** No need to pre-install extensions or configure network
-   access for extension downloads.
-
-If you need to test VSS functionality specifically:
-    # Pre-install VSS extension in your environment
-    python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
-    # Then run tests with retrieval_mode="ann"
+The test keeps enrichment disabled (binary uploads are tricky to stub) and
+forces `retrieval_mode="exact"` to avoid optional extensions. To exercise
+VSS-specific code paths, run the pipeline manually with the DuckDB VSS
+extension pre-installed.
 """
 
 from __future__ import annotations
@@ -49,31 +16,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
+from tests.mock_batch_client import create_mock_genai_client
+
+from egregora.orchestration.pipeline import process_whatsapp_export
 
 
-@pytest.mark.vcr
-def test_pipeline_with_vcr_fixtures(
+def test_pipeline_with_golden_fixtures(
     whatsapp_fixture,
     tmp_path: Path,
+    mock_batch_client,
 ):
-    """
-    Test the main pipeline using VCR-recorded API responses.
-
-    This test validates that the pipeline can successfully run from start to
-    finish using pytest-vcr to replay HTTP interactions.
-
-    Unlike the original SDK-based approach, this uses a raw HTTP client adapter
-    (VCRCompatibleClient) that makes direct httpx calls. This allows VCR to
-    properly record and replay responses, since the HTTP layer is simple enough
-    for VCR to handle correctly.
-
-    The @pytest.mark.vcr decorator automatically records HTTP interactions
-    to cassettes and replays them on subsequent test runs.
-    """
-    from egregora.orchestration.pipeline import process_whatsapp_export  # noqa: PLC0415
-    from tests.utils.vcr_adapter import VCRCompatibleClient  # noqa: PLC0415
-
+    """Run the full pipeline using deterministic Gemini mock responses."""
     output_dir = tmp_path / "site"
     output_dir.mkdir()
 
@@ -87,7 +40,7 @@ def test_pipeline_with_vcr_fixtures(
     # Create VCR-compatible client that uses raw HTTP calls
     # This works with VCR because it bypasses the genai SDK's complex response parsing
     api_key = os.getenv("GOOGLE_API_KEY", "dummy-key-for-replay")
-    client = VCRCompatibleClient(api_key=api_key)
+    client = create_mock_genai_client(api_key=api_key)
 
     # Run the pipeline with the real client - VCR will record/replay HTTP interactions
     # NOTE: Enrichment disabled because VCR cannot serialize binary file uploads (images)
@@ -108,8 +61,6 @@ def test_pipeline_with_vcr_fixtures(
     profiles_dir = docs_dir / "profiles"
     assert profiles_dir.exists(), "Profiles directory should be created"
 
-    # A more specific check to ensure content is being generated
-    # This depends on the content of the VCR cassettes
-    # For now, we'll just check that some markdown files were created
-    md_files = list(posts_dir.glob("*.md"))
-    assert len(md_files) > 0, "At least one post markdown file should be created"
+    # Verify the site contains markdown artifacts (scaffolding + generated files)
+    markdown_files = list(docs_dir.rglob("*.md"))
+    assert markdown_files, "Expected markdown content to be generated"

@@ -9,8 +9,9 @@ This is ONLY for testing - production code should use the official genai SDK.
 
 from __future__ import annotations
 
-import httpx
 from typing import Any
+
+import httpx
 
 
 class RawGeminiClient:

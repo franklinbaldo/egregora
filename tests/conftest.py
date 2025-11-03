@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import sys
 import types
 import zipfile
@@ -79,6 +80,7 @@ def _install_google_stubs() -> None:
     for attr in (
         "Schema",
         "FunctionDeclaration",
+        "FunctionCall",
         "Tool",
         "FunctionResponse",
         "Part",
@@ -243,7 +245,6 @@ def vcr_config():
     This configuration filters out sensitive data like API keys from cassettes
     and properly handles binary file uploads (images, etc.).
     """
-    import base64
 
     def _serialize_request_body(request):
         """Serialize request body, encoding binary data as base64."""
@@ -286,6 +287,10 @@ def vcr_config():
     return {
         # Record mode: 'once' means record the first time, then replay
         "record_mode": "once",
+        # Directory containing pre-recorded cassettes
+        "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
+        # Ensure httpx.Client is patched for playback
+        "custom_patches": ("httpx",),
         # Filter API keys from recordings
         "filter_headers": [
             ("x-goog-api-key", "DUMMY_API_KEY"),
