@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
-from egregora.utils.batch import EmbeddingBatchRequest, GeminiBatchClient
+from ...utils.batch import EmbeddingBatchRequest, GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
 
 def embed_chunks(
-    chunks: list[str],
-    batch_client: GeminiBatchClient,
+    chunks: Annotated[list[str], "A list of text chunks to embed"],
+    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
     *,
-    model: str,
-    task_type: str = "RETRIEVAL_DOCUMENT",
-    output_dimensionality: int = 3072,
-    batch_size: int = 100,
-) -> list[list[float]]:
+    model: Annotated[str, "The name of the embedding model to use"],
+    task_type: Annotated[str, "The task type for the embedding model"] = "RETRIEVAL_DOCUMENT",
+    output_dimensionality: Annotated[int, "The target dimensionality for the embeddings"] = 3072,
+    batch_size: Annotated[int, "The number of chunks to process in each batch"] = 100,
+) -> Annotated[list[list[float]], "A list of embedding vectors for the chunks"]:
     """Embed text chunks using a single batch job per group."""
     if not chunks:
         return []
@@ -59,12 +60,12 @@ def embed_chunks(
 
 
 def embed_query(
-    query_text: str,
-    batch_client: GeminiBatchClient,
+    query_text: Annotated[str, "The query text to embed"],
+    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
     *,
-    model: str,
-    output_dimensionality: int = 3072,
-) -> list[float]:
+    model: Annotated[str, "The name of the embedding model to use"],
+    output_dimensionality: Annotated[int, "The target dimensionality for the embedding"] = 3072,
+) -> Annotated[list[float], "The embedding vector for the query"]:
     """Embed a single query string for retrieval."""
     requests = [
         EmbeddingBatchRequest(

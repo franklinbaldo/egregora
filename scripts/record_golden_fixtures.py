@@ -22,16 +22,15 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
-
 import typer
+from typing_extensions import Annotated
 from google import genai
 
 # Add the project root to the Python path to allow importing from 'egregora'
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from egregora.orchestration.pipeline import process_whatsapp_export
-from egregora.testing.gemini_recorder import GeminiClientRecorder
+from src.egregora.orchestration.pipeline import process_whatsapp_export
+from src.egregora.testing.gemini_recorder import GeminiClientRecorder
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -113,7 +112,7 @@ def main(
 
     except Exception as e:
         logger.error(f"An error occurred during the pipeline execution: {e}", exc_info=True)
-        raise typer.Exit(code=1) from e
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
