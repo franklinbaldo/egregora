@@ -119,19 +119,30 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
-        inserted = 0
+        new_posts = pa.table({"post_id": pa.array(post_ids, type=pa.string())})
+        view_name = "new_elo_posts"
+        self.conn.register(view_name, new_posts)
 
-        for post_id in post_ids:
+        inserted = 0
+        try:
             result = self.conn.execute(
                 """
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-                VALUES (?, 1500, 0, ?)
-                ON CONFLICT (post_id) DO NOTHING
+                SELECT post_id, 1500, 0, ?
+                FROM (
+                    SELECT DISTINCT post_id
+                    FROM new_elo_posts
+                ) AS np
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM elo_ratings er WHERE er.post_id = np.post_id
+                )
+                RETURNING post_id
             """,
-                [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+                [now],
+            )
+            inserted = len(result.fetchall())
+        finally:
+            self.conn.unregister(view_name)
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
@@ -179,19 +190,35 @@ class RankingStore:
         self.conn.execute(
             """
             UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
+            SET
+                elo_global = CASE
+                    WHEN post_id = ? THEN ?
+                    WHEN post_id = ? THEN ?
+                    ELSE elo_global
+                END,
+                games_played = games_played + CASE
+                    WHEN post_id IN (?, ?) THEN 1
+                    ELSE 0
+                END,
+                last_updated = CASE
+                    WHEN post_id IN (?, ?) THEN ?
+                    ELSE last_updated
+                END
+            WHERE post_id IN (?, ?)
         """,
-            [new_elo_a, now, post_a],
-        )
-
-        self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
-        """,
-            [new_elo_b, now, post_b],
+            [
+                post_a,
+                new_elo_a,
+                post_b,
+                new_elo_b,
+                post_a,
+                post_b,
+                post_a,
+                post_b,
+                now,
+                post_a,
+                post_b,
+            ],
         )
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")

@@ -81,6 +81,7 @@ def _install_google_stubs() -> None:
         "FunctionDeclaration",
         "Tool",
         "FunctionResponse",
+        "FunctionCall",
         "Part",
         "Content",
         "GenerateContentConfig",
