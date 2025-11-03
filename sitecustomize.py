@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 import types
 
 
-def _ensure_google_stub() -> None:
-    """Guarantee ``google.genai.types`` exposes the attributes used in tests."""
+class _SimpleStruct:
+    def __init__(self, *args, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    existing = sys.modules.get("google.genai.types")
-    if existing is not None and hasattr(existing, "FunctionCall"):
-        return
+
+class _FallbackFunctionCall(_SimpleStruct):
+    id: str | None = None
+    name: str | None = None
+
+
+def _install_google_stub() -> None:
+    """Register lightweight stand-ins for ``google.genai`` modules."""
 
     google_module = sys.modules.get("google") or types.ModuleType("google")
     genai_module = getattr(google_module, "genai", None) or types.ModuleType("google.genai")
@@ -19,11 +27,6 @@ def _ensure_google_stub() -> None:
     google_module.__path__ = getattr(google_module, "__path__", [])
     genai_module.__path__ = getattr(genai_module, "__path__", [])
     genai_types_module = types.ModuleType("google.genai.types")
-
-    class _SimpleStruct:
-        def __init__(self, *args, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
 
     class _DummyType:
         OBJECT = "object"
@@ -54,10 +57,6 @@ def _ensure_google_stub() -> None:
 
         def close(self) -> None:  # pragma: no cover - compatibility shim
             return None
-
-    class _FallbackFunctionCall(_SimpleStruct):
-        id: str | None = None
-        name: str | None = None
 
     for attr in (
         "Schema",
@@ -91,6 +90,22 @@ def _ensure_google_stub() -> None:
     sys.modules["google"] = google_module
     sys.modules["google.genai"] = genai_module
     sys.modules["google.genai.types"] = genai_types_module
+
+
+def _ensure_google_stub() -> None:
+    """Guarantee ``google.genai.types`` exposes the attributes used in tests."""
+
+    try:
+        genai_types = importlib.import_module("google.genai.types")
+    except ModuleNotFoundError:
+        _install_google_stub()
+        return
+    except ImportError:
+        _install_google_stub()
+        return
+
+    if not hasattr(genai_types, "FunctionCall"):
+        genai_types.FunctionCall = _FallbackFunctionCall  # type: ignore[attr-defined]
 
 
 _ensure_google_stub()
