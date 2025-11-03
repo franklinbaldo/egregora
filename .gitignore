@@ -31,6 +31,7 @@ mkdocs-dev.yml
 
 # Data and config
 data/
+!src/egregora/streaming/
 
 egregora.toml
 *.zip:Zone.Identifier

@@ -10,7 +10,8 @@ import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from ...utils import BatchPromptRequest, BatchPromptResult
+from egregora.streaming import ensure_deterministic_order, stream_ibis
+from egregora.utils import BatchPromptRequest, BatchPromptResult
 
 
 @dataclass
@@ -88,21 +89,25 @@ def _get_stable_ordering(table: Table) -> list:
 
 
 def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
-    """Convert backend frames into ``dict`` records consistently."""
+    """Convert backend frames into ``dict`` records consistently.
+
+    Note: This is legacy fallback code. Most code paths should now use
+    stream_ibis from egregora.data instead, which handles timezones correctly.
+    """
 
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
         try:
             return [dict(row) for row in frame.to_pylist()]
-        except Exception:
+        except Exception as e:
             # PyArrow can fail with timezone-aware timestamps
-            # Fall back to pandas conversion
-            import pandas as pd
-            if hasattr(frame, "to_pandas"):
-                df = frame.to_pandas()
-                return [dict(row) for row in df.to_dict("records")]
-            raise
+            # This should rarely be hit since stream_ibis (above) handles it
+            raise RuntimeError(
+                "Failed to convert frame to records. "
+                "This indicates the stream_ibis fast path was not used. "
+                f"Original error: {e}"
+            ) from e
     if isinstance(frame, list):
         return [dict(row) for row in frame]
 
@@ -112,21 +117,36 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
 def _iter_table_record_batches(
     table: Table, batch_size: int = 1000
 ) -> Iterator[list[dict[str, Any]]]:
-    """Yield batches of table rows as dictionaries in a deterministic order."""
+    """Yield batches of table rows as dictionaries in a deterministic order.
 
-    # Try to_pyarrow().to_pylist() for Ibis tables (handles timezones correctly)
-    to_pyarrow = getattr(table, "to_pyarrow", None)
-    if callable(to_pyarrow):
-        try:
-            arrow_table = to_pyarrow()
-            rows = arrow_table.to_pylist()
-            if rows:
-                yield rows
+    This function now uses egregora.data.stream_ibis for memory-efficient streaming
+    without materializing the full table. This fixes Bug #3 (timezone-aware timestamps).
+
+    Args:
+        table: Ibis table expression to stream
+        batch_size: Number of rows per batch
+
+    Yields:
+        Lists of dictionaries representing rows
+
+    Note:
+        Uses the table's backend connection automatically via Ibis's
+        _find_backend() method.
+    """
+    # Try to get the backend connection from the table
+    try:
+        backend = table._find_backend()
+        if backend is not None:
+            # Use new stream_ibis utility - handles timezones correctly
+            ordered_table = ensure_deterministic_order(table)
+            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
             return
-        except Exception:
-            # Fall back to iterative approach if conversion fails
-            pass
+    except (AttributeError, Exception):
+        # Backend not available or stream_ibis failed - fall back to legacy approach
+        pass
 
+    # Legacy fallback: Use Ibis windowing for deterministic batching
+    # This approach still works but requires more execute() calls
     count = table.count().execute()
     if not count:
         return
