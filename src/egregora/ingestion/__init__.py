@@ -4,7 +4,7 @@ This package handles the initial data extraction from WhatsApp ZIP exports,
 converting them into Ibis tables for further processing.
 """
 
-from egregora.ingestion.parser import (
+from .parser import (
     extract_commands,
     filter_egregora_messages,
     parse_egregora_command,

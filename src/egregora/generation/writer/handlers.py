@@ -7,13 +7,13 @@ from typing import Any
 
 from google.genai import types as genai_types
 
-from egregora.augmentation.profiler import read_profile, write_profile
-from egregora.generation.banner import generate_banner_for_post
-from egregora.generation.writer.formatting import _stringify_value
-from egregora.knowledge.annotations import AnnotationStore
-from egregora.knowledge.rag import VectorStore, query_media
-from egregora.orchestration.write_post import write_post
-from egregora.utils import GeminiBatchClient
+from ...augmentation.profiler import read_profile, write_profile
+from ...knowledge.annotations import AnnotationStore
+from ...knowledge.rag import VectorStore, query_media
+from ...orchestration.write_post import write_post
+from ...utils import GeminiBatchClient
+from ..banner import generate_banner_for_post
+from .formatting import _stringify_value
 
 logger = logging.getLogger(__name__)
 

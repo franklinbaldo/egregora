@@ -19,6 +19,8 @@ cache/
 
 docs/reports/
 site/
+!src/egregora/templates/site/
+!src/egregora/templates/site/**
 mkdocs-dev.yml
 
 # OS generated files
@@ -29,6 +31,7 @@ mkdocs-dev.yml
 
 # Data and config
 data/
+!src/egregora/streaming/
 
 egregora.toml
 *.zip:Zone.Identifier

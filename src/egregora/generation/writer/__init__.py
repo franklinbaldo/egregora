@@ -9,13 +9,13 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
-from egregora.generation.writer.core import (
+from .core import (
     get_top_authors,
     load_markdown_extensions,
     load_site_config,
     write_posts_for_period,
 )
-from egregora.generation.writer.tools import PostMetadata
+from .tools import PostMetadata
 
 __all__ = [
     "write_posts_for_period",

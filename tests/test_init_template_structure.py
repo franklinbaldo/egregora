@@ -9,7 +9,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.config.site import resolve_site_paths
-from egregora.publication.site.scaffolding import _create_site_structure
+from egregora.init.scaffolding import _create_site_structure
 
 
 def test_init_creates_all_template_files(tmp_path: Path):

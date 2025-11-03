@@ -5,8 +5,8 @@ This package handles content generation:
 - Interactive document editing
 """
 
-from egregora.generation import editor, writer
-from egregora.generation.writer import write_posts_for_period
+from . import editor, writer
+from .writer import write_posts_for_period
 
 __all__ = [
     "writer",

@@ -105,6 +105,84 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 - **CLI entry point**: `egregora.orchestration.cli:main`
 - **Testing**: pytest with VCR cassettes for API replay
 
+## Ibis-First Coding Standard
+
+**Policy: All DataFrame operations in `src/egregora/` must use Ibis + DuckDB. Pandas imports are banned.**
+
+### Why Ibis-First?
+
+1. **Memory efficiency**: Stream large datasets without full materialization
+2. **Unified API**: Single interface for DuckDB, no pandas/PyArrow switching
+3. **Correct timezone handling**: Avoids PyArrow timezone conversion bugs
+4. **Simpler dependencies**: One data layer instead of three (Ibis, pandas, PyArrow)
+5. **Better performance**: DuckDB's native execution is faster than pandas for most operations
+
+### Streaming Utilities
+
+Use `egregora.data` module for all data operations:
+
+```python
+from egregora.streaming import stream_ibis, ensure_deterministic_order
+
+# Stream large tables efficiently
+ordered_table = ensure_deterministic_order(table)
+for batch in stream_ibis(ordered_table, con, batch_size=1000):
+    for row in batch:
+        process(row)
+```
+
+Available utilities:
+- `stream_ibis(expr, con, batch_size)`: Stream Ibis expression in batches
+- `ensure_deterministic_order(expr)`: Sort by canonical keys (published_at, id)
+- `copy_expr_to_parquet(expr, con, path)`: Write directly to Parquet
+- `copy_expr_to_ndjson(expr, con, path)`: Write directly to NDJSON
+
+### Enforcement
+
+**CI checks:**
+- Pre-commit hook scans for `import pandas` in `src/egregora/`
+- `tests/test_banned_imports.py` uses AST to enforce the ban
+- Allowed exceptions: `src/egregora/compat/`, `src/egregora/testing/`
+
+**If you need pandas for a legitimate reason:**
+1. Check if Ibis can do it (it usually can)
+2. Use `egregora.data.stream` utilities instead
+3. If truly necessary, place code in `src/egregora/compat/` and document why
+
+### Examples
+
+**❌ Don't do this:**
+```python
+df = table.to_pandas()  # Materializes full table
+for row in df.iterrows():
+    process(row)
+```
+
+**✅ Do this instead:**
+```python
+from egregora.streaming import stream_ibis
+
+for batch in stream_ibis(table, con, batch_size=1000):
+    for row in batch:
+        process(row)
+```
+
+**❌ Don't do this:**
+```python
+arrow_table = table.to_pyarrow()
+rows = arrow_table.to_pylist()  # Fails with timezone-aware timestamps
+```
+
+**✅ Do this instead:**
+```python
+from egregora.streaming import ensure_deterministic_order, stream_ibis
+
+ordered = ensure_deterministic_order(table)
+all_rows = []
+for batch in stream_ibis(ordered, con):
+    all_rows.extend(batch)
+```
+
 ## Architecture Overview
 
 ### Design Philosophy
@@ -158,8 +236,8 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
    - `editor/agent.py`: Interactive AI-powered post refinement
    - `editor/document.py`: Document state management for editing
 
-6. **Publication** (`src/egregora/publication/`)
-   - `site/scaffolding.py`: MkDocs project initialization
+6. **Initialization** (`src/egregora/init/`)
+   - `scaffolding.py`: MkDocs project initialization
    - Templates in `src/egregora/templates/` (Jinja2)
 
 ### Core Infrastructure

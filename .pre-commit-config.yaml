@@ -18,3 +18,11 @@ repos:
       - id: end-of-file-fixer
       - id: mixed-line-ending
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: ban-pandas-imports
+        name: Ban pandas imports in src/egregora (Ibis-first policy)
+        entry: bash -c 'if grep -r -n -E "^[[:space:]]*(from|import)[[:space:]]+pandas\\b" src/egregora --exclude-dir=__pycache__ | grep -v "/compat/\|/testing/"; then echo "❌ Found banned pandas imports. Use Ibis + DuckDB instead. See CLAUDE.md for Ibis-first policy."; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: ^src/egregora/.*\.py$
