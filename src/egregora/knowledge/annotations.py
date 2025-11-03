@@ -83,6 +83,15 @@ class AnnotationStore:
             """
         )
 
+        max_id_row = self._connection.execute(
+            f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}"
+        ).fetchone()
+        if max_id_row and max_id_row[0] is not None:
+            next_value = int(max_id_row[0]) + 1
+            self._connection.execute(
+                f"ALTER SEQUENCE {sequence_name} RESTART WITH {next_value}"
+            )
+
     def _fetch_records(
         self, query: str, params: Sequence[object] | None = None
     ) -> list[dict[str, object]]:
