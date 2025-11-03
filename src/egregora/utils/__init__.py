@@ -1,6 +1,6 @@
 """Utility modules for Egregora."""
 
-from egregora.utils.batch import (
+from .batch import (
     BatchPromptRequest,
     BatchPromptResult,
     EmbeddingBatchRequest,
@@ -8,21 +8,28 @@ from egregora.utils.batch import (
     GeminiBatchClient,
     chunk_requests,
 )
-from egregora.utils.cache import (
+from .cache import (
     ENRICHMENT_CACHE_VERSION,
     EnrichmentCache,
     make_enrichment_cache_key,
 )
-from egregora.utils.checkpoints import DEFAULT_STEP_ORDER, CheckpointStore
-from egregora.utils.genai import (
+from .checkpoints import (
+    DEFAULT_STEP_ORDER,
+    CheckpointStore,
+)
+from .genai import (
     call_with_retries,
     call_with_retries_sync,
     extract_retry_delay,
     is_rate_limit_error,
     sleep_with_progress_sync,
 )
-from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
-from egregora.utils.zip import (
+from .paths import (
+    PathTraversalError,
+    safe_path_join,
+    slugify,
+)
+from .zip import (
     ZipValidationError,
     ZipValidationLimits,
     configure_default_limits,

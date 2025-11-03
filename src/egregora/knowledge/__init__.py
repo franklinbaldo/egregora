@@ -6,8 +6,8 @@ This package manages persistent knowledge:
 - Content ranking via Elo ratings
 """
 
-from egregora.knowledge import rag, ranking
-from egregora.knowledge.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
+from . import rag, ranking
+from .annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 
 __all__ = [
     "rag",

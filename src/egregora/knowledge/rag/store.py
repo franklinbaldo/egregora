@@ -13,7 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
 
-from egregora.core import database_schema
+from ...core import database_schema
 
 logger = logging.getLogger(__name__)
 

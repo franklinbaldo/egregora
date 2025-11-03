@@ -6,8 +6,8 @@ This package coordinates the entire pipeline execution:
 - Logging configuration
 """
 
-from egregora.orchestration.cli import main as cli_main
-from egregora.orchestration.pipeline import process_whatsapp_export
+from .cli import main as cli_main
+from .pipeline import process_whatsapp_export
 
 __all__ = [
     "process_whatsapp_export",

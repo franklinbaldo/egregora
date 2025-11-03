@@ -8,14 +8,14 @@ Documentation:
 - Core Concepts: docs/getting-started/concepts.md#4-enrich-optional
 """
 
-from egregora.augmentation.enrichment.batch import (
+from .batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
     build_batch_requests,
     map_batch_results,
 )
-from egregora.augmentation.enrichment.core import enrich_table
-from egregora.augmentation.enrichment.media import (
+from .core import enrich_table
+from .media import (
     detect_media_type,
     extract_and_replace_media,
     extract_media_from_zip,

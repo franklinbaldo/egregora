@@ -11,7 +11,7 @@ from typing import TypeVar
 from google import genai
 from google.genai import types as genai_types
 
-from egregora.utils.genai import call_with_retries_sync, sleep_with_progress_sync
+from .genai import call_with_retries_sync, sleep_with_progress_sync
 
 _T = TypeVar("_T")
 

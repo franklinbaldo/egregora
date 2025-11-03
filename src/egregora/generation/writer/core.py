@@ -6,15 +6,14 @@ Uses function calling (write_post tool) to generate 0-N posts per period.
 Documentation:
 - Multi-Post Generation: docs/features/multi-post.md
 - Architecture (Writer): docs/guides/architecture.md#5-writer-writerpy
-- Core Concepts (Editorial Control):
-  docs/getting-started/concepts.md#editorial-control-llm-decision-making
+- Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 if TYPE_CHECKING:
     pass
@@ -27,21 +26,21 @@ from google.genai import types as genai_types
 from ibis.expr.types import Table
 from returns.result import Failure, Success
 
-from egregora.augmentation.profiler import get_active_authors
-from egregora.config import ModelConfig, load_mkdocs_config
-from egregora.generation.writer.context import (
-    RagErrorReason,
-    _load_profiles_context,
-    _query_rag_for_context,
-)
+from ...augmentation.profiler import get_active_authors
+from ...config import ModelConfig, load_mkdocs_config
+from ...knowledge.annotations import AnnotationStore
+from ...knowledge.rag import VectorStore, index_post
+from ...prompt_templates import WriterPromptTemplate
+from ...utils import GeminiBatchClient, call_with_retries_sync
+from .context import RagErrorReason, _load_profiles_context, _query_rag_for_context
 
 # Import split modules
-from egregora.generation.writer.formatting import (
+from .formatting import (
     _build_conversation_markdown,
     _load_freeform_memory,
     _write_freeform_markdown,
 )
-from egregora.generation.writer.handlers import (
+from .handlers import (
     _handle_annotate_conversation_tool,
     _handle_generate_banner_tool,
     _handle_read_profile_tool,
@@ -50,11 +49,7 @@ from egregora.generation.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.generation.writer.tools import _writer_tools
-from egregora.knowledge.annotations import AnnotationStore
-from egregora.knowledge.rag import VectorStore, index_post
-from egregora.prompt_templates import WriterPromptTemplate
-from egregora.utils import GeminiBatchClient, call_with_retries_sync
+from .tools import _writer_tools
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +57,9 @@ logger = logging.getLogger(__name__)
 MAX_CONVERSATION_TURNS = 10
 
 
-def _memes_enabled(site_config: dict[str, Any]) -> bool:
+def _memes_enabled(
+    site_config: Annotated[dict[str, Any], "The 'extra.egregora' section from mkdocs.yml"],
+) -> Annotated[bool, "True if the 'enable_memes' setting is enabled"]:
     """Return True when meme helper text should be appended to the prompt."""
 
     if not isinstance(site_config, dict):
@@ -75,7 +72,9 @@ def _memes_enabled(site_config: dict[str, Any]) -> bool:
     return bool(writer_settings.get("enable_memes", False))
 
 
-def load_site_config(output_dir: Path) -> dict[str, Any]:
+def load_site_config(
+    output_dir: Annotated[Path, "The project's output directory, containing mkdocs.yml"],
+) -> Annotated[dict[str, Any], "The 'extra.egregora' configuration dictionary"]:
     """
     Load egregora configuration from mkdocs.yml if it exists.
 
@@ -98,7 +97,9 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
     return egregora_config
 
 
-def load_markdown_extensions(output_dir: Path) -> str:
+def load_markdown_extensions(
+    output_dir: Annotated[Path, "The project's output directory, containing mkdocs.yml"],
+) -> Annotated[str, "A YAML string of the 'markdown_extensions' from mkdocs.yml"]:
     """
     Load markdown_extensions section from mkdocs.yml and format for LLM.
 
@@ -138,7 +139,10 @@ def load_markdown_extensions(output_dir: Path) -> str:
         return ""
 
 
-def get_top_authors(table: Table, limit: int = 20) -> list[str]:
+def get_top_authors(
+    table: Annotated[Table, "Ibis table containing conversation data with an 'author' column"],
+    limit: Annotated[int, "The maximum number of authors to return"] = 20,
+) -> Annotated[list[str], "A list of top author UUIDs, sorted by activity"]:
     """
     Get top N active authors by message count.
 
@@ -166,26 +170,28 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-
-
-
 def _process_tool_calls(  # noqa: PLR0913
-    candidate: genai_types.Candidate,
-    output_dir: Path,
-    profiles_dir: Path,
-    saved_posts: list[str],
-    saved_profiles: list[str],
-    client: genai.Client,
-    batch_client: GeminiBatchClient,
-    rag_dir: Path,
-    annotations_store: AnnotationStore | None,
+    candidate: Annotated[genai_types.Candidate, "The LLM response candidate to process"],
+    output_dir: Annotated[Path, "Directory to save generated posts"],
+    profiles_dir: Annotated[Path, "Directory to save author profiles"],
+    saved_posts: Annotated[list[str], "A list to append paths of saved posts to"],
+    saved_profiles: Annotated[list[str], "A list to append paths of saved profiles to"],
+    client: Annotated[genai.Client, "The standard Gemini API client"],
+    batch_client: Annotated[GeminiBatchClient, "The batch Gemini API client for embeddings"],
+    rag_dir: Annotated[Path, "The directory for the RAG vector store"],
+    annotations_store: Annotated[AnnotationStore | None, "The annotation storage backend"],
     *,
-    embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> tuple[bool, list[genai_types.Content], list[str]]:
+    embedding_model: Annotated[str, "The name of the embedding model to use"],
+    embedding_output_dimensionality: Annotated[
+        int, "The target dimensionality for embeddings"
+    ] = 3072,
+    retrieval_mode: Annotated[str, "The vector retrieval mode ('ann' or 'exact')"] = "ann",
+    retrieval_nprobe: Annotated[int | None, "The number of probes for ANN retrieval"] = None,
+    retrieval_overfetch: Annotated[int | None, "The overfetch factor for ANN retrieval"] = None,
+) -> Annotated[
+    tuple[bool, list[genai_types.Content], list[str]],
+    "Returns (has_tool_calls, tool_responses, freeform_parts)",
+]:
     """Process all tool calls from LLM response."""
     has_tool_calls = False
     tool_responses: list[genai_types.Content] = []
@@ -247,12 +253,14 @@ def _process_tool_calls(  # noqa: PLR0913
 
 
 def _index_posts_in_rag(
-    saved_posts: list[str],
-    batch_client: GeminiBatchClient,
-    rag_dir: Path,
+    saved_posts: Annotated[list[str], "List of file paths for newly created posts"],
+    batch_client: Annotated[GeminiBatchClient, "The batch Gemini client for embeddings"],
+    rag_dir: Annotated[Path, "The directory for the RAG vector store"],
     *,
-    embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
+    embedding_model: Annotated[str, "The name of the embedding model to use"],
+    embedding_output_dimensionality: Annotated[
+        int, "The target dimensionality for embeddings"
+    ] = 3072,
 ) -> None:
     """Index newly created posts in RAG system."""
     if not saved_posts:
@@ -274,19 +282,25 @@ def _index_posts_in_rag(
 
 
 def write_posts_for_period(  # noqa: PLR0912, PLR0913, PLR0915
-    table: Table,
-    period_date: str,
-    client: genai.Client,
-    batch_client: GeminiBatchClient,
-    output_dir: Path = Path("output/posts"),
-    profiles_dir: Path = Path("output/profiles"),
-    rag_dir: Path = Path("output/rag"),
-    model_config: ModelConfig | None = None,
-    enable_rag: bool = True,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    table: Annotated[Table, "The table of messages for the period"],
+    period_date: Annotated[str, "The period identifier (e.g., '2025-01-01')"],
+    client: Annotated[genai.Client, "The Gemini client"],
+    batch_client: Annotated[GeminiBatchClient, "A Gemini client for batch processing"],
+    output_dir: Annotated[Path, "The directory to save posts"] = Path("output/posts"),
+    profiles_dir: Annotated[Path, "The directory to save author profiles"] = Path(
+        "output/profiles"
+    ),
+    rag_dir: Annotated[Path, "The directory of the RAG vector store"] = Path("output/rag"),
+    model_config: Annotated[ModelConfig | None, "The model configuration object"] = None,
+    enable_rag: Annotated[bool, "Whether to use RAG for context"] = True,
+    embedding_output_dimensionality: Annotated[
+        int, "The output dimensionality of the embedding model"
+    ] = 3072,
+    retrieval_mode: Annotated[
+        str, "The retrieval mode for the RAG query ('ann' or 'exact')"
+    ] = "ann",
+    retrieval_nprobe: Annotated[int | None, "The number of probes for ANN retrieval"] = None,
+    retrieval_overfetch: Annotated[int | None, "The overfetch factor for ANN retrieval"] = None,
 ) -> dict[str, list[str]]:
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
