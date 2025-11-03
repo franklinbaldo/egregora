@@ -1,9 +1,8 @@
-"""Author profiling tools for LLM to read and update author profiles."""
-
 import logging
 import re
 from pathlib import Path
 from typing import Annotated, Any
+import frontmatter
 
 import pyarrow as pa
 
@@ -505,3 +504,34 @@ def filter_opted_out_authors(
                 logger.warning(f"   - {author}: {author_msg_count} messages removed")
 
     return filtered_table, removed_count
+
+
+def load_author_aliases(
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"]
+) -> Annotated[dict[str, str], "A dictionary mapping aliases to author UUIDs"]:
+    """
+    Load all author aliases from profile files.
+
+    Scans the profiles directory, parses the alias from each profile,
+    and returns a dictionary mapping aliases to author UUIDs.
+
+    Args:
+        profiles_dir: Directory where profiles are stored
+
+    Returns:
+        Dictionary mapping aliases to author UUIDs
+    """
+    if not profiles_dir.exists():
+        return {}
+
+    aliases = {}
+    for profile_path in profiles_dir.glob("*.md"):
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
+                if "alias" in post.metadata:
+                    aliases[post.metadata["alias"]] = profile_path.stem
+        except Exception as e:
+            logger.warning(f"Could not parse profile {profile_path}: {e}")
+
+    return aliases

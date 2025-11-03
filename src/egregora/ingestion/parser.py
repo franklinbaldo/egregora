@@ -27,6 +27,8 @@ from ..core.models import WhatsAppExport
 from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
 from ..privacy.anonymizer import anonymize_table
 from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from ..augmentation.profiler import load_author_aliases
+from pathlib import Path
 
 # Constants
 SET_COMMAND_PARTS = 2
@@ -265,13 +267,14 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     return filtered_messages, removed_count
 
 
-def parse_export(export: WhatsAppExport, timezone=None) -> Table:
+def parse_export(export: WhatsAppExport, timezone=None, profiles_dir: Path | None = None) -> Table:
     """
     Parse an individual export into an Ibis ``Table``.
 
     Args:
         export: WhatsApp export metadata
         timezone: ZoneInfo timezone object (phone's timezone)
+        profiles_dir: Path to the directory containing author profiles
 
     Returns:
         Parsed and anonymized Table with correct timezone
@@ -294,6 +297,12 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
         logger.warning("No messages found in %s", export.zip_path)
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table, timezone=timezone)
+
+    if profiles_dir:
+        aliases = load_author_aliases(profiles_dir)
+        for row in rows:
+            if row['author'] in aliases:
+                row['author'] = aliases[row['author']]
 
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
