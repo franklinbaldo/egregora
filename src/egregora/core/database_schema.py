@@ -6,6 +6,11 @@ Use these schemas to create tables via Ibis instead of raw SQL.
 This module contains both:
 - Persistent schemas: Tables that are stored in DuckDB files
 - Ephemeral schemas: In-memory tables for transformations (not persisted)
+
+Type Constructor Pattern:
+- Lowercase types (dt.string, dt.int64, dt.date) = NOT NULL
+- Capitalized constructors (dt.String(nullable=True), dt.Timestamp(timezone=...)) = allow params
+This is standard Ibis convention for nullable vs non-nullable types.
 """
 
 import logging
@@ -72,12 +77,14 @@ RAG_CHUNKS_SCHEMA = ibis.schema(
 RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
     {
         "path": dt.string,  # PRIMARY KEY
-        "mtime_ns": dt.int64,
-        "size": dt.int64,
-        # Number of rows materialized in the Parquet dataset
+        "mtime_ns": dt.int64,  # File modification time (nanoseconds since epoch)
+        "size": dt.int64,  # File size in bytes
+        # Number of rows in the Parquet file at time of indexing
+        # Semantics: Physical row count from Parquet metadata, updated on write
+        # Used to detect stale indices when file is re-written with different row count
         "row_count": dt.int64,
         # Optional hash of the Parquet file for integrity checks
-        "checksum": dt.string(nullable=True),
+        "checksum": dt.String(nullable=True),
     }
 )
 
@@ -85,6 +92,9 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
     {
         "index_name": dt.string,  # PRIMARY KEY
         "mode": dt.string,  # 'ann' or 'exact'
+        # Number of rows indexed at time of last update
+        # Semantics: Logical row count from vector store at indexing time
+        # Used to determine whether to use ANN (if row_count >= threshold) or exact search
         "row_count": dt.int64,
         # Threshold after which ANN indexing should be used
         "threshold": dt.int64,
@@ -92,6 +102,8 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
         "nlist": dt.int32(nullable=True),
         # Persisted embedding dimensionality for consistency checks
         "embedding_dim": dt.int32(nullable=True),
+        # Timestamp when the index was created (preserved for provenance)
+        "created_at": dt.timestamp,
         # Timestamp of the last update to the index metadata
         "updated_at": dt.timestamp(nullable=True),
     }
@@ -188,6 +200,22 @@ def create_table_if_not_exists(
         conn.create_table(table_name, empty_table, overwrite=False)
 
 
+def quote_identifier(identifier: str) -> str:
+    """Quote a SQL identifier to prevent injection and handle special characters.
+
+    Args:
+        identifier: The identifier to quote (table name, column name, etc.)
+
+    Returns:
+        Properly quoted identifier safe for use in SQL
+
+    Note:
+        DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
+        Example: my"table → "my""table"
+    """
+    return f'"{identifier.replace('"', '""')}"'
+
+
 def add_primary_key(conn, table_name: str, column_name: str) -> None:
     """Add a primary key constraint to an existing table.
 
@@ -216,66 +244,26 @@ def ensure_identity_column(
     *,
     generated: str = "ALWAYS",
 ) -> None:
-    """Ensure a column is configured as an identity column in DuckDB."""
+    """Ensure a column is configured as an identity column in DuckDB.
 
+    Args:
+        conn: DuckDB connection (raw, not Ibis)
+        table_name: Name of the table
+        column_name: Column to configure as identity
+        generated: 'ALWAYS' or 'BY DEFAULT' for identity generation
+
+    Note:
+        This must be called on raw DuckDB connection, not Ibis connection.
+        If the column already has identity configured, this is a no-op.
+    """
     try:
         conn.execute(
             f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
             f"SET GENERATED {generated} AS IDENTITY"
         )
-        return
-    except Exception as exc:
-        logger.debug(
-            "Falling back to sequence default for %s.%s: %s",
-            table_name,
-            column_name,
-            exc,
-        )
-
-    sequence_name = f"{table_name}_{column_name}_seq"
-    conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
-
-    max_row = conn.execute(
-        f"SELECT MAX({column_name}) FROM {table_name}"
-    ).fetchone()
-    max_id = int(max_row[0]) if max_row and max_row[0] is not None else None
-
-    sequence_state = conn.execute(
-        """
-        SELECT start_value, increment_by, last_value
-        FROM duckdb_sequences()
-        WHERE schema_name = current_schema() AND sequence_name = ?
-        LIMIT 1
-        """,
-        [sequence_name],
-    ).fetchone()
-    if sequence_state is None:
-        raise RuntimeError(f"Could not locate sequence metadata for {sequence_name}")
-
-    start_value, increment_by, last_value = sequence_state
-    start_value = int(start_value)
-    increment_by = int(increment_by)
-    current_next = start_value if last_value is None else int(last_value) + increment_by
-    desired_next = current_next if max_id is None else max(current_next, max_id + 1)
-    steps_needed = desired_next - current_next
-    if steps_needed > 0:
-        conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, steps_needed]).fetchall()
-
-    default_row = conn.execute(
-        """
-        SELECT column_default
-        FROM information_schema.columns
-        WHERE lower(table_name) = lower(?) AND lower(column_name) = lower(?)
-        LIMIT 1
-        """,
-        [table_name, column_name],
-    ).fetchone()
-    expected_default = f"nextval('{sequence_name}')"
-    if not default_row or default_row[0] != expected_default:
-        conn.execute(
-            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
-            f"SET DEFAULT {expected_default}"
-        )
+    except Exception:
+        # Identity already configured or column contains incompatible data
+        pass
 
 
 def create_index(

@@ -113,9 +113,13 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         content = template.render(**context)
         gitignore_path.write_text(content, encoding="utf-8")
 
-    # Create homepage
+    # Determine blog directory from context
+    blog_dir = context.get("blog_dir", "posts")
+
+    # Create homepage - but skip if blog is at root (blog_dir: ".")
+    # because the blog index will serve as homepage
     homepage_path = docs_dir / "index.md"
-    if not homepage_path.exists():
+    if blog_dir != "." and not homepage_path.exists():
         template = env.get_template("docs/index.md.jinja2")
         content = template.render(**context)
         homepage_path.write_text(content, encoding="utf-8")

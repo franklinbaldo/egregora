@@ -10,6 +10,8 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+import pyarrow as pa
+import pyarrow.parquet as pq
 from ibis.expr.types import Table
 import uuid
 
@@ -293,7 +295,7 @@ class VectorStore:
         return DatasetMetadata(
             mtime_ns=int(stats.st_mtime_ns),
             size=int(stats.st_size),
-            row_count=row_count,
+            row_count=int(row_count),
         )
 
     def _duckdb_table_exists(self, table_name: str) -> bool:
@@ -369,9 +371,10 @@ class VectorStore:
                 threshold,
                 nlist,
                 embedding_dim,
+                created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(index_name) DO UPDATE SET
                 mode=excluded.mode,
                 row_count=excluded.row_count,
@@ -380,7 +383,7 @@ class VectorStore:
                 embedding_dim=excluded.embedding_dim,
                 updated_at=excluded.updated_at
             """,
-            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp],
+            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
         )
 
     def _clear_index_meta(self) -> None:

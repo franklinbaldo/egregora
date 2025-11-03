@@ -138,3 +138,45 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
     logger.info(f"Profiles context: {len(profiles_context)} characters")
     return profiles_context
+
+
+def build_rag_context_for_prompt(  # noqa: PLR0913
+    conversation_md: str,
+    rag_dir: Path,
+    batch_client: GeminiBatchClient,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    use_pydantic_helpers: bool = False,  # noqa: ARG001 - Reserved for future Pydantic-AI integration
+) -> str:
+    """Stub function for Pydantic-AI RAG integration (Phase 1 - TODO).
+
+    This is a temporary implementation that bridges the gap until Phase 1
+    of the Pydantic-AI migration is complete. See docs/development/pydantic-migration.md
+
+    TODO: Replace with pydantic_ai.integrations.rag.rag_context() helper.
+
+    Args:
+        conversation_md: Conversation markdown (unused currently)
+        rag_dir: RAG vector store directory
+        batch_client: Gemini batch client
+        embedding_model: Embedding model name
+        embedding_output_dimensionality: Embedding dimensions
+        retrieval_mode: "ann" or "exact"
+        retrieval_nprobe: ANN nprobe parameter
+        retrieval_overfetch: ANN overfetch multiplier
+        use_pydantic_helpers: Reserved for future use
+
+    Returns:
+        Empty string (RAG disabled until Phase 1 complete)
+    """
+    # TODO: Implement proper RAG context building for Pydantic backend
+    # For now, return empty string to unblock the Pydantic agent
+    logger.warning(
+        "build_rag_context_for_prompt is a stub - RAG disabled in Pydantic backend. "
+        "Track progress in docs/development/pydantic-migration.md"
+    )
+    return ""

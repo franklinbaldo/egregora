@@ -8,6 +8,11 @@ import duckdb
 import ibis
 import pytest
 
+ROW_COUNT = 42
+THRESHOLD = 10
+NLIST = 8
+EMBEDDING_DIM = 1536
+
 
 def _vector_store_row(store_module, **overrides):
     """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
@@ -255,10 +260,10 @@ def test_upsert_index_meta_persists_values(tmp_path):
     try:
         store._upsert_index_meta(
             mode="ann",
-            row_count=42,
-            threshold=10,
-            nlist=8,
-            embedding_dim=1536,
+            row_count=ROW_COUNT,
+            threshold=THRESHOLD,
+            nlist=NLIST,
+            embedding_dim=EMBEDDING_DIM,
         )
 
         row = conn.execute(
@@ -269,10 +274,10 @@ def test_upsert_index_meta_persists_values(tmp_path):
 
         assert row is not None
         assert row[0] == "ann"
-        assert row[1] == 42
-        assert row[2] == 10
-        assert row[3] == 8
-        assert row[4] == 1536
+        assert row[1] == ROW_COUNT
+        assert row[2] == THRESHOLD
+        assert row[3] == NLIST
+        assert row[4] == EMBEDDING_DIM
         assert row[5] is not None
     finally:
         store.close()
