@@ -69,13 +69,13 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
     Raises:
         TypeError: If strict=True and value is not JSON-serializable
     """
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, str | int | float | bool):
         return value
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     if isinstance(value, dict):
         return {key: _make_json_safe(val, strict=strict) for key, val in value.items()}
-    if isinstance(value, (list, tuple, set)):
+    if isinstance(value, list | tuple | set):
         return [_make_json_safe(item, strict=strict) for item in value]
     if hasattr(value, "item"):
         try:
