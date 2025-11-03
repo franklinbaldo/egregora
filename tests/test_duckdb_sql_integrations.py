@@ -71,6 +71,22 @@ def test_ranking_store_bulk_initialize_and_update(tmp_path: Path):
     assert rating_b == {"elo_global": 1400.0, "games_played": 1}
 
 
+def test_ranking_store_initialize_handles_empty_batches(tmp_path: Path):
+    store = RankingStore(tmp_path / "rankings")
+
+    assert store.initialize_ratings([]) == 0
+
+    temp_tables = store.conn.execute(
+        """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE lower(table_name) = lower('__elo_init_posts')
+        """
+    ).fetchall()
+
+    assert temp_tables == []
+
+
 def test_annotation_store_uses_identity_column(tmp_path: Path):
     store = AnnotationStore(tmp_path / "annotations.duckdb")
 

@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import duckdb
 import ibis
-import pyarrow as pa
 from ibis.expr.types import Table
 
 from ...config import ModelConfig
@@ -468,17 +467,12 @@ def enrich_table(
             pii_detected_count,
         )
 
-    if persist_connection and persist_table:
-        arrow_schema = schema.to_pyarrow()
-        arrow_rows = pa.Table.from_pylist(normalized_rows, schema=arrow_schema)
-        temp_view = "__enrichment_batch"
-        persist_connection.register(temp_view, arrow_rows)
+    if persist_connection and persist_table and normalized_rows:
         column_list = ", ".join(schema.names)
-        try:
-            persist_connection.execute(
-                f"INSERT INTO {persist_table} ({column_list}) SELECT {column_list} FROM {temp_view}"
-            )
-        finally:
-            persist_connection.unregister(temp_view)
+        placeholders = ", ".join(["?"] * len(schema.names))
+        persist_connection.executemany(
+            f"INSERT INTO {persist_table} ({column_list}) VALUES ({placeholders})",
+            [tuple(row[column] for column in schema.names) for row in normalized_rows],
+        )
 
     return combined

@@ -24,6 +24,9 @@ import ibis.expr.datatypes as dt
 # - Optimization for vectorized operations
 # - Validation capabilities
 
+logger = logging.getLogger(__name__)
+
+
 CONVERSATION_SCHEMA = ibis.schema(
     {
         "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
@@ -74,7 +77,7 @@ RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
         # Number of rows materialized in the Parquet dataset
         "row_count": dt.int64,
         # Optional hash of the Parquet file for integrity checks
-        "checksum": dt.String(nullable=True),
+        "checksum": dt.string(nullable=True),
     }
 )
 
@@ -220,9 +223,59 @@ def ensure_identity_column(
             f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
             f"SET GENERATED {generated} AS IDENTITY"
         )
-    except Exception:
-        # Identity already configured or column contains incompatible data
-        pass
+        return
+    except Exception as exc:
+        logger.debug(
+            "Falling back to sequence default for %s.%s: %s",
+            table_name,
+            column_name,
+            exc,
+        )
+
+    sequence_name = f"{table_name}_{column_name}_seq"
+    conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
+
+    max_row = conn.execute(
+        f"SELECT MAX({column_name}) FROM {table_name}"
+    ).fetchone()
+    max_id = int(max_row[0]) if max_row and max_row[0] is not None else None
+
+    sequence_state = conn.execute(
+        """
+        SELECT start_value, increment_by, last_value
+        FROM duckdb_sequences()
+        WHERE schema_name = current_schema() AND sequence_name = ?
+        LIMIT 1
+        """,
+        [sequence_name],
+    ).fetchone()
+    if sequence_state is None:
+        raise RuntimeError(f"Could not locate sequence metadata for {sequence_name}")
+
+    start_value, increment_by, last_value = sequence_state
+    start_value = int(start_value)
+    increment_by = int(increment_by)
+    current_next = start_value if last_value is None else int(last_value) + increment_by
+    desired_next = current_next if max_id is None else max(current_next, max_id + 1)
+    steps_needed = desired_next - current_next
+    if steps_needed > 0:
+        conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, steps_needed]).fetchall()
+
+    default_row = conn.execute(
+        """
+        SELECT column_default
+        FROM information_schema.columns
+        WHERE lower(table_name) = lower(?) AND lower(column_name) = lower(?)
+        LIMIT 1
+        """,
+        [table_name, column_name],
+    ).fetchone()
+    expected_default = f"nextval('{sequence_name}')"
+    if not default_row or default_row[0] != expected_default:
+        conn.execute(
+            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
+            f"SET DEFAULT {expected_default}"
+        )
 
 
 def create_index(
