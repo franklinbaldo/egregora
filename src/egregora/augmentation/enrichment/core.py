@@ -181,7 +181,9 @@ def enrich_table(
             media_refs.extend(markdown_matches)
 
             # Also check for direct UUID-based filenames (without path)
-            uuid_filename_pattern = r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)\b"
+            uuid_filename_pattern = (
+                r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)\b"
+            )
             uuid_matches = re.findall(uuid_filename_pattern, message)
             media_refs.extend(uuid_matches)
 
@@ -451,7 +453,9 @@ def enrich_table(
 
         # Quote identifiers for SQL safety (defense in depth beyond regex validation)
         quoted_table = database_schema.quote_identifier(target_table)
-        column_list = ", ".join(database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+        column_list = ", ".join(
+            database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names
+        )
 
         # Replace table contents with enriched data (idempotent operation)
         # Use transaction to make DELETE + INSERT atomic (prevents race conditions)

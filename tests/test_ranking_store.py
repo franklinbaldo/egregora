@@ -56,4 +56,3 @@ def test_update_ratings_updates_both_posts_atomically(tmp_path) -> None:
 
     assert post_a[3] == post_b[3]
     assert post_a[3] != before_last_updated[0]
-

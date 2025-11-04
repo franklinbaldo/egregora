@@ -243,9 +243,7 @@ def _table_to_records(
     raise TypeError("Unsupported data source for markdown rendering")
 
 
-def _ensure_msg_id_column(
-    rows: list[dict[str, Any]], column_order: list[str]
-) -> list[str]:
+def _ensure_msg_id_column(rows: list[dict[str, Any]], column_order: list[str]) -> list[str]:
     """Ensure all rows have msg_id field and return updated column order.
 
     Prefers stored message_id field, falls back to existing msg_id,

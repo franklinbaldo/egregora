@@ -10,8 +10,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from ibis.expr.types import Table
-
 from egregora.knowledge.rag.embedder import embed_query
 from egregora.knowledge.rag.store import VectorStore
 from egregora.utils.batch import GeminiBatchClient

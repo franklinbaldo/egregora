@@ -83,7 +83,9 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     return site_paths.docs_dir
 
 
-def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict[str, Any]) -> None:
+def _create_site_structure(
+    site_paths: SitePaths, env: Environment, context: dict[str, Any]
+) -> None:
     """Create essential directories and index files for the blog structure."""
     docs_dir = site_paths.docs_dir
     posts_dir = site_paths.posts_dir
@@ -128,7 +130,9 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
         about_path.write_text(content, encoding="utf-8")
 
     # Create blog index page - Material expects this as entry point but keeps it simple
-    blog_index_path = posts_dir.parent / "index.md"  # posts_dir is blog_dir/posts/, we want blog_dir/index.md
+    blog_index_path = (
+        posts_dir.parent / "index.md"
+    )  # posts_dir is blog_dir/posts/, we want blog_dir/index.md
     if not blog_index_path.exists():
         template = env.get_template("docs/posts/index.md.jinja2")
         content = template.render(**context)

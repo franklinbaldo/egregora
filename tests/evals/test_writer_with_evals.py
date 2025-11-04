@@ -167,7 +167,7 @@ def test_writer_live_evaluation(writer_dirs):
     report.print()
 
     # Log results
-    print(f"\nEvaluation Results:")
+    print("\nEvaluation Results:")
     print(f"Average Score: {report.average_score():.2%}")
     print(f"Total Cases: {len(report.case_results)}")
     print(f"Passed (>80%): {sum(1 for r in report.case_results if r.score >= 0.8)}")

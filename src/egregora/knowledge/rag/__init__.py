@@ -23,6 +23,7 @@ from egregora.knowledge.rag.retriever import (
     query_media,
     query_similar_posts,
 )
+
 from .store import VectorStore
 
 __all__ = [

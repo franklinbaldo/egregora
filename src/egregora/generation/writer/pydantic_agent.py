@@ -12,14 +12,13 @@ At the moment this backend is opt-in via the ``EGREGORA_LLM_BACKEND`` flag.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-import json
 
 from pydantic import BaseModel, Field
 
@@ -40,18 +39,19 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             if hasattr(messages, "to_json"):
                 return messages.to_json(indent=2)
             return json.dumps(messages, indent=2, default=str)
+
+
 try:
     from pydantic_ai.models.google import GoogleModel
 except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
     from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
-
-from egregora.utils.logfire_config import logfire_info, logfire_span
 
 from egregora.augmentation.profiler import read_profile, write_profile
 from egregora.generation.banner import generate_banner_for_post
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, query_media
 from egregora.orchestration.write_post import write_post
+from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,9 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
                     media_path=row.get("media_path"),
                     original_filename=row.get("original_filename"),
                     description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity")) if row.get("similarity") is not None else None,
+                    similarity=float(row.get("similarity"))
+                    if row.get("similarity") is not None
+                    else None,
                 )
             )
         if not items:
