@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-## [2.0.0] - 2025-10-31
-
-### Added
-
--   Added `typing.Annotated` to all public function signatures.
--   Fixed all ruff linting errors.
-=======
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -26,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Author profiling
 - Content quality ranking with Elo
 - MkDocs integration for static site generation
+- Added `typing.Annotated` to all public function signatures
 
 ### Changed
 - Complete architecture rewrite for 2.0
@@ -34,5 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced test coverage
 
 ### Fixed
+- Fixed all ruff linting errors
 - Various bug fixes and improvements
->>>>>>> origin/main
