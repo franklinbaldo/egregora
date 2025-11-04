@@ -24,9 +24,8 @@ Usage:
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:
     import ibis
@@ -105,7 +104,7 @@ def stream_ibis(
             break
 
         # Convert tuples to dictionaries
-        batch = [dict(zip(cols, row, strict=False)) for row in rows]
+        batch = [dict(zip(cols, row)) for row in rows]
         yield batch
 
 

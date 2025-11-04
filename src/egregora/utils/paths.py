@@ -89,10 +89,12 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     normalized_parts = []
     for part in parts:
         # Check for Windows-style absolute paths (C:\, D:\, etc.)
-        if len(part) >= 3 and part[1:3] == ":\\":  # noqa: PLR2004
-            raise PathTraversalError(f"Absolute Windows paths not allowed: {part}")
+        if len(part) >= 3 and part[1:3] == ':\\':  # noqa: PLR2004
+            raise PathTraversalError(
+                f"Absolute Windows paths not allowed: {part}"
+            )
         # Normalize backslashes to forward slashes
-        normalized_parts.append(part.replace("\\", "/"))
+        normalized_parts.append(part.replace('\\', '/'))
 
     # Convert Path to string for werkzeug compatibility
     base_str = str(base_dir.resolve())

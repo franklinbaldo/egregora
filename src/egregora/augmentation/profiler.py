@@ -180,9 +180,7 @@ def apply_command_to_profile(
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"],
-    media_mapping: Annotated[
-        dict[str, Path], "A mapping from original filenames to their new paths on disk"
-    ],
+    media_mapping: Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ) -> Annotated[str, "The path to the updated profile"]:
     """
     Apply an egregora command to an author's profile.
@@ -384,9 +382,7 @@ def process_commands(
         list[dict[str, Any]], "A list of command dictionaries from extract_commands()"
     ],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"],
-    media_mapping: Annotated[
-        dict[str, Path], "A mapping from original filenames to their new paths on disk"
-    ],
+    media_mapping: Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ) -> Annotated[int, "The number of commands processed"]:
     """
     Process a batch of egregora commands.
@@ -417,7 +413,9 @@ def process_commands(
         command = cmd_data["command"]
 
         try:
-            apply_command_to_profile(author_uuid, command, timestamp, profiles_dir, media_mapping)
+            apply_command_to_profile(
+                author_uuid, command, timestamp, profiles_dir, media_mapping
+            )
         except Exception as e:
             logger.error(f"Failed to process command for {author_uuid}: {e}")
 

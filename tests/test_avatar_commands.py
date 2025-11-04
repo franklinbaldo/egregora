@@ -1,12 +1,11 @@
 """Unit tests for avatar-related commands and functionality."""
 
 from pathlib import Path
-
 from typer.testing import CliRunner
-
-from src.egregora.augmentation import profiler
-from src.egregora.ingestion import parser
+import pytest
 from src.egregora.orchestration import cli
+from src.egregora.ingestion import parser
+from src.egregora.augmentation import profiler
 
 runner = CliRunner()
 
@@ -32,25 +31,20 @@ def test_extract_commands_with_attachment():
             "message": "image.jpg (file attached) /egregora set avatar",
         }
     ]
-
     # This is a simplified version of what the ibis table would look like
     class MockCount:
         def __init__(self, value):
             self.value = value
-
         def execute(self):
             return self.value
 
     class MockTable:
         def __init__(self, data):
             self.data = data
-
         def execute(self):
             return self
-
         def to_dict(self, orient):
             return self.data
-
         def count(self):
             return MockCount(len(self.data))
 

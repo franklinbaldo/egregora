@@ -208,7 +208,9 @@ class VectorStore:
                 )
                 continue
 
-            self.conn.execute(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
+            self.conn.execute(
+                f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
+            )
 
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:

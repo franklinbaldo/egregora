@@ -18,14 +18,12 @@ Usage:
         --zip-path /path/to/your/whatsapp_chat.zip \
         --output-dir /path/to/output
 """
-
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
-
 import typer
+from typing_extensions import Annotated
 from google import genai
 
 # Add the project root to the Python path to allow importing from 'egregora'

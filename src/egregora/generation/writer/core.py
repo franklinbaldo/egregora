@@ -13,8 +13,8 @@ Documentation:
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Callable
+import os
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -32,9 +32,9 @@ from egregora.augmentation.profiler import get_active_authors
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.generation.writer.context import (
     RagErrorReason,
+    build_rag_context_for_prompt,
     _load_profiles_context,
     _query_rag_for_context,
-    build_rag_context_for_prompt,
 )
 
 # Import split modules
@@ -57,6 +57,7 @@ from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, index_post
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.utils import GeminiBatchClient, call_with_retries_sync
+from egregora.utils.batch import EmbeddingBatchRequest
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,9 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
         return []
 
     return author_counts.author.execute().tolist()
+
+
+
 
 
 def _process_tool_calls(  # noqa: PLR0913

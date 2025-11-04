@@ -171,7 +171,9 @@ class MemeGenerator:
         """
         return self.TEMPLATES
 
-    def get_markdown_image(self, url: str, alt_text: str = "Meme", width: int | None = None) -> str:
+    def get_markdown_image(
+        self, url: str, alt_text: str = "Meme", width: int | None = None
+    ) -> str:
         """
         Generate markdown for embedding the meme image.
 

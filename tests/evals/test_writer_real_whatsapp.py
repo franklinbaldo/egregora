@@ -14,6 +14,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance
 
+from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
 from egregora.ingestion.parser import parse_export
 from tests.conftest import WhatsAppFixture
 from tests.mock_batch_client import create_mock_batch_client
@@ -115,7 +116,6 @@ def test_writer_with_real_whatsapp_data(
 ) -> None:
     """Evaluate writer agent using pydantic-evals with real WhatsApp data."""
     import asyncio
-
     # Setup directories
     output_dir = tmp_path / "output"
     posts_dir = output_dir / "posts"
