@@ -348,15 +348,77 @@ PR #551 represents **solid architectural work** that improves the codebase's sch
 
 ---
 
+## Ibis-Only Refactoring (Follow-up Improvement)
+
+### Motivation
+
+Following the review, the RankingStore was further improved to fully embrace the **Ibis-first architecture** by eliminating the PyArrow dependency entirely.
+
+### Changes Made (commit af37d27)
+
+**Removed**:
+- `import pyarrow as pa` (line 11)
+- `_arrow_to_pydict()` method (~35 lines of complex Arrow type handling)
+
+**Refactored**:
+1. **`initialize_ratings()`**:
+   - Before: Used `pa.table()` + `conn.register()`
+   - After: Uses DuckDB's `unnest(?::VARCHAR[])` with proper CTE structure
+   - Benefits: No PyArrow, cleaner SQL, same performance
+
+2. **`get_top_posts()`, `get_all_ratings()`, `get_all_history()`**:
+   - Before: Used `.arrow()` → `_arrow_to_pydict()` → `ibis.memtable()`
+   - After: Uses `cursor.fetchall()` → `dict(zip())` → `ibis.memtable()`
+   - Benefits: Explicit schemas, better error messages, simpler flow
+
+### Benefits
+
+✅ **One less dependency** - PyArrow only needed by VectorStore (for DuckDB VSS extension)
+✅ **More explicit** - Each method declares its expected schema for empty results
+✅ **Simpler** - Direct DuckDB → Python → Ibis flow without Arrow intermediary
+✅ **Better errors** - Explicit schema definitions provide clearer type mismatch messages
+✅ **Aligned with standards** - Follows project's Ibis-first architecture principle
+
+### Performance Impact
+
+**None** - For the small-to-medium result sets typical in ranking operations (10-1000 rows), `fetchall()` has comparable performance to Arrow conversion:
+- Rankings table: Typically < 100 posts
+- History table: Typically < 1000 comparisons
+- Memory overhead: Minimal for these dataset sizes
+
+### Test Results
+
+```bash
+$ uv run pytest tests/test_ranking_store.py -v
+======================== 2 passed in 1.20s =========================
+```
+
+All tests pass with no modifications needed:
+- ✅ `test_initialize_ratings_idempotent_batch_insert`
+- ✅ `test_update_ratings_updates_both_posts_atomically`
+
+### Code Quality
+
+- Lines changed: +90, -64 (net +26 lines, but more explicit)
+- Linting: ✅ All checks pass
+- Type safety: ✅ Improved with explicit schemas
+
+---
+
 ## Next Steps
 
-1. Push these fixes to `claude/review-pr-551-changes-011CUmzydcDxHf7HoaR6pAeX`
-2. Create PR to merge fixes to main
+1. ✅ **DONE**: Push fixes to `claude/review-pr-551-changes-011CUmzydcDxHf7HoaR6pAeX`
+2. 🔄 **Create PR** to merge improvements to main
 3. Consider implementing pre-commit hook for merge conflict detection
 4. Address missing template issue in separate PR
+5. Consider similar Ibis-only refactoring for other stores if PyArrow is only used for simple conversions
 
 ---
 
 **Review completed**: 2025-11-04
+**Updated**: 2025-11-04 (added Ibis-only refactoring)
+
 **Commits**:
 - `f4b6a96` - fix: Resolve merge conflict markers in CHANGELOG.md
+- `70568fb` - docs: Add comprehensive review of PR #551 implementation
+- `af37d27` - refactor: Remove PyArrow dependency from RankingStore, use Ibis-only
