@@ -13,10 +13,8 @@ Documentation:
 from __future__ import annotations
 
 import logging
-import os
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -27,14 +25,11 @@ import yaml
 from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
-from returns.result import Failure, Success
 
 from egregora.augmentation.profiler import get_active_authors
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.generation.writer.context import (
-    RagErrorReason,
     _load_profiles_context,
-    _query_rag_for_context,
     build_rag_context_for_prompt,
 )
 
@@ -42,7 +37,6 @@ from egregora.generation.writer.context import (
 from egregora.generation.writer.formatting import (
     _build_conversation_markdown,
     _load_freeform_memory,
-    _write_freeform_markdown,
 )
 from egregora.generation.writer.handlers import (
     _handle_annotate_conversation_tool,
@@ -54,11 +48,10 @@ from egregora.generation.writer.handlers import (
     _handle_write_profile_tool,
 )
 from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
-from egregora.generation.writer.tools import _writer_tools
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, index_post
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.utils import GeminiBatchClient, call_with_retries_sync
+from egregora.utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
@@ -288,8 +281,6 @@ def _index_posts_in_rag(
         logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
     except Exception as e:
         logger.error(f"Failed to index posts in RAG: {e}")
-
-
 
 
 def _write_posts_for_period_pydantic(

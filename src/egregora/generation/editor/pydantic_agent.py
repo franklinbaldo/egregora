@@ -248,7 +248,9 @@ def _register_editor_tools(agent: Agent) -> None:
             content=content,
         )
 
-        ctx.deps.tool_calls_log.append({"tool": "full_rewrite", "args": {"expect_version": expect_version}})
+        ctx.deps.tool_calls_log.append(
+            {"tool": "full_rewrite", "args": {"expect_version": expect_version}}
+        )
 
         if result_dict.get("ok"):
             return FullRewriteResult(
@@ -277,7 +279,9 @@ def _register_editor_tools(agent: Agent) -> None:
             query: Search query (e.g. 'consciousness emergence', 'AI alignment')
             max_results: Maximum results to return (default 5)
         """
-        ctx.deps.tool_calls_log.append({"tool": "query_rag", "args": {"query": query, "max_results": max_results}})
+        ctx.deps.tool_calls_log.append(
+            {"tool": "query_rag", "args": {"query": query, "max_results": max_results}}
+        )
 
         return await query_rag_impl(
             query=query,
