@@ -114,7 +114,7 @@ def main(
 
     except Exception as e:
         logger.error(f"An error occurred during the pipeline execution: {e}", exc_info=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":
