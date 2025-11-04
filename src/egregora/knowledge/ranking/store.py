@@ -138,16 +138,20 @@ class RankingStore:
         inserted = 0
 
         for post_id in post_ids:
+            # Use INSERT...RETURNING to get confirmation of successful insert
+            # ON CONFLICT DO NOTHING means RETURNING returns nothing when conflict occurs
             result = self.conn.execute(
                 """
                 INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
                 VALUES (?, 1500, 0, ?)
                 ON CONFLICT (post_id) DO NOTHING
+                RETURNING post_id
             """,
                 [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+            ).fetchall()
+            # If result is non-empty, an insert occurred (no conflict)
+            if result:
+                inserted += 1
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
