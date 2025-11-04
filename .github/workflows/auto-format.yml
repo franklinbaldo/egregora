@@ -4,8 +4,6 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches:
-      - '**'
     branches-ignore:
       - 'main'
 
@@ -19,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
