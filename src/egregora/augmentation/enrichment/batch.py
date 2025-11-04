@@ -166,13 +166,17 @@ def _iter_table_record_batches(
 
     ordered_table = table.order_by(fallback_ordering)
     window = ibis.window(order_by=fallback_ordering)
-    numbered = ordered_table.mutate(_batch_row_number=ibis.row_number().over(window))
+    numbered = ordered_table.mutate(
+        _batch_row_number=ibis.row_number().over(window)
+    )
     row_number = numbered._batch_row_number
 
     for start in range(0, count, batch_size):
         upper = start + batch_size
         batch_expr = numbered.filter(
-            ((row_number >= start) & (row_number < upper)) if start else (row_number < upper)
+            ((row_number >= start) & (row_number < upper))
+            if start
+            else (row_number < upper)
         ).order_by(row_number)
         # Drop helper column only after enforcing deterministic ordering
         batch_expr = batch_expr.drop("_batch_row_number")

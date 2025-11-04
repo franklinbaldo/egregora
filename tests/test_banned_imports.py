@@ -23,13 +23,6 @@ from pathlib import Path
 
 import pytest
 
-from egregora.streaming import (
-    copy_expr_to_ndjson,
-    copy_expr_to_parquet,
-    ensure_deterministic_order,
-    stream_ibis,
-)
-
 # Directories where pandas imports are allowed
 WHITELIST_PATHS = re.compile(r"(src/egregora/compat/|src/egregora/testing/)")
 
@@ -130,7 +123,16 @@ def test_whitelisted_paths_work():
 
 def test_streaming_utilities_available():
     """Verify that the Ibis-first streaming utilities are available."""
-    
+    try:
+        from egregora.streaming import (
+            copy_expr_to_ndjson,
+            copy_expr_to_parquet,
+            ensure_deterministic_order,
+            stream_ibis,
+        )
+    except ImportError as e:
+        pytest.fail(f"Streaming utilities not available: {e}")
+
     # Verify functions are callable
     assert callable(stream_ibis)
     assert callable(copy_expr_to_parquet)

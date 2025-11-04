@@ -47,7 +47,9 @@ class AnnotationStore:
 
     def _initialize(self) -> None:
         sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
-        self._connection.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
+        self._connection.execute(
+            f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1"
+        )
         self._connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
@@ -81,7 +83,9 @@ class AnnotationStore:
             """
         )
 
-        max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()
+        max_id_row = self._connection.execute(
+            f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}"
+        ).fetchone()
         if max_id_row and max_id_row[0] is not None:
             max_id = int(max_id_row[0])
             sequence_state = self._connection.execute(
@@ -94,11 +98,15 @@ class AnnotationStore:
                 [sequence_name],
             ).fetchone()
             if sequence_state is None:
-                raise RuntimeError(f"Could not find sequence metadata for {sequence_name}")
+                raise RuntimeError(
+                    f"Could not find sequence metadata for {sequence_name}"
+                )
 
             start_value, increment_by, last_value = sequence_state
             current_next = (
-                int(start_value) if last_value is None else int(last_value) + int(increment_by)
+                int(start_value)
+                if last_value is None
+                else int(last_value) + int(increment_by)
             )
             desired_next = max(current_next, max_id + 1)
             steps_needed = desired_next - current_next
@@ -255,7 +263,7 @@ class AnnotationStore:
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
 
         # Filter for annotations that are direct replies to messages
-        message_annotations = annotations_table[annotations_table.parent_type == "message"]
+        message_annotations = annotations_table[annotations_table.parent_type == 'message']
 
         # Perform left join: messages with their annotations (if any)
         # This preserves all messages even if they don't have annotations

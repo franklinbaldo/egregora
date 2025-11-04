@@ -27,9 +27,9 @@ def test_package_version_matches_pyproject() -> None:
     assert match, "Could not determine __version__ from src/egregora/__init__.py"
 
     package_version = match.group(1)
-    assert package_version == _load_project_version(), (
-        "__version__ must match project.version in pyproject.toml"
-    )
+    assert (
+        package_version == _load_project_version()
+    ), "__version__ must match project.version in pyproject.toml"
 
 
 def test_changelog_mentions_current_version() -> None:
@@ -42,6 +42,6 @@ def test_changelog_mentions_current_version() -> None:
     # Require a changelog heading such as ``## [1.2.3]`` or ``## [1.2.3] - YYYY-MM-DD``.
     heading_pattern = re.compile(rf"^## \[{re.escape(version)}](?:\s+-\s+.+)?$", re.MULTILINE)
 
-    assert heading_pattern.search(changelog_text), (
-        "CHANGELOG.md must contain a heading for the current version"
-    )
+    assert heading_pattern.search(
+        changelog_text
+    ), "CHANGELOG.md must contain a heading for the current version"

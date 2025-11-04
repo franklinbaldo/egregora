@@ -22,9 +22,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -68,9 +66,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
 def test_all_templates_are_used(tmp_path: Path):
     """Verify that every .jinja2 template in templates/ is used by init."""
     # Get all templates
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     all_templates = set(template_dir.glob("*.jinja2"))
 
     # Templates that should be used by _create_site_structure
@@ -117,9 +113,7 @@ def test_init_directory_structure(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -161,9 +155,7 @@ def test_init_directory_structure(tmp_path: Path):
 def test_template_files_match_output_structure():
     """Verify template filenames match their output paths logically."""
     # This is a sanity check to ensure template names make sense
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
 
     # Expected logical mapping (not exhaustive, just key examples)
     # Some templates have semantic names (homepage) rather than output names (index)

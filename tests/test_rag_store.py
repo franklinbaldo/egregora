@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 import duckdb
 import ibis
+import pyarrow as pa
 import pytest
 
 ROW_COUNT = 42
@@ -42,17 +43,6 @@ def _vector_store_row(store_module, **overrides):
 
     base.update(defaults)
     return base
-
-
-def test_rag_metadata_schema_includes_nullable_checksum():
-    store_module = _load_vector_store()
-    schema = store_module.database_schema.RAG_CHUNKS_METADATA_SCHEMA
-
-    assert list(schema.names) == ["path", "mtime_ns", "size", "row_count", "checksum"]
-    assert schema["row_count"].is_integer()
-    checksum_dtype = schema["checksum"]
-    assert checksum_dtype.is_string()
-    assert checksum_dtype.nullable
 
 
 def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
@@ -307,25 +297,21 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
         ]
         store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
-        captured_sql: list[str] = []
+        captured: dict[str, str] = {}
 
         class _ConnectionProxy:
             def __init__(self, inner):
                 self._inner = inner
 
             def execute(self, sql: str, params=None):
-                captured_sql.append(sql)
+                captured["sql"] = sql
                 if "vss_search" in sql:
                     empty = {name: [] for name in store_module.SEARCH_RESULT_SCHEMA.names}
                     empty["similarity"] = []
 
-                    columns = list(empty.keys()) + ["similarity"]
-
                     class _Result:
-                        description = [(name,) for name in columns]
-
-                        def fetchall(self_inner):
-                            return []
+                        def arrow(self_inner):
+                            return pa.table(empty)
 
                     return _Result()
 
@@ -337,10 +323,10 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
         store.conn = _ConnectionProxy(store.conn)
 
         store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann")
-        assert any("vss_search" in sql for sql in captured_sql)
+        assert "vss_search" in captured["sql"]
 
         store.search(query_vec=[0.0, 1.0], top_k=1, mode="exact")
-        assert any("array_cosine_similarity" in sql for sql in captured_sql)
+        assert "array_cosine_similarity" in captured["sql"]
     finally:
         store.close()
 

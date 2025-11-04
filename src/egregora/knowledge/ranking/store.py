@@ -8,6 +8,7 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+import pyarrow as pa
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -118,25 +119,30 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
+        new_posts = pa.table({"post_id": pa.array(post_ids, type=pa.string())})
+        view_name = "new_elo_posts"
+        self.conn.register(view_name, new_posts)
 
-        # Use DuckDB's unnest function to create table from list
-        # This is more efficient than VALUES for large lists
-        result = self.conn.execute(
-            """
-            INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-            SELECT np.post_id, 1500, 0, ?
-            FROM (
-                SELECT DISTINCT unnest(?::VARCHAR[]) as post_id
-            ) AS np
-            WHERE NOT EXISTS (
-                SELECT 1 FROM elo_ratings er
-                WHERE er.post_id = np.post_id
+        inserted = 0
+        try:
+            result = self.conn.execute(
+                """
+                INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
+                SELECT post_id, 1500, 0, ?
+                FROM (
+                    SELECT DISTINCT post_id
+                    FROM new_elo_posts
+                ) AS np
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM elo_ratings er WHERE er.post_id = np.post_id
+                )
+                RETURNING post_id
+            """,
+                [now],
             )
-            RETURNING post_id
-        """,
-            [now, post_ids],
-        )
-        inserted = len(result.fetchall())
+            inserted = len(result.fetchall())
+        finally:
+            self.conn.unregister(view_name)
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
@@ -335,7 +341,7 @@ class RankingStore:
         Returns:
             Ibis Table with post_id, elo_global, games_played, last_updated
         """
-        cursor = self.conn.execute(
+        result = self.conn.execute(
             """
             SELECT * FROM elo_ratings
             WHERE games_played >= ?
@@ -343,9 +349,9 @@ class RankingStore:
             LIMIT ?
         """,
             [min_games, n],
-        )
+        ).arrow()
 
-        return self._rows_to_memtable(cursor)
+        return ibis.memtable(self._arrow_to_pydict(result))
 
     def get_all_ratings(self) -> Table:
         """
@@ -354,8 +360,8 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_ratings data
         """
-        cursor = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC")
-        return self._rows_to_memtable(cursor)
+        result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
+        return ibis.memtable(self._arrow_to_pydict(result))
 
     def get_all_history(self) -> Table:
         """
@@ -364,21 +370,44 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_history data
         """
-        cursor = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp")
-        return self._rows_to_memtable(cursor)
+        result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
+        return ibis.memtable(self._arrow_to_pydict(result))
 
-    def _rows_to_memtable(self, cursor: duckdb.DuckDBPyConnection) -> Table:
-        """Convert a DuckDB cursor result into an Ibis memtable."""
+    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
+        """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
 
-        description = cursor.description or []
-        columns = [column[0] for column in description]
-        rows = cursor.fetchall()
+        if isinstance(arrow_object, pa.RecordBatchReader):
+            table: pa.Table | None = arrow_object.read_all()
+        elif isinstance(arrow_object, pa.Table):
+            table = arrow_object
+        else:
+            table = None
+            for attr in ("read_all", "to_table", "to_arrow_table"):
+                method = getattr(arrow_object, attr, None)
+                if not callable(method):
+                    continue
 
-        if not columns:
-            return ibis.memtable([])
+                result = method()
+                if isinstance(result, pa.RecordBatchReader):
+                    table = result.read_all()
+                    break
+                if isinstance(result, pa.Table):
+                    table = result
+                    break
 
-        records = [dict(zip(columns, row, strict=False)) for row in rows]
-        return ibis.memtable(records)
+            if table is None:
+                to_pydict = getattr(arrow_object, "to_pydict", None)
+                if callable(to_pydict):
+                    data = to_pydict()
+                    if isinstance(data, dict):
+                        return data
+
+                raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
+
+        if not isinstance(table, pa.Table):
+            raise TypeError(f"Expected pyarrow.Table after conversion, got {type(table)!r}")
+
+        return table.to_pydict()
 
     def export_to_parquet(self) -> None:
         """
