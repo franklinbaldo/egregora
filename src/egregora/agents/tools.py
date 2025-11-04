@@ -1,10 +1,8 @@
-from pathlib import Path
 
 import ibis
 from google import genai
 from pydantic_ai import RunContext
 
-from ..config import ModelConfig
 from ..knowledge.rag import VectorStore, query_similar_posts
 from ..utils.batch import GeminiBatchClient
 from ..utils.genai import call_with_retries
@@ -14,9 +12,11 @@ def edit_line(expect_version: int, index: int, new: str, ctx: RunContext) -> Non
     """Replace a single line in the document"""
     ctx.deps["editor"].edit_line(expect_version, index, new)
 
+
 def full_rewrite(expect_version: int, content: str, ctx: RunContext) -> None:
     """Replace the entire document content"""
     ctx.deps["editor"].full_rewrite(expect_version, content)
+
 
 async def query_rag(
     query: str,
@@ -60,6 +60,7 @@ async def query_rag(
     except Exception as e:
         return f"RAG query failed: {str(e)}"
 
+
 async def ask_llm(
     question: str,
     ctx: RunContext,
@@ -86,22 +87,27 @@ async def ask_llm(
     except Exception as e:
         return f"[LLM query failed: {str(e)}]"
 
+
 from ..agents.models import FinishResult
+
 
 def finish(expect_version: int, decision: str, notes: str, ctx: RunContext) -> FinishResult:
     """Mark editing complete."""
     result = ctx.deps["editor"].finish(expect_version, decision, notes)
     return FinishResult(**result)
 
+
 def diversity_sampler(k: int, seed: int) -> str:
     """Sample diverse content based on a given seed."""
     # TODO: Implement actual diversity sampling logic.
     return f"Sampled {k} items with seed {seed}."
 
+
 def link_rewriter(url: str) -> str:
     """Rewrite a URL."""
     # TODO: Implement actual link rewriting logic.
     return f"Rewrote URL: {url}"
+
 
 AVAILABLE_TOOLS = {
     "edit_line": edit_line,

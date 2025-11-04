@@ -115,6 +115,7 @@ def test_writer_with_real_whatsapp_data(
 ) -> None:
     """Evaluate writer agent using pydantic-evals with real WhatsApp data."""
     import asyncio
+
     # Setup directories
     output_dir = tmp_path / "output"
     posts_dir = output_dir / "posts"

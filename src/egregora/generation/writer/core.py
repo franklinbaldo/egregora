@@ -168,9 +168,6 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-
-
-
 def _process_tool_calls(  # noqa: PLR0913
     candidate: genai_types.Candidate,
     output_dir: Path,

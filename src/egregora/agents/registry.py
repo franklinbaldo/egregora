@@ -14,18 +14,22 @@ class Tool:
     contracts: dict[str, Any]
     content: str  # The raw YAML content for hashing
 
+
 @dataclass
 class Skill:
     id: str
     content: str
 
+
 def _normalize_and_hash(content: str) -> str:
     """Normalize YAML content and return its SHA256 hash."""
     # A more robust implementation would deeply sort keys
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
 
 class ToolRegistry:
     """Manages the loading and resolution of tools and tool profiles."""
+
     def __init__(self, egregora_path: Path):
         self.tools_path = egregora_path / "tools"
         self._tools: dict[str, Tool] = self._load_tools()
@@ -45,7 +49,7 @@ class ToolRegistry:
                     kind=data.get("kind"),
                     inputs=data.get("inputs"),
                     contracts=data.get("contracts"),
-                    content=content
+                    content=content,
                 )
         return tools
 
@@ -76,9 +80,15 @@ class ToolRegistry:
         if not tool_ids:
             return ""
 
-        hashes = sorted([_normalize_and_hash(self._tools[tool_id].content) for tool_id in tool_ids if tool_id in self._tools])
+        hashes = sorted(
+            [
+                _normalize_and_hash(self._tools[tool_id].content)
+                for tool_id in tool_ids
+                if tool_id in self._tools
+            ]
+        )
         combined_hash_input = "".join(hashes)
-        return hashlib.sha256(combined_hash_input.encode('utf-8')).hexdigest()
+        return hashlib.sha256(combined_hash_input.encode("utf-8")).hexdigest()
 
     def get_agent_hash(self, agent_config, prompt_template: str) -> str:
         """Get the hash for an agent's configuration."""
@@ -87,13 +97,12 @@ class ToolRegistry:
             agent_config.dict(),
             sort_keys=True,
         )
-        return hashlib.sha256(
-            (front_matter_str + prompt_template).encode("utf-8")
-        ).hexdigest()
+        return hashlib.sha256((front_matter_str + prompt_template).encode("utf-8")).hexdigest()
 
 
 class SkillRegistry:
     """Manages the loading of skills."""
+
     def __init__(self, egregora_path: Path):
         self.skills_path = egregora_path / "skills"
         self._skills: dict[str, Skill] = self._load_skills()
@@ -113,9 +122,15 @@ class SkillRegistry:
         if not skill_ids:
             return ""
 
-        hashes = sorted([_normalize_and_hash(self._skills[skill_id].content) for skill_id in skill_ids if skill_id in self._skills])
+        hashes = sorted(
+            [
+                _normalize_and_hash(self._skills[skill_id].content)
+                for skill_id in skill_ids
+                if skill_id in self._skills
+            ]
+        )
         combined_hash_input = "".join(hashes)
-        return hashlib.sha256(combined_hash_input.encode('utf-8')).hexdigest()
+        return hashlib.sha256(combined_hash_input.encode("utf-8")).hexdigest()
 
     def get_skill_content(self, skill_id: str) -> str | None:
         return self._skills[skill_id].content if skill_id in self._skills else None

@@ -18,6 +18,7 @@ Usage:
         --zip-path /path/to/your/whatsapp_chat.zip \
         --output-dir /path/to/output
 """
+
 import logging
 import os
 import sys

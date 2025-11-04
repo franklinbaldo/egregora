@@ -39,6 +39,8 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             if hasattr(messages, "to_json"):
                 return messages.to_json(indent=2)
             return json.dumps(messages, indent=2, default=str)
+
+
 try:
     from pydantic_ai.models.google import GoogleModel
 except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
@@ -205,7 +207,9 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
                     media_path=row.get("media_path"),
                     original_filename=row.get("original_filename"),
                     description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity")) if row.get("similarity") is not None else None,
+                    similarity=float(row.get("similarity"))
+                    if row.get("similarity") is not None
+                    else None,
                 )
             )
         if not items:
@@ -306,7 +310,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     try:
         result = agent.run_sync(prompt, deps=state)
         result_payload = getattr(result, "data", result)
-        logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
+        logger.info(
+            "Writer agent finished with summary: %s", getattr(result_payload, "summary", None)
+        )
         record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
         if record_dir:
             output_path = Path(record_dir).expanduser()

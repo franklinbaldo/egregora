@@ -17,9 +17,11 @@ from .document import DocumentSnapshot, Editor
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class EditorResult:
     """Result of an editor session."""
+
     final_content: str
     decision: str
     notes: str
@@ -30,6 +32,7 @@ class EditorResult:
     skillset_hash: str
     prompt_render_hash: str
 
+
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
     """Convert markdown content to DocumentSnapshot."""
     lines = content.split("\n")
@@ -37,10 +40,12 @@ def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
         doc_id=doc_id, version=1, meta={}, lines={i: line for i, line in enumerate(lines)}
     )
 
+
 def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
     """Convert DocumentSnapshot back to markdown."""
     sorted_lines = [snapshot.lines[i] for i in sorted(snapshot.lines.keys())]
     return "\n".join(sorted_lines)
+
 
 async def run_editor_session(
     post_path: Path,
@@ -72,13 +77,15 @@ async def run_editor_session(
     agent_config, prompt_template, final_vars = resolver.resolve(post_path, agent_override)
 
     render_context = final_vars.copy()
-    render_context.update({
-        "doc_id": str(post_path),
-        "version": snapshot.version,
-        "lines": snapshot.lines,
-        "context": context or {},
-        "env": agent_config.env
-    })
+    render_context.update(
+        {
+            "doc_id": str(post_path),
+            "version": snapshot.version,
+            "lines": snapshot.lines,
+            "context": context or {},
+            "env": agent_config.env,
+        }
+    )
 
     template = jinja_env.from_string(prompt_template)
     prompt = template.render(render_context)

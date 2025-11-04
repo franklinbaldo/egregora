@@ -31,6 +31,7 @@ def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
     # 3. Fallback to default agent
     return "_default"
 
+
 def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any]:
     """
     Merges variables from the post's front-matter into the agent's variables,
@@ -46,17 +47,23 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
         if key in allowed_vars:
             merged_vars[key] = value
         else:
-            print(f"Warning: Variable '{key}' from {post_path.name} is not allowed by the agent and will be ignored.")
+            print(
+                f"Warning: Variable '{key}' from {post_path.name} is not allowed by the agent and will be ignored."
+            )
 
     return merged_vars
 
+
 class AgentResolver:
     """Resolves which agent to use for a given post."""
+
     def __init__(self, egregora_path: Path, docs_path: Path):
         self.egregora_path = egregora_path
         self.docs_path = docs_path
 
-    def resolve(self, post_path: Path, agent_override: str | None = None) -> tuple[AgentConfig, str, dict[str, Any]]:
+    def resolve(
+        self, post_path: Path, agent_override: str | None = None
+    ) -> tuple[AgentConfig, str, dict[str, Any]]:
         """
         Resolves the agent for a given post and returns the agent config, prompt template,
         and the final merged variables.

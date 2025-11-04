@@ -30,7 +30,5 @@ def test_repository_is_ruff_clean() -> None:
     result = _run_ruff("src", "tests")
     if result.returncode != 0:
         pytest.fail(
-            "Ruff linting failures detected:\n"
-            f"STDOUT:\n{result.stdout}\n"
-            f"STDERR:\n{result.stderr}"
+            f"Ruff linting failures detected:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
