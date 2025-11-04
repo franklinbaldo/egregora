@@ -16,6 +16,8 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
+from ..agents.loader import load_agent
+from ..agents.registry import ToolRegistry
 from ..augmentation.enrichment import enrich_table, extract_and_replace_media
 from ..augmentation.profiler import get_active_authors
 from ..config import (
@@ -29,8 +31,6 @@ from ..config import (
 )
 from ..core.models import WhatsAppExport
 from ..core.types import GroupSlug
-from ..agents.loader import load_agent
-from ..agents.registry import ToolRegistry, SkillRegistry
 from ..generation.editor import run_editor_session
 from ..generation.writer import write_posts_for_period
 from ..generation.writer.context import (
@@ -86,9 +86,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:
-        raise TypeError(
-            f"Cannot serialize type {type(value).__name__} to JSON. " f"Value: {value!r}"
-        )
+        raise TypeError(f"Cannot serialize type {type(value).__name__} to JSON. Value: {value!r}")
 
     logger.warning(
         "Converting non-serializable type %s to string for JSON export: %r",
@@ -401,10 +399,11 @@ def edit(
         while site_path.name != "docs":
             site_path = site_path.parent
             if site_path == site_path.parent:  # Reached root
-                console.print("[red]Could not determine site directory. Please specify with --site-dir.[/red]")
+                console.print(
+                    "[red]Could not determine site directory. Please specify with --site-dir.[/red]"
+                )
                 raise typer.Exit(1)
         site_path = site_path.parent
-
 
     console.print(f"[cyan]Site directory: {site_path}[/cyan]")
 
@@ -415,15 +414,18 @@ def edit(
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
 
     if prompt_dry_run:
-        from ..agents.resolver import AgentResolver
         from jinja2 import Environment, FileSystemLoader
+
+        from ..agents.resolver import AgentResolver
 
         resolver = AgentResolver(egregora_path, docs_path)
         agent_config, final_vars = resolver.resolve(post_file, agent)
         jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
         template = jinja_env.from_string(agent_config.prompt_template)
         prompt = template.render(final_vars)
-        console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
+        console.print(
+            Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue")
+        )
         raise typer.Exit()
 
     # Get API key
@@ -472,8 +474,10 @@ def edit(
         console.print(f"[red]Editor session failed: {e}[/red]")
         raise typer.Exit(1) from e
 
+
 agents_app = typer.Typer(name="agents", help="Manage agents, tools, and skills.")
 app.add_typer(agents_app)
+
 
 @agents_app.command("list")
 def agents_list(
@@ -489,6 +493,7 @@ def agents_list(
     console.print(Panel("Available Agents", border_style="blue"))
     for agent_file in agents_path.glob("*.jinja"):
         console.print(f"- {agent_file.stem}")
+
 
 @agents_app.command("explain")
 def agents_explain(
@@ -524,6 +529,7 @@ def agents_explain(
         console.print(f"[red]Agent '{agent_name}' not found.[/red]")
         raise typer.Exit(1)
 
+
 @agents_app.command("lint")
 def agents_lint(
     site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
@@ -546,7 +552,6 @@ def agents_lint(
     except Exception as e:
         console.print(f"[red]Error loading tool profiles: {e}[/red]")
         errors += 1
-
 
     if errors == 0:
         console.print("[green]✅ All agents and tool profiles are valid.[/green]")

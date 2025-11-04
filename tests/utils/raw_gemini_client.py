@@ -73,11 +73,7 @@ class RawGeminiClient:
 
         url = f"{self.BASE_URL}/models/{model}:embedContent"
 
-        payload: dict[str, Any] = {
-            "content": {
-                "parts": [{"text": text}]
-            }
-        }
+        payload: dict[str, Any] = {"content": {"parts": [{"text": text}]}}
 
         if task_type or output_dimensionality:
             config: dict[str, Any] = {}
@@ -123,12 +119,7 @@ class RawGeminiClient:
 
         requests_payload = []
         for text in texts:
-            req: dict[str, Any] = {
-                "content": {
-                    "parts": [{"text": text}],
-                    "role": "user"
-                }
-            }
+            req: dict[str, Any] = {"content": {"parts": [{"text": text}], "role": "user"}}
             if task_type:
                 req["taskType"] = task_type
             if output_dimensionality:
@@ -170,17 +161,10 @@ class RawGeminiClient:
 
         url = f"{self.BASE_URL}/models/{model}:generateContent"
 
-        payload: dict[str, Any] = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": prompt}]
-            }]
-        }
+        payload: dict[str, Any] = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
 
         if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
         response = self._http_client.post(
             url,

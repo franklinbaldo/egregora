@@ -1,7 +1,10 @@
-from pathlib import Path
-import yaml
 import re
+from pathlib import Path
+
+import yaml
+
 from .models import AgentConfig
+
 
 def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
     """Loads an agent's configuration from a .jinja file."""
@@ -20,7 +23,7 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
     front_matter_str = match.group(1)
 
     # The rest of the file is the prompt template
-    prompt_template = raw_content[match.end():].strip()
+    prompt_template = raw_content[match.end() :].strip()
 
     # Parse the YAML front-matter and validate with Pydantic
     config_dict = yaml.safe_load(front_matter_str)

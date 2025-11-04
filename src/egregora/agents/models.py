@@ -1,17 +1,22 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+
 
 class AgentVariables(BaseModel):
-    defaults: Dict[str, Any] = Field(default_factory=dict)
-    allowed: List[str] = Field(default_factory=list)
+    defaults: dict[str, Any] = Field(default_factory=dict)
+    allowed: list[str] = Field(default_factory=list)
+
 
 class AgentTools(BaseModel):
-    use_profiles: List[str] = Field(default_factory=list)
-    allow: List[str] = Field(default_factory=list)
-    deny: List[str] = Field(default_factory=list)
+    use_profiles: list[str] = Field(default_factory=list)
+    allow: list[str] = Field(default_factory=list)
+    deny: list[str] = Field(default_factory=list)
+
 
 class AgentSkills(BaseModel):
-    enable: List[str] = Field(default_factory=list)
+    enable: list[str] = Field(default_factory=list)
+
 
 class AgentConfig(BaseModel):
     agent_id: str
@@ -21,10 +26,11 @@ class AgentConfig(BaseModel):
     variables: AgentVariables
     tools: AgentTools
     skills: AgentSkills
-    env: Dict[str, Any]
+    env: dict[str, Any]
+
 
 class Tool(BaseModel):
     id: str
     kind: str
-    inputs: Dict[str, Any]
-    contracts: Dict[str, Any]
+    inputs: dict[str, Any]
+    contracts: dict[str, Any]

@@ -1,12 +1,13 @@
-from pathlib import Path
 import pytest
 from typer.testing import CliRunner
+
 from src.egregora.agents.loader import load_agent
 from src.egregora.agents.registry import ToolRegistry
 from src.egregora.agents.resolver import AgentResolver
 from src.egregora.orchestration.cli import app
 
 runner = CliRunner()
+
 
 @pytest.fixture(scope="module")
 def temp_site_path(tmp_path_factory):
@@ -71,11 +72,13 @@ Curator prompt."""
 
     return site_path
 
+
 def test_load_agent(temp_site_path):
     """Test loading an agent from a .jinja file."""
     agent_config, _ = load_agent("curator", temp_site_path / ".egregora")
     assert agent_config.agent_id == "curator_v1"
     assert agent_config.model == "curator_model"
+
 
 def test_tool_registry(temp_site_path):
     """Test tool registry functionality."""
@@ -83,6 +86,7 @@ def test_tool_registry(temp_site_path):
     agent_config, _ = load_agent("curator", temp_site_path / ".egregora")
     toolset = registry.resolve_toolset(agent_config.tools)
     assert toolset == {"tool_a", "tool_b"}
+
 
 def test_agent_resolver(temp_site_path):
     """Test agent resolver precedence."""
@@ -103,6 +107,7 @@ def test_agent_resolver(temp_site_path):
     agent_config, _, _ = resolver.resolve(post_path)
     assert agent_config.agent_id == "default_v1"
 
+
 def test_cli_agents_list(temp_site_path):
     """Test the 'egregora agents list' command."""
     result = runner.invoke(app, ["agents", "list", "--site-dir", str(temp_site_path)])
@@ -110,12 +115,14 @@ def test_cli_agents_list(temp_site_path):
     assert "curator" in result.stdout
     assert "_default" in result.stdout
 
+
 def test_cli_agents_explain(temp_site_path):
     """Test the 'egregora agents explain' command."""
     result = runner.invoke(app, ["agents", "explain", "curator", "--site-dir", str(temp_site_path)])
     assert result.exit_code == 0
     assert "curator_v1" in result.stdout
     assert "tool_a" in result.stdout
+
 
 def test_cli_agents_lint(temp_site_path):
     """Test the 'egregora agents lint' command."""

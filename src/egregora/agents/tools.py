@@ -1,18 +1,23 @@
 from pathlib import Path
+
 import ibis
 from google import genai
+
 from ..config import ModelConfig
 from ..knowledge.rag import VectorStore, query_similar_posts
 from ..utils.batch import GeminiBatchClient
 from ..utils.genai import call_with_retries
 
+
 def edit_line(expect_version: int, index: int, new: str, editor) -> None:
     """Replace a single line in the document"""
     editor.edit_line(expect_version, index, new)
 
+
 def full_rewrite(expect_version: int, content: str, editor) -> None:
     """Replace the entire document content"""
     editor.full_rewrite(expect_version, content)
+
 
 async def query_rag(
     query: str,
@@ -55,6 +60,7 @@ async def query_rag(
     except Exception as e:
         return f"RAG query failed: {str(e)}"
 
+
 async def ask_llm(
     question: str,
     client: genai.Client,
@@ -80,17 +86,21 @@ async def ask_llm(
     except Exception as e:
         return f"[LLM query failed: {str(e)}]"
 
+
 def finish(expect_version: int, decision: str, notes: str) -> None:
     """Mark editing complete."""
     pass
+
 
 def diversity_sampler(k: int, seed: int) -> str:
     """Sample diverse content based on a given seed."""
     return f"Sampled {k} items with seed {seed}."
 
+
 def link_rewriter(url: str) -> str:
     """Rewrite a URL."""
     return f"Rewrote URL: {url}"
+
 
 AVAILABLE_TOOLS = {
     "edit_line": edit_line,
