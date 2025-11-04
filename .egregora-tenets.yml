@@ -1,9 +1,0 @@
-tenets:
-  no-compat: "No backwards compatibility layers or shims."
-  clean: "Code must be simple, readable, and minimal."
-  no-defensive: "Do not guard against impossible states; rely on types/tests."
-  propagate-errors: "Do not swallow errors; let them bubble to boundaries."
-  strict-typing: >
-    Enforce 100% static typing via mypy + pytest. Add concrete annotations,
-    replace implicit Any with named aliases (no nested literals), and keep the
-    typing guard in CI. See docs/mypy_enforcement_plan.md for the detailed steps.
