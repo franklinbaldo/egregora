@@ -361,7 +361,10 @@ def index_all_media(
     output_dimensionality: int = 3072,
 ) -> int:
     """
-    Index all media enrichment files from output/media/enrichments/.
+    Index all media enrichment files from media directories.
+
+    Enrichment files are co-located with media (e.g., video.mp4.md).
+    Scans all subdirectories under docs/media/ for .md files.
 
     Args:
         docs_dir: Docs directory
@@ -371,13 +374,18 @@ def index_all_media(
     Returns:
         Total number of chunks indexed
     """
-    enrichments_dir = docs_dir / MEDIA_DIR_NAME / "enrichments"
+    media_dir = docs_dir / MEDIA_DIR_NAME
 
-    if not enrichments_dir.exists():
-        logger.warning(f"Enrichments directory does not exist: {enrichments_dir}")
+    if not media_dir.exists():
+        logger.warning(f"Media directory does not exist: {media_dir}")
         return 0
 
-    enrichment_files = list(enrichments_dir.glob("*.md"))
+    # Find all .md files in media directory and subdirectories
+    # These are enrichment files co-located with media (e.g., video.mp4.md)
+    enrichment_files = list(media_dir.rglob("*.md"))
+
+    # Filter out index.md files (navigation pages, not enrichments)
+    enrichment_files = [f for f in enrichment_files if f.name != "index.md"]
 
     if not enrichment_files:
         logger.info("No media enrichments to index")

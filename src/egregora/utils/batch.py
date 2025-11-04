@@ -81,11 +81,37 @@ class GeminiBatchClient:
         return self._default_model
 
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
-        """Upload a media file so it can be referenced in batch prompts."""
+        """Upload a media file and wait for it to become ACTIVE before returning."""
+        
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
-        return call_with_retries_sync(self._client.files.upload, file=path)
+        uploaded_file = call_with_retries_sync(self._client.files.upload, file=path)
+
+        # Wait for file to become ACTIVE (required before use)
+        max_wait = 60  # seconds
+        poll_interval = 2  # seconds
+        elapsed = 0
+        while uploaded_file.state.name != "ACTIVE":
+            if elapsed >= max_wait:
+                logger.warning(
+                    "File %s did not become ACTIVE after %ds (state: %s)",
+                    path,
+                    max_wait,
+                    uploaded_file.state.name,
+                )
+                break
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            uploaded_file = call_with_retries_sync(self._client.files.get, name=uploaded_file.name)
+            logger.debug(
+                "Waiting for file %s to become ACTIVE (current: %s, elapsed: %ds)",
+                path,
+                uploaded_file.state.name,
+                elapsed,
+            )
+
+        return uploaded_file
 
     def generate_content(
         self,

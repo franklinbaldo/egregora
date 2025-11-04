@@ -83,6 +83,12 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
         raise
 
 
+if TYPE_CHECKING:
+    from ibis.backends.duckdb import Backend as DuckDBBackend
+else:  # pragma: no cover - duckdb backend available at runtime when installed
+    DuckDBBackend = Any
+
+
 def enrich_table(
     messages_table: Table,
     media_mapping: dict[str, Path],
@@ -176,13 +182,13 @@ def enrich_table(
 
             # 2. UUID-based filenames in markdown links (after media replacement)
             # Pattern: extract filenames from markdown links like ![Image](media/images/uuid.jpg)
-            markdown_media_pattern = r"!\[[^\]]*\]\([^)]*?([a-f0-9\-]+\.\w+)\)"
+            markdown_media_pattern = r"!\\[[^\\]]*\\\\]\([^)]*?([a-f0-9\-]+\\.\w+)\")"
             markdown_matches = re.findall(markdown_media_pattern, message)
             media_refs.extend(markdown_matches)
 
             # Also check for direct UUID-based filenames (without path)
             uuid_filename_pattern = (
-                r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)\b"
+                r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\w+)"
             )
             uuid_matches = re.findall(uuid_filename_pattern, message)
             media_refs.extend(uuid_matches)
@@ -209,8 +215,8 @@ def enrich_table(
                     logger.warning("Unsupported media type for enrichment: %s", file_path.name)
                     continue
 
-                enrichment_id = uuid.uuid5(uuid.NAMESPACE_DNS, str(file_path))
-                enrichment_path = docs_dir / "media" / "enrichments" / f"{enrichment_id}.md"
+                # Place enrichment .md in the same folder as the media file
+                enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
                 media_job = MediaEnrichmentJob(
                     key=cache_key,
                     original_filename=original_filename,
@@ -332,7 +338,8 @@ def enrich_table(
                     media_job.file_path.name,
                     result.error if result else "no result",
                 )
-                media_job.markdown = f"[Failed to enrich media: {media_job.file_path.name}]"
+                # Don't save markdown on failure - leave it as None so it won't be written
+                media_job.markdown = None
                 continue
 
             markdown_content = (result.response.text or "").strip()
