@@ -108,34 +108,67 @@ if not media_mapping:  # Only extract if not already done
     period_table, media_mapping = extract_and_replace_media(...)
 ```
 
-### 3. Missing Security Validation
+### 3. Missing Avatar Validation (Design Decision Required)
 
-**Location:** `src/egregora/ingestion/parser.py:51-54`, `src/egregora/augmentation/profiler.py:274-282`
+**Location:** `src/egregora/augmentation/profiler.py:274-282`
 
-**Issue:** No validation of avatar files before processing:
-- No file size limits (users could upload very large images)
-- No content-type verification (relies on file extension regex)
-- No malicious content scanning
+**Issue:** No validation of avatar suitability before setting.
+
+**Architectural Note:** Following the project's **"Trust the LLM"** philosophy, avatar validation should be delegated to the enrichment agent rather than hardcoded rules. The enrichment system already analyzes media content and could validate:
+- Whether the image is appropriate for an avatar
+- Content quality and suitability
+- Inappropriate content detection (NSFW, offensive, etc.)
+- Whether it actually depicts a person/face vs random objects
 
 **Recommendation:**
 ```python
+# In augmentation/enrichment/core.py or new validation module
+async def validate_avatar_suitability(
+    image_path: Path,
+    model: genai.GenerativeModel
+) -> dict[str, Any]:
+    """
+    Use LLM to validate if an image is suitable as an avatar.
+
+    Returns:
+        {
+            "suitable": bool,
+            "reason": str,  # e.g., "appropriate portrait photo" or "not suitable: contains NSFW content"
+            "confidence": float
+        }
+    """
+    prompt = """
+    Analyze this image to determine if it's suitable as a profile avatar.
+
+    An avatar should be:
+    - A clear photo of a person's face or upper body
+    - Appropriate for all audiences (no NSFW content)
+    - Good quality and recognizable
+
+    Respond with whether this is suitable, and why.
+    """
+    # Use enrichment system to analyze and validate
+    ...
+
 # In profiler.py:apply_command_to_profile()
 elif cmd_type == "set" and target == "avatar":
     if value and value in media_mapping:
         avatar_path = media_mapping[value]
 
-        # Add validation
-        if not _validate_avatar(avatar_path):
-            logger.warning(f"Invalid avatar file for {author_uuid}: {avatar_path}")
-            return str(profile_path)
-
-        # Check file size (e.g., max 5MB)
-        if avatar_path.stat().st_size > 5 * 1024 * 1024:
-            logger.warning(f"Avatar file too large for {author_uuid}: {avatar_path}")
+        # Trust the enrichment agent to validate
+        validation = await validate_avatar_suitability(avatar_path, model)
+        if not validation["suitable"]:
+            logger.warning(
+                f"Avatar rejected for {author_uuid}: {validation['reason']}"
+            )
             return str(profile_path)
 
         content = _update_profile_metadata(...)
 ```
+
+**Infrastructure Safety:** While content validation should be LLM-driven, basic infrastructure limits may still be needed:
+- Max file size (e.g., 10MB) to prevent DoS/storage abuse
+- This should be enforced at the media extraction layer, not avatar-specific
 
 ## Major Issues ⚠️
 
@@ -328,7 +361,8 @@ ATTACHMENT_PATTERN = re.compile(
    - Avatar moderation workflow
 
 3. **VCR Tests:**
-   - No Gemini API calls in this feature, so VCR not needed
+   - Currently no Gemini API calls in avatar feature
+   - **If LLM-based avatar validation is added (#3)**, will need VCR cassettes for validation tests
 
 ## Performance Impact 📊
 
@@ -340,13 +374,16 @@ ATTACHMENT_PATTERN = re.compile(
 
 ## Security Considerations 🔒
 
-Beyond the missing validation (#3 above):
+**Architectural Approach:** Following "Trust the LLM" philosophy, avatar validation should use the enrichment agent rather than hardcoded rules (see #3 above).
+
+Additional considerations:
 
 1. **Path Traversal:** `media_mapping` should validate paths are within expected directories
 2. **Public Exposure:** Avatars in `docs/media/avatars/` are public - ensure no PII in filenames
-3. **Moderation:** `remove-avatar` command exists but requires manual intervention
+3. **Moderation:** `remove-avatar` command exists for manual moderation
+4. **Infrastructure Limits:** Basic file size limits (10MB) should be enforced at media extraction layer
 
-**Recommendation:** Add automated content moderation or review process.
+**Recommendation:** Implement LLM-based avatar validation in the enrichment stage.
 
 ## Deployment Considerations 🚀
 
@@ -367,7 +404,7 @@ Beyond the missing validation (#3 above):
 | Code Quality | ✅ Good | Follows conventions, well-structured |
 | Testing | 🔴 Poor | No unit tests added |
 | Documentation | ⚠️ Needs Work | Missing user/dev documentation |
-| Security | ⚠️ Needs Work | Missing input validation |
+| Security | ⚠️ Needs Work | Should add LLM-based avatar validation |
 | Performance | ✅ Good | No concerns |
 
 ## Verdict
@@ -384,14 +421,14 @@ The P0 and P1 bugs were correctly fixed, and the core avatar functionality works
 3. Add comprehensive unit tests (#4)
 
 **Medium Priority:**
-4. Add input validation for avatar files (#3)
+4. Implement LLM-based avatar validation via enrichment agent (#3)
 5. Update CLAUDE.md with avatar documentation (#6)
 6. Make regex parsing more robust (#5)
 
 **Low Priority:**
 7. Extract magic strings to constants (#8)
 8. Add integration tests for full workflow
-9. Consider automated content moderation
+9. Add VCR cassettes for avatar validation tests (once LLM validation is implemented)
 
 ## References
 
