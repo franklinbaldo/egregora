@@ -51,6 +51,7 @@ from egregora.generation.banner import generate_banner_for_post
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, query_media
 from egregora.orchestration.write_post import write_post
+from egregora.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
@@ -199,20 +200,24 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
             retrieval_nprobe=ctx.deps.retrieval_nprobe,
             retrieval_overfetch=ctx.deps.retrieval_overfetch,
         )
-        executed = results.execute()
+
+        # Use Ibis streaming instead of pandas .execute().iterrows()
+        # This avoids materializing the full result set and complies with Ibis-first policy
         items: list[MediaItem] = []
-        for _, row in executed.iterrows():
-            items.append(
-                MediaItem(
-                    media_type=row.get("media_type"),
-                    media_path=row.get("media_path"),
-                    original_filename=row.get("original_filename"),
-                    description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity"))
-                    if row.get("similarity") is not None
-                    else None,
+        for batch in stream_ibis(results, store._client, batch_size=100):
+            for row in batch:
+                items.append(
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=(str(row.get("content", "")) or "")[:500],
+                        similarity=float(row.get("similarity"))
+                        if row.get("similarity") is not None
+                        else None,
+                    )
                 )
-            )
+
         if not items:
             logger.info("Writer agent search_media returned no matches for query %s", query)
         return SearchMediaResult(results=items)
@@ -343,26 +348,80 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
                     logger.warning("Failed to persist writer agent messages: %s", record_exc)
     except Exception as exc:  # pragma: no cover - Pydantic-AI wraps HTTP errors
         logger.error("Pydantic writer agent failed: %s", exc)
-        raise
+        raise RuntimeError("Writer agent execution failed") from exc
 
     return state.saved_posts, state.saved_profiles
 
 
 class WriterStreamResult:
-    """Result from streaming writer agent."""
+    """Result from streaming writer agent.
 
-    def __init__(self, response, state: WriterAgentState):
-        self.response = response
+    This class is an async context manager that properly wraps pydantic-ai's
+    run_stream() async context manager and adds logfire observability spans.
+
+    Usage:
+        >>> async with write_posts_with_pydantic_agent_stream(...) as result:
+        ...     async for chunk in result.stream_text():
+        ...         print(chunk, end='', flush=True)
+        ...     posts, profiles = await result.get_posts()
+    """
+
+    def __init__(
+        self,
+        agent: Any,
+        prompt: str,
+        state: WriterAgentState,
+        period_date: str,
+        model_name: str,
+    ):
+        self.agent = agent
+        self.prompt = prompt
         self.state = state
+        self.period_date = period_date
+        self.model_name = model_name
+        self._response = None
+        self._span = None
+
+    async def __aenter__(self):
+        """Enter async context - start logfire span and pydantic-ai stream."""
+        # Start logfire span
+        self._span = logfire_span(
+            "writer_agent_stream", period=self.period_date, model=self.model_name
+        )
+        self._span.__enter__()
+
+        # Start pydantic-ai stream (must use async with)
+        self._response = await self.agent.run_stream(self.prompt, deps=self.state).__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context - close stream and span."""
+        try:
+            if self._response:
+                await self._response.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            if self._span:
+                self._span.__exit__(exc_type, exc_val, exc_tb)
+        return False
 
     async def stream_text(self):
         """Stream text chunks from the agent."""
-        async for chunk in self.response.stream_text():
+        if not self._response:
+            raise RuntimeError(
+                "WriterStreamResult must be used as async context manager "
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+            )
+        async for chunk in self._response.stream_text():
             yield chunk
 
     async def get_posts(self) -> tuple[list[str], list[str]]:
         """Get final posts and profiles after streaming completes."""
-        await self.response.get_result()
+        if not self._response:
+            raise RuntimeError(
+                "WriterStreamResult must be used as async context manager "
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+            )
+        await self._response.get_result()
         return self.state.saved_posts, self.state.saved_profiles
 
 
@@ -390,17 +449,19 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     This is an async version that streams agent responses token-by-token.
     Useful for interactive CLI tools and real-time progress updates.
 
+    IMPORTANT: The returned WriterStreamResult is an async context manager
+    and MUST be used with `async with`:
+
+        async with write_posts_with_pydantic_agent_stream(...) as result:
+            async for chunk in result.stream_text():
+                print(chunk, end='', flush=True)
+            posts, profiles = await result.get_posts()
+
     Args:
         (same as write_posts_with_pydantic_agent)
 
     Returns:
-        WriterStreamResult that can be used to stream text and get final results
-
-    Example:
-        >>> result = await write_posts_with_pydantic_agent_stream(...)
-        >>> async for chunk in result.stream_text():
-        ...     print(chunk, end='', flush=True)
-        >>> posts, profiles = await result.get_posts()
+        WriterStreamResult async context manager for streaming and results
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
@@ -431,11 +492,5 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
         annotations_store=annotations_store,
     )
 
-    try:
-        with logfire_span("writer_agent_stream", period=period_date, model=model_name):
-            response = await agent.run_stream(prompt, deps=state)
-            return WriterStreamResult(response, state)
-
-    except Exception as exc:  # pragma: no cover
-        logger.error("Pydantic writer agent (streaming) failed: %s", exc)
-        raise
+    # Return the context manager - caller must use `async with`
+    return WriterStreamResult(agent, prompt, state, period_date, model_name)
