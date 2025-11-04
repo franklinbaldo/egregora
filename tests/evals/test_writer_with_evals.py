@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
+from egregora.generation.writer.pydantic_agent import (
+    write_posts_with_pydantic_agent,
+    write_posts_with_pydantic_agent_stream,
+)
 from tests.evals.writer_evals import create_writer_dataset
 from tests.mock_batch_client import create_mock_batch_client
 
@@ -119,6 +122,57 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
 
     # Should create no posts
     assert len(saved_posts) == 0
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.anyio
+async def test_writer_stream_empty_conversation(writer_dirs):
+    """Test streaming writer correctly handles empty conversation."""
+    posts_dir, profiles_dir, rag_dir = writer_dirs
+    batch_client = create_mock_batch_client()
+
+    dataset = create_writer_dataset()
+    case = next(c for c in dataset.cases if c.name == "empty_conversation")
+
+    # Use TestModel for deterministic tests
+    test_model = TestModel(
+        call_tools=[],
+        custom_output_text='{"summary": "No content", "notes": "N/A"}',
+    )
+
+    # Get the stream result wrapper
+    stream_result = await write_posts_with_pydantic_agent_stream(
+        prompt=case.inputs["prompt"],
+        model_name="models/gemini-flash-latest",
+        period_date=case.inputs["period_date"],
+        output_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        batch_client=batch_client,
+        embedding_model="models/gemini-embedding-001",
+        embedding_output_dimensionality=3072,
+        retrieval_mode="exact",
+        retrieval_nprobe=None,
+        retrieval_overfetch=None,
+        annotations_store=None,
+        agent_model=test_model,
+        register_tools=False,
+    )
+
+    # Use async context manager for streaming
+    async with stream_result as result:
+        # Stream and collect chunks
+        chunks = []
+        async for chunk in result.stream_text():
+            chunks.append(chunk)
+
+        # Get final results
+        saved_posts, saved_profiles = await result.get_posts()
+
+    # Should create no posts
+    assert len(saved_posts) == 0
+    # Should have streamed some text (the summary)
+    assert len(chunks) > 0
 
 
 def test_writer_evaluation_with_dataset(writer_dirs):
