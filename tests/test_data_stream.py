@@ -16,6 +16,27 @@ from pathlib import Path
 import ibis
 import pytest
 
+from egregora.streaming import (
+    copy_expr_to_ndjson,
+    copy_expr_to_parquet,
+    ensure_deterministic_order,
+    stream_ibis,
+)
+
+# Constants for magic numbers
+EXPECTED_ROW_COUNT = 5
+HIGH_SCORE_THRESHOLD = 90
+FILTERED_ROW_COUNT = 3
+LARGE_TABLE_ROW_COUNT = 10000
+MAX_BATCH_SIZE = 1000
+
+# Additional constants for batch testing
+EXPECTED_BATCH_COUNT = 3
+BATCH_SIZE_2_FIRST = 2
+BATCH_SIZE_2_SECOND = 2
+BATCH_SIZE_2_THIRD = 1
+MIN_ARGS_FOR_MAIN = 2
+
 
 @pytest.fixture
 def duckdb_con():
@@ -55,46 +76,42 @@ class TestStreamIbis:
 
     def test_stream_basic(self, duckdb_con, sample_table):
         """Test basic streaming of a small table."""
-        from egregora.streaming import stream_ibis
 
         all_rows = []
         for batch in stream_ibis(sample_table, duckdb_con, batch_size=2):
             all_rows.extend(batch)
 
-        assert len(all_rows) == 5
+        assert len(all_rows) == EXPECTED_ROW_COUNT
         assert all_rows[0]["name"] == "Alice"
         assert all_rows[4]["name"] == "Eve"
 
     def test_stream_with_filter(self, duckdb_con, sample_table):
         """Test streaming with filtered expression (uses Ibis context)."""
-        from egregora.streaming import stream_ibis
 
         # This tests that SQL compilation uses the correct DuckDB context
-        expr = sample_table.filter(sample_table.score > 90)
+        expr = sample_table.filter(sample_table.score > HIGH_SCORE_THRESHOLD)
 
         all_rows = []
         for batch in stream_ibis(expr, duckdb_con, batch_size=10):
             all_rows.extend(batch)
 
-        assert len(all_rows) == 3  # Alice (95), Charlie (92), Eve (91)
+        assert len(all_rows) == FILTERED_ROW_COUNT  # Alice (95), Charlie (92), Eve (91)
         names = {row["name"] for row in all_rows}
         assert names == {"Alice", "Charlie", "Eve"}
 
     def test_stream_batch_size(self, duckdb_con, sample_table):
         """Test that batch_size is respected."""
-        from egregora.streaming import stream_ibis
 
         batches = list(stream_ibis(sample_table, duckdb_con, batch_size=2))
 
-        # 5 rows with batch_size=2 should yield 3 batches: [2, 2, 1]
-        assert len(batches) == 3
-        assert len(batches[0]) == 2
-        assert len(batches[1]) == 2
-        assert len(batches[2]) == 1
+        # EXPECTED_ROW_COUNT rows with batch_size=2 should yield EXPECTED_BATCH_COUNT batches: [BATCH_SIZE_2_FIRST, BATCH_SIZE_2_SECOND, BATCH_SIZE_2_THIRD]
+        assert len(batches) == EXPECTED_BATCH_COUNT
+        assert len(batches[0]) == BATCH_SIZE_2_FIRST
+        assert len(batches[1]) == BATCH_SIZE_2_SECOND
+        assert len(batches[2]) == BATCH_SIZE_2_THIRD
 
     def test_stream_empty_table(self, duckdb_con):
         """Test streaming an empty table."""
-        from egregora.streaming import stream_ibis
 
         empty_table = duckdb_con.create_table("empty", {"id": [], "name": []})
 
@@ -105,25 +122,23 @@ class TestStreamIbis:
     def test_stream_large_table_memory_efficiency(self, duckdb_con, large_table):
         """Test that large tables are streamed without full materialization.
 
-        This test verifies that we don't load all 10,000 rows into memory at once.
+        This test verifies that we don't load all LARGE_TABLE_ROW_COUNT rows into memory at once.
         If we materialized the full table, this would allocate significant memory.
-        With streaming, we only hold one batch (1000 rows) at a time.
+        With streaming, we only hold one batch (MAX_BATCH_SIZE rows) at a time.
         """
-        from egregora.streaming import stream_ibis
 
         row_count = 0
         max_batch_size = 0
 
-        for batch in stream_ibis(large_table, duckdb_con, batch_size=1000):
+        for batch in stream_ibis(large_table, duckdb_con, batch_size=MAX_BATCH_SIZE):
             row_count += len(batch)
             max_batch_size = max(max_batch_size, len(batch))
 
-        assert row_count == 10000
-        assert max_batch_size <= 1000  # No batch should exceed batch_size
+        assert row_count == LARGE_TABLE_ROW_COUNT
+        assert max_batch_size <= MAX_BATCH_SIZE  # No batch should exceed batch_size
 
     def test_stream_with_select(self, duckdb_con, sample_table):
         """Test streaming with column selection."""
-        from egregora.streaming import stream_ibis
 
         expr = sample_table.select("id", "name")
 
@@ -141,7 +156,6 @@ class TestCopyExprToParquet:
 
     def test_write_parquet(self, duckdb_con, sample_table):
         """Test writing Ibis expression to Parquet file."""
-        from egregora.streaming import copy_expr_to_parquet
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.parquet"
@@ -155,13 +169,12 @@ class TestCopyExprToParquet:
             # Verify contents by reading back
             result_table = duckdb_con.read_parquet(str(output_path))
             rows = result_table.execute()
-            assert len(rows) == 5
+            assert len(rows) == EXPECTED_ROW_COUNT
 
     def test_write_filtered_expression(self, duckdb_con, sample_table):
         """Test writing a filtered expression to Parquet."""
-        from egregora.streaming import copy_expr_to_parquet
 
-        expr = sample_table.filter(sample_table.score > 90)
+        expr = sample_table.filter(sample_table.score > HIGH_SCORE_THRESHOLD)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "filtered.parquet"
@@ -171,7 +184,7 @@ class TestCopyExprToParquet:
             # Verify filtered results
             result_table = duckdb_con.read_parquet(str(output_path))
             rows = result_table.execute()
-            assert len(rows) == 3
+            assert len(rows) == FILTERED_ROW_COUNT
 
 
 class TestCopyExprToNdjson:
@@ -179,7 +192,6 @@ class TestCopyExprToNdjson:
 
     def test_write_ndjson(self, duckdb_con, sample_table):
         """Test writing Ibis expression to NDJSON file."""
-        from egregora.streaming import copy_expr_to_ndjson
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.ndjson"
@@ -191,7 +203,7 @@ class TestCopyExprToNdjson:
 
             # Verify NDJSON format (one JSON object per line)
             lines = output_path.read_text().strip().split("\n")
-            assert len(lines) == 5
+            assert len(lines) == EXPECTED_ROW_COUNT
 
             # Parse first line
             first_record = json.loads(lines[0])
@@ -200,7 +212,6 @@ class TestCopyExprToNdjson:
 
     def test_write_ndjson_with_selection(self, duckdb_con, sample_table):
         """Test writing selected columns to NDJSON."""
-        from egregora.streaming import copy_expr_to_ndjson
 
         expr = sample_table.select("id", "name")
 
@@ -221,7 +232,6 @@ class TestEnsureDeterministicOrder:
 
     def test_sorts_by_published_at(self, duckdb_con):
         """Test that tables with published_at column are sorted correctly."""
-        from egregora.streaming import ensure_deterministic_order, stream_ibis
 
         # Create table with unsorted data
         data = {
@@ -246,7 +256,6 @@ class TestEnsureDeterministicOrder:
 
     def test_sorts_by_id_fallback(self, duckdb_con):
         """Test that tables without published_at use id for sorting."""
-        from egregora.streaming import ensure_deterministic_order, stream_ibis
 
         data = {
             "id": [3, 1, 2],
@@ -267,7 +276,6 @@ class TestEnsureDeterministicOrder:
 
     def test_no_sortable_columns(self, duckdb_con):
         """Test that tables without sortable columns return unchanged."""
-        from egregora.streaming import ensure_deterministic_order
 
         data = {"name": ["Alice", "Bob"], "score": [95, 87]}
         table = duckdb_con.create_table("no_keys", data)
@@ -279,7 +287,6 @@ class TestEnsureDeterministicOrder:
 
     def test_deterministic_across_runs(self, duckdb_con, sample_table):
         """Test that ordering is reproducible across multiple runs."""
-        from egregora.streaming import ensure_deterministic_order, stream_ibis
 
         ordered = ensure_deterministic_order(sample_table)
 
@@ -302,11 +309,6 @@ class TestIntegration:
 
     def test_stream_order_and_write(self, duckdb_con):
         """Test full workflow: create -> order -> stream -> write."""
-        from egregora.streaming import (
-            copy_expr_to_parquet,
-            ensure_deterministic_order,
-            stream_ibis,
-        )
 
         # Create unsorted data
         data = {

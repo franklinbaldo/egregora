@@ -213,17 +213,21 @@ class VectorStore:
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
-
+        
+        # Preserve the functionality of the target branch but with the ruff fix
+        # Reduce return statements for ruff compliance
         if dtype.is_string():
-            return "VARCHAR"
-        if dtype.is_int64():
-            return "BIGINT"
-        if dtype.is_int32():
-            return "INTEGER"
-        if dtype.is_timestamp():
-            return "TIMESTAMP"
-
-        return None
+            result = "VARCHAR"
+        elif dtype.is_int64():
+            result = "BIGINT"
+        elif dtype.is_int32():
+            result = "INTEGER"
+        elif dtype.is_timestamp():
+            result = "TIMESTAMP"
+        else:
+            result = None
+        
+        return result
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
