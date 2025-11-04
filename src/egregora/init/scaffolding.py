@@ -12,7 +12,7 @@ from ..config.site import _ConfigLoader, resolve_site_paths
 SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
 
 DEFAULT_SITE_NAME = "Egregora Archive"
-DEFAULT_DOCS_SETTING = "."  # Site root - posts will be at site/posts/ not site/docs/posts/
+DEFAULT_DOCS_SETTING = "docs"  # MkDocs requires docs_dir to be a subdirectory
 
 
 def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
@@ -118,13 +118,14 @@ def _create_site_structure(
     # Determine blog directory from context
     blog_dir = context.get("blog_dir", "posts")
 
-    # Create homepage - but skip if blog is at root (blog_dir: ".")
-    # because the blog index will serve as homepage
-    homepage_path = docs_dir / "index.md"
-    if blog_dir != "." and not homepage_path.exists():
-        template = env.get_template("docs/index.md.jinja2")
-        content = template.render(**context)
-        homepage_path.write_text(content, encoding="utf-8")
+    # Skip creating homepage if blog is at docs root (blog_dir: ".")
+    # The Material blog plugin will generate the blog listing at homepage
+    if blog_dir != ".":
+        homepage_path = docs_dir / "index.md"
+        if not homepage_path.exists():
+            template = env.get_template("docs/index.md.jinja2")
+            content = template.render(**context)
+            homepage_path.write_text(content, encoding="utf-8")
 
     # Create about page
     about_path = docs_dir / "about.md"
@@ -133,14 +134,8 @@ def _create_site_structure(
         content = template.render(**context)
         about_path.write_text(content, encoding="utf-8")
 
-    # Create blog index page - Material expects this as entry point but keeps it simple
-    blog_index_path = (
-        posts_dir.parent / "index.md"
-    )  # posts_dir is blog_dir/posts/, we want blog_dir/index.md
-    if not blog_index_path.exists():
-        template = env.get_template("docs/posts/index.md.jinja2")
-        content = template.render(**context)
-        blog_index_path.write_text(content, encoding="utf-8")
+    # Skip creating blog index - the Material blog plugin generates it automatically
+    # With blog_dir: ".." (site root), the plugin creates the blog homepage
 
     # Create profiles index
     profiles_index_path = profiles_dir / "index.md"

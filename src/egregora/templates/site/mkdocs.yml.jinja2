@@ -74,11 +74,17 @@ markdown_extensions:
   # - pymdownx.arithmatex:
   #     generic: true
 
+{% if blog_dir == "." -%}
+# Blog plugin generates blog listing at homepage (docs root)
+# Manual pages are accessible via direct URLs
+{% else -%}
 nav:
-  - Blog: index.md
+  - Home: index.md
+  - Blog: {{ blog_dir }}/index.md
   - Profiles: profiles/index.md
   - Media: media/index.md
   - About: about.md
+{% endif %}
 
 # Egregora configuration
 extra:
