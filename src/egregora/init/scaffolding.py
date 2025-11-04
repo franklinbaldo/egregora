@@ -12,7 +12,7 @@ from ..config.site import _ConfigLoader, resolve_site_paths
 SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
 
 DEFAULT_SITE_NAME = "Egregora Archive"
-DEFAULT_DOCS_SETTING = "docs"
+DEFAULT_DOCS_SETTING = "."  # Site root - posts will be at site/posts/ not site/docs/posts/
 
 
 def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
