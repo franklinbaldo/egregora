@@ -6,20 +6,21 @@ This directory contains file-based configuration for your site's AI agents. Powe
 
 ```
 .egregora/
-├── agents/          # Agent definitions (Jinja templates with YAML frontmatter)
-│   ├── writer.jinja    # Writer agent configuration
-│   ├── editor.jinja    # Editor agent configuration
-│   ├── ranking.jinja   # Ranking agent configuration
+├── mkdocs.yml.jinja2  # MkDocs configuration template (SSG layer)
+├── agents/            # Agent definitions (Jinja templates with YAML frontmatter)
+│   ├── writer.jinja      # Writer agent configuration
+│   ├── editor.jinja      # Editor agent configuration
+│   ├── ranking.jinja     # Ranking agent configuration
 │   └── ...
-├── skills/          # Reusable prompt components
+├── skills/            # Reusable prompt components
 │   ├── summary.jinja
 │   ├── diversity_first.jinja
 │   └── redact.md
-├── tools/           # Tool profiles and quotas
+├── tools/             # Tool profiles and quotas
 │   └── profiles.yaml
-└── global/          # Global settings
-    ├── seeds.yaml      # Default random seeds
-    └── signing.yaml    # Trusted signing keys
+└── global/            # Global settings
+    ├── seeds.yaml        # Default random seeds
+    └── signing.yaml      # Trusted signing keys
 ```
 
 ## Agent Files
@@ -124,6 +125,31 @@ variables:
 3. **Configuration Hashing**: Agent configurations are hashed (SHA256) to track versions and ensure reproducibility.
 
 4. **Backward Compatible**: Existing Egregora installations work without any `.egregora/` files.
+
+## Replacing the Static Site Generator (SSG)
+
+By default, Egregora uses MkDocs Material for site generation, but you can replace it with any SSG (Hugo, Jekyll, 11ty, etc.) by modifying or replacing `mkdocs.yml.jinja2`.
+
+### Using a Different SSG
+
+1. **Replace mkdocs.yml.jinja2** with your SSG's config template (e.g., `config.toml.jinja2` for Hugo, `_config.yml.jinja2` for Jekyll)
+
+2. **Update scaffolding.py** (advanced users) to point to your new template:
+   ```python
+   # In src/egregora/init/scaffolding.py
+   ssg_template = env.get_template(".egregora/config.toml.jinja2")  # For Hugo
+   ```
+
+3. **Adjust content structure** - Egregora generates markdown files that work with most SSGs, but you may need to adjust frontmatter or directory structure.
+
+### Why mkdocs.yml is in .egregora/
+
+Having the SSG config in `.egregora/` makes it clear that:
+- **The SSG is a deployment detail**, not core to Egregora
+- **Power users can swap SSGs** without modifying Egregora code
+- **The config is versioned** with your site, not buried in Python
+
+This separation keeps Egregora focused on content generation while giving you full control over presentation.
 
 ## Example: Customizing the Writer
 
