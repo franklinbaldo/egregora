@@ -35,7 +35,9 @@ class DummyBatchClient:
             )
         return results
 
-    def upload_file(self, *, path: str, display_name: str | None = None):  # pragma: no cover - unused
+    def upload_file(
+        self, *, path: str, display_name: str | None = None
+    ):  # pragma: no cover - unused
         return SimpleNamespace(uri=f"stub://{Path(path).name}", mime_type="image/jpeg")
 
 

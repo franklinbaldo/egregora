@@ -27,6 +27,7 @@ class MediaEnrichmentMetadata(TypedDict):
     media_path: str | None
     original_filename: str
 
+
 DEDUP_MAX_RANK = 2
 
 

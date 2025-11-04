@@ -84,9 +84,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:
-        raise TypeError(
-            f"Cannot serialize type {type(value).__name__} to JSON. " f"Value: {value!r}"
-        )
+        raise TypeError(f"Cannot serialize type {type(value).__name__} to JSON. Value: {value!r}")
 
     logger.warning(
         "Converting non-serializable type %s to string for JSON export: %r",

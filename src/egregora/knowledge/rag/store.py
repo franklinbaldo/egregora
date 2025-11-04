@@ -10,10 +10,7 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
-import pyarrow as pa
-import pyarrow.parquet as pq
 from ibis.expr.types import Table
-import uuid
 
 from ...core import database_schema
 
@@ -209,9 +206,7 @@ class VectorStore:
                 )
                 continue
 
-            self.conn.execute(
-                f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
-            )
+            self.conn.execute(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
 
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
@@ -937,9 +932,11 @@ class VectorStore:
 
         source_schema = table.schema()
         dataframe = table.execute()
-        records = dataframe.to_dict("records") if hasattr(dataframe, "to_dict") else [
-            dict(zip(source_schema.names, row, strict=False)) for row in dataframe
-        ]
+        records = (
+            dataframe.to_dict("records")
+            if hasattr(dataframe, "to_dict")
+            else [dict(zip(source_schema.names, row, strict=False)) for row in dataframe]
+        )
         return self._table_from_rows(records, source_schema)
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
