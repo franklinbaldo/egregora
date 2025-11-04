@@ -106,7 +106,7 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
         iso_year = ibis.cases(
             ((week_num >= 52) & (table.timestamp.month() == 1), table.timestamp.year() - 1),  # noqa: PLR2004
             ((week_num == 1) & (table.timestamp.month() == 12), table.timestamp.year() + 1),  # noqa: PLR2004
-            else_=table.timestamp.year()
+            else_=table.timestamp.year(),
         )
 
         year_str = iso_year.cast("string")

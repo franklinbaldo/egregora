@@ -28,6 +28,7 @@ from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
 from ..privacy.anonymizer import anonymize_table
 from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
+
 class Command:
     SET = "set"
     REMOVE = "remove"
@@ -42,6 +43,7 @@ class Target:
     WEBSITE = "website"
     OPT_OUT = "opt-out"
     OPT_IN = "opt-in"
+
 
 # Constants
 SET_COMMAND_PARTS = 2
@@ -341,9 +343,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
-        messages = messages.order_by(
-            [messages.timestamp, messages[_IMPORT_ORDER_COLUMN]]
-        )
+        messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
     else:
         messages = messages.order_by("timestamp")
 
