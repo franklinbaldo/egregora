@@ -1,6 +1,6 @@
-# Egregora Agent Configuration
+# Egregora Agent Configuration - {{ site_name }}
 
-This directory contains file-based configuration for Egregora's AI agents. Power users can customize agent behavior by editing these files without touching Python code.
+This directory contains file-based configuration for your site's AI agents. Power users can customize agent behavior by editing these files without touching Python code.
 
 ## Directory Structure
 
