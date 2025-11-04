@@ -213,26 +213,29 @@ class VectorStore:
         """Map a subset of Ibis data types to DuckDB column definitions."""
 
         if dtype.is_string():
-            return "VARCHAR"
-        if dtype.is_int64():
-            return "BIGINT"
-        if dtype.is_int32():
-            return "INTEGER"
-        if dtype.is_float64():
-            return "DOUBLE"
-        if dtype.is_boolean():
-            return "BOOLEAN"
-        if dtype.is_timestamp():
-            return "TIMESTAMP WITH TIME ZONE" if getattr(dtype, "timezone", None) else "TIMESTAMP"
-        if dtype.is_date():
-            return "DATE"
-        if dtype.is_array():
+            result = "VARCHAR"
+        elif dtype.is_int64():
+            result = "BIGINT"
+        elif dtype.is_int32():
+            result = "INTEGER"
+        elif dtype.is_float64():
+            result = "DOUBLE"
+        elif dtype.is_boolean():
+            result = "BOOLEAN"
+        elif dtype.is_timestamp():
+            result = "TIMESTAMP WITH TIME ZONE" if getattr(dtype, "timezone", None) else "TIMESTAMP"
+        elif dtype.is_date():
+            result = "DATE"
+        elif dtype.is_array():
             inner = VectorStore._duckdb_type_from_ibis(dtype.value_type)
             if inner is None:
-                return None
-            return f"{inner}[]"
-
-        return None
+                result = None
+            else:
+                result = f"{inner}[]"
+        else:
+            result = None
+        
+        return result
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""

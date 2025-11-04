@@ -48,10 +48,17 @@ def check_module(module: str, allowlist: set[str]) -> list[str]:
     return offending
 
 
+MIN_ARGS = 2
+USAGE_ERROR_CODE = 2
+FAILURE_ERROR_CODE = 1
+SUCCESS_ERROR_CODE = 0
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
+    
+    if len(argv) < MIN_ARGS:
         print("Usage: check_forbidden_imports.py <module> [<module> ...]", file=sys.stderr)
-        return 2
+        return USAGE_ERROR_CODE
 
     allowlist = load_allowlist()
     failures: list[str] = []
@@ -67,8 +74,8 @@ def main(argv: list[str]) -> int:
                 ALLOWLIST_PATH,
                 file=sys.stderr,
             )
-        return 1
-    return 0
+        return FAILURE_ERROR_CODE
+    return SUCCESS_ERROR_CODE
 
 
 if __name__ == "__main__":
