@@ -419,7 +419,7 @@ def enrich_table(
     if not new_rows:
         return messages_table
 
-    # TENET-BREAK: Downstream consumers (e.g., writer) expect CONVERSATION_SCHEMA
+    # Downstream consumers (e.g., writer) expect CONVERSATION_SCHEMA
     # and will fail if extra columns are present.
     # To isolate enrichment from upstream changes, we filter `messages_table`
     # to match the core schema before uniting it with `enrichment_table`.
