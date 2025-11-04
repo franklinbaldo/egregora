@@ -167,7 +167,7 @@ async def ask_llm_impl(
     model: str,
 ) -> AskLLMResult:
     """Simple Q&A with fresh LLM instance."""
-    from google.genai import types as genai_types
+    from google.genai import types as genai_types  # noqa: PLC0415
 
     try:
         response = await call_with_retries(
