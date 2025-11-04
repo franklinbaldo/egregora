@@ -71,8 +71,8 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         "docs_dir": DEFAULT_DOCS_SETTING,
     }
 
-    # Create mkdocs.yml from template (now in .egregora/)
-    mkdocs_template = env.get_template(".egregora/mkdocs.yml.jinja2")
+    # Create mkdocs.yml from template
+    mkdocs_template = env.get_template("mkdocs.yml.jinja2")
     mkdocs_content = mkdocs_template.render(**context)
     mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
 
