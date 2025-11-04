@@ -1,0 +1,105 @@
+name: Auto-update PRs with main
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-update-on-main
+  cancel-in-progress: true
+
+jobs:
+  auto-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitHub CLI
+        uses: cli/gh-action@v2
+        with:
+          github_token: ${{ github.token }}
+
+      - name: Update all open PRs targeting main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "Fetching all open PRs targeting main..."
+          prs_json=$(gh api --paginate "/repos/${GH_REPO}/pulls?base=main&state=open&per_page=100" | jq -s '[.[] | {number: .number, isDraft: .draft, isCrossRepository: .head.repo.fork, headRefName: .head.ref, labels: .labels}]')
+          echo "Found $(jq 'length' <<<"$prs_json") open PR(s) targeting main."
+
+          # Fetch main to get its latest SHA for up-to-date checks
+          git init -q
+          git remote add origin "https://github.com/${GH_REPO}.git"
+          git fetch -q origin main
+
+          LATEST_MAIN_SHA=$(git rev-parse origin/main)
+
+          # Fetch all PR head branches at once for efficiency
+          refspecs=$(jq -r '.[].headRefName | select(.) | . + ":" + .' <<<"$prs_json" | xargs)
+          if [[ -n "$refspecs" ]]; then
+            echo "Fetching all PR head refs..."
+            git fetch -q origin $refspecs
+          fi
+
+          jq -c '.[]' <<<"$prs_json" | while read -r pr; do
+            num=$(jq -r '.number' <<<"$pr")
+            head_ref=$(jq -r '.headRefName' <<<"$pr")
+            is_draft=$(jq -r '.isDraft' <<<"$pr")
+            is_fork=$(jq -r '.isCrossRepository' <<<"$pr")
+            labels=$(jq -r '.labels[].name' <<<"$pr" | tr '\n' ' ')
+
+            echo "::group::PR #${num} — ${head_ref}"
+
+            if [[ "$is_draft" == "true" ]]; then
+              echo "Skipping draft PR."
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ "$labels" == *"no-autoupdate"* ]]; then
+              echo "Skipping PR with 'no-autoupdate' label."
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ "$is_fork" == "true" ]]; then
+              echo "Skipping fork PR."
+              gh pr comment "$num" --body "ℹ️ Skipped: fork PRs can’t be updated automatically. Please click **Update branch** or merge \`main\` locally to resolve."
+              echo "::endgroup::"
+              continue
+            fi
+
+            # Check if the PR head already contains the latest main commit
+            if git merge-base --is-ancestor "$LATEST_MAIN_SHA" "$head_ref"; then
+              echo "Already up to date with main."
+              echo "::endgroup::"
+              continue
+            fi
+
+            echo "Attempting to update via API..."
+            set +e
+            update_output=$(gh api \
+              --method PUT \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GH_REPO}/pulls/${num}/update-branch" 2>&1)
+            status=$?
+            set -e
+
+            if [[ $status -eq 0 ]]; then
+              echo "API call successful."
+              gh pr comment "$num" --body "✅ Updated with latest \`main\` via **Update branch**."
+            else
+              echo "API call failed. Output:"
+              echo "$update_output"
+              error_message=$(echo "$update_output" | jq -r .message)
+              gh pr comment "$num" --body "⛔ **Update branch** failed. Reason: \`$error_message\`"
+            fi
+
+            echo "::endgroup::"
+          done
