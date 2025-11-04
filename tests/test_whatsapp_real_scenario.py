@@ -476,7 +476,6 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
         "original_line",
         "tagged_line",
         "message_id",
-            "attachment",
     }
     assert set(table.columns) == expected_columns
 

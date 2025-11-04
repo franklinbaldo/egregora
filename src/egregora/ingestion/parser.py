@@ -28,6 +28,21 @@ from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
 from ..privacy.anonymizer import anonymize_table
 from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
+class Command:
+    SET = "set"
+    REMOVE = "remove"
+    UNSET = "unset"
+
+
+class Target:
+    AVATAR = "avatar"
+    ALIAS = "alias"
+    BIO = "bio"
+    TWITTER = "twitter"
+    WEBSITE = "website"
+    OPT_OUT = "opt-out"
+    OPT_IN = "opt-in"
+
 # Constants
 SET_COMMAND_PARTS = 2
 
@@ -40,6 +55,10 @@ _IMPORT_SOURCE_COLUMN = "_import_source"
 EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
 
 # Pattern for WhatsApp attachments
+# This pattern has some limitations:
+# - Only captures on first line of message
+# - Only supports image formats (no videos, PDFs, etc.)
+# - Assumes WhatsApp format `(file attached)` - may break with WhatsApp updates
 ATTACHMENT_PATTERN = re.compile(
     r"([\w.\-]+\.(?:jpe?g|png|webp))\s+\(file attached\)", re.IGNORECASE
 )
@@ -49,28 +68,28 @@ def _parse_set_command(args: str) -> dict | None:
     """Parse a 'set' command."""
     parts = args.split(maxsplit=1)
 
-    if parts and parts[0].lower() == "avatar":
+    if parts and parts[0].lower() == Target.AVATAR:
         if len(parts) == 1:
-            return {"command": "set", "target": "avatar", "value": None}
+            return {"command": Command.SET, "target": Target.AVATAR, "value": None}
         # Explicitly reject `set avatar` with extra arguments
         return None
 
     if len(parts) == SET_COMMAND_PARTS:
         target = parts[0].lower()
         value = parts[1].strip("\"'")
-        return {"command": "set", "target": target, "value": value}
+        return {"command": Command.SET, "target": target, "value": value}
     return None
 
 
 def _parse_remove_command(args: str) -> dict:
     """Parse a 'remove' command."""
-    return {"command": "remove", "target": args.lower(), "value": None}
+    return {"command": Command.REMOVE, "target": args.lower(), "value": None}
 
 
 COMMAND_REGISTRY = {
-    "set": _parse_set_command,
-    "remove": _parse_remove_command,
-    "unset": _parse_remove_command,
+    Command.SET: _parse_set_command,
+    Command.REMOVE: _parse_remove_command,
+    Command.UNSET: _parse_remove_command,
 }
 
 
@@ -111,10 +130,10 @@ def parse_egregora_command(message: str) -> dict | None:
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
-    if simple_cmd == "/egregora opt-out":
-        return {"command": "opt-out"}
-    elif simple_cmd == "/egregora opt-in":
-        return {"command": "opt-in"}
+    if simple_cmd == f"/egregora {Target.OPT_OUT}":
+        return {"command": Target.OPT_OUT}
+    elif simple_cmd == f"/egregora {Target.OPT_IN}":
+        return {"command": Target.OPT_IN}
 
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
@@ -160,11 +179,17 @@ def extract_commands(messages: Table) -> list[dict]:
         if not message:
             continue
 
+        attachment = None
+        match = ATTACHMENT_PATTERN.search(message)
+        if match:
+            attachment = match.group(1)
+            message = message.replace(match.group(0), "").strip()
+
         cmd = parse_egregora_command(message)
         if cmd:
             # If it's a `set avatar` command, populate value from attachment
-            if cmd.get("target") == "avatar" and cmd.get("command") == "set":
-                cmd["value"] = row.get("attachment")
+            if cmd.get("target") == Target.AVATAR and cmd.get("command") == Command.SET:
+                cmd["value"] = attachment
 
             commands.append(
                 {"author": row["author"], "timestamp": row["timestamp"], "command": cmd}
@@ -580,17 +605,10 @@ class _MessageBuilder:
         self.timestamp = timestamp
         self.date = date
         self.author = author
-        self.attachment: str | None = None
         self._message_lines: list[str] = []
         self._original_lines: list[str] = []
 
     def append(self, content: str, original: str) -> None:
-        # Check for attachment on the first line of a message
-        if not self._message_lines:
-            match = ATTACHMENT_PATTERN.match(content)
-            if match:
-                self.attachment = match.group(1)
-
         self._message_lines.append(content)
         self._original_lines.append(original)
 
@@ -602,7 +620,6 @@ class _MessageBuilder:
             "date": self.date,
             "author": self.author,
             "message": message_text,
-            "attachment": self.attachment,
             "original_line": original_text or None,
             "tagged_line": None,
         }

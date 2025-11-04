@@ -159,3 +159,27 @@ python .claude/skills/jules-api/jules_client.py activities <session-id>
 7. Jules validated and enhanced the implementation
 
 **Result**: Better code quality + saved the Agent time for strategic work
+
+## Avatar Commands
+
+Users can set profile pictures via WhatsApp:
+
+```bash
+# In WhatsApp, send an image with caption:
+/egregora set avatar
+
+# Remove avatar:
+/egregora unset avatar
+```
+
+Avatars are stored in `docs/media/avatars/` and referenced in author profiles.
+
+### CLI Commands
+
+```bash
+# Get avatar path for frontend rendering
+uv run egregora get-avatar <author-uuid>
+
+# Remove avatar (moderation)
+uv run egregora remove-avatar <author-uuid>
+```
