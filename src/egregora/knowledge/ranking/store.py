@@ -8,7 +8,6 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
-import pyarrow as pa
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -119,30 +118,25 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
-        new_posts = pa.table({"post_id": pa.array(post_ids, type=pa.string())})
-        view_name = "new_elo_posts"
-        self.conn.register(view_name, new_posts)
 
-        inserted = 0
-        try:
-            result = self.conn.execute(
-                """
-                INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-                SELECT post_id, 1500, 0, ?
-                FROM (
-                    SELECT DISTINCT post_id
-                    FROM new_elo_posts
-                ) AS np
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM elo_ratings er WHERE er.post_id = np.post_id
-                )
-                RETURNING post_id
-            """,
-                [now],
+        # Use DuckDB's unnest function to create table from list
+        # This is more efficient than VALUES for large lists
+        result = self.conn.execute(
+            """
+            INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
+            SELECT np.post_id, 1500, 0, ?
+            FROM (
+                SELECT DISTINCT unnest(?::VARCHAR[]) as post_id
+            ) AS np
+            WHERE NOT EXISTS (
+                SELECT 1 FROM elo_ratings er
+                WHERE er.post_id = np.post_id
             )
-            inserted = len(result.fetchall())
-        finally:
-            self.conn.unregister(view_name)
+            RETURNING post_id
+        """,
+            [now, post_ids],
+        )
+        inserted = len(result.fetchall())
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
