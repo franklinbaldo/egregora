@@ -149,4 +149,3 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     )
 
     pd.testing.assert_frame_equal(first_df, second_df)
-

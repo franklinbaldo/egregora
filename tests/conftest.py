@@ -291,7 +291,9 @@ def vcr_config():
             except (UnicodeDecodeError, AttributeError):
                 # Binary data - encode as base64
                 if isinstance(response["body"], bytes):
-                    response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
+                    response["body"] = {
+                        "string": base64.b64encode(response["body"]).decode("ascii")
+                    }
                     response["headers"]["X-VCR-Binary-Body"] = ["true"]
         return response
 

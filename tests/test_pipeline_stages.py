@@ -1,16 +1,19 @@
-import pytest
 from pathlib import Path
-from src.egregora.ingestion.parser import parse_export, parse_multiple
-from src.egregora.augmentation.profiler import resolve_aliases
-from tests.helpers.io import read_parquet
-from tests.helpers.assert_parquet import assert_parquet_equal
 from zoneinfo import ZoneInfo
+
+import pytest
+
+from src.egregora.augmentation.profiler import resolve_aliases
+from src.egregora.ingestion.parser import parse_export, parse_multiple
+from tests.helpers.assert_parquet import assert_parquet_equal
+from tests.helpers.io import read_parquet
+
 
 @pytest.mark.golden
 def test_ingest_preserves_source_fidelity(whatsapp_export_data):
     # Given
     export, con = whatsapp_export_data
-    expected_path = Path('tests/fixtures/connectors/case1/stage1.raw.expected.parquet')
+    expected_path = Path("tests/fixtures/connectors/case1/stage1.raw.expected.parquet")
 
     # When
     messages_table = parse_export(export, timezone=None)
@@ -20,8 +23,10 @@ def test_ingest_preserves_source_fidelity(whatsapp_export_data):
     expected_df = read_parquet(expected_path)
 
     # Sort by timestamp to ensure order is the same
-    df = df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
-    expected_df = expected_df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
+    df = df.sort_values(by=["timestamp", "author", "message"]).reset_index(drop=True)
+    expected_df = expected_df.sort_values(by=["timestamp", "author", "message"]).reset_index(
+        drop=True
+    )
 
     assert_parquet_equal(df, expected_df)
 
@@ -30,7 +35,7 @@ def test_ingest_preserves_source_fidelity(whatsapp_export_data):
 def test_reimport_is_idempotent(whatsapp_export_data):
     # Given
     export, con = whatsapp_export_data
-    expected_path = Path('tests/fixtures/dedup/case1/stage4.dedup.expected.parquet')
+    expected_path = Path("tests/fixtures/dedup/case1/stage4.dedup.expected.parquet")
 
     # When
     messages_table = parse_multiple([export, export])
@@ -40,8 +45,10 @@ def test_reimport_is_idempotent(whatsapp_export_data):
     expected_df = read_parquet(expected_path)
 
     # Sort by timestamp to ensure order is the same
-    df = df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
-    expected_df = expected_df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
+    df = df.sort_values(by=["timestamp", "author", "message"]).reset_index(drop=True)
+    expected_df = expected_df.sort_values(by=["timestamp", "author", "message"]).reset_index(
+        drop=True
+    )
 
     assert_parquet_equal(df, expected_df)
 
@@ -60,7 +67,7 @@ This is a test user profile.
 """
     (profiles_dir / "test_user.md").write_text(profile_content)
 
-    expected_path = Path('tests/fixtures/identity/case1/stage3.identity.expected.parquet')
+    expected_path = Path("tests/fixtures/identity/case1/stage3.identity.expected.parquet")
 
     # When
     messages_table = parse_export(export, timezone=None)
@@ -71,8 +78,10 @@ This is a test user profile.
     expected_df = read_parquet(expected_path)
 
     # Sort by timestamp to ensure order is the same
-    df = df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
-    expected_df = expected_df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
+    df = df.sort_values(by=["timestamp", "author", "message"]).reset_index(drop=True)
+    expected_df = expected_df.sort_values(by=["timestamp", "author", "message"]).reset_index(
+        drop=True
+    )
 
     assert_parquet_equal(df, expected_df)
 
@@ -81,7 +90,7 @@ This is a test user profile.
 def test_normalization_is_deterministic(whatsapp_export_data):
     # Given
     export, con = whatsapp_export_data
-    expected_path = Path('tests/fixtures/parsing/case1/stage2.norm.expected.parquet')
+    expected_path = Path("tests/fixtures/parsing/case1/stage2.norm.expected.parquet")
 
     # When
     messages_table = parse_export(export, timezone=ZoneInfo("America/New_York"))
@@ -91,7 +100,9 @@ def test_normalization_is_deterministic(whatsapp_export_data):
     expected_df = read_parquet(expected_path)
 
     # Sort by timestamp to ensure order is the same
-    df = df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
-    expected_df = expected_df.sort_values(by=['timestamp', 'author', 'message']).reset_index(drop=True)
+    df = df.sort_values(by=["timestamp", "author", "message"]).reset_index(drop=True)
+    expected_df = expected_df.sort_values(by=["timestamp", "author", "message"]).reset_index(
+        drop=True
+    )
 
     assert_parquet_equal(df, expected_df)

@@ -27,8 +27,6 @@ from ..core.models import WhatsAppExport
 from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
 from ..privacy.anonymizer import anonymize_table
 from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
-from ..augmentation.profiler import load_author_aliases
-from pathlib import Path
 
 # Constants
 SET_COMMAND_PARTS = 2
@@ -299,9 +297,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
-        messages = messages.order_by(
-            [messages.timestamp, messages[_IMPORT_ORDER_COLUMN]]
-        )
+        messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
     else:
         messages = messages.order_by("timestamp")
 
