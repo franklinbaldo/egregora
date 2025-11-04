@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -52,6 +53,7 @@ from egregora.generation.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
+from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
 from egregora.generation.writer.tools import _writer_tools
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, index_post
@@ -59,6 +61,21 @@ from egregora.prompt_templates import WriterPromptTemplate
 from egregora.utils import GeminiBatchClient, call_with_retries_sync
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class WriterConfig:
+    """Configuration for the writer functions."""
+
+    output_dir: Path = Path("output/posts")
+    profiles_dir: Path = Path("output/profiles")
+    rag_dir: Path = Path("output/rag")
+    model_config: ModelConfig | None = None
+    enable_rag: bool = True
+    embedding_output_dimensionality: int = 3072
+    retrieval_mode: str = "ann"
+    retrieval_nprobe: int | None = None
+    retrieval_overfetch: int | None = None
 
 # Constants
 MAX_CONVERSATION_TURNS = 10
@@ -494,15 +511,7 @@ def _write_posts_for_period_pydantic(
     period_date: str,
     client: genai.Client,  # Not used, kept for signature compatibility
     batch_client: GeminiBatchClient,
-    output_dir: Path = Path("output/posts"),
-    profiles_dir: Path = Path("output/profiles"),
-    rag_dir: Path = Path("output/rag"),
-    model_config: ModelConfig | None = None,
-    enable_rag: bool = True,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """
     Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
@@ -515,34 +524,30 @@ def _write_posts_for_period_pydantic(
         period_date: Period identifier (e.g., "2025-01-01")
         client: Gemini client (not used, kept for compatibility)
         batch_client: Batch client for embeddings
-        output_dir: Where to save posts
-        profiles_dir: Where to save author profiles
-        rag_dir: Where RAG vector store is saved
-        model_config: Model configuration object
-        enable_rag: Whether to use RAG for context
-        embedding_output_dimensionality: Embedding dimension
-        retrieval_mode: "ann" or "exact"
-        retrieval_nprobe: ANN nprobe parameter
-        retrieval_overfetch: ANN overfetch parameter
+        config: Writer configuration object
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
     """
-    from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
-    from egregora.knowledge.annotations import AnnotationStore
+
+    # Use default config if none provided
+    if config is None:
+        config = WriterConfig()
 
     # Early return for empty input
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
     # Setup
-    if model_config is None:
+    if config.model_config is None:
         model_config = ModelConfig()
+    else:
+        model_config = config.model_config
     model = model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
 
     # Initialize annotation store
-    annotations_store = AnnotationStore(rag_dir / "annotations.parquet")
+    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
 
     # Convert Ibis table to PyArrow for formatting
     messages_table = table.to_pyarrow()
@@ -552,33 +557,33 @@ def _write_posts_for_period_pydantic(
 
     # Build RAG context
     rag_context = ""
-    if enable_rag:
+    if config.enable_rag:
         rag_context = build_rag_context_for_prompt(
             conversation_md,
-            rag_dir,
+            config.rag_dir,
             batch_client,
             embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
+            embedding_output_dimensionality=config.embedding_output_dimensionality,
+            retrieval_mode=config.retrieval_mode,
+            retrieval_nprobe=config.retrieval_nprobe,
+            retrieval_overfetch=config.retrieval_overfetch,
             use_pydantic_helpers=True,  # Use new async helpers
         )
 
     # Build profiles context
-    profiles_context = _load_profiles_context(table, profiles_dir)
+    profiles_context = _load_profiles_context(table, config.profiles_dir)
 
     # Build freeform memory
-    freeform_memory = _load_freeform_memory(rag_dir)
+    freeform_memory = _load_freeform_memory(config.rag_dir)
 
     # Get active authors
     active_authors = get_active_authors(table)
 
     # Load site config
-    site_config = load_site_config(output_dir)
+    site_config = load_site_config(config.output_dir)
     custom_writer_prompt = site_config.get("writer_prompt", "")
     meme_help_enabled = _memes_enabled(site_config)
-    markdown_extensions_yaml = load_markdown_extensions(output_dir)
+    markdown_extensions_yaml = load_markdown_extensions(config.output_dir)
 
     markdown_features_section = ""
     if markdown_extensions_yaml:
@@ -612,26 +617,26 @@ Use these features appropriately in your posts. You understand how each extensio
         prompt=prompt,
         model_name=model,
         period_date=period_date,
-        output_dir=output_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
+        output_dir=config.output_dir,
+        profiles_dir=config.profiles_dir,
+        rag_dir=config.rag_dir,
         batch_client=batch_client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=embedding_output_dimensionality,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
+        embedding_output_dimensionality=config.embedding_output_dimensionality,
+        retrieval_mode=config.retrieval_mode,
+        retrieval_nprobe=config.retrieval_nprobe,
+        retrieval_overfetch=config.retrieval_overfetch,
         annotations_store=annotations_store,
     )
 
     # Index new posts in RAG
-    if enable_rag:
+    if config.enable_rag:
         _index_posts_in_rag(
             saved_posts,
             batch_client,
-            rag_dir,
+            config.rag_dir,
             embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
+            embedding_output_dimensionality=config.embedding_output_dimensionality,
         )
 
     return {"posts": saved_posts, "profiles": saved_profiles}
@@ -642,15 +647,7 @@ def write_posts_for_period(
     period_date: str,
     client: genai.Client,
     batch_client: GeminiBatchClient,
-    output_dir: Path = Path("output/posts"),
-    profiles_dir: Path = Path("output/profiles"),
-    rag_dir: Path = Path("output/rag"),
-    model_config: ModelConfig | None = None,
-    enable_rag: bool = True,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
@@ -671,15 +668,7 @@ def write_posts_for_period(
         period_date: Period identifier (e.g., "2025-01-01")
         client: Gemini client
         batch_client: Batch client for embeddings
-        output_dir: Where to save posts
-        profiles_dir: Where to save author profiles
-        rag_dir: Where RAG vector store is saved
-        model_config: Model configuration object (contains model selection logic)
-        enable_rag: Whether to use RAG for context
-        embedding_output_dimensionality: Embedding dimension size
-        retrieval_mode: "ann" (default) or "exact" for brute-force lookups
-        retrieval_nprobe: Override ANN ``nprobe`` depth when ``retrieval_mode='ann'``
-        retrieval_overfetch: Candidate multiplier before ANN filters are applied
+        config: Writer configuration object
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
@@ -691,12 +680,16 @@ def write_posts_for_period(
     Examples:
         >>> # Use Pydantic AI backend with Logfire
         >>> os.environ["EGREGORA_LLM_BACKEND"] = "pydantic"
-        >>> os.environ["LOGFIRE_TOKEN"] = "your-token"
-        >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client)
+        >>> writer_config = WriterConfig()
+        >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client, writer_config)
 
         >>> # Use legacy backend (default)
         >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client)
     """
+    # Use default config if none provided
+    if config is None:
+        config = WriterConfig()
+
     backend = os.environ.get("EGREGORA_LLM_BACKEND", "legacy").lower()
 
     if backend == "pydantic":
@@ -706,15 +699,7 @@ def write_posts_for_period(
             period_date=period_date,
             client=client,
             batch_client=batch_client,
-            output_dir=output_dir,
-            profiles_dir=profiles_dir,
-            rag_dir=rag_dir,
-            model_config=model_config,
-            enable_rag=enable_rag,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
+            config=config,
         )
     else:
         if backend != "legacy":
@@ -728,13 +713,13 @@ def write_posts_for_period(
             period_date=period_date,
             client=client,
             batch_client=batch_client,
-            output_dir=output_dir,
-            profiles_dir=profiles_dir,
-            rag_dir=rag_dir,
-            model_config=model_config,
-            enable_rag=enable_rag,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
+            output_dir=config.output_dir,
+            profiles_dir=config.profiles_dir,
+            rag_dir=config.rag_dir,
+            model_config=config.model_config,
+            enable_rag=config.enable_rag,
+            embedding_output_dimensionality=config.embedding_output_dimensionality,
+            retrieval_mode=config.retrieval_mode,
+            retrieval_nprobe=config.retrieval_nprobe,
+            retrieval_overfetch=config.retrieval_overfetch,
         )
