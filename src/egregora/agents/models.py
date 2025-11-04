@@ -21,7 +21,7 @@ class AgentSkills(BaseModel):
 class AgentConfig(BaseModel):
     agent_id: str
     model: str
-    seed: int
+    seed: int | None = None  # Optional seed (None = random)
     ttl: str
     variables: AgentVariables
     tools: AgentTools
@@ -34,3 +34,8 @@ class Tool(BaseModel):
     kind: str
     inputs: dict[str, Any]
     contracts: dict[str, Any]
+
+
+class FinishResult(BaseModel):
+    decision: str
+    notes: str
