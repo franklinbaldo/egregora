@@ -77,6 +77,7 @@ class WriterConfig:
     retrieval_nprobe: int | None = None
     retrieval_overfetch: int | None = None
 
+
 # Constants
 MAX_CONVERSATION_TURNS = 10
 

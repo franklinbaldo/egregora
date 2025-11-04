@@ -211,7 +211,7 @@ class VectorStore:
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
-        
+
         # Preserve the functionality of the target branch but with the ruff fix
         # Reduce return statements for ruff compliance
         if dtype.is_string():
@@ -236,7 +236,7 @@ class VectorStore:
                 result = f"{inner}[]"
         else:
             result = None
-        
+
         return result
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:

@@ -55,7 +55,6 @@ SUCCESS_ERROR_CODE = 0
 
 
 def main(argv: list[str]) -> int:
-    
     if len(argv) < MIN_ARGS:
         print("Usage: check_forbidden_imports.py <module> [<module> ...]", file=sys.stderr)
         return USAGE_ERROR_CODE
