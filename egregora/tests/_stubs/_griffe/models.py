@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import List
 
 from .enumerations import DocstringSectionKind
 
@@ -23,7 +22,7 @@ class Docstring:
     parser: str | None = None
     parent: Object | None = None
 
-    def parse(self) -> List[SimpleNamespace]:
+    def parse(self) -> list[SimpleNamespace]:
         """Return a best-effort interpretation of the docstring."""
 
         stripped = self.value.strip()
