@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 from pydantic_ai.models.test import TestModel
-from tests.mock_batch_client import create_mock_batch_client
 
 from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
+from tests.mock_batch_client import create_mock_batch_client
 
 
 @pytest.fixture()

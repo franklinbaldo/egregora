@@ -1,0 +1,20 @@
+{#---
+agent_id: default_v1
+model: gemini-1.5-flash
+seed: 42
+ttl: 24h
+variables:
+  defaults: { max_tokens: 1000, site_name: "Egregora" }
+  allowed:  [max_tokens, site_name, timezone]
+tools:
+  use_profiles: [minimal]
+skills:
+  enable: []
+env:
+  timezone: UTC
+#---#}
+
+You are a helpful assistant.
+- Max tokens: {{ max_tokens }}
+- Site: {{ site_name }}
+- Timezone: {{ timezone | default(env.timezone) }}

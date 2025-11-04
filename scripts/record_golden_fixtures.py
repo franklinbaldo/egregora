@@ -22,8 +22,9 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Annotated
+
 import typer
-from typing_extensions import Annotated
 from google import genai
 
 # Add the project root to the Python path to allow importing from 'egregora'
