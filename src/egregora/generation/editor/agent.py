@@ -9,6 +9,7 @@ Documentation:
 - CLI Reference: docs/reference/cli.md#egregora-edit
 """
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,10 +18,12 @@ from typing import Any
 import ibis
 from google import genai
 from google.genai import types as genai_types
-
+from jinja2 import Environment, FileSystemLoader
+from jinja2.sandbox import SandboxedEnvironment
+from ...agents.resolver import AgentResolver
+from ...agents.registry import ToolRegistry, SkillRegistry
 from ...config import ModelConfig
 from ...knowledge.rag import VectorStore, query_similar_posts
-from ...prompt_templates import EditorPromptTemplate
 from ...utils.batch import GeminiBatchClient
 from ...utils.genai import call_with_retries
 from .document import DocumentSnapshot, Editor
@@ -40,82 +43,80 @@ class EditorResult:
 
 
 # Gemini Function Declarations for Editor Tools
-EDIT_LINE_TOOL = genai_types.Tool(
-    function_declarations=[
-        genai_types.FunctionDeclaration(
-            name="edit_line",
-            description="Replace a single line in the document",
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "expect_version": genai_types.Schema(
-                        type=genai_types.Type.INTEGER,
-                        description="Expected document version (for optimistic concurrency)",
-                    ),
-                    "index": genai_types.Schema(
-                        type=genai_types.Type.INTEGER, description="Line index to edit (0-based)"
-                    ),
-                    "new": genai_types.Schema(
-                        type=genai_types.Type.STRING, description="New content for this line"
-                    ),
-                },
-                required=["expect_version", "index", "new"],
-            ),
-        )
-    ]
-)
-
-FULL_REWRITE_TOOL = genai_types.Tool(
-    function_declarations=[
-        genai_types.FunctionDeclaration(
-            name="full_rewrite",
-            description="Replace the entire document content",
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "expect_version": genai_types.Schema(
-                        type=genai_types.Type.INTEGER,
-                        description="Expected document version",
-                    ),
-                    "content": genai_types.Schema(
-                        type=genai_types.Type.STRING, description="New complete document content"
-                    ),
-                },
-                required=["expect_version", "content"],
-            ),
-        )
-    ]
-)
-
-QUERY_RAG_TOOL = genai_types.Tool(
-    function_declarations=[
-        genai_types.FunctionDeclaration(
-            name="query_rag",
-            description="Search past Egregora posts and enrichments for relevant context. Use this to find related discussions, definitions, or examples from previous posts.",
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "query": genai_types.Schema(
-                        type=genai_types.Type.STRING,
-                        description="Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')",
-                    ),
-                    "max_results": genai_types.Schema(
-                        type=genai_types.Type.INTEGER,
-                        description="Maximum results to return (default 5)",
-                        default=5,
-                    ),
-                },
-                required=["query"],
-            ),
-        )
-    ]
-)
-
-ASK_LLM_TOOL = genai_types.Tool(
-    function_declarations=[
-        genai_types.FunctionDeclaration(
-            name="ask_llm",
-            description="""Ask a separate LLM for ideas, clarification, or creative input.
+AVAILABLE_TOOLS = {
+    "edit_line": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="edit_line",
+                description="Replace a single line in the document",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "expect_version": genai_types.Schema(
+                            type=genai_types.Type.INTEGER,
+                            description="Expected document version (for optimistic concurrency)",
+                        ),
+                        "index": genai_types.Schema(
+                            type=genai_types.Type.INTEGER, description="Line index to edit (0-based)"
+                        ),
+                        "new": genai_types.Schema(
+                            type=genai_types.Type.STRING, description="New content for this line"
+                        ),
+                    },
+                    required=["expect_version", "index", "new"],
+                ),
+            )
+        ]
+    ),
+    "full_rewrite": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="full_rewrite",
+                description="Replace the entire document content",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "expect_version": genai_types.Schema(
+                            type=genai_types.Type.INTEGER,
+                            description="Expected document version",
+                        ),
+                        "content": genai_types.Schema(
+                            type=genai_types.Type.STRING, description="New complete document content"
+                        ),
+                    },
+                    required=["expect_version", "content"],
+                ),
+            )
+        ]
+    ),
+    "query_rag": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="query_rag",
+                description="Search past Egregora posts and enrichments for relevant context. Use this to find related discussions, definitions, or examples from previous posts.",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "query": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            description="Search query (e.g. 'consciousness emergence', 'AI alignment', 'evolutionary psychology')",
+                        ),
+                        "max_results": genai_types.Schema(
+                            type=genai_types.Type.INTEGER,
+                            description="Maximum results to return (default 5)",
+                            default=5,
+                        ),
+                    },
+                    required=["query"],
+                ),
+            )
+        ]
+    ),
+    "ask_llm": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="ask_llm",
+                description="""Ask a separate LLM for ideas, clarification, or creative input.
 
 Use cases:
 - "What are good metaphors for X?"
@@ -125,42 +126,71 @@ Use cases:
 - "Suggest 3 alternative titles for this section"
 - "What's a clearer way to explain X?"
 """,
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "question": genai_types.Schema(
-                        type=genai_types.Type.STRING, description="Question to ask the LLM"
-                    )
-                },
-                required=["question"],
-            ),
-        )
-    ]
-)
-
-FINISH_TOOL = genai_types.Tool(
-    function_declarations=[
-        genai_types.FunctionDeclaration(
-            name="finish",
-            description="Mark editing complete. Call this when satisfied with the post (with or without edits) or when it needs human review.",
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "expect_version": genai_types.Schema(
-                        type=genai_types.Type.INTEGER,
-                        description="Expected document version",
-                    ),
-                    "decision": genai_types.Schema(
-                        type=genai_types.Type.STRING,
-                        enum=["publish", "hold"],
-                        description="publish: post is ready | hold: needs human review",
-                    ),
-                },
-                required=["expect_version", "decision"],
-            ),
-        )
-    ]
-)
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "question": genai_types.Schema(
+                            type=genai_types.Type.STRING, description="Question to ask the LLM"
+                        )
+                    },
+                    required=["question"],
+                ),
+            )
+        ]
+    ),
+    "finish": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="finish",
+                description="Mark editing complete. Call this when satisfied with the post (with or without edits) or when it needs human review.",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "expect_version": genai_types.Schema(
+                            type=genai_types.Type.INTEGER,
+                            description="Expected document version",
+                        ),
+                        "decision": genai_types.Schema(
+                            type=genai_types.Type.STRING,
+                            enum=["publish", "hold"],
+                            description="publish: post is ready | hold: needs human review",
+                        ),
+                    },
+                    required=["expect_version", "decision"],
+                ),
+            )
+        ]
+    ),
+    "diversity_sampler": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="diversity_sampler",
+                description="Sample diverse content based on a given seed.",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={
+                        "k": genai_types.Schema(type=genai_types.Type.INTEGER),
+                        "seed": genai_types.Schema(type=genai_types.Type.INTEGER),
+                    },
+                    required=["k", "seed"],
+                ),
+            )
+        ]
+    ),
+    "link_rewriter": genai_types.Tool(
+        function_declarations=[
+            genai_types.FunctionDeclaration(
+                name="link_rewriter",
+                description="Rewrite a URL.",
+                parameters=genai_types.Schema(
+                    type=genai_types.Type.OBJECT,
+                    properties={"url": genai_types.Schema(type=genai_types.Type.STRING)},
+                    required=["url"],
+                ),
+            )
+        ]
+    ),
+}
 
 
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
@@ -253,8 +283,11 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
     client: genai.Client,
     model_config: ModelConfig,
     rag_dir: Path,
+    egregora_path: Path,
+    docs_path: Path,
     context: dict[str, Any] | None = None,
     max_turns: int = 15,
+    agent_override: str | None = None,
 ) -> EditorResult:
     """
     Run a full editing session on a post using LLM with editor tools.
@@ -264,6 +297,8 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
         client: Gemini client
         model_config: Model configuration
         rag_dir: Path to RAG database
+        egregora_path: Path to the .egregora directory
+        docs_path: Path to the docs directory
         context: Optional context (ELO score, ranking comments, etc.)
 
     Returns:
@@ -277,29 +312,47 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
     snapshot = markdown_to_snapshot(original_content, doc_id=str(post_path))
     editor = Editor(snapshot)
 
-    # Prepare initial prompt
-    context = context or {}
-    prompt = EditorPromptTemplate(
-        post_content=original_content,
-        doc_id=str(post_path),
-        version=snapshot.version,
-        lines=snapshot.lines,
-        context=context,
-    ).render()
+    # Initialize new components
+    resolver = AgentResolver(egregora_path, docs_path)
+    tool_registry = ToolRegistry(egregora_path)
+    skill_registry = SkillRegistry(egregora_path)
+    jinja_env = SandboxedEnvironment(loader=FileSystemLoader(str(egregora_path)))
+
+    # Resolve agent and variables
+    agent_config, final_vars = resolver.resolve(post_path, agent_override)
+
+    # Render the prompt
+    render_context = final_vars.copy()
+    render_context.update({
+        "doc_id": str(post_path),
+        "version": snapshot.version,
+        "lines": snapshot.lines,
+        "context": context or {},
+        "env": agent_config.env
+    })
+
+    template = jinja_env.from_string(agent_config.prompt_template)
+    prompt = template.render(render_context)
+
+    # Resolve toolset
+    enabled_tool_names = tool_registry.resolve_toolset(agent_config.tools)
+    tools = [AVAILABLE_TOOLS[name] for name in enabled_tool_names if name in AVAILABLE_TOOLS]
+
+    # Calculate hashes
+    agent_hash = tool_registry.get_agent_hash(agent_config)
+    toolset_hash = tool_registry.get_toolset_hash(enabled_tool_names)
+    skillset_hash = skill_registry.get_skillset_hash(agent_config.skills.get("enable", []))
+    prompt_render_hash = hashlib.sha256(prompt.encode()).hexdigest()
+
+    logger.info(f"Using agent: {agent_config.agent_id} ({agent_hash})")
+    logger.info(f"Toolset hash: {toolset_hash}")
+    logger.info(f"Skillset hash: {skillset_hash}")
+    logger.info(f"Prompt hash: {prompt_render_hash}")
 
     # Initialize conversation
     conversation_history = [genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])]
 
-    # All tools available
-    tools = [
-        EDIT_LINE_TOOL,
-        FULL_REWRITE_TOOL,
-        QUERY_RAG_TOOL,
-        ASK_LLM_TOOL,
-        FINISH_TOOL,
-    ]
-
-    model = model_config.get_model("editor")
+    model = agent_config.model
     logger.info("[blue]✏️  Editor model:[/] %s", model)
     tool_calls_log = []
 
@@ -337,15 +390,16 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                         tool_calls_log.append({"tool": fc_name, "args": fc_args})
 
                         # Execute tool
+                        result_str = ""
+                        result_dict = {}
                         if fc_name == "query_rag":
-                            result = await _query_rag_tool(
+                            result_str = await _query_rag_tool(
                                 query=fc_args.get("query", ""),
                                 max_results=fc_args.get("max_results", 5),
                                 rag_dir=rag_dir,
                                 client=client,
                                 model_config=model_config,
                             )
-                            result_str = str(result)
 
                         elif fc_name == "ask_llm":
                             result_str = await _ask_llm_tool(
@@ -360,12 +414,22 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                                 index=fc_args.get("index", 0),
                                 new=fc_args.get("new", ""),
                             )
+                            result_str = str(result_dict)
 
                         elif fc_name == "full_rewrite":
                             result_dict = editor.full_rewrite(
                                 expect_version=fc_args.get("expect_version", 0),
                                 content=fc_args.get("content", ""),
                             )
+                            result_str = str(result_dict)
+
+                        elif fc_name == "diversity_sampler":
+                            # Placeholder implementation
+                            result_str = f"Sampled {fc_args.get('k')} items with seed {fc_args.get('seed')}."
+
+                        elif fc_name == "link_rewriter":
+                            # Placeholder implementation
+                            result_str = f"Rewrote URL: {fc_args.get('url')}"
 
                         elif fc_name == "finish":
                             result_dict = editor.finish(
@@ -385,7 +449,7 @@ async def run_editor_session(  # noqa: PLR0912, PLR0913, PLR0915
                                     tool_calls=tool_calls_log,
                                 )
                             else:
-                                result_str = str(result)
+                                result_str = str(result_dict)
 
                         else:
                             result_str = f"Unknown tool: {fc_name}"

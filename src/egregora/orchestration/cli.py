@@ -29,6 +29,8 @@ from ..config import (
 )
 from ..core.models import WhatsAppExport
 from ..core.types import GroupSlug
+from ..agents.loader import load_agent
+from ..agents.registry import ToolRegistry, SkillRegistry
 from ..generation.editor import run_editor_session
 from ..generation.writer import write_posts_for_period
 from ..generation.writer.context import (
@@ -369,10 +371,17 @@ def edit(
         str | None,
         typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
+    agent: Annotated[
+        str | None,
+        typer.Option(help="Force a specific agent to be used for the session."),
+    ] = None,
+    prompt_dry_run: Annotated[
+        bool,
+        typer.Option(help="Print the rendered prompt and exit without running the session."),
+    ] = False,
 ):
     """
     Interactive LLM-powered editor with RAG and meta-LLM capabilities.
-
     The editor can:
     - Read and edit posts line-by-line
     - Search similar posts via RAG
@@ -389,17 +398,33 @@ def edit(
     else:
         # Assume post is in site/posts/**/*.md
         site_path = post_file.parent
-        while site_path.name == "posts" or site_path.parent.name == "posts":
+        while site_path.name != "docs":
             site_path = site_path.parent
             if site_path == site_path.parent:  # Reached root
-                site_path = Path.cwd()
-                break
+                console.print("[red]Could not determine site directory. Please specify with --site-dir.[/red]")
+                raise typer.Exit(1)
+        site_path = site_path.parent
+
 
     console.print(f"[cyan]Site directory: {site_path}[/cyan]")
 
+    egregora_path = site_path / ".egregora"
+    docs_path = site_path / "docs"
     rag_dir = site_path / "rag"
     if not rag_dir.exists():
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
+
+    if prompt_dry_run:
+        from ..agents.resolver import AgentResolver
+        from jinja2 import Environment, FileSystemLoader
+
+        resolver = AgentResolver(egregora_path, docs_path)
+        agent_config, final_vars = resolver.resolve(post_file, agent)
+        jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
+        template = jinja_env.from_string(agent_config.prompt_template)
+        prompt = template.render(final_vars)
+        console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
+        raise typer.Exit()
 
     # Get API key
     api_key = _resolve_gemini_key(gemini_key)
@@ -423,6 +448,9 @@ def edit(
                 client=client,
                 model_config=model_config,
                 rag_dir=rag_dir,
+                egregora_path=egregora_path,
+                docs_path=docs_path,
+                agent_override=agent,
             )
         )
 
@@ -445,6 +473,97 @@ def edit(
     except Exception as e:
         console.print(f"[red]Editor session failed: {e}[/red]")
         raise typer.Exit(1) from e
+
+agents_app = typer.Typer(name="agents", help="Manage agents, tools, and skills.")
+app.add_typer(agents_app)
+
+@agents_app.command("list")
+def agents_list(
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+):
+    """List all available agents."""
+    egregora_path = site_dir.resolve() / ".egregora"
+    agents_path = egregora_path / "agents"
+    if not agents_path.exists():
+        console.print(f"[red]Agents directory not found: {agents_path}[/red]")
+        raise typer.Exit(1)
+
+    console.print(Panel("Available Agents", border_style="blue"))
+    for agent_file in agents_path.glob("*.jinja"):
+        console.print(f"- {agent_file.stem}")
+
+@agents_app.command("explain")
+def agents_explain(
+    agent_name: Annotated[str, typer.Argument(help="Name of the agent to explain")],
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+):
+    """Explain an agent's configuration, tools, and skills."""
+    egregora_path = site_dir.resolve() / ".egregora"
+    try:
+        agent_config = load_agent(agent_name, egregora_path)
+        tool_registry = ToolRegistry(egregora_path)
+        skill_registry = SkillRegistry(egregora_path)
+
+        console.print(Panel(f"Agent: {agent_config.agent_id}", border_style="blue"))
+        console.print(f"  Model: {agent_config.model}")
+        console.print(f"  Seed: {agent_config.seed}")
+        console.print(f"  TTL: {agent_config.ttl}")
+
+        console.print("\n[bold]Variables[/bold]")
+        console.print(f"  Defaults: {agent_config.variables.get('defaults', {})}")
+        console.print(f"  Allowed: {agent_config.variables.get('allowed', [])}")
+
+        toolset = tool_registry.resolve_toolset(agent_config.tools)
+        console.print("\n[bold]Tools[/bold]")
+        for tool in sorted(list(toolset)):
+            console.print(f"  - {tool}")
+        console.print(f"  Toolset Hash: {tool_registry.get_toolset_hash(toolset)}")
+
+        skills = agent_config.skills.get("enable", [])
+        console.print("\n[bold]Skills[/bold]")
+        for skill in skills:
+            console.print(f"  - {skill}")
+        console.print(f"  Skillset Hash: {skill_registry.get_skillset_hash(skills)}")
+
+    except FileNotFoundError:
+        console.print(f"[red]Agent '{agent_name}' not found.[/red]")
+        raise typer.Exit(1)
+
+@agents_app.command("lint")
+def agents_lint(
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+):
+    """Validate the schema of all agents, tools, and skills."""
+    egregora_path = site_dir.resolve() / ".egregora"
+    errors = 0
+
+    # Lint Agents
+    for agent_file in (egregora_path / "agents").glob("*.jinja"):
+        try:
+            load_agent(agent_file.stem, egregora_path)
+        except Exception as e:
+            console.print(f"[red]Error in agent {agent_file.name}: {e}[/red]")
+            errors += 1
+
+    # Lint Tools
+    try:
+        ToolRegistry(egregora_path)
+    except Exception as e:
+        console.print(f"[red]Error loading tools: {e}[/red]")
+        errors += 1
+
+    # Lint Skills
+    try:
+        SkillRegistry(egregora_path)
+    except Exception as e:
+        console.print(f"[red]Error loading skills: {e}[/red]")
+        errors += 1
+
+    if errors == 0:
+        console.print("[green]✅ All agents, tools, and skills are valid.[/green]")
+    else:
+        console.print(f"[red]Found {errors} errors.[/red]")
+        raise typer.Exit(1)
 
 
 def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
