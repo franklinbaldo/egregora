@@ -29,6 +29,9 @@ import ibis.expr.datatypes as dt
 # - Optimization for vectorized operations
 # - Validation capabilities
 
+logger = logging.getLogger(__name__)
+
+
 CONVERSATION_SCHEMA = ibis.schema(
     {
         "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision

@@ -345,27 +345,7 @@ class RankingStore:
             [min_games, n],
         )
 
-        # Get column names from cursor description
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
-
-        # Convert to list of dicts for Ibis memtable
-        if not rows:
-            # Return empty table with proper schema
-            return ibis.memtable(
-                [],
-                schema=ibis.schema(
-                    {
-                        "post_id": dt.string,
-                        "elo_global": dt.float64,
-                        "games_played": dt.int64,
-                        "last_updated": dt.timestamp,
-                    }
-                ),
-            )
-
-        records = [dict(zip(columns, row, strict=False)) for row in rows]
-        return ibis.memtable(records)
+        return self._rows_to_memtable(cursor)
 
     def get_all_ratings(self) -> Table:
         """
@@ -375,28 +355,7 @@ class RankingStore:
             Ibis Table with all elo_ratings data
         """
         cursor = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC")
-
-        # Get column names from cursor description
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
-
-        # Convert to list of dicts for Ibis memtable
-        if not rows:
-            # Return empty table with proper schema
-            return ibis.memtable(
-                [],
-                schema=ibis.schema(
-                    {
-                        "post_id": dt.string,
-                        "elo_global": dt.float64,
-                        "games_played": dt.int64,
-                        "last_updated": dt.timestamp,
-                    }
-                ),
-            )
-
-        records = [dict(zip(columns, row, strict=False)) for row in rows]
-        return ibis.memtable(records)
+        return self._rows_to_memtable(cursor)
 
     def get_all_history(self) -> Table:
         """
@@ -406,31 +365,17 @@ class RankingStore:
             Ibis Table with all elo_history data
         """
         cursor = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp")
+        return self._rows_to_memtable(cursor)
 
-        # Get column names from cursor description
-        columns = [desc[0] for desc in cursor.description]
+    def _rows_to_memtable(self, cursor: duckdb.DuckDBPyConnection) -> Table:
+        """Convert a DuckDB cursor result into an Ibis memtable."""
+
+        description = cursor.description or []
+        columns = [column[0] for column in description]
         rows = cursor.fetchall()
 
-        # Convert to list of dicts for Ibis memtable
-        if not rows:
-            # Return empty table with proper schema
-            return ibis.memtable(
-                [],
-                schema=ibis.schema(
-                    {
-                        "comparison_id": dt.string,
-                        "timestamp": dt.timestamp,
-                        "profile_id": dt.string,
-                        "post_a": dt.string,
-                        "post_b": dt.string,
-                        "winner": dt.string,
-                        "comment_a": dt.string,
-                        "stars_a": dt.int64,
-                        "comment_b": dt.string,
-                        "stars_b": dt.int64,
-                    }
-                ),
-            )
+        if not columns:
+            return ibis.memtable([])
 
         records = [dict(zip(columns, row, strict=False)) for row in rows]
         return ibis.memtable(records)
