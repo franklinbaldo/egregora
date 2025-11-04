@@ -379,6 +379,7 @@ class WriterStreamResult:
         self.state = state
         self.period_date = period_date
         self.model_name = model_name
+        self._stream_context = None
         self._response = None
         self._span = None
 
@@ -391,14 +392,15 @@ class WriterStreamResult:
         self._span.__enter__()
 
         # Start pydantic-ai stream (must use async with)
-        self._response = await self.agent.run_stream(self.prompt, deps=self.state).__aenter__()
+        self._stream_context = self.agent.run_stream(self.prompt, deps=self.state)
+        self._response = await self._stream_context.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context - close stream and span."""
         try:
-            if self._response:
-                await self._response.__aexit__(exc_type, exc_val, exc_tb)
+            if self._stream_context:
+                await self._stream_context.__aexit__(exc_type, exc_val, exc_tb)
         finally:
             if self._span:
                 self._span.__exit__(exc_type, exc_val, exc_tb)
@@ -415,13 +417,16 @@ class WriterStreamResult:
             yield chunk
 
     async def get_posts(self) -> tuple[list[str], list[str]]:
-        """Get final posts and profiles after streaming completes."""
+        """Get final posts and profiles after streaming completes.
+
+        Note: The state is populated during tool execution while streaming,
+        so we can return it directly without waiting for additional data.
+        """
         if not self._response:
             raise RuntimeError(
                 "WriterStreamResult must be used as async context manager "
                 "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             )
-        await self._response.get_result()
         return self.state.saved_posts, self.state.saved_profiles
 
 
