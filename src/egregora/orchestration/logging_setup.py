@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Final
+from typing import Annotated, Final
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -17,7 +17,7 @@ _DEFAULT_LEVEL_NAME: Final[str] = "INFO"
 console = Console()
 
 
-def _resolve_level() -> int:
+def _resolve_level() -> Annotated[int, "The logging level to use"]:
     """Return the logging level defined via environment variable."""
 
     level_name = os.getenv(_LOG_LEVEL_ENV, _DEFAULT_LEVEL_NAME).upper()

@@ -1,0 +1,2 @@
+# Files temporarily allowed to import pandas/pyarrow until refactored
+src/egregora/generation/writer/formatting.py

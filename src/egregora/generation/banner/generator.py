@@ -63,7 +63,7 @@ class BannerGenerator:
             generate_content_config = types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],
                 image_config=types.ImageConfig(
-                    image_size="1K",  # 1024x1024 for blog banners
+                    aspect_ratio="1:1",  # Square format for blog banners
                 ),
                 system_instruction=[
                     types.Part.from_text(

@@ -9,9 +9,11 @@ from typing import Any
 
 import duckdb
 import ibis
+import ibis.expr.datatypes as dt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from ibis.expr.types import Table
+import uuid
 
 from ...core import database_schema
 
@@ -165,49 +167,77 @@ class VectorStore:
 
     def _ensure_metadata_table(self) -> None:
         """Create the internal metadata table when missing."""
-        # Note: RAG_CHUNKS_METADATA_SCHEMA has checksum field, but old code had row_count
-        # Keeping old behavior for now - add row_count if needed
-        if METADATA_TABLE_NAME not in self._client.list_tables():
-            # Create with row_count column (not in centralized schema yet)
-            self.conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
-                    path TEXT PRIMARY KEY,
-                    mtime_ns BIGINT,
-                    size BIGINT,
-                    row_count BIGINT
-                )
-                """
-            )
+
+        database_schema.create_table_if_not_exists(
+            self._client,
+            METADATA_TABLE_NAME,
+            database_schema.RAG_CHUNKS_METADATA_SCHEMA,
+        )
+        database_schema.add_primary_key(self.conn, METADATA_TABLE_NAME, "path")
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
-        # Note: Schema has extra fields (threshold, nlist) beyond database_schema definition
-        # Keeping old behavior for compatibility
-        if INDEX_META_TABLE not in self._client.list_tables():
+
+        database_schema.create_table_if_not_exists(
+            self._client,
+            INDEX_META_TABLE,
+            database_schema.RAG_INDEX_META_SCHEMA,
+        )
+        self._migrate_index_meta_table()
+        database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
+
+    def _migrate_index_meta_table(self) -> None:
+        """Ensure legacy index metadata tables gain any newly introduced columns."""
+
+        existing_columns = {
+            row[1].lower()
+            for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
+        }
+
+        schema = database_schema.RAG_INDEX_META_SCHEMA
+        for column in schema.names:
+            if column.lower() in existing_columns:
+                continue
+
+            column_type = self._duckdb_type_from_ibis(schema[column])
+            if column_type is None:
+                logger.warning(
+                    "Skipping migration for %s.%s due to unsupported type %s",
+                    INDEX_META_TABLE,
+                    column,
+                    schema[column],
+                )
+                continue
+
             self.conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {INDEX_META_TABLE} (
-                    index_name TEXT PRIMARY KEY,
-                    mode TEXT,
-                    row_count BIGINT,
-                    threshold BIGINT,
-                    nlist INTEGER,
-                    embedding_dim INTEGER,
-                    updated_at TIMESTAMPTZ
-                )
-                """
+                f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
             )
-        else:
-            # Migrate existing table to add embedding_dim column if missing
-            columns = self.conn.execute(
-                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{INDEX_META_TABLE}'"
-            ).fetchall()
-            column_names = {str(row[0]).lower() for row in columns}
-            if "embedding_dim" not in column_names:
-                self.conn.execute(
-                    f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN embedding_dim INTEGER"
-                )
+
+    @staticmethod
+    def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
+        """Map a subset of Ibis data types to DuckDB column definitions."""
+
+        if dtype.is_string():
+            return "VARCHAR"
+        if dtype.is_int64():
+            return "BIGINT"
+        if dtype.is_int32():
+            return "INTEGER"
+        if dtype.is_float64():
+            return "DOUBLE"
+        if dtype.is_boolean():
+            return "BOOLEAN"
+        if dtype.is_timestamp():
+            return "TIMESTAMP WITH TIME ZONE" if getattr(dtype, "timezone", None) else "TIMESTAMP"
+        if dtype.is_date():
+            return "DATE"
+        if dtype.is_array():
+            inner = VectorStore._duckdb_type_from_ibis(dtype.value_type)
+            if inner is None:
+                return None
+            return f"{inner}[]"
+
+        return None
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
@@ -219,7 +249,15 @@ class VectorStore:
         if not row:
             return None
 
-        return DatasetMetadata(mtime_ns=int(row[0]), size=int(row[1]), row_count=int(row[2]))
+        mtime_ns, size, row_count = row
+        if mtime_ns is None or size is None or row_count is None:
+            return None
+
+        return DatasetMetadata(
+            mtime_ns=int(mtime_ns),
+            size=int(size),
+            row_count=int(row_count),
+        )
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
@@ -233,7 +271,10 @@ class VectorStore:
             return
 
         self.conn.execute(
-            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            (
+                f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) "
+                "VALUES (?, ?, ?, ?)"
+            ),
             [
                 str(self.parquet_path),
                 metadata.mtime_ns,
@@ -246,11 +287,15 @@ class VectorStore:
         """Inspect the Parquet file for structural metadata."""
 
         stats = self.parquet_path.stat()
-        metadata = pq.read_metadata(self.parquet_path)
+        row = self.conn.execute(
+            "SELECT COUNT(*) FROM read_parquet(?)",
+            [str(self.parquet_path)],
+        ).fetchone()
+        row_count = int(row[0]) if row and row[0] is not None else 0
         return DatasetMetadata(
             mtime_ns=int(stats.st_mtime_ns),
             size=int(stats.st_size),
-            row_count=int(metadata.num_rows),
+            row_count=int(row_count),
         )
 
     def _duckdb_table_exists(self, table_name: str) -> bool:
@@ -319,8 +364,17 @@ class VectorStore:
         timestamp = datetime.now()
         self.conn.execute(
             f"""
-            INSERT INTO {INDEX_META_TABLE} (index_name, mode, row_count, threshold, nlist, embedding_dim, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO {INDEX_META_TABLE} (
+                index_name,
+                mode,
+                row_count,
+                threshold,
+                nlist,
+                embedding_dim,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(index_name) DO UPDATE SET
                 mode=excluded.mode,
                 row_count=excluded.row_count,
@@ -329,7 +383,7 @@ class VectorStore:
                 embedding_dim=excluded.embedding_dim,
                 updated_at=excluded.updated_at
             """,
-            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp],
+            [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
         )
 
     def _clear_index_meta(self) -> None:
@@ -444,9 +498,17 @@ class VectorStore:
             chunk_count = chunks_table.count().execute()
             logger.info(f"Creating new vector store with {chunk_count} chunks")
 
-        # Write to Parquet
+        # Write to Parquet using DuckDB COPY to avoid Arrow round-trips
         self.parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        combined_table.execute().to_parquet(self.parquet_path)
+        view_name = f"_egregora_chunks_{uuid.uuid4().hex}"
+        self._client.create_view(view_name, combined_table, overwrite=True)
+        try:
+            self.conn.execute(
+                f"COPY (SELECT * FROM {view_name}) TO ? (FORMAT PARQUET)",
+                [str(self.parquet_path)],
+            )
+        finally:
+            self._client.drop_view(view_name, force=True)
 
         self._table_synced = False
         self._ensure_dataset_loaded(force=True)
@@ -739,90 +801,63 @@ class VectorStore:
     def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
         """Execute the provided search query and normalize the results."""
 
-        result_arrow = self.conn.execute(query, params).arrow()
-        result_table = self._ensure_arrow_table(result_arrow)
-        if result_table.num_rows == 0:
+        cursor = self.conn.execute(query, params)
+        columns = [description[0] for description in cursor.description or []]
+        rows = cursor.fetchall()
+        if not rows:
             return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-        prepared_table = self._prepare_search_results(result_table)
-        table = self._table_from_arrow(prepared_table, SEARCH_RESULT_SCHEMA)
+        raw_records = [dict(zip(columns, row, strict=False)) for row in rows]
+        prepared_records = self._prepare_search_results(raw_records)
+        table = self._table_from_rows(prepared_records, SEARCH_RESULT_SCHEMA)
 
         row_count = table.count().execute()
         logger.info("Found %d similar chunks (min_similarity=%s)", row_count, min_similarity)
 
         return table
 
-    def _prepare_search_results(self, result_table: pa.Table) -> pa.Table:
-        """Normalize DuckDB arrow results to match the search schema."""
+    def _prepare_search_results(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize DuckDB result rows to match the search schema."""
 
-        data = result_table.to_pydict()
-        row_count = result_table.num_rows
+        if not records:
+            return []
 
+        normalized: list[dict[str, Any]] = []
         valid_columns = set(SEARCH_RESULT_SCHEMA.names) | {"similarity"}
-        for key in list(data.keys()):
-            if key not in valid_columns:
-                data.pop(key)
 
-        if "document_type" in data:
-            data["document_type"] = [value or "post" for value in data["document_type"]]
-        else:
-            data["document_type"] = ["post"] * row_count
+        for index, record in enumerate(records):
+            filtered = {key: value for key, value in record.items() if key in valid_columns}
 
-        chunk_ids = data.get("chunk_id", [""] * row_count)
-        post_slugs = data.get("post_slug", [None] * row_count)
-        if "document_id" in data:
-            document_ids = []
-            for index, existing in enumerate(data["document_id"]):
-                slug = post_slugs[index] if index < len(post_slugs) else None
-                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
-                document_ids.append(existing or slug or chunk_id)
-            data["document_id"] = document_ids
-        else:
-            document_ids = []
-            for index in range(row_count):
-                slug = post_slugs[index] if index < len(post_slugs) else None
-                chunk_id = chunk_ids[index] if index < len(chunk_ids) else ""
-                document_ids.append(slug or chunk_id)
-            data["document_id"] = document_ids
+            filtered.setdefault("document_type", "post")
 
-        array_columns = ("tags", "authors")
-        for column_name in array_columns:
-            if column_name not in data:
-                data[column_name] = [[] for _ in range(row_count)]
-            else:
-                data[column_name] = [value or [] for value in data[column_name]]
+            chunk_id = filtered.get("chunk_id") or ""
+            post_slug = filtered.get("post_slug")
+            document_id = filtered.get("document_id") or post_slug or chunk_id
+            filtered["document_id"] = document_id
 
-        optional_defaults: dict[str, list[Any]] = {}
-        for column_name in (
-            "post_slug",
-            "post_title",
-            "post_date",
-            "media_uuid",
-            "media_type",
-            "media_path",
-            "original_filename",
-            "message_date",
-            "author_uuid",
-            "category",
-        ):
-            if column_name not in data:
-                optional_defaults[column_name] = [None] * row_count
+            for column_name in ("tags", "authors"):
+                value = filtered.get(column_name)
+                filtered[column_name] = list(value or [])
 
-        if optional_defaults:
-            data.update(optional_defaults)
+            for column_name in (
+                "post_slug",
+                "post_title",
+                "post_date",
+                "media_uuid",
+                "media_type",
+                "media_path",
+                "original_filename",
+                "message_date",
+                "author_uuid",
+                "category",
+            ):
+                filtered.setdefault(column_name, None)
 
-        if "chunk_index" not in data:
-            data["chunk_index"] = list(range(row_count))
+            filtered.setdefault("chunk_index", index)
 
-        schema = SEARCH_RESULT_SCHEMA.to_pyarrow()
-        arrays = []
-        for field in schema:
-            values = data.get(field.name)
-            if values is None:
-                values = [None] * row_count
-            arrays.append(pa.array(values, type=field.type))
+            normalized.append(filtered)
 
-        return pa.Table.from_arrays(arrays, schema=schema)
+        return normalized
 
     @staticmethod
     def _normalize_date_filter(value: date | datetime | str) -> datetime:
@@ -861,55 +896,33 @@ class VectorStore:
 
         return value.astimezone(UTC)
 
-    def _ensure_arrow_table(self, arrow_object: Any) -> pa.Table:
-        """Normalize DuckDB Arrow results to a ``pyarrow.Table`` instance."""
+    def _table_from_rows(self, records: list[dict[str, Any]], schema: ibis.Schema) -> Table:
+        """Create a DuckDB-backed table from an in-memory sequence of records."""
 
-        if isinstance(arrow_object, pa.Table):
-            return arrow_object
+        if not records:
+            return self._empty_table(schema)
 
-        if isinstance(arrow_object, pa.RecordBatchReader):
-            return arrow_object.read_all()
-
-        for attr in ("read_all", "to_table", "to_arrow_table"):
-            method = getattr(arrow_object, attr, None)
-            if not callable(method):
-                continue
-
-            result = method()
-            if isinstance(result, pa.RecordBatchReader):
-                return result.read_all()
-            if isinstance(result, pa.Table):
-                return result
-
-        to_pydict = getattr(arrow_object, "to_pydict", None)
-        if callable(to_pydict):
-            data = to_pydict()
-            if isinstance(data, dict):
-                return pa.Table.from_pydict(data)
-
-        raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
-
-    def _table_from_arrow(
-        self, arrow_table: pa.Table | pa.RecordBatchReader, schema: ibis.Schema
-    ) -> Table:
-        """Register an Arrow table with DuckDB and return an Ibis table."""
-
-        arrow_table = self._ensure_arrow_table(arrow_table)
-
-        table_name = f"_vector_store_{uuid.uuid4().hex}"
-        self.conn.register(table_name, arrow_table)
-        table = self._client.table(table_name)
-
-        casts = {}
+        temp_name = f"_vector_store_{uuid.uuid4().hex}"
+        column_defs = []
         for column_name, dtype in schema.items():
-            column = table[column_name]
-            if column.type() != dtype:
-                casts[column_name] = column.cast(dtype)
+            column_type = self._duckdb_type_from_ibis(dtype)
+            if column_type is None:
+                raise TypeError(f"Unsupported dtype {dtype!r} for column {column_name}")
+            column_defs.append(f"{column_name} {column_type}")
 
-        if casts:
-            table = table.mutate(**casts)
+        columns_sql = ", ".join(column_defs)
+        self.conn.execute(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")
 
-        return table.select(schema.names)
+        column_names = list(schema.names)
+        placeholders = ", ".join("?" for _ in column_names)
+        values = [tuple(record.get(name) for name in column_names) for record in records]
+        if values:
+            self.conn.executemany(
+                f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})",
+                values,
+            )
+
+        return self._client.table(temp_name)
 
     def _ensure_local_table(self, table: Table) -> Table:
         """Materialize a table on the store backend when necessary."""
@@ -923,35 +936,16 @@ class VectorStore:
             return table
 
         source_schema = table.schema()
-        op = table.op() if hasattr(table, "op") else None
-        pandas_proxy = getattr(op, "data", None) if op is not None else None
-
-        if pandas_proxy is not None and hasattr(pandas_proxy, "to_frame"):
-            dataframe = pandas_proxy.to_frame()
-            missing_columns = [
-                column for column in source_schema.names if column not in dataframe.columns
-            ]
-            for column in missing_columns:
-                dataframe[column] = None
-            dataframe = dataframe.reindex(columns=source_schema.names)
-        else:
-            dataframe = table.execute()
-
-        arrow_table = pa.Table.from_pandas(
-            dataframe,
-            schema=source_schema.to_pyarrow(),
-            preserve_index=False,
-            safe=False,
-        )
-        return self._table_from_arrow(arrow_table, source_schema)
+        dataframe = table.execute()
+        records = dataframe.to_dict("records") if hasattr(dataframe, "to_dict") else [
+            dict(zip(source_schema.names, row, strict=False)) for row in dataframe
+        ]
+        return self._table_from_rows(records, source_schema)
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
         """Create an empty table with the given schema using the local backend."""
 
-        arrow_schema = schema.to_pyarrow()
-        arrays = [pa.array([], type=field.type) for field in arrow_schema]
-        empty_arrow = pa.Table.from_arrays(arrays, schema=arrow_schema)
-        return self._table_from_arrow(empty_arrow, schema)
+        return ibis.memtable([], schema=schema)
 
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""

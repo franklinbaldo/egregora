@@ -8,7 +8,6 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
-import pyarrow as pa
 from ibis.expr.types import Table
 
 from ...core.database_schema import ELO_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA
@@ -120,19 +119,25 @@ class RankingStore:
             return 0
 
         now = datetime.now(UTC)
-        inserted = 0
 
-        for post_id in post_ids:
-            result = self.conn.execute(
-                """
-                INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-                VALUES (?, 1500, 0, ?)
-                ON CONFLICT (post_id) DO NOTHING
-            """,
-                [post_id, now],
-            ).fetchone()
-            if result is not None:
-                inserted += result[0]
+        # Use DuckDB's unnest function to create table from list
+        # This is more efficient than VALUES for large lists
+        result = self.conn.execute(
+            """
+            INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
+            SELECT np.post_id, 1500, 0, ?
+            FROM (
+                SELECT DISTINCT unnest(?::VARCHAR[]) as post_id
+            ) AS np
+            WHERE NOT EXISTS (
+                SELECT 1 FROM elo_ratings er
+                WHERE er.post_id = np.post_id
+            )
+            RETURNING post_id
+        """,
+            [now, post_ids],
+        )
+        inserted = len(result.fetchall())
 
         if inserted > 0:
             logger.info(f"Initialized {inserted} new posts with default ELO 1500")
@@ -180,19 +185,35 @@ class RankingStore:
         self.conn.execute(
             """
             UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
+            SET
+                elo_global = CASE
+                    WHEN post_id = ? THEN ?
+                    WHEN post_id = ? THEN ?
+                    ELSE elo_global
+                END,
+                games_played = games_played + CASE
+                    WHEN post_id IN (?, ?) THEN 1
+                    ELSE 0
+                END,
+                last_updated = CASE
+                    WHEN post_id IN (?, ?) THEN ?
+                    ELSE last_updated
+                END
+            WHERE post_id IN (?, ?)
         """,
-            [new_elo_a, now, post_a],
-        )
-
-        self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET elo_global = ?, games_played = games_played + 1, last_updated = ?
-            WHERE post_id = ?
-        """,
-            [new_elo_b, now, post_b],
+            [
+                post_a,
+                new_elo_a,
+                post_b,
+                new_elo_b,
+                post_a,
+                post_b,
+                post_a,
+                post_b,
+                now,
+                post_a,
+                post_b,
+            ],
         )
 
         logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")
@@ -315,7 +336,7 @@ class RankingStore:
         Returns:
             Ibis Table with post_id, elo_global, games_played, last_updated
         """
-        result = self.conn.execute(
+        cursor = self.conn.execute(
             """
             SELECT * FROM elo_ratings
             WHERE games_played >= ?
@@ -323,9 +344,9 @@ class RankingStore:
             LIMIT ?
         """,
             [min_games, n],
-        ).arrow()
+        )
 
-        return ibis.memtable(self._arrow_to_pydict(result))
+        return self._rows_to_memtable(cursor)
 
     def get_all_ratings(self) -> Table:
         """
@@ -334,8 +355,8 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_ratings data
         """
-        result = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC").arrow()
-        return ibis.memtable(self._arrow_to_pydict(result))
+        cursor = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC")
+        return self._rows_to_memtable(cursor)
 
     def get_all_history(self) -> Table:
         """
@@ -344,44 +365,21 @@ class RankingStore:
         Returns:
             Ibis Table with all elo_history data
         """
-        result = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp").arrow()
-        return ibis.memtable(self._arrow_to_pydict(result))
+        cursor = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp")
+        return self._rows_to_memtable(cursor)
 
-    def _arrow_to_pydict(self, arrow_object: Any) -> dict[str, Any]:
-        """Convert DuckDB Arrow results into a dictionary for Ibis memtable usage."""
+    def _rows_to_memtable(self, cursor: duckdb.DuckDBPyConnection) -> Table:
+        """Convert a DuckDB cursor result into an Ibis memtable."""
 
-        if isinstance(arrow_object, pa.RecordBatchReader):
-            table: pa.Table | None = arrow_object.read_all()
-        elif isinstance(arrow_object, pa.Table):
-            table = arrow_object
-        else:
-            table = None
-            for attr in ("read_all", "to_table", "to_arrow_table"):
-                method = getattr(arrow_object, attr, None)
-                if not callable(method):
-                    continue
+        description = cursor.description or []
+        columns = [column[0] for column in description]
+        rows = cursor.fetchall()
 
-                result = method()
-                if isinstance(result, pa.RecordBatchReader):
-                    table = result.read_all()
-                    break
-                if isinstance(result, pa.Table):
-                    table = result
-                    break
+        if not columns:
+            return ibis.memtable([])
 
-            if table is None:
-                to_pydict = getattr(arrow_object, "to_pydict", None)
-                if callable(to_pydict):
-                    data = to_pydict()
-                    if isinstance(data, dict):
-                        return data
-
-                raise TypeError(f"Unsupported Arrow object type: {type(arrow_object)!r}")
-
-        if not isinstance(table, pa.Table):
-            raise TypeError(f"Expected pyarrow.Table after conversion, got {type(table)!r}")
-
-        return table.to_pydict()
+        records = [dict(zip(columns, row, strict=False)) for row in rows]
+        return ibis.memtable(records)
 
     def export_to_parquet(self) -> None:
         """

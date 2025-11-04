@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import sys
 import types
 import zipfile
@@ -9,7 +10,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
 SRC_PATH = PROJECT_ROOT / "src"
+
+if str(STUBS_PATH) not in sys.path:
+    sys.path.insert(0, str(STUBS_PATH))
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -32,8 +37,14 @@ except ImportError:  # pragma: no cover - depends on test env
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
 
-    if "google" in sys.modules:
-        return
+    try:  # Prefer the real SDK if it is available in the environment.
+        from google.genai import types as genai_types  # type: ignore[import-not-found]
+
+        # Some historical versions lacked the newer helper classes we rely on.
+        if hasattr(genai_types, "FunctionCall"):
+            return
+    except Exception:  # pragma: no cover - runtime safety for optional dependency
+        pass
 
     google_module = types.ModuleType("google")
     genai_module = types.ModuleType("google.genai")
@@ -79,8 +90,10 @@ def _install_google_stubs() -> None:
     for attr in (
         "Schema",
         "FunctionDeclaration",
+        "FunctionCall",
         "Tool",
         "FunctionResponse",
+        "FunctionCall",
         "Part",
         "Content",
         "GenerateContentConfig",
@@ -240,11 +253,55 @@ def vcr_config():
     """
     VCR configuration for recording and replaying HTTP interactions.
 
-    This configuration filters out sensitive data like API keys from cassettes.
+    This configuration filters out sensitive data like API keys from cassettes
+    and properly handles binary file uploads (images, etc.).
     """
+
+    def _serialize_request_body(request):
+        """Serialize request body, encoding binary data as base64."""
+        if hasattr(request, "body") and request.body:
+            try:
+                # Try to decode as UTF-8 (for JSON/text requests)
+                request.body.decode("utf-8")
+                return request
+            except (UnicodeDecodeError, AttributeError):
+                # Binary data - encode as base64 for YAML serialization
+                if isinstance(request.body, bytes):
+                    request.body = base64.b64encode(request.body).decode("ascii")
+                    request.headers["X-VCR-Binary-Body"] = ["true"]
+        return request
+
+    def _deserialize_request_body(request):
+        """Deserialize request body, decoding base64 back to binary if needed."""
+        if request.headers.get("X-VCR-Binary-Body") == ["true"]:
+            request.body = base64.b64decode(request.body.encode("ascii"))
+            del request.headers["X-VCR-Binary-Body"]
+        return request
+
+    def _serialize_response_body(response):
+        """Serialize response body, encoding binary data as base64."""
+        if "body" in response and response["body"]:
+            try:
+                # Try to decode as UTF-8
+                if isinstance(response["body"], bytes):
+                    response["body"].decode("utf-8")
+                elif isinstance(response["body"], str):
+                    response["body"].encode("utf-8")
+                return response
+            except (UnicodeDecodeError, AttributeError):
+                # Binary data - encode as base64
+                if isinstance(response["body"], bytes):
+                    response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
+                    response["headers"]["X-VCR-Binary-Body"] = ["true"]
+        return response
+
     return {
         # Record mode: 'once' means record the first time, then replay
         "record_mode": "once",
+        # Directory containing pre-recorded cassettes
+        "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
+        # Ensure httpx.Client is patched for playback
+        "custom_patches": ("httpx",),
         # Filter API keys from recordings
         "filter_headers": [
             ("x-goog-api-key", "DUMMY_API_KEY"),
@@ -259,6 +316,6 @@ def vcr_config():
         # Decode compressed responses
         "decode_compressed_response": True,
         # Handle binary content in requests/responses
-        "before_record_request": lambda request: request,
-        "before_record_response": lambda response: response,
+        "before_record_request": _serialize_request_body,
+        "before_record_response": _serialize_response_body,
     }

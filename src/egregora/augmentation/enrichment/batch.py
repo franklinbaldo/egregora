@@ -10,7 +10,8 @@ import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from ...utils import BatchPromptRequest, BatchPromptResult
+from egregora.streaming import ensure_deterministic_order, stream_ibis
+from egregora.utils import BatchPromptRequest, BatchPromptResult
 
 
 @dataclass
@@ -88,12 +89,25 @@ def _get_stable_ordering(table: Table) -> list:
 
 
 def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
-    """Convert backend frames into ``dict`` records consistently."""
+    """Convert backend frames into ``dict`` records consistently.
+
+    Note: This is legacy fallback code. Most code paths should now use
+    stream_ibis from egregora.data instead, which handles timezones correctly.
+    """
 
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
-        return [dict(row) for row in frame.to_pylist()]
+        try:
+            return [dict(row) for row in frame.to_pylist()]
+        except Exception as e:
+            # PyArrow can fail with timezone-aware timestamps
+            # This should rarely be hit since stream_ibis (above) handles it
+            raise RuntimeError(
+                "Failed to convert frame to records. "
+                "This indicates the stream_ibis fast path was not used. "
+                f"Original error: {e}"
+            ) from e
     if isinstance(frame, list):
         return [dict(row) for row in frame]
 
@@ -103,15 +117,36 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
 def _iter_table_record_batches(
     table: Table, batch_size: int = 1000
 ) -> Iterator[list[dict[str, Any]]]:
-    """Yield batches of table rows as dictionaries in a deterministic order."""
+    """Yield batches of table rows as dictionaries in a deterministic order.
 
-    to_pylist = getattr(table, "to_pylist", None)
-    if callable(to_pylist):
-        rows = [dict(row) for row in to_pylist()]
-        if rows:
-            yield rows
-        return
+    This function now uses egregora.data.stream_ibis for memory-efficient streaming
+    without materializing the full table. This fixes Bug #3 (timezone-aware timestamps).
 
+    Args:
+        table: Ibis table expression to stream
+        batch_size: Number of rows per batch
+
+    Yields:
+        Lists of dictionaries representing rows
+
+    Note:
+        Uses the table's backend connection automatically via Ibis's
+        _find_backend() method.
+    """
+    # Try to get the backend connection from the table
+    try:
+        backend = table._find_backend()
+        if backend is not None:
+            # Use new stream_ibis utility - handles timezones correctly
+            ordered_table = ensure_deterministic_order(table)
+            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+            return
+    except (AttributeError, Exception):
+        # Backend not available or stream_ibis failed - fall back to legacy approach
+        pass
+
+    # Legacy fallback: Use Ibis windowing for deterministic batching
+    # This approach still works but requires more execute() calls
     count = table.count().execute()
     if not count:
         return
@@ -132,14 +167,13 @@ def _iter_table_record_batches(
     ordered_table = table.order_by(fallback_ordering)
     window = ibis.window(order_by=fallback_ordering)
     numbered = ordered_table.mutate(
-        # DuckDB's ``row_number`` starts at 1, so convert to a 0-based index to ensure
-        # consistent batching semantics across backends. Subtracting one here avoids
-        # off-by-one bugs when filtering each batch range below.
-        _batch_row_number=ibis.row_number().over(window) - 1
+        # Ibis's row_number() returns 0-based indices (0, 1, 2, ...),
+        # which aligns with Python slicing semantics for batch ranges.
+        _batch_row_number=ibis.row_number().over(window)
     )
     row_number = numbered._batch_row_number
 
-    # With 0-based numbering, ``start`` and ``upper`` now align with Python slicing
+    # With 0-based numbering, ``start`` and ``upper`` align with Python slicing
     # semantics, ensuring every row is yielded exactly once across all batches.
     for start in range(0, count, batch_size):
         upper = start + batch_size

@@ -237,11 +237,11 @@ This ensures:
 When creating sites, the blog index should be minimal:
 
 ```python
-# src/egregora/publication/site/scaffolding.py
+# src/egregora/init/scaffolding.py
 blog_index_path = posts_dir.parent / "index.md"  # posts_dir is blog_dir/posts/
 if not blog_index_path.exists():
-    # Simple heading - Material renders post list below
-    blog_index_path.write_text("# Blog\n", encoding="utf-8")
+    template = env.get_template("docs/posts/index.md.jinja2")
+    blog_index_path.write_text(template.render(**context), encoding="utf-8")
 ```
 
 ## Testing Checklist
