@@ -290,221 +290,6 @@ def _index_posts_in_rag(
         logger.error(f"Failed to index posts in RAG: {e}")
 
 
-def _write_posts_for_period_legacy(  # noqa: PLR0912, PLR0913, PLR0915
-    table: Table,
-    period_date: str,
-    client: genai.Client,
-    batch_client: GeminiBatchClient,
-    output_dir: Path = Path("output/posts"),
-    profiles_dir: Path = Path("output/profiles"),
-    rag_dir: Path = Path("output/rag"),
-    model_config: ModelConfig | None = None,
-    enable_rag: bool = True,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> dict[str, list[str]]:
-    """
-    LEGACY: Let LLM analyze period's messages using google.genai SDK.
-
-    This is the original implementation using the genai SDK directly.
-    Prefer using the Pydantic AI backend (set EGREGORA_LLM_BACKEND=pydantic).
-
-    The LLM has full editorial control via tools:
-    - write_post: Create blog posts with metadata
-    - read_profile: Read existing author profiles
-    - write_profile: Update author profiles
-
-    RAG system provides context from previous posts for continuity.
-
-    Args:
-        table: Table with messages for the period (already enriched)
-        period_date: Period identifier (e.g., "2025-01-01")
-        client: Gemini client
-        output_dir: Where to save posts
-        profiles_dir: Where to save author profiles
-        rag_dir: Where RAG vector store is saved
-        model_config: Model configuration object (contains model selection logic)
-        enable_rag: Whether to use RAG for context
-        retrieval_mode: "ann" (default) or "exact" for brute-force lookups
-        retrieval_nprobe: Override ANN ``nprobe`` depth when ``retrieval_mode='ann'``
-        retrieval_overfetch: Candidate multiplier before ANN filters are applied
-
-    Returns:
-        Dict with 'posts' and 'profiles' lists of saved file paths
-    """
-    # Early return for empty input
-    if table.count().execute() == 0:
-        return {"posts": [], "profiles": []}
-
-    # Setup
-    if model_config is None:
-        model_config = ModelConfig()
-    model = model_config.get_model("writer")
-    embedding_model = model_config.get_model("embedding")
-    logger.info("[blue]🧠 Writer model:[/] %s", model)
-    logger.info("[blue]📚 Embedding model:[/] %s", embedding_model)
-
-    annotations_store: AnnotationStore | None = None
-    try:
-        annotations_path = (output_dir.parent / "annotations.duckdb").resolve()
-        annotations_store = AnnotationStore(annotations_path)
-    except Exception as exc:  # pragma: no cover - defensive path
-        logger.warning("Annotation store unavailable (%s). Continuing without annotations.", exc)
-
-    active_authors = get_active_authors(table)
-    messages_table = table.to_pyarrow()
-    markdown_table = _build_conversation_markdown(messages_table, annotations_store)
-
-    # Query RAG and load profiles for context
-    rag_context = ""
-    if enable_rag:
-        rag_result = _query_rag_for_context(
-            table,
-            batch_client,
-            rag_dir,
-            embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-
-        # Handle Result type from returns library
-        match rag_result:
-            case tuple():
-                # Legacy tuple return for backward compatibility (return_records=True)
-                rag_context = rag_result[0]
-            case Success():
-                # Modern Result type - Success case
-                context_obj = rag_result.unwrap()
-                rag_context = context_obj.text
-                logger.info("RAG context retrieved successfully")
-            case Failure():
-                # Modern Result type - Failure case
-                error_reason = rag_result.failure()
-                if error_reason == RagErrorReason.NO_HITS:
-                    logger.info("No similar previous posts found")
-                elif error_reason == RagErrorReason.SYSTEM_ERROR:
-                    logger.error("RAG system error - content quality may be degraded")
-                else:
-                    logger.warning(f"RAG query unsuccessful: {error_reason}")
-    profiles_context = _load_profiles_context(table, profiles_dir)
-
-    # Load previous freeform memo (only persisted memory between periods)
-    freeform_memory = _load_freeform_memory(output_dir)
-
-    # Load site config and markdown extensions
-    site_config = load_site_config(output_dir)
-    custom_writer_prompt = site_config.get("writer_prompt", "")
-    meme_help_enabled = _memes_enabled(site_config)
-    markdown_extensions_yaml = load_markdown_extensions(output_dir)
-
-    markdown_features_section = ""
-    if markdown_extensions_yaml:
-        markdown_features_section = f"""
-## Available Markdown Features
-
-This MkDocs site has the following extensions configured:
-
-```yaml
-{markdown_extensions_yaml}```
-
-Use these features appropriately in your posts. You understand how each extension works.
-"""
-
-    # Build prompt
-    prompt = WriterPromptTemplate(
-        date=period_date,
-        markdown_table=markdown_table,
-        active_authors=", ".join(active_authors),
-        custom_instructions=custom_writer_prompt or "",
-        markdown_features=markdown_features_section,
-        profiles_context=profiles_context,
-        rag_context=rag_context,
-        freeform_memory=freeform_memory,
-        enable_memes=meme_help_enabled,
-    ).render()
-
-    # Setup conversation
-    config = genai_types.GenerateContentConfig(
-        tools=cast(list[genai_types.Tool | Callable[..., Any]], _writer_tools()),
-        temperature=0.7,
-    )
-    messages: list[genai_types.Content] = [
-        genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
-    ]
-    saved_posts: list[str] = []
-    saved_profiles: list[str] = []
-
-    # Conversation loop
-    for _ in range(MAX_CONVERSATION_TURNS):
-        try:
-            response = call_with_retries_sync(
-                client.models.generate_content,
-                model=model,
-                contents=messages,
-                config=config,
-            )
-        except Exception as exc:
-            logger.error("Writer generation failed: %s", exc)
-            raise
-
-        # Check for valid response
-        if not response or not response.candidates:
-            logger.warning("No candidates in response, ending conversation")
-            break
-
-        candidate = response.candidates[0]
-
-        # Process tool calls
-        has_tool_calls, tool_responses, freeform_parts = _process_tool_calls(
-            candidate,
-            output_dir,
-            profiles_dir,
-            saved_posts,
-            saved_profiles,
-            client,
-            batch_client,
-            rag_dir,
-            annotations_store,
-            embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
-
-        # Exit if no more tools to call
-        if not has_tool_calls:
-            if freeform_parts:
-                freeform_content = "\n\n".join(
-                    part.strip() for part in freeform_parts if part and part.strip()
-                )
-                if freeform_content:
-                    freeform_path = _write_freeform_markdown(
-                        freeform_content, period_date, output_dir
-                    )
-                    saved_posts.append(str(freeform_path))
-            break
-
-        # Continue conversation
-        if candidate.content:
-            messages.append(candidate.content)
-        messages.extend(tool_responses)
-
-    # Index new posts in RAG
-    if enable_rag:
-        _index_posts_in_rag(
-            saved_posts,
-            batch_client,
-            rag_dir,
-            embedding_model=embedding_model,
-            embedding_output_dimensionality=embedding_output_dimensionality,
-        )
-
-    return {"posts": saved_posts, "profiles": saved_profiles}
 
 
 def _write_posts_for_period_pydantic(
@@ -653,9 +438,7 @@ def write_posts_for_period(
     """
     Let LLM analyze period's messages, write 0-N posts, and update author profiles.
 
-    Backend is controlled by EGREGORA_LLM_BACKEND environment variable:
-    - "pydantic" (recommended): Use Pydantic AI with type safety and Logfire observability
-    - "legacy" (default): Use original google.genai SDK implementation
+    Uses Pydantic AI for type safety and Logfire observability.
 
     The LLM has full editorial control via tools:
     - write_post: Create blog posts with metadata
@@ -667,7 +450,7 @@ def write_posts_for_period(
     Args:
         table: Table with messages for the period (already enriched)
         period_date: Period identifier (e.g., "2025-01-01")
-        client: Gemini client
+        client: Gemini client (kept for signature compatibility, not used)
         batch_client: Batch client for embeddings
         config: Writer configuration object
 
@@ -675,52 +458,21 @@ def write_posts_for_period(
         Dict with 'posts' and 'profiles' lists of saved file paths
 
     Environment Variables:
-        EGREGORA_LLM_BACKEND: "pydantic" or "legacy" (default: "legacy")
-        LOGFIRE_TOKEN: Optional, enables Logfire observability (Pydantic backend only)
+        LOGFIRE_TOKEN: Optional, enables Logfire observability
 
     Examples:
-        >>> # Use Pydantic AI backend with Logfire
-        >>> os.environ["EGREGORA_LLM_BACKEND"] = "pydantic"
         >>> writer_config = WriterConfig()
         >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client, writer_config)
-
-        >>> # Use legacy backend (default)
-        >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client)
     """
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
 
-    backend = os.environ.get("EGREGORA_LLM_BACKEND", "legacy").lower()
-
-    if backend == "pydantic":
-        logger.info("Using Pydantic AI backend for writer")
-        return _write_posts_for_period_pydantic(
-            table=table,
-            period_date=period_date,
-            client=client,
-            batch_client=batch_client,
-            config=config,
-        )
-    else:
-        if backend != "legacy":
-            logger.warning(
-                f"Unknown EGREGORA_LLM_BACKEND='{backend}', falling back to legacy. "
-                f"Valid options: 'pydantic', 'legacy'"
-            )
-        logger.info("Using legacy SDK backend for writer")
-        return _write_posts_for_period_legacy(
-            table=table,
-            period_date=period_date,
-            client=client,
-            batch_client=batch_client,
-            output_dir=config.output_dir,
-            profiles_dir=config.profiles_dir,
-            rag_dir=config.rag_dir,
-            model_config=config.model_config,
-            enable_rag=config.enable_rag,
-            embedding_output_dimensionality=config.embedding_output_dimensionality,
-            retrieval_mode=config.retrieval_mode,
-            retrieval_nprobe=config.retrieval_nprobe,
-            retrieval_overfetch=config.retrieval_overfetch,
-        )
+    logger.info("Using Pydantic AI backend for writer")
+    return _write_posts_for_period_pydantic(
+        table=table,
+        period_date=period_date,
+        client=client,
+        batch_client=batch_client,
+        config=config,
+    )
