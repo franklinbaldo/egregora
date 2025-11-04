@@ -1,5 +1,6 @@
 """Site scaffolding utilities for MkDocs-based Egregora sites."""
 
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from ..config import DEFAULT_BLOG_DIR, SitePaths
 from ..config.site import _ConfigLoader, resolve_site_paths
 
 SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
+EGREGORA_CONFIG_TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / ".egregora"
 
 DEFAULT_SITE_NAME = "Egregora Archive"
 DEFAULT_DOCS_SETTING = "docs"
@@ -155,6 +157,11 @@ def _create_site_structure(
         template = env.get_template("docs/media/index.md.jinja2")
         content = template.render(**context)
         media_index_path.write_text(content, encoding="utf-8")
+
+    # Copy .egregora configuration template
+    egregora_config_dir = site_paths.site_root / ".egregora"
+    if not egregora_config_dir.exists() and EGREGORA_CONFIG_TEMPLATE.exists():
+        shutil.copytree(EGREGORA_CONFIG_TEMPLATE, egregora_config_dir)
 
 
 __all__ = ["ensure_mkdocs_project"]
