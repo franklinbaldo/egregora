@@ -1,22 +1,9 @@
-from dataclasses import dataclass, field
 from pathlib import Path
-import frontmatter
 import yaml
 import re
+from .models import AgentConfig
 
-@dataclass
-class AgentConfig:
-    agent_id: str
-    model: str
-    seed: int
-    ttl: str
-    variables: dict
-    tools: dict
-    skills: dict
-    env: dict
-    prompt_template: str
-
-def load_agent(agent_name: str, egregora_path: Path) -> AgentConfig:
+def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
     """Loads an agent's configuration from a .jinja file."""
     agent_path = egregora_path / "agents" / f"{agent_name}.jinja"
 
@@ -35,17 +22,8 @@ def load_agent(agent_name: str, egregora_path: Path) -> AgentConfig:
     # The rest of the file is the prompt template
     prompt_template = raw_content[match.end():].strip()
 
-    # Parse the YAML front-matter
+    # Parse the YAML front-matter and validate with Pydantic
     config_dict = yaml.safe_load(front_matter_str)
+    agent_config = AgentConfig(**config_dict)
 
-    return AgentConfig(
-        agent_id=config_dict.get("agent_id"),
-        model=config_dict.get("model"),
-        seed=config_dict.get("seed"),
-        ttl=config_dict.get("ttl"),
-        variables=config_dict.get("variables"),
-        tools=config_dict.get("tools"),
-        skills=config_dict.get("skills"),
-        env=config_dict.get("env"),
-        prompt_template=prompt_template,
-    )
+    return agent_config, prompt_template

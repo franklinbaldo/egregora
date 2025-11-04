@@ -52,19 +52,19 @@ class ToolRegistry:
             return yaml.safe_load(profiles_path.read_text(encoding="utf-8")).get("profiles", {})
         return {}
 
-    def resolve_toolset(self, agent_tools_config: Dict[str, Any]) -> Set[str]:
+    def resolve_toolset(self, agent_tools_config) -> Set[str]:
         """Resolve the final set of tool IDs for an agent."""
         toolset = set()
 
         # Apply profiles first
-        for profile_name in agent_tools_config.get("use_profiles", []):
+        for profile_name in agent_tools_config.use_profiles:
             profile = self._profiles.get(profile_name, {})
             toolset.update(profile.get("allow", []))
             toolset.difference_update(profile.get("deny", []))
 
         # Apply agent-specific allow/deny
-        toolset.update(agent_tools_config.get("allow", []))
-        toolset.difference_update(agent_tools_config.get("deny", []))
+        toolset.update(agent_tools_config.allow)
+        toolset.difference_update(agent_tools_config.deny)
 
         return toolset
 
@@ -77,24 +77,15 @@ class ToolRegistry:
         combined_hash_input = "".join(hashes)
         return hashlib.sha256(combined_hash_input.encode('utf-8')).hexdigest()
 
-    def get_agent_hash(self, agent_config) -> str:
+    def get_agent_hash(self, agent_config, prompt_template: str) -> str:
         """Get the hash for an agent's configuration."""
         # A more robust implementation would deeply sort keys
         front_matter_str = yaml.dump(
-            {
-                "agent_id": agent_config.agent_id,
-                "model": agent_config.model,
-                "seed": agent_config.seed,
-                "ttl": agent_config.ttl,
-                "variables": agent_config.variables,
-                "tools": agent_config.tools,
-                "skills": agent_config.skills,
-                "env": agent_config.env,
-            },
+            agent_config.dict(),
             sort_keys=True,
         )
         return hashlib.sha256(
-            (front_matter_str + agent_config.prompt_template).encode("utf-8")
+            (front_matter_str + prompt_template).encode("utf-8")
         ).hexdigest()
 
 

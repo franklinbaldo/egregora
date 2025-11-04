@@ -1,6 +1,0 @@
-id: link_rewriter
-kind: local
-inputs: { url: str }
-contracts:
-  deterministic: true
-  side_effects: none

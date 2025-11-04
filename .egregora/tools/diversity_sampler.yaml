@@ -1,6 +1,0 @@
-id: diversity_sampler
-kind: local
-inputs: { k: int, seed: int }
-contracts:
-  deterministic: true
-  side_effects: none

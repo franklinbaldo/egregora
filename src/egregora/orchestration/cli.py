@@ -445,9 +445,7 @@ def edit(
         result = asyncio.run(
             run_editor_session(
                 post_path=post_file,
-                client=client,
                 model_config=model_config,
-                rag_dir=rag_dir,
                 egregora_path=egregora_path,
                 docs_path=docs_path,
                 agent_override=agent,
@@ -500,9 +498,8 @@ def agents_explain(
     """Explain an agent's configuration, tools, and skills."""
     egregora_path = site_dir.resolve() / ".egregora"
     try:
-        agent_config = load_agent(agent_name, egregora_path)
+        agent_config, _ = load_agent(agent_name, egregora_path)
         tool_registry = ToolRegistry(egregora_path)
-        skill_registry = SkillRegistry(egregora_path)
 
         console.print(Panel(f"Agent: {agent_config.agent_id}", border_style="blue"))
         console.print(f"  Model: {agent_config.model}")
@@ -510,20 +507,18 @@ def agents_explain(
         console.print(f"  TTL: {agent_config.ttl}")
 
         console.print("\n[bold]Variables[/bold]")
-        console.print(f"  Defaults: {agent_config.variables.get('defaults', {})}")
-        console.print(f"  Allowed: {agent_config.variables.get('allowed', [])}")
+        console.print(f"  Defaults: {agent_config.variables.defaults}")
+        console.print(f"  Allowed: {agent_config.variables.allowed}")
 
         toolset = tool_registry.resolve_toolset(agent_config.tools)
         console.print("\n[bold]Tools[/bold]")
         for tool in sorted(list(toolset)):
             console.print(f"  - {tool}")
-        console.print(f"  Toolset Hash: {tool_registry.get_toolset_hash(toolset)}")
 
-        skills = agent_config.skills.get("enable", [])
+        skills = agent_config.skills.enable
         console.print("\n[bold]Skills[/bold]")
         for skill in skills:
             console.print(f"  - {skill}")
-        console.print(f"  Skillset Hash: {skill_registry.get_skillset_hash(skills)}")
 
     except FileNotFoundError:
         console.print(f"[red]Agent '{agent_name}' not found.[/red]")
@@ -545,22 +540,16 @@ def agents_lint(
             console.print(f"[red]Error in agent {agent_file.name}: {e}[/red]")
             errors += 1
 
-    # Lint Tools
+    # Lint Tool Profiles
     try:
         ToolRegistry(egregora_path)
     except Exception as e:
-        console.print(f"[red]Error loading tools: {e}[/red]")
+        console.print(f"[red]Error loading tool profiles: {e}[/red]")
         errors += 1
 
-    # Lint Skills
-    try:
-        SkillRegistry(egregora_path)
-    except Exception as e:
-        console.print(f"[red]Error loading skills: {e}[/red]")
-        errors += 1
 
     if errors == 0:
-        console.print("[green]✅ All agents, tools, and skills are valid.[/green]")
+        console.print("[green]✅ All agents and tool profiles are valid.[/green]")
     else:
         console.print(f"[red]Found {errors} errors.[/red]")
         raise typer.Exit(1)

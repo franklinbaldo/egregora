@@ -1,7 +1,8 @@
-import frontmatter
 from pathlib import Path
 from typing import Any, Dict
-from .loader import AgentConfig, load_agent
+import frontmatter
+from .loader import load_agent
+from .models import AgentConfig
 
 def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
     """
@@ -35,8 +36,8 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> Dict[str, Any
     post = frontmatter.load(post_path)
     post_vars = post.get("egregora", {}).get("variables", {})
 
-    merged_vars = agent_config.variables.get("defaults", {}).copy()
-    allowed_vars = agent_config.variables.get("allowed", [])
+    merged_vars = agent_config.variables.defaults.copy()
+    allowed_vars = agent_config.variables.allowed
 
     for key, value in post_vars.items():
         if key in allowed_vars:
@@ -51,12 +52,12 @@ class AgentResolver:
         self.egregora_path = egregora_path
         self.docs_path = docs_path
 
-    def resolve(self, post_path: Path, agent_override: str | None = None) -> tuple[AgentConfig, Dict[str, Any]]:
+    def resolve(self, post_path: Path, agent_override: str | None = None) -> tuple[AgentConfig, str, Dict[str, Any]]:
         """
-        Resolves the agent for a given post and returns the agent config
+        Resolves the agent for a given post and returns the agent config, prompt template,
         and the final merged variables.
         """
         agent_name = agent_override or resolve_agent_name(post_path, self.docs_path)
-        agent_config = load_agent(agent_name, self.egregora_path)
+        agent_config, prompt_template = load_agent(agent_name, self.egregora_path)
         final_vars = merge_variables(agent_config, post_path)
-        return agent_config, final_vars
+        return agent_config, prompt_template, final_vars
