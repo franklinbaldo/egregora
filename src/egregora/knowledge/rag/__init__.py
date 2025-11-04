@@ -11,13 +11,19 @@ Documentation:
 - API Reference: docs/reference/api.md#rag-system
 """
 
-from .retriever import (
+from egregora.knowledge.rag.pydantic_helpers import (
+    build_rag_context_for_writer,
+    find_relevant_docs,
+    format_rag_context,
+)
+from egregora.knowledge.rag.retriever import (
     index_all_media,
     index_media_enrichment,
     index_post,
     query_media,
     query_similar_posts,
 )
+
 from .store import VectorStore
 
 __all__ = [
@@ -27,4 +33,7 @@ __all__ = [
     "index_media_enrichment",
     "index_all_media",
     "query_media",
+    "find_relevant_docs",
+    "format_rag_context",
+    "build_rag_context_for_writer",
 ]

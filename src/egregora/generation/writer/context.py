@@ -8,9 +8,15 @@ from typing import Any
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
-from ...augmentation.profiler import get_active_authors, read_profile
-from ...knowledge.rag import VectorStore, query_similar_posts
-from ...utils import GeminiBatchClient
+from egregora.augmentation.profiler import get_active_authors, read_profile
+from egregora.knowledge.rag import (
+    VectorStore,
+    build_rag_context_for_writer,
+    query_similar_posts,
+)
+from egregora.utils import GeminiBatchClient
+from egregora.utils.batch import EmbeddingBatchRequest
+from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +34,121 @@ class RagErrorReason:
 
     NO_HITS = "no_hits"
     SYSTEM_ERROR = "rag_error"
+
+
+def build_rag_context_for_prompt(  # noqa: PLR0913
+    table_markdown: str,
+    rag_dir: Path,
+    batch_client: GeminiBatchClient,
+    *,
+    embedding_model: str,
+    embedding_output_dimensionality: int = 3072,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    top_k: int = 5,
+    use_pydantic_helpers: bool = False,
+) -> str:
+    """
+    Build a lightweight RAG context string from the conversation markdown.
+
+    This mirrors the pattern from the Pydantic-AI RAG example: embed the query,
+    fetch similar chunks, and convert them into a short "Relevant context" block
+    for the LLM prompt.
+
+    Args:
+        table_markdown: Conversation text to use as query
+        rag_dir: Directory containing vector store
+        batch_client: Gemini batch client
+        embedding_model: Embedding model name
+        embedding_output_dimensionality: Embedding dimension
+        retrieval_mode: "ann" or "exact"
+        retrieval_nprobe: ANN nprobe
+        retrieval_overfetch: ANN overfetch
+        top_k: Number of results
+        use_pydantic_helpers: If True, use async pydantic_helpers instead of sync code
+
+    Returns:
+        Formatted RAG context string
+    """
+    # Use new Pydantic AI helpers if requested
+    if use_pydantic_helpers:
+        import asyncio
+
+        return asyncio.run(
+            build_rag_context_for_writer(
+                query=table_markdown,
+                batch_client=batch_client,
+                rag_dir=rag_dir,
+                embedding_model=embedding_model,
+                output_dimensionality=embedding_output_dimensionality,
+                top_k=top_k,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
+        )
+    if not table_markdown.strip():
+        return ""
+
+    try:
+        requests = [
+            EmbeddingBatchRequest(
+                text=table_markdown,
+                tag="writer_query",
+                model=embedding_model,
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=embedding_output_dimensionality,
+            )
+        ]
+        results = batch_client.embed_content(requests)
+        if not results or results[0].embedding is None:
+            logger.warning("Writer RAG: embedding request returned no vector")
+            return ""
+
+        query_vector = results[0].embedding
+        store = VectorStore(rag_dir / "chunks.parquet")
+        search_results = store.search(
+            query_vec=query_vector,
+            top_k=top_k,
+            min_similarity=0.7,
+            mode=retrieval_mode,
+            nprobe=retrieval_nprobe,
+            overfetch=retrieval_overfetch,
+        )
+
+        df = search_results.execute()
+        if getattr(df, "empty", False):
+            logger.info("Writer RAG: no similar posts found for query")
+            return ""
+
+        records = df.to_dict("records")
+        if not records:
+            return ""
+
+        lines = [
+            "## Related Previous Posts (for continuity and linking):",
+            "You can reference these posts in your writing to maintain conversation continuity.\n",
+        ]
+
+        for row in records:
+            title = row.get("post_title") or "Untitled"
+            post_date = row.get("post_date") or ""
+            snippet = (row.get("content") or "")[:400]
+            tags = row.get("tags") or []
+            similarity = row.get("similarity")
+
+            lines.append(f"### [{title}] ({post_date})")
+            lines.append(f"{snippet}...")
+            lines.append(f"- Tags: {', '.join(tags) if tags else 'none'}")
+            if similarity is not None:
+                lines.append(f"- Similarity: {float(similarity):.2f}")
+            lines.append("")
+
+        return "\n".join(lines).strip()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Writer RAG context failed: %s", exc, exc_info=True)
+        return ""
 
 
 def _query_rag_for_context(  # noqa: PLR0913
@@ -71,28 +192,31 @@ def _query_rag_for_context(  # noqa: PLR0913
     """
 
     try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-        similar_posts = query_similar_posts(
-            table,
-            batch_client,
-            store,
-            embedding_model=embedding_model,
-            top_k=5,
-            deduplicate=True,
-            output_dimensionality=embedding_output_dimensionality,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-        )
+        with logfire_span("rag_query", query_type="similar_posts"):
+            store = VectorStore(rag_dir / "chunks.parquet")
+            similar_posts = query_similar_posts(
+                table,
+                batch_client,
+                store,
+                embedding_model=embedding_model,
+                top_k=5,
+                deduplicate=True,
+                output_dimensionality=embedding_output_dimensionality,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
 
-        if similar_posts.count().execute() == 0:
-            logger.info("No similar previous posts found")
-            if return_records:
-                return ("", [])
-            return Failure(RagErrorReason.NO_HITS)
+            if similar_posts.count().execute() == 0:
+                logger.info("No similar previous posts found")
+                logfire_info("RAG query completed", results_count=0)
+                if return_records:
+                    return ("", [])
+                return Failure(RagErrorReason.NO_HITS)
 
-        post_count = similar_posts.count().execute()
-        logger.info(f"Found {post_count} similar previous posts")
+            post_count = similar_posts.count().execute()
+            logger.info(f"Found {post_count} similar previous posts")
+            logfire_info("RAG query completed", results_count=post_count)
         rag_text = "\n\n## Related Previous Posts (for continuity and linking):\n"
         rag_text += (
             "You can reference these posts in your writing to maintain conversation continuity.\n\n"
@@ -138,45 +262,3 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
     logger.info(f"Profiles context: {len(profiles_context)} characters")
     return profiles_context
-
-
-def build_rag_context_for_prompt(  # noqa: PLR0913
-    conversation_md: str,
-    rag_dir: Path,
-    batch_client: GeminiBatchClient,
-    *,
-    embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-    use_pydantic_helpers: bool = False,  # noqa: ARG001 - Reserved for future Pydantic-AI integration
-) -> str:
-    """Stub function for Pydantic-AI RAG integration (Phase 1 - TODO).
-
-    This is a temporary implementation that bridges the gap until Phase 1
-    of the Pydantic-AI migration is complete. See docs/development/pydantic-migration.md
-
-    TODO: Replace with pydantic_ai.integrations.rag.rag_context() helper.
-
-    Args:
-        conversation_md: Conversation markdown (unused currently)
-        rag_dir: RAG vector store directory
-        batch_client: Gemini batch client
-        embedding_model: Embedding model name
-        embedding_output_dimensionality: Embedding dimensions
-        retrieval_mode: "ann" or "exact"
-        retrieval_nprobe: ANN nprobe parameter
-        retrieval_overfetch: ANN overfetch multiplier
-        use_pydantic_helpers: Reserved for future use
-
-    Returns:
-        Empty string (RAG disabled until Phase 1 complete)
-    """
-    # TODO: Implement proper RAG context building for Pydantic backend
-    # For now, return empty string to unblock the Pydantic agent
-    logger.warning(
-        "build_rag_context_for_prompt is a stub - RAG disabled in Pydantic backend. "
-        "Track progress in docs/development/pydantic-migration.md"
-    )
-    return ""

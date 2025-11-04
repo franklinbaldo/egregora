@@ -51,6 +51,8 @@ from egregora.generation.banner import generate_banner_for_post
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, query_media
 from egregora.orchestration.write_post import write_post
+from egregora.streaming import stream_ibis
+from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
 
@@ -198,20 +200,24 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
             retrieval_nprobe=ctx.deps.retrieval_nprobe,
             retrieval_overfetch=ctx.deps.retrieval_overfetch,
         )
-        executed = results.execute()
+
+        # Use Ibis streaming instead of pandas .execute().iterrows()
+        # This avoids materializing the full result set and complies with Ibis-first policy
         items: list[MediaItem] = []
-        for _, row in executed.iterrows():
-            items.append(
-                MediaItem(
-                    media_type=row.get("media_type"),
-                    media_path=row.get("media_path"),
-                    original_filename=row.get("original_filename"),
-                    description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity"))
-                    if row.get("similarity") is not None
-                    else None,
+        for batch in stream_ibis(results, store._client, batch_size=100):
+            for row in batch:
+                items.append(
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=(str(row.get("content", "")) or "")[:500],
+                        similarity=float(row.get("similarity"))
+                        if row.get("similarity") is not None
+                        else None,
+                    )
                 )
-            )
+
         if not items:
             logger.info("Writer agent search_media returned no matches for query %s", query)
         return SearchMediaResult(results=items)
@@ -308,25 +314,188 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     )
 
     try:
-        result = agent.run_sync(prompt, deps=state)
-        result_payload = getattr(result, "data", result)
-        logger.info(
-            "Writer agent finished with summary: %s", getattr(result_payload, "summary", None)
-        )
-        record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
-        if record_dir:
-            output_path = Path(record_dir).expanduser()
-            output_path.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{period_date}-{timestamp}.json"
-            try:
-                payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
-                filename.write_bytes(payload)
-                logger.info("Recorded writer agent conversation to %s", filename)
-            except Exception as record_exc:  # pragma: no cover - best effort recording
-                logger.warning("Failed to persist writer agent messages: %s", record_exc)
+        with logfire_span("writer_agent", period=period_date, model=model_name):
+            result = agent.run_sync(prompt, deps=state)
+            result_payload = getattr(result, "data", result)
+
+            # Log completion metrics
+            usage = result.usage()
+            logfire_info(
+                "Writer agent completed",
+                period=period_date,
+                posts_created=len(state.saved_posts),
+                profiles_updated=len(state.saved_profiles),
+                tokens_total=usage.total_tokens if usage else 0,
+                tokens_input=usage.input_tokens if usage else 0,
+                tokens_output=usage.output_tokens if usage else 0,
+            )
+
+            logger.info(
+                "Writer agent finished with summary: %s", getattr(result_payload, "summary", None)
+            )
+
+            record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
+            if record_dir:
+                output_path = Path(record_dir).expanduser()
+                output_path.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = output_path / f"writer-{period_date}-{timestamp}.json"
+                try:
+                    payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
+                    filename.write_bytes(payload)
+                    logger.info("Recorded writer agent conversation to %s", filename)
+                except Exception as record_exc:  # pragma: no cover - best effort recording
+                    logger.warning("Failed to persist writer agent messages: %s", record_exc)
     except Exception as exc:  # pragma: no cover - Pydantic-AI wraps HTTP errors
         logger.error("Pydantic writer agent failed: %s", exc)
-        raise
+        raise RuntimeError("Writer agent execution failed") from exc
 
     return state.saved_posts, state.saved_profiles
+
+
+class WriterStreamResult:
+    """Result from streaming writer agent.
+
+    This class is an async context manager that properly wraps pydantic-ai's
+    run_stream() async context manager and adds logfire observability spans.
+
+    Usage:
+        >>> async with write_posts_with_pydantic_agent_stream(...) as result:
+        ...     async for chunk in result.stream_text():
+        ...         print(chunk, end='', flush=True)
+        ...     posts, profiles = await result.get_posts()
+    """
+
+    def __init__(
+        self,
+        agent: Any,
+        prompt: str,
+        state: WriterAgentState,
+        period_date: str,
+        model_name: str,
+    ):
+        self.agent = agent
+        self.prompt = prompt
+        self.state = state
+        self.period_date = period_date
+        self.model_name = model_name
+        self._stream_context = None
+        self._response = None
+        self._span = None
+
+    async def __aenter__(self):
+        """Enter async context - start logfire span and pydantic-ai stream."""
+        # Start logfire span
+        self._span = logfire_span(
+            "writer_agent_stream", period=self.period_date, model=self.model_name
+        )
+        self._span.__enter__()
+
+        # Start pydantic-ai stream (must use async with)
+        self._stream_context = self.agent.run_stream(self.prompt, deps=self.state)
+        self._response = await self._stream_context.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context - close stream and span."""
+        try:
+            if self._stream_context:
+                await self._stream_context.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            if self._span:
+                self._span.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+    async def stream_text(self):
+        """Stream text chunks from the agent."""
+        if not self._response:
+            raise RuntimeError(
+                "WriterStreamResult must be used as async context manager "
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+            )
+        async for chunk in self._response.stream_text():
+            yield chunk
+
+    async def get_posts(self) -> tuple[list[str], list[str]]:
+        """Get final posts and profiles after streaming completes.
+
+        Note: The state is populated during tool execution while streaming,
+        so we can return it directly without waiting for additional data.
+        """
+        if not self._response:
+            raise RuntimeError(
+                "WriterStreamResult must be used as async context manager "
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+            )
+        return self.state.saved_posts, self.state.saved_profiles
+
+
+async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
+    *,
+    prompt: str,
+    model_name: str,
+    period_date: str,
+    output_dir: Path,
+    profiles_dir: Path,
+    rag_dir: Path,
+    batch_client: Any,
+    embedding_model: str,
+    embedding_output_dimensionality: int,
+    retrieval_mode: str,
+    retrieval_nprobe: int | None,
+    retrieval_overfetch: int | None,
+    annotations_store: AnnotationStore | None,
+    agent_model: Any | None = None,
+    register_tools: bool = True,
+) -> WriterStreamResult:
+    """
+    Execute the writer flow using Pydantic-AI agent with streaming.
+
+    This is an async version that streams agent responses token-by-token.
+    Useful for interactive CLI tools and real-time progress updates.
+
+    IMPORTANT: The returned WriterStreamResult is an async context manager
+    and MUST be used with `async with`:
+
+        async with write_posts_with_pydantic_agent_stream(...) as result:
+            async for chunk in result.stream_text():
+                print(chunk, end='', flush=True)
+            posts, profiles = await result.get_posts()
+
+    Args:
+        (same as write_posts_with_pydantic_agent)
+
+    Returns:
+        WriterStreamResult async context manager for streaming and results
+    """
+    logger.info("Running writer via Pydantic-AI backend (streaming)")
+
+    if register_tools:
+        agent = Agent[WriterAgentState, WriterAgentReturn](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+            output_type=WriterAgentReturn,
+        )
+        _register_writer_tools(agent)
+    else:
+        agent = Agent[WriterAgentState, str](
+            model=agent_model or GoogleModel(model_name),
+            deps_type=WriterAgentState,
+        )
+
+    state = WriterAgentState(
+        period_date=period_date,
+        output_dir=output_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        batch_client=batch_client,
+        embedding_model=embedding_model,
+        embedding_output_dimensionality=embedding_output_dimensionality,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+        annotations_store=annotations_store,
+    )
+
+    # Return the context manager - caller must use `async with`
+    return WriterStreamResult(agent, prompt, state, period_date, model_name)
