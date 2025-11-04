@@ -108,67 +108,43 @@ if not media_mapping:  # Only extract if not already done
     period_table, media_mapping = extract_and_replace_media(...)
 ```
 
-### 3. Missing Avatar Validation (Design Decision Required)
+### 3. Missing Avatar Validation (Simple Fix Required)
 
-**Location:** `src/egregora/augmentation/profiler.py:274-282`
+**Location:** `src/egregora/augmentation/enrichment/core.py` (prompt), `src/egregora/augmentation/profiler.py:274-282`
 
 **Issue:** No validation of avatar suitability before setting.
 
-**Architectural Note:** Following the project's **"Trust the LLM"** philosophy, avatar validation should be delegated to the enrichment agent rather than hardcoded rules. The enrichment system already analyzes media content and could validate:
-- Whether the image is appropriate for an avatar
-- Content quality and suitability
-- Inappropriate content detection (NSFW, offensive, etc.)
-- Whether it actually depicts a person/face vs random objects
+**Simple Solution:** The enrichment agent already analyzes all media. Just extend the existing enrichment prompt to include avatar validation, then only apply avatars that pass enrichment.
 
 **Recommendation:**
 ```python
-# In augmentation/enrichment/core.py or new validation module
-async def validate_avatar_suitability(
-    image_path: Path,
-    model: genai.GenerativeModel
-) -> dict[str, Any]:
-    """
-    Use LLM to validate if an image is suitable as an avatar.
+# 1. In augmentation/enrichment/core.py - Update enrichment prompt:
+"""
+Analyze this media attachment and provide a description.
 
-    Returns:
-        {
-            "suitable": bool,
-            "reason": str,  # e.g., "appropriate portrait photo" or "not suitable: contains NSFW content"
-            "confidence": float
-        }
-    """
-    prompt = """
-    Analyze this image to determine if it's suitable as a profile avatar.
+If this is being used as an avatar (profile picture), also validate:
+- Is this appropriate for a profile photo? (person's face/portrait)
+- Is the content appropriate for all audiences? (no NSFW/offensive content)
+- Is the quality sufficient for an avatar?
 
-    An avatar should be:
-    - A clear photo of a person's face or upper body
-    - Appropriate for all audiences (no NSFW content)
-    - Good quality and recognizable
+Include "avatar_suitable: true/false" in your response.
+"""
 
-    Respond with whether this is suitable, and why.
-    """
-    # Use enrichment system to analyze and validate
-    ...
-
-# In profiler.py:apply_command_to_profile()
+# 2. In profiler.py:apply_command_to_profile() - Check enrichment result:
 elif cmd_type == "set" and target == "avatar":
     if value and value in media_mapping:
         avatar_path = media_mapping[value]
 
-        # Trust the enrichment agent to validate
-        validation = await validate_avatar_suitability(avatar_path, model)
-        if not validation["suitable"]:
-            logger.warning(
-                f"Avatar rejected for {author_uuid}: {validation['reason']}"
-            )
-            return str(profile_path)
+        # Only use image after it passes enrichment
+        # enrichment_result = get_enrichment_for_media(avatar_path)
+        # if not enrichment_result.get("avatar_suitable"):
+        #     logger.warning(f"Avatar rejected by enrichment for {author_uuid}")
+        #     return str(profile_path)
 
         content = _update_profile_metadata(...)
 ```
 
-**Infrastructure Safety:** While content validation should be LLM-driven, basic infrastructure limits may still be needed:
-- Max file size (e.g., 10MB) to prevent DoS/storage abuse
-- This should be enforced at the media extraction layer, not avatar-specific
+**Key Insight:** No separate validation function needed - leverage existing enrichment infrastructure with a minimal prompt adjustment.
 
 ## Major Issues ⚠️
 
