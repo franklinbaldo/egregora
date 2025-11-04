@@ -7,14 +7,23 @@ combining deterministic TestModel execution with LLM judges for quality assessme
 
 from __future__ import annotations
 
+import asyncio
+import asyncio
 from pathlib import Path
 
 import pytest
+from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance
 
+from egregora.generation.writer.pydantic_agent import (
+    WriterAgentReturn,
+    WriterAgentState,
+    _register_writer_tools,
+)
 from egregora.ingestion.parser import parse_export
+from egregora.knowledge.annotations import AnnotationStore
 from tests.conftest import WhatsAppFixture
 from tests.mock_batch_client import create_mock_batch_client
 
@@ -114,7 +123,6 @@ def test_writer_with_real_whatsapp_data(
     tmp_path: Path,
 ) -> None:
     """Evaluate writer agent using pydantic-evals with real WhatsApp data."""
-    import asyncio
 
     # Setup directories
     output_dir = tmp_path / "output"
@@ -131,14 +139,6 @@ def test_writer_with_real_whatsapp_data(
     # Define task to evaluate
     async def run_writer(inputs: dict) -> tuple[list[str], list[str]]:
         """Run writer agent on real WhatsApp data."""
-        from pydantic_ai import Agent
-
-        from egregora.generation.writer.pydantic_agent import (
-            WriterAgentReturn,
-            WriterAgentState,
-            _register_writer_tools,
-        )
-        from egregora.knowledge.annotations import AnnotationStore
 
         # Parse conversation
         export = create_export_from_fixture(whatsapp_fixture)
@@ -237,34 +237,6 @@ async def test_writer_quality_with_llm_judge(
     """
     # This test uses real LLM calls for quality assessment
     # Create more sophisticated evaluation with multiple LLM judges
-
-    quality_judge = LLMJudge(
-        model="gemini-1.5-pro",
-        prompt="""
-        Evaluate the quality of this blog post generated from a WhatsApp conversation.
-
-        Criteria:
-        1. Coherent narrative structure (0-3 points)
-        2. Relevant content extraction (0-3 points)
-        3. Proper markdown formatting (0-2 points)
-        4. Appropriate metadata (title, tags, summary) (0-2 points)
-
-        Return a score from 0.0 to 1.0 representing overall quality.
-        """,
-    )
-
-    dataset = Dataset(
-        cases=[
-            Case(
-                name="quality_assessment",
-                inputs={
-                    "conversation": "Real conversation data here...",
-                    "period_date": str(whatsapp_fixture.export_date),
-                },
-            )
-        ],
-        evaluators=[quality_judge],
-    )
 
     # TODO: Implement full quality evaluation
     # For now, this serves as a placeholder for future quality testing

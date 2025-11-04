@@ -82,8 +82,7 @@ class GeminiBatchClient:
 
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file and wait for it to become ACTIVE before returning."""
-        import time
-
+        
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
