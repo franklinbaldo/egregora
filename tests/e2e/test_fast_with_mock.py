@@ -11,7 +11,7 @@ which uses VCR to replay real API responses, providing better integration testin
 from __future__ import annotations
 
 from egregora.utils.batch import EmbeddingBatchRequest
-from tests.mock_batch_client import create_mock_batch_client
+from tests.utils.mock_batch_client import create_mock_batch_client
 
 # Default embedding dimensionality for testing
 DEFAULT_EMBEDDING_DIM = 3072

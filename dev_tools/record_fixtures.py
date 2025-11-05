@@ -14,7 +14,7 @@ Requirements:
 
 Usage:
     export GOOGLE_API_KEY="your_api_key_here"
-    python scripts/record_golden_fixtures.py \
+    python dev_tools/record_fixtures.py \
         --zip-path /path/to/your/whatsapp_chat.zip \
         --output-dir /path/to/output
 """

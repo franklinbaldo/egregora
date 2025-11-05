@@ -47,7 +47,7 @@ from egregora.generation.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.generation.writer.pydantic_agent import write_posts_with_pydantic_agent
+from egregora.generation.writer.writer_agent import write_posts_with_pydantic_agent
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.rag import VectorStore, index_post
 from egregora.prompt_templates import WriterPromptTemplate

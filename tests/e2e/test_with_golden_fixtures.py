@@ -18,7 +18,7 @@ from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
 from egregora.orchestration.pipeline import process_whatsapp_export
-from tests.mock_batch_client import create_mock_genai_client
+from tests.utils.mock_batch_client import create_mock_genai_client
 
 
 def test_pipeline_with_golden_fixtures(
@@ -85,7 +85,7 @@ def test_pipeline_with_golden_fixtures(
         return GoldenTestModel(period_date=whatsapp_fixture.export_date.isoformat())
 
     monkeypatch.setattr(
-        "egregora.generation.writer.pydantic_agent.GoogleModel",
+        "egregora.generation.writer.writer_agent.GoogleModel",
         _make_test_model,
     )
 

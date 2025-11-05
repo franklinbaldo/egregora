@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ALLOWLIST_PATH = Path("tools/forbidden_import_allowlist.txt")
+ALLOWLIST_PATH = Path("dev_tools/import_allowlist.txt")
 
 
 def load_allowlist() -> set[str]:

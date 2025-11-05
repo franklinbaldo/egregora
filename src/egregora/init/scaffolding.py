@@ -76,7 +76,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     }
 
     # Create mkdocs.yml from template
-    mkdocs_template = env.get_template("mkdocs.yml.jinja2")
+    mkdocs_template = env.get_template("mkdocs.yml.jinja")
     mkdocs_content = mkdocs_template.render(**context)
     mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
 
@@ -108,14 +108,14 @@ def _create_site_structure(
     # Create README.md
     readme_path = site_paths.site_root / "README.md"
     if not readme_path.exists():
-        template = env.get_template("README.md.jinja2")
+        template = env.get_template("README.md.jinja")
         content = template.render(**context)
         readme_path.write_text(content, encoding="utf-8")
 
     # Create .gitignore
     gitignore_path = site_paths.site_root / ".gitignore"
     if not gitignore_path.exists():
-        template = env.get_template(".gitignore.jinja2")
+        template = env.get_template(".gitignore.jinja")
         content = template.render(**context)
         gitignore_path.write_text(content, encoding="utf-8")
 
@@ -127,14 +127,14 @@ def _create_site_structure(
     if blog_dir != ".":
         homepage_path = docs_dir / "index.md"
         if not homepage_path.exists():
-            template = env.get_template("docs/index.md.jinja2")
+            template = env.get_template("docs/index.md.jinja")
             content = template.render(**context)
             homepage_path.write_text(content, encoding="utf-8")
 
     # Create about page
     about_path = docs_dir / "about.md"
     if not about_path.exists():
-        template = env.get_template("docs/about.md.jinja2")
+        template = env.get_template("docs/about.md.jinja")
         content = template.render(**context)
         about_path.write_text(content, encoding="utf-8")
 
@@ -144,14 +144,14 @@ def _create_site_structure(
     # Create profiles index
     profiles_index_path = profiles_dir / "index.md"
     if not profiles_index_path.exists():
-        template = env.get_template("docs/profiles/index.md.jinja2")
+        template = env.get_template("docs/profiles/index.md.jinja")
         content = template.render(**context)
         profiles_index_path.write_text(content, encoding="utf-8")
 
     # Create media index
     media_index_path = media_dir / "index.md"
     if not media_index_path.exists():
-        template = env.get_template("docs/media/index.md.jinja2")
+        template = env.get_template("docs/media/index.md.jinja")
         content = template.render(**context)
         media_index_path.write_text(content, encoding="utf-8")
 

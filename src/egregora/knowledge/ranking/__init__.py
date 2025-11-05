@@ -10,7 +10,7 @@ Documentation:
 """
 
 from egregora.knowledge.ranking.elo import calculate_elo_update, initialize_ratings, update_ratings
-from egregora.knowledge.ranking.pydantic_agent import (
+from egregora.knowledge.ranking.ranking_agent import (
     run_comparison_with_pydantic_agent as run_comparison,
 )
 from egregora.knowledge.ranking.store import RankingStore
