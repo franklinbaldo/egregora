@@ -27,6 +27,8 @@ from uuid import UUID, uuid5
 
 from ibis.expr.types import Table
 
+from egregora.enrichment.media import get_media_subfolder
+
 if TYPE_CHECKING:
     from egregora.pipeline.adapters import SourceAdapter
 
@@ -137,25 +139,34 @@ def generate_content_uuid(file_path: Path) -> str:
 def replace_markdown_media_refs(
     table: Table,
     media_mapping: dict[str, Path],
+    docs_dir: Path,
+    posts_dir: Path,
 ) -> Table:
     """Replace markdown media references with standardized paths.
 
     Updates message column by replacing original references with standardized
-    UUID-based filenames from the media mapping.
+    UUID-based filenames from the media mapping. Computes relative paths from
+    posts_dir to the media files for markdown links.
 
     Args:
         table: Ibis table with 'message' column
-        media_mapping: Dict mapping original reference to standardized path
-                      Example: {"photo.jpg": Path("media/a1b2c3d4.jpg")}
+        media_mapping: Dict mapping original reference to absolute file path
+                      Example: {"photo.jpg": Path("/abs/path/docs/media/images/a1b2c3d4.jpg")}
+        docs_dir: MkDocs docs directory (for fallback relative path computation)
+        posts_dir: Posts directory (for computing relative links)
 
     Returns:
         Updated table with replaced references
 
     Example:
         >>> table = ibis.memtable([{"message": "See ![photo](IMG-001.jpg)"}])
-        >>> mapping = {"IMG-001.jpg": Path("media/abc123.jpg")}
-        >>> updated = replace_markdown_media_refs(table, mapping)
-        >>> # Message is now: "See ![photo](media/abc123.jpg)"
+        >>> mapping = {"IMG-001.jpg": Path("/site/docs/media/abc123.jpg")}
+        >>> updated = replace_markdown_media_refs(
+        ...     table, mapping,
+        ...     docs_dir=Path("/site/docs"),
+        ...     posts_dir=Path("/site/docs/posts")
+        ... )
+        >>> # Message is now: "See ![photo](../media/abc123.jpg)"
     """
     if not media_mapping:
         return table
@@ -164,15 +175,25 @@ def replace_markdown_media_refs(
     df = table.execute()
 
     # Replace references in message column
-    for original_ref, standardized_path in media_mapping.items():
-        # Convert Path to relative string (e.g., "media/abc123.jpg")
-        standardized_ref = str(standardized_path)
+    for original_ref, absolute_path in media_mapping.items():
+        # Compute relative path from posts_dir to media file
+        # This matches the behavior of the old replace_media_mentions() function
+        try:
+            import os
+            relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
+        except ValueError:
+            # Fallback: use docs_dir-relative path with leading slash
+            try:
+                relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
+            except ValueError:
+                # Last resort: use absolute path
+                relative_link = absolute_path.as_posix()
 
         # Replace in both image and link markdown formats
-        # Image: ![alt](original) → ![alt](standardized)
+        # Image: ![alt](original) → ![alt](relative_link)
         df["message"] = df["message"].str.replace(
             f"]({original_ref})",
-            f"]({standardized_ref})",
+            f"]({relative_link})",
             regex=False,
         )
 
@@ -190,6 +211,8 @@ def process_media_for_period(
     adapter: SourceAdapter,
     media_dir: Path,
     temp_dir: Path,
+    docs_dir: Path,
+    posts_dir: Path,
     **adapter_kwargs,
 ) -> tuple[Table, dict[str, Path]]:
     """Process media files for a period: extract, standardize, and update references.
@@ -206,12 +229,14 @@ def process_media_for_period(
         adapter: Source adapter that implements deliver_media()
         media_dir: Directory where standardized media files should be stored
         temp_dir: Temporary directory for intermediate files
+        docs_dir: MkDocs docs directory (for relative path computation)
+        posts_dir: Posts directory (for relative path computation)
         **adapter_kwargs: Additional kwargs to pass to adapter.deliver_media()
 
     Returns:
         Tuple of (updated_table, media_mapping):
         - updated_table: Table with replaced media references
-        - media_mapping: Dict mapping original refs to final paths
+        - media_mapping: Dict mapping original refs to absolute file paths
 
     Example:
         >>> adapter = WhatsAppAdapter()
@@ -220,10 +245,12 @@ def process_media_for_period(
         ...     adapter=adapter,
         ...     media_dir=Path("output/media"),
         ...     temp_dir=Path("/tmp"),
+        ...     docs_dir=Path("output"),
+        ...     posts_dir=Path("output/posts"),
         ...     zip_path=Path("export.zip"),  # adapter-specific kwarg
         ... )
         >>> print(mapping)
-        {'IMG-001.jpg': Path('media/a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890.jpg')}
+        {'IMG-001.jpg': Path('/abs/path/output/media/images/abc-uuid.jpg')}
     """
     media_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -262,11 +289,16 @@ def process_media_for_period(
             media_uuid = generate_content_uuid(delivered_file)
             file_extension = delivered_file.suffix
 
-            # Step 5: Create standardized filename (UUID + extension)
-            standardized_name = f"{media_uuid}{file_extension}"
-            standardized_path = media_dir / standardized_name
+            # Step 5: Determine subfolder based on media type (images/, videos/, etc.)
+            subfolder = get_media_subfolder(file_extension)
+            subfolder_path = media_dir / subfolder
+            subfolder_path.mkdir(parents=True, exist_ok=True)
 
-            # Step 6: Move file to media directory with standardized name
+            # Step 6: Create standardized filename (UUID + extension)
+            standardized_name = f"{media_uuid}{file_extension}"
+            standardized_path = subfolder_path / standardized_name
+
+            # Step 7: Move file to media directory with standardized name
             if standardized_path.exists():
                 # File already exists (deduplication working!)
                 logger.debug(f"Media file already exists (duplicate): {standardized_name}")
@@ -274,10 +306,11 @@ def process_media_for_period(
             else:
                 # Move temp file to final location
                 delivered_file.rename(standardized_path)
-                logger.debug(f"Standardized media: {media_ref} → {standardized_name}")
+                logger.debug(f"Standardized media: {media_ref} → {subfolder}/{standardized_name}")
 
-            # Step 7: Store mapping (relative path for markdown)
-            media_mapping[media_ref] = Path("media") / standardized_name
+            # Step 8: Store mapping with ABSOLUTE path for enrichment stage
+            # The enrichment stage needs absolute paths to access files
+            media_mapping[media_ref] = standardized_path.resolve()
             processed_count += 1
 
         except Exception as e:
@@ -289,9 +322,14 @@ def process_media_for_period(
     if failed_refs:
         logger.warning(f"Failed to process {len(failed_refs)} media files: {failed_refs}")
 
-    # Step 8: Replace media references in messages
+    # Step 9: Replace media references in messages with relative paths
     if media_mapping:
-        updated_table = replace_markdown_media_refs(period_table, media_mapping)
+        updated_table = replace_markdown_media_refs(
+            period_table,
+            media_mapping,
+            docs_dir=docs_dir,
+            posts_dir=posts_dir,
+        )
     else:
         updated_table = period_table
 

@@ -280,6 +280,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                     adapter=adapter,
                     media_dir=site_paths.media_dir,
                     temp_dir=temp_dir,
+                    docs_dir=site_paths.docs_dir,
+                    posts_dir=posts_dir,
                     zip_path=input_path,  # WhatsApp-specific kwarg
                 )
 

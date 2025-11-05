@@ -157,74 +157,137 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_image_reference(self):
         """Test replacing image markdown reference."""
-        table = ibis.memtable(
-            [
-                {"message": "Check this ![photo](IMG-001.jpg)"},
-            ]
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docs_dir = Path(tmpdir) / "docs"
+            posts_dir = docs_dir / "posts"
+            media_dir = docs_dir / "media"
 
-        mapping = {"IMG-001.jpg": Path("media/abc123.jpg")}
-        updated = replace_markdown_media_refs(table, mapping)
+            docs_dir.mkdir()
+            posts_dir.mkdir()
+            media_dir.mkdir()
 
-        result = updated.execute()
-        assert result["message"][0] == "Check this ![photo](media/abc123.jpg)"
+            # Create a fake media file
+            media_file = media_dir / "abc123.jpg"
+            media_file.write_bytes(b"fake image")
+
+            table = ibis.memtable(
+                [
+                    {"message": "Check this ![photo](IMG-001.jpg)"},
+                ]
+            )
+
+            mapping = {"IMG-001.jpg": media_file}
+            updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
+
+            result = updated.execute()
+            # Should create relative path from posts to media
+            assert "../media/abc123.jpg" in result["message"][0]
 
     def test_replace_link_reference(self):
         """Test replacing link markdown reference."""
-        table = ibis.memtable(
-            [
-                {"message": "Watch [video](VID-001.mp4)"},
-            ]
-        )
 
-        mapping = {"VID-001.mp4": Path("media/xyz789.mp4")}
-        updated = replace_markdown_media_refs(table, mapping)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docs_dir = Path(tmpdir) / "docs"
+            posts_dir = docs_dir / "posts"
+            media_dir = docs_dir / "media"
 
-        result = updated.execute()
-        assert result["message"][0] == "Watch [video](media/xyz789.mp4)"
+            docs_dir.mkdir()
+            posts_dir.mkdir()
+            media_dir.mkdir()
+
+            # Create a fake media file
+            media_file = media_dir / "xyz789.mp4"
+            media_file.write_bytes(b"fake video")
+
+            table = ibis.memtable(
+                [
+                    {"message": "Watch [video](VID-001.mp4)"},
+                ]
+            )
+
+            mapping = {"VID-001.mp4": media_file}
+            updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
+
+            result = updated.execute()
+            assert "../media/xyz789.mp4" in result["message"][0]
 
     def test_replace_multiple_references(self):
         """Test replacing multiple references in one message."""
-        table = ibis.memtable(
-            [
-                {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
-            ]
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docs_dir = Path(tmpdir) / "docs"
+            posts_dir = docs_dir / "posts"
+            media_dir = docs_dir / "media"
 
-        mapping = {
-            "IMG-001.jpg": Path("media/abc.jpg"),
-            "VID-001.mp4": Path("media/xyz.mp4"),
-        }
-        updated = replace_markdown_media_refs(table, mapping)
+            docs_dir.mkdir()
+            posts_dir.mkdir()
+            media_dir.mkdir()
 
-        result = updated.execute()
-        assert "media/abc.jpg" in result["message"][0]
-        assert "media/xyz.mp4" in result["message"][0]
+            # Create fake media files
+            img_file = media_dir / "abc.jpg"
+            img_file.write_bytes(b"fake image")
+            vid_file = media_dir / "xyz.mp4"
+            vid_file.write_bytes(b"fake video")
+
+            table = ibis.memtable(
+                [
+                    {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
+                ]
+            )
+
+            mapping = {
+                "IMG-001.jpg": img_file,
+                "VID-001.mp4": vid_file,
+            }
+            updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
+
+            result = updated.execute()
+            assert "../media/abc.jpg" in result["message"][0]
+            assert "../media/xyz.mp4" in result["message"][0]
 
     def test_replace_with_empty_mapping(self):
         """Test that empty mapping returns unchanged table."""
-        table = ibis.memtable(
-            [
-                {"message": "Check this ![photo](IMG-001.jpg)"},
-            ]
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docs_dir = Path(tmpdir) / "docs"
+            posts_dir = docs_dir / "posts"
 
-        updated = replace_markdown_media_refs(table, {})
+            docs_dir.mkdir()
+            posts_dir.mkdir()
 
-        result = updated.execute()
-        assert result["message"][0] == "Check this ![photo](IMG-001.jpg)"
+            table = ibis.memtable(
+                [
+                    {"message": "Check this ![photo](IMG-001.jpg)"},
+                ]
+            )
+
+            updated = replace_markdown_media_refs(table, {}, docs_dir, posts_dir)
+
+            result = updated.execute()
+            assert result["message"][0] == "Check this ![photo](IMG-001.jpg)"
 
     def test_replace_only_matching_references(self):
         """Test that only references in mapping are replaced."""
-        table = ibis.memtable(
-            [
-                {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
-            ]
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docs_dir = Path(tmpdir) / "docs"
+            posts_dir = docs_dir / "posts"
+            media_dir = docs_dir / "media"
 
-        mapping = {"IMG-001.jpg": Path("media/abc.jpg")}
-        updated = replace_markdown_media_refs(table, mapping)
+            docs_dir.mkdir()
+            posts_dir.mkdir()
+            media_dir.mkdir()
 
-        result = updated.execute()
-        assert "media/abc.jpg" in result["message"][0]
-        assert "IMG-002.jpg" in result["message"][0]  # Unchanged
+            # Create fake media file
+            media_file = media_dir / "abc.jpg"
+            media_file.write_bytes(b"fake image")
+
+            table = ibis.memtable(
+                [
+                    {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
+                ]
+            )
+
+            mapping = {"IMG-001.jpg": media_file}
+            updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
+
+            result = updated.execute()
+            assert "../media/abc.jpg" in result["message"][0]
+            assert "IMG-002.jpg" in result["message"][0]  # Unchanged
