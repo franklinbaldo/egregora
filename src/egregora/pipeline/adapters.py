@@ -19,9 +19,9 @@ from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "MEDIA_UUID_NAMESPACE",
     "MediaMapping",
     "SourceAdapter",
-    "MEDIA_UUID_NAMESPACE",
 ]
 
 
