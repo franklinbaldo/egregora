@@ -8,6 +8,14 @@ from ibis.expr.types import Table
 
 from egregora.constants import Limits
 
+# Backward compatibility: Re-export WhatsApp functions that were previously in this module
+# These have been moved to egregora.sources.whatsapp.pipeline but we maintain the old
+# import path for existing code that uses "from egregora.pipeline import ..."
+from egregora.sources.whatsapp import (  # noqa: F401
+    discover_chat_file,
+    process_whatsapp_export,
+)
+
 logger = logging.getLogger(__name__)
 
 
