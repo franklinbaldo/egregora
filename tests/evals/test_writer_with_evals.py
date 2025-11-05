@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.generation.writer.writer_agent import (
+from egregora.agents.writer.writer_agent import (
     write_posts_with_pydantic_agent,
     write_posts_with_pydantic_agent_stream,
 )

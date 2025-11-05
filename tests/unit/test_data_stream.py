@@ -16,7 +16,7 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.streaming import (
+from egregora.database.streaming import (
     copy_expr_to_ndjson,
     copy_expr_to_parquet,
     ensure_deterministic_order,

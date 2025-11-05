@@ -11,7 +11,8 @@ from typing import Any
 import duckdb
 import ibis
 
-from ..core import database_schema
+from egregora.database import schema as database_schema
+
 from ..privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 ANNOTATION_AUTHOR = "egregora"

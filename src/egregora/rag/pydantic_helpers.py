@@ -10,8 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from egregora.knowledge.rag.embedder import embed_query
-from egregora.knowledge.rag.store import VectorStore
+from egregora.rag.embedder import embed_query
+from egregora.rag.store import VectorStore
 from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.logfire_config import logfire_info, logfire_span
 

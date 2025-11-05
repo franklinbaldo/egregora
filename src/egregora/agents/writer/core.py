@@ -26,19 +26,17 @@ from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
-from egregora.augmentation.profiler import get_active_authors
-from egregora.config import ModelConfig, load_mkdocs_config
-from egregora.generation.writer.context import (
+from egregora.agents.writer.context import (
     _load_profiles_context,
     build_rag_context_for_prompt,
 )
 
 # Import split modules
-from egregora.generation.writer.formatting import (
+from egregora.agents.writer.formatting import (
     _build_conversation_markdown,
     _load_freeform_memory,
 )
-from egregora.generation.writer.handlers import (
+from egregora.agents.writer.handlers import (
     _handle_annotate_conversation_tool,
     _handle_generate_banner_tool,
     _handle_read_profile_tool,
@@ -47,10 +45,12 @@ from egregora.generation.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.generation.writer.writer_agent import write_posts_with_pydantic_agent
-from egregora.knowledge.annotations import AnnotationStore
-from egregora.knowledge.rag import VectorStore, index_post
+from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
+from egregora.config import ModelConfig, load_mkdocs_config
+from egregora.database.annotations import AnnotationStore
+from egregora.profiler import get_active_authors
 from egregora.prompt_templates import WriterPromptTemplate
+from egregora.rag import VectorStore, index_post
 from egregora.utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)

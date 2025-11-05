@@ -11,7 +11,7 @@ Public API:
     - ensure_deterministic_order: Sort expression for reproducible iteration
 """
 
-from egregora.streaming.stream import (
+from egregora.database.streaming.stream import (
     copy_expr_to_ndjson,
     copy_expr_to_parquet,
     ensure_deterministic_order,

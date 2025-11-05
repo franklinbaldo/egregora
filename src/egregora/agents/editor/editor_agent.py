@@ -24,10 +24,10 @@ try:
 except ImportError:  # pragma: no cover - legacy SDKs
     from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
+from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.config import ModelConfig
-from egregora.generation.editor.document import DocumentSnapshot, Editor
-from egregora.knowledge.rag import VectorStore, query_similar_posts
 from egregora.prompt_templates import EditorPromptTemplate
+from egregora.rag import VectorStore, query_similar_posts
 from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span

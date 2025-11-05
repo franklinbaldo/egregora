@@ -46,13 +46,13 @@ try:
 except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
     from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
-from egregora.augmentation.profiler import read_profile, write_profile
-from egregora.generation.banner import generate_banner_for_post
-from egregora.knowledge.annotations import AnnotationStore
-from egregora.knowledge.rag import VectorStore, query_media
-from egregora.orchestration.write_post import write_post
-from egregora.streaming import stream_ibis
+from egregora.agents.banner import generate_banner_for_post
+from egregora.database.annotations import AnnotationStore
+from egregora.database.streaming import stream_ibis
+from egregora.profiler import read_profile, write_profile
+from egregora.rag import VectorStore, query_media
 from egregora.utils.logfire_config import logfire_info, logfire_span
+from egregora.utils.write_post import write_post
 
 logger = logging.getLogger(__name__)
 

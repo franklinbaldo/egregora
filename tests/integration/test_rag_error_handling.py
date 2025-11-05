@@ -6,7 +6,7 @@ import ibis
 import pytest
 from returns.result import Failure, Success
 
-from egregora.generation.writer.context import (
+from egregora.agents.writer.context import (
     RagContext,
     RagErrorReason,
     _query_rag_for_context,

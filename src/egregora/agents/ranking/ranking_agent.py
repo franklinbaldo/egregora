@@ -24,9 +24,9 @@ try:
 except ImportError:  # pragma: no cover - legacy SDKs
     from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
+from egregora.agents.ranking.elo import calculate_elo_update
+from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
-from egregora.knowledge.ranking.elo import calculate_elo_update
-from egregora.knowledge.ranking.store import RankingStore
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()

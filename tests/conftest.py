@@ -131,9 +131,9 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
-from egregora.core.models import WhatsAppExport
-from egregora.core.types import GroupSlug
-from egregora.orchestration.pipeline import discover_chat_file
+from egregora.models import WhatsAppExport
+from egregora.pipeline import discover_chat_file
+from egregora.types import GroupSlug
 from egregora.utils.zip import validate_zip_contents
 
 

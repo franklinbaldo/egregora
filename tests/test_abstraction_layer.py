@@ -3,10 +3,9 @@
 from pathlib import Path
 
 import pytest
-
 from egregora.core import input_registry, output_registry
-from egregora.core.input_source import InputSource
-from egregora.core.output_format import OutputFormat
+from egregora.input_source import InputSource
+from egregora.output_format import OutputFormat
 
 
 class TestInputRegistry:

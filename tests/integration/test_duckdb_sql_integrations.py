@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import duckdb
 import ibis
-
-from egregora.augmentation.enrichment.core import enrich_table
 from egregora.core import database_schema
-from egregora.knowledge.annotations import ANNOTATION_AUTHOR, AnnotationStore
-from egregora.knowledge.ranking.store import RankingStore
+
+from egregora.agents.ranking.store import RankingStore
+from egregora.database.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.enrichment.core import enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 

@@ -9,8 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from egregora.core.models import WhatsAppExport
 from egregora.ingestion.parser import parse_export
+from egregora.models import WhatsAppExport
 
 
 def test_message_id_is_timezone_independent(tmp_path: Path):
