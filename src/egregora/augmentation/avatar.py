@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -116,6 +116,22 @@ def _validate_url_for_ssrf(url: str) -> None:
         try:
             ip_addr = ipaddress.ip_address(ip_str)
 
+            # Check for IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1)
+            # These can bypass IPv4 range checks, so we need to extract the IPv4 address
+            if ip_addr.version == 6 and ip_addr.ipv4_mapped:
+                # Extract the IPv4 address from the mapped IPv6 address
+                ipv4_addr = ip_addr.ipv4_mapped
+                logger.debug(f"Detected IPv4-mapped address: {ip_addr} -> {ipv4_addr}")
+
+                # Check the extracted IPv4 address against blocked ranges
+                for blocked_range in BLOCKED_IP_RANGES:
+                    if blocked_range.version == 4 and ipv4_addr in blocked_range:
+                        raise AvatarProcessingError(
+                            f"URL resolves to blocked IPv4-mapped address: {ip_str} "
+                            f"(maps to {ipv4_addr} in range {blocked_range}). "
+                            "Access to private/internal networks is not allowed."
+                        )
+
             # Check against blocked ranges
             for blocked_range in BLOCKED_IP_RANGES:
                 if ip_addr in blocked_range:
@@ -181,9 +197,38 @@ def download_avatar_from_url(
     _validate_url_for_ssrf(url)
 
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-            response = client.get(url)
-            response.raise_for_status()
+        # Disable automatic redirects and validate each redirect hop manually
+        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+            current_url = url
+            max_redirects = 10  # Reasonable limit to prevent redirect loops
+            redirect_count = 0
+
+            while redirect_count < max_redirects:
+                response = client.get(current_url)
+
+                # If we got a redirect, validate the new URL before following it
+                if response.status_code in (301, 302, 303, 307, 308):
+                    redirect_count += 1
+                    location = response.headers.get("location")
+                    if not location:
+                        raise AvatarProcessingError("Redirect response missing Location header")
+
+                    # Resolve relative redirects
+                    next_url = urljoin(current_url, location)
+                    logger.info(f"Following redirect {redirect_count}/{max_redirects}: {next_url}")
+
+                    # Validate the redirect destination before following it
+                    _validate_url_for_ssrf(next_url)
+
+                    current_url = next_url
+                    continue
+
+                # Not a redirect, process the response
+                response.raise_for_status()
+                break
+            else:
+                # Hit max redirects
+                raise AvatarProcessingError(f"Too many redirects (>{max_redirects})")
 
             # Check content type against strict whitelist
             content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
