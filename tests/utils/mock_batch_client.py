@@ -231,7 +231,7 @@ def create_mock_batch_client(
     """Factory function to create a mock batch client.
 
     Usage in tests:
-        from tests.mock_batch_client import create_mock_batch_client
+        from tests.utils.mock_batch_client import create_mock_batch_client
 
         batch_client = create_mock_batch_client()
         # Use instead of real GeminiBatchClient
@@ -243,7 +243,7 @@ def create_mock_genai_client(api_key: str | None = None) -> MockGeminiClient:
     """Factory function to create a mock genai.Client.
 
     Usage in tests:
-        from tests.mock_batch_client import create_mock_genai_client
+        from tests.utils.mock_batch_client import create_mock_genai_client
 
         client = create_mock_genai_client()
         # Use instead of real genai.Client

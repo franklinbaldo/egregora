@@ -10,7 +10,7 @@ which uses VCR to replay real API responses, providing better integration testin
 
 from __future__ import annotations
 
-from tests.mock_batch_client import create_mock_batch_client
+from tests.utils.mock_batch_client import create_mock_batch_client
 
 from egregora.utils.batch import EmbeddingBatchRequest
 
