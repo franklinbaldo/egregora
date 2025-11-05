@@ -194,7 +194,9 @@ def _render_egregora_config(site_root: Path, env: Environment, context: dict[str
                 output_path.write_text(content, encoding="utf-8")
             except (jinja2.TemplateError, jinja2.UndefinedError) as e:
                 # If rendering fails (template syntax errors, missing vars), warn and copy as-is
-                logger.warning(f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is.")
+                logger.warning(
+                    f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is."
+                )
                 output_path.write_bytes(template_path.read_bytes())
 
 
