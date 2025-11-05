@@ -13,6 +13,9 @@ from egregora.config.model import (
     ModelType,
     load_site_config,
 )
+from egregora.config.pipeline import (
+    PipelineEnrichmentConfig,
+)
 from egregora.config.site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
@@ -58,6 +61,8 @@ __all__ = [
     # Model configuration
     "ModelConfig",
     "ModelType",
+    # Pipeline configuration
+    "PipelineEnrichmentConfig",
     "PostGenerationContext",
     # Configuration types
     "ProcessConfig",
