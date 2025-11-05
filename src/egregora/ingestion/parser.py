@@ -24,8 +24,8 @@ from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
 from egregora.constants import EgregoraCommand
-from egregora.models import WhatsAppExport
 from egregora.privacy.anonymizer import anonymize_table
+from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 

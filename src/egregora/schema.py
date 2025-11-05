@@ -13,7 +13,7 @@ from egregora.types import GroupSlug
 
 __all__ = ["MESSAGE_SCHEMA", "WHATSAPP_SCHEMA", "ensure_message_schema", "group_slug"]
 
-# Default timezone for WhatsApp exports (no timezone in export files)
+# Default timezone for chat exports (used when exports lack timezone info)
 DEFAULT_TIMEZONE = "UTC"
 
 MESSAGE_SCHEMA: dict[str, dt.DataType] = {
@@ -26,7 +26,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
 }
 
-# Alias for MESSAGE_SCHEMA - represents full WhatsApp conversation data
+# Alias for MESSAGE_SCHEMA - kept for backward compatibility
 WHATSAPP_SCHEMA = MESSAGE_SCHEMA
 
 

@@ -1,9 +1,12 @@
-"""Egregora v2: Ultra-simple WhatsApp to blog pipeline."""
+"""Egregora v2: Multi-platform chat analysis and blog generation."""
 
-from egregora.pipeline import process_whatsapp_export
+# Import WhatsApp-specific functions for backward compatibility
+from egregora.sources.whatsapp import discover_chat_file, process_whatsapp_export
 
 __version__ = "2.0.0"
 
 __all__ = [
+    # WhatsApp pipeline (backward compatibility)
     "process_whatsapp_export",
+    "discover_chat_file",
 ]
