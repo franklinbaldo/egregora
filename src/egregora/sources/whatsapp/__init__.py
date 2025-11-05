@@ -7,7 +7,9 @@ from egregora.sources.whatsapp.pipeline import (
 )
 
 __all__ = [
+    # Models
     "WhatsAppExport",
+    # Pipeline functions
     "discover_chat_file",
     "process_whatsapp_export",
 ]
