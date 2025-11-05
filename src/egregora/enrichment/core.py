@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora import database_schema
 from egregora.config import ModelConfig
+from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import (
     MediaEnrichmentJob,
