@@ -5,9 +5,9 @@ from pathlib import Path
 
 import ibis
 
+from egregora.pipeline.adapters import SourceAdapter
 from egregora.pipeline.media_utils import (
     extract_markdown_media_refs,
-    generate_content_uuid,
     replace_markdown_media_refs,
 )
 
@@ -109,8 +109,8 @@ class TestGenerateContentUUID:
             path2 = Path(f2.name)
 
         try:
-            uuid1 = generate_content_uuid(path1)
-            uuid2 = generate_content_uuid(path2)
+            uuid1 = SourceAdapter.generate_media_uuid(path1)
+            uuid2 = SourceAdapter.generate_media_uuid(path2)
 
             assert uuid1 == uuid2
         finally:
@@ -128,8 +128,8 @@ class TestGenerateContentUUID:
             path2 = Path(f2.name)
 
         try:
-            uuid1 = generate_content_uuid(path1)
-            uuid2 = generate_content_uuid(path2)
+            uuid1 = SourceAdapter.generate_media_uuid(path1)
+            uuid2 = SourceAdapter.generate_media_uuid(path2)
 
             assert uuid1 != uuid2
         finally:
@@ -143,7 +143,7 @@ class TestGenerateContentUUID:
             path = Path(f.name)
 
         try:
-            uuid = generate_content_uuid(path)
+            uuid = SourceAdapter.generate_media_uuid(path)
 
             # UUID format: 8-4-4-4-12 hex characters
             assert len(uuid) == 36

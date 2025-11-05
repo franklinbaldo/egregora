@@ -7,20 +7,30 @@ Source adapters are responsible for parsing raw exports from different platforms
 
 from __future__ import annotations
 
+import hashlib
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid5
 
 from ibis.expr.types import Table
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MediaMapping",
     "SourceAdapter",
+    "MEDIA_UUID_NAMESPACE",
 ]
 
 
 # Type alias for media mapping: {reference_in_message: actual_file_path}
 MediaMapping = dict[str, Path]
+
+# Namespace for content-hash based UUIDs (shared across all adapters)
+# Using URL namespace as recommended for content-addressable identifiers
+MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
 
 class SourceAdapter(ABC):
@@ -217,6 +227,113 @@ class SourceAdapter(ABC):
             'My Group Chat'
         """
         return {}
+
+    # =========================================================================
+    # Concrete Helper Methods (provided by base class)
+    # =========================================================================
+
+    @staticmethod
+    def generate_media_uuid(file_path: Path) -> str:
+        """Generate content-hash based UUID for media file (HELPER METHOD).
+
+        This is a concrete helper method provided by the base class for
+        standardizing media filenames. Adapters and runners can use this
+        to ensure consistent UUID generation across all sources.
+
+        Creates a deterministic UUIDv5 from the file's SHA-256 hash, enabling:
+        - Deduplication: Same content = same UUID
+        - Source-agnostic: Works for any file from any source
+        - Clean naming: No date prefixes, just {uuid}.{ext}
+
+        Args:
+            file_path: Path to the media file
+
+        Returns:
+            UUID string (e.g., "a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890")
+
+        Example:
+            >>> uuid1 = SourceAdapter.generate_media_uuid(Path("photo1.jpg"))
+            >>> uuid2 = SourceAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
+            >>> uuid1 == uuid2  # True if content is identical
+        """
+        # Compute SHA-256 hash of file content
+        sha256 = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            # Read in chunks to handle large files efficiently
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256.update(chunk)
+
+        content_hash = sha256.hexdigest()
+
+        # Generate UUIDv5 from content hash using shared namespace
+        media_uuid = uuid5(MEDIA_UUID_NAMESPACE, content_hash)
+
+        return str(media_uuid)
+
+    def standardize_media_file(
+        self,
+        source_file: Path,
+        media_dir: Path,
+        *,
+        get_subfolder: callable | None = None,
+    ) -> Path:
+        """Standardize a media file with content-hash UUID (HELPER METHOD).
+
+        This is a concrete helper method provided by the base class for
+        standardizing media files. It:
+        1. Generates content-hash based UUID
+        2. Determines subfolder (images/, videos/, etc.)
+        3. Moves file to standardized location
+        4. Handles deduplication (same content = don't copy)
+
+        Args:
+            source_file: Path to the source media file
+            media_dir: Base media directory (e.g., docs/media)
+            get_subfolder: Optional function to determine subfolder from extension
+                          If None, files go directly in media_dir
+
+        Returns:
+            Absolute path to standardized file
+
+        Example:
+            >>> from egregora.enrichment.media import get_media_subfolder
+            >>> adapter = WhatsAppAdapter()
+            >>> standardized = adapter.standardize_media_file(
+            ...     Path("/tmp/IMG-001.jpg"),
+            ...     Path("docs/media"),
+            ...     get_subfolder=get_media_subfolder
+            ... )
+            >>> print(standardized)
+            /abs/path/docs/media/images/abc123-uuid.jpg
+        """
+        # Generate content-based UUID
+        media_uuid = self.generate_media_uuid(source_file)
+        file_extension = source_file.suffix
+
+        # Determine subfolder
+        if get_subfolder:
+            subfolder = get_subfolder(file_extension)
+            target_dir = media_dir / subfolder
+        else:
+            target_dir = media_dir
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create standardized path
+        standardized_name = f"{media_uuid}{file_extension}"
+        standardized_path = target_dir / standardized_name
+
+        # Move file (with deduplication)
+        if standardized_path.exists():
+            # File already exists (deduplication working!)
+            logger.debug(f"Media file already exists (duplicate): {standardized_name}")
+            source_file.unlink()  # Remove temp file
+        else:
+            # Move source file to final location
+            source_file.rename(standardized_path)
+            logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
+
+        return standardized_path.resolve()
 
     def __repr__(self) -> str:
         """String representation of the adapter."""

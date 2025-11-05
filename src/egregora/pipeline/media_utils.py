@@ -18,25 +18,20 @@ Media files are renamed using UUIDv5 based on content hash, enabling:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
-from uuid import UUID, uuid5
 
 from ibis.expr.types import Table
 
 from egregora.enrichment.media import get_media_subfolder
+from egregora.pipeline.adapters import SourceAdapter
 
 if TYPE_CHECKING:
-    from egregora.pipeline.adapters import SourceAdapter
+    pass  # Imports moved to top level
 
 logger = logging.getLogger(__name__)
-
-# Namespace for content-hash based UUIDs
-# Using URL namespace as recommended for content-addressable identifiers
-MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")  # URL namespace
 
 # Regex patterns for markdown media references
 # Matches: ![alt text](reference.jpg) or [link text](reference.mp4)
@@ -45,7 +40,6 @@ MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
 
 __all__ = [
     "extract_markdown_media_refs",
-    "generate_content_uuid",
     "process_media_for_period",
     "replace_markdown_media_refs",
 ]
@@ -101,39 +95,6 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 
     logger.debug(f"Extracted {len(references)} unique media references")
     return references
-
-
-def generate_content_uuid(file_path: Path) -> str:
-    """Generate UUIDv5 based on file content hash.
-
-    Creates a deterministic UUID from the file's SHA-256 hash, enabling
-    deduplication: same content = same UUID.
-
-    Args:
-        file_path: Path to the media file
-
-    Returns:
-        UUID string (e.g., "a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890")
-
-    Example:
-        >>> # Same file content = same UUID
-        >>> uuid1 = generate_content_uuid(Path("/tmp/photo1.jpg"))
-        >>> uuid2 = generate_content_uuid(Path("/tmp/photo1_copy.jpg"))
-        >>> uuid1 == uuid2  # True if content is identical
-    """
-    # Compute SHA-256 hash of file content
-    sha256 = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        # Read in chunks to handle large files
-        for chunk in iter(lambda: f.read(8192), b""):
-            sha256.update(chunk)
-
-    content_hash = sha256.hexdigest()
-
-    # Generate UUIDv5 from content hash
-    media_uuid = uuid5(MEDIA_UUID_NAMESPACE, content_hash)
-
-    return str(media_uuid)
 
 
 def replace_markdown_media_refs(
@@ -286,32 +247,17 @@ def process_media_for_period(
                 logger.warning(f"Adapter returned non-existent file: {delivered_file}")
                 continue
 
-            # Step 4: Generate content-based UUID
-            media_uuid = generate_content_uuid(delivered_file)
-            file_extension = delivered_file.suffix
+            # Step 4: Standardize media file using base class helper method
+            # This handles: UUID generation, subfolder placement, deduplication
+            standardized_path = adapter.standardize_media_file(
+                source_file=delivered_file,
+                media_dir=media_dir,
+                get_subfolder=get_media_subfolder,
+            )
 
-            # Step 5: Determine subfolder based on media type (images/, videos/, etc.)
-            subfolder = get_media_subfolder(file_extension)
-            subfolder_path = media_dir / subfolder
-            subfolder_path.mkdir(parents=True, exist_ok=True)
-
-            # Step 6: Create standardized filename (UUID + extension)
-            standardized_name = f"{media_uuid}{file_extension}"
-            standardized_path = subfolder_path / standardized_name
-
-            # Step 7: Move file to media directory with standardized name
-            if standardized_path.exists():
-                # File already exists (deduplication working!)
-                logger.debug(f"Media file already exists (duplicate): {standardized_name}")
-                delivered_file.unlink()  # Remove temp file
-            else:
-                # Move temp file to final location
-                delivered_file.rename(standardized_path)
-                logger.debug(f"Standardized media: {media_ref} → {subfolder}/{standardized_name}")
-
-            # Step 8: Store mapping with ABSOLUTE path for enrichment stage
+            # Step 5: Store mapping with ABSOLUTE path for enrichment stage
             # The enrichment stage needs absolute paths to access files
-            media_mapping[media_ref] = standardized_path.resolve()
+            media_mapping[media_ref] = standardized_path
             processed_count += 1
 
         except Exception as e:
