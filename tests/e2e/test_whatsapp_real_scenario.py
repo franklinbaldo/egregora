@@ -13,7 +13,7 @@ from conftest import WhatsAppFixture
 from egregora.enrichment.core import enrich_table
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.ingestion.parser import filter_egregora_messages, parse_export
-from egregora.pipeline import process_whatsapp_export
+from egregora.sources.whatsapp import process_whatsapp_export
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
@@ -88,9 +88,9 @@ class DummyGenaiClient:
 
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
-    monkeypatch.setattr("egregora.pipeline.genai.Client", DummyGenaiClient)
+    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.genai.Client", DummyGenaiClient)
     monkeypatch.setattr(
-        "egregora.pipeline.GeminiDispatcher",
+        "egregora.sources.whatsapp.pipeline.GeminiDispatcher",
         lambda client, model, **kwargs: DummyBatchClient(model),
     )
 
@@ -130,7 +130,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.pipeline.write_posts_for_period", _stub_writer)
+    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.write_posts_for_period", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):

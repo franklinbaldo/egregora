@@ -17,8 +17,8 @@ from egregora.enrichment.media import (
 )
 from egregora.ingestion.base import InputMetadata, InputSource
 from egregora.ingestion.parser import parse_export
-from egregora.models import WhatsAppExport
 from egregora.schema import group_slug
+from egregora.sources.whatsapp.models import WhatsAppExport
 
 logger = logging.getLogger(__name__)
 
