@@ -19,6 +19,9 @@ from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.types import GroupSlug
+from egregora.utils.batch import (
+    GeminiBatchClient,  # noqa: F401  # Backwards compatibility for tests
+)
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
 from egregora.utils.gemini_dispatcher import GeminiDispatcher
