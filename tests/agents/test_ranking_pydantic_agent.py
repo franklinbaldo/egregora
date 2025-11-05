@@ -10,7 +10,7 @@ from pydantic_ai.models.test import TestModel
 from egregora.agents.ranking.ranking_agent import run_comparison_with_pydantic_agent
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_posts(tmp_path: Path) -> tuple[Path, Path]:
     """Create two test posts."""
     posts_dir = tmp_path / "docs" / "posts"
@@ -49,7 +49,7 @@ It discusses philosophy and consciousness.
     return post_a, post_b
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_profile(tmp_path: Path) -> Path:
     """Create a test profile."""
     profiles_dir = tmp_path / "docs" / "profiles"
@@ -72,7 +72,7 @@ I love reading about AI and philosophy.
     return profile_path
 
 
-@pytest.fixture()
+@pytest.fixture
 def site_dir(tmp_path: Path, test_posts: tuple[Path, Path], test_profile: Path) -> Path:
     """Create a test site directory structure."""
     # Rankings directory
@@ -82,7 +82,7 @@ def site_dir(tmp_path: Path, test_posts: tuple[Path, Path], test_profile: Path) 
     return tmp_path
 
 
-@pytest.mark.anyio()
+@pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_ranking_agent_full_comparison(site_dir: Path, test_profile: Path):
     """Test ranking agent completes full three-turn comparison."""
@@ -109,7 +109,7 @@ async def test_ranking_agent_full_comparison(site_dir: Path, test_profile: Path)
         )
 
 
-@pytest.mark.anyio()
+@pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_ranking_agent_missing_winner(site_dir: Path, test_profile: Path):
     """Test ranking agent fails if winner not chosen."""
@@ -130,7 +130,7 @@ async def test_ranking_agent_missing_winner(site_dir: Path, test_profile: Path):
         )
 
 
-@pytest.mark.anyio()
+@pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_ranking_agent_missing_post_a_comment(site_dir: Path, test_profile: Path):
     """Test ranking agent fails if Post A comment missing."""
@@ -151,7 +151,7 @@ async def test_ranking_agent_missing_post_a_comment(site_dir: Path, test_profile
         )
 
 
-@pytest.mark.anyio()
+@pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_ranking_agent_missing_post_b_comment(site_dir: Path, test_profile: Path):
     """Test ranking agent fails if Post B comment missing."""
@@ -172,7 +172,7 @@ async def test_ranking_agent_missing_post_b_comment(site_dir: Path, test_profile
         )
 
 
-@pytest.mark.anyio()
+@pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_ranking_agent_nonexistent_post(site_dir: Path, test_profile: Path):
     """Test ranking agent with nonexistent post file."""
