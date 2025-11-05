@@ -181,7 +181,7 @@ my-blog/
 All data flows through Ibis DataFrames:
 
 ```python
-from egregora.core.schema import CONVERSATION_SCHEMA
+from egregora.core.database_schema import CONVERSATION_SCHEMA
 
 # All DataFrames follow defined schemas
 df: ibis.Table = ibis.memtable(data, schema=CONVERSATION_SCHEMA)
