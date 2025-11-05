@@ -9,7 +9,7 @@ from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def writer_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
     site_dir = tmp_path / "site" / "docs"
     posts_dir = site_dir / "posts"
