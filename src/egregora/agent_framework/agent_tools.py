@@ -5,7 +5,7 @@ from google import genai
 
 from ..config import ModelConfig
 from ..knowledge.rag import VectorStore, query_similar_posts
-from ..utils.batch import GeminiBatchClient
+from ..utils.gemini_batch import GeminiBatchClient
 from ..utils.genai import call_with_retries
 
 

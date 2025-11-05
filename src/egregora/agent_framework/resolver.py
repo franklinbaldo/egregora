@@ -5,7 +5,7 @@ from typing import Any
 import frontmatter
 
 from .loader import load_agent
-from .models import AgentConfig
+from .agent_models import AgentConfig
 
 logger = logging.getLogger(__name__)
 

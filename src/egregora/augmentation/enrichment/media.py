@@ -12,7 +12,7 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import MEDIA_DIR_NAME
-from .batch import _iter_table_record_batches
+from .enrichment_batch import _iter_table_record_batches
 
 # WhatsApp attachment markers (special Unicode)
 ATTACHMENT_MARKERS = (

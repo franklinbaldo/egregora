@@ -13,7 +13,7 @@ from egregora.knowledge.ranking.elo import calculate_elo_update, initialize_rati
 from egregora.knowledge.ranking.ranking_agent import (
     run_comparison_with_pydantic_agent as run_comparison,
 )
-from egregora.knowledge.ranking.store import RankingStore
+from egregora.knowledge.ranking.ranking_store import RankingStore
 
 __all__ = [
     "calculate_elo_update",

@@ -1,6 +1,6 @@
 """Utility modules for Egregora."""
 
-from .batch import (
+from .gemini_batch import (
     BatchPromptRequest,
     BatchPromptResult,
     EmbeddingBatchRequest,

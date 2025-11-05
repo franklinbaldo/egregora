@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from egregora.knowledge.ranking.store import RankingStore
+from egregora.knowledge.ranking.ranking_store import RankingStore
 
 EXPECTED_INSERTED_FIRST = 2
 EXPECTED_INSERTED_SECOND = 1

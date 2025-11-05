@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - legacy SDKs
 
 from egregora.config import resolve_site_paths
 from egregora.knowledge.ranking.elo import calculate_elo_update
-from egregora.knowledge.ranking.store import RankingStore
+from egregora.knowledge.ranking.ranking_store import RankingStore
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()

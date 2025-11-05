@@ -16,8 +16,8 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
-from ..agents.loader import load_agent
-from ..agents.registry import ToolRegistry
+from ..agent_framework.loader import load_agent
+from ..agent_framework.registry import ToolRegistry
 from ..augmentation.enrichment import enrich_table, extract_and_replace_media
 from ..augmentation.profiler import get_active_authors
 from ..config import (
@@ -29,8 +29,8 @@ from ..config import (
     load_site_config,
     resolve_site_paths,
 )
-from ..core.models import WhatsAppExport
-from ..core.types import GroupSlug
+from ..core.domain_models import WhatsAppExport
+from ..core.core_types import GroupSlug
 from ..generation.editor import run_editor_session
 from ..generation.writer import write_posts_for_period
 from ..generation.writer.context import (
@@ -416,7 +416,7 @@ def edit(
     if prompt_dry_run:
         from jinja2 import Environment, FileSystemLoader
 
-        from ..agents.resolver import AgentResolver
+        from ..agent_framework.resolver import AgentResolver
 
         resolver = AgentResolver(egregora_path, docs_path)
         agent_config, prompt_template, final_vars = resolver.resolve(post_file, agent)

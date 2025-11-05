@@ -27,8 +27,8 @@ from ...prompt_templates import (
     DetailedUrlEnrichmentPromptTemplate,
 )
 from ...utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
-from ...utils.batch import BatchPromptResult
-from .batch import (
+from ...utils.gemini_batch import BatchPromptResult
+from .enrichment_batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
     _ensure_datetime,

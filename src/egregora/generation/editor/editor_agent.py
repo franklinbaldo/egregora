@@ -28,7 +28,7 @@ from egregora.config import ModelConfig
 from egregora.generation.editor.document import DocumentSnapshot, Editor
 from egregora.knowledge.rag import VectorStore, query_similar_posts
 from egregora.prompt_templates import EditorPromptTemplate
-from egregora.utils.batch import GeminiBatchClient
+from egregora.utils.gemini_batch import GeminiBatchClient
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
 

@@ -8,13 +8,13 @@ Documentation:
 - Core Concepts: docs/getting-started/concepts.md#4-enrich-optional
 """
 
-from .batch import (
+from .enrichment_batch import (
     MediaEnrichmentJob,
     UrlEnrichmentJob,
     build_batch_requests,
     map_batch_results,
 )
-from .core import enrich_table
+from .enrichment_engine import enrich_table
 from .media import (
     detect_media_type,
     extract_and_replace_media,

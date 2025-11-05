@@ -15,7 +15,7 @@ from egregora.knowledge.rag import (
     query_similar_posts,
 )
 from egregora.utils import GeminiBatchClient
-from egregora.utils.batch import EmbeddingBatchRequest
+from egregora.utils.gemini_batch import EmbeddingBatchRequest
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)

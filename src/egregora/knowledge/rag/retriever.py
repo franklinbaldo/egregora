@@ -12,10 +12,10 @@ import ibis
 from ibis.expr.types import Table
 
 from ...config import MEDIA_DIR_NAME
-from ...utils.batch import GeminiBatchClient
+from ...utils.gemini_batch import GeminiBatchClient
 from .chunker import chunk_document
 from .embedder import embed_chunks, embed_query
-from .store import VECTOR_STORE_SCHEMA, VectorStore
+from .vector_store import VECTOR_STORE_SCHEMA, VectorStore
 
 logger = logging.getLogger(__name__)
 

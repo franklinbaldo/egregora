@@ -1,9 +1,9 @@
 import pytest
 from typer.testing import CliRunner
 
-from src.egregora.agents.loader import load_agent
-from src.egregora.agents.registry import ToolRegistry
-from src.egregora.agents.resolver import AgentResolver
+from src.egregora.agent_framework.loader import load_agent
+from src.egregora.agent_framework.registry import ToolRegistry
+from src.egregora.agent_framework.resolver import AgentResolver
 from src.egregora.orchestration.cli import app
 
 runner = CliRunner()

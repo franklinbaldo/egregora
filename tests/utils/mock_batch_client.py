@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 from google import genai
 from google.genai import types as genai_types
 
-from egregora.utils.batch import (
+from egregora.utils.gemini_batch import (
     BatchPromptRequest,
     BatchPromptResult,
     EmbeddingBatchRequest,

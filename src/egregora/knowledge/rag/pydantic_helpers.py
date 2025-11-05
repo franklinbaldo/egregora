@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from egregora.knowledge.rag.embedder import embed_query
-from egregora.knowledge.rag.store import VectorStore
-from egregora.utils.batch import GeminiBatchClient
+from egregora.knowledge.rag.vector_store import VectorStore
+from egregora.utils.gemini_batch import GeminiBatchClient
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)

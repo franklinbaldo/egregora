@@ -9,13 +9,13 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
-from .core import (
+from .writer_engine import (
     get_top_authors,
     load_markdown_extensions,
     load_site_config,
     write_posts_for_period,
 )
-from .tools import PostMetadata
+from .writer_tools import PostMetadata
 
 __all__ = [
     "write_posts_for_period",

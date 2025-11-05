@@ -23,7 +23,7 @@ from .site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
-from .types import (
+from .config_types import (
     ComparisonConfig,
     ComparisonData,
     EditorContext,
