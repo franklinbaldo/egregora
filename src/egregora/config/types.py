@@ -11,7 +11,15 @@ from egregora.types import GroupSlug
 
 @dataclass
 class ProcessConfig:
-    """Configuration for WhatsApp export processing."""
+    """Configuration for WhatsApp export processing.
+
+    This config object replaces long parameter lists (15+ params) with a single
+    structured configuration object. Benefits:
+    - Type safety and validation
+    - Clear grouping of related settings
+    - Easy to extend with new options
+    - Simpler function signatures
+    """
 
     zip_file: Annotated[Path, "Path to the WhatsApp export ZIP file"]
     output_dir: Annotated[Path, "Directory for the generated site"]
@@ -28,6 +36,8 @@ class ProcessConfig:
     retrieval_overfetch: Annotated[int | None, "Advanced: multiply ANN candidate pool before filtering"] = (
         None
     )
+    resume: Annotated[bool, "Resume from checkpoints if available"] = True
+    batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
 
 
 @dataclass

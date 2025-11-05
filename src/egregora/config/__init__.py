@@ -23,6 +23,9 @@ from egregora.config.site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
+from egregora.config.pipeline import (
+    PipelineEnrichmentConfig,
+)
 from egregora.config.types import (
     ComparisonConfig,
     ComparisonData,
@@ -58,6 +61,8 @@ __all__ = [
     # Model configuration
     "ModelConfig",
     "ModelType",
+    # Pipeline configuration
+    "PipelineEnrichmentConfig",
     "PostGenerationContext",
     # Configuration types
     "ProcessConfig",
