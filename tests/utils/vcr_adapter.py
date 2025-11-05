@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .raw_gemini_client import RawGeminiClient
+from tests.utils.raw_gemini_client import RawGeminiClient
 
 
 class VCRCompatibleModelsAPI:
