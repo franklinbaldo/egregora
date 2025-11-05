@@ -41,6 +41,12 @@ MAX_IMAGE_DIMENSION = 4096
 # Default timeout for avatar downloads (seconds)
 DEFAULT_DOWNLOAD_TIMEOUT = 30.0
 
+# Maximum number of HTTP redirects to follow
+MAX_REDIRECT_HOPS = 10
+
+# Chunk size for streaming downloads (bytes)
+DOWNLOAD_CHUNK_SIZE = 8192
+
 # Magic bytes for image validation
 MAGIC_BYTES = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -141,6 +147,11 @@ def _validate_url_for_ssrf(url: str) -> None:
                 # Check the extracted IPv4 address against blocked ranges
                 for blocked_range in BLOCKED_IP_RANGES:
                     if blocked_range.version == 4 and ipv4_addr in blocked_range:
+                        # Log security event at WARNING level for monitoring
+                        logger.warning(
+                            f"⚠️  SSRF attempt blocked (IPv4-mapped): {url} resolves to {ip_str} "
+                            f"(maps to {ipv4_addr} in blocked range {blocked_range})"
+                        )
                         raise AvatarProcessingError(
                             f"URL resolves to blocked IPv4-mapped address: {ip_str} "
                             f"(maps to {ipv4_addr} in range {blocked_range}). "
@@ -150,6 +161,10 @@ def _validate_url_for_ssrf(url: str) -> None:
             # Check against blocked ranges
             for blocked_range in BLOCKED_IP_RANGES:
                 if ip_addr in blocked_range:
+                    # Log security event at WARNING level for monitoring
+                    logger.warning(
+                        f"⚠️  SSRF attempt blocked: {url} resolves to {ip_str} in blocked range {blocked_range}"
+                    )
                     raise AvatarProcessingError(
                         f"URL resolves to blocked IP address: {ip_str} "
                         f"(in range {blocked_range}). "
@@ -284,10 +299,9 @@ def download_avatar_from_url(
         # Disable automatic redirects and validate each redirect hop manually
         with httpx.Client(timeout=timeout, follow_redirects=False) as client:
             current_url = url
-            max_redirects = 10  # Reasonable limit to prevent redirect loops
             redirect_count = 0
 
-            while redirect_count < max_redirects:
+            while redirect_count < MAX_REDIRECT_HOPS:
                 response = client.get(current_url)
 
                 # If we got a redirect, validate the new URL before following it
@@ -299,7 +313,7 @@ def download_avatar_from_url(
 
                     # Resolve relative redirects
                     next_url = urljoin(current_url, location)
-                    logger.info(f"Following redirect {redirect_count}/{max_redirects}: {next_url}")
+                    logger.info(f"Following redirect {redirect_count}/{MAX_REDIRECT_HOPS}: {next_url}")
 
                     # Validate the redirect destination before following it
                     _validate_url_for_ssrf(next_url)
@@ -312,7 +326,7 @@ def download_avatar_from_url(
                 break
             else:
                 # Hit max redirects
-                raise AvatarProcessingError(f"Too many redirects (>{max_redirects})")
+                raise AvatarProcessingError(f"Too many redirects (>{MAX_REDIRECT_HOPS})")
 
             # Check content type against strict whitelist
             content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
@@ -321,12 +335,28 @@ def download_avatar_from_url(
                     f"Invalid image MIME type: {content_type}. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
                 )
 
-            # Check size
-            content = response.content
-            if len(content) > MAX_AVATAR_SIZE_BYTES:
-                raise AvatarProcessingError(
-                    f"Avatar image too large: {len(content)} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
-                )
+            # Check Content-Length header before downloading (early size validation)
+            content_length_str = response.headers.get("content-length")
+            if content_length_str:
+                try:
+                    content_length = int(content_length_str)
+                    if content_length > MAX_AVATAR_SIZE_BYTES:
+                        raise AvatarProcessingError(
+                            f"Avatar image too large: {content_length} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                        )
+                except ValueError:
+                    logger.warning(f"Invalid Content-Length header: {content_length_str}")
+
+            # Download with streaming and size limit enforcement
+            content = bytearray()
+            for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
+                content.extend(chunk)
+                if len(content) > MAX_AVATAR_SIZE_BYTES:
+                    raise AvatarProcessingError(
+                        f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
+                    )
+
+            content = bytes(content)
 
             # Validate content matches declared MIME type (magic bytes check)
             _validate_image_content(content, content_type)
@@ -347,10 +377,15 @@ def download_avatar_from_url(
                 # Try to infer from URL or default to jpg
                 ext = _validate_image_format(url or ".jpg")
 
-            # Generate UUID and save
+            # Generate UUID and determine file path
             avatar_uuid = _generate_avatar_uuid(content, group_slug)
             avatar_dir = _get_avatar_directory(docs_dir)
             avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
+
+            # Deduplication: Check if avatar already exists
+            if avatar_path.exists():
+                logger.info(f"Avatar already exists (deduplication): {avatar_path}")
+                return avatar_uuid, avatar_path
 
             # Save using exclusive creation mode to prevent race conditions
             try:
@@ -358,7 +393,8 @@ def download_avatar_from_url(
                     f.write(content)
                 logger.info(f"Saved avatar to: {avatar_path}")
             except FileExistsError:
-                logger.info(f"Avatar already exists: {avatar_path}")
+                # Another process/thread created it between our check and write
+                logger.info(f"Avatar created concurrently: {avatar_path}")
 
             return avatar_uuid, avatar_path
 
@@ -598,11 +634,18 @@ def enrich_and_moderate_avatar(
             enrichment_path=enrichment_path,
         )
 
+    except httpx.HTTPError as e:
+        # Network/API errors - these are transient, keep avatar for retry
+        logger.warning(f"Transient error during avatar moderation (keeping file for retry): {e}")
+        raise AvatarProcessingError(
+            "Failed to moderate avatar due to network error. Please try again later."
+        ) from e
     except Exception as e:
-        # Clean up avatar file on moderation failure to prevent unmoderated avatars
+        # Permanent failures (parsing errors, invalid responses, etc.)
+        # Clean up avatar file to prevent unmoderated avatars
         if avatar_path.exists():
             avatar_path.unlink()
-            logger.warning(f"Deleted avatar due to moderation failure: {avatar_path}")
+            logger.warning(f"Deleted avatar due to permanent moderation failure: {avatar_path}")
         raise AvatarProcessingError(f"Failed to enrich avatar: {e}") from e
 
 
