@@ -180,6 +180,7 @@ def replace_markdown_media_refs(
         # This matches the behavior of the old replace_media_mentions() function
         try:
             import os
+
             relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
         except ValueError:
             # Fallback: use docs_dir-relative path with leading slash
