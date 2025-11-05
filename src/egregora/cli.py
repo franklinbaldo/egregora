@@ -81,8 +81,9 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
     if hasattr(value, "item"):
         try:
             return value.item()
-        except Exception:  # pragma: no cover - fallback to string or error
-            pass
+        except (TypeError, ValueError, AttributeError) as e:  # pragma: no cover - fallback to string or error
+            # .item() method exists but failed - continue to fallback handling
+            logger.debug("Failed to call .item() on %s: %s", type(value).__name__, e)
 
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:

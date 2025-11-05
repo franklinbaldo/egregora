@@ -9,6 +9,8 @@ from typing import Annotated, Any
 
 import yaml
 
+from egregora.constants import PluginType
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_DOCS_DIR = "docs"
@@ -100,12 +102,12 @@ def _extract_blog_dir(config: dict[str, Any]) -> str | None:
     plugins = config.get("plugins") or []
     for plugin in plugins:
         if isinstance(plugin, str):
-            if plugin == "blog":
+            if plugin == PluginType.BLOG.value:
                 return DEFAULT_BLOG_DIR
             continue
 
-        if isinstance(plugin, dict) and "blog" in plugin:
-            blog_config = plugin.get("blog") or {}
+        if isinstance(plugin, dict) and PluginType.BLOG.value in plugin:
+            blog_config = plugin.get(PluginType.BLOG.value) or {}
             return str(blog_config.get("blog_dir", DEFAULT_BLOG_DIR))
 
     return None

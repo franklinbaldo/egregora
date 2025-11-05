@@ -15,6 +15,7 @@ This is standard Ibis convention for nullable vs non-nullable types.
 
 import logging
 
+import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -230,9 +231,9 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
     """
     try:
         conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
-    except Exception:
-        # Constraint may already exist
-        pass
+    except duckdb.Error as e:
+        # Constraint may already exist - log and continue
+        logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
 
 
 def ensure_identity_column(
@@ -258,9 +259,11 @@ def ensure_identity_column(
         conn.execute(
             f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY"
         )
-    except Exception:
-        # Identity already configured or column contains incompatible data
-        pass
+    except duckdb.Error as e:
+        # Identity already configured or column contains incompatible data - log and continue
+        logger.debug(
+            "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
+        )
 
 
 def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
