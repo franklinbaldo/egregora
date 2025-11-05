@@ -15,7 +15,7 @@ from egregora.agents.tools.profiler import filter_opted_out_authors, process_com
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
-from egregora.constants import Limits, StepStatus, TimePeriod
+from egregora.constants import Limits, StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.models import WhatsAppExport
