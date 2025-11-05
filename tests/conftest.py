@@ -202,12 +202,12 @@ def whatsapp_timezone() -> ZoneInfo:
     return ZoneInfo("America/Sao_Paulo")
 
 
-@pytest.fixture()
+@pytest.fixture
 def gemini_api_key() -> str:
     return "test-key"
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_batch_client(monkeypatch):
     """Monkey-patch GeminiBatchClient and genai.Client with mocks for fast tests.
 
