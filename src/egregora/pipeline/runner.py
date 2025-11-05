@@ -7,6 +7,7 @@ It handles the complete flow from parsing to final output generation.
 from __future__ import annotations
 
 import logging
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -20,10 +21,11 @@ from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
 from egregora.config import ModelConfig, load_site_config, resolve_site_paths
 from egregora.constants import StepStatus
-from egregora.enrichment import enrich_table, extract_and_replace_media
+from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages
 from egregora.pipeline.ir import validate_ir_schema
+from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
@@ -267,14 +269,19 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
             steps_state = checkpoint_data.get("steps", {})
 
-            # Extract media for this period
-            period_table, media_mapping = extract_and_replace_media(
-                period_table,
-                input_path,
-                site_paths.docs_dir,
-                posts_dir,
-                str(group_slug),
-            )
+            # Extract media for this period using new source-agnostic architecture
+            # Create temp directory for media processing
+            with tempfile.TemporaryDirectory(prefix=f"egregora-media-{period_key}-") as temp_dir_str:
+                temp_dir = Path(temp_dir_str)
+
+                # Process media: extract markdown refs, deliver via adapter, standardize names
+                period_table, media_mapping = process_media_for_period(
+                    period_table=period_table,
+                    adapter=adapter,
+                    media_dir=site_paths.media_dir,
+                    temp_dir=temp_dir,
+                    zip_path=input_path,  # WhatsApp-specific kwarg
+                )
 
             logger.info(f"Processing {period_key}...")
             enriched_path = site_paths.enriched_dir / f"{period_key}-enriched.csv"

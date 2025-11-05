@@ -76,6 +76,16 @@ class SourceAdapter(ABC):
         This is the primary method that converts source-specific data into
         the standardized Intermediate Representation.
 
+        **Media References**: Messages should include media as markdown links:
+        - Images: `![alt text](filename.jpg)`
+        - Videos/Files: `[link text](filename.mp4)`
+
+        The adapter should use original filenames/references. The runner will:
+        1. Extract markdown references
+        2. Call `deliver_media()` to get the actual files
+        3. Standardize naming (content-hash based UUIDs)
+        4. Replace references with standardized paths
+
         Args:
             input_path: Path to the raw export (ZIP file, JSON, etc.)
             timezone: Timezone for timestamp normalization (if applicable)
@@ -86,7 +96,7 @@ class SourceAdapter(ABC):
                 - timestamp: Timestamp with timezone
                 - date: Date derived from timestamp
                 - author: Anonymized author identifier
-                - message: Message content
+                - message: Message content (with markdown media links)
                 - original_line: Raw source line (debugging)
                 - tagged_line: Processing tracking
                 - message_id: Deterministic message ID
@@ -98,6 +108,7 @@ class SourceAdapter(ABC):
         Example:
             >>> adapter = WhatsAppAdapter()
             >>> table = adapter.parse(Path("export.zip"), timezone="UTC")
+            >>> # Table contains: "Check this out ![photo](IMG-001.jpg)"
             >>> is_valid, errors = validate_ir_schema(table)
             >>> assert is_valid, f"Schema validation failed: {errors}"
         """
@@ -135,6 +146,48 @@ class SourceAdapter(ABC):
             The pipeline will handle media extraction at the appropriate stage.
         """
         return {}
+
+    def deliver_media(
+        self,
+        media_reference: str,
+        temp_dir: Path,
+        **kwargs: Any,
+    ) -> Path | None:
+        """Deliver media file to temporary directory (OPTIONAL).
+
+        This method is called lazily by the runner for each media reference
+        found in markdown links. The adapter is responsible for obtaining the
+        actual file content and writing it to the temp directory.
+
+        **Implementation Examples:**
+        - WhatsApp: Extract file from ZIP archive
+        - Slack: Download file from URL
+        - Discord: Download from CDN with authentication
+        - Local files: Copy from filesystem
+
+        **Content-based naming**: The runner will hash the file content and
+        rename it using UUIDv5 for deduplication. The adapter just needs to
+        deliver the original file.
+
+        Args:
+            media_reference: Media reference from markdown link (e.g., "photo.jpg")
+            temp_dir: Temporary directory where file should be written
+            **kwargs: Source-specific parameters (e.g., auth tokens, ZIP handle)
+
+        Returns:
+            Path to the delivered file in temp_dir, or None if not found
+
+        Example:
+            >>> adapter = WhatsAppAdapter()
+            >>> # Message contains: ![photo](IMG-001.jpg)
+            >>> temp_file = adapter.deliver_media("IMG-001.jpg", Path("/tmp"))
+            >>> # Returns: Path("/tmp/IMG-001.jpg")
+
+        Note:
+            Default implementation returns None (no media support).
+            Override this method if your source can deliver media files.
+        """
+        return None
 
     def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
         """Extract metadata from the export (OPTIONAL).
