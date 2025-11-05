@@ -15,10 +15,12 @@ from .core import (
     load_site_config,
     write_posts_for_period,
 )
+from .pydantic_agent import write_posts_with_pydantic_agent
 from .tools import PostMetadata
 
 __all__ = [
     "write_posts_for_period",
+    "write_posts_with_pydantic_agent",
     "load_site_config",
     "load_markdown_extensions",
     "get_top_authors",

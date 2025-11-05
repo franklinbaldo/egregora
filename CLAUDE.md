@@ -246,13 +246,7 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
   - All table schemas defined with Ibis for type safety
   - **Ephemeral schemas**: CONVERSATION_SCHEMA (in-memory, never persisted)
   - **Persistent schemas**: RAG_CHUNKS_SCHEMA, ELO_RATINGS_SCHEMA, ANNOTATIONS_SCHEMA
-
-- **LLM Infrastructure** (`src/egregora/llm/`)
-  - `base.py`: Pydantic AI agent factory functions
-    - `create_agent()`: Text-output agents with standard configuration
-    - `create_agent_with_result_type()`: Structured-output agents with tool calling
-    - Includes Logfire observability, test model injection, error handling
-  - All LLM interactions use Pydantic AI through this module
+  - **Schema validation**: `ensure_message_schema()` enforces CONVERSATION_SCHEMA compliance
 
 - **Agent System** (`src/egregora/agents/`)
   - File-based agent configuration system (experimental)
@@ -333,8 +327,8 @@ Static site (mkdocs serve)
 - **Staged architecture**: Code organized by pipeline stage, not layer
 - **Schemas centralized**: `core/database_schema.py` is single source of truth
 - **Prompts externalized**: Jinja2 templates in `prompts/` directory
-- **LLM infrastructure shared**: All agents use `llm/` module for Pydantic AI integration
 - **Agent system modular**: File-based agents in `agents/` (experimental)
+- **Pydantic AI agents**: Each module has its own `pydantic_agent.py` (writer, editor, ranking)
 - **Tests mirror src**: `tests/` structure matches `src/egregora/`
 
 ## Working with Jules API

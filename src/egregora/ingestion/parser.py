@@ -23,8 +23,8 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
+from ..core.database_schema import CONVERSATION_SCHEMA, ensure_message_schema
 from ..core.models import WhatsAppExport
-from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
 from ..privacy.anonymizer import anonymize_table
 from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
@@ -292,7 +292,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        empty_table = ibis.memtable([], schema=CONVERSATION_SCHEMA)
         return ensure_message_schema(empty_table, timezone=timezone)
 
     messages = ibis.memtable(rows)
@@ -350,7 +350,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
             continue
 
     if not tables:
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        empty_table = ibis.memtable([], schema=CONVERSATION_SCHEMA)
         return ensure_message_schema(empty_table)
 
     # Concatenate all frames using union

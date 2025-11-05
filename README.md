@@ -526,10 +526,9 @@ src/egregora/
 ├── privacy/         # Anonymization & PII detection
 ├── augmentation/    # Enrichment & profiling
 ├── knowledge/       # RAG, annotations, rankings
-├── generation/      # LLM writer & editor
+├── generation/      # LLM writer & editor (with Pydantic AI agents)
 ├── init/            # Site scaffolding
 ├── agents/          # File-based agent system (experimental)
-├── llm/             # Pydantic AI infrastructure
 ├── core/            # Shared models & schemas
 ├── config/          # Configuration management
 ├── orchestration/   # CLI & pipeline coordination
