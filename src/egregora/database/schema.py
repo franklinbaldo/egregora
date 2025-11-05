@@ -262,8 +262,7 @@ def ensure_identity_column(
     except duckdb.Error as e:
         # Identity already configured or column contains incompatible data - log and continue
         logger.debug(
-            "Could not set identity on %s.%s (generated=%s): %s",
-            table_name, column_name, generated, e
+            "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
         )
 
 

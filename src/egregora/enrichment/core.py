@@ -74,7 +74,7 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
 
         # Atomic rename (replaces destination if it exists)
         os.replace(temp_path, path)
-    except (IOError, OSError) as e:
+    except OSError as e:
         # Clean up temp file on error
         try:
             os.unlink(temp_path)

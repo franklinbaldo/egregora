@@ -13,6 +13,9 @@ from egregora.config.model import (
     ModelType,
     load_site_config,
 )
+from egregora.config.pipeline import (
+    PipelineEnrichmentConfig,
+)
 from egregora.config.site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
@@ -22,9 +25,6 @@ from egregora.config.site import (
     find_mkdocs_file,
     load_mkdocs_config,
     resolve_site_paths,
-)
-from egregora.config.pipeline import (
-    PipelineEnrichmentConfig,
 )
 from egregora.config.types import (
     ComparisonConfig,
