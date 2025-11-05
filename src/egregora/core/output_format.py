@@ -32,9 +32,7 @@ class OutputFormat(ABC):
     """
 
     @abstractmethod
-    def scaffold_site(
-        self, site_root: Path, site_name: str, **kwargs
-    ) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
         """Create the initial site structure.
 
         Args:
@@ -194,9 +192,7 @@ class OutputFormatRegistry:
         """
         if format_type not in self._formats:
             available = ", ".join(self._formats.keys())
-            raise KeyError(
-                f"Output format '{format_type}' not found. Available: {available}"
-            )
+            raise KeyError(f"Output format '{format_type}' not found. Available: {available}")
         return self._formats[format_type]()
 
     def detect_format(self, site_root: Path) -> OutputFormat | None:

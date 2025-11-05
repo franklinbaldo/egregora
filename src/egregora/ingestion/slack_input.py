@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -92,9 +92,7 @@ class SlackInputSource(InputSource):
             NotImplementedError: This is a template - full implementation needed
         """
         if not self.supports_format(source_path):
-            raise ValueError(
-                f"Source path {source_path} is not a valid Slack export directory"
-            )
+            raise ValueError(f"Source path {source_path} is not a valid Slack export directory")
 
         # Load users for name mapping
         users = self._load_users(source_path)
@@ -176,9 +174,7 @@ class SlackInputSource(InputSource):
         # 1. Scanning messages for file attachments
         # 2. Using Slack API with token to download files
         # 3. Saving files to output_dir/media/
-        logger.warning(
-            "Slack media extraction not implemented - files will remain as URLs"
-        )
+        logger.warning("Slack media extraction not implemented - files will remain as URLs")
         return {}
 
     def _load_users(self, source_path: Path) -> dict[str, dict[str, Any]]:
@@ -271,7 +267,7 @@ class SlackInputSource(InputSource):
             return None
 
         try:
-            timestamp = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            timestamp = datetime.fromtimestamp(float(ts), tz=UTC)
         except (ValueError, TypeError):
             logger.warning(f"Invalid timestamp: {ts}")
             return None

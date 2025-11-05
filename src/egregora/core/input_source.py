@@ -59,9 +59,7 @@ class InputSource(ABC):
         pass
 
     @abstractmethod
-    def extract_media(
-        self, source_path: Path, output_dir: Path, **kwargs
-    ) -> dict[str, str]:
+    def extract_media(self, source_path: Path, output_dir: Path, **kwargs) -> dict[str, str]:
         """Extract media files from the source.
 
         Args:
@@ -123,9 +121,7 @@ class InputSourceRegistry:
         """
         if source_type not in self._sources:
             available = ", ".join(self._sources.keys())
-            raise KeyError(
-                f"Input source '{source_type}' not found. Available: {available}"
-            )
+            raise KeyError(f"Input source '{source_type}' not found. Available: {available}")
         return self._sources[source_type]()
 
     def detect_source(self, source_path: Path) -> InputSource | None:

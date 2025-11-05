@@ -127,9 +127,7 @@ theme = "{theme}"
         config_file.write_text(config_content, encoding="utf-8")
 
         logger.info(f"Created Hugo site at {site_root}")
-        logger.warning(
-            f"Remember to install the {theme} theme or choose another theme!"
-        )
+        logger.warning(f"Remember to install the {theme} theme or choose another theme!")
 
         return config_file, True
 
@@ -209,7 +207,7 @@ theme = "{theme}"
         # Build Hugo front matter (TOML format)
         # Alternatively, could use YAML with --- delimiters
         front_matter = f"""+++
-title = "{metadata['title']}"
+title = "{metadata["title"]}"
 date = {date_str}
 draft = false
 """

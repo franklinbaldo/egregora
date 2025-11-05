@@ -89,9 +89,7 @@ class WhatsAppInputSource(InputSource):
             RuntimeError: If parsing fails
         """
         if not self.supports_format(source_path):
-            raise ValueError(
-                f"Source path {source_path} is not a valid WhatsApp export ZIP"
-            )
+            raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
 
         # Detect chat file and media files in ZIP
         chat_file, media_files = self._detect_zip_contents(source_path)
@@ -161,9 +159,7 @@ class WhatsAppInputSource(InputSource):
             Example: {"IMG-001.jpg": "media/images/abc123.jpg"}
         """
         if not self.supports_format(source_path):
-            raise ValueError(
-                f"Source path {source_path} is not a valid WhatsApp export ZIP"
-            )
+            raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
 
         if group_slug is None:
             # Infer from filename

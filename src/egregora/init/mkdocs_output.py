@@ -8,10 +8,6 @@ from typing import Any
 
 from ..augmentation.profiler import write_profile as write_profile_content
 from ..config.site import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
     load_mkdocs_config,
     resolve_site_paths,
 )
@@ -58,9 +54,7 @@ class MkDocsOutputFormat(OutputFormat):
         config, mkdocs_path_found = load_mkdocs_config(site_root)
         return mkdocs_path_found is not None
 
-    def scaffold_site(
-        self, site_root: Path, site_name: str, **kwargs
-    ) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
 
         Args:
@@ -98,9 +92,7 @@ class MkDocsOutputFormat(OutputFormat):
             FileNotFoundError: If required directories don't exist
         """
         if not self.supports_site(site_root):
-            raise ValueError(
-                f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
-            )
+            raise ValueError(f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)")
 
         try:
             site_paths = resolve_site_paths(site_root)
@@ -212,9 +204,7 @@ class MkDocsOutputFormat(OutputFormat):
         config, mkdocs_path = load_mkdocs_config(site_root)
 
         if mkdocs_path is None:
-            raise FileNotFoundError(
-                f"No mkdocs.yml found in {site_root} or parent directories"
-            )
+            raise FileNotFoundError(f"No mkdocs.yml found in {site_root} or parent directories")
 
         return config
 
