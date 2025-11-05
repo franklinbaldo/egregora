@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 import pyarrow as pa
 
-from egregora.knowledge.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
+from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 
 logger = logging.getLogger(__name__)
 
