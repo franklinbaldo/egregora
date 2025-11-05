@@ -1,5 +1,13 @@
 # AGENTS.md
 
+> **⚠️ DEPRECATED**: This file contains outdated architecture information.
+>
+> **Please refer to [`CLAUDE.md`](CLAUDE.md) for current documentation.**
+>
+> This file is kept for historical reference only and will be removed in a future update.
+
+---
+
 This file provides guidance to the Agent when working with code in this repository.
 
 ## Development Commands

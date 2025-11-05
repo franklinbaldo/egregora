@@ -247,6 +247,21 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
   - **Ephemeral schemas**: CONVERSATION_SCHEMA (in-memory, never persisted)
   - **Persistent schemas**: RAG_CHUNKS_SCHEMA, ELO_RATINGS_SCHEMA, ANNOTATIONS_SCHEMA
 
+- **LLM Infrastructure** (`src/egregora/llm/`)
+  - `base.py`: Pydantic AI agent factory functions
+    - `create_agent()`: Text-output agents with standard configuration
+    - `create_agent_with_result_type()`: Structured-output agents with tool calling
+    - Includes Logfire observability, test model injection, error handling
+  - All LLM interactions use Pydantic AI through this module
+
+- **Agent System** (`src/egregora/agents/`)
+  - File-based agent configuration system (experimental)
+  - `loader.py`: Load agent configs from `.jinja` files with YAML frontmatter
+  - `registry.py`: Tool and skill registries for agent capabilities
+  - `models.py`: Pydantic models for agent configuration
+  - `resolver.py`: Resolve tool and skill dependencies
+  - Supports defining agents externally in `.egregora/agents/` directory
+
 - **Configuration** (`src/egregora/config/`)
   - `site.py`: Load egregora config from mkdocs.yml
   - `model.py`: Model names, retrieval settings
@@ -259,11 +274,27 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
   - `database.py`: DuckDB connection management
   - `checkpoints.py`: Save/restore pipeline state
 
+- **Streaming** (`src/egregora/streaming/`)
+  - `stream.py`: Ibis-first streaming utilities
+    - `stream_ibis()`: Stream Ibis expressions in batches without materialization
+    - `copy_expr_to_parquet()`: Write directly to Parquet
+    - `copy_expr_to_ndjson()`: Write directly to NDJSON
+    - `ensure_deterministic_order()`: Sort for reproducible iteration
+  - Enforces Ibis-first architecture principle
+
+- **Prompts** (`src/egregora/prompts/`)
+  - Jinja2 templates for LLM system prompts
+  - `writer_system.jinja`: Blog post generation prompts
+  - `editor_system.jinja`: Interactive editing prompts
+  - `enricher_*.jinja`: URL and media enrichment prompts
+  - Externalized for easy customization
+
 - **Utils** (`src/egregora/utils/`)
   - `gemini_dispatcher.py`: Retry logic, error handling for Gemini API
   - `batch.py`: GeminiBatchClient for batch API requests
   - `cache.py`: EnrichmentCache (diskcache wrapper)
   - `genai.py`: Gemini client initialization
+  - `logfire_config.py`: Observability configuration for Pydantic AI agents
 
 - **Testing** (`src/egregora/testing/`)
   - `gemini_recorder.py`: Record/replay Gemini API calls for VCR tests
@@ -301,7 +332,9 @@ Static site (mkdocs serve)
 
 - **Staged architecture**: Code organized by pipeline stage, not layer
 - **Schemas centralized**: `core/database_schema.py` is single source of truth
-- **Prompts externalized**: Jinja2 templates in `prompts/` (future - currently in code)
+- **Prompts externalized**: Jinja2 templates in `prompts/` directory
+- **LLM infrastructure shared**: All agents use `llm/` module for Pydantic AI integration
+- **Agent system modular**: File-based agents in `agents/` (experimental)
 - **Tests mirror src**: `tests/` structure matches `src/egregora/`
 
 ## Working with Jules API

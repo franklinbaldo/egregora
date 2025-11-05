@@ -528,9 +528,16 @@ src/egregora/
 ├── knowledge/       # RAG, annotations, rankings
 ├── generation/      # LLM writer & editor
 ├── init/            # Site scaffolding
+├── agents/          # File-based agent system (experimental)
+├── llm/             # Pydantic AI infrastructure
 ├── core/            # Shared models & schemas
+├── config/          # Configuration management
 ├── orchestration/   # CLI & pipeline coordination
-└── utils/           # Batch processing, caching
+├── streaming/       # Ibis-first streaming utilities
+├── prompts/         # Jinja2 templates for LLM prompts
+├── templates/       # MkDocs site templates
+├── testing/         # Test utilities & VCR recording
+└── utils/           # Batch processing, caching, API clients
 ```
 
 See [`CLAUDE.md`](CLAUDE.md) for detailed architecture and development guidelines.
