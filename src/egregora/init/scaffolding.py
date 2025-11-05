@@ -1,13 +1,17 @@
 """Site scaffolding utilities for MkDocs-based Egregora sites."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
+import jinja2
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..config import DEFAULT_BLOG_DIR, SitePaths
 from ..config.site import _ConfigLoader, resolve_site_paths
+
+logger = logging.getLogger(__name__)
 
 SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
 
@@ -188,9 +192,9 @@ def _render_egregora_config(site_root: Path, env: Environment, context: dict[str
                 template = env.get_template(str(template_rel))
                 content = template.render(**context)
                 output_path.write_text(content, encoding="utf-8")
-            except Exception:
-                # If rendering fails, just copy the file
-                # (for binary files or non-Jinja content)
+            except (jinja2.TemplateError, jinja2.UndefinedError) as e:
+                # If rendering fails (template syntax errors, missing vars), warn and copy as-is
+                logger.warning(f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is.")
                 output_path.write_bytes(template_path.read_bytes())
 
 

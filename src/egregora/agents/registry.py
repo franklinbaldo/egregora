@@ -1,9 +1,12 @@
 import hashlib
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -78,6 +81,11 @@ class ToolRegistry:
         if not tool_ids:
             return ""
 
+        # Validate that all requested tools exist
+        missing_tools = tool_ids - set(self._tools.keys())
+        if missing_tools:
+            logger.warning(f"Tools not found in registry: {missing_tools}")
+
         hashes = sorted(
             [
                 _normalize_and_hash(self._tools[tool_id].content)
@@ -118,6 +126,11 @@ class SkillRegistry:
         """Get the hash for a set of enabled skills."""
         if not skill_ids:
             return ""
+
+        # Validate that all requested skills exist
+        missing_skills = set(skill_ids) - set(self._skills.keys())
+        if missing_skills:
+            logger.warning(f"Skills not found in registry: {missing_skills}")
 
         hashes = sorted(
             [
