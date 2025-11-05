@@ -33,6 +33,9 @@ ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 # Max avatar file size (10MB)
 MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024
 
+# Default timeout for avatar downloads (seconds)
+DEFAULT_DOWNLOAD_TIMEOUT = 30.0
+
 # Private IP ranges to block (SSRF prevention)
 BLOCKED_IP_RANGES = [
     ipaddress.ip_network("10.0.0.0/8"),  # Private network
@@ -174,7 +177,7 @@ def download_avatar_from_url(
     url: str,
     docs_dir: Path,
     group_slug: str,
-    timeout: float = 30.0,
+    timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
 ) -> tuple[uuid.UUID, Path]:
     """
     Download avatar from URL and save to avatars directory.
@@ -314,6 +317,11 @@ def extract_avatar_from_zip(
                 if info.is_dir():
                     continue
 
+                # Validate that the filename doesn't contain path traversal sequences
+                if ".." in info.filename or info.filename.startswith("/"):
+                    logger.warning(f"Skipping suspicious ZIP entry with path traversal: {info.filename}")
+                    continue
+
                 filename = Path(info.filename).name
                 if filename == media_filename:
                     found = True
@@ -357,34 +365,53 @@ def extract_avatar_from_zip(
 
 def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, str, bool]:
     """
-    Parse moderation result from enrichment text using simple keyword checking.
+    Parse moderation result from enrichment text.
 
-    The enrichment agent outputs specific keywords in the markdown:
-    - "BLOCKED" if the image is not allowed
-    - "PII_DETECTED" if personally identifiable information is found
+    The enrichment agent outputs a structured MODERATION_STATUS line at the beginning
+    of the markdown. We parse this line first, then check for PII_DETECTED keyword.
 
     Returns:
         Tuple of (status, reason, has_pii)
     """
-    # Simple keyword-based detection
-    has_blocked_keyword = "BLOCKED" in enrichment_text
+    import re
+
+    # Look for the structured status line at the beginning (more robust)
+    status_match = re.search(
+        r"^MODERATION_STATUS:\s*(APPROVED|QUESTIONABLE|BLOCKED)",
+        enrichment_text,
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+    if status_match:
+        status_str = status_match.group(1).lower()
+        status: ModerationStatus = status_str  # type: ignore[assignment]
+        logger.debug(f"Found structured MODERATION_STATUS: {status}")
+    else:
+        # Fallback to keyword matching if structured format not found
+        logger.warning("No MODERATION_STATUS line found, falling back to keyword matching")
+
+        # Check keywords in order (most restrictive first)
+        if "BLOCKED" in enrichment_text:
+            status = "blocked"
+        elif "QUESTIONABLE" in enrichment_text:
+            status = "questionable"
+        elif "APPROVED" in enrichment_text:
+            status = "approved"
+        else:
+            # Default to questionable if no clear status found
+            logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
+            status = "questionable"
+
+    # Check for PII (this is always a keyword check)
     has_pii = "PII_DETECTED" in enrichment_text
 
-    # Determine status based on keywords
-    if has_blocked_keyword:
-        status: ModerationStatus = "blocked"
+    # Generate reason based on status
+    if status == "blocked":
         reason = "Image contains inappropriate content or PII"
-    elif "QUESTIONABLE" in enrichment_text:
-        status = "questionable"
+    elif status == "questionable":
         reason = "Image requires manual review"
-    elif "APPROVED" in enrichment_text:
-        status = "approved"
+    else:  # approved
         reason = "Image approved for use as avatar"
-    else:
-        # Default to questionable if no clear status found
-        logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
-        status = "questionable"
-        reason = "Unable to determine moderation status"
 
     logger.info(f"Moderation result: status={status}, has_pii={has_pii}")
     return status, reason, has_pii
@@ -446,12 +473,16 @@ def enrich_and_moderate_avatar(
         enrichment_path.write_text(enrichment_text, encoding="utf-8")
         logger.info(f"Saved enrichment to: {enrichment_path}")
 
-        # If PII detected or blocked, delete the avatar file
+        # If PII detected or blocked, delete both the avatar file and enrichment file
         if has_pii or status == "blocked":
             logger.warning(f"Avatar {avatar_uuid} blocked (PII: {has_pii}, Status: {status})")
             if avatar_path.exists():
                 avatar_path.unlink()
                 logger.info(f"Deleted blocked avatar: {avatar_path}")
+            # Also delete the enrichment file to prevent orphaned files
+            if enrichment_path.exists():
+                enrichment_path.unlink()
+                logger.info(f"Deleted enrichment file: {enrichment_path}")
 
         return AvatarModerationResult(
             status=status,
@@ -463,6 +494,10 @@ def enrich_and_moderate_avatar(
         )
 
     except Exception as e:
+        # Clean up avatar file on moderation failure to prevent unmoderated avatars
+        if avatar_path.exists():
+            avatar_path.unlink()
+            logger.warning(f"Deleted avatar due to moderation failure: {avatar_path}")
         raise AvatarProcessingError(f"Failed to enrich avatar: {e}") from e
 
 
