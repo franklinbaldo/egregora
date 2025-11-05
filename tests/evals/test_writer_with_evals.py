@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 from pydantic_ai.models.test import TestModel
-from tests.utils.mock_batch_client import create_mock_batch_client
 
 from egregora.generation.writer.writer_agent import (
     write_posts_with_pydantic_agent,
     write_posts_with_pydantic_agent_stream,
 )
 from tests.evals.writer_evals import create_writer_dataset
+from tests.utils.mock_batch_client import create_mock_batch_client
 
 
 @pytest.fixture()

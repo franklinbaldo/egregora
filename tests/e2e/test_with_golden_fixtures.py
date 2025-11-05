@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 from pydantic_ai.models.test import TestModel
-from tests.utils.mock_batch_client import create_mock_genai_client
 
 from egregora.config import resolve_site_paths
 from egregora.orchestration.pipeline import process_whatsapp_export
+from tests.utils.mock_batch_client import create_mock_genai_client
 
 
 def test_pipeline_with_golden_fixtures(
