@@ -185,12 +185,12 @@ def enrich_table(
 
             # 2. UUID-based filenames in markdown links (after media replacement)
             # Pattern: extract filenames from markdown links like ![Image](media/images/uuid.jpg)
-            markdown_media_pattern = r"!\\[[^\\]]*\\\\]\([^)]*?([a-f0-9\-]+\\.\w+)\")"
+            markdown_media_pattern = r"!\[[^\]]*\]\([^)]*?([a-f0-9\-]+\.\w+)\)"
             markdown_matches = re.findall(markdown_media_pattern, message)
             media_refs.extend(markdown_matches)
 
             # Also check for direct UUID-based filenames (without path)
-            uuid_filename_pattern = r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\w+)"
+            uuid_filename_pattern = r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)"
             uuid_matches = re.findall(uuid_filename_pattern, message)
             media_refs.extend(uuid_matches)
 

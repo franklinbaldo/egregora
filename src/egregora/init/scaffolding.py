@@ -13,7 +13,7 @@ from egregora.config.site import _ConfigLoader, resolve_site_paths
 
 logger = logging.getLogger(__name__)
 
-SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
+SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
 
 DEFAULT_SITE_NAME = "Egregora Archive"
 DEFAULT_DOCS_SETTING = "docs"  # MkDocs requires docs_dir to be a subdirectory
