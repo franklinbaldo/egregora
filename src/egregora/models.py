@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
-from .types import GroupSlug
+from egregora.types import GroupSlug
 
 
 @dataclass(slots=True)

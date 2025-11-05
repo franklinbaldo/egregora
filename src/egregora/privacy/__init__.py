@@ -6,8 +6,8 @@ This package handles all privacy-related operations:
 - Opt-out user management
 """
 
-from .anonymizer import anonymize_author, anonymize_mentions, anonymize_table
-from .detector import PrivacyViolationError, validate_newsletter_privacy
+from egregora.privacy.anonymizer import anonymize_author, anonymize_mentions, anonymize_table
+from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 __all__ = [
     # Anonymization

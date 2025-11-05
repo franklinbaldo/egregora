@@ -4,8 +4,8 @@ from typing import Any
 
 import frontmatter
 
-from .loader import load_agent
-from .models import AgentConfig
+from egregora.agents.loader import load_agent
+from egregora.agents.models import AgentConfig
 
 logger = logging.getLogger(__name__)
 

@@ -11,11 +11,11 @@ from typing import TypedDict
 import ibis
 from ibis.expr.types import Table
 
-from ...config import MEDIA_DIR_NAME
-from ...utils.batch import GeminiBatchClient
-from .chunker import chunk_document
-from .embedder import embed_chunks, embed_query
-from .store import VECTOR_STORE_SCHEMA, VectorStore
+from egregora.agents.config import MEDIA_DIR_NAME
+from egregora.agents.utils.batch import GeminiBatchClient
+from egregora.agents.tools.rag.chunker import chunk_document
+from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
+from egregora.agents.tools.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 
 logger = logging.getLogger(__name__)
 

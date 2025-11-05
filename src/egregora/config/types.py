@@ -7,7 +7,7 @@ from typing import Annotated
 
 from egregora.types import GroupSlug
 
-from .model import ModelConfig
+from egregora.config.model import ModelConfig
 
 
 @dataclass

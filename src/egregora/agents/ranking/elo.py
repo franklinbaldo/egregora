@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from .store import RankingStore
+from egregora.agents.ranking.store import RankingStore
 
 DEFAULT_ELO = 1500
 K_FACTOR = 32

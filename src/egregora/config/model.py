@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from .site import load_mkdocs_config
+from egregora.config.site import load_mkdocs_config
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 

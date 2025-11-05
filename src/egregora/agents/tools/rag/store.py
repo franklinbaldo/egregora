@@ -12,7 +12,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
 
-from ...core import database_schema
+from egregora.agents.core import database_schema
 
 logger = logging.getLogger(__name__)
 

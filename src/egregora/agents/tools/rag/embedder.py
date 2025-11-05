@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from ...utils.batch import EmbeddingBatchRequest, GeminiBatchClient
+from egregora.agents.utils.batch import EmbeddingBatchRequest, GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 

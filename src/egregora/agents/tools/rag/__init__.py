@@ -24,7 +24,7 @@ from egregora.agents.tools.rag.retriever import (
     query_similar_posts,
 )
 
-from .store import VectorStore
+from egregora.agents.tools.rag.store import VectorStore
 
 __all__ = [
     "VectorStore",
