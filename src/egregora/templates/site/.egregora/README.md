@@ -208,6 +208,18 @@ skills:
 
 The skill content is injected into your prompt template automatically.
 
+## Security Considerations
+
+⚠️ **Template Injection Warning**: Agent templates use Jinja2 and have access to all template variables. The templates are executed with full Jinja2 capabilities, which means they can access Python objects and call methods.
+
+**Important security guidelines:**
+- Only use agent configurations from trusted sources
+- Do not run `egregora` commands on `.egregora` directories from untrusted repositories without reviewing the template files first
+- Be cautious when cloning repositories that include `.egregora/` configurations
+- Review all Jinja2 templates (`.jinja` files) before using them, especially if shared by others
+
+If you're sharing your Egregora site configuration publicly, ensure your `.egregora/` templates don't contain sensitive information or dangerous code.
+
 ## Best Practices
 
 1. **Version Your Agents**: Use version suffixes in `agent_id` (e.g., "writer_v2")
@@ -216,6 +228,7 @@ The skill content is injected into your prompt template automatically.
 4. **Start Simple**: Begin with small prompt tweaks before major changes
 5. **Use Skills**: Extract reusable prompt components into skills
 6. **Profile Tools**: Use tool profiles for consistent tool configurations
+7. **Review Shared Configs**: Always review `.egregora/` files from other sources before using them
 
 ## Troubleshooting
 
