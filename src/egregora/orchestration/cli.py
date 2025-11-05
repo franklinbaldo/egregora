@@ -1321,6 +1321,145 @@ def write_posts(  # noqa: PLR0913, PLR0915
 _register_ranking_cli(app)
 
 
+@app.command("get-avatar")
+def get_avatar_cli(
+    author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
+    site_dir: Annotated[
+        Path,
+        typer.Option("--site-dir", "-s", help="Path to MkDocs site directory"),
+    ] = Path("output"),
+):
+    """Get avatar information for an author."""
+    from ..augmentation.profiler import get_avatar_info
+
+    # Resolve paths
+    site_path = site_dir.resolve()
+    if not site_path.exists():
+        console.print(f"[red]Site directory not found: {site_path}[/red]")
+        raise typer.Exit(1)
+
+    site_paths = resolve_site_paths(site_path)
+
+    # Get avatar info
+    avatar_info = get_avatar_info(author_uuid, site_paths.profiles_dir)
+
+    if not avatar_info:
+        console.print(f"[yellow]No avatar found for author {author_uuid}[/yellow]")
+        return
+
+    # Display avatar info
+    console.print(Panel(f"[bold]Avatar Info for {author_uuid}[/bold]"))
+    console.print(f"[cyan]UUID:[/cyan] {avatar_info['uuid']}")
+    console.print(f"[cyan]Path:[/cyan] {avatar_info.get('path', 'N/A')}")
+    console.print(f"[cyan]Status:[/cyan] {avatar_info['status']}")
+    if "reason" in avatar_info:
+        console.print(f"[cyan]Reason:[/cyan] {avatar_info['reason']}")
+
+
+@app.command("remove-avatar")
+def remove_avatar_cli(
+    author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
+    site_dir: Annotated[
+        Path,
+        typer.Option("--site-dir", "-s", help="Path to MkDocs site directory"),
+    ] = Path("output"),
+):
+    """Remove avatar from an author's profile."""
+    from datetime import datetime
+
+    from ..augmentation.profiler import remove_profile_avatar
+
+    # Resolve paths
+    site_path = site_dir.resolve()
+    if not site_path.exists():
+        console.print(f"[red]Site directory not found: {site_path}[/red]")
+        raise typer.Exit(1)
+
+    site_paths = resolve_site_paths(site_path)
+
+    # Confirm removal
+    console.print(f"[yellow]Removing avatar for author {author_uuid}...[/yellow]")
+
+    # Remove avatar
+    timestamp = datetime.now().isoformat()
+    remove_profile_avatar(author_uuid, timestamp, site_paths.profiles_dir)
+
+    console.print(f"[green]✅ Avatar removed for {author_uuid}[/green]")
+
+
+@app.command("review-avatar")
+def review_avatar_cli(
+    author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
+    action: Annotated[
+        str,
+        typer.Argument(help="Action to take: 'approve' or 'reject'"),
+    ],
+    site_dir: Annotated[
+        Path,
+        typer.Option("--site-dir", "-s", help="Path to MkDocs site directory"),
+    ] = Path("output"),
+    reason: Annotated[
+        str | None,
+        typer.Option("--reason", "-r", help="Reason for rejection (if rejecting)"),
+    ] = None,
+):
+    """Manually review and approve/reject a questionable avatar."""
+    from datetime import datetime
+
+    from ..augmentation.profiler import get_avatar_info, update_profile_avatar
+
+    # Validate action
+    action = action.lower()
+    if action not in ("approve", "reject"):
+        console.print("[red]Error: action must be 'approve' or 'reject'[/red]")
+        raise typer.Exit(1)
+
+    # Resolve paths
+    site_path = site_dir.resolve()
+    if not site_path.exists():
+        console.print(f"[red]Site directory not found: {site_path}[/red]")
+        raise typer.Exit(1)
+
+    site_paths = resolve_site_paths(site_path)
+
+    # Get current avatar info
+    avatar_info = get_avatar_info(author_uuid, site_paths.profiles_dir)
+
+    if not avatar_info:
+        console.print(f"[red]No avatar found for author {author_uuid}[/red]")
+        raise typer.Exit(1)
+
+    if avatar_info["status"] != "questionable":
+        console.print(
+            f"[yellow]Avatar status is '{avatar_info['status']}', not 'questionable'. "
+            f"Manual review may not be needed.[/yellow]"
+        )
+
+    # Update avatar status
+    timestamp = datetime.now().isoformat()
+
+    if action == "approve":
+        new_status = "approved"
+        new_reason = "Manually approved after review"
+        console.print(f"[green]✅ Approving avatar for {author_uuid}...[/green]")
+    else:  # reject
+        new_status = "blocked"
+        new_reason = reason or "Manually rejected after review"
+        console.print(f"[red]❌ Rejecting avatar for {author_uuid}...[/red]")
+
+    update_profile_avatar(
+        author_uuid=author_uuid,
+        avatar_uuid=avatar_info["uuid"],
+        avatar_path=Path(avatar_info.get("path", "")),
+        moderation_status=new_status,
+        moderation_reason=new_reason,
+        timestamp=timestamp,
+        profiles_dir=site_paths.profiles_dir,
+    )
+
+    console.print(f"[green]✅ Avatar review complete for {author_uuid}[/green]")
+
+
 def main():
     """Entry point for the CLI."""
     app()
