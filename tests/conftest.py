@@ -231,7 +231,7 @@ def mock_batch_client(monkeypatch):
     )
     # Patch where genai is imported in egregora modules
     monkeypatch.setattr(
-        "egregora.pipeline.genai.Client",
+        "egregora.sources.whatsapp.pipeline.genai.Client",
         MockGeminiClient,
     )
     monkeypatch.setattr(
@@ -245,7 +245,7 @@ def mock_batch_client(monkeypatch):
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.pipeline.GeminiBatchClient",
+        "egregora.sources.whatsapp.pipeline.GeminiBatchClient",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
