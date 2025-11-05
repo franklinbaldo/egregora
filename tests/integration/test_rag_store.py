@@ -17,7 +17,7 @@ EMBEDDING_DIM = 1536
 def _vector_store_row(store_module, **overrides):
     """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
 
-    base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+    base = dict.fromkeys(store_module.VECTOR_STORE_SCHEMA.names)
 
     defaults = {
         "chunk_id": overrides.get("chunk_id"),
@@ -65,9 +65,7 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
     try:
         store_module = _load_vector_store()
         monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
-        store = store_module.VectorStore(
-            tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
-        )
+        store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
         try:
             assert ibis.get_backend() is custom_backend
         finally:
@@ -88,9 +86,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     ibis.set_backend(other_backend)
 
     try:
-        store = store_module.VectorStore(
-            tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
-        )
+        store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
         try:
             first_batch = ibis.memtable(
                 [
@@ -139,9 +135,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
 
-    store = store_module.VectorStore(
-        tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:")
-    )
+    store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=duckdb.connect(":memory:"))
 
     try:
         missing_column_rows = [
@@ -187,7 +181,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
 def _load_vector_store():
     """Load the vector store module."""
-    from egregora.knowledge.rag import store  # noqa: PLC0415
+    from egregora.agents.tools.rag import store  # noqa: PLC0415
 
     return store
 
@@ -319,7 +313,7 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
                     empty = {name: [] for name in store_module.SEARCH_RESULT_SCHEMA.names}
                     empty["similarity"] = []
 
-                    columns = list(empty.keys()) + ["similarity"]
+                    columns = [*list(empty.keys()), "similarity"]
 
                     class _Result:
                         description = [(name,) for name in columns]
@@ -363,7 +357,7 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
         try:
 
             def build_row(chunk_id: str, embedding: list[float], *, chunk_index: int) -> dict:
-                base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+                base = dict.fromkeys(store_module.VECTOR_STORE_SCHEMA.names)
                 base.update(
                     {
                         "chunk_id": chunk_id,
@@ -411,7 +405,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
     try:
 
         def build_row(chunk_id: str, embedding: list[float], **overrides) -> dict:
-            base = {name: None for name in store_module.VECTOR_STORE_SCHEMA.names}
+            base = dict.fromkeys(store_module.VECTOR_STORE_SCHEMA.names)
             base.update(
                 {
                     "chunk_id": chunk_id,

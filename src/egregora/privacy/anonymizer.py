@@ -72,8 +72,6 @@ def anonymize_table(table: Table) -> Table:
             """UDF wrapper for anonymize_mentions."""
             return anonymize_mentions(text) if text else text
 
-        anonymized_table = anonymized_table.mutate(
-            message=anonymize_mentions_udf(anonymized_table.message)
-        )
+        anonymized_table = anonymized_table.mutate(message=anonymize_mentions_udf(anonymized_table.message))
 
     return anonymized_table

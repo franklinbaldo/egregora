@@ -7,9 +7,9 @@ from types import SimpleNamespace
 import ibis
 import pandas as pd
 import pytest
+from egregora.database_schema import CONVERSATION_SCHEMA
 
-from egregora.augmentation.enrichment.core import enrich_table
-from egregora.core.database_schema import CONVERSATION_SCHEMA
+from egregora.enrichment.core import enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 
 
@@ -19,7 +19,7 @@ class StubBatchClient:
     def __init__(self, prefix: str):
         self.prefix = prefix
 
-    def generate_content(self, requests, **kwargs):  # noqa: D401 - helper for tests
+    def generate_content(self, requests, **kwargs):
         """Return canned responses matching the provided tags."""
 
         results: list[BatchPromptResult] = []
@@ -38,7 +38,7 @@ class StubBatchClient:
         return SimpleNamespace(uri=f"stub://{Path(path).name}", mime_type="image/jpeg")
 
 
-@pytest.fixture()
+@pytest.fixture
 def duckdb_backend():
     backend = ibis.duckdb.connect()
     try:
@@ -122,10 +122,7 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     )
 
     first_df = (
-        duckdb_backend.table("conversation_output")
-        .order_by("timestamp")
-        .execute()
-        .reset_index(drop=True)
+        duckdb_backend.table("conversation_output").order_by("timestamp").execute().reset_index(drop=True)
     )
 
     enrich_table(
@@ -142,10 +139,7 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     )
 
     second_df = (
-        duckdb_backend.table("conversation_output")
-        .order_by("timestamp")
-        .execute()
-        .reset_index(drop=True)
+        duckdb_backend.table("conversation_output").order_by("timestamp").execute().reset_index(drop=True)
     )
 
     pd.testing.assert_frame_equal(first_df, second_df)

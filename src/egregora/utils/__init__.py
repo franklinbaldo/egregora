@@ -1,6 +1,6 @@
 """Utility modules for Egregora."""
 
-from .batch import (
+from egregora.utils.batch import (
     BatchPromptRequest,
     BatchPromptResult,
     EmbeddingBatchRequest,
@@ -8,28 +8,21 @@ from .batch import (
     GeminiBatchClient,
     chunk_requests,
 )
-from .cache import (
+from egregora.utils.cache import (
     ENRICHMENT_CACHE_VERSION,
     EnrichmentCache,
     make_enrichment_cache_key,
 )
-from .checkpoints import (
-    DEFAULT_STEP_ORDER,
-    CheckpointStore,
-)
-from .genai import (
+from egregora.utils.checkpoints import DEFAULT_STEP_ORDER, CheckpointStore
+from egregora.utils.genai import (
     call_with_retries,
     call_with_retries_sync,
     extract_retry_delay,
     is_rate_limit_error,
     sleep_with_progress_sync,
 )
-from .paths import (
-    PathTraversalError,
-    safe_path_join,
-    slugify,
-)
-from .zip import (
+from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
+from egregora.utils.zip import (
     ZipValidationError,
     ZipValidationLimits,
     configure_default_limits,
@@ -38,34 +31,34 @@ from .zip import (
 )
 
 __all__ = [
+    "DEFAULT_STEP_ORDER",
+    "ENRICHMENT_CACHE_VERSION",
     # Batch API
     "BatchPromptRequest",
     "BatchPromptResult",
-    "EmbeddingBatchRequest",
-    "EmbeddingBatchResult",
-    "GeminiBatchClient",
-    "chunk_requests",
-    # Cache
-    "EnrichmentCache",
-    "make_enrichment_cache_key",
-    "ENRICHMENT_CACHE_VERSION",
     # Checkpoints
     "CheckpointStore",
-    "DEFAULT_STEP_ORDER",
-    # GenAI utilities
-    "call_with_retries",
-    "call_with_retries_sync",
-    "is_rate_limit_error",
-    "extract_retry_delay",
-    "sleep_with_progress_sync",
+    "EmbeddingBatchRequest",
+    "EmbeddingBatchResult",
+    # Cache
+    "EnrichmentCache",
+    "GeminiBatchClient",
+    # Path safety
+    "PathTraversalError",
     # ZIP validation
     "ZipValidationError",
     "ZipValidationLimits",
+    # GenAI utilities
+    "call_with_retries",
+    "call_with_retries_sync",
+    "chunk_requests",
     "configure_default_limits",
-    "validate_zip_contents",
     "ensure_safe_member_size",
-    # Path safety
-    "PathTraversalError",
-    "slugify",
+    "extract_retry_delay",
+    "is_rate_limit_error",
+    "make_enrichment_cache_key",
     "safe_path_join",
+    "sleep_with_progress_sync",
+    "slugify",
+    "validate_zip_contents",
 ]

@@ -25,7 +25,7 @@ TDeps = TypeVar("TDeps")
 TResult = TypeVar("TResult")
 
 
-def create_agent(  # noqa: UP047, PLR0913
+def create_agent(  # noqa: UP047
     model_name: str,
     *,
     system_prompt: str,

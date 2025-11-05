@@ -23,10 +23,10 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
-from ..core.models import WhatsAppExport
-from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
-from ..privacy.anonymizer import anonymize_table
-from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from egregora.models import WhatsAppExport
+from egregora.privacy.anonymizer import anonymize_table
+from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
+from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
 SET_COMMAND_PARTS = 2
@@ -147,9 +147,7 @@ def extract_commands(messages: Table) -> list[dict]:
 
         cmd = parse_egregora_command(message)
         if cmd:
-            commands.append(
-                {"author": row["author"], "timestamp": row["timestamp"], "command": cmd}
-            )
+            commands.append({"author": row["author"], "timestamp": row["timestamp"], "command": cmd})
 
     if commands:
         logger.info(f"Found {len(commands)} egregora commands")
@@ -195,9 +193,7 @@ def _add_message_ids(messages: Table) -> Table:
     # The delta is timezone-independent because both timestamps use the same timezone
     # Multiply by 1000 to convert seconds to milliseconds, round to ensure integer
     delta_ms = (
-        ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000)
-        .round()
-        .cast("int64")
+        ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000).round().cast("int64")
     )
 
     # Add row number for uniqueness (0-indexed)
@@ -214,9 +210,7 @@ def _add_message_ids(messages: Table) -> Table:
 
     row_number = ibis.row_number().over(order_by=order_columns)
 
-    messages_with_id = messages.mutate(
-        message_id=(delta_ms.cast("string") + "_" + row_number.cast("string"))
-    )
+    messages_with_id = messages.mutate(message_id=(delta_ms.cast("string") + "_" + row_number.cast("string")))
 
     return messages_with_id
 
@@ -286,9 +280,7 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                 rows = _parse_messages(text_stream, export)
         except UnicodeDecodeError as exc:
-            raise ZipValidationError(
-                f"Failed to decode chat file '{export.chat_file}': {exc}"
-            ) from exc
+            raise ZipValidationError(f"Failed to decode chat file '{export.chat_file}': {exc}") from exc
 
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
@@ -338,9 +330,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
 
                 messages = ibis.memtable(rows)
                 if _IMPORT_ORDER_COLUMN in messages.columns:
-                    messages = messages.order_by(
-                        [messages.timestamp, messages[_IMPORT_ORDER_COLUMN]]
-                    )
+                    messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
                 else:
                     messages = messages.order_by("timestamp")
 
@@ -580,7 +570,7 @@ class _MessageBuilder:
 
 
 class _PreparedLine:
-    __slots__ = ("original", "normalized", "trimmed")
+    __slots__ = ("normalized", "original", "trimmed")
 
     def __init__(self, *, original: str, normalized: str, trimmed: str) -> None:
         self.original = original

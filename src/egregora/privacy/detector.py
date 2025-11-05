@@ -51,13 +51,9 @@ _BRAZILIAN_ID_PATTERNS: tuple[_PrivacyPattern, ...] = (
     ),
 )
 
-_PII_PATTERNS: tuple[_PrivacyPattern, ...] = (
-    _PHONE_PATTERNS + (_EMAIL_PATTERN,) + _BRAZILIAN_ID_PATTERNS
-)
+_PII_PATTERNS: tuple[_PrivacyPattern, ...] = (*_PHONE_PATTERNS, _EMAIL_PATTERN, *_BRAZILIAN_ID_PATTERNS)
 
-_UUID_PATTERN = re.compile(
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
+_UUID_PATTERN = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 
 def _within_any(span: tuple[int, int], ranges: Sequence[tuple[int, int]]) -> bool:
@@ -77,9 +73,7 @@ def validate_newsletter_privacy(newsletter_text: str) -> bool:
             span = match.span()
             if _within_any(span, uuid_spans):
                 continue
-            raise PrivacyViolationError(
-                f"Possible phone number leak detected: {pattern.description}"
-            )
+            raise PrivacyViolationError(f"Possible phone number leak detected: {pattern.description}")
 
     return True
 

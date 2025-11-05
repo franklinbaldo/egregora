@@ -10,15 +10,15 @@ from typing import Any
 
 from ibis.expr.types import Table
 
-from ..augmentation.enrichment.batch import _iter_table_record_batches
-from ..augmentation.enrichment.media import (
+from egregora.enrichment.batch import _iter_table_record_batches
+from egregora.enrichment.media import (
     extract_media_from_zip,
     find_media_references,
 )
-from ..core.input_source import InputMetadata, InputSource
-from ..core.models import WhatsAppExport
-from ..core.schema import group_slug
-from .parser import parse_export
+from egregora.ingestion.base import InputMetadata, InputSource
+from egregora.ingestion.parser import parse_export
+from egregora.models import WhatsAppExport
+from egregora.schema import group_slug
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ class WhatsAppInputSource(InputSource):
 
         if group_slug is None:
             # Infer from filename
-            from ..core.schema import group_slug as create_slug
+            from egregora.schema import group_slug as create_slug
 
             group_name = self._infer_group_name(source_path)
             group_slug = create_slug(group_name)
@@ -183,9 +183,7 @@ class WhatsAppInputSource(InputSource):
             # Scan table for media references using streaming (Ibis-first policy)
             try:
                 batch_size = 1000
-                for batch_records in _iter_table_record_batches(
-                    table.select("message"), batch_size
-                ):
+                for batch_records in _iter_table_record_batches(table.select("message"), batch_size):
                     for row in batch_records:
                         message = row.get("message", "")
                         refs = find_media_references(message)
@@ -274,8 +272,7 @@ class WhatsAppInputSource(InputSource):
         # Remove common prefixes like "WhatsApp Chat - "
         prefixes = ["WhatsApp Chat - ", "WhatsApp-Chat-", "Chat-"]
         for prefix in prefixes:
-            if name.startswith(prefix):
-                name = name[len(prefix) :]
+            name = name.removeprefix(prefix)
 
         # Clean up underscores and dashes
         name = name.replace("_", " ").replace("-", " ")

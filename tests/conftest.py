@@ -26,7 +26,7 @@ import duckdb
 import pytest
 
 try:
-    import ibis  # noqa: F401 - imported to ensure availability for fixtures
+    import ibis
 except ImportError:  # pragma: no cover - depends on test env
     pytest.skip(
         "ibis is required for the test suite; install project dependencies to run tests",
@@ -131,9 +131,9 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
-from egregora.core.models import WhatsAppExport
-from egregora.core.types import GroupSlug
-from egregora.orchestration.pipeline import discover_chat_file
+from egregora.models import WhatsAppExport
+from egregora.pipeline import discover_chat_file
+from egregora.types import GroupSlug
 from egregora.utils.zip import validate_zip_contents
 
 
@@ -202,12 +202,12 @@ def whatsapp_timezone() -> ZoneInfo:
     return ZoneInfo("America/Sao_Paulo")
 
 
-@pytest.fixture()
+@pytest.fixture
 def gemini_api_key() -> str:
     return "test-key"
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_batch_client(monkeypatch):
     """Monkey-patch GeminiBatchClient and genai.Client with mocks for fast tests.
 
@@ -231,11 +231,11 @@ def mock_batch_client(monkeypatch):
     )
     # Patch where genai is imported in egregora modules
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.genai.Client",
+        "egregora.pipeline.genai.Client",
         MockGeminiClient,
     )
     monkeypatch.setattr(
-        "egregora.generation.editor.agent.genai.Client",
+        "egregora.agents.editor.editor_agent.genai.Client",
         MockGeminiClient,
     )
 
@@ -245,15 +245,15 @@ def mock_batch_client(monkeypatch):
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiBatchClient",
+        "egregora.pipeline.GeminiBatchClient",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.generation.editor.agent.GeminiBatchClient",
+        "egregora.agents.editor.editor_agent.GeminiBatchClient",
         MockGeminiBatchClient,
     )
 
-    yield {
+    return {
         "client": MockGeminiClient,
         "batch_client": MockGeminiBatchClient,
     }
@@ -291,7 +291,7 @@ def vcr_config():
 
     def _serialize_response_body(response):
         """Serialize response body, encoding binary data as base64."""
-        if "body" in response and response["body"]:
+        if response.get("body"):
             try:
                 # Try to decode as UTF-8
                 if isinstance(response["body"], bytes):
@@ -302,9 +302,7 @@ def vcr_config():
             except (UnicodeDecodeError, AttributeError):
                 # Binary data - encode as base64
                 if isinstance(response["body"], bytes):
-                    response["body"] = {
-                        "string": base64.b64encode(response["body"]).decode("ascii")
-                    }
+                    response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
                     response["headers"]["X-VCR-Binary-Body"] = ["true"]
         return response
 

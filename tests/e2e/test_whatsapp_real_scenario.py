@@ -10,10 +10,10 @@ import ibis
 import pytest
 from conftest import WhatsAppFixture
 
-from egregora.augmentation.enrichment.core import enrich_table
-from egregora.augmentation.enrichment.media import extract_and_replace_media
+from egregora.enrichment.core import enrich_table
+from egregora.enrichment.media import extract_and_replace_media
 from egregora.ingestion.parser import filter_egregora_messages, parse_export
-from egregora.orchestration.pipeline import process_whatsapp_export
+from egregora.pipeline import process_whatsapp_export
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
@@ -44,20 +44,17 @@ class DummyBatchClient:
         self.default_model = model
         self.uploaded: list[Path] = []
 
-    def generate_content(self, requests, **kwargs):  # noqa: D401 - test helper
+    def generate_content(self, requests, **kwargs):
         """Return canned batch responses for enrichment pipelines."""
 
-        results = []
-        for request in requests:
-            results.append(
-                BatchPromptResult(
-                    tag=getattr(request, "tag", None),
-                    response=SimpleNamespace(
-                        text=f"Generated content for {getattr(request, 'tag', 'unknown')}"
-                    ),
-                    error=None,
-                )
+        results = [
+            BatchPromptResult(
+                tag=getattr(request, "tag", None),
+                response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
+                error=None,
             )
+            for request in requests
+        ]
         return results
 
     def embed_content(self, requests, **kwargs):  # pragma: no cover - unused in tests
@@ -84,18 +81,16 @@ class DummyGenaiClient:
             done=True,
             error=None,
         )
-        self.batches = SimpleNamespace(
-            create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
-        )
+        self.batches = SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
 
     def close(self):  # pragma: no cover - compatibility shim
         return None
 
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
-    monkeypatch.setattr("egregora.orchestration.pipeline.genai.Client", DummyGenaiClient)
+    monkeypatch.setattr("egregora.pipeline.genai.Client", DummyGenaiClient)
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiDispatcher",
+        "egregora.pipeline.GeminiDispatcher",
         lambda client, model, **kwargs: DummyBatchClient(model),
     )
 
@@ -135,7 +130,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.orchestration.pipeline.write_posts_for_period", _stub_writer)
+    monkeypatch.setattr("egregora.pipeline.write_posts_for_period", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):

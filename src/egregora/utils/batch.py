@@ -11,7 +11,7 @@ from typing import TypeVar
 from google import genai
 from google.genai import types as genai_types
 
-from .genai import call_with_retries_sync, sleep_with_progress_sync
+from egregora.utils.genai import call_with_retries_sync, sleep_with_progress_sync
 
 _T = TypeVar("_T")
 
@@ -199,9 +199,7 @@ class GeminiBatchClient:
         if any(req.task_type not in (None, task_type) for req in requests):
             raise ValueError("All embedding batch requests must use the same task_type")
 
-        output_dim = next(
-            (req.output_dimensionality for req in requests if req.output_dimensionality), None
-        )
+        output_dim = next((req.output_dimensionality for req in requests if req.output_dimensionality), None)
         if any(req.output_dimensionality not in (None, output_dim) for req in requests):
             raise ValueError("All embedding batch requests must use the same output dimensionality")
 
@@ -214,9 +212,7 @@ class GeminiBatchClient:
             else None
         )
 
-        contents = [
-            genai_types.Content(parts=[genai_types.Part(text=req.text)]) for req in requests
-        ]
+        contents = [genai_types.Content(parts=[genai_types.Part(text=req.text)]) for req in requests]
 
         source = genai_types.EmbeddingsBatchJobSource(
             inlined_requests=genai_types.EmbedContentBatch(
@@ -240,9 +236,7 @@ class GeminiBatchClient:
             timeout=timeout,
         )
 
-        responses = (
-            completed_job.dest.inlined_embed_content_responses if completed_job.dest else None
-        ) or []
+        responses = (completed_job.dest.inlined_embed_content_responses if completed_job.dest else None) or []
 
         results: list[EmbeddingBatchResult] = []
         for index, req in enumerate(requests):
@@ -291,21 +285,15 @@ class GeminiBatchClient:
             state = job.state.name if job.state else "JOB_STATE_UNSPECIFIED"
 
             if state != last_state:
-                logger.info(
-                    "[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", "")
-                )
+                logger.info("[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", ""))
                 last_state = state
 
             if job.done:
                 if state not in {"JOB_STATE_SUCCEEDED", "JOB_STATE_PARTIALLY_SUCCEEDED"}:
                     error_message = (
-                        getattr(job.error, "message", "unknown error")
-                        if job.error
-                        else "unknown error"
+                        getattr(job.error, "message", "unknown error") if job.error else "unknown error"
                     )
-                    raise RuntimeError(
-                        f"Batch job {job_name} finished with state {state}: {error_message}"
-                    )
+                    raise RuntimeError(f"Batch job {job_name} finished with state {state}: {error_message}")
 
                 elapsed = time.monotonic() - start
                 logger.info("[green]✅ Batch job %s completed in %.1fs[/green]", job_name, elapsed)

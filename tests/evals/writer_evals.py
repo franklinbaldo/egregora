@@ -31,9 +31,7 @@ def create_writer_dataset() -> Dataset:
             name="single_message_insufficient",
             inputs={
                 "prompt": (
-                    "Conversation (2025-01-01):\n"
-                    "- user_abc: hi\n\n"
-                    "This is too brief to warrant a blog post."
+                    "Conversation (2025-01-01):\n- user_abc: hi\n\nThis is too brief to warrant a blog post."
                 ),
                 "period_date": "2025-01-01",
             },

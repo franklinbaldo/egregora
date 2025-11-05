@@ -191,16 +191,14 @@ class MockGeminiClient:
             parts = []
             for content in contents:
                 if hasattr(content, "parts"):
-                    for part in content.parts:
-                        if hasattr(part, "text") and part.text:
-                            parts.append(part.text)
+                    parts.extend(part.text for part in content.parts if hasattr(part, "text") and part.text)
             text = "\n".join(parts)
         else:
             text = str(contents)
 
         # Generate deterministic fake response based on input
         text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
-        _rng = random.Random(text_hash)  # noqa: F841
+        _rng = random.Random(text_hash)
 
         # Generate mock response text
         mock_response_text = f"""---

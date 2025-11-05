@@ -1,21 +1,27 @@
-"""Ingestion stage - Parse WhatsApp exports into structured data.
+"""Ingestion stage - Parse input sources into structured data.
 
-This package handles the initial data extraction from WhatsApp ZIP exports,
+This package handles data extraction from various sources (WhatsApp, Slack, etc.),
 converting them into Ibis tables for further processing.
 """
 
-from .parser import (
+from egregora.ingestion.base import InputSource
+from egregora.ingestion.parser import (
     extract_commands,
     filter_egregora_messages,
     parse_egregora_command,
     parse_export,
     parse_multiple,
 )
+from egregora.ingestion.slack_input import SlackInputSource
+from egregora.ingestion.whatsapp_input import WhatsAppInputSource
 
 __all__ = [
-    "parse_export",
-    "parse_multiple",
+    "InputSource",
+    "SlackInputSource",
+    "WhatsAppInputSource",
     "extract_commands",
     "filter_egregora_messages",
     "parse_egregora_command",
+    "parse_export",
+    "parse_multiple",
 ]

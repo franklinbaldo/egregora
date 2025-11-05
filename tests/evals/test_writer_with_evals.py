@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.generation.writer.writer_agent import (
+from egregora.agents.writer.writer_agent import (
     write_posts_with_pydantic_agent,
     write_posts_with_pydantic_agent_stream,
 )
@@ -16,7 +16,7 @@ from tests.evals.writer_evals import create_writer_dataset
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def writer_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
     """Create temporary directories for writer tests."""
     site_dir = tmp_path / "site" / "docs"
@@ -52,7 +52,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
         custom_output_text='{"summary": "Test completed", "notes": "N/A"}',
     )
 
-    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+    saved_posts, _saved_profiles = write_posts_with_pydantic_agent(
         prompt=inputs["prompt"],
         model_name="models/gemini-flash-latest",
         period_date=inputs["period_date"],
@@ -102,7 +102,7 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
         custom_output_text='{"summary": "No content", "notes": "N/A"}',
     )
 
-    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+    saved_posts, _saved_profiles = write_posts_with_pydantic_agent(
         prompt=case.inputs["prompt"],
         model_name="models/gemini-flash-latest",
         period_date=case.inputs["period_date"],
@@ -162,12 +162,10 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     # Use async context manager for streaming
     async with stream_result as result:
         # Stream and collect chunks
-        chunks = []
-        async for chunk in result.stream_text():
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in result.stream_text()]
 
         # Get final results
-        saved_posts, saved_profiles = await result.get_posts()
+        saved_posts, _saved_profiles = await result.get_posts()
 
     # Should create no posts
     assert len(saved_posts) == 0

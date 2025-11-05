@@ -20,7 +20,7 @@ from typing import Any
 import ibis
 from ibis.expr.types import Table
 
-from ..core.input_source import InputMetadata, InputSource
+from egregora.ingestion.base import InputMetadata, InputSource
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class SlackInputSource(InputSource):
 
         if not all_messages:
             logger.warning("No messages found in Slack export")
-            from ..core.schema import MESSAGE_SCHEMA
+            from egregora.schema import MESSAGE_SCHEMA
 
             empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
             metadata = InputMetadata(

@@ -1,6 +1,6 @@
 """Configuration management for Egregora."""
 
-from .model import (
+from egregora.config.model import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_EMBEDDING_DIMENSIONALITY,
     DEFAULT_EMBEDDING_MODEL,
@@ -13,7 +13,7 @@ from .model import (
     ModelType,
     load_site_config,
 )
-from .site import (
+from egregora.config.site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
     MEDIA_DIR_NAME,
@@ -23,7 +23,7 @@ from .site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
-from .types import (
+from egregora.config.types import (
     ComparisonConfig,
     ComparisonData,
     EditorContext,
@@ -38,37 +38,37 @@ from .types import (
 )
 
 __all__ = [
-    # Model configuration
-    "ModelConfig",
-    "ModelType",
-    "load_site_config",
-    "DEFAULT_WRITER_MODEL",
+    "DEFAULT_BLOG_DIR",
+    "DEFAULT_DOCS_DIR",
+    "DEFAULT_EDITOR_MODEL",
+    "DEFAULT_EMBEDDING_DIMENSIONALITY",
+    "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_ENRICHER_MODEL",
     "DEFAULT_ENRICHER_VISION_MODEL",
     "DEFAULT_RANKING_MODEL",
-    "DEFAULT_EDITOR_MODEL",
-    "DEFAULT_EMBEDDING_MODEL",
-    "DEFAULT_EMBEDDING_DIMENSIONALITY",
+    "DEFAULT_WRITER_MODEL",
     "KNOWN_EMBEDDING_DIMENSIONS",
-    # Site configuration
-    "SitePaths",
-    "DEFAULT_BLOG_DIR",
-    "DEFAULT_DOCS_DIR",
-    "PROFILES_DIR_NAME",
     "MEDIA_DIR_NAME",
-    "find_mkdocs_file",
-    "load_mkdocs_config",
-    "resolve_site_paths",
+    "PROFILES_DIR_NAME",
+    "ComparisonConfig",
+    "ComparisonData",
+    "EditorContext",
+    "EnrichmentConfig",
+    "MediaEnrichmentContext",
+    # Model configuration
+    "ModelConfig",
+    "ModelType",
+    "PostGenerationContext",
     # Configuration types
     "ProcessConfig",
     "RankingCliConfig",
-    "ComparisonConfig",
-    "ComparisonData",
+    # Site configuration
+    "SitePaths",
+    "URLEnrichmentContext",
     "WriterConfig",
     "WriterPromptContext",
-    "MediaEnrichmentContext",
-    "URLEnrichmentContext",
-    "EnrichmentConfig",
-    "EditorContext",
-    "PostGenerationContext",
+    "find_mkdocs_file",
+    "load_mkdocs_config",
+    "load_site_config",
+    "resolve_site_paths",
 ]

@@ -175,7 +175,7 @@ class RawGeminiClient:
 
         data = response.json()
         # Extract text from first candidate
-        if "candidates" in data and data["candidates"]:
+        if data.get("candidates"):
             candidate = data["candidates"][0]
             if "content" in candidate and "parts" in candidate["content"]:
                 parts = candidate["content"]["parts"]

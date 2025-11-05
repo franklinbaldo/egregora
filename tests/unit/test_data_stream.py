@@ -16,7 +16,7 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.streaming import (
+from egregora.database.streaming import (
     copy_expr_to_ndjson,
     copy_expr_to_parquet,
     ensure_deterministic_order,
@@ -104,7 +104,8 @@ class TestStreamIbis:
 
         batches = list(stream_ibis(sample_table, duckdb_con, batch_size=2))
 
-        # EXPECTED_ROW_COUNT rows with batch_size=2 should yield EXPECTED_BATCH_COUNT batches: [BATCH_SIZE_2_FIRST, BATCH_SIZE_2_SECOND, BATCH_SIZE_2_THIRD]
+        # EXPECTED_ROW_COUNT rows with batch_size=2 should yield EXPECTED_BATCH_COUNT batches:
+        # [BATCH_SIZE_2_FIRST, BATCH_SIZE_2_SECOND, BATCH_SIZE_2_THIRD]
         assert len(batches) == EXPECTED_BATCH_COUNT
         assert len(batches[0]) == BATCH_SIZE_2_FIRST
         assert len(batches[1]) == BATCH_SIZE_2_SECOND

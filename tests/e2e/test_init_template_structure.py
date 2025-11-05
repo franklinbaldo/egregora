@@ -22,9 +22,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -56,8 +54,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
     for template_name, expected_path in expected_files.items():
         output_file = tmp_path / expected_path
         assert output_file.exists(), (
-            f"Template '{template_name}' should generate file at '{expected_path}', "
-            f"but file does not exist"
+            f"Template '{template_name}' should generate file at '{expected_path}', but file does not exist"
         )
 
     # Verify blog index (not from template, but created by scaffolding)
@@ -68,9 +65,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
 def test_all_templates_are_used(tmp_path: Path):
     """Verify that every .jinja2 template in templates/ is used by init."""
     # Get all templates
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     all_templates = set(template_dir.glob("*.jinja2"))
 
     # Templates that should be used by _create_site_structure
@@ -117,9 +112,7 @@ def test_init_directory_structure(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -161,9 +154,7 @@ def test_init_directory_structure(tmp_path: Path):
 def test_template_files_match_output_structure():
     """Verify template filenames match their output paths logically."""
     # This is a sanity check to ensure template names make sense
-    template_dir = (
-        Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
-    )
+    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
 
     # Expected logical mapping (not exhaustive, just key examples)
     # Some templates have semantic names (homepage) rather than output names (index)
@@ -180,9 +171,7 @@ def test_template_files_match_output_structure():
 
     for template_name, expected_output in mappings.items():
         template_path = template_dir / template_name
-        assert template_path.exists(), (
-            f"Expected template '{template_name}' does not exist in {template_dir}"
-        )
+        assert template_path.exists(), f"Expected template '{template_name}' does not exist in {template_dir}"
 
         # Verify the template name makes sense for the output
         # Skip semantic name checks (homepage is a valid semantic name for index.md)

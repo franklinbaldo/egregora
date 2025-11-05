@@ -151,9 +151,9 @@ def resolve_site_paths(
 
 
 __all__ = [
-    "SitePaths",
     "DEFAULT_BLOG_DIR",
     "DEFAULT_DOCS_DIR",
+    "SitePaths",
     "find_mkdocs_file",
     "load_mkdocs_config",
     "resolve_site_paths",

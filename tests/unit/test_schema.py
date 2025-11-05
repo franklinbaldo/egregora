@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.core.schema import ensure_message_schema
+from egregora.schema import ensure_message_schema
 
 # A much simpler schema for testing, focusing only on the timestamp and text
 # columns that matter for the schema normalisation logic.
@@ -58,9 +58,7 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     table = ibis.memtable(data)
 
     # Cast to microsecond precision timestamp with Amsterdam timezone
-    table = table.mutate(
-        timestamp=table.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6))
-    )
+    table = table.mutate(timestamp=table.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6)))
 
     # Apply the schema function - should convert to UTC
     result = ensure_message_schema(table)

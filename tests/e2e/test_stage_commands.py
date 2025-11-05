@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from egregora.orchestration.cli import app
+from egregora.cli import app
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -411,9 +411,7 @@ class TestWritePostsCommand:
             # If the directory doesn't exist, it means no posts were written, which is a valid outcome.
             # We can also check that no posts were written to the *wrong* directory.
             stray_posts = list(posts_base_dir.glob("2025-10-28-*.md"))
-            assert not stray_posts, (
-                f"Posts should not be in the base 'posts' directory: {stray_posts}"
-            )
+            assert not stray_posts, f"Posts should not be in the base 'posts' directory: {stray_posts}"
 
 
 class TestSerializationFormats:
@@ -438,9 +436,7 @@ class TestSerializationFormats:
         """Test grouping from Parquet input."""
         # First parse to Parquet
         messages_parquet = test_output_dir / "messages.parquet"
-        result = runner.invoke(
-            app, ["parse", str(test_zip_file), "--output", str(messages_parquet)]
-        )
+        result = runner.invoke(app, ["parse", str(test_zip_file), "--output", str(messages_parquet)])
         assert result.exit_code == 0
 
         # Then group from Parquet
