@@ -19,9 +19,23 @@ class AgentSkills(BaseModel):
 
 
 class AgentConfig(BaseModel):
+    """Agent configuration with model, tools, skills, and variables.
+
+    Attributes:
+        agent_id: Unique identifier for the agent
+        model: Model name to use (e.g., "gemini-2.0-flash-exp")
+        seed: Optional random seed for reproducibility. When None, the Gemini API
+              uses a random seed internally for non-deterministic behavior.
+        ttl: Time-to-live for configuration cache
+        variables: Variable defaults and allowlist
+        tools: Tool configuration (profiles, allow/deny lists)
+        skills: Enabled skills
+        env: Environment variables
+    """
+
     agent_id: str
     model: str
-    seed: int
+    seed: int | None = None
     ttl: str
     variables: AgentVariables
     tools: AgentTools
