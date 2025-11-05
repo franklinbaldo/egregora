@@ -2,10 +2,8 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock
 
 import ibis
-import pytest
 
 from egregora.pipeline.media_utils import (
     extract_markdown_media_refs,
@@ -19,10 +17,12 @@ class TestExtractMarkdownMediaRefs:
 
     def test_extract_image_references(self):
         """Test extracting image references."""
-        table = ibis.memtable([
-            {"message": "Check this ![photo](IMG-001.jpg)"},
-            {"message": "Another ![image](IMG-002.png)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Check this ![photo](IMG-001.jpg)"},
+                {"message": "Another ![image](IMG-002.png)"},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -30,10 +30,12 @@ class TestExtractMarkdownMediaRefs:
 
     def test_extract_link_references(self):
         """Test extracting non-image link references."""
-        table = ibis.memtable([
-            {"message": "Watch [video](VID-001.mp4)"},
-            {"message": "Listen [audio](AUD-001.opus)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Watch [video](VID-001.mp4)"},
+                {"message": "Listen [audio](AUD-001.opus)"},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -41,9 +43,11 @@ class TestExtractMarkdownMediaRefs:
 
     def test_extract_mixed_references(self):
         """Test extracting both images and links."""
-        table = ibis.memtable([
-            {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -51,9 +55,11 @@ class TestExtractMarkdownMediaRefs:
 
     def test_exclude_http_urls(self):
         """Test that HTTP/HTTPS URLs are excluded."""
-        table = ibis.memtable([
-            {"message": "[Link](https://example.com) and ![img](photo.jpg)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "[Link](https://example.com) and ![img](photo.jpg)"},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -62,11 +68,13 @@ class TestExtractMarkdownMediaRefs:
 
     def test_extract_with_empty_messages(self):
         """Test extraction with empty or None messages."""
-        table = ibis.memtable([
-            {"message": "![img](photo.jpg)"},
-            {"message": ""},
-            {"message": None},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "![img](photo.jpg)"},
+                {"message": ""},
+                {"message": None},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -74,11 +82,13 @@ class TestExtractMarkdownMediaRefs:
 
     def test_deduplicate_references(self):
         """Test that duplicate references are deduplicated."""
-        table = ibis.memtable([
-            {"message": "![img](photo.jpg)"},
-            {"message": "Another ![img2](photo.jpg)"},
-            {"message": "[link](photo.jpg)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "![img](photo.jpg)"},
+                {"message": "Another ![img2](photo.jpg)"},
+                {"message": "[link](photo.jpg)"},
+            ]
+        )
 
         refs = extract_markdown_media_refs(table)
 
@@ -147,9 +157,11 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_image_reference(self):
         """Test replacing image markdown reference."""
-        table = ibis.memtable([
-            {"message": "Check this ![photo](IMG-001.jpg)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Check this ![photo](IMG-001.jpg)"},
+            ]
+        )
 
         mapping = {"IMG-001.jpg": Path("media/abc123.jpg")}
         updated = replace_markdown_media_refs(table, mapping)
@@ -159,9 +171,11 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_link_reference(self):
         """Test replacing link markdown reference."""
-        table = ibis.memtable([
-            {"message": "Watch [video](VID-001.mp4)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Watch [video](VID-001.mp4)"},
+            ]
+        )
 
         mapping = {"VID-001.mp4": Path("media/xyz789.mp4")}
         updated = replace_markdown_media_refs(table, mapping)
@@ -171,9 +185,11 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_multiple_references(self):
         """Test replacing multiple references in one message."""
-        table = ibis.memtable([
-            {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
+            ]
+        )
 
         mapping = {
             "IMG-001.jpg": Path("media/abc.jpg"),
@@ -187,9 +203,11 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_with_empty_mapping(self):
         """Test that empty mapping returns unchanged table."""
-        table = ibis.memtable([
-            {"message": "Check this ![photo](IMG-001.jpg)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "Check this ![photo](IMG-001.jpg)"},
+            ]
+        )
 
         updated = replace_markdown_media_refs(table, {})
 
@@ -198,9 +216,11 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_only_matching_references(self):
         """Test that only references in mapping are replaced."""
-        table = ibis.memtable([
-            {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
-        ])
+        table = ibis.memtable(
+            [
+                {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
+            ]
+        )
 
         mapping = {"IMG-001.jpg": Path("media/abc.jpg")}
         updated = replace_markdown_media_refs(table, mapping)

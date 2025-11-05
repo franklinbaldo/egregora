@@ -269,9 +269,7 @@ def process_media_for_period(
             # Step 6: Move file to media directory with standardized name
             if standardized_path.exists():
                 # File already exists (deduplication working!)
-                logger.debug(
-                    f"Media file already exists (duplicate): {standardized_name}"
-                )
+                logger.debug(f"Media file already exists (duplicate): {standardized_name}")
                 delivered_file.unlink()  # Remove temp file
             else:
                 # Move temp file to final location
@@ -287,9 +285,7 @@ def process_media_for_period(
             failed_refs.append(media_ref)
             continue
 
-    logger.info(
-        f"Successfully processed {processed_count}/{len(media_refs)} media files"
-    )
+    logger.info(f"Successfully processed {processed_count}/{len(media_refs)} media files")
     if failed_refs:
         logger.warning(f"Failed to process {len(failed_refs)} media files: {failed_refs}")
 

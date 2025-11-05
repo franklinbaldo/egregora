@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import re
-import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -43,9 +42,7 @@ ATTACHMENT_MARKERS = (
 
 # Pattern for WhatsApp media references
 # Matches: "IMG-20250101-WA0001.jpg (file attached)" or bare "IMG-20250101-WA0001.jpg"
-WA_MEDIA_PATTERN = re.compile(
-    r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b"
-)
+WA_MEDIA_PATTERN = re.compile(r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b")
 
 # Media type detection by extension (for markdown alt text)
 MEDIA_EXTENSIONS = {
@@ -205,9 +202,7 @@ class WhatsAppAdapter(SourceAdapter):
                 return None
             return _convert_whatsapp_media_to_markdown(message)
 
-        messages_table = messages_table.mutate(
-            message=convert_media_to_markdown(messages_table.message)
-        )
+        messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
 
         # Ensure IR schema compliance
         ir_table = create_ir_table(messages_table, timezone=timezone)
