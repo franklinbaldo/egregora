@@ -17,15 +17,30 @@ Guide for contributors to Egregora.
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Create virtual environment
-python3.12 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Quick setup (recommended) - works on Windows, Linux, macOS
+python dev_tools/setup_hooks.py
 
-# Install uv
-pip install uv
+# This will:
+# - Sync all dependencies (including lint and test extras)
+# - Install pre-commit hooks automatically
+# - Set up your development environment
 
-# Install in development mode with all dependencies
-uv pip install -e '.[docs,lint,test]'
+# Alternative: Manual setup
+uv sync --extra lint --extra test
+uv run pre-commit install
+```
+
+### Available Development Commands
+
+All commands work cross-platform (Windows, Linux, macOS):
+
+```bash
+python dev_tools/setup_hooks.py   # Set up development environment (deps + pre-commit hooks)
+uv run pytest                      # Run tests
+uv run pre-commit run --all-files  # Run all linting checks
+uv run ruff format .               # Format code
+uv run ruff check .                # Check code with ruff
+uv run ruff check --fix .          # Lint and auto-fix
 ```
 
 ## TENET-BREAK — Philosophy Violation Flag
@@ -153,14 +168,24 @@ PY
 
 ```bash
 # Run tests
+<<<<<<< HEAD
 pytest tests/
 
 # Lint code
 ruff check src/
 black --check src/
+=======
+uv run pytest tests/
+
+# Lint code
+uv run ruff check src/
+
+# Format code
+uv run ruff format src/
+>>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 
 # Type check
-mypy src/
+uv run mypy src/
 ```
 
 ## Project Structure
@@ -222,19 +247,38 @@ pytest --cov=egregora tests/
 ### 5. Lint and Format
 
 ```bash
+<<<<<<< HEAD
+=======
+# Run all pre-commit checks (recommended)
+uv run pre-commit run --all-files
+
+# Auto-format code
+uv run ruff format .
+
+# Or use individual tools:
+>>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 # Check linting
-ruff check src/
+uv run ruff check src/
 
 # Auto-fix issues
-ruff check --fix src/
+uv run ruff check --fix src/
 
 # Format code
+<<<<<<< HEAD
 black src/
+=======
+uv run ruff format src/
+>>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 
 # Type check
-mypy src/
+uv run mypy src/
 ```
 
+<<<<<<< HEAD
+=======
+**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `python devtools/setup_hooks.py`.
+
+>>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 ### 6. Commit Changes
 
 ```bash
