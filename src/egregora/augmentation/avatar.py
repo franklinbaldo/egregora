@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import logging
-import re
 import socket
 import uuid
 import zipfile
@@ -313,31 +312,37 @@ def extract_avatar_from_zip(
 
 def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, str, bool]:
     """
-    Parse moderation result from enrichment text.
+    Parse moderation result from enrichment text using simple keyword checking.
+
+    The enrichment agent outputs specific keywords in the markdown:
+    - "BLOCKED" if the image is not allowed
+    - "PII_DETECTED" if personally identifiable information is found
 
     Returns:
         Tuple of (status, reason, has_pii)
     """
-    # Check for moderation status on first line
-    first_line = enrichment_text.split("\n", 1)[0].strip()
-    status_match = re.match(r"MODERATION_STATUS:\s*(APPROVED|QUESTIONABLE|BLOCKED)", first_line)
+    # Simple keyword-based detection
+    has_blocked_keyword = "BLOCKED" in enrichment_text
+    has_pii = "PII_DETECTED" in enrichment_text
 
-    if not status_match:
-        logger.warning("No moderation status found in enrichment, defaulting to QUESTIONABLE")
-        return "questionable", "No moderation status found in enrichment", False
+    # Determine status based on keywords
+    if has_blocked_keyword:
+        status: ModerationStatus = "blocked"
+        reason = "Image contains inappropriate content or PII"
+    elif "QUESTIONABLE" in enrichment_text:
+        status = "questionable"
+        reason = "Image requires manual review"
+    elif "APPROVED" in enrichment_text:
+        status = "approved"
+        reason = "Image approved for use as avatar"
+    else:
+        # Default to questionable if no clear status found
+        logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
+        status = "questionable"
+        reason = "Unable to determine moderation status"
 
-    status = status_match.group(1).lower()
-
-    # Check for PII detection
-    has_pii = "PII_DETECTED" in enrichment_text[:500]  # Check first 500 chars
-
-    # Extract reason from markdown
-    reason = "No reason provided"
-    reason_match = re.search(r"\*\*Reason:\*\*\s*(.+?)(?:\n|$)", enrichment_text)
-    if reason_match:
-        reason = reason_match.group(1).strip()
-
-    return status, reason, has_pii  # type: ignore
+    logger.info(f"Moderation result: status={status}, has_pii={has_pii}")
+    return status, reason, has_pii
 
 
 def enrich_and_moderate_avatar(
