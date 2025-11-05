@@ -21,16 +21,12 @@ class Editor:
     A class to encapsulate the editor tools.
     """
 
-    def __init__(
-        self, snapshot: Annotated[DocumentSnapshot, "The initial snapshot of the document"]
-    ):
+    def __init__(self, snapshot: Annotated[DocumentSnapshot, "The initial snapshot of the document"]):
         self.snapshot = snapshot
 
     def edit_line(
         self,
-        expect_version: Annotated[
-            int, "The expected version of the document for optimistic concurrency"
-        ],
+        expect_version: Annotated[int, "The expected version of the document for optimistic concurrency"],
         index: Annotated[int, "The 0-based index of the line to edit"],
         new: Annotated[str, "The new content for the line"],
     ) -> dict[str, Any]:
@@ -57,9 +53,7 @@ class Editor:
 
     def full_rewrite(
         self,
-        expect_version: Annotated[
-            int, "The expected version of the document for optimistic concurrency"
-        ],
+        expect_version: Annotated[int, "The expected version of the document for optimistic concurrency"],
         content: Annotated[str, "The new, complete content of the document"],
     ) -> dict[str, Any]:
         """
@@ -76,15 +70,13 @@ class Editor:
             return {"ok": False, "reason": "content_empty"}
 
         lines = content.split("\n")
-        self.snapshot.lines = {i: line for i, line in enumerate(lines)}
+        self.snapshot.lines = dict(enumerate(lines))
         self.snapshot.version += 1
         return {"ok": True, "new_version": self.snapshot.version, "line_count": len(lines)}
 
     def finish(
         self,
-        expect_version: Annotated[
-            int, "The expected version of the document for optimistic concurrency"
-        ],
+        expect_version: Annotated[int, "The expected version of the document for optimistic concurrency"],
         decision: Annotated[str, "The decision: 'publish' or 'hold'"],
         notes: Annotated[str, "Notes on the decision"],
     ) -> dict[str, Any]:

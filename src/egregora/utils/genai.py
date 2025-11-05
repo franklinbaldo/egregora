@@ -175,7 +175,7 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
         await _respect_min_interval()
         try:
             return await async_fn(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
                 raise
 
@@ -209,7 +209,7 @@ def call_with_retries_sync(
         _respect_min_interval_sync()
         try:
             return fn(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if not _is_rate_limit_error(exc) or attempt >= max_attempts:
                 raise
 

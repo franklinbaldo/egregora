@@ -51,7 +51,7 @@ class MkDocsOutputFormat(OutputFormat):
             return True
 
         # Check parent directories
-        config, mkdocs_path_found = load_mkdocs_config(site_root)
+        _config, mkdocs_path_found = load_mkdocs_config(site_root)
         return mkdocs_path_found is not None
 
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
@@ -71,7 +71,7 @@ class MkDocsOutputFormat(OutputFormat):
         site_root = site_root.expanduser().resolve()
 
         try:
-            docs_dir, created = ensure_mkdocs_project(site_root)
+            _docs_dir, created = ensure_mkdocs_project(site_root)
         except Exception as e:
             raise RuntimeError(f"Failed to scaffold MkDocs site: {e}") from e
 

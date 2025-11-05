@@ -6,7 +6,7 @@ from egregora.agents.editor.editor_agent import (
 )
 
 __all__ = [
-    "run_editor_session",
     "DocumentSnapshot",
     "Editor",
+    "run_editor_session",
 ]

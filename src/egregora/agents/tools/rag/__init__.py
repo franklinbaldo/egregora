@@ -27,12 +27,12 @@ from egregora.agents.tools.rag.store import VectorStore
 
 __all__ = [
     "VectorStore",
-    "query_similar_posts",
-    "index_post",
-    "index_media_enrichment",
-    "index_all_media",
-    "query_media",
+    "build_rag_context_for_writer",
     "find_relevant_docs",
     "format_rag_context",
-    "build_rag_context_for_writer",
+    "index_all_media",
+    "index_media_enrichment",
+    "index_post",
+    "query_media",
+    "query_similar_posts",
 ]

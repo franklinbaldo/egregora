@@ -16,9 +16,9 @@ from egregora.agents.ranking.ranking_agent import (
 from egregora.agents.ranking.store import RankingStore
 
 __all__ = [
+    "RankingStore",
     "calculate_elo_update",
     "initialize_ratings",
-    "update_ratings",
     "run_comparison",
-    "RankingStore",
+    "update_ratings",
 ]

@@ -97,9 +97,7 @@ class AnnotationStore:
                 raise RuntimeError(f"Could not find sequence metadata for {sequence_name}")
 
             start_value, increment_by, last_value = sequence_state
-            current_next = (
-                int(start_value) if last_value is None else int(last_value) + int(increment_by)
-            )
+            current_next = int(start_value) if last_value is None else int(last_value) + int(increment_by)
             desired_next = max(current_next, max_id + 1)
             steps_needed = desired_next - current_next
             if steps_needed > 0:
@@ -109,9 +107,7 @@ class AnnotationStore:
                 )
                 cursor.fetchall()
 
-    def _fetch_records(
-        self, query: str, params: Sequence[object] | None = None
-    ) -> list[dict[str, object]]:
+    def _fetch_records(self, query: str, params: Sequence[object] | None = None) -> list[dict[str, object]]:
         cursor = self._connection.execute(query, params or [])
         column_names = [description[0] for description in cursor.description]
         return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
@@ -293,4 +289,4 @@ class AnnotationStore:
         )
 
 
-__all__ = ["Annotation", "AnnotationStore", "ANNOTATION_AUTHOR", "ANNOTATIONS_TABLE"]
+__all__ = ["ANNOTATIONS_TABLE", "ANNOTATION_AUTHOR", "Annotation", "AnnotationStore"]

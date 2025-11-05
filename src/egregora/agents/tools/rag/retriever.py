@@ -423,8 +423,7 @@ def _coerce_post_date(value: object) -> date | None:
         result = value
     elif isinstance(value, str):
         text = value.strip()
-        if text.endswith("Z"):
-            text = text[:-1]
+        text = text.removesuffix("Z")
 
         if text:
             try:
@@ -475,7 +474,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
-def query_media(  # noqa: PLR0913
+def query_media(
     query: str,
     batch_client: GeminiBatchClient,
     store: VectorStore,

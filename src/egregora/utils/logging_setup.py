@@ -9,7 +9,7 @@ from typing import Annotated, Final
 from rich.console import Console
 from rich.logging import RichHandler
 
-__all__ = ["console", "configure_logging"]
+__all__ = ["configure_logging", "console"]
 
 _LOG_LEVEL_ENV: Final[str] = "EGREGORA_LOG_LEVEL"
 _DEFAULT_LEVEL_NAME: Final[str] = "INFO"
@@ -25,9 +25,7 @@ def _resolve_level() -> Annotated[int, "The logging level to use"]:
     if isinstance(level, int):
         return level
 
-        console.print(
-            f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]"
-        )
+        console.print(f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]")
     return logging.INFO
 
 

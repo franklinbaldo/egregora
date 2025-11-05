@@ -87,9 +87,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     return site_paths.docs_dir
 
 
-def _create_site_structure(
-    site_paths: SitePaths, env: Environment, context: dict[str, Any]
-) -> None:
+def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict[str, Any]) -> None:
     """Create essential directories and index files for the blog structure."""
     docs_dir = site_paths.docs_dir
     posts_dir = site_paths.posts_dir
@@ -194,9 +192,7 @@ def _render_egregora_config(site_root: Path, env: Environment, context: dict[str
                 output_path.write_text(content, encoding="utf-8")
             except (jinja2.TemplateError, jinja2.UndefinedError) as e:
                 # If rendering fails (template syntax errors, missing vars), warn and copy as-is
-                logger.warning(
-                    f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is."
-                )
+                logger.warning(f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is.")
                 output_path.write_bytes(template_path.read_bytes())
 
 

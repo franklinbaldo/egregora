@@ -22,22 +22,17 @@ class DummyBatchClient:
         self.default_model = model
 
     def generate_content(self, requests, **_: object):
-        results: list[BatchPromptResult] = []
-        for request in requests:
-            results.append(
-                BatchPromptResult(
-                    tag=getattr(request, "tag", None),
-                    response=SimpleNamespace(
-                        text=f"Generated content for {getattr(request, 'tag', 'unknown')}"
-                    ),
-                    error=None,
-                )
+        results: list[BatchPromptResult] = [
+            BatchPromptResult(
+                tag=getattr(request, "tag", None),
+                response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
+                error=None,
             )
+            for request in requests
+        ]
         return results
 
-    def upload_file(
-        self, *, path: str, display_name: str | None = None
-    ):  # pragma: no cover - unused
+    def upload_file(self, *, path: str, display_name: str | None = None):  # pragma: no cover - unused
         return SimpleNamespace(uri=f"stub://{Path(path).name}", mime_type="image/jpeg")
 
 
@@ -153,8 +148,6 @@ def test_enrich_table_persists_results(tmp_path: Path):
 
     assert combined.count().execute() >= messages_table.count().execute()
 
-    persisted_rows = conn.execute(
-        f"SELECT author, message FROM {table_name} ORDER BY timestamp"
-    ).fetchall()
+    persisted_rows = conn.execute(f"SELECT author, message FROM {table_name} ORDER BY timestamp").fetchall()
 
     assert any(row[0] == ANNOTATION_AUTHOR for row in persisted_rows)

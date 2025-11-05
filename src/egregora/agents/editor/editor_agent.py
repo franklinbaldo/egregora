@@ -103,9 +103,7 @@ class EditorAgentState:
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
     """Convert markdown content to DocumentSnapshot."""
     lines = content.split("\n")
-    return DocumentSnapshot(
-        doc_id=doc_id, version=1, meta={}, lines={i: line for i, line in enumerate(lines)}
-    )
+    return DocumentSnapshot(doc_id=doc_id, version=1, meta={}, lines=dict(enumerate(lines)))
 
 
 def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
@@ -143,22 +141,21 @@ async def query_rag_impl(
             return QueryRAGResult(results=[], summary=f"No relevant results found for: {query}")
 
         # Format results
-        result_dicts = []
-        for result in results:
-            result_dicts.append(
-                {
-                    "post_id": result.get("post_id", "unknown"),
-                    "similarity": float(result.get("similarity", 0)),
-                    "text": result.get("text", "")[:400],
-                }
-            )
+        result_dicts = [
+            {
+                "post_id": result.get("post_id", "unknown"),
+                "similarity": float(result.get("similarity", 0)),
+                "text": result.get("text", "")[:400],
+            }
+            for result in results
+        ]
 
         summary = f"Found {len(result_dicts)} relevant results for: {query}"
         return QueryRAGResult(results=result_dicts, summary=summary)
 
     except Exception as e:
         logger.exception("RAG query failed")
-        return QueryRAGResult(results=[], summary=f"RAG query failed: {str(e)}")
+        return QueryRAGResult(results=[], summary=f"RAG query failed: {e!s}")
 
 
 async def ask_llm_impl(
@@ -187,7 +184,7 @@ async def ask_llm_impl(
 
     except Exception as e:
         logger.exception("ask_llm failed")
-        return AskLLMResult(answer=f"[LLM query failed: {str(e)}]")
+        return AskLLMResult(answer=f"[LLM query failed: {e!s}]")
 
 
 # Tool Registration
@@ -248,9 +245,7 @@ def _register_editor_tools(agent: Agent) -> None:
             content=content,
         )
 
-        ctx.deps.tool_calls_log.append(
-            {"tool": "full_rewrite", "args": {"expect_version": expect_version}}
-        )
+        ctx.deps.tool_calls_log.append({"tool": "full_rewrite", "args": {"expect_version": expect_version}})
 
         if result_dict.get("ok"):
             return FullRewriteResult(

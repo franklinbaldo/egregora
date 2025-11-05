@@ -205,18 +205,16 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
         # This avoids materializing the full result set and complies with Ibis-first policy
         items: list[MediaItem] = []
         for batch in stream_ibis(results, store._client, batch_size=100):
-            for row in batch:
-                items.append(
-                    MediaItem(
-                        media_type=row.get("media_type"),
-                        media_path=row.get("media_path"),
-                        original_filename=row.get("original_filename"),
-                        description=(str(row.get("content", "")) or "")[:500],
-                        similarity=float(row.get("similarity"))
-                        if row.get("similarity") is not None
-                        else None,
-                    )
+            items.extend(
+                MediaItem(
+                    media_type=row.get("media_type"),
+                    media_path=row.get("media_path"),
+                    original_filename=row.get("original_filename"),
+                    description=(str(row.get("content", "")) or "")[:500],
+                    similarity=float(row.get("similarity")) if row.get("similarity") is not None else None,
                 )
+                for row in batch
+            )
 
         if not items:
             logger.info("Writer agent search_media returned no matches for query %s", query)
@@ -330,9 +328,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
                 tokens_output=usage.output_tokens if usage else 0,
             )
 
-            logger.info(
-                "Writer agent finished with summary: %s", getattr(result_payload, "summary", None)
-            )
+            logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
 
             record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
             if record_dir:
@@ -386,9 +382,7 @@ class WriterStreamResult:
     async def __aenter__(self):
         """Enter async context - start logfire span and pydantic-ai stream."""
         # Start logfire span
-        self._span = logfire_span(
-            "writer_agent_stream", period=self.period_date, model=self.model_name
-        )
+        self._span = logfire_span("writer_agent_stream", period=self.period_date, model=self.model_name)
         self._span.__enter__()
 
         # Start pydantic-ai stream (must use async with)

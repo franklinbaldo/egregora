@@ -114,9 +114,7 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     return [dict(row) for row in frame]
 
 
-def _iter_table_record_batches(
-    table: Table, batch_size: int = 1000
-) -> Iterator[list[dict[str, Any]]]:
+def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Yield batches of table rows as dictionaries in a deterministic order.
 
     This function now uses egregora.data.stream_ibis for memory-efficient streaming

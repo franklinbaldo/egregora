@@ -25,15 +25,11 @@ def test_concurrent_annotation_inserts_produce_unique_sequential_ids(tmp_path):
 
     def insert_annotation(idx: int) -> int:
         store = AnnotationStore(db_path)
-        annotation = store.save_annotation(
-            f"message-{idx}", "message", f"Concurrent annotation {idx}"
-        )
+        annotation = store.save_annotation(f"message-{idx}", "message", f"Concurrent annotation {idx}")
         return annotation.id
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [
-            executor.submit(insert_annotation, idx) for idx in range(1, NUM_CONCURRENT_INSERTS + 1)
-        ]
+        futures = [executor.submit(insert_annotation, idx) for idx in range(1, NUM_CONCURRENT_INSERTS + 1)]
         ids = [future.result() for future in futures]
 
     assert len(ids) == NUM_CONCURRENT_INSERTS

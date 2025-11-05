@@ -37,7 +37,7 @@ class PromptTemplate(ABC):
 
 
 @dataclass(slots=True)
-class WriterPromptTemplate(PromptTemplate):  # noqa: PLR0913
+class WriterPromptTemplate(PromptTemplate):
     """Prompt template for the writer agent."""
 
     date: str
@@ -118,7 +118,7 @@ class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
 
 
 @dataclass(slots=True)
-class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):  # noqa: PLR0913
+class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for detailed media enrichment."""
 
     media_type: str
@@ -170,11 +170,11 @@ class EditorPromptTemplate(PromptTemplate):
 
 
 __all__ = [
-    "PromptTemplate",
-    "WriterPromptTemplate",
-    "UrlEnrichmentPromptTemplate",
-    "MediaEnrichmentPromptTemplate",
-    "DetailedUrlEnrichmentPromptTemplate",
     "DetailedMediaEnrichmentPromptTemplate",
+    "DetailedUrlEnrichmentPromptTemplate",
     "EditorPromptTemplate",
+    "MediaEnrichmentPromptTemplate",
+    "PromptTemplate",
+    "UrlEnrichmentPromptTemplate",
+    "WriterPromptTemplate",
 ]

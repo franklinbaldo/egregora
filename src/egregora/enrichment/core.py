@@ -187,9 +187,7 @@ def enrich_table(
             media_refs.extend(markdown_matches)
 
             # Also check for direct UUID-based filenames (without path)
-            uuid_filename_pattern = (
-                r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\w+)"
-            )
+            uuid_filename_pattern = r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\w+)"
             uuid_matches = re.findall(uuid_filename_pattern, message)
             media_refs.extend(uuid_matches)
 
@@ -344,9 +342,7 @@ def enrich_table(
 
             markdown_content = (result.response.text or "").strip()
             if not markdown_content:
-                markdown_content = (
-                    f"[No enrichment generated for media: {media_job.file_path.name}]"
-                )
+                markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
 
             if "PII_DETECTED" in markdown_content:
                 logger.warning(
@@ -396,8 +392,7 @@ def enrich_table(
                 "date": enrichment_timestamp.date(),
                 "author": "egregora",
                 "message": (
-                    f"[Media Enrichment] {media_job.file_path.name}\n"
-                    f"Enrichment saved: {media_job.path}"
+                    f"[Media Enrichment] {media_job.file_path.name}\nEnrichment saved: {media_job.path}"
                 ),
                 "original_line": "",
                 "tagged_line": "",
@@ -408,11 +403,7 @@ def enrich_table(
 
         @ibis.udf.scalar.python
         def replace_media_udf(message: str) -> str:
-            return (
-                replace_media_mentions(message, media_mapping, docs_dir, posts_dir)
-                if message
-                else message
-            )
+            return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
         messages_table = messages_table.mutate(message=replace_media_udf(messages_table.message))
 
@@ -443,9 +434,7 @@ def enrich_table(
 
     # Optional DuckDB persistence
     if (duckdb_connection is None) != (target_table is None):
-        raise ValueError(
-            "duckdb_connection and target_table must be provided together when persisting"
-        )
+        raise ValueError("duckdb_connection and target_table must be provided together when persisting")
 
     if duckdb_connection and target_table:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", target_table):
@@ -460,9 +449,7 @@ def enrich_table(
 
         # Quote identifiers for SQL safety (defense in depth beyond regex validation)
         quoted_table = database_schema.quote_identifier(target_table)
-        column_list = ", ".join(
-            database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names
-        )
+        column_list = ", ".join(database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
 
         # Replace table contents with enriched data (idempotent operation)
         # Use transaction to make DELETE + INSERT atomic (prevents race conditions)

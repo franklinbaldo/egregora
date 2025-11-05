@@ -215,9 +215,7 @@ def _process_tool_calls(  # noqa: PLR0913
 
             try:
                 if fn_name == "write_post":
-                    tool_responses.append(
-                        _handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts)
-                    )
+                    tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
                 elif fn_name == "read_profile":
                     tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
                 elif fn_name == "write_profile":
@@ -242,9 +240,7 @@ def _process_tool_calls(  # noqa: PLR0913
                         _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
                     )
                 elif fn_name == "generate_banner":
-                    tool_responses.append(
-                        _handle_generate_banner_tool(fn_args, fn_call, output_dir)
-                    )
+                    tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
             except Exception as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue

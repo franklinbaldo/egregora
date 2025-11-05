@@ -273,9 +273,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             logger.info(f"[yellow]🧹 Removed[/] {egregora_removed} /egregora messages")
 
         # Filter out opted-out authors EARLY (before any processing)
-        messages_table, removed_count = filter_opted_out_authors(
-            messages_table, site_paths.profiles_dir
-        )
+        messages_table, removed_count = filter_opted_out_authors(messages_table, site_paths.profiles_dir)
         if removed_count > 0:
             logger.warning(f"⚠️  {removed_count} messages removed from opted-out users")
 
@@ -304,9 +302,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date (kept {filtered_count})"
                 )
             else:
-                logger.info(
-                    f"[green]✓ All[/] {filtered_count} messages are within the specified date range"
-                )
+                logger.info(f"[green]✓ All[/] {filtered_count} messages are within the specified date range")
 
         # Group by period first (media extraction handled per-period)
         logger.info(f"🎯 [bold cyan]Grouping messages by period[/]: {period}")
@@ -364,14 +360,14 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
-                            steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "completed"
-                            )["steps"]
+                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
+                                "steps"
+                            ]
                 else:
                     if resume:
-                        steps_state = checkpoint_store.update_step(
-                            period_key, "enrichment", "in_progress"
-                        )["steps"]
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
+                            "steps"
+                        ]
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
@@ -384,9 +380,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
-                        steps_state = checkpoint_store.update_step(
-                            period_key, "enrichment", "completed"
-                        )["steps"]
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
+                            "steps"
+                        ]
             else:
                 enriched_table = period_table
                 enriched_table.execute().to_csv(enriched_path, index=False)
@@ -400,9 +396,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 }
             else:
                 if resume:
-                    steps_state = checkpoint_store.update_step(
-                        period_key, "writing", "in_progress"
-                    )["steps"]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
                 result = write_posts_for_period(
                     enriched_table,
                     period_key,
@@ -419,13 +413,13 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     retrieval_overfetch=retrieval_overfetch,
                 )
                 if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")[
-                        "steps"
-                    ]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
 
             results[period_key] = result
+            post_count = len(result.get("posts", []))
+            profile_count = len(result.get("profiles", []))
             logger.info(
-                f"[green]✔ Generated[/] {len(result.get('posts', []))} posts / {len(result.get('profiles', []))} profiles for {period_key}"
+                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}"
             )
 
         # Index all media enrichments into RAG (if enrichment was enabled)
@@ -458,7 +452,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 client.close()
 
 
-def process_whatsapp_export(  # noqa: PLR0912, PLR0913
+def process_whatsapp_export(  # noqa: PLR0913
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",

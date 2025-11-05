@@ -258,9 +258,7 @@ def _register_ranking_tools(agent: Agent) -> None:
         return WinnerChoice(winner=winner)
 
     @agent.tool
-    def comment_post_a_tool(
-        ctx: RunContext[RankingAgentState], comment: str, stars: int
-    ) -> PostComment:
+    def comment_post_a_tool(ctx: RunContext[RankingAgentState], comment: str, stars: int) -> PostComment:
         """Provide detailed feedback on Post A.
 
         Args:
@@ -280,9 +278,7 @@ def _register_ranking_tools(agent: Agent) -> None:
         return PostComment(comment=comment, stars=stars)
 
     @agent.tool
-    def comment_post_b_tool(
-        ctx: RunContext[RankingAgentState], comment: str, stars: int
-    ) -> PostComment:
+    def comment_post_b_tool(ctx: RunContext[RankingAgentState], comment: str, stars: int) -> PostComment:
         """Provide detailed feedback on Post B.
 
         Args:
@@ -361,8 +357,9 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
     # Build prompt for all three turns
     comments_a_display = existing_comments_a or "No comments yet. Be the first!"
     comments_b_display = existing_comments_b or "No comments yet. Be the first!"
+    alias_or_uuid = profile.get("alias") or profile["uuid"]
 
-    prompt = f"""You are {profile.get("alias") or profile["uuid"]}, impersonating their reading style and preferences.
+    prompt = f"""You are {alias_or_uuid}, impersonating their reading style and preferences.
 
 Profile bio: {profile.get("bio") or "No bio available"}
 

@@ -32,7 +32,7 @@ class _ConnectionProxy:
         object.__setattr__(self, "_inner", inner)
         object.__setattr__(self, "_overrides", {})
 
-    def __getattr__(self, name: str) -> Any:  # noqa: D401 - simple forwarder
+    def __getattr__(self, name: str) -> Any:
         overrides = object.__getattribute__(self, "_overrides")
         if name in overrides:
             return overrides[name]
@@ -187,8 +187,7 @@ class VectorStore:
         """Ensure legacy index metadata tables gain any newly introduced columns."""
 
         existing_columns = {
-            row[1].lower()
-            for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
+            row[1].lower() for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
         }
 
         schema = database_schema.RAG_INDEX_META_SCHEMA
@@ -271,10 +270,7 @@ class VectorStore:
             return
 
         self.conn.execute(
-            (
-                f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) "
-                "VALUES (?, ?, ?, ?)"
-            ),
+            (f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)"),
             [
                 str(self.parquet_path),
                 metadata.mtime_ns,
@@ -659,9 +655,7 @@ class VectorStore:
 
         if date_after is not None:
             normalized_date = self._normalize_date_filter(date_after)
-            filters.append(
-                "coalesce(CAST(post_date AS TIMESTAMPTZ), message_date) > ?::TIMESTAMPTZ"
-            )
+            filters.append("coalesce(CAST(post_date AS TIMESTAMPTZ), message_date) > ?::TIMESTAMPTZ")
             params.append(normalized_date.isoformat())
 
         filters.append("similarity >= ?")
@@ -671,9 +665,7 @@ class VectorStore:
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
 
-        order_clause = (
-            f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
-        )
+        order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
 
         exact_base_query = f"""
             WITH candidates AS (
@@ -723,10 +715,7 @@ class VectorStore:
                 logger.error("ANN search aborted: %s", exc)
                 break
 
-        if (
-            last_error is not None
-            and "does not support the supplied arguments" in str(last_error).lower()
-        ):
+        if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
                 return self._execute_search_query(
@@ -1004,9 +993,7 @@ class VectorStore:
             media_count = media_table.count().execute()
 
             stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = (
-                media_table.media_uuid.nunique().execute() if media_count > 0 else 0
-            )
+            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
 
             # Media breakdown by type
             if media_count > 0:

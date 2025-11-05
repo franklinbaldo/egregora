@@ -58,9 +58,7 @@ def test_ensure_message_schema_with_tz_aware_datetime():
     table = ibis.memtable(data)
 
     # Cast to microsecond precision timestamp with Amsterdam timezone
-    table = table.mutate(
-        timestamp=table.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6))
-    )
+    table = table.mutate(timestamp=table.timestamp.cast(dt.Timestamp(timezone="Europe/Amsterdam", scale=6)))
 
     # Apply the schema function - should convert to UTC
     result = ensure_message_schema(table)

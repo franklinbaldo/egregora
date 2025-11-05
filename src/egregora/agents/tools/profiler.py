@@ -16,9 +16,7 @@ ASCII_CONTROL_CHARS_THRESHOLD = 32
 
 def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The profile content as markdown, or an empty string if no profile exists"]:
     """
     Read the current profile for an author.
@@ -44,9 +42,7 @@ def read_profile(
 def write_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
     content: Annotated[str, "The profile content in markdown format"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the saved profile file"]:
     """
     Write or update an author's profile.
@@ -63,10 +59,7 @@ def write_profile(
     profile_path = profiles_dir / f"{author_uuid}.md"
 
     # Validation: ensure no PII leakage
-    if any(
-        suspicious in content.lower()
-        for suspicious in ["phone", "email", "@", "whatsapp", "real name"]
-    ):
+    if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
         logger.warning(f"Profile for {author_uuid} contains suspicious content")
 
     profile_path.write_text(content, encoding="utf-8")
@@ -115,9 +108,7 @@ def get_active_authors(
 
     # Filter out system and enrichment entries
     filtered_authors = [
-        author
-        for author in authors
-        if author is not None and author not in ("system", "egregora", "")
+        author for author in authors if author is not None and author not in ("system", "egregora", "")
     ]
 
     # Apply limit if specified (return most active authors first)
@@ -179,9 +170,7 @@ def apply_command_to_profile(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the updated profile"]:
     """
     Apply an egregora command to an author's profile.
@@ -240,9 +229,7 @@ def apply_command_to_profile(
         logger.info(f"Removed alias for {author_uuid}")
 
     elif cmd_type == "set" and target == "bio":
-        content = _update_profile_metadata(
-            content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})'
-        )
+        content = _update_profile_metadata(content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})')
         logger.info(f"Set bio for {author_uuid}")
 
     elif cmd_type == "set" and target == "twitter":
@@ -310,11 +297,7 @@ def _update_profile_metadata(content: str, section_name: str, key: str, new_valu
             # Insert before first section
             first_section = re.search(r"\n## ", content)
             if first_section:
-                content = (
-                    content[: first_section.start()]
-                    + new_section
-                    + content[first_section.start() :]
-                )
+                content = content[: first_section.start()] + new_section + content[first_section.start() :]
             else:
                 content += new_section
         else:
@@ -325,9 +308,7 @@ def _update_profile_metadata(content: str, section_name: str, key: str, new_valu
 
 def get_author_display_name(
     author_uuid: Annotated[str, "The anonymized author UUID"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The author's alias if set and public, otherwise their UUID"]:
     """
     Get display name for an author.
@@ -360,12 +341,8 @@ def get_author_display_name(
 
 
 def process_commands(
-    commands: Annotated[
-        list[dict[str, Any]], "A list of command dictionaries from extract_commands()"
-    ],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    commands: Annotated[list[dict[str, Any]], "A list of command dictionaries from extract_commands()"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[int, "The number of commands processed"]:
     """
     Process a batch of egregora commands.
@@ -404,9 +381,7 @@ def process_commands(
 
 def is_opted_out(
     author_uuid: Annotated[str, "The anonymized author UUID"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[bool, "True if the author has opted out, False otherwise"]:
     """
     Check if an author has opted out of processing.
@@ -428,9 +403,7 @@ def is_opted_out(
 
 
 def get_opted_out_authors(
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[set[str], "A set of author UUIDs who have opted out"]:
     """
     Get set of all authors who have opted out.
@@ -458,9 +431,7 @@ def get_opted_out_authors(
 
 def filter_opted_out_authors(
     table: Annotated[Any, "The Ibis table with an 'author' column"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path(
-        "output/profiles"
-    ),
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> tuple[
     Annotated[Any, "The filtered table"],
     Annotated[int, "The number of removed messages"],

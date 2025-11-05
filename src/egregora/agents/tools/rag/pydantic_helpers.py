@@ -98,18 +98,17 @@ async def find_relevant_docs(
             logfire_info("Found relevant docs", count=len(records), query=query)
 
             # Format for Pydantic AI
-            docs = []
-            for record in records:
-                docs.append(
-                    {
-                        "content": record.get("content", ""),
-                        "post_title": record.get("post_title", "Untitled"),
-                        "post_date": str(record.get("post_date", "")),
-                        "tags": record.get("tags", []),
-                        "similarity": float(record.get("similarity", 0.0)),
-                        "post_slug": record.get("post_slug", ""),
-                    }
-                )
+            docs = [
+                {
+                    "content": record.get("content", ""),
+                    "post_title": record.get("post_title", "Untitled"),
+                    "post_date": str(record.get("post_date", "")),
+                    "tags": record.get("tags", []),
+                    "similarity": float(record.get("similarity", 0.0)),
+                    "post_slug": record.get("post_slug", ""),
+                }
+                for record in records
+            ]
 
             return docs
 

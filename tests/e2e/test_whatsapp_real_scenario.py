@@ -44,20 +44,17 @@ class DummyBatchClient:
         self.default_model = model
         self.uploaded: list[Path] = []
 
-    def generate_content(self, requests, **kwargs):  # noqa: D401 - test helper
+    def generate_content(self, requests, **kwargs):
         """Return canned batch responses for enrichment pipelines."""
 
-        results = []
-        for request in requests:
-            results.append(
-                BatchPromptResult(
-                    tag=getattr(request, "tag", None),
-                    response=SimpleNamespace(
-                        text=f"Generated content for {getattr(request, 'tag', 'unknown')}"
-                    ),
-                    error=None,
-                )
+        results = [
+            BatchPromptResult(
+                tag=getattr(request, "tag", None),
+                response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
+                error=None,
             )
+            for request in requests
+        ]
         return results
 
     def embed_content(self, requests, **kwargs):  # pragma: no cover - unused in tests
@@ -84,9 +81,7 @@ class DummyGenaiClient:
             done=True,
             error=None,
         )
-        self.batches = SimpleNamespace(
-            create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
-        )
+        self.batches = SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
 
     def close(self):  # pragma: no cover - compatibility shim
         return None

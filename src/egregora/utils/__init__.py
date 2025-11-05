@@ -31,34 +31,34 @@ from egregora.utils.zip import (
 )
 
 __all__ = [
+    "DEFAULT_STEP_ORDER",
+    "ENRICHMENT_CACHE_VERSION",
     # Batch API
     "BatchPromptRequest",
     "BatchPromptResult",
-    "EmbeddingBatchRequest",
-    "EmbeddingBatchResult",
-    "GeminiBatchClient",
-    "chunk_requests",
-    # Cache
-    "EnrichmentCache",
-    "make_enrichment_cache_key",
-    "ENRICHMENT_CACHE_VERSION",
     # Checkpoints
     "CheckpointStore",
-    "DEFAULT_STEP_ORDER",
-    # GenAI utilities
-    "call_with_retries",
-    "call_with_retries_sync",
-    "is_rate_limit_error",
-    "extract_retry_delay",
-    "sleep_with_progress_sync",
+    "EmbeddingBatchRequest",
+    "EmbeddingBatchResult",
+    # Cache
+    "EnrichmentCache",
+    "GeminiBatchClient",
+    # Path safety
+    "PathTraversalError",
     # ZIP validation
     "ZipValidationError",
     "ZipValidationLimits",
+    # GenAI utilities
+    "call_with_retries",
+    "call_with_retries_sync",
+    "chunk_requests",
     "configure_default_limits",
-    "validate_zip_contents",
     "ensure_safe_member_size",
-    # Path safety
-    "PathTraversalError",
-    "slugify",
+    "extract_retry_delay",
+    "is_rate_limit_error",
+    "make_enrichment_cache_key",
     "safe_path_join",
+    "sleep_with_progress_sync",
+    "slugify",
+    "validate_zip_contents",
 ]

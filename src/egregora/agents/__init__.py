@@ -9,10 +9,10 @@ from egregora.agents.loader import load_agent
 from egregora.agents.registry import ToolRegistry
 
 __all__ = [
+    "ToolRegistry",
     "banner",
     "editor",
+    "load_agent",
     "ranking",
     "writer",
-    "load_agent",
-    "ToolRegistry",
 ]

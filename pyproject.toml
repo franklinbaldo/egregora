@@ -77,22 +77,38 @@ target-version = ["py312"]
 profile = "black"
 
 [tool.ruff]
-line-length = 100
+line-length = 110  # Slightly more generous for strings/logs
 target-version = "py312"
+
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "PL", "TID"]
-ignore = ["E203", "E501"]
+select = ["E", "F", "I", "UP", "B", "PL", "TID", "RUF", "C4", "PT", "PERF", "FURB"]
+ignore = []  # Clean slate!
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
-"src/egregora/enrichment/core.py" = ["PLR0913", "PLR0912", "PLR0915"]
+# Source code complexity exceptions
+"src/egregora/enrichment/core.py" = ["PLR0913", "PLR0912", "PLR0915", "RUF003"]
 "src/egregora/agents/tools/rag/embedder.py" = ["PLR0913"]
 "src/egregora/agents/tools/rag/retriever.py" = ["PLR0913"]
 "src/egregora/agents/tools/rag/store.py" = ["PLR0912"]
+"src/egregora/agents/tools/rag/pydantic_helpers.py" = ["PLR0913"]
+"src/egregora/agents/writer/context.py" = ["PLR0911", "PLC0415"]
+"src/egregora/enrichment/batch.py" = ["RUF003"]
+# CLI and input parsers with intentional patterns
+"src/egregora/cli.py" = ["PLR0913", "PLC0415"]
+"src/egregora/ingestion/parser.py" = ["RUF001"]
+"src/egregora/ingestion/slack_input.py" = ["PLC0415"]
+"src/egregora/ingestion/whatsapp_input.py" = ["PLR0911", "PLC0415"]
+# Test files with magic values and dynamic imports
 "tests/conftest.py" = ["E402"]
-"tests/test_whatsapp_real_scenario.py" = ["PLR0913", "PLR2004", "PLC0208"]
+"tests/e2e/test_whatsapp_real_scenario.py" = ["PLR0913", "PLR2004", "PLC0208"]
+"tests/evals/test_writer_with_evals.py" = ["PLR2004", "PLC0415"]
+"tests/evals/writer_evals.py" = ["PLC0415"]
+"tests/agents/test_editor_pydantic_agent.py" = ["PLC0415"]
+"tests/test_abstraction_layer.py" = ["PLC0415"]
+"tests/integration/test_rag_store.py" = ["RUF012"]
 
 [tool.mypy]
 python_version = "3.12"

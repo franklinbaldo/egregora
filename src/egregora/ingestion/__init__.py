@@ -17,11 +17,11 @@ from egregora.ingestion.whatsapp_input import WhatsAppInputSource
 
 __all__ = [
     "InputSource",
-    "WhatsAppInputSource",
     "SlackInputSource",
-    "parse_export",
-    "parse_multiple",
+    "WhatsAppInputSource",
     "extract_commands",
     "filter_egregora_messages",
     "parse_egregora_command",
+    "parse_export",
+    "parse_multiple",
 ]

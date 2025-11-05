@@ -17,7 +17,7 @@ DEFAULT_STEP_ORDER = ("enrichment", "writing", "profiles", "rag")
 def _default_checkpoint(period: str) -> dict[str, Any]:
     return {
         "period": period,
-        "steps": {step: "pending" for step in DEFAULT_STEP_ORDER},
+        "steps": dict.fromkeys(DEFAULT_STEP_ORDER, "pending"),
         "timestamp": None,
     }
 

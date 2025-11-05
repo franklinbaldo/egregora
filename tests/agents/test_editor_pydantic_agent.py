@@ -55,9 +55,7 @@ def model_config() -> ModelConfig:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_editor_agent_with_test_model(
-    test_post: Path, model_config: ModelConfig, tmp_path: Path
-):
+async def test_editor_agent_with_test_model(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent with TestModel (no actual LLM calls)."""
     # Create RAG directory (even though it's empty)
     rag_dir = tmp_path / "rag"
@@ -103,9 +101,7 @@ async def test_editor_agent_with_test_model(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_editor_agent_with_edit_tool(
-    test_post: Path, model_config: ModelConfig, tmp_path: Path
-):
+async def test_editor_agent_with_edit_tool(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent that calls edit_line tool."""
     rag_dir = tmp_path / "rag"
     rag_dir.mkdir()
@@ -143,9 +139,7 @@ async def test_editor_agent_with_edit_tool(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_editor_agent_hold_decision(
-    test_post: Path, model_config: ModelConfig, tmp_path: Path
-):
+async def test_editor_agent_hold_decision(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent with 'hold' decision."""
     rag_dir = tmp_path / "rag"
     rag_dir.mkdir()

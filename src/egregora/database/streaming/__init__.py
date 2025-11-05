@@ -19,8 +19,8 @@ from egregora.database.streaming.stream import (
 )
 
 __all__ = [
-    "stream_ibis",
-    "copy_expr_to_parquet",
     "copy_expr_to_ndjson",
+    "copy_expr_to_parquet",
     "ensure_deterministic_order",
+    "stream_ibis",
 ]

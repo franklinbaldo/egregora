@@ -11,8 +11,8 @@ __all__ = [
     "ZipValidationError",
     "ZipValidationLimits",
     "configure_default_limits",
-    "validate_zip_contents",
     "ensure_safe_member_size",
+    "validate_zip_contents",
 ]
 
 
@@ -71,9 +71,7 @@ def validate_zip_contents(
 
         total_size += info.file_size
         if total_size > limits.max_total_size:
-            raise ZipValidationError(
-                f"ZIP archive uncompressed size exceeds {limits.max_total_size} bytes"
-            )
+            raise ZipValidationError(f"ZIP archive uncompressed size exceeds {limits.max_total_size} bytes")
 
 
 def ensure_safe_member_size(

@@ -9,7 +9,7 @@ from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def writer_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
     site_dir = tmp_path / "site" / "docs"
     posts_dir = site_dir / "posts"
@@ -25,10 +25,7 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
     posts_dir, profiles_dir, rag_dir = writer_dirs
     batch_client = create_mock_batch_client()
 
-    prompt = (
-        'You reviewed an empty conversation. Respond with JSON {"summary": "No posts", '
-        '"notes": "N/A"}.'
-    )
+    prompt = 'You reviewed an empty conversation. Respond with JSON {"summary": "No posts", "notes": "N/A"}.'
 
     saved_posts, saved_profiles = write_posts_with_pydantic_agent(
         prompt=prompt,
@@ -44,9 +41,7 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         retrieval_nprobe=None,
         retrieval_overfetch=None,
         annotations_store=None,
-        agent_model=TestModel(
-            call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'
-        ),
+        agent_model=TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
         register_tools=False,
     )
 

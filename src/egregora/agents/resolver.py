@@ -51,7 +51,8 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
             merged_vars[key] = value
         else:
             logger.warning(
-                f"Variable '{key}' from {post_path.name} not allowed by agent {agent_config.agent_id}, ignoring"
+                f"Variable '{key}' from {post_path.name} not allowed by agent "
+                f"{agent_config.agent_id}, ignoring"
             )
 
     return merged_vars

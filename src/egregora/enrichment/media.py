@@ -172,9 +172,7 @@ def extract_media_from_zip(
 
 def replace_media_mentions(
     text: Annotated[str, "The message text to process"],
-    media_mapping: Annotated[
-        dict[str, Path], "A mapping from original filenames to their new paths on disk"
-    ],
+    media_mapping: Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
     docs_dir: Annotated[Path, "The MkDocs docs directory"],
     posts_dir: Annotated[Path, "The directory where posts are stored"],
 ) -> Annotated[str, "The message text with media references replaced by markdown links"]:
@@ -275,11 +273,7 @@ def extract_and_replace_media(
     # Step 3: Replace mentions in Table
     @ibis.udf.scalar.python
     def replace_in_message(message: str) -> str:
-        return (
-            replace_media_mentions(message, media_mapping, docs_dir, posts_dir)
-            if message
-            else message
-        )
+        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
     updated_table = messages_table.mutate(message=replace_in_message(messages_table.message))
 

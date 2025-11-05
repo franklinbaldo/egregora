@@ -183,9 +183,7 @@ class WhatsAppInputSource(InputSource):
             # Scan table for media references using streaming (Ibis-first policy)
             try:
                 batch_size = 1000
-                for batch_records in _iter_table_record_batches(
-                    table.select("message"), batch_size
-                ):
+                for batch_records in _iter_table_record_batches(table.select("message"), batch_size):
                     for row in batch_records:
                         message = row.get("message", "")
                         refs = find_media_references(message)
@@ -274,8 +272,7 @@ class WhatsAppInputSource(InputSource):
         # Remove common prefixes like "WhatsApp Chat - "
         prefixes = ["WhatsApp Chat - ", "WhatsApp-Chat-", "Chat-"]
         for prefix in prefixes:
-            if name.startswith(prefix):
-                name = name[len(prefix) :]
+            name = name.removeprefix(prefix)
 
         # Clean up underscores and dashes
         name = name.replace("_", " ").replace("-", " ")

@@ -319,9 +319,7 @@ class RankingStore:
             )
 
         # Convert to list of dicts for Ibis
-        rows = [
-            {"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result
-        ]
+        rows = [{"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result]
         return ibis.memtable(rows)
 
     def get_top_posts(self, n: int = 10, min_games: int = 5) -> Table:
@@ -415,9 +413,7 @@ class RankingStore:
         ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
 
         comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
-        comparisons_count = (
-            comparisons_count_result[0] if comparisons_count_result is not None else 0
-        )
+        comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
 
         avg_games_result = self.conn.execute(
             """

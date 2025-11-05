@@ -218,9 +218,7 @@ def _query_rag_for_context(  # noqa: PLR0913
             logger.info(f"Found {post_count} similar previous posts")
             logfire_info("RAG query completed", results_count=post_count)
         rag_text = "\n\n## Related Previous Posts (for continuity and linking):\n"
-        rag_text += (
-            "You can reference these posts in your writing to maintain conversation continuity.\n\n"
-        )
+        rag_text += "You can reference these posts in your writing to maintain conversation continuity.\n\n"
 
         records = similar_posts.execute().to_dict("records")
         for row in records:
@@ -247,7 +245,10 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
     logger.info(f"Loading profiles for {len(top_authors)} active authors")
     profiles_context = "\n\n## Active Participants (Profiles):\n"
-    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+    profiles_context += (
+        "Understanding the participants helps you write posts that match "
+        "their style, voice, and interests.\n\n"
+    )
 
     for author_uuid in top_authors:
         profile_content = read_profile(author_uuid, profiles_dir)

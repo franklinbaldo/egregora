@@ -37,9 +37,7 @@ async def query_rag(
 
         results = await query_similar_posts(
             table=dummy_table,
-            batch_client=GeminiBatchClient(
-                client, default_model=model_config.get_model("embedding")
-            ),
+            batch_client=GeminiBatchClient(client, default_model=model_config.get_model("embedding")),
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,
@@ -58,7 +56,7 @@ async def query_rag(
         return "\n".join(formatted)
 
     except Exception as e:
-        return f"RAG query failed: {str(e)}"
+        return f"RAG query failed: {e!s}"
 
 
 async def ask_llm(
@@ -84,7 +82,7 @@ async def ask_llm(
         return (response.text or "No response").strip()
 
     except Exception as e:
-        return f"[LLM query failed: {str(e)}]"
+        return f"[LLM query failed: {e!s}]"
 
 
 def finish(expect_version: int, decision: str, notes: str) -> None:

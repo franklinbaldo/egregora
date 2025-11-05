@@ -265,15 +265,11 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
 
 
 @app.command()
-def process(  # noqa: PLR0913
+def process(
     zip_file: Annotated[Path, typer.Argument(help="Path to WhatsApp export ZIP")],
-    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path(
-        "output"
-    ),
+    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
-    enable_enrichment: Annotated[
-        bool, typer.Option(help="Enable LLM enrichment for URLs/media")
-    ] = True,
+    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
         str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
     ] = None,
@@ -423,9 +419,7 @@ def edit(
         jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
         template = jinja_env.from_string(prompt_template)
         prompt = template.render(final_vars)
-        console.print(
-            Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue")
-        )
+        console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
         raise typer.Exit()
 
     # Get API key
@@ -440,7 +434,7 @@ def edit(
     model_config = ModelConfig(cli_model=model, site_config=site_config)
 
     # Create client
-    client = genai.Client(api_key=api_key)
+    genai.Client(api_key=api_key)
 
     # Run editor session
     try:
@@ -517,7 +511,7 @@ def agents_explain(
 
         toolset = tool_registry.resolve_toolset(agent_config.tools)
         console.print("\n[bold]Tools[/bold]")
-        for tool in sorted(list(toolset)):
+        for tool in sorted(toolset):
             console.print(f"  - {tool}")
 
         skills = agent_config.skills.enable
@@ -527,7 +521,7 @@ def agents_explain(
 
     except FileNotFoundError:
         console.print(f"[red]Agent '{agent_name}' not found.[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @agents_app.command("lint")
@@ -574,7 +568,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         missing = exc.name or "egregora.ranking"
 
         @app.command(hidden=True)
-        def rank(  # noqa: PLR0913
+        def rank(
             site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
             comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
             strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
@@ -599,7 +593,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(  # noqa: PLR0912, PLR0915
+    def _run_ranking_session(  # noqa: PLR0915
         config: RankingCliConfig, gemini_key: str | None
     ) -> None:
         if config.debug:
@@ -663,9 +657,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
                 console.print("[yellow]No profiles found, using default judge[/yellow]")
                 default_profile = profiles_dir / "judge.md"
                 default_profile.parent.mkdir(parents=True, exist_ok=True)
-                default_profile.write_text(
-                    "---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge."
-                )
+                default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
 
             profile_path = random.choice(profile_files)
@@ -704,7 +696,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         )
 
     @app.command()
-    def rank(  # noqa: PLR0913
+    def rank(
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
         strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
@@ -805,9 +797,7 @@ def parse(
 def group(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
-    output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path(
-        "periods"
-    ),
+    output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path("periods"),
     from_date: Annotated[
         str | None, typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)")
     ] = None,
@@ -873,21 +863,15 @@ def group(  # noqa: PLR0915
                 )
                 console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
             elif from_date_obj:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() >= from_date_obj
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date_obj)
                 console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
             elif to_date_obj:
-                messages_table = messages_table.filter(
-                    messages_table.timestamp.date() <= to_date_obj
-                )
+                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
                 console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
 
             filtered_count = messages_table.count().execute()
             removed = original_count - filtered_count
-            console.print(
-                f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]"
-            )
+            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
 
         # Group by period
         console.print(f"[cyan]Grouping by:[/cyan] {period}")
@@ -910,11 +894,9 @@ def group(  # noqa: PLR0915
 
 
 @app.command()
-def enrich(  # noqa: PLR0913, PLR0915
+def enrich(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
-    zip_file: Annotated[
-        Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")
-    ],
+    zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
     output: Annotated[Path, typer.Option(help="Output enriched CSV file")],
     site_dir: Annotated[Path, typer.Option(help="Site directory (for media storage)")],
     gemini_key: Annotated[
@@ -923,9 +905,7 @@ def enrich(  # noqa: PLR0913, PLR0915
     ] = None,
     enable_url: Annotated[bool, typer.Option(help="Enable URL enrichment")] = True,
     enable_media: Annotated[bool, typer.Option(help="Enable media enrichment")] = True,
-    max_enrichments: Annotated[
-        int, typer.Option(help="Maximum number of enrichments to perform")
-    ] = 50,
+    max_enrichments: Annotated[int, typer.Option(help="Maximum number of enrichments to perform")] = 50,
 ):
     """
     Enrich messages with LLM-generated context for URLs and media.
@@ -1000,9 +980,7 @@ def enrich(  # noqa: PLR0913, PLR0915
 
             # Setup smart clients and cache
             text_batch_client = GeminiDispatcher(client, model_config.get_model("enricher"))
-            vision_batch_client = GeminiDispatcher(
-                client, model_config.get_model("enricher_vision")
-            )
+            vision_batch_client = GeminiDispatcher(client, model_config.get_model("enricher_vision"))
 
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
             enrichment_cache = EnrichmentCache(cache_dir)
@@ -1043,7 +1021,7 @@ def enrich(  # noqa: PLR0913, PLR0915
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913, PLR0915
+def gather_context(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1053,13 +1031,9 @@ def gather_context(  # noqa: PLR0913, PLR0915
         typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
     enable_rag: Annotated[bool, typer.Option(help="Enable RAG retrieval")] = True,
-    retrieval_mode: Annotated[
-        str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
-    ] = "ann",
+    retrieval_mode: Annotated[str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")] = "ann",
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
-    retrieval_overfetch: Annotated[
-        int | None, typer.Option(help="Multiply ANN candidate pool")
-    ] = None,
+    retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
 ):
     """
     Gather context for post generation (RAG, profiles, freeform memory).
@@ -1133,9 +1107,7 @@ def gather_context(  # noqa: PLR0913, PLR0915
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                     client = genai.Client(api_key=api_key)
-                    embedding_batch_client = GeminiDispatcher(
-                        client, model_config.get_model("embedding")
-                    )
+                    embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
 
                     rag_context_markdown, rag_similar_posts = _query_rag_for_context(
                         enriched_table,
@@ -1186,7 +1158,7 @@ def gather_context(  # noqa: PLR0913, PLR0915
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913, PLR0915
+def write_posts(  # noqa: PLR0915
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
@@ -1197,17 +1169,11 @@ def write_posts(  # noqa: PLR0913, PLR0915
         str | None,
         typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
-    model: Annotated[
-        str | None, typer.Option(help="Gemini model to use (overrides mkdocs.yml)")
-    ] = None,
+    model: Annotated[str | None, typer.Option(help="Gemini model to use (overrides mkdocs.yml)")] = None,
     enable_rag: Annotated[bool, typer.Option(help="Enable RAG retrieval")] = True,
-    retrieval_mode: Annotated[
-        str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")
-    ] = "ann",
+    retrieval_mode: Annotated[str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")] = "ann",
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
-    retrieval_overfetch: Annotated[
-        int | None, typer.Option(help="Multiply ANN candidate pool")
-    ] = None,
+    retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
 ):
     """
     Generate blog posts from enriched messages using LLM.
@@ -1266,13 +1232,10 @@ def write_posts(  # noqa: PLR0913, PLR0915
                 console.print(f"[cyan]Using context from:[/cyan] {context_path}")
                 with context_path.open("r", encoding="utf-8") as f:
                     context_data = json.load(f)
-                console.print(
-                    f"[yellow]Context includes {len(context_data.get('rag_similar_posts', []))} RAG results[/yellow]"
-                )
+                rag_count = len(context_data.get("rag_similar_posts", []))
+                console.print(f"[yellow]Context includes {rag_count} RAG results[/yellow]")
             else:
-                console.print(
-                    "[yellow]No context file provided, will gather context inline[/yellow]"
-                )
+                console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
             # Setup embedding client for RAG
             embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
@@ -1311,7 +1274,7 @@ def write_posts(  # noqa: PLR0913, PLR0915
                 for post_path in result.get("posts", [])[:5]:  # Show first 5
                     console.print(f"  • {Path(post_path).name}")
                 if posts_count > 5:  # noqa: PLR2004
-                    console.print(f"  ... and {posts_count - 5} more")  # noqa: PLR2004
+                    console.print(f"  ... and {posts_count - 5} more")
 
     finally:
         if client:

@@ -229,9 +229,7 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
         This must be called on raw DuckDB connection, not Ibis connection.
     """
     try:
-        conn.execute(
-            f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})"
-        )
+        conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
     except Exception:
         # Constraint may already exist
         pass
@@ -258,17 +256,14 @@ def ensure_identity_column(
     """
     try:
         conn.execute(
-            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} "
-            f"SET GENERATED {generated} AS IDENTITY"
+            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY"
         )
     except Exception:
         # Identity already configured or column contains incompatible data
         pass
 
 
-def create_index(
-    conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
-) -> None:
+def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
     """Create an index on a table.
 
     Args:

@@ -86,9 +86,7 @@ class BannerGenerator:
                 config=generate_content_config,
             ):
                 if not (
-                    chunk.candidates
-                    and chunk.candidates[0].content
-                    and chunk.candidates[0].content.parts
+                    chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
                 ):
                     continue
 

@@ -172,14 +172,10 @@ def load_table_from_parquet(
 
 def save_table(
     table: Annotated[Table, "The Ibis table to save"],
-    output_path: Annotated[
-        Path, "The path to the output file, extension determines format if not specified"
-    ],
+    output_path: Annotated[Path, "The path to the output file, extension determines format if not specified"],
     *,
     format: Annotated[SerializationFormat, "The output format ('csv' or 'parquet')"] = "csv",
-    index: Annotated[
-        bool, "Whether to include the row index (only for CSV, ignored for Parquet)"
-    ] = False,
+    index: Annotated[bool, "Whether to include the row index (only for CSV, ignored for Parquet)"] = False,
 ) -> None:
     """
     Save an Ibis Table to file with automatic format detection or explicit format.

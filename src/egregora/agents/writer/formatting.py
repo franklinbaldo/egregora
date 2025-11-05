@@ -94,7 +94,7 @@ def _pandas_na_singleton() -> Any | None:
     return pandas_module.NA
 
 
-def _stringify_value(value: Any) -> str:  # noqa: PLR0911
+def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
 
     if isinstance(value, str):
@@ -220,8 +220,7 @@ def _table_to_records(
         column_names = [str(name) for name in data.column_names]
         columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
         records = [
-            {name: columns[name][row_index] for name in column_names}
-            for row_index in range(data.num_rows)
+            {name: columns[name][row_index] for name in column_names} for row_index in range(data.num_rows)
         ]
         return records, column_names
 
@@ -289,9 +288,7 @@ def _build_conversation_markdown(
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
-                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(
-                    msg_id_value
-                )
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(msg_id_value)
 
     header = [_escape_table_cell(column) for column in column_order]
     separator = ["---"] * len(column_order)
