@@ -4,8 +4,8 @@ from typing import Any
 
 import frontmatter
 
-from .loader import load_agent
 from .agent_models import AgentConfig
+from .loader import load_agent
 
 logger = logging.getLogger(__name__)
 

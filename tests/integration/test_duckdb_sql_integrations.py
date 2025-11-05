@@ -11,8 +11,8 @@ from egregora.augmentation.enrichment.enrichment_engine import enrich_table
 from egregora.core import database_schema
 from egregora.knowledge.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.knowledge.ranking.ranking_store import RankingStore
-from egregora.utils.gemini_batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.gemini_batch import BatchPromptResult
 
 
 class DummyBatchClient:

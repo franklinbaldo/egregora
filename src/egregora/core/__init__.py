@@ -5,9 +5,9 @@ all pipeline stages.
 """
 
 from . import database_schema
+from .core_types import GroupSlug, PostSlug
 from .domain_models import GroupSource, MergeConfig, WhatsAppExport
 from .schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
-from .core_types import GroupSlug, PostSlug
 
 __all__ = [
     # Models

@@ -14,8 +14,8 @@ from egregora.augmentation.enrichment.enrichment_engine import enrich_table
 from egregora.augmentation.enrichment.media import extract_and_replace_media
 from egregora.ingestion.parser import filter_egregora_messages, parse_export
 from egregora.orchestration.pipeline import process_whatsapp_export
-from egregora.utils.gemini_batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.gemini_batch import BatchPromptResult
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 

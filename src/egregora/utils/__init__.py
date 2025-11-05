@@ -1,13 +1,5 @@
 """Utility modules for Egregora."""
 
-from .gemini_batch import (
-    BatchPromptRequest,
-    BatchPromptResult,
-    EmbeddingBatchRequest,
-    EmbeddingBatchResult,
-    GeminiBatchClient,
-    chunk_requests,
-)
 from .cache import (
     ENRICHMENT_CACHE_VERSION,
     EnrichmentCache,
@@ -16,6 +8,14 @@ from .cache import (
 from .checkpoints import (
     DEFAULT_STEP_ORDER,
     CheckpointStore,
+)
+from .gemini_batch import (
+    BatchPromptRequest,
+    BatchPromptResult,
+    EmbeddingBatchRequest,
+    EmbeddingBatchResult,
+    GeminiBatchClient,
+    chunk_requests,
 )
 from .genai import (
     call_with_retries,

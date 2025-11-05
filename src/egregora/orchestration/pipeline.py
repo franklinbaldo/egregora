@@ -14,14 +14,16 @@ from ibis.expr.types import Table
 from ..augmentation.enrichment import enrich_table, extract_and_replace_media
 from ..augmentation.profiler import filter_opted_out_authors, process_commands
 from ..config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
-from ..core.domain_models import WhatsAppExport
 from ..core.core_types import GroupSlug
+from ..core.domain_models import WhatsAppExport
 from ..generation.writer import write_posts_for_period
 from ..ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from ..knowledge.rag import VectorStore, index_all_media
-from ..utils.gemini_batch import GeminiBatchClient  # noqa: F401  # Backwards compatibility for tests
 from ..utils.cache import EnrichmentCache
 from ..utils.checkpoints import CheckpointStore
+from ..utils.gemini_batch import (
+    GeminiBatchClient,  # noqa: F401  # Backwards compatibility for tests
+)
 from ..utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
