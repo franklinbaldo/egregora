@@ -14,19 +14,19 @@ from egregora.agents.writer.context import (
 from egregora.utils import GeminiBatchClient
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_table():
     """Create a mock Ibis table."""
     return Mock(spec=ibis.expr.types.Table)
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_batch_client():
     """Create a mock GeminiBatchClient."""
     return Mock(spec=GeminiBatchClient)
 
 
-@pytest.fixture
+@pytest.fixture()
 def test_rag_dir(tmp_path):
     """Create a temporary RAG directory."""
     rag_dir = tmp_path / "rag"
@@ -202,7 +202,7 @@ class TestRagErrorHandling:
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""
-        import logging  # noqa: PLC0415
+        import logging
 
         caplog.set_level(logging.ERROR)
 

@@ -16,7 +16,7 @@ from tests.evals.writer_evals import create_writer_dataset
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 
-@pytest.fixture
+@pytest.fixture()
 def writer_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
     """Create temporary directories for writer tests."""
     site_dir = tmp_path / "site" / "docs"
@@ -125,7 +125,7 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-@pytest.mark.anyio
+@pytest.mark.anyio()
 async def test_writer_stream_empty_conversation(writer_dirs):
     """Test streaming writer correctly handles empty conversation."""
     posts_dir, profiles_dir, rag_dir = writer_dirs

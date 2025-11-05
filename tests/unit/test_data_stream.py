@@ -38,13 +38,13 @@ BATCH_SIZE_2_THIRD = 1
 MIN_ARGS_FOR_MAIN = 2
 
 
-@pytest.fixture
+@pytest.fixture()
 def duckdb_con():
     """Create an in-memory DuckDB connection via Ibis."""
     return ibis.duckdb.connect(":memory:")
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_table(duckdb_con):
     """Create a sample table for testing."""
     data = {
@@ -56,7 +56,7 @@ def sample_table(duckdb_con):
     return duckdb_con.create_table("sample", data)
 
 
-@pytest.fixture
+@pytest.fixture()
 def large_table(duckdb_con):
     """Create a large table for memory efficiency tests."""
     # Create a table with 10,000 rows
