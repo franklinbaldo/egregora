@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
+
 from egregora.core.database_schema import ensure_message_schema
 
 # A much simpler schema for testing, focusing only on the timestamp and text
