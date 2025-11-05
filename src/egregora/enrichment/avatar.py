@@ -15,10 +15,12 @@ from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from google.genai import types as genai_types
 from PIL import Image
 
 from ..config import MEDIA_DIR_NAME
 from ..prompt_templates import AvatarEnrichmentPromptTemplate
+from ..utils.batch import BatchPromptRequest
 from ..utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
@@ -587,10 +589,8 @@ def enrich_and_moderate_avatar(
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
     try:
-        # Upload image to Gemini
-        uploaded_file = vision_client.client.files.upload(
-            path=str(avatar_path),
-        )
+        # Upload image to Gemini using the dispatcher's upload_file method
+        uploaded_file = vision_client.upload_file(path=str(avatar_path))
 
         # Generate enrichment prompt
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
@@ -600,14 +600,35 @@ def enrich_and_moderate_avatar(
         )
         prompt = prompt_template.render()
 
-        # Call vision model with retry
-        response = vision_client.generate_content_with_retry(
-            prompt=prompt,
-            files=[uploaded_file],
+        # Build BatchPromptRequest with text prompt and uploaded file
+        request = BatchPromptRequest(
+            contents=[
+                genai_types.Content(
+                    parts=[
+                        genai_types.Part(text=prompt),
+                        genai_types.Part(
+                            file_data=genai_types.FileData(
+                                file_uri=uploaded_file.uri,
+                                mime_type=uploaded_file.mime_type,
+                            )
+                        ),
+                    ],
+                    role="user",
+                )
+            ],
             model=model,
+            tag=f"avatar-{avatar_uuid}",
         )
 
-        enrichment_text = response.text
+        # Call vision model via dispatcher
+        results = vision_client.generate_content([request])
+
+        # Extract response from batch result
+        if not results or not results[0].response:
+            error = results[0].error if results else None
+            raise AvatarProcessingError(f"Vision model failed to generate response: {error}")
+
+        enrichment_text = results[0].response.text
 
         # Parse moderation result
         status, reason, has_pii = _parse_moderation_result(enrichment_text)
