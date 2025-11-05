@@ -168,13 +168,6 @@ PY
 
 ```bash
 # Run tests
-<<<<<<< HEAD
-pytest tests/
-
-# Lint code
-ruff check src/
-black --check src/
-=======
 uv run pytest tests/
 
 # Lint code
@@ -182,7 +175,6 @@ uv run ruff check src/
 
 # Format code
 uv run ruff format src/
->>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 
 # Type check
 uv run mypy src/
@@ -247,8 +239,6 @@ pytest --cov=egregora tests/
 ### 5. Lint and Format
 
 ```bash
-<<<<<<< HEAD
-=======
 # Run all pre-commit checks (recommended)
 uv run pre-commit run --all-files
 
@@ -256,7 +246,6 @@ uv run pre-commit run --all-files
 uv run ruff format .
 
 # Or use individual tools:
->>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 # Check linting
 uv run ruff check src/
 
@@ -264,21 +253,14 @@ uv run ruff check src/
 uv run ruff check --fix src/
 
 # Format code
-<<<<<<< HEAD
-black src/
-=======
 uv run ruff format src/
->>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 
 # Type check
 uv run mypy src/
 ```
 
-<<<<<<< HEAD
-=======
-**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `python devtools/setup_hooks.py`.
+**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `python dev_tools/setup_hooks.py`.
 
->>>>>>> 85e0808 (refactor: replace Makefile with cross-platform Python setup script)
 ### 6. Commit Changes
 
 ```bash
