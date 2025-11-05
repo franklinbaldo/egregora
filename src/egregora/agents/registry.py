@@ -105,6 +105,8 @@ class SkillRegistry:
 
     def _load_skills(self) -> dict[str, Skill]:
         skills = {}
+        if not self.skills_path.exists():
+            return skills
         for skill_file in self.skills_path.iterdir():
             if skill_file.is_file():
                 skill_id = skill_file.stem
