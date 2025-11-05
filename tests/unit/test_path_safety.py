@@ -3,9 +3,9 @@
 from pathlib import Path
 
 import pytest
-from egregora.write_post import write_post
 
 from egregora.utils import PathTraversalError, safe_path_join, slugify
+from egregora.write_post import write_post
 
 
 class TestSlugify:
@@ -255,7 +255,7 @@ class TestWritePostSecurity:
         The slug in front matter MUST match the slug used in the filename to
         maintain consistency and prevent security issues.
         """
-        import yaml  # noqa: PLC0415
+        import yaml
 
         output_dir = tmp_path / "posts"
         output_dir.mkdir()

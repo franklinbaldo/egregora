@@ -11,7 +11,7 @@ from egregora.agents.editor.editor_agent import run_editor_session_with_pydantic
 from egregora.config import ModelConfig
 
 
-@pytest.fixture
+@pytest.fixture()
 def test_post(tmp_path: Path) -> Path:
     """Create a test post file."""
     post_dir = tmp_path / "posts"
@@ -40,7 +40,7 @@ More content here.
     return post_path
 
 
-@pytest.fixture
+@pytest.fixture()
 def model_config() -> ModelConfig:
     """Create a test model configuration."""
     # ModelConfig uses site_config dict for model overrides
@@ -53,7 +53,7 @@ def model_config() -> ModelConfig:
     return ModelConfig(site_config=site_config)
 
 
-@pytest.mark.anyio
+@pytest.mark.anyio()
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_editor_agent_with_test_model(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent with TestModel (no actual LLM calls)."""
@@ -99,7 +99,7 @@ async def test_editor_agent_with_test_model(test_post: Path, model_config: Model
     assert result["edits_made"] is False  # No edits made
 
 
-@pytest.mark.anyio
+@pytest.mark.anyio()
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_editor_agent_with_edit_tool(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent that calls edit_line tool."""
@@ -137,7 +137,7 @@ async def test_editor_agent_with_edit_tool(test_post: Path, model_config: ModelC
     # The edit may or may not succeed depending on the args
 
 
-@pytest.mark.anyio
+@pytest.mark.anyio()
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_editor_agent_hold_decision(test_post: Path, model_config: ModelConfig, tmp_path: Path):
     """Test editor agent with 'hold' decision."""
@@ -170,7 +170,7 @@ async def test_editor_agent_hold_decision(test_post: Path, model_config: ModelCo
     assert result["notes"] == "Needs human review"
 
 
-@pytest.mark.anyio
+@pytest.mark.anyio()
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_editor_agent_nonexistent_post(model_config: ModelConfig, tmp_path: Path):
     """Test editor agent with nonexistent post file."""

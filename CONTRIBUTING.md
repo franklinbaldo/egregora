@@ -17,15 +17,32 @@ Guide for contributors to Egregora.
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Create virtual environment
+# Quick setup (recommended)
+make setup-dev
+
+# This will:
+# - Sync all dependencies (including lint and test extras)
+# - Install pre-commit hooks automatically
+# - Set up your development environment
+
+# Alternative: Manual setup
 python3.12 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install uv
 pip install uv
-
-# Install in development mode with all dependencies
 uv pip install -e '.[docs,lint,test]'
+uv run pre-commit install  # Install pre-commit hooks
+```
+
+### Available Make Commands
+
+```bash
+make help           # Show all available commands
+make setup-dev      # Set up development environment (deps + pre-commit hooks)
+make install-hooks  # Install pre-commit hooks only
+make test           # Run tests
+make lint           # Run all linting checks
+make format         # Auto-format code
+make clean          # Clean up build artifacts and caches
 ```
 
 ## TENET-BREAK — Philosophy Violation Flag
@@ -153,11 +170,16 @@ PY
 
 ```bash
 # Run tests
-pytest tests/
+make test
+# Or: pytest tests/
 
 # Lint code
-ruff check src/
-black --check src/
+make lint
+# Or: ruff check src/
+
+# Format check
+make format
+# Or: ruff format src/
 
 # Type check
 mypy src/
@@ -222,6 +244,13 @@ pytest --cov=egregora tests/
 ### 5. Lint and Format
 
 ```bash
+# Run all pre-commit checks (recommended)
+make lint
+
+# Auto-format code
+make format
+
+# Or use individual tools:
 # Check linting
 ruff check src/
 
@@ -229,11 +258,13 @@ ruff check src/
 ruff check --fix src/
 
 # Format code
-black src/
+ruff format src/
 
 # Type check
 mypy src/
 ```
+
+**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `make setup-dev` or `make install-hooks`.
 
 ### 6. Commit Changes
 
