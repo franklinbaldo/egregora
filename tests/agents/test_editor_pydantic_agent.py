@@ -8,7 +8,7 @@ import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import ModelConfig
-from egregora.generation.editor.pydantic_agent import run_editor_session_with_pydantic_agent
+from egregora.generation.editor.editor_agent import run_editor_session_with_pydantic_agent
 
 
 @pytest.fixture

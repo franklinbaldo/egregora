@@ -85,7 +85,7 @@ def test_pipeline_with_golden_fixtures(
         return GoldenTestModel(period_date=whatsapp_fixture.export_date.isoformat())
 
     monkeypatch.setattr(
-        "egregora.generation.writer.pydantic_agent.GoogleModel",
+        "egregora.generation.writer.writer_agent.GoogleModel",
         _make_test_model,
     )
 

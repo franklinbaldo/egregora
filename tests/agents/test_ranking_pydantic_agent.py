@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.knowledge.ranking.pydantic_agent import run_comparison_with_pydantic_agent
+from egregora.knowledge.ranking.ranking_agent import run_comparison_with_pydantic_agent
 
 
 @pytest.fixture

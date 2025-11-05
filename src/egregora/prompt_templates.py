@@ -51,7 +51,7 @@ class WriterPromptTemplate(PromptTemplate):  # noqa: PLR0913
     enable_memes: bool = False
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "writer_system.jinja"
+    template_name: ClassVar[str] = "system/writer.jinja"
 
     def render(self) -> str:
         return self._render(
@@ -75,7 +75,7 @@ class UrlEnrichmentPromptTemplate(PromptTemplate):
     url: str
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "enricher_url.jinja"
+    template_name: ClassVar[str] = "enrichment/url_simple.jinja"
 
     def render(self) -> str:
         return self._render(env=self.env, url=self.url)
@@ -87,7 +87,7 @@ class MediaEnrichmentPromptTemplate(PromptTemplate):
 
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "enricher_media.jinja"
+    template_name: ClassVar[str] = "enrichment/media_simple.jinja"
 
     def render(self) -> str:
         return self._render(env=self.env)
@@ -104,7 +104,7 @@ class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
     time: str
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "enricher_url_detailed.jinja"
+    template_name: ClassVar[str] = "enrichment/url_detailed.jinja"
 
     def render(self) -> str:
         return self._render(
@@ -130,7 +130,7 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):  # noqa: PLR0913
     time: str
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "enricher_media_detailed.jinja"
+    template_name: ClassVar[str] = "enrichment/media_detailed.jinja"
 
     def render(self) -> str:
         return self._render(
@@ -156,7 +156,7 @@ class EditorPromptTemplate(PromptTemplate):
     context: dict[str, Any] | None = None
     env: Environment | None = None
 
-    template_name: ClassVar[str] = "editor_system.jinja"
+    template_name: ClassVar[str] = "system/editor.jinja"
 
     def render(self) -> str:
         return self._render(
