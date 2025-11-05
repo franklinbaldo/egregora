@@ -23,10 +23,10 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
-from ..core.models import WhatsAppExport
-from ..core.schema import MESSAGE_SCHEMA, ensure_message_schema
-from ..privacy.anonymizer import anonymize_table
-from ..utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from egregora.models import WhatsAppExport
+from egregora.privacy.anonymizer import anonymize_table
+from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
+from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 # Constants
 SET_COMMAND_PARTS = 2

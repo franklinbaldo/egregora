@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import duckdb
 import ibis
-from egregora.core import database_schema
+from egregora.database import schema as database_schema
 
 from egregora.agents.ranking.store import RankingStore
 from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore

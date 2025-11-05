@@ -16,11 +16,20 @@ from google import genai
 from rich.markup import escape
 from rich.panel import Panel
 
-from ..agents.loader import load_agent
-from ..agents.registry import ToolRegistry
-from ..augmentation.enrichment import enrich_table, extract_and_replace_media
-from ..augmentation.profiler import get_active_authors
-from ..config import (
+from egregora.agents.editor import run_editor_session
+from egregora.agents.loader import load_agent
+from egregora.agents.registry import ToolRegistry
+from egregora.agents.tools.profiler import get_active_authors
+from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer.context import (
+    _load_profiles_context,
+    _query_rag_for_context,
+)
+from egregora.agents.writer.formatting import (
+    _build_conversation_markdown,
+    _load_freeform_memory,
+)
+from egregora.config import (
     ModelConfig,
     ProcessConfig,
     RankingCliConfig,
@@ -29,26 +38,17 @@ from ..config import (
     load_site_config,
     resolve_site_paths,
 )
-from ..core.models import WhatsAppExport
-from ..core.types import GroupSlug
-from ..generation.editor import run_editor_session
-from ..generation.writer import write_posts_for_period
-from ..generation.writer.context import (
-    _load_profiles_context,
-    _query_rag_for_context,
-)
-from ..generation.writer.formatting import (
-    _build_conversation_markdown,
-    _load_freeform_memory,
-)
-from ..ingestion.parser import parse_export
-from ..init import ensure_mkdocs_project
-from ..utils.cache import EnrichmentCache
-from ..utils.gemini_dispatcher import GeminiDispatcher
-from .database import duckdb_backend
-from .logging_setup import configure_logging, console
-from .pipeline import discover_chat_file, group_by_period, process_whatsapp_export
-from .serialization import load_table, save_table
+from egregora.database import duckdb_backend
+from egregora.enrichment import enrich_table, extract_and_replace_media
+from egregora.ingestion.parser import parse_export
+from egregora.init import ensure_mkdocs_project
+from egregora.models import WhatsAppExport
+from egregora.pipeline import discover_chat_file, group_by_period, process_whatsapp_export
+from egregora.types import GroupSlug
+from egregora.utils.cache import EnrichmentCache
+from egregora.utils.gemini_dispatcher import GeminiDispatcher
+from egregora.utils.logging_setup import configure_logging, console
+from egregora.utils.serialization import load_table, save_table
 
 app = typer.Typer(
     name="egregora",

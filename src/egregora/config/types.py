@@ -5,7 +5,8 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated
 
-from ..core.types import GroupSlug
+from egregora.types import GroupSlug
+
 from .model import ModelConfig
 
 

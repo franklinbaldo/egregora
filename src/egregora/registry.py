@@ -8,10 +8,10 @@ They are examples showing how to implement new sources/formats and need
 completion before being production-ready.
 """
 
-from ..ingestion.whatsapp_input import WhatsAppInputSource
-from ..init.mkdocs_output import MkDocsOutputFormat
-from .input_source import input_registry
-from .output_format import output_registry
+from egregora.ingestion.base import input_registry
+from egregora.ingestion.whatsapp_input import WhatsAppInputSource
+from egregora.rendering.base import output_registry
+from egregora.rendering.mkdocs import MkDocsOutputFormat
 
 
 def register_all() -> None:
@@ -30,9 +30,9 @@ def register_all() -> None:
     output_registry.register(MkDocsOutputFormat)
 
     # Templates (commented out - complete implementation first):
-    # from ..ingestion.slack_input import SlackInputSource
+    # from egregora.ingestion.slack_input import SlackInputSource
     # input_registry.register(SlackInputSource)
-    # from ..init.hugo_output import HugoOutputFormat
+    # from egregora.rendering.hugo import HugoOutputFormat
     # output_registry.register(HugoOutputFormat)
 
 

@@ -8,8 +8,8 @@ import jinja2
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from ..config import DEFAULT_BLOG_DIR, SitePaths
-from ..config.site import _ConfigLoader, resolve_site_paths
+from egregora.config import DEFAULT_BLOG_DIR, SitePaths
+from egregora.config.site import _ConfigLoader, resolve_site_paths
 
 logger = logging.getLogger(__name__)
 

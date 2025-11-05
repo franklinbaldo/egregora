@@ -6,13 +6,14 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from ..augmentation.profiler import write_profile as write_profile_content
-from ..config.site import (
+from egregora.agents.tools.profiler import write_profile as write_profile_content
+from egregora.config.site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
-from ..core.output_format import OutputFormat, SiteConfiguration
-from ..orchestration.write_post import write_post as write_mkdocs_post
+from egregora.output_format import OutputFormat, SiteConfiguration
+from egregora.utils.write_post import write_post as write_mkdocs_post
+
 from .scaffolding import ensure_mkdocs_project
 
 logger = logging.getLogger(__name__)
