@@ -23,6 +23,7 @@ import ibis
 from dateutil import parser as date_parser
 from ibis.expr.types import Table
 
+from egregora.constants import EgregoraCommand
 from egregora.models import WhatsAppExport
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
@@ -96,9 +97,9 @@ def parse_egregora_command(message: str) -> dict | None:
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
-    if simple_cmd == "/egregora opt-out":
+    if simple_cmd == EgregoraCommand.OPT_OUT.value:
         return {"command": "opt-out"}
-    elif simple_cmd == "/egregora opt-in":
+    elif simple_cmd == EgregoraCommand.OPT_IN.value:
         return {"command": "opt-in"}
 
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())

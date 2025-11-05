@@ -918,7 +918,9 @@ class VectorStore:
 
         try:
             backend = table._find_backend()
-        except Exception:  # pragma: no cover - defensive against Ibis internals
+        except (AttributeError, RuntimeError) as e:  # pragma: no cover - defensive against Ibis internals
+            # _find_backend() is an internal Ibis method that may fail or not exist
+            logger.debug("Could not determine table backend: %s", e)
             backend = None
 
         if backend is self._client:

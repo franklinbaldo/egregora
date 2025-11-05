@@ -74,13 +74,16 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
 
         # Atomic rename (replaces destination if it exists)
         os.replace(temp_path, path)
-    except Exception:
+    except (IOError, OSError) as e:
         # Clean up temp file on error
         try:
             os.unlink(temp_path)
-        except OSError:
+        except (FileNotFoundError, PermissionError):
+            # Temp file already gone or can't delete - not critical
             pass
-        raise
+        except OSError as cleanup_error:
+            logger.warning("Failed to cleanup temp file %s: %s", temp_path, cleanup_error)
+        raise e from None
 
 
 if TYPE_CHECKING:
@@ -355,8 +358,10 @@ def enrich_table(
                     logger.info("Deleted media file containing PII: %s", media_job.file_path)
                     pii_media_deleted = True
                     pii_detected_count += 1
-                except Exception as delete_error:
+                except (FileNotFoundError, PermissionError) as delete_error:
                     logger.error("Failed to delete %s: %s", media_job.file_path, delete_error)
+                except OSError as delete_error:
+                    logger.error("Unexpected OS error deleting %s: %s", media_job.file_path, delete_error)
 
             media_job.markdown = markdown_content
             cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})

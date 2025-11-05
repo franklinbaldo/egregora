@@ -15,6 +15,7 @@ from egregora.agents.tools.profiler import filter_opted_out_authors, process_com
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
+from egregora.constants import Limits, StepStatus, TimePeriod
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.models import WhatsAppExport
@@ -27,8 +28,6 @@ from egregora.utils.checkpoints import CheckpointStore
 from egregora.utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
-
-SINGLE_DIGIT_THRESHOLD = 10
 
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
@@ -113,7 +112,7 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
 
         year_str = iso_year.cast("string")
         week_str = ibis.ifelse(
-            week_num < SINGLE_DIGIT_THRESHOLD,
+            week_num < Limits.SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + week_num.cast("string"),
             week_num.cast("string"),
         )
@@ -124,7 +123,7 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
         month_num = table.timestamp.month()
         # Zero-pad month: use lpad to ensure 2 digits
         month_str = ibis.ifelse(
-            month_num < SINGLE_DIGIT_THRESHOLD,
+            month_num < Limits.SINGLE_DIGIT_THRESHOLD,
             ibis.literal("0") + month_num.cast("string"),
             month_num.cast("string"),
         )
@@ -338,7 +337,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             if enable_enrichment:
                 logger.info(f"✨ [cyan]Enriching[/] period {period_key}")
-                if resume and steps_state.get("enrichment") == "completed":
+                if resume and steps_state.get("enrichment") == StepStatus.COMPLETED.value:
                     try:
                         enriched_table = _load_enriched_table(enriched_path, period_table.schema())
                         logger.info("Loaded cached enrichment for %s", period_key)
@@ -387,7 +386,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 enriched_table = period_table
                 enriched_table.execute().to_csv(enriched_path, index=False)
 
-            if resume and steps_state.get("writing") == "completed":
+            if resume and steps_state.get("writing") == StepStatus.COMPLETED.value:
                 logger.info("Resuming posts for %s from existing files", period_key)
                 existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
                 result = {

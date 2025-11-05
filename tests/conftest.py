@@ -42,7 +42,8 @@ try:  # Prefer the real SDK if it is available in the environment.
         _real_sdk_available = True
     else:
         _real_sdk_available = False
-except Exception:  # pragma: no cover - runtime safety for optional dependency
+except (ImportError, AttributeError):  # pragma: no cover - runtime safety for optional dependency
+    # SDK not installed or incompatible version
     _real_sdk_available = False
 
 
