@@ -319,7 +319,9 @@ def extract_avatar_from_zip(
 
                 # Validate that the filename doesn't contain path traversal sequences
                 if ".." in info.filename or info.filename.startswith("/"):
-                    logger.warning(f"Skipping suspicious ZIP entry with path traversal: {info.filename}")
+                    logger.warning(
+                        f"Skipping suspicious ZIP entry with path traversal: {info.filename}"
+                    )
                     continue
 
                 filename = Path(info.filename).name
@@ -399,7 +401,9 @@ def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, st
             status = "approved"
         else:
             # Default to questionable if no clear status found
-            logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
+            logger.warning(
+                "No clear moderation status found in enrichment, defaulting to QUESTIONABLE"
+            )
             status = "questionable"
 
     # Check for PII (this is always a keyword check)
