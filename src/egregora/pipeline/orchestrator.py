@@ -10,19 +10,67 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
-from egregora.pipeline.adapters import SourceAdapter
+from ibis.expr.types import Table
+
+from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.base import PipelineStage, StageResult
 from egregora.pipeline.ir import validate_ir_schema
 
 __all__ = [
-    "CoreOrchestrator",
-    "PipelineConfig",
+    "PipelineArtifacts",
     "PipelineContext",
+    "PipelineConfig",
+    "CoreOrchestrator",
 ]
 
 logger = logging.getLogger(__name__)
+
+
+class PipelineArtifacts(TypedDict, total=False):
+    """Type-safe definition of known pipeline artifacts.
+
+    This TypedDict provides IDE autocomplete and type checking for commonly
+    used artifacts while remaining extensible for stage-specific data.
+
+    All fields are optional (total=False) to allow stages to add artifacts
+    incrementally.
+
+    Common Artifacts:
+        media_mapping: Mapping from message media references to file paths
+        group_slug: URL-safe identifier for the chat group/channel
+        enrichment_cache: Cache object for enrichment results
+        checkpoint_store: Checkpoint store for resumable processing
+        period_tables: Grouped message tables by time period
+        generated_posts: List of generated post file paths
+        generated_profiles: List of generated profile file paths
+    """
+
+    # Media handling
+    media_mapping: MediaMapping
+
+    # Group/channel metadata
+    group_slug: str
+    group_name: str
+
+    # Caching and checkpointing
+    enrichment_cache: Any  # EnrichmentCache instance
+    checkpoint_store: Any  # CheckpointStore instance
+
+    # Period-specific data
+    period_tables: dict[str, Table]
+    current_period: str
+
+    # Output artifacts
+    generated_posts: list[Path]
+    generated_profiles: list[Path]
+
+    # RAG artifacts
+    rag_store: Any  # VectorStore instance
+    indexed_chunks: int
+
+    # Stage-specific artifacts can still be added dynamically via dict[str, Any]
 
 
 @dataclass
@@ -30,6 +78,8 @@ class PipelineContext:
     """Shared context passed between pipeline stages.
 
     This allows stages to share data and artifacts without tight coupling.
+    Uses PipelineArtifacts TypedDict for type-safe common artifacts while
+    remaining extensible for stage-specific data.
     """
 
     # Source information
@@ -37,7 +87,8 @@ class PipelineContext:
     input_path: Path
     output_dir: Path
 
-    # Artifacts from stages (media mappings, file paths, etc.)
+    # Type-safe artifacts (uses PipelineArtifacts for known keys)
+    # Can still add custom artifacts at runtime via dict[str, Any]
     artifacts: dict[str, Any] = field(default_factory=dict)
 
     # Processing metadata

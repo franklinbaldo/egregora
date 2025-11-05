@@ -73,7 +73,12 @@ Architecture:
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
-from egregora.pipeline.orchestrator import CoreOrchestrator, PipelineConfig, PipelineContext
+from egregora.pipeline.orchestrator import (
+    CoreOrchestrator,
+    PipelineArtifacts,
+    PipelineConfig,
+    PipelineContext,
+)
 
 # Note: group_by_period is in the parent egregora.pipeline module (pipeline.py)
 # It will be imported directly from there when needed
@@ -93,6 +98,7 @@ __all__ = [
     "StageResult",
     # Orchestrator
     "CoreOrchestrator",
+    "PipelineArtifacts",
     "PipelineConfig",
     "PipelineContext",
 ]

@@ -300,6 +300,188 @@ Validates:
 - Adapters produce valid IR-compliant tables
 - Adapter metadata is correct
 
+### Integration Testing
+
+Integration tests validate end-to-end pipeline execution with real or realistic data.
+
+#### Test Fixtures
+
+Create fixture exports for testing:
+
+```
+tests/fixtures/
+├── whatsapp/
+│   ├── minimal-export.zip      # Small test export
+│   ├── medium-export.zip        # Moderate size with media
+│   └── edge-cases.zip           # Edge cases (empty messages, special chars)
+├── slack/
+│   ├── minimal-export.json
+│   └── channel-export/          # Multi-channel export
+└── expected/
+    ├── whatsapp-minimal/        # Expected outputs
+    │   ├── posts/
+    │   └── profiles/
+    └── slack-minimal/
+```
+
+#### End-to-End Pipeline Tests
+
+Test complete pipeline execution:
+
+```python
+# tests/integration/test_pipeline_e2e.py
+
+import pytest
+from pathlib import Path
+from egregora.pipeline.runner import run_source_pipeline
+
+class TestWhatsAppPipeline:
+    """Integration tests for WhatsApp pipeline."""
+
+    def test_minimal_export_produces_output(self, tmp_path):
+        """Test pipeline with minimal WhatsApp export."""
+        fixture = Path("tests/fixtures/whatsapp/minimal-export.zip")
+        output_dir = tmp_path / "output"
+
+        result = run_source_pipeline(
+            source="whatsapp",
+            input_path=fixture,
+            output_dir=output_dir,
+            enable_enrichment=False,  # Fast test
+        )
+
+        # Verify outputs exist
+        assert (output_dir / "posts").exists()
+        assert (output_dir / "profiles").exists()
+        assert result["status"] == "success"
+
+    def test_output_matches_golden_fixture(self, tmp_path):
+        """Test output matches expected golden fixture."""
+        fixture = Path("tests/fixtures/whatsapp/minimal-export.zip")
+        expected = Path("tests/fixtures/expected/whatsapp-minimal")
+        output_dir = tmp_path / "output"
+
+        run_source_pipeline(
+            source="whatsapp",
+            input_path=fixture,
+            output_dir=output_dir,
+            enable_enrichment=False,
+        )
+
+        # Compare outputs (normalized diff for non-deterministic fields)
+        assert_outputs_match(output_dir, expected)
+```
+
+#### Performance Testing
+
+Track pipeline performance over time:
+
+```python
+# tests/integration/test_performance.py
+
+import pytest
+import time
+from egregora.pipeline.runner import run_source_pipeline
+
+@pytest.mark.slow
+class TestPipelinePerformance:
+    """Performance benchmarks for pipeline."""
+
+    def test_medium_export_processing_time(self, benchmark, tmp_path):
+        """Benchmark processing time for medium export."""
+        fixture = Path("tests/fixtures/whatsapp/medium-export.zip")
+
+        def run_pipeline():
+            return run_source_pipeline(
+                source="whatsapp",
+                input_path=fixture,
+                output_dir=tmp_path,
+                enable_enrichment=False,
+            )
+
+        result = benchmark(run_pipeline)
+        assert result["status"] == "success"
+
+    def test_memory_usage_stays_bounded(self, tmp_path):
+        """Test pipeline doesn't leak memory on large exports."""
+        # Monitor memory during processing
+        # Assert peak memory < threshold
+        pass
+```
+
+#### Adapter-Specific Integration Tests
+
+Test source-specific behavior:
+
+```python
+# tests/integration/test_whatsapp_adapter.py
+
+class TestWhatsAppAdapterIntegration:
+    """Integration tests for WhatsApp adapter."""
+
+    def test_parse_real_export_structure(self):
+        """Test parsing actual WhatsApp export structure."""
+        from egregora.adapters import WhatsAppAdapter
+
+        adapter = WhatsAppAdapter()
+        table = adapter.parse(
+            Path("tests/fixtures/whatsapp/minimal-export.zip"),
+            timezone="UTC",
+        )
+
+        # Verify parsed structure
+        assert table.count().execute() > 0
+        assert "timestamp" in table.columns
+        assert "message" in table.columns
+
+    def test_media_references_in_messages(self):
+        """Test media references are correctly handled."""
+        # Test that media references in messages are preserved
+        pass
+```
+
+#### Running Integration Tests
+
+```bash
+# Run all integration tests
+uv run pytest tests/integration/ -v
+
+# Run only fast integration tests (exclude slow benchmarks)
+uv run pytest tests/integration/ -v -m "not slow"
+
+# Run with coverage
+uv run pytest tests/integration/ --cov=egregora --cov-report=html
+```
+
+#### CI/CD Integration
+
+Add to `.github/workflows/test.yml`:
+
+```yaml
+integration-tests:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: uv sync
+    - name: Run integration tests
+      run: uv run pytest tests/integration/ -v
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+```
+
+#### Best Practices
+
+1. **Use small fixtures**: Keep test exports minimal for fast execution
+2. **Mock external calls**: Mock LLM API calls to avoid rate limits and costs
+3. **Test edge cases**: Include exports with empty messages, special characters, etc.
+4. **Version fixtures**: Track fixture versions alongside code changes
+5. **Automated golden fixture updates**: Script to regenerate expected outputs when intentionally changing behavior
+
 ## Future Enhancements
 
 ### Phase 1 (Current)

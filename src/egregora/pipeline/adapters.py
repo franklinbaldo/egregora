@@ -27,9 +27,19 @@ class SourceAdapter(ABC):
     """Abstract base class for all source adapters.
 
     A source adapter is responsible for:
-    1. Parsing raw exports from a specific platform
-    2. Converting messages to the standardized IR schema
-    3. Optionally extracting media files and providing a mapping
+    1. Parsing raw exports from a specific platform (REQUIRED)
+    2. Converting messages to the standardized IR schema (REQUIRED)
+    3. Optionally extracting media files and providing a mapping (OPTIONAL)
+    4. Optionally providing export metadata (OPTIONAL)
+
+    Required Methods:
+        - source_name (property): Human-readable name
+        - source_identifier (property): CLI identifier
+        - parse(): Convert raw export to IR-compliant table
+
+    Optional Methods (with default implementations):
+        - extract_media(): Extract bundled media files
+        - get_metadata(): Extract export metadata
 
     Adapters should be stateless and reusable.
     """
@@ -99,11 +109,15 @@ class SourceAdapter(ABC):
         output_dir: Path,
         **kwargs: Any,
     ) -> MediaMapping:
-        """Extract media files from the export (optional).
+        """Extract media files from the export (OPTIONAL).
 
         Some sources bundle media with the export (e.g., WhatsApp ZIP).
         This method extracts media files to the output directory and returns
         a mapping that the core pipeline can use to rewrite message references.
+
+        **This method is optional.** The default implementation returns an empty
+        dictionary, indicating no media extraction. Override this method only if
+        your source includes bundled media files.
 
         Args:
             input_path: Path to the raw export
@@ -112,25 +126,28 @@ class SourceAdapter(ABC):
 
         Returns:
             Dictionary mapping message references to extracted file paths.
+            Default: empty dict (no media)
             Example: {"image.jpg": Path("media/2024-01-15-image.jpg")}
 
-        Raises:
-            NotImplementedError: If source doesn't support media extraction
-
         Note:
-            Default implementation returns empty dict (no media).
-            Override this method if your source includes media files.
+            For sources where media is handled elsewhere (e.g., via URLs or
+            period-specific extraction), returning an empty dict is appropriate.
+            The pipeline will handle media extraction at the appropriate stage.
         """
         return {}
 
     def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
-        """Extract metadata from the export (optional).
+        """Extract metadata from the export (OPTIONAL).
+
+        **This method is optional.** The default implementation returns an empty
+        dictionary. Override this method to provide source-specific metadata.
 
         Metadata may include:
         - Group/channel name
         - Export date
         - Number of participants
         - Date range of messages
+        - Any other source-specific information
 
         Args:
             input_path: Path to the raw export
@@ -138,10 +155,13 @@ class SourceAdapter(ABC):
 
         Returns:
             Dictionary with source-specific metadata
+            Default: empty dict
 
-        Note:
-            Default implementation returns empty dict.
-            Override this method to provide source-specific metadata.
+        Example:
+            >>> adapter = WhatsAppAdapter()
+            >>> metadata = adapter.get_metadata(Path("export.zip"))
+            >>> print(metadata["group_name"])
+            'My Group Chat'
         """
         return {}
 

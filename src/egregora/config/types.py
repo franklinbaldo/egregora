@@ -11,7 +11,7 @@ from egregora.types import GroupSlug
 
 @dataclass
 class ProcessConfig:
-    """Configuration for WhatsApp export processing.
+    """Configuration for chat export processing (source-agnostic).
 
     This config object replaces long parameter lists (15+ params) with a single
     structured configuration object. Benefits:
@@ -19,9 +19,11 @@ class ProcessConfig:
     - Clear grouping of related settings
     - Easy to extend with new options
     - Simpler function signatures
+    - Works with any source (WhatsApp, Slack, Discord, etc.)
     """
 
-    zip_file: Annotated[Path, "Path to the WhatsApp export ZIP file"]
+    # Use zip_file for backward compatibility, but it now accepts any input file
+    zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
     period: Annotated[str, "Grouping period: 'day' or 'week'"] = "day"
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
@@ -38,6 +40,16 @@ class ProcessConfig:
     )
     resume: Annotated[bool, "Resume from checkpoints if available"] = True
     batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
+
+    @property
+    def input_path(self) -> Path:
+        """Alias for zip_file (source-agnostic naming).
+
+        Returns the input file path regardless of format (ZIP, JSON, etc.).
+        This property provides a more generic name while maintaining
+        backward compatibility with the zip_file field.
+        """
+        return self.zip_file
 
 
 @dataclass

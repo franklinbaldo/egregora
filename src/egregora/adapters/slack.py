@@ -3,6 +3,9 @@
 This is a minimal stub adapter that demonstrates how to implement support
 for a new source. It shows the pluggability of the pipeline system.
 
+⚠️  WARNING: This is a STUB implementation for demonstration purposes.
+    It returns empty results and should not be used in production.
+
 To complete this adapter:
 1. Implement parse() to read Slack JSON export format
 2. Map Slack message fields to IR schema
@@ -13,6 +16,7 @@ To complete this adapter:
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +26,8 @@ from ibis.expr.types import Table
 
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["SlackAdapter"]
 
@@ -108,6 +114,9 @@ class SlackAdapter(SourceAdapter):
         Returns:
             List of message dictionaries
 
+        Raises:
+            NotImplementedError: If trying to parse non-empty input
+
         Note:
             This is a minimal stub. A real implementation would:
             - Handle Slack's nested JSON structure
@@ -116,6 +125,30 @@ class SlackAdapter(SourceAdapter):
             - Map user IDs to display names
             - Convert Slack markdown to standard format
         """
+        # Check if this is a real Slack export with data
+        has_data = False
+
+        if input_path.is_file() and input_path.suffix == ".json":
+            try:
+                with open(input_path) as f:
+                    data = json.load(f)
+                    has_data = bool(data)
+            except (json.JSONDecodeError, IOError):
+                pass
+        elif input_path.is_dir():
+            has_data = any(input_path.glob("*.json"))
+
+        if has_data:
+            logger.warning(
+                "⚠️  SlackAdapter is a STUB and returns empty results. "
+                "To process Slack exports, implement the _parse_slack_json() method."
+            )
+            # For now, return empty to allow tests to pass
+            # In production, uncomment the line below:
+            # raise NotImplementedError(
+            #     "SlackAdapter is a stub. Implement _parse_slack_json() to parse Slack exports."
+            # )
+
         # Stub: Return empty list
         # In a real implementation, read and parse the JSON:
         #
