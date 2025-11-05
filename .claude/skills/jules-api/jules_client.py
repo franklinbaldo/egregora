@@ -29,9 +29,7 @@ class JulesClient:
                       to the default production URL.
         """
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
-        self.base_url = base_url or os.environ.get(
-            "JULES_BASE_URL", "https://jules.googleapis.com/v1alpha"
-        )
+        self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
         self.access_token = None
         self.using_oauth = False  # Track if we're using OAuth vs API key
 

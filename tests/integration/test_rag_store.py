@@ -181,7 +181,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
 def _load_vector_store():
     """Load the vector store module."""
-    from egregora.agents.tools.rag import store  # noqa: PLC0415
+    from egregora.agents.tools.rag import store
 
     return store
 

@@ -24,7 +24,7 @@ def configure_logfire() -> bool:
         return False
 
     try:
-        import logfire  # noqa: PLC0415
+        import logfire
 
         logfire.configure(token=token)
         logger.info("Logfire configured successfully")
@@ -44,7 +44,7 @@ def get_logfire():
         logfire module or None if not available
     """
     try:
-        import logfire  # noqa: PLC0415
+        import logfire
 
         return logfire
     except ImportError:
@@ -65,7 +65,7 @@ def logfire_span(name: str, **kwargs):
     if logfire and configure_logfire():
         return logfire.span(name, **kwargs)
 
-    from contextlib import nullcontext  # noqa: PLC0415
+    from contextlib import nullcontext
 
     return nullcontext()
 

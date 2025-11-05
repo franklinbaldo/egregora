@@ -139,7 +139,7 @@ from egregora.utils.zip import validate_zip_contents
 
 
 @pytest.fixture(autouse=True)
-def ibis_backend():
+def _ibis_backend():
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
     options = getattr(ibis, "options", None)
@@ -220,7 +220,7 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.utils.mock_batch_client import (  # noqa: PLC0415
+    from tests.utils.mock_batch_client import (
         MockGeminiBatchClient,
         MockGeminiClient,
     )
