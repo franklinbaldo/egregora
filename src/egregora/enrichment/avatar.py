@@ -302,61 +302,64 @@ def download_avatar_from_url(
             redirect_count = 0
 
             while redirect_count < MAX_REDIRECT_HOPS:
-                response = client.get(current_url)
+                # Use streaming to prevent buffering entire response in memory
+                with client.stream("GET", current_url) as response:
+                    # If we got a redirect, validate the new URL before following it
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        redirect_count += 1
+                        location = response.headers.get("location")
+                        if not location:
+                            raise AvatarProcessingError("Redirect response missing Location header")
 
-                # If we got a redirect, validate the new URL before following it
-                if response.status_code in (301, 302, 303, 307, 308):
-                    redirect_count += 1
-                    location = response.headers.get("location")
-                    if not location:
-                        raise AvatarProcessingError("Redirect response missing Location header")
+                        # Resolve relative redirects
+                        next_url = urljoin(current_url, location)
+                        logger.info(f"Following redirect {redirect_count}/{MAX_REDIRECT_HOPS}: {next_url}")
 
-                    # Resolve relative redirects
-                    next_url = urljoin(current_url, location)
-                    logger.info(f"Following redirect {redirect_count}/{MAX_REDIRECT_HOPS}: {next_url}")
+                        # Validate the redirect destination before following it
+                        _validate_url_for_ssrf(next_url)
 
-                    # Validate the redirect destination before following it
-                    _validate_url_for_ssrf(next_url)
+                        current_url = next_url
+                        continue
 
-                    current_url = next_url
-                    continue
+                    # Not a redirect, process the response
+                    response.raise_for_status()
 
-                # Not a redirect, process the response
-                response.raise_for_status()
-                break
+                    # Check content type against strict whitelist
+                    content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
+                    if content_type not in ALLOWED_MIME_TYPES:
+                        raise AvatarProcessingError(
+                            f"Invalid image MIME type: {content_type}. "
+                            f"Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+                        )
+
+                    # Check Content-Length header before downloading (early size validation)
+                    content_length_str = response.headers.get("content-length")
+                    if content_length_str:
+                        try:
+                            content_length = int(content_length_str)
+                            if content_length > MAX_AVATAR_SIZE_BYTES:
+                                raise AvatarProcessingError(
+                                    f"Avatar image too large: {content_length} bytes "
+                                    f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                                )
+                        except ValueError:
+                            logger.warning(f"Invalid Content-Length header: {content_length_str}")
+
+                    # Stream download with size limit enforcement
+                    # This prevents buffering the entire response before size check
+                    content = bytearray()
+                    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
+                        content.extend(chunk)
+                        if len(content) > MAX_AVATAR_SIZE_BYTES:
+                            raise AvatarProcessingError(
+                                f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
+                            )
+
+                    content = bytes(content)
+                    break
             else:
                 # Hit max redirects
                 raise AvatarProcessingError(f"Too many redirects (>{MAX_REDIRECT_HOPS})")
-
-            # Check content type against strict whitelist
-            content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
-            if content_type not in ALLOWED_MIME_TYPES:
-                raise AvatarProcessingError(
-                    f"Invalid image MIME type: {content_type}. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
-                )
-
-            # Check Content-Length header before downloading (early size validation)
-            content_length_str = response.headers.get("content-length")
-            if content_length_str:
-                try:
-                    content_length = int(content_length_str)
-                    if content_length > MAX_AVATAR_SIZE_BYTES:
-                        raise AvatarProcessingError(
-                            f"Avatar image too large: {content_length} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
-                        )
-                except ValueError:
-                    logger.warning(f"Invalid Content-Length header: {content_length_str}")
-
-            # Download with streaming and size limit enforcement
-            content = bytearray()
-            for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
-                content.extend(chunk)
-                if len(content) > MAX_AVATAR_SIZE_BYTES:
-                    raise AvatarProcessingError(
-                        f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
-                    )
-
-            content = bytes(content)
 
             # Validate content matches declared MIME type (magic bytes check)
             _validate_image_content(content, content_type)
@@ -617,6 +620,13 @@ def enrich_and_moderate_avatar(
         # If PII detected or blocked, delete both the avatar file and enrichment file
         if has_pii or status == "blocked":
             logger.warning(f"Avatar {avatar_uuid} blocked (PII: {has_pii}, Status: {status})")
+
+            # Force status to 'blocked' when PII is detected to maintain consistency
+            # Even if LLM said "approved", we block if PII is present
+            if has_pii:
+                status = "blocked"
+                reason = "Image contains personally identifiable information (PII)"
+
             if avatar_path.exists():
                 avatar_path.unlink()
                 logger.info(f"Deleted blocked avatar: {avatar_path}")
