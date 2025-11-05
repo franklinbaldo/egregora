@@ -323,15 +323,15 @@ class SourceAdapter(ABC):
         standardized_name = f"{media_uuid}{file_extension}"
         standardized_path = target_dir / standardized_name
 
-        # Move file (with deduplication)
-        if standardized_path.exists():
+        # Move file (with atomic deduplication)
+        # Use atomic rename operation to avoid TOCTOU race condition
+        try:
+            source_file.rename(standardized_path)
+            logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
+        except FileExistsError:
             # File already exists (deduplication working!)
             logger.debug(f"Media file already exists (duplicate): {standardized_name}")
             source_file.unlink()  # Remove temp file
-        else:
-            # Move source file to final location
-            source_file.rename(standardized_path)
-            logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
 
         return standardized_path.resolve()
 

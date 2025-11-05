@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -239,6 +240,11 @@ class WhatsAppAdapter(SourceAdapter):
             ... )
             >>> # Returns: Path("/tmp/IMG-20250101-WA0001.jpg")
         """
+        # Validate media reference for path traversal attacks
+        if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
+            logger.warning(f"Suspicious media reference (path traversal attempt): {media_reference}")
+            return None
+
         # Get ZIP path from kwargs
         zip_path = kwargs.get("zip_path")
         if not zip_path:
@@ -280,8 +286,15 @@ class WhatsAppAdapter(SourceAdapter):
         except zipfile.BadZipFile as e:
             logger.error(f"Invalid ZIP file: {zip_path}: {e}")
             return None
-        except Exception as e:
+        except (KeyError, OSError, PermissionError) as e:
             logger.error(f"Failed to extract {media_reference} from {zip_path}: {e}")
+            return None
+        except Exception as e:
+            # Catch any unexpected errors but log them as warnings for investigation
+            logger.warning(
+                f"Unexpected error extracting {media_reference} from {zip_path}: {type(e).__name__}: {e}",
+                exc_info=True
+            )
             return None
 
     def extract_media(
@@ -304,6 +317,12 @@ class WhatsAppAdapter(SourceAdapter):
         Returns:
             Empty dict (media extraction handled by deliver_media())
         """
+        warnings.warn(
+            "extract_media() is deprecated and will be removed in a future version. "
+            "Use deliver_media() for lazy media extraction instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Deprecated: Use deliver_media() instead for lazy extraction
         return {}
 
