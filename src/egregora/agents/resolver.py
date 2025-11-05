@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -5,6 +6,8 @@ import frontmatter
 
 from .loader import load_agent
 from .models import AgentConfig
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
@@ -47,8 +50,8 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
         if key in allowed_vars:
             merged_vars[key] = value
         else:
-            print(
-                f"Warning: Variable '{key}' from {post_path.name} is not allowed by the agent and will be ignored."
+            logger.warning(
+                f"Variable '{key}' from {post_path.name} not allowed by agent {agent_config.agent_id}, ignoring"
             )
 
     return merged_vars

@@ -1,18 +1,22 @@
 """Site scaffolding utilities for MkDocs-based Egregora sites."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
+import jinja2
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..config import DEFAULT_BLOG_DIR, SitePaths
 from ..config.site import _ConfigLoader, resolve_site_paths
 
+logger = logging.getLogger(__name__)
+
 SITE_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "site"
 
 DEFAULT_SITE_NAME = "Egregora Archive"
-DEFAULT_DOCS_SETTING = "docs"
+DEFAULT_DOCS_SETTING = "docs"  # MkDocs requires docs_dir to be a subdirectory
 
 
 def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
@@ -118,13 +122,14 @@ def _create_site_structure(
     # Determine blog directory from context
     blog_dir = context.get("blog_dir", "posts")
 
-    # Create homepage - but skip if blog is at root (blog_dir: ".")
-    # because the blog index will serve as homepage
-    homepage_path = docs_dir / "index.md"
-    if blog_dir != "." and not homepage_path.exists():
-        template = env.get_template("docs/index.md.jinja")
-        content = template.render(**context)
-        homepage_path.write_text(content, encoding="utf-8")
+    # Skip creating homepage if blog is at docs root (blog_dir: ".")
+    # The Material blog plugin will generate the blog listing at homepage
+    if blog_dir != ".":
+        homepage_path = docs_dir / "index.md"
+        if not homepage_path.exists():
+            template = env.get_template("docs/index.md.jinja")
+            content = template.render(**context)
+            homepage_path.write_text(content, encoding="utf-8")
 
     # Create about page
     about_path = docs_dir / "about.md"
@@ -133,14 +138,8 @@ def _create_site_structure(
         content = template.render(**context)
         about_path.write_text(content, encoding="utf-8")
 
-    # Create blog index page - Material expects this as entry point but keeps it simple
-    blog_index_path = (
-        posts_dir.parent / "index.md"
-    )  # posts_dir is blog_dir/posts/, we want blog_dir/index.md
-    if not blog_index_path.exists():
-        template = env.get_template("docs/posts/index.md.jinja")
-        content = template.render(**context)
-        blog_index_path.write_text(content, encoding="utf-8")
+    # Skip creating blog index - the Material blog plugin generates it automatically
+    # With blog_dir: ".." (site root), the plugin creates the blog homepage
 
     # Create profiles index
     profiles_index_path = profiles_dir / "index.md"
@@ -155,6 +154,50 @@ def _create_site_structure(
         template = env.get_template("docs/media/index.md.jinja")
         content = template.render(**context)
         media_index_path.write_text(content, encoding="utf-8")
+
+    # Render .egregora configuration templates
+    _render_egregora_config(site_paths.site_root, env, context)
+
+
+def _render_egregora_config(site_root: Path, env: Environment, context: dict[str, Any]) -> None:
+    """Render .egregora configuration templates using Jinja2.
+
+    Walks through the .egregora template directory and renders each file,
+    preserving directory structure.
+    """
+    egregora_template_dir = SITE_TEMPLATES_DIR / ".egregora"
+    egregora_config_dir = site_root / ".egregora"
+
+    if not egregora_template_dir.exists():
+        return
+
+    if egregora_config_dir.exists():
+        return  # Don't overwrite existing config
+
+    # Walk through template directory
+    for template_path in egregora_template_dir.rglob("*"):
+        if template_path.is_file():
+            # Calculate relative path from template root
+            rel_path = template_path.relative_to(egregora_template_dir)
+            output_path = egregora_config_dir / rel_path
+
+            # Create parent directories
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get template relative to SITE_TEMPLATES_DIR (for Jinja loader)
+            template_rel = template_path.relative_to(SITE_TEMPLATES_DIR)
+
+            try:
+                # Render template with context
+                template = env.get_template(str(template_rel))
+                content = template.render(**context)
+                output_path.write_text(content, encoding="utf-8")
+            except (jinja2.TemplateError, jinja2.UndefinedError) as e:
+                # If rendering fails (template syntax errors, missing vars), warn and copy as-is
+                logger.warning(
+                    f"Failed to render {template_rel} as Jinja template: {e}. Copying as-is."
+                )
+                output_path.write_bytes(template_path.read_bytes())
 
 
 __all__ = ["ensure_mkdocs_project"]

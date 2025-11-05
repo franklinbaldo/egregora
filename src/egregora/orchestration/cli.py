@@ -419,9 +419,9 @@ def edit(
         from ..agents.resolver import AgentResolver
 
         resolver = AgentResolver(egregora_path, docs_path)
-        agent_config, final_vars = resolver.resolve(post_file, agent)
+        agent_config, prompt_template, final_vars = resolver.resolve(post_file, agent)
         jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
-        template = jinja_env.from_string(agent_config.prompt_template)
+        template = jinja_env.from_string(prompt_template)
         prompt = template.render(final_vars)
         console.print(
             Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue")
