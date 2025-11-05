@@ -2,7 +2,7 @@
 
 Command-line interface for Egregora.
 
-::: egregora.orchestration.cli
+::: egregora.cli
     options:
       show_source: true
       show_root_heading: true

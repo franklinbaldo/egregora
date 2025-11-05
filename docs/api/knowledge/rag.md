@@ -8,7 +8,7 @@ The RAG module provides vector embedding, storage, and retrieval using DuckDB wi
 
 ### Store
 
-::: egregora.knowledge.rag.store
+::: egregora.agents.tools.rag.store
     options:
       show_source: true
       show_root_heading: true
@@ -17,7 +17,7 @@ The RAG module provides vector embedding, storage, and retrieval using DuckDB wi
 
 ### Embedder
 
-::: egregora.knowledge.rag.embedder
+::: egregora.agents.tools.rag.embedder
     options:
       show_source: true
       show_root_heading: true
@@ -26,7 +26,7 @@ The RAG module provides vector embedding, storage, and retrieval using DuckDB wi
 
 ### Retriever
 
-::: egregora.knowledge.rag.retriever
+::: egregora.agents.tools.rag.retriever
     options:
       show_source: true
       show_root_heading: true
@@ -35,7 +35,7 @@ The RAG module provides vector embedding, storage, and retrieval using DuckDB wi
 
 ### Chunker
 
-::: egregora.knowledge.rag.chunker
+::: egregora.agents.tools.rag.chunker
     options:
       show_source: true
       show_root_heading: true
