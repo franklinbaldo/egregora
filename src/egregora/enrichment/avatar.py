@@ -43,11 +43,11 @@ DEFAULT_DOWNLOAD_TIMEOUT = 30.0
 
 # Magic bytes for image validation
 MAGIC_BYTES = {
-    b'\xff\xd8\xff': 'image/jpeg',
-    b'\x89PNG\r\n\x1a\n': 'image/png',
-    b'GIF87a': 'image/gif',
-    b'GIF89a': 'image/gif',
-    b'RIFF': 'image/webp',  # WEBP starts with RIFF (followed by WEBP)
+    b"\xff\xd8\xff": "image/jpeg",
+    b"\x89PNG\r\n\x1a\n": "image/png",
+    b"GIF87a": "image/gif",
+    b"GIF89a": "image/gif",
+    b"RIFF": "image/webp",  # WEBP starts with RIFF (followed by WEBP)
 }
 
 # Private IP ranges to block (SSRF prevention)
@@ -201,17 +201,13 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
     for magic, mime_type in MAGIC_BYTES.items():
         if content.startswith(magic):
             # Special handling for WEBP (RIFF can be other formats too)
-            if magic == b'RIFF' and len(content) >= 12:
-                if content[8:12] == b'WEBP':
-                    if expected_mime != 'image/webp':
-                        raise AvatarProcessingError(
-                            f"Image content is WEBP but declared as {expected_mime}"
-                        )
+            if magic == b"RIFF" and len(content) >= 12:
+                if content[8:12] == b"WEBP":
+                    if expected_mime != "image/webp":
+                        raise AvatarProcessingError(f"Image content is WEBP but declared as {expected_mime}")
                     return
                 else:
-                    raise AvatarProcessingError(
-                        f"RIFF file is not WEBP format (expected {expected_mime})"
-                    )
+                    raise AvatarProcessingError(f"RIFF file is not WEBP format (expected {expected_mime})")
 
             # Normal validation for other formats
             if mime_type != expected_mime:
@@ -223,7 +219,7 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
 
     # No magic bytes matched
     raise AvatarProcessingError(
-        f"Unable to verify image format. Content does not match any supported image type."
+        "Unable to verify image format. Content does not match any supported image type."
     )
 
 
@@ -428,14 +424,14 @@ def extract_avatar_from_zip(
                     content = zf.read(info)
 
                     # Infer MIME type from extension for validation
-                    if ext in ('.jpg', '.jpeg'):
-                        mime_type = 'image/jpeg'
-                    elif ext == '.png':
-                        mime_type = 'image/png'
-                    elif ext == '.gif':
-                        mime_type = 'image/gif'
-                    elif ext == '.webp':
-                        mime_type = 'image/webp'
+                    if ext in (".jpg", ".jpeg"):
+                        mime_type = "image/jpeg"
+                    elif ext == ".png":
+                        mime_type = "image/png"
+                    elif ext == ".gif":
+                        mime_type = "image/gif"
+                    elif ext == ".webp":
+                        mime_type = "image/webp"
                     else:
                         raise AvatarProcessingError(f"Unsupported extension: {ext}")
 
@@ -512,7 +508,7 @@ def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, st
             status = "questionable"
 
     # Check for PII (case-insensitive with word boundaries for robustness)
-    has_pii = bool(re.search(r'\bPII[_\s-]DETECTED\b', enrichment_text, re.IGNORECASE))
+    has_pii = bool(re.search(r"\bPII[_\s-]DETECTED\b", enrichment_text, re.IGNORECASE))
 
     # Generate reason based on status
     if status == "blocked":

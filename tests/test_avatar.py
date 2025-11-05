@@ -3,13 +3,17 @@
 import io
 import socket
 import uuid
-import zipfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
 
+from egregora.agents.tools.profiler import (
+    get_avatar_info,
+    remove_profile_avatar,
+    update_profile_avatar,
+)
 from egregora.enrichment.avatar import (
     AvatarProcessingError,
     _generate_avatar_uuid,
@@ -17,11 +21,6 @@ from egregora.enrichment.avatar import (
     _validate_image_dimensions,
     _validate_image_format,
     _validate_url_for_ssrf,
-)
-from egregora.agents.tools.profiler import (
-    get_avatar_info,
-    remove_profile_avatar,
-    update_profile_avatar,
 )
 from egregora.ingestion.parser import parse_egregora_command
 
@@ -140,23 +139,23 @@ class TestSSRFProtection:
         with pytest.raises(AvatarProcessingError, match="blocked IP address"):
             _validate_url_for_ssrf("http://169.254.0.1/avatar.jpg")
 
-    @patch('socket.getaddrinfo')
+    @patch("socket.getaddrinfo")
     def test_blocks_ipv4_mapped_ipv6_localhost(self, mock_getaddrinfo):
         """Test that IPv4-mapped IPv6 localhost (::ffff:127.0.0.1) is blocked."""
         # Mock DNS resolution to return IPv4-mapped IPv6 address
         mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 0, '', ('::ffff:127.0.0.1', 80, 0, 0))
+            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:127.0.0.1", 80, 0, 0))
         ]
 
         with pytest.raises(AvatarProcessingError, match="IPv4-mapped"):
             _validate_url_for_ssrf("http://malicious.example.com/avatar.jpg")
 
-    @patch('socket.getaddrinfo')
+    @patch("socket.getaddrinfo")
     def test_blocks_ipv4_mapped_ipv6_private(self, mock_getaddrinfo):
         """Test that IPv4-mapped IPv6 private addresses are blocked."""
         # Mock DNS resolution to return IPv4-mapped IPv6 address for private network
         mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 0, '', ('::ffff:192.168.1.1', 80, 0, 0))
+            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:192.168.1.1", 80, 0, 0))
         ]
 
         with pytest.raises(AvatarProcessingError, match="IPv4-mapped"):
@@ -175,13 +174,11 @@ class TestSSRFProtection:
         with pytest.raises(AvatarProcessingError, match="must have a hostname"):
             _validate_url_for_ssrf("http:///avatar.jpg")
 
-    @patch('socket.getaddrinfo')
+    @patch("socket.getaddrinfo")
     def test_allows_public_ip(self, mock_getaddrinfo):
         """Test that public IPs are allowed."""
         # Mock DNS resolution to return a public IP
-        mock_getaddrinfo.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 0, '', ('8.8.8.8', 80))
-        ]
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("8.8.8.8", 80))]
 
         # Should not raise
         _validate_url_for_ssrf("http://example.com/avatar.jpg")
@@ -193,58 +190,58 @@ class TestContentValidation:
     def test_validate_jpeg_content(self):
         """Test JPEG magic bytes validation."""
         # Create a valid JPEG magic bytes
-        jpeg_bytes = b'\xff\xd8\xff\xe0\x00\x10JFIF' + b'\x00' * 100
+        jpeg_bytes = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 100
 
         # Should not raise
-        _validate_image_content(jpeg_bytes, 'image/jpeg')
+        _validate_image_content(jpeg_bytes, "image/jpeg")
 
     def test_validate_png_content(self):
         """Test PNG magic bytes validation."""
         # Create valid PNG magic bytes
-        png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
         # Should not raise
-        _validate_image_content(png_bytes, 'image/png')
+        _validate_image_content(png_bytes, "image/png")
 
     def test_validate_gif_content(self):
         """Test GIF magic bytes validation."""
         # Create valid GIF87a magic bytes
-        gif_bytes = b'GIF87a' + b'\x00' * 100
+        gif_bytes = b"GIF87a" + b"\x00" * 100
 
         # Should not raise
-        _validate_image_content(gif_bytes, 'image/gif')
+        _validate_image_content(gif_bytes, "image/gif")
 
     def test_validate_webp_content(self):
         """Test WEBP magic bytes validation."""
         # Create valid WEBP magic bytes (RIFF....WEBP)
-        webp_bytes = b'RIFF\x00\x00\x00\x00WEBP' + b'\x00' * 100
+        webp_bytes = b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 100
 
         # Should not raise
-        _validate_image_content(webp_bytes, 'image/webp')
+        _validate_image_content(webp_bytes, "image/webp")
 
     def test_rejects_mismatched_mime_type(self):
         """Test that mismatched MIME types are rejected."""
         # JPEG bytes but declared as PNG
-        jpeg_bytes = b'\xff\xd8\xff\xe0\x00\x10JFIF' + b'\x00' * 100
+        jpeg_bytes = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 100
 
         with pytest.raises(AvatarProcessingError, match="content type mismatch"):
-            _validate_image_content(jpeg_bytes, 'image/png')
+            _validate_image_content(jpeg_bytes, "image/png")
 
     def test_rejects_invalid_magic_bytes(self):
         """Test that invalid magic bytes are rejected."""
         # Random bytes that don't match any image format
-        invalid_bytes = b'\x00\x00\x00\x00' + b'\x00' * 100
+        invalid_bytes = b"\x00\x00\x00\x00" + b"\x00" * 100
 
         with pytest.raises(AvatarProcessingError, match="does not match any supported"):
-            _validate_image_content(invalid_bytes, 'image/jpeg')
+            _validate_image_content(invalid_bytes, "image/jpeg")
 
     def test_rejects_executable_as_image(self):
         """Test that executable files are rejected even with image MIME type."""
         # ELF header (Linux executable)
-        elf_bytes = b'\x7fELF' + b'\x00' * 100
+        elf_bytes = b"\x7fELF" + b"\x00" * 100
 
         with pytest.raises(AvatarProcessingError):
-            _validate_image_content(elf_bytes, 'image/jpeg')
+            _validate_image_content(elf_bytes, "image/jpeg")
 
 
 class TestDimensionValidation:
@@ -253,9 +250,9 @@ class TestDimensionValidation:
     def test_allows_small_image(self):
         """Test that small images are allowed."""
         # Create a small test image
-        img = Image.new('RGB', (100, 100), color='red')
+        img = Image.new("RGB", (100, 100), color="red")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         content = buf.getvalue()
 
         # Should not raise
@@ -264,9 +261,9 @@ class TestDimensionValidation:
     def test_allows_max_dimension(self):
         """Test that images at max dimension are allowed."""
         # Create an image at the max dimension (4096x100)
-        img = Image.new('RGB', (4096, 100), color='blue')
+        img = Image.new("RGB", (4096, 100), color="blue")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         content = buf.getvalue()
 
         # Should not raise
@@ -275,9 +272,9 @@ class TestDimensionValidation:
     def test_rejects_oversized_width(self):
         """Test that images with oversized width are rejected."""
         # Create an image that exceeds max width
-        img = Image.new('RGB', (5000, 100), color='green')
+        img = Image.new("RGB", (5000, 100), color="green")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         content = buf.getvalue()
 
         with pytest.raises(AvatarProcessingError, match="dimensions too large"):
@@ -286,9 +283,9 @@ class TestDimensionValidation:
     def test_rejects_oversized_height(self):
         """Test that images with oversized height are rejected."""
         # Create an image that exceeds max height
-        img = Image.new('RGB', (100, 5000), color='yellow')
+        img = Image.new("RGB", (100, 5000), color="yellow")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         content = buf.getvalue()
 
         with pytest.raises(AvatarProcessingError, match="dimensions too large"):
@@ -297,9 +294,9 @@ class TestDimensionValidation:
     def test_rejects_both_dimensions_oversized(self):
         """Test that images with both dimensions oversized are rejected."""
         # Create an image with both dimensions exceeding max
-        img = Image.new('RGB', (5000, 5000), color='purple')
+        img = Image.new("RGB", (5000, 5000), color="purple")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         content = buf.getvalue()
 
         with pytest.raises(AvatarProcessingError, match="dimensions too large"):
