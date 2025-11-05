@@ -8,8 +8,8 @@ from typing import Any
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
-from egregora.profiler import get_active_authors, read_profile
-from egregora.rag import (
+from egregora.agents.tools.profiler import get_active_authors, read_profile
+from egregora.agents.tools.rag import (
     VectorStore,
     build_rag_context_for_writer,
     query_similar_posts,

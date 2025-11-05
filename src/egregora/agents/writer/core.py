@@ -26,6 +26,9 @@ from google import genai
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
+from egregora.agents.tools.annotations import AnnotationStore
+from egregora.agents.tools.profiler import get_active_authors
+from egregora.agents.tools.rag import VectorStore, index_post
 from egregora.agents.writer.context import (
     _load_profiles_context,
     build_rag_context_for_prompt,
@@ -47,10 +50,7 @@ from egregora.agents.writer.handlers import (
 )
 from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from egregora.config import ModelConfig, load_mkdocs_config
-from egregora.database.annotations import AnnotationStore
-from egregora.profiler import get_active_authors
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.rag import VectorStore, index_post
 from egregora.utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)

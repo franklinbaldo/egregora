@@ -9,7 +9,7 @@ import ibis
 from egregora.core import database_schema
 
 from egregora.agents.ranking.store import RankingStore
-from egregora.database.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.enrichment.core import enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache

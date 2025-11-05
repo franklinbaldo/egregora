@@ -11,12 +11,12 @@ Documentation:
 - API Reference: docs/reference/api.md#rag-system
 """
 
-from egregora.rag.pydantic_helpers import (
+from egregora.agents.tools.rag.pydantic_helpers import (
     build_rag_context_for_writer,
     find_relevant_docs,
     format_rag_context,
 )
-from egregora.rag.retriever import (
+from egregora.agents.tools.rag.retriever import (
     index_all_media,
     index_media_enrichment,
     index_post,
