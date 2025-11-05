@@ -228,7 +228,7 @@ class TestIntegration:
 
         # Create MkDocs site
         site_root = tmp_path / "site"
-        (site_root / "mkdocs.yml").mkdir(parents=True, exist_ok=True)
+        site_root.mkdir(parents=True, exist_ok=True)
         (site_root / "mkdocs.yml").write_text("site_name: Test\n")
 
         # Auto-detect

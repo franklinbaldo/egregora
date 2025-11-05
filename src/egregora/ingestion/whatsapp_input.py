@@ -10,6 +10,7 @@ from typing import Any
 
 from ibis.expr.types import Table
 
+from ..augmentation.enrichment.batch import _iter_table_record_batches
 from ..augmentation.enrichment.media import (
     extract_media_from_zip,
     find_media_references,
@@ -61,7 +62,14 @@ class WhatsAppInputSource(InputSource):
             with zipfile.ZipFile(source_path) as zf:
                 txt_files = [f for f in zf.namelist() if f.endswith(".txt")]
                 return len(txt_files) > 0
-        except (zipfile.BadZipFile, OSError):
+        except zipfile.BadZipFile:
+            logger.debug(f"File {source_path} is not a valid ZIP file (corrupted)")
+            return False
+        except PermissionError:
+            logger.debug(f"Permission denied reading {source_path}")
+            return False
+        except OSError as e:
+            logger.debug(f"OS error reading {source_path}: {e}")
             return False
 
     def parse(
@@ -172,12 +180,16 @@ class WhatsAppInputSource(InputSource):
         media_filenames = set()
 
         if table is not None:
-            # Scan table for media references
+            # Scan table for media references using streaming (Ibis-first policy)
             try:
-                messages = table.select("message").execute()
-                for row in messages.itertuples(index=False):
-                    refs = find_media_references(row.message)
-                    media_filenames.update(refs)
+                batch_size = 1000
+                for batch_records in _iter_table_record_batches(
+                    table.select("message"), batch_size
+                ):
+                    for row in batch_records:
+                        message = row.get("message", "")
+                        refs = find_media_references(message)
+                        media_filenames.update(refs)
             except Exception as e:
                 logger.warning(f"Failed to scan table for media references: {e}")
 
@@ -198,14 +210,20 @@ class WhatsAppInputSource(InputSource):
         )
 
         # Convert absolute paths to relative paths from output_dir
+        # Security: Never return absolute paths as they could leak system info
         result = {}
         for original, absolute_path in extracted.items():
             try:
                 relative = absolute_path.relative_to(output_dir)
                 result[original] = str(relative)
-            except ValueError:
-                # If not relative to output_dir, use absolute path
-                result[original] = str(absolute_path)
+            except ValueError as e:
+                # This should never happen if extract_media_from_zip works correctly
+                # Log error and skip this file rather than exposing absolute paths
+                logger.error(
+                    f"Media file {original} at {absolute_path} is not relative to "
+                    f"output_dir {output_dir}. This is a bug. Skipping file. Error: {e}"
+                )
+                # Skip this file - don't add to result
 
         return result
 
@@ -214,22 +232,32 @@ class WhatsAppInputSource(InputSource):
 
         Returns:
             tuple of (chat_file, media_files)
+
+        Raises:
+            ValueError: If no .txt chat file found
+            zipfile.BadZipFile: If ZIP is corrupted
+            PermissionError: If permission denied
         """
-        with zipfile.ZipFile(zip_path) as zf:
-            all_files = [f for f in zf.namelist() if not f.endswith("/")]
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                all_files = [f for f in zf.namelist() if not f.endswith("/")]
 
-            # Find .txt chat file
-            txt_files = [f for f in all_files if f.endswith(".txt")]
-            if not txt_files:
-                raise ValueError(f"No .txt chat file found in {zip_path}")
+                # Find .txt chat file
+                txt_files = [f for f in all_files if f.endswith(".txt")]
+                if not txt_files:
+                    raise ValueError(f"No .txt chat file found in {zip_path}")
 
-            # Use the first .txt file as chat file
-            chat_file = txt_files[0]
+                # Use the first .txt file as chat file
+                chat_file = txt_files[0]
 
-            # Other files are media
-            media_files = [f for f in all_files if f != chat_file]
+                # Other files are media
+                media_files = [f for f in all_files if f != chat_file]
 
-            return chat_file, media_files
+                return chat_file, media_files
+        except zipfile.BadZipFile as e:
+            raise ValueError(f"Corrupted ZIP file: {zip_path}") from e
+        except PermissionError as e:
+            raise ValueError(f"Permission denied reading ZIP: {zip_path}") from e
 
     def _infer_group_name(self, zip_path: Path) -> str:
         """Infer group name from ZIP filename.
