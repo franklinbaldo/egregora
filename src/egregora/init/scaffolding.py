@@ -94,7 +94,7 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     profiles_dir = site_paths.profiles_dir
     media_dir = site_paths.media_dir
 
-    for directory in {docs_dir, posts_dir, profiles_dir, media_dir}:
+    for directory in (docs_dir, posts_dir, profiles_dir, media_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     # Create media subdirectories with .gitkeep

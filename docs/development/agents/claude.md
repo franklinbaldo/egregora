@@ -62,7 +62,7 @@ git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
 # One-command setup (installs dependencies + pre-commit hooks)
-python devtools/setup_hooks.py
+python dev_tools/setup_hooks.py
 
 # Or manual setup
 uv sync --extra lint --extra test
