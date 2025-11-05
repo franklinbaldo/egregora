@@ -231,11 +231,11 @@ def mock_batch_client(monkeypatch):
     )
     # Patch where genai is imported in egregora modules
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.genai.Client",
+        "egregora.pipeline.genai.Client",
         MockGeminiClient,
     )
     monkeypatch.setattr(
-        "egregora.generation.editor.agent.genai.Client",
+        "egregora.agents.editor.editor_agent.genai.Client",
         MockGeminiClient,
     )
 
@@ -245,11 +245,11 @@ def mock_batch_client(monkeypatch):
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiBatchClient",
+        "egregora.pipeline.GeminiBatchClient",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.generation.editor.agent.GeminiBatchClient",
+        "egregora.agents.editor.editor_agent.GeminiBatchClient",
         MockGeminiBatchClient,
     )
 

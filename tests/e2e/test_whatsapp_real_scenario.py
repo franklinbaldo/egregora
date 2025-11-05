@@ -93,9 +93,9 @@ class DummyGenaiClient:
 
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
-    monkeypatch.setattr("egregora.orchestration.pipeline.genai.Client", DummyGenaiClient)
+    monkeypatch.setattr("egregora.pipeline.genai.Client", DummyGenaiClient)
     monkeypatch.setattr(
-        "egregora.orchestration.pipeline.GeminiDispatcher",
+        "egregora.pipeline.GeminiDispatcher",
         lambda client, model, **kwargs: DummyBatchClient(model),
     )
 
@@ -135,7 +135,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.orchestration.pipeline.write_posts_for_period", _stub_writer)
+    monkeypatch.setattr("egregora.pipeline.write_posts_for_period", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):

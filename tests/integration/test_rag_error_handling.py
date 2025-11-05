@@ -52,8 +52,8 @@ class TestRagContext:
 class TestRagErrorHandling:
     """Tests for RAG error handling."""
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_rag_error_returns_failure_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
@@ -72,8 +72,8 @@ class TestRagErrorHandling:
         failure_reason = result.failure()
         assert failure_reason == RagErrorReason.SYSTEM_ERROR
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_no_hits_returns_failure_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
@@ -94,8 +94,8 @@ class TestRagErrorHandling:
         failure_reason = result.failure()
         assert failure_reason == RagErrorReason.NO_HITS
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_successful_query_returns_success_result(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
@@ -138,8 +138,8 @@ class TestRagErrorHandling:
         assert "Test Post 2" in context.text
         assert len(context.records) == 2  # noqa: PLR2004
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_return_records_backward_compatibility(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
@@ -176,8 +176,8 @@ class TestRagErrorHandling:
         assert isinstance(records, list)
         assert "Test Post" in text
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_return_records_error_case(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
@@ -196,8 +196,8 @@ class TestRagErrorHandling:
         # Should return empty tuple for backward compatibility
         assert result == ("", [])
 
-    @patch("egregora.generation.writer.context.VectorStore")
-    @patch("egregora.generation.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context.VectorStore")
+    @patch("egregora.agents.writer.context.query_similar_posts")
     def test_rag_error_logging(  # noqa: PLR0913
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
