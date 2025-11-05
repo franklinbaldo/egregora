@@ -133,7 +133,7 @@ class SlackAdapter(SourceAdapter):
                 with open(input_path) as f:
                     data = json.load(f)
                     has_data = bool(data)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
         elif input_path.is_dir():
             has_data = any(input_path.glob("*.json"))

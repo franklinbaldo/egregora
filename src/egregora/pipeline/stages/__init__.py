@@ -51,9 +51,7 @@ def get_stage(stage_identifier: str, config: StageConfig) -> PipelineStage:
     """
     if stage_identifier not in STAGE_REGISTRY:
         available = ", ".join(STAGE_REGISTRY.keys())
-        raise ValueError(
-            f"Unknown stage: '{stage_identifier}'. " f"Available stages: {available}"
-        )
+        raise ValueError(f"Unknown stage: '{stage_identifier}'. Available stages: {available}")
 
     stage_class = STAGE_REGISTRY[stage_identifier]
     return stage_class(config)

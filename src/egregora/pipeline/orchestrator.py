@@ -19,10 +19,10 @@ from egregora.pipeline.base import PipelineStage, StageResult
 from egregora.pipeline.ir import validate_ir_schema
 
 __all__ = [
-    "PipelineArtifacts",
-    "PipelineContext",
-    "PipelineConfig",
     "CoreOrchestrator",
+    "PipelineArtifacts",
+    "PipelineConfig",
+    "PipelineContext",
 ]
 
 logger = logging.getLogger(__name__)
