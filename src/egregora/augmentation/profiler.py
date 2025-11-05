@@ -1,10 +1,10 @@
 import logging
 import re
 from pathlib import Path
-import ibis
 from typing import Annotated, Any
-import frontmatter
 
+import frontmatter
+import ibis
 import pyarrow as pa
 
 logger = logging.getLogger(__name__)
@@ -508,7 +508,7 @@ def filter_opted_out_authors(
 
 
 def load_author_aliases(
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"]
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"],
 ) -> Annotated[dict[str, str], "A dictionary mapping aliases to author UUIDs"]:
     """
     Load all author aliases from profile files.
@@ -528,7 +528,7 @@ def load_author_aliases(
     aliases = {}
     for profile_path in profiles_dir.glob("*.md"):
         try:
-            with open(profile_path, "r", encoding="utf-8") as f:
+            with open(profile_path, encoding="utf-8") as f:
                 post = frontmatter.load(f)
                 if "alias" in post.metadata:
                     aliases[post.metadata["alias"]] = profile_path.stem
