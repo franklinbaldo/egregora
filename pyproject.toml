@@ -123,8 +123,8 @@ strict_optional = true
 [[tool.mypy.overrides]]
 module = [
     "egregora.ingestion.parser",
-    "egregora.orchestration.pipeline",
-    "egregora.orchestration.cli",
+    "egregora.pipeline",
+    "egregora.cli",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
