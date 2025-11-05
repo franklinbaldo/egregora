@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import logging
 import re
+import socket
 import uuid
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import httpx
 
@@ -25,8 +28,23 @@ ModerationStatus = Literal["approved", "questionable", "blocked"]
 # Supported image formats
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
+# Allowed MIME types for avatars (strict whitelist)
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
 # Max avatar file size (10MB)
 MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024
+
+# Private IP ranges to block (SSRF prevention)
+BLOCKED_IP_RANGES = [
+    ipaddress.ip_network("10.0.0.0/8"),  # Private network
+    ipaddress.ip_network("172.16.0.0/12"),  # Private network
+    ipaddress.ip_network("192.168.0.0/16"),  # Private network
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network("169.254.0.0/16"),  # Link-local
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+]
 
 
 @dataclass
@@ -52,6 +70,66 @@ def _get_avatar_directory(docs_dir: Path) -> Path:
     avatar_dir = docs_dir / MEDIA_DIR_NAME / "avatars"
     avatar_dir.mkdir(parents=True, exist_ok=True)
     return avatar_dir
+
+
+def _validate_url_for_ssrf(url: str) -> None:
+    """
+    Validate URL to prevent SSRF attacks.
+
+    Checks:
+    - Only HTTP/HTTPS schemes allowed
+    - Resolves hostname to IP and blocks private/internal networks
+    - Blocks localhost, link-local, and private IP ranges
+
+    Args:
+        url: URL to validate
+
+    Raises:
+        AvatarProcessingError: If URL is not safe to fetch
+    """
+    # Parse URL
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise AvatarProcessingError(f"Invalid URL: {e}") from e
+
+    # Check scheme
+    if parsed.scheme not in ("http", "https"):
+        raise AvatarProcessingError(
+            f"Invalid URL scheme: {parsed.scheme}. Only HTTP and HTTPS are allowed."
+        )
+
+    # Get hostname
+    hostname = parsed.hostname
+    if not hostname:
+        raise AvatarProcessingError("URL must have a hostname")
+
+    # Resolve hostname to IP addresses
+    try:
+        # Get all IP addresses for the hostname
+        addr_info = socket.getaddrinfo(hostname, None)
+        ip_addresses = {info[4][0] for info in addr_info}
+    except socket.gaierror as e:
+        raise AvatarProcessingError(f"Could not resolve hostname '{hostname}': {e}") from e
+
+    # Check each resolved IP against blocked ranges
+    for ip_str in ip_addresses:
+        try:
+            ip_addr = ipaddress.ip_address(ip_str)
+
+            # Check against blocked ranges
+            for blocked_range in BLOCKED_IP_RANGES:
+                if ip_addr in blocked_range:
+                    raise AvatarProcessingError(
+                        f"URL resolves to blocked IP address: {ip_str} "
+                        f"(in range {blocked_range}). "
+                        "Access to private/internal networks is not allowed."
+                    )
+
+        except ValueError as e:
+            raise AvatarProcessingError(f"Invalid IP address '{ip_str}': {e}") from e
+
+    logger.info(f"URL validation passed for: {url} (resolves to: {', '.join(ip_addresses)})")
 
 
 def _generate_avatar_uuid(content: bytes, group_slug: str) -> uuid.UUID:
@@ -100,16 +178,20 @@ def download_avatar_from_url(
     """
     logger.info(f"Downloading avatar from URL: {url}")
 
+    # Validate URL to prevent SSRF attacks
+    _validate_url_for_ssrf(url)
+
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
             response = client.get(url)
             response.raise_for_status()
 
-            # Check content type
-            content_type = response.headers.get("content-type", "").lower()
-            if not content_type.startswith("image/"):
+            # Check content type against strict whitelist
+            content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
+            if content_type not in ALLOWED_MIME_TYPES:
                 raise AvatarProcessingError(
-                    f"URL does not point to an image (content-type: {content_type})"
+                    f"Invalid image MIME type: {content_type}. "
+                    f"Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
                 )
 
             # Check size
@@ -138,11 +220,12 @@ def download_avatar_from_url(
             avatar_dir = _get_avatar_directory(docs_dir)
             avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
 
-            # Save if not already exists
-            if not avatar_path.exists():
-                avatar_path.write_bytes(content)
+            # Save using exclusive creation mode to prevent race conditions
+            try:
+                with avatar_path.open("xb") as f:
+                    f.write(content)
                 logger.info(f"Saved avatar to: {avatar_path}")
-            else:
+            except FileExistsError:
                 logger.info(f"Avatar already exists: {avatar_path}")
 
             return avatar_uuid, avatar_path
@@ -206,11 +289,12 @@ def extract_avatar_from_zip(
                     avatar_dir = _get_avatar_directory(docs_dir)
                     avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
 
-                    # Save if not already exists
-                    if not avatar_path.exists():
-                        avatar_path.write_bytes(content)
+                    # Save using exclusive creation mode to prevent race conditions
+                    try:
+                        with avatar_path.open("xb") as f:
+                            f.write(content)
                         logger.info(f"Saved avatar to: {avatar_path}")
-                    else:
+                    except FileExistsError:
                         logger.info(f"Avatar already exists: {avatar_path}")
 
                     return avatar_uuid, avatar_path

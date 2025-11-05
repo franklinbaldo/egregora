@@ -11,6 +11,7 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
+from ..augmentation.avatar_pipeline import process_avatar_commands
 from ..augmentation.enrichment import enrich_table, extract_and_replace_media
 from ..augmentation.profiler import filter_opted_out_authors, process_commands
 from ..config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
@@ -264,6 +265,22 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             logger.info(f"[magenta]🧾 Processed[/] {len(commands)} /egregora commands")
         else:
             logger.info("[magenta]🧾 No /egregora commands detected in this export[/]")
+
+        # Process avatar commands (download, moderate, update profiles)
+        logger.info("[cyan]🖼️  Processing avatar commands...[/]")
+        avatar_results = process_avatar_commands(
+            messages_table=messages_table,
+            zip_path=zip_path,
+            docs_dir=site_paths.docs_dir,
+            profiles_dir=site_paths.profiles_dir,
+            group_slug=str(group_slug),
+            vision_client=vision_batch_client,
+            model=model_config.get_model("enricher_vision"),
+        )
+        if avatar_results:
+            logger.info(f"[green]✓ Processed[/] {len(avatar_results)} avatar command(s)")
+            for author_uuid, result in avatar_results.items():
+                logger.info(f"  {result}")
 
         # Remove ALL /egregora messages (commands + ad-hoc exclusions)
         messages_table, egregora_removed = filter_egregora_messages(messages_table)

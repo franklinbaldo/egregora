@@ -99,8 +99,8 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
     """
     # Normalize curly quotes to straight quotes (English only, as requested)
     # This handles copy-paste from phones/messaging apps
-    message = message.replace(""", '"').replace(""", '"')
-    message = message.replace("'", "'").replace("'", "'")
+    message = message.replace("\u201c", '"').replace("\u201d", '"')  # "" → "
+    message = message.replace("\u2018", "'").replace("\u2019", "'")  # '' → '
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
