@@ -163,12 +163,14 @@ def extract_commands(messages: Table) -> list[dict]:
 
         cmd = parse_egregora_command(message)
         if cmd:
-            commands.append({
-                "author": row["author"],
-                "timestamp": row["timestamp"],
-                "command": cmd,
-                "message": message,  # Include original message for media attachment processing
-            })
+            commands.append(
+                {
+                    "author": row["author"],
+                    "timestamp": row["timestamp"],
+                    "command": cmd,
+                    "message": message,  # Include original message for media attachment processing
+                }
+            )
 
     if commands:
         logger.info(f"Found {len(commands)} egregora commands")
