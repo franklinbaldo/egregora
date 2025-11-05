@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
@@ -30,7 +31,30 @@ def _construct_python_name(loader: yaml.SafeLoader, suffix: str, node: yaml.Node
     return ""
 
 
+def _construct_env(loader: yaml.SafeLoader, node: yaml.Node) -> str:
+    """Handle MkDocs Material !ENV tags for environment variable substitution.
+
+    !ENV expects either:
+    - A string: !ENV VAR_NAME
+    - A list: !ENV [VAR_NAME, "default_value"]
+    """
+    if isinstance(node, yaml.ScalarNode):
+        # Simple form: !ENV VAR_NAME
+        var_name = loader.construct_scalar(node)
+        return os.environ.get(var_name, "")
+    elif isinstance(node, yaml.SequenceNode):
+        # List form: !ENV [VAR_NAME, "default"]
+        items = loader.construct_sequence(node)
+        if not items:
+            return ""
+        var_name = items[0]
+        default = items[1] if len(items) > 1 else ""
+        return os.environ.get(var_name, default)
+    return ""
+
+
 _ConfigLoader.add_multi_constructor("tag:yaml.org,2002:python/name", _construct_python_name)
+_ConfigLoader.add_constructor("!ENV", _construct_env)
 
 
 @dataclass(frozen=True, slots=True)
