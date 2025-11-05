@@ -46,6 +46,9 @@ docs = [
     "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
     "codespell>=2.3.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-minify-plugin>=0.8",
+    "mkdocs-material[imaging]>=9.5",
 ]
 ranking = []
 lint = [
