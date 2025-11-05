@@ -1,0 +1,139 @@
+Generate a markdown enrichment file for this avatar image.
+
+This avatar is being evaluated for use as a user's profile picture. It will be publicly visible.
+Your primary goal is to determine if this image is appropriate for use as an avatar.
+
+## Avatar Image
+**Filename:** {{ media_filename }}
+**Path:** {{ media_path }}
+
+The image has been uploaded for your analysis.
+
+## Content Moderation
+
+⚠️ **CRITICAL: Content Safety Check**
+
+Evaluate this image for appropriateness as a public avatar. Check for:
+
+**BLOCK if the image contains:**
+- Violence, gore, or graphic injury
+- Explicit sexual or pornographic content
+- Hate symbols, extremist imagery, or discriminatory content
+- Graphic drug use or paraphernalia
+- Self-harm or dangerous activities
+- Weapons used in threatening manner
+- Shocking or disturbing imagery
+- Harassment, bullying, or targeted attacks
+
+**MARK AS QUESTIONABLE if the image contains:**
+- Suggestive content (not explicit but borderline)
+- Alcohol or tobacco prominently featured
+- Weapons shown in non-threatening context (e.g., historical, educational)
+- Political symbols or controversial imagery
+- Blurry or low-quality images making assessment difficult
+- Minor violations of typical avatar guidelines
+
+**APPROVE if the image:**
+- Shows appropriate portraits, selfies, or headshots
+- Contains safe artistic content, illustrations, or cartoons
+- Displays nature, animals, objects, or scenery
+- Features logos, symbols, or abstract art (non-offensive)
+- Contains memes or humor (as long as not offensive)
+- Shows appropriate group photos or public figures
+- Is generally suitable for a professional or social profile
+
+## Privacy Check
+
+⚠️ **Check for Personally Identifiable Information (PII)**
+
+Scan for PII that could compromise privacy:
+
+**Visual PII:**
+- Government-issued IDs (passports, driver's licenses, ID cards)
+- Credit cards, debit cards, or financial documents
+- Street addresses or house numbers
+- Handwritten signatures
+- Medical documents, prescriptions, or health records
+- Phone numbers in screenshots or visible text
+- Personal documents (contracts, legal papers, mail with addresses)
+
+**If you find PII:**
+1. **Start your response with:** `PII_DETECTED` (on its own line)
+2. **Set moderation_status to:** `BLOCKED`
+3. **Explain in moderation_reason:** what PII was found (without revealing it)
+
+**Note on faces:** Identifiable faces in avatars are EXPECTED and APPROPRIATE. Only flag faces if they appear in sensitive contexts (e.g., on ID documents, medical records). Regular portrait photos with faces should be APPROVED if otherwise appropriate.
+
+## Output Format
+
+**At the very beginning of your response, you MUST include the moderation verdict on the first line:**
+
+```
+MODERATION_STATUS: [APPROVED|QUESTIONABLE|BLOCKED]
+```
+
+**If PII detected, also include on the second line:**
+```
+PII_DETECTED
+```
+
+**Then generate the complete markdown document:**
+
+```markdown
+# Avatar Enrichment: [Filename]
+
+## Moderation Result
+- **Status:** [APPROVED|QUESTIONABLE|BLOCKED]
+- **Reason:** [Brief explanation of the decision. For APPROVED: explain why it's suitable. For QUESTIONABLE/BLOCKED: explain what concerns were found]
+
+## Metadata
+- **File:** {{ media_path }}
+- **Evaluated:** [Current date/time]
+
+## Content
+
+### Avatar Image
+![{{ media_filename }}](../../{{ media_path }})
+
+[Download](../../{{ media_path }})
+
+---
+
+## Description
+[1-2 paragraph description of the image. Be objective and factual.]
+
+---
+
+## Visual Analysis
+[Markdown bullet list of:
+- Image composition and framing
+- Color scheme and style
+- Subject matter and content
+- Quality and technical aspects
+- Overall aesthetic]
+
+---
+
+## Appropriateness Assessment
+
+**Content Type:** [e.g., Portrait, Illustration, Logo, Meme, Photo, etc.]
+
+**Suitable as Avatar:** [Yes/With Review/No]
+
+**Considerations:**
+- [List specific factors that influenced the moderation decision]
+- [Note any borderline elements]
+- [Explain context if relevant]
+
+---
+
+## Recommendation
+
+[Final recommendation on whether this should be approved for use as an avatar, with reasoning]
+```
+
+**IMPORTANT:**
+1. The FIRST line of your response MUST be: `MODERATION_STATUS: [verdict]`
+2. If PII found, the SECOND line MUST be: `PII_DETECTED`
+3. Then output the markdown document
+4. No preamble. No code fences around the markdown. Raw markdown that can be saved directly.

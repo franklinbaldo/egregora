@@ -476,3 +476,177 @@ def filter_opted_out_authors(
                 logger.warning(f"   - {author}: {author_msg_count} messages removed")
 
     return filtered_table, removed_count
+
+
+def update_profile_avatar(  # noqa: PLR0913
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    avatar_uuid: Annotated[str, "The UUID of the avatar image"],
+    avatar_path: Annotated[Path, "The path to the avatar image"],
+    moderation_status: Annotated[str, "The moderation status: approved, questionable, or blocked"],
+    moderation_reason: Annotated[str, "The reason for the moderation decision"],
+    timestamp: Annotated[str, "The timestamp of when the avatar was set"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
+) -> Annotated[str, "The path to the updated profile"]:
+    """
+    Update an author's profile with avatar information.
+
+    This should be called after avatar moderation is complete.
+    Only approved avatars will be set as active.
+
+    Args:
+        author_uuid: The anonymized author UUID
+        avatar_uuid: UUID of the avatar image
+        avatar_path: Path to the avatar image
+        moderation_status: approved, questionable, or blocked
+        moderation_reason: Reason for moderation decision
+        timestamp: When the avatar was set
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        Path to updated profile
+    """
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profiles_dir / f"{author_uuid}.md"
+
+    # Read existing profile or create new one
+    if profile_path.exists():
+        content = profile_path.read_text(encoding="utf-8")
+    else:
+        content = f"# Profile: {author_uuid}\n\n"
+
+    # Build avatar section content
+    if moderation_status == "approved":
+        avatar_content = (
+            f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ✅ Approved\n- Set on: {timestamp}"
+        )
+        logger.info(f"✅ Avatar approved for {author_uuid}")
+    elif moderation_status == "questionable":
+        avatar_content = (
+            f"- UUID: {avatar_uuid}\n"
+            f"- Path: {avatar_path}\n"
+            f"- Status: ⚠️ Pending Review\n"
+            f"- Reason: {moderation_reason}\n"
+            f"- Set on: {timestamp}\n"
+            f"- Note: This avatar requires manual review before it can be used"
+        )
+        logger.warning(f"⚠️ Avatar requires review for {author_uuid}: {moderation_reason}")
+    else:  # blocked
+        avatar_content = (
+            f"- UUID: {avatar_uuid}\n"
+            f"- Status: ❌ Blocked\n"
+            f"- Reason: {moderation_reason}\n"
+            f"- Attempted on: {timestamp}\n"
+            f"- Note: This avatar was rejected and cannot be used"
+        )
+        logger.warning(f"❌ Avatar blocked for {author_uuid}: {moderation_reason}")
+
+    # Update profile
+    content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
+
+    # Save updated profile
+    profile_path.write_text(content, encoding="utf-8")
+    return str(profile_path)
+
+
+def remove_profile_avatar(
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    timestamp: Annotated[str, "The timestamp of when the avatar was removed"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
+) -> Annotated[str, "The path to the updated profile"]:
+    """
+    Remove avatar from an author's profile.
+
+    Args:
+        author_uuid: The anonymized author UUID
+        timestamp: When the avatar was removed
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        Path to updated profile
+    """
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profiles_dir / f"{author_uuid}.md"
+
+    # Read existing profile or create new one
+    if profile_path.exists():
+        content = profile_path.read_text(encoding="utf-8")
+    else:
+        content = f"# Profile: {author_uuid}\n\n"
+
+    # Update avatar section to show it was removed
+    avatar_content = f"- Status: None (removed on {timestamp})"
+
+    content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
+
+    # Save updated profile
+    profile_path.write_text(content, encoding="utf-8")
+    logger.info(f"Removed avatar for {author_uuid}")
+    return str(profile_path)
+
+
+def get_avatar_info(
+    author_uuid: Annotated[str, "The anonymized author UUID"],
+    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
+) -> Annotated[dict | None, "Avatar info dict or None if no avatar"]:
+    """
+    Get avatar information from an author's profile.
+
+    Args:
+        author_uuid: The anonymized author UUID
+        profiles_dir: Where profiles are stored
+
+    Returns:
+        Dict with avatar info or None if no avatar:
+        {
+            'uuid': '...',
+            'path': '...',
+            'status': 'approved|questionable|blocked',
+            'reason': '...',  # if not approved
+        }
+    """
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profiles_dir / f"{author_uuid}.md"
+
+    if not profile_path.exists():
+        return None
+
+    content = profile_path.read_text(encoding="utf-8")
+
+    # Look for Avatar section
+    avatar_section_match = re.search(r"## Avatar\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
+
+    if not avatar_section_match:
+        return None
+
+    avatar_section = avatar_section_match.group(1)
+
+    # Parse avatar info
+    uuid_match = re.search(r"- UUID:\s*(.+)", avatar_section)
+    path_match = re.search(r"- Path:\s*(.+)", avatar_section)
+    status_match = re.search(r"- Status:\s*(.+)", avatar_section)
+    reason_match = re.search(r"- Reason:\s*(.+)", avatar_section)
+
+    if not uuid_match:
+        return None
+
+    info = {
+        "uuid": uuid_match.group(1).strip(),
+        "path": path_match.group(1).strip() if path_match else None,
+        "status": "unknown",
+    }
+
+    if status_match:
+        status_text = status_match.group(1).strip()
+        if "Approved" in status_text or "✅" in status_text:
+            info["status"] = "approved"
+        elif "Pending" in status_text or "⚠️" in status_text:
+            info["status"] = "questionable"
+        elif "Blocked" in status_text or "❌" in status_text:
+            info["status"] = "blocked"
+        elif "None" in status_text or "removed" in status_text:
+            return None
+
+    if reason_match:
+        info["reason"] = reason_match.group(1).strip()
+
+    return info
