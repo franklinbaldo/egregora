@@ -3,10 +3,10 @@ from pathlib import Path
 import ibis
 from google import genai
 
-from ..config import ModelConfig
-from ..knowledge.rag import VectorStore, query_similar_posts
-from ..utils.batch import GeminiBatchClient
-from ..utils.genai import call_with_retries
+from egregora.config import ModelConfig
+from egregora.knowledge.rag import VectorStore, query_similar_posts
+from egregora.utils.batch import GeminiBatchClient
+from egregora.utils.genai import call_with_retries
 
 
 def edit_line(expect_version: int, index: int, new: str, editor) -> None:

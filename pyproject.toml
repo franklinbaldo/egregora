@@ -80,7 +80,7 @@ profile = "black"
 line-length = 100
 target-version = "py312"
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "PL"]
+select = ["E", "F", "I", "UP", "B", "PL", "TID"]
 ignore = ["E203", "E501"]
 
 [tool.ruff.lint.flake8-tidy-imports]

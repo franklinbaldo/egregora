@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from .models import AgentConfig
+from egregora.agents.models import AgentConfig
 
 
 def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:

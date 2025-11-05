@@ -10,15 +10,12 @@ from typing import Any
 
 from ibis.expr.types import Table
 
-from ..augmentation.enrichment.batch import _iter_table_record_batches
-from ..augmentation.enrichment.media import (
-    extract_media_from_zip,
-    find_media_references,
-)
-from ..core.input_source import InputMetadata, InputSource
-from ..core.models import WhatsAppExport
-from ..core.schema import group_slug
-from .parser import parse_export
+from egregora.augmentation.enrichment.batch import _iter_table_record_batches
+from egregora.augmentation.enrichment.media import extract_media_from_zip, find_media_references
+from egregora.core.input_source import InputMetadata, InputSource
+from egregora.core.models import WhatsAppExport
+from egregora.core.schema import group_slug
+from egregora.ingestion.parser import parse_export
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +168,7 @@ class WhatsAppInputSource(InputSource):
 
         if group_slug is None:
             # Infer from filename
-            from ..core.schema import group_slug as create_slug
+            from egregora.core.schema import group_slug as create_slug
 
             group_name = self._infer_group_name(source_path)
             group_slug = create_slug(group_name)

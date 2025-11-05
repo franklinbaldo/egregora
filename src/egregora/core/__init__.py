@@ -5,15 +5,12 @@ all pipeline stages.
 """
 
 # Import registry to auto-register implementations
-from . import (
-    database_schema,
-    registry,  # noqa: F401
-)
-from .input_source import InputMetadata, InputSource, input_registry
-from .models import GroupSource, MergeConfig, WhatsAppExport
-from .output_format import OutputFormat, SiteConfiguration, output_registry
-from .schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
-from .types import GroupSlug, PostSlug
+from egregora.core import database_schema, registry
+from egregora.core.input_source import InputMetadata, InputSource, input_registry
+from egregora.core.models import GroupSource, MergeConfig, WhatsAppExport
+from egregora.core.output_format import OutputFormat, SiteConfiguration, output_registry
+from egregora.core.schema import MESSAGE_SCHEMA, WHATSAPP_SCHEMA
+from egregora.core.types import GroupSlug, PostSlug
 
 __all__ = [
     # Models

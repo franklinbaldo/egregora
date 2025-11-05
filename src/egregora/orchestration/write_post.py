@@ -6,8 +6,8 @@ from typing import Any
 
 import yaml
 
-from ..privacy.detector import validate_newsletter_privacy
-from ..utils import safe_path_join, slugify
+from egregora.privacy.detector import validate_newsletter_privacy
+from egregora.utils import safe_path_join, slugify
 
 
 def write_post(

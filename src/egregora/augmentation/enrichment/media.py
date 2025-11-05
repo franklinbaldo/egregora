@@ -11,8 +11,8 @@ from typing import Annotated
 import ibis
 from ibis.expr.types import Table
 
-from ...config import MEDIA_DIR_NAME
-from .batch import _iter_table_record_batches
+from egregora.augmentation.enrichment.batch import _iter_table_record_batches
+from egregora.config import MEDIA_DIR_NAME
 
 # WhatsApp attachment markers (special Unicode)
 ATTACHMENT_MARKERS = (
