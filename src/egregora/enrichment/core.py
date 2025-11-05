@@ -19,17 +19,30 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora.config import ModelConfig
 from egregora import database_schema
+from egregora.config import ModelConfig
 from egregora.database.schema import CONVERSATION_SCHEMA
+from egregora.enrichment.batch import (
+    MediaEnrichmentJob,
+    UrlEnrichmentJob,
+    _ensure_datetime,
+    _safe_timestamp_plus_one,
+    _table_to_pylist,
+    build_batch_requests,
+    map_batch_results,
+)
+from egregora.enrichment.media import (
+    detect_media_type,
+    extract_urls,
+    find_media_references,
+    replace_media_mentions,
+)
 from egregora.prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
 from egregora.utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
 from egregora.utils.batch import BatchPromptResult
-from egregora.enrichment.batch import MediaEnrichmentJob, UrlEnrichmentJob, _ensure_datetime, _safe_timestamp_plus_one, _table_to_pylist, build_batch_requests, map_batch_results
-from egregora.enrichment.media import detect_media_type, extract_urls, find_media_references, replace_media_mentions
 
 logger = logging.getLogger(__name__)
 

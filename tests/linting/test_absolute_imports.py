@@ -16,6 +16,7 @@ def test_ruff_rejects_relative_imports():
         # Run ruff check on the file
         result = subprocess.run(
             ["ruff", "check", str(temp_file)],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -39,6 +40,7 @@ def test_ruff_allows_absolute_imports():
         # Run ruff check on the file
         result = subprocess.run(
             ["ruff", "check", str(temp_file)],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -56,6 +58,7 @@ def test_no_relative_imports_in_codebase():
     # Run ruff check on the entire source directory
     result = subprocess.run(
         ["ruff", "check", "src/egregora", "--select", "TID252"],
+        check=False,
         capture_output=True,
         text=True,
     )

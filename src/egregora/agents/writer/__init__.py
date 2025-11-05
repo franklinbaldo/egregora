@@ -9,7 +9,12 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
-from egregora.agents.writer.core import get_top_authors, load_markdown_extensions, load_site_config, write_posts_for_period
+from egregora.agents.writer.core import (
+    get_top_authors,
+    load_markdown_extensions,
+    load_site_config,
+    write_posts_for_period,
+)
 from egregora.agents.writer.tools import PostMetadata
 
 __all__ = [

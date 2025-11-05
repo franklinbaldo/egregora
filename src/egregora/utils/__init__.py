@@ -1,11 +1,34 @@
 """Utility modules for Egregora."""
 
-from egregora.utils.batch import BatchPromptRequest, BatchPromptResult, EmbeddingBatchRequest, EmbeddingBatchResult, GeminiBatchClient, chunk_requests
-from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.batch import (
+    BatchPromptRequest,
+    BatchPromptResult,
+    EmbeddingBatchRequest,
+    EmbeddingBatchResult,
+    GeminiBatchClient,
+    chunk_requests,
+)
+from egregora.utils.cache import (
+    ENRICHMENT_CACHE_VERSION,
+    EnrichmentCache,
+    make_enrichment_cache_key,
+)
 from egregora.utils.checkpoints import DEFAULT_STEP_ORDER, CheckpointStore
-from egregora.utils.genai import call_with_retries, call_with_retries_sync, extract_retry_delay, is_rate_limit_error, sleep_with_progress_sync
+from egregora.utils.genai import (
+    call_with_retries,
+    call_with_retries_sync,
+    extract_retry_delay,
+    is_rate_limit_error,
+    sleep_with_progress_sync,
+)
 from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
-from egregora.utils.zip import ZipValidationError, ZipValidationLimits, configure_default_limits, ensure_safe_member_size, validate_zip_contents
+from egregora.utils.zip import (
+    ZipValidationError,
+    ZipValidationLimits,
+    configure_default_limits,
+    ensure_safe_member_size,
+    validate_zip_contents,
+)
 
 __all__ = [
     # Batch API

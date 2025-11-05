@@ -12,10 +12,10 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.agents.config import MEDIA_DIR_NAME
-from egregora.agents.utils.batch import GeminiBatchClient
 from egregora.agents.tools.rag.chunker import chunk_document
 from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
 from egregora.agents.tools.rag.store import VECTOR_STORE_SCHEMA, VectorStore
+from egregora.agents.utils.batch import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
