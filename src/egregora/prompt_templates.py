@@ -146,6 +146,24 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
 
 
 @dataclass(slots=True)
+class AvatarEnrichmentPromptTemplate(PromptTemplate):
+    """Prompt template for avatar enrichment with moderation."""
+
+    media_filename: str
+    media_path: str
+    env: Environment | None = None
+
+    template_name: ClassVar[str] = "enricher_avatar.jinja"
+
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            media_filename=self.media_filename,
+            media_path=self.media_path,
+        )
+
+
+@dataclass(slots=True)
 class EditorPromptTemplate(PromptTemplate):
     """Prompt template for the editor agent."""
 
@@ -170,6 +188,7 @@ class EditorPromptTemplate(PromptTemplate):
 
 
 __all__ = [
+    "AvatarEnrichmentPromptTemplate",
     "DetailedMediaEnrichmentPromptTemplate",
     "DetailedUrlEnrichmentPromptTemplate",
     "EditorPromptTemplate",

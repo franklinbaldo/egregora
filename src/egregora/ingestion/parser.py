@@ -62,7 +62,7 @@ COMMAND_REGISTRY = {
 }
 
 
-def parse_egregora_command(message: str) -> dict | None:
+def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
     """
     Parse egregora commands from message text.
 
@@ -72,6 +72,9 @@ def parse_egregora_command(message: str) -> dict | None:
     - /egregora set bio "I love Python"
     - /egregora set twitter "@franklindev"
     - /egregora set website "https://franklin.dev"
+    - /egregora set avatar <url>
+    - /egregora set avatar (with attached image)
+    - /egregora unset avatar
     - /egregora opt-out
     - /egregora opt-in
 
@@ -89,11 +92,16 @@ def parse_egregora_command(message: str) -> dict | None:
         {
             'command': 'opt-out'
         }
+        or
+        {
+            'command': 'unset',
+            'target': 'avatar'
+        }
     """
     # Normalize curly quotes to straight quotes (English only, as requested)
     # This handles copy-paste from phones/messaging apps
-    message = message.replace("“", '"').replace("”", '"')
-    message = message.replace("‘", "'").replace("’", "'")
+    message = message.replace("\u201c", '"').replace("\u201d", '"')  # "" → "
+    message = message.replace("\u2018", "'").replace("\u2019", "'")  # '' → '
 
     # Check for simple commands first (no args)
     simple_cmd = message.strip().lower()
@@ -101,6 +109,8 @@ def parse_egregora_command(message: str) -> dict | None:
         return {"command": "opt-out"}
     elif simple_cmd == EgregoraCommand.OPT_IN.value:
         return {"command": "opt-in"}
+    elif simple_cmd == "/egregora unset avatar":
+        return {"command": "unset", "target": "avatar", "value": None}
 
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
@@ -108,6 +118,10 @@ def parse_egregora_command(message: str) -> dict | None:
 
     action = match.group(1).lower()
     args = match.group(2).strip()
+
+    # Special handling for "unset" as an alias for "remove"
+    if action == "unset":
+        return {"command": "unset", "target": args.lower(), "value": None}
 
     if action in COMMAND_REGISTRY:
         return COMMAND_REGISTRY[action](args)
