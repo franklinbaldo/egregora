@@ -46,18 +46,24 @@ pip install egregora
 
 ### From Source
 
-For development:
+For development (works on Windows, Linux, and macOS):
 
 ```bash
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Install with all development dependencies
-uv sync --all-extras
+# Quick setup (installs dependencies + pre-commit hooks)
+python devtools/setup_hooks.py
+
+# Or manual setup
+uv sync --extra lint --extra test
+uv run pre-commit install
 
 # Run tests
 uv run pytest tests/
 ```
+
+See [Contributing Guide](../development/contributing.md) for full development setup.
 
 ## API Key Setup
 

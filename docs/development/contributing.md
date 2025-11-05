@@ -12,17 +12,36 @@ Thank you for your interest in contributing to Egregora! This guide will help yo
 
 ### Clone and Install
 
+**Quick setup** (works on Windows, Linux, and macOS):
+
 ```bash
 # Clone the repository
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Install with all development dependencies
-uv sync --all-extras
+# One-command setup (installs dependencies + pre-commit hooks)
+python devtools/setup_hooks.py
 
 # Verify installation
 uv run egregora --version
 ```
+
+**Or manual setup:**
+
+```bash
+# Install with all development dependencies
+uv sync --extra lint --extra test
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+The setup script will:
+- Install all dependencies (including lint and test extras)
+- Install pre-commit hooks automatically
+- Configure your development environment
+
+Pre-commit hooks will run automatically on `git commit` to ensure code quality.
 
 ## Development Workflow
 
@@ -57,6 +76,10 @@ uv run pytest --cov=egregora tests/
 ### 4. Lint Your Code
 
 ```bash
+# Run all pre-commit checks (recommended)
+uv run pre-commit run --all-files
+
+# Or use individual tools:
 # Check code style
 uv run ruff check src/
 
@@ -64,8 +87,10 @@ uv run ruff check src/
 uv run ruff check --fix src/
 
 # Format code
-uv run black src/
+uv run ruff format src/
 ```
+
+**Note:** Pre-commit hooks will run these checks automatically on `git commit` if you used the setup script.
 
 ### 5. Update Documentation
 
