@@ -189,7 +189,7 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     table = parse_export(export, timezone=whatsapp_fixture.timezone)
 
     authors = table["author"].execute().tolist()
-    for forbidden in {"Franklin", "Iuri Brasil", "Você", "Eurico Max"}:
+    for forbidden in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
         assert forbidden not in authors
 
     messages = table["message"].execute().tolist()
