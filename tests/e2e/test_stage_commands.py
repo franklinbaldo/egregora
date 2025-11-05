@@ -19,13 +19,13 @@ from egregora.cli import app
 runner = CliRunner()
 
 
-@pytest.fixture
+@pytest.fixture()
 def test_zip_file():
     """Path to the test WhatsApp export ZIP file."""
     return Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
 
 
-@pytest.fixture
+@pytest.fixture()
 def test_output_dir(tmp_path):
     """Temporary output directory for tests."""
     output_dir = tmp_path / "output"
@@ -103,7 +103,7 @@ class TestParseCommand:
 class TestGroupCommand:
     """Tests for 'egregora group' command."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def parsed_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV for group tests."""
         output_csv = test_output_dir / "messages.csv"
@@ -231,7 +231,7 @@ class TestGroupCommand:
         assert "not found" in result.stdout.lower()
 
 
-@pytest.mark.vcr
+@pytest.mark.vcr()
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
     reason="GOOGLE_API_KEY required for enrich tests with VCR",
@@ -239,7 +239,7 @@ class TestGroupCommand:
 class TestEnrichCommand:
     """Tests for 'egregora enrich' command with VCR."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def parsed_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV for enrich tests."""
         output_csv = test_output_dir / "messages.csv"
@@ -247,7 +247,7 @@ class TestEnrichCommand:
         assert result.exit_code == 0
         return output_csv
 
-    @pytest.fixture
+    @pytest.fixture()
     def site_dir(self, test_output_dir):
         """Create a minimal site directory."""
         site = test_output_dir / "site"
@@ -281,7 +281,7 @@ class TestEnrichCommand:
         # Note: Enrichment may not find anything to enrich, which is OK
 
 
-@pytest.mark.vcr
+@pytest.mark.vcr()
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
     reason="GOOGLE_API_KEY required for gather-context tests with VCR",
@@ -289,7 +289,7 @@ class TestEnrichCommand:
 class TestGatherContextCommand:
     """Tests for 'egregora gather-context' command with VCR."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def enriched_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV (enrichment optional for testing)."""
         output_csv = test_output_dir / "messages.csv"
@@ -297,7 +297,7 @@ class TestGatherContextCommand:
         assert result.exit_code == 0
         return output_csv
 
-    @pytest.fixture
+    @pytest.fixture()
     def site_dir(self, test_output_dir):
         """Create a minimal site directory."""
         site = test_output_dir / "site"
@@ -332,7 +332,7 @@ class TestGatherContextCommand:
         assert result.exit_code in (0, 1)
 
 
-@pytest.mark.vcr
+@pytest.mark.vcr()
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
     reason="GOOGLE_API_KEY required for write-posts tests with VCR",
@@ -340,7 +340,7 @@ class TestGatherContextCommand:
 class TestWritePostsCommand:
     """Tests for 'egregora write-posts' command with VCR."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def enriched_csv(self, test_zip_file, test_output_dir):
         """Create a parsed CSV."""
         output_csv = test_output_dir / "messages.csv"
@@ -348,7 +348,7 @@ class TestWritePostsCommand:
         assert result.exit_code == 0
         return output_csv
 
-    @pytest.fixture
+    @pytest.fixture()
     def site_dir(self, test_output_dir):
         """Create a minimal site directory."""
         site = test_output_dir / "site"
@@ -404,9 +404,9 @@ class TestWritePostsCommand:
             post_files = list(posts_target_dir.glob("*.md"))
             # If there are posts, ensure they are in the right place
             if post_files:
-                assert all(p.parent == posts_target_dir for p in post_files), (
-                    "Posts should be in the '.posts' subdirectory."
-                )
+                assert all(
+                    p.parent == posts_target_dir for p in post_files
+                ), "Posts should be in the '.posts' subdirectory."
         else:
             # If the directory doesn't exist, it means no posts were written, which is a valid outcome.
             # We can also check that no posts were written to the *wrong* directory.

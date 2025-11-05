@@ -3,9 +3,9 @@
 from pathlib import Path
 
 import pytest
-from egregora.write_post import write_post
 
 from egregora.utils import PathTraversalError, safe_path_join, slugify
+from egregora.write_post import write_post
 
 
 class TestSlugify:
