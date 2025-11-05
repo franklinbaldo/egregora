@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import ibis
 import pandas as pd
 import pytest
-
 from egregora.database_schema import CONVERSATION_SCHEMA
+
 from egregora.enrichment.core import enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 
@@ -38,7 +38,7 @@ class StubBatchClient:
         return SimpleNamespace(uri=f"stub://{Path(path).name}", mime_type="image/jpeg")
 
 
-@pytest.fixture()
+@pytest.fixture
 def duckdb_backend():
     backend = ibis.duckdb.connect()
     try:

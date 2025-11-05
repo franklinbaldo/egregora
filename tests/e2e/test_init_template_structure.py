@@ -53,9 +53,9 @@ def test_init_creates_all_template_files(tmp_path: Path):
     # Verify each template has a corresponding output file
     for template_name, expected_path in expected_files.items():
         output_file = tmp_path / expected_path
-        assert (
-            output_file.exists()
-        ), f"Template '{template_name}' should generate file at '{expected_path}', but file does not exist"
+        assert output_file.exists(), (
+            f"Template '{template_name}' should generate file at '{expected_path}', but file does not exist"
+        )
 
     # Verify blog index (not from template, but created by scaffolding)
     blog_index = tmp_path / "docs" / "index.md"
@@ -183,6 +183,6 @@ def test_template_files_match_output_structure():
             assert "gitignore" in template_name.lower()
         else:
             base_name = expected_output.replace(".md", "").replace(".yml", "").lower()
-            assert (
-                base_name in template_name.lower()
-            ), f"Template '{template_name}' should contain '{base_name}' in its name"
+            assert base_name in template_name.lower(), (
+                f"Template '{template_name}' should contain '{base_name}' in its name"
+            )
