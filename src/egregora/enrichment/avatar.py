@@ -97,9 +97,7 @@ def _validate_url_for_ssrf(url: str) -> None:
 
     # Check scheme
     if parsed.scheme not in ("http", "https"):
-        raise AvatarProcessingError(
-            f"Invalid URL scheme: {parsed.scheme}. Only HTTP and HTTPS are allowed."
-        )
+        raise AvatarProcessingError(f"Invalid URL scheme: {parsed.scheme}. Only HTTP and HTTPS are allowed.")
 
     # Get hostname
     hostname = parsed.hostname
@@ -167,8 +165,7 @@ def _validate_image_format(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     if ext not in SUPPORTED_IMAGE_EXTENSIONS:
         raise AvatarProcessingError(
-            f"Unsupported image format: {ext}. "
-            f"Supported formats: {', '.join(SUPPORTED_IMAGE_EXTENSIONS)}"
+            f"Unsupported image format: {ext}. Supported formats: {', '.join(SUPPORTED_IMAGE_EXTENSIONS)}"
         )
     return ext
 
@@ -237,16 +234,14 @@ def download_avatar_from_url(
             content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
             if content_type not in ALLOWED_MIME_TYPES:
                 raise AvatarProcessingError(
-                    f"Invalid image MIME type: {content_type}. "
-                    f"Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+                    f"Invalid image MIME type: {content_type}. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
                 )
 
             # Check size
             content = response.content
             if len(content) > MAX_AVATAR_SIZE_BYTES:
                 raise AvatarProcessingError(
-                    f"Avatar image too large: {len(content)} bytes "
-                    f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                    f"Avatar image too large: {len(content)} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
                 )
 
             # Infer extension from content-type or URL
@@ -319,9 +314,7 @@ def extract_avatar_from_zip(
 
                 # Validate that the filename doesn't contain path traversal sequences
                 if ".." in info.filename or info.filename.startswith("/"):
-                    logger.warning(
-                        f"Skipping suspicious ZIP entry with path traversal: {info.filename}"
-                    )
+                    logger.warning(f"Skipping suspicious ZIP entry with path traversal: {info.filename}")
                     continue
 
                 filename = Path(info.filename).name
@@ -401,9 +394,7 @@ def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, st
             status = "approved"
         else:
             # Default to questionable if no clear status found
-            logger.warning(
-                "No clear moderation status found in enrichment, defaulting to QUESTIONABLE"
-            )
+            logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
             status = "questionable"
 
     # Check for PII (this is always a keyword check)
@@ -510,6 +501,6 @@ __all__ = [
     "AvatarProcessingError",
     "ModerationStatus",
     "download_avatar_from_url",
-    "extract_avatar_from_zip",
     "enrich_and_moderate_avatar",
+    "extract_avatar_from_zip",
 ]

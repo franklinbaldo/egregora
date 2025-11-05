@@ -517,10 +517,7 @@ def update_profile_avatar(  # noqa: PLR0913
     # Build avatar section content
     if moderation_status == "approved":
         avatar_content = (
-            f"- UUID: {avatar_uuid}\n"
-            f"- Path: {avatar_path}\n"
-            f"- Status: ✅ Approved\n"
-            f"- Set on: {timestamp}"
+            f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ✅ Approved\n- Set on: {timestamp}"
         )
         logger.info(f"✅ Avatar approved for {author_uuid}")
     elif moderation_status == "questionable":

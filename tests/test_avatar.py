@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from egregora.enrichment.avatar import (
-    AvatarProcessingError,
-    _generate_avatar_uuid,
-    _validate_image_format,
-)
 from egregora.agents.tools.profiler import (
     get_avatar_info,
     remove_profile_avatar,
     update_profile_avatar,
+)
+from egregora.enrichment.avatar import (
+    AvatarProcessingError,
+    _generate_avatar_uuid,
+    _validate_image_format,
 )
 from egregora.ingestion.parser import parse_egregora_command
 
