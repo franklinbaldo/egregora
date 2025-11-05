@@ -293,7 +293,7 @@ class WhatsAppAdapter(SourceAdapter):
             # Catch any unexpected errors but log them as warnings for investigation
             logger.warning(
                 f"Unexpected error extracting {media_reference} from {zip_path}: {type(e).__name__}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return None
 
@@ -321,7 +321,7 @@ class WhatsAppAdapter(SourceAdapter):
             "extract_media() is deprecated and will be removed in a future version. "
             "Use deliver_media() for lazy media extraction instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         # Deprecated: Use deliver_media() instead for lazy extraction
         return {}
