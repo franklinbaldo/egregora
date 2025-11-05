@@ -17,8 +17,8 @@ Guide for contributors to Egregora.
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Quick setup (recommended)
-make setup-dev
+# Quick setup (recommended) - works on Windows, Linux, macOS
+python devtools/setup_hooks.py
 
 # This will:
 # - Sync all dependencies (including lint and test extras)
@@ -26,23 +26,21 @@ make setup-dev
 # - Set up your development environment
 
 # Alternative: Manual setup
-python3.12 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install uv
-uv pip install -e '.[docs,lint,test]'
-uv run pre-commit install  # Install pre-commit hooks
+uv sync --extra lint --extra test
+uv run pre-commit install
 ```
 
-### Available Make Commands
+### Available Development Commands
+
+All commands work cross-platform (Windows, Linux, macOS):
 
 ```bash
-make help           # Show all available commands
-make setup-dev      # Set up development environment (deps + pre-commit hooks)
-make install-hooks  # Install pre-commit hooks only
-make test           # Run tests
-make lint           # Run all linting checks
-make format         # Auto-format code
-make clean          # Clean up build artifacts and caches
+python devtools/setup_hooks.py     # Set up development environment (deps + pre-commit hooks)
+uv run pytest                      # Run tests
+uv run pre-commit run --all-files  # Run all linting checks
+uv run ruff format .               # Format code
+uv run ruff check .                # Check code with ruff
+uv run ruff check --fix .          # Lint and auto-fix
 ```
 
 ## TENET-BREAK — Philosophy Violation Flag
@@ -170,19 +168,16 @@ PY
 
 ```bash
 # Run tests
-make test
-# Or: pytest tests/
+uv run pytest tests/
 
 # Lint code
-make lint
-# Or: ruff check src/
+uv run ruff check src/
 
-# Format check
-make format
-# Or: ruff format src/
+# Format code
+uv run ruff format src/
 
 # Type check
-mypy src/
+uv run mypy src/
 ```
 
 ## Project Structure
@@ -245,26 +240,26 @@ pytest --cov=egregora tests/
 
 ```bash
 # Run all pre-commit checks (recommended)
-make lint
+uv run pre-commit run --all-files
 
 # Auto-format code
-make format
+uv run ruff format .
 
 # Or use individual tools:
 # Check linting
-ruff check src/
+uv run ruff check src/
 
 # Auto-fix issues
-ruff check --fix src/
+uv run ruff check --fix src/
 
 # Format code
-ruff format src/
+uv run ruff format src/
 
 # Type check
-mypy src/
+uv run mypy src/
 ```
 
-**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `make setup-dev` or `make install-hooks`.
+**Note:** Pre-commit hooks will automatically run these checks on `git commit` if you ran `python devtools/setup_hooks.py`.
 
 ### 6. Commit Changes
 
