@@ -463,11 +463,11 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 
 
 def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
-    """Test that parser strictly enforces MESSAGE_SCHEMA without extra columns."""
+    """Test that parser strictly enforces CONVERSATION_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_export(export, timezone=whatsapp_fixture.timezone)
 
-    # Verify table only has MESSAGE_SCHEMA columns (including message_id)
+    # Verify table only has CONVERSATION_SCHEMA columns (including message_id)
     expected_columns = {
         "timestamp",
         "date",

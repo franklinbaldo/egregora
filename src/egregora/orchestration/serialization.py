@@ -86,7 +86,7 @@ def load_table_with_auto_schema(
     """
     Load an Ibis Table from CSV with automatic schema detection.
 
-    Use this when the CSV might not match MESSAGE_SCHEMA (e.g., enriched tables).
+    Use this when the CSV might not match CONVERSATION_SCHEMA (e.g., enriched tables).
 
     Args:
         input_path: Path to input CSV file
