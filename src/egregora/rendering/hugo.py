@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from egregora.output_format import OutputFormat, SiteConfiguration
+from egregora.rendering.base import OutputFormat, SiteConfiguration
 
 logger = logging.getLogger(__name__)
 

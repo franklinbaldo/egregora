@@ -20,7 +20,7 @@ from typing import Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora.input_source import InputMetadata, InputSource
+from egregora.ingestion.base import InputMetadata, InputSource
 
 logger = logging.getLogger(__name__)
 

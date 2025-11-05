@@ -10,12 +10,12 @@ from typing import Any
 
 from ibis.expr.types import Table
 
-from egregora.agents.tools.enrichment.batch import _iter_table_record_batches
-from egregora.agents.tools.enrichment.media import (
+from egregora.enrichment.batch import _iter_table_record_batches
+from egregora.enrichment.media import (
     extract_media_from_zip,
     find_media_references,
 )
-from egregora.input_source import InputMetadata, InputSource
+from egregora.ingestion.base import InputMetadata, InputSource
 from egregora.models import WhatsAppExport
 from egregora.schema import group_slug
 

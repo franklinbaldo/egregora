@@ -11,10 +11,9 @@ from egregora.config.site import (
     load_mkdocs_config,
     resolve_site_paths,
 )
-from egregora.output_format import OutputFormat, SiteConfiguration
+from egregora.init.scaffolding import ensure_mkdocs_project
+from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.utils.write_post import write_post as write_mkdocs_post
-
-from .scaffolding import ensure_mkdocs_project
 
 logger = logging.getLogger(__name__)
 

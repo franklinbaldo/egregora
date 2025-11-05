@@ -416,7 +416,7 @@ def edit(
     if prompt_dry_run:
         from jinja2 import Environment, FileSystemLoader
 
-        from ..agents.resolver import AgentResolver
+        from egregora.agents.resolver import AgentResolver
 
         resolver = AgentResolver(egregora_path, docs_path)
         agent_config, prompt_template, final_vars = resolver.resolve(post_file, agent)
