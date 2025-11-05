@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import ipaddress
 import logging
 import socket
@@ -14,6 +15,7 @@ from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from PIL import Image
 
 from ..config import MEDIA_DIR_NAME
 from ..prompt_templates import AvatarEnrichmentPromptTemplate
@@ -33,8 +35,20 @@ ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 # Max avatar file size (10MB)
 MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024
 
+# Max image dimensions (width or height)
+MAX_IMAGE_DIMENSION = 4096
+
 # Default timeout for avatar downloads (seconds)
 DEFAULT_DOWNLOAD_TIMEOUT = 30.0
+
+# Magic bytes for image validation
+MAGIC_BYTES = {
+    b'\xff\xd8\xff': 'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'GIF87a': 'image/gif',
+    b'GIF89a': 'image/gif',
+    b'RIFF': 'image/webp',  # WEBP starts with RIFF (followed by WEBP)
+}
 
 # Private IP ranges to block (SSRF prevention)
 BLOCKED_IP_RANGES = [
@@ -170,6 +184,80 @@ def _validate_image_format(filename: str) -> str:
     return ext
 
 
+def _validate_image_content(content: bytes, expected_mime: str) -> None:
+    """
+    Validate that image content matches expected MIME type using magic bytes.
+
+    This prevents attacks where executable code is disguised with an image MIME type header.
+
+    Args:
+        content: The image file content
+        expected_mime: The expected MIME type from Content-Type header
+
+    Raises:
+        AvatarProcessingError: If content doesn't match expected type
+    """
+    # Check magic bytes
+    for magic, mime_type in MAGIC_BYTES.items():
+        if content.startswith(magic):
+            # Special handling for WEBP (RIFF can be other formats too)
+            if magic == b'RIFF' and len(content) >= 12:
+                if content[8:12] == b'WEBP':
+                    if expected_mime != 'image/webp':
+                        raise AvatarProcessingError(
+                            f"Image content is WEBP but declared as {expected_mime}"
+                        )
+                    return
+                else:
+                    raise AvatarProcessingError(
+                        f"RIFF file is not WEBP format (expected {expected_mime})"
+                    )
+
+            # Normal validation for other formats
+            if mime_type != expected_mime:
+                raise AvatarProcessingError(
+                    f"Image content type mismatch: content appears to be {mime_type} "
+                    f"but declared as {expected_mime}"
+                )
+            return
+
+    # No magic bytes matched
+    raise AvatarProcessingError(
+        f"Unable to verify image format. Content does not match any supported image type."
+    )
+
+
+def _validate_image_dimensions(content: bytes) -> None:
+    """
+    Validate image dimensions to prevent memory exhaustion attacks.
+
+    Extremely large dimensions could cause memory issues during image processing
+    even if the file size is within limits (e.g., highly compressed images).
+
+    Args:
+        content: The image file content
+
+    Raises:
+        AvatarProcessingError: If dimensions exceed limits
+    """
+    try:
+        img = Image.open(io.BytesIO(content))
+        width, height = img.size
+
+        if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+            raise AvatarProcessingError(
+                f"Image dimensions too large: {width}x{height} pixels. "
+                f"Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels."
+            )
+
+        logger.debug(f"Image dimensions validated: {width}x{height} pixels")
+
+    except AvatarProcessingError:
+        raise
+    except Exception as e:
+        raise AvatarProcessingError(f"Failed to validate image dimensions: {e}") from e
+
+
 def download_avatar_from_url(
     url: str,
     docs_dir: Path,
@@ -244,6 +332,12 @@ def download_avatar_from_url(
                     f"Avatar image too large: {len(content)} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
                 )
 
+            # Validate content matches declared MIME type (magic bytes check)
+            _validate_image_content(content, content_type)
+
+            # Validate image dimensions to prevent memory exhaustion
+            _validate_image_dimensions(content)
+
             # Infer extension from content-type or URL
             if content_type.startswith("image/jpeg"):
                 ext = ".jpg"
@@ -273,9 +367,11 @@ def download_avatar_from_url(
             return avatar_uuid, avatar_path
 
     except httpx.HTTPError as e:
-        raise AvatarProcessingError(f"Failed to download avatar from URL: {e}") from e
+        logger.debug(f"HTTP error details: {e}")  # Full error in logs only
+        raise AvatarProcessingError("Failed to download avatar. Please check the URL and try again.") from e
     except OSError as e:
-        raise AvatarProcessingError(f"Failed to save avatar: {e}") from e
+        logger.debug(f"File system error details: {e}")  # Full error in logs only
+        raise AvatarProcessingError("Failed to save avatar due to file system error.") from e
 
 
 def extract_avatar_from_zip(
@@ -330,6 +426,24 @@ def extract_avatar_from_zip(
 
                     # Read content
                     content = zf.read(info)
+
+                    # Infer MIME type from extension for validation
+                    if ext in ('.jpg', '.jpeg'):
+                        mime_type = 'image/jpeg'
+                    elif ext == '.png':
+                        mime_type = 'image/png'
+                    elif ext == '.gif':
+                        mime_type = 'image/gif'
+                    elif ext == '.webp':
+                        mime_type = 'image/webp'
+                    else:
+                        raise AvatarProcessingError(f"Unsupported extension: {ext}")
+
+                    # Validate content matches extension (magic bytes check)
+                    _validate_image_content(content, mime_type)
+
+                    # Validate image dimensions to prevent memory exhaustion
+                    _validate_image_dimensions(content)
 
                     # Generate UUID and save
                     avatar_uuid = _generate_avatar_uuid(content, group_slug)
@@ -397,8 +511,8 @@ def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, st
             logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
             status = "questionable"
 
-    # Check for PII (this is always a keyword check)
-    has_pii = "PII_DETECTED" in enrichment_text
+    # Check for PII (case-insensitive with word boundaries for robustness)
+    has_pii = bool(re.search(r'\bPII[_\s-]DETECTED\b', enrichment_text, re.IGNORECASE))
 
     # Generate reason based on status
     if status == "blocked":
