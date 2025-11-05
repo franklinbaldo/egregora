@@ -403,9 +403,7 @@ Use the comment_post_b tool to:
 
 Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
 
-    with logfire_span(
-        "ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model
-    ):
+    with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
         # Create agent - text output since we collect results in state
         agent = Agent[RankingAgentState, str](
             model=agent_model or GoogleModel(model),
