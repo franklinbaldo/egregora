@@ -19,7 +19,7 @@ def register_all() -> None:
 
     Note: Template implementations are not registered:
     - SlackInputSource: Template in ingestion/slack_input.py (needs completion)
-    - HugoOutputFormat: Template in init/hugo_output.py (needs completion)
+    - HugoOutputFormat: Template in rendering/hugo.py (needs completion)
 
     To enable templates, complete their implementation and add them here.
     """
