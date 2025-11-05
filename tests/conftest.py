@@ -319,3 +319,26 @@ def vcr_config():
         "before_record_request": _serialize_request_body,
         "before_record_response": _serialize_response_body,
     }
+
+
+@pytest.fixture
+def whatsapp_export_data(tmp_path):
+    """Provides a WhatsAppExport object and a duckdb connection."""
+    zip_path = Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
+    group_name, chat_file = discover_chat_file(zip_path)
+    group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+
+    export = WhatsAppExport(
+        zip_path=zip_path,
+        group_name=group_name,
+        group_slug=group_slug,
+        export_date=date(2025, 10, 28),
+        chat_file=chat_file,
+        media_files=[],
+    )
+
+    db_path = tmp_path / "test.db"
+    con = duckdb.connect(database=str(db_path), read_only=False)
+    ibis.set_backend(ibis.duckdb.connect(str(db_path)))
+
+    return export, con
