@@ -12,16 +12,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ibis.expr.types import Table
-
 from egregora.pipeline.adapters import SourceAdapter
 from egregora.pipeline.base import PipelineStage, StageResult
 from egregora.pipeline.ir import validate_ir_schema
 
 __all__ = [
-    "PipelineContext",
-    "PipelineConfig",
     "CoreOrchestrator",
+    "PipelineConfig",
+    "PipelineContext",
 ]
 
 logger = logging.getLogger(__name__)
@@ -166,8 +164,8 @@ class CoreOrchestrator:
         is_valid, errors = validate_ir_schema(messages_table)
         if not is_valid:
             raise ValueError(
-                f"Source adapter produced invalid IR schema. Errors:\n" +
-                "\n".join(f"  - {err}" for err in errors)
+                "Source adapter produced invalid IR schema. Errors:\n"
+                + "\n".join(f"  - {err}" for err in errors)
             )
 
         total_messages = messages_table.count().execute()
@@ -184,7 +182,9 @@ class CoreOrchestrator:
                 logger.info(f"[green]📎 Extracted[/] {len(media_mapping)} media files")
                 context.artifacts["media_mapping"] = media_mapping
         except NotImplementedError:
-            logger.debug(f"Source adapter {self.source_adapter.source_name} does not support media extraction")
+            logger.debug(
+                f"Source adapter {self.source_adapter.source_name} does not support media extraction"
+            )
 
         # Step 3: Get metadata (if available)
         try:
@@ -209,8 +209,8 @@ class CoreOrchestrator:
             is_valid, errors = stage.validate_input(current_data, context.artifacts)
             if not is_valid:
                 raise ValueError(
-                    f"Stage '{stage.stage_name}' input validation failed:\n" +
-                    "\n".join(f"  - {err}" for err in errors)
+                    f"Stage '{stage.stage_name}' input validation failed:\n"
+                    + "\n".join(f"  - {err}" for err in errors)
                 )
 
             # Execute stage
@@ -254,8 +254,4 @@ class CoreOrchestrator:
 
     def __repr__(self) -> str:
         """String representation of the orchestrator."""
-        return (
-            f"CoreOrchestrator("
-            f"adapter={self.source_adapter.source_identifier}, "
-            f"stages={len(self.stages)})"
-        )
+        return f"CoreOrchestrator(adapter={self.source_adapter.source_identifier}, stages={len(self.stages)})"

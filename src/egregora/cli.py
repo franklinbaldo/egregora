@@ -44,7 +44,7 @@ from egregora.ingestion.parser import parse_export
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
 from egregora.pipeline.runner import run_source_pipeline
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file, process_whatsapp_export
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.gemini_dispatcher import GeminiDispatcher

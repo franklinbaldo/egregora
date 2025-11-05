@@ -1,7 +1,6 @@
 """Tests for source adapters (WhatsApp, Slack, etc.)."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 

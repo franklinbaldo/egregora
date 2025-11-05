@@ -17,8 +17,8 @@ from egregora.schema import DEFAULT_TIMEZONE, ensure_message_schema
 
 __all__ = [
     "IR_SCHEMA",
-    "validate_ir_schema",
     "create_ir_table",
+    "validate_ir_schema",
 ]
 
 
@@ -30,11 +30,9 @@ IR_SCHEMA: dict[str, dt.DataType] = {
     "date": dt.Date(),  # derived from timestamp
     "author": dt.String(),  # anonymized or pseudonymized author identifier
     "message": dt.String(),  # message content/body
-
     # Metadata fields (for debugging and processing tracking)
     "original_line": dt.String(),  # original raw line from source (for debugging)
     "tagged_line": dt.String(),  # processing tracking field
-
     # Identifiers
     "message_id": dt.String(nullable=True),  # deterministic message ID
 }
@@ -67,8 +65,7 @@ def validate_ir_schema(table: Table) -> tuple[bool, list[str]]:
         actual_dtype = schema[col_name]
         if not _is_dtype_compatible(actual_dtype, expected_dtype):
             errors.append(
-                f"Column '{col_name}' has incompatible type. "
-                f"Expected: {expected_dtype}, Got: {actual_dtype}"
+                f"Column '{col_name}' has incompatible type. Expected: {expected_dtype}, Got: {actual_dtype}"
             )
 
     return len(errors) == 0, errors

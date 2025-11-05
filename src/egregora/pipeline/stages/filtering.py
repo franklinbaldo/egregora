@@ -102,10 +102,7 @@ class FilteringStage(PipelineStage):
             pre_date_filter_count = data.count().execute()
 
             if from_date and to_date:
-                data = data.filter(
-                    (data.timestamp.date() >= from_date)
-                    & (data.timestamp.date() <= to_date)
-                )
+                data = data.filter((data.timestamp.date() >= from_date) & (data.timestamp.date() <= to_date))
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
                 data = data.filter(data.timestamp.date() >= from_date)
@@ -125,8 +122,7 @@ class FilteringStage(PipelineStage):
                 )
             else:
                 logger.info(
-                    f"[green]✓ All[/] {post_date_filter_count} messages are within "
-                    f"the specified date range"
+                    f"[green]✓ All[/] {post_date_filter_count} messages are within the specified date range"
                 )
         else:
             metrics["date_filtered_messages_removed"] = 0
@@ -136,8 +132,7 @@ class FilteringStage(PipelineStage):
         total_removed = original_count - final_count
 
         logger.info(
-            f"[green]✓ Filtering complete:[/] {final_count} messages remaining "
-            f"({total_removed} removed)"
+            f"[green]✓ Filtering complete:[/] {final_count} messages remaining ({total_removed} removed)"
         )
 
         return StageResult(

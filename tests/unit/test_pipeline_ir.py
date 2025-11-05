@@ -1,7 +1,6 @@
 """Tests for pipeline IR (Intermediate Representation) schema and validation."""
 
 import ibis
-import pytest
 
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 

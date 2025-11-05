@@ -15,9 +15,9 @@ from typing import Any
 from ibis.expr.types import Table
 
 __all__ = [
+    "PipelineStage",
     "StageConfig",
     "StageResult",
-    "PipelineStage",
 ]
 
 

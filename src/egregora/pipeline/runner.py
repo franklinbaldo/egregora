@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import duckdb
 import ibis
@@ -19,7 +18,7 @@ from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
-from egregora.config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
+from egregora.config import ModelConfig, load_site_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
@@ -165,8 +164,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
         is_valid, errors = validate_ir_schema(messages_table)
         if not is_valid:
             raise ValueError(
-                f"Source adapter produced invalid IR schema. Errors:\n" +
-                "\n".join(f"  - {err}" for err in errors)
+                "Source adapter produced invalid IR schema. Errors:\n"
+                + "\n".join(f"  - {err}" for err in errors)
             )
 
         total_messages = messages_table.count().execute()
@@ -220,9 +219,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
         if egregora_removed:
             logger.info(f"[yellow]🧹 Removed[/] {egregora_removed} /egregora messages")
 
-        messages_table, removed_count = filter_opted_out_authors(
-            messages_table, site_paths.profiles_dir
-        )
+        messages_table, removed_count = filter_opted_out_authors(messages_table, site_paths.profiles_dir)
         if removed_count > 0:
             logger.warning(f"⚠️  {removed_count} messages removed from opted-out users")
 
@@ -247,10 +244,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             removed_by_date = original_count - filtered_count
 
             if removed_by_date > 0:
-                logger.info(
-                    f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages "
-                    f"(kept {filtered_count})"
-                )
+                logger.info(f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages (kept {filtered_count})")
 
         # Step 13: Group by period
         logger.info(f"🎯 [bold cyan]Grouping by period:[/] {period}")
@@ -310,14 +304,14 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
-                            steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "completed"
-                            )["steps"]
+                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
+                                "steps"
+                            ]
                 else:
                     if resume:
-                        steps_state = checkpoint_store.update_step(
-                            period_key, "enrichment", "in_progress"
-                        )["steps"]
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
+                            "steps"
+                        ]
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
@@ -330,9 +324,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
-                        steps_state = checkpoint_store.update_step(
-                            period_key, "enrichment", "completed"
-                        )["steps"]
+                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
+                            "steps"
+                        ]
             else:
                 enriched_table = period_table
                 enriched_table.execute().to_csv(enriched_path, index=False)
@@ -347,9 +341,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                 }
             else:
                 if resume:
-                    steps_state = checkpoint_store.update_step(
-                        period_key, "writing", "in_progress"
-                    )["steps"]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
                 result = write_posts_for_period(
                     enriched_table,
                     period_key,
@@ -366,16 +358,13 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                     retrieval_overfetch=retrieval_overfetch,
                 )
                 if resume:
-                    steps_state = checkpoint_store.update_step(
-                        period_key, "writing", "completed"
-                    )["steps"]
+                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
 
             results[period_key] = result
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
             logger.info(
-                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles "
-                f"for {period_key}"
+                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}"
             )
 
         # Step 15: Index media into RAG

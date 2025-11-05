@@ -32,18 +32,15 @@ def get_adapter(source_identifier: str):
     """
     if source_identifier not in ADAPTER_REGISTRY:
         available = ", ".join(ADAPTER_REGISTRY.keys())
-        raise ValueError(
-            f"Unknown source: '{source_identifier}'. "
-            f"Available sources: {available}"
-        )
+        raise ValueError(f"Unknown source: '{source_identifier}'. Available sources: {available}")
 
     adapter_class = ADAPTER_REGISTRY[source_identifier]
     return adapter_class()
 
 
 __all__ = [
-    "WhatsAppAdapter",
-    "SlackAdapter",
     "ADAPTER_REGISTRY",
+    "SlackAdapter",
+    "WhatsAppAdapter",
     "get_adapter",
 ]
