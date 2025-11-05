@@ -9,9 +9,11 @@ import ibis.expr.datatypes as dt
 from ibis import udf
 from ibis.expr.types import Table
 
-__all__ = ["MESSAGE_SCHEMA", "WHATSAPP_SCHEMA", "ensure_message_schema"]
+from egregora.types import GroupSlug
 
-# Default timezone for WhatsApp exports (no timezone in export files)
+__all__ = ["MESSAGE_SCHEMA", "WHATSAPP_SCHEMA", "ensure_message_schema", "group_slug"]
+
+# Default timezone for chat exports (used when exports lack timezone info)
 DEFAULT_TIMEZONE = "UTC"
 
 MESSAGE_SCHEMA: dict[str, dt.DataType] = {
@@ -24,8 +26,20 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
 }
 
-# Alias for MESSAGE_SCHEMA - represents full WhatsApp conversation data
+# Alias for MESSAGE_SCHEMA - kept for backward compatibility
 WHATSAPP_SCHEMA = MESSAGE_SCHEMA
+
+
+def group_slug(group_name: str) -> GroupSlug:
+    """Create a URL-safe slug from a group name.
+
+    Args:
+        group_name: The display name of the group
+
+    Returns:
+        A URL-safe slug suitable for use in file paths and URLs
+    """
+    return GroupSlug(group_name.lower().replace(" ", "-"))
 
 
 @udf.scalar.builtin(

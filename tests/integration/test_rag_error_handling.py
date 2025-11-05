@@ -202,7 +202,7 @@ class TestRagErrorHandling:
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""
-        import logging  # noqa: PLC0415
+        import logging
 
         caplog.set_level(logging.ERROR)
 

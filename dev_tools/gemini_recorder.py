@@ -105,9 +105,7 @@ class GeminiClientRecorder:
                 self._recorder = recorder
 
             def upload(self, **kwargs):
-                return self._recorder.upload_file(
-                    **kwargs.get("file", kwargs.get("path", "")), **kwargs
-                )
+                return self._recorder.upload_file(**kwargs.get("file", kwargs.get("path", "")), **kwargs)
 
             def __getattr__(self, name):
                 return getattr(self._client.files, name)

@@ -255,7 +255,7 @@ class TestWritePostSecurity:
         The slug in front matter MUST match the slug used in the filename to
         maintain consistency and prevent security issues.
         """
-        import yaml  # noqa: PLC0415
+        import yaml
 
         output_dir = tmp_path / "posts"
         output_dir.mkdir()

@@ -42,8 +42,8 @@ from egregora.database import duckdb_backend
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.ingestion.parser import parse_export
 from egregora.init import ensure_mkdocs_project
-from egregora.models import WhatsAppExport
-from egregora.pipeline import discover_chat_file, group_by_period, process_whatsapp_export
+from egregora.pipeline import group_by_period
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file, process_whatsapp_export
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.gemini_dispatcher import GeminiDispatcher

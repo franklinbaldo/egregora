@@ -2,7 +2,7 @@
 
 Type definitions and type aliases used throughout the codebase.
 
-::: egregora.core.types
+::: egregora.types
     options:
       show_source: true
       show_root_heading: true

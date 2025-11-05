@@ -132,14 +132,13 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 
-from egregora.models import WhatsAppExport
-from egregora.pipeline import discover_chat_file
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.zip import validate_zip_contents
 
 
 @pytest.fixture(autouse=True)
-def ibis_backend():
+def _ibis_backend():
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
     options = getattr(ibis, "options", None)
@@ -220,7 +219,7 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.utils.mock_batch_client import (  # noqa: PLC0415
+    from tests.utils.mock_batch_client import (
         MockGeminiBatchClient,
         MockGeminiClient,
     )
@@ -232,7 +231,7 @@ def mock_batch_client(monkeypatch):
     )
     # Patch where genai is imported in egregora modules
     monkeypatch.setattr(
-        "egregora.pipeline.genai.Client",
+        "egregora.sources.whatsapp.pipeline.genai.Client",
         MockGeminiClient,
     )
     monkeypatch.setattr(
@@ -246,7 +245,7 @@ def mock_batch_client(monkeypatch):
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(
-        "egregora.pipeline.GeminiBatchClient",
+        "egregora.sources.whatsapp.pipeline.GeminiBatchClient",
         MockGeminiBatchClient,
     )
     monkeypatch.setattr(

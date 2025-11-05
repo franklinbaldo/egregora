@@ -53,16 +53,28 @@ git branch -d feature/descriptive-name
 
 ## Development Commands
 
-### Setup
+### Setup (Cross-Platform)
+
+**Quick setup** - works on Windows, Linux, and macOS:
 ```bash
 # Clone and install dependencies
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
-uv sync --all-extras
 
-# Install optional dependencies
-uv sync --extra docs --extra lint --extra test
+# One-command setup (installs dependencies + pre-commit hooks)
+python dev_tools/setup_hooks.py
+
+# Or manual setup
+uv sync --extra lint --extra test
+uv run pre-commit install
 ```
+
+The setup script will:
+- Install all dependencies (including lint and test extras)
+- Install pre-commit hooks automatically
+- Configure your development environment
+
+Pre-commit hooks will run automatically on `git commit` to ensure code quality.
 
 ### Testing
 ```bash
@@ -76,6 +88,9 @@ uv run pytest tests/test_with_golden_fixtures.py  # VCR integration tests
 # Lint code
 uv run ruff check src/
 uv run ruff format src/ --check
+
+# Run all pre-commit checks manually
+uv run pre-commit run --all-files
 ```
 
 ### Running Egregora Locally
