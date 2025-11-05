@@ -8,11 +8,7 @@ from pathlib import Path
 from ibis.expr.types import Table
 
 from ..augmentation.enrichment.media import extract_urls, find_media_references
-from ..augmentation.profiler import (
-    get_author_display_name,
-    remove_profile_avatar,
-    update_profile_avatar,
-)
+from ..augmentation.profiler import remove_profile_avatar, update_profile_avatar
 from ..ingestion.parser import extract_commands
 from ..utils.gemini_dispatcher import GeminiDispatcher
 from .avatar import (
@@ -193,26 +189,19 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
             profiles_dir=profiles_dir,
         )
 
-        # Get user-friendly display name (alias if set, otherwise UUID)
-        display_name = get_author_display_name(author_uuid, profiles_dir)
-
         if moderation_result.status == "approved":
-            return f"✅ Avatar approved and set for {display_name}"
+            return f"✅ Avatar approved and set for {author_uuid}"
         elif moderation_result.status == "questionable":
-            return f"⚠️ Avatar requires manual review for {display_name}: {moderation_result.reason}"
+            return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
         else:  # blocked
-            return f"❌ Avatar blocked for {display_name}: {moderation_result.reason}"
+            return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
 
     except AvatarProcessingError as e:
-        # Get user-friendly display name for error messages too
-        display_name = get_author_display_name(author_uuid, profiles_dir)
         logger.error(f"Failed to process avatar for {author_uuid}: {e}")
-        return f"❌ Failed to process avatar for {display_name}: {e}"
+        return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
-        # Get user-friendly display name for error messages too
-        display_name = get_author_display_name(author_uuid, profiles_dir)
         logger.exception(f"Unexpected error processing avatar for {author_uuid}")
-        return f"❌ Unexpected error processing avatar for {display_name}: {e}"
+        return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
 
 
 def _process_unset_avatar_command(
@@ -234,15 +223,11 @@ def _process_unset_avatar_command(
             timestamp=str(timestamp),
             profiles_dir=profiles_dir,
         )
-        # Get user-friendly display name
-        display_name = get_author_display_name(author_uuid, profiles_dir)
-        return f"✅ Avatar removed for {display_name}"
+        return f"✅ Avatar removed for {author_uuid}"
 
     except Exception as e:
-        # Get user-friendly display name for error messages too
-        display_name = get_author_display_name(author_uuid, profiles_dir)
         logger.exception(f"Failed to remove avatar for {author_uuid}")
-        return f"❌ Failed to remove avatar for {display_name}: {e}"
+        return f"❌ Failed to remove avatar for {author_uuid}: {e}"
 
 
 __all__ = ["process_avatar_commands"]
