@@ -1,8 +1,10 @@
 """Centralized Gemini model configuration for all agents."""
 
 from __future__ import annotations
+
 import logging
 from typing import Any, Literal
+
 from egregora.config.site import load_mkdocs_config
 
 EMBEDDING_DIM = 768

@@ -9,12 +9,15 @@ Pydantic AI's tool calling and state management.
 """
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 import frontmatter
 import ibis
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
+
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
@@ -25,6 +28,7 @@ from egregora.utils.logfire_config import logfire_span
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from google import genai
 logger = logging.getLogger(__name__)
 

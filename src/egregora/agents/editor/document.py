@@ -1,6 +1,7 @@
 """A minimal, line-based editing protocol for Egregora."""
 
 from typing import Annotated, Any
+
 from pydantic import BaseModel
 
 

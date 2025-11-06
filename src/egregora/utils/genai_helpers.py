@@ -12,10 +12,13 @@ All embeddings use a fixed 768-dimension output for consistency and HNSW optimiz
 """
 
 from __future__ import annotations
+
 import logging
 import os
 from typing import Annotated, Any
+
 import httpx
+
 from egregora.config import EMBEDDING_DIM, from_pydantic_ai_model
 
 logger = logging.getLogger(__name__)

@@ -7,8 +7,10 @@ import uuid
 import zipfile
 from pathlib import Path
 from typing import Annotated
+
 import ibis
 from ibis.expr.types import Table
+
 from egregora.config import MEDIA_DIR_NAME
 from egregora.enrichment.batch import _iter_table_record_batches
 

@@ -4,6 +4,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Annotated, Any
+
 import pyarrow as pa
 
 logger = logging.getLogger(__name__)
@@ -52,9 +53,7 @@ def write_profile(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-    if any(
-        (suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"])
-    ):
+    if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
         logger.warning("Profile for %s contains suspicious content", author_uuid)
     profile_path.write_text(content, encoding="utf-8")
     logger.info("Saved profile for %s to %s", author_uuid, profile_path)
@@ -126,7 +125,7 @@ def _validate_alias(alias: str) -> str | None:
     if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
         logger.warning("Alias length invalid: %s chars (must be 1-%s)", len(alias), MAX_ALIAS_LENGTH)
         return None
-    if any((ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias)):
+    if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
         logger.warning("Alias contains control characters (rejected)")
         return None
     alias = alias.replace("&", "&amp;")

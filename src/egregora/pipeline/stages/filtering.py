@@ -7,8 +7,10 @@ This stage handles:
 """
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from egregora.agents.tools.profiler import filter_opted_out_authors
 from egregora.ingestion.parser import filter_egregora_messages
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult

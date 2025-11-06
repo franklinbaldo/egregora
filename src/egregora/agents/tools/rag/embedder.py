@@ -4,8 +4,10 @@ All embeddings use fixed 768-dimension output for consistency and HNSW optimizat
 """
 
 from __future__ import annotations
+
 import logging
 from typing import Annotated
+
 from egregora.config import EMBEDDING_DIM
 from egregora.utils.genai_helpers import embed_batch, embed_text
 

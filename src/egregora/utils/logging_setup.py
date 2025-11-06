@@ -1,9 +1,11 @@
 """Centralized logging configuration for Egregora."""
 
 from __future__ import annotations
+
 import logging
 import os
 from typing import Annotated, Final
+
 from rich.console import Console
 from rich.logging import RichHandler
 

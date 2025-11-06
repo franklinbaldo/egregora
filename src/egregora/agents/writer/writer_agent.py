@@ -11,12 +11,14 @@ At the moment this backend is opt-in via the ``EGREGORA_LLM_BACKEND`` flag.
 """
 
 from __future__ import annotations
+
 import json
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -195,18 +197,16 @@ def _register_writer_tools(
             items: list[MediaItem] = []
             for batch in stream_ibis(results, store._client, batch_size=100):
                 items.extend(
-                    (
-                        MediaItem(
-                            media_type=row.get("media_type"),
-                            media_path=row.get("media_path"),
-                            original_filename=row.get("original_filename"),
-                            description=(str(row.get("content", "")) or "")[:500],
-                            similarity=float(row.get("similarity"))
-                            if row.get("similarity") is not None
-                            else None,
-                        )
-                        for row in batch
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=(str(row.get("content", "")) or "")[:500],
+                        similarity=float(row.get("similarity"))
+                        if row.get("similarity") is not None
+                        else None,
                     )
+                    for row in batch
                 )
             if not items:
                 logger.info("Writer agent search_media returned no matches for query %s", query)

@@ -6,6 +6,7 @@ Provides context managers and helpers for working with DuckDB/Ibis backends.
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
+
 import duckdb
 import ibis
 

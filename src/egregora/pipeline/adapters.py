@@ -6,6 +6,7 @@ Source adapters are responsible for parsing raw exports from different platforms
 """
 
 from __future__ import annotations
+
 import hashlib
 import logging
 import shutil

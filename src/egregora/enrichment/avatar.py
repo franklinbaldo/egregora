@@ -1,6 +1,7 @@
 """Avatar processing with moderation for user profiles."""
 
 from __future__ import annotations
+
 import hashlib
 import io
 import ipaddress
@@ -12,8 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urljoin, urlparse
+
 import httpx
 from PIL import Image
+
 from egregora.config import MEDIA_DIR_NAME
 from egregora.enrichment.agents import (
     AvatarEnrichmentContext,

@@ -17,14 +17,17 @@ Media files are renamed using UUIDv5 based on content hash, enabling:
 """
 
 from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 from egregora.enrichment.media import get_media_subfolder
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
     from egregora.pipeline.adapters import SourceAdapter
 logger = logging.getLogger(__name__)
 MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")

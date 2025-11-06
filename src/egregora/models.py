@@ -1,9 +1,12 @@
 """Core data models for auto-discovery and virtual groups feature."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
+
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
 from egregora.types import GroupSlug
 
 if TYPE_CHECKING:

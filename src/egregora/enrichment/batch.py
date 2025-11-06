@@ -5,9 +5,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
 import ibis
 from google.genai import types as genai_types
 from ibis.expr.types import Table
+
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.utils import BatchPromptRequest, BatchPromptResult
 

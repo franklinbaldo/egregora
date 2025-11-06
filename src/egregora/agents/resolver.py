@@ -1,7 +1,9 @@
 import logging
 from pathlib import Path
 from typing import Any
+
 import frontmatter
+
 from egregora.agents.loader import load_agent
 from egregora.agents.models import AgentConfig
 

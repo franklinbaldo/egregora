@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from functools import lru_cache
+
 from google.genai import types as genai_types
 from pydantic import BaseModel
 

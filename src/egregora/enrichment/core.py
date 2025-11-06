@@ -15,9 +15,11 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
 import ibis
 from google import genai
 from ibis.expr.types import Table
+
 from egregora.config import ModelConfig
 from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
@@ -319,7 +321,7 @@ def enrich_table(
             raise ValueError(msg)
         database_schema.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
         quoted_table = database_schema.quote_identifier(target_table)
-        column_list = ", ".join((database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names))
+        column_list = ", ".join(database_schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)

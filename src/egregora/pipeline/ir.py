@@ -7,12 +7,16 @@ messages from any source without modification.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 import ibis.expr.datatypes as dt
+
 from egregora.schema import DEFAULT_TIMEZONE, ensure_message_schema
 
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
+
     from ibis.expr.types import Table
 __all__ = ["IR_SCHEMA", "create_ir_table", "validate_ir_schema"]
 IR_SCHEMA: dict[str, dt.DataType] = {

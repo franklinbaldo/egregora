@@ -1,12 +1,15 @@
 """High-level retrieval and indexing functions."""
 
 from __future__ import annotations
+
 import logging
 import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, TypedDict
+
 import ibis
 from ibis.expr.types import Table
+
 from egregora.agents.tools.rag.chunker import chunk_document
 from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
 from egregora.agents.tools.rag.store import VECTOR_STORE_SCHEMA, VectorStore
@@ -14,6 +17,7 @@ from egregora.config.site import MEDIA_DIR_NAME
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 

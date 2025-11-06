@@ -1,16 +1,20 @@
 """Persistence layer for writer conversation annotations."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
 import ibis
+
 from egregora.database import schema as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
     import duckdb
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"

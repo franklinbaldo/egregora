@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import ibis
 from google import genai
+
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig, from_pydantic_ai_model
 from egregora.utils.genai import call_with_retries

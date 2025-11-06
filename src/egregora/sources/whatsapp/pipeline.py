@@ -5,9 +5,11 @@ import re
 import zipfile
 from datetime import datetime
 from pathlib import Path
+
 import duckdb
 import ibis
 from google import genai
+
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_period

@@ -10,6 +10,7 @@ Documentation:
 """
 
 from __future__ import annotations
+
 import io
 import logging
 import re
@@ -17,8 +18,10 @@ import unicodedata
 import zipfile
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
+
 import ibis
 from dateutil import parser as date_parser
+
 from egregora.constants import EgregoraCommand
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
@@ -26,7 +29,9 @@ from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, vali
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
     from ibis.expr.types import Table
+
     from egregora.sources.whatsapp.models import WhatsAppExport
 SET_COMMAND_PARTS = 2
 logger = logging.getLogger(__name__)

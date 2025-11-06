@@ -3,7 +3,9 @@
 import datetime
 from pathlib import Path
 from typing import Any
+
 import yaml
+
 from egregora.privacy.detector import validate_newsletter_privacy
 from egregora.utils import safe_path_join, slugify
 

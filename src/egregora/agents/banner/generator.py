@@ -8,10 +8,12 @@ Requires GOOGLE_API_KEY environment variable or explicit api_key parameter.
 """
 
 from __future__ import annotations
+
 import logging
 import mimetypes
 import os
 from pathlib import Path
+
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field

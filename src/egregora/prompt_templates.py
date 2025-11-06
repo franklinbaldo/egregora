@@ -1,10 +1,12 @@
 """Jinja2 template management for system prompts."""
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
+
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"

@@ -10,10 +10,12 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
+
 import typer
 from google import genai
 from rich.markup import escape
 from rich.panel import Panel
+
 from egregora.agents.editor import run_editor_session
 from egregora.agents.loader import load_agent
 from egregora.agents.registry import ToolRegistry
@@ -346,6 +348,7 @@ def edit(
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
     if prompt_dry_run:
         from jinja2 import Environment, FileSystemLoader
+
         from egregora.agents.resolver import AgentResolver
 
         resolver = AgentResolver(egregora_path, docs_path)

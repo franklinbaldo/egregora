@@ -4,8 +4,10 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+
 from google import genai
 from google.genai import types as genai_types
+
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile

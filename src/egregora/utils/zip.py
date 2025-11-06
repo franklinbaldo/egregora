@@ -1,6 +1,7 @@
 """Security helpers for validating WhatsApp ZIP exports."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -86,7 +87,7 @@ def _ensure_safe_path(member_name: str) -> None:
     if path.is_absolute():
         msg = f"ZIP member uses absolute path: {member_name}"
         raise ZipValidationError(msg)
-    if any((part == ".." for part in path.parts)):
+    if any(part == ".." for part in path.parts):
         msg = f"ZIP member attempts path traversal: {member_name}"
         raise ZipValidationError(msg)
     if path.drive:

@@ -7,7 +7,9 @@ and prompt templates for AI agents in the Egregora system.
 
 import re
 from pathlib import Path
+
 import yaml
+
 from egregora.agents.models import AgentConfig
 
 

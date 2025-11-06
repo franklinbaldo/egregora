@@ -5,14 +5,17 @@ and Pydantic AI's rag_context() helper for standardized retrieval prompts.
 """
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from egregora.agents.tools.rag.embedder import embed_query
 from egregora.agents.tools.rag.store import VectorStore
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from google import genai
 logger = logging.getLogger(__name__)
 

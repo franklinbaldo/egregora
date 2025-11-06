@@ -6,14 +6,17 @@ is completely source-agnostic and works with any SourceAdapter implementation.
 """
 
 from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
+
 from egregora.pipeline.ir import validate_ir_schema
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
     from egregora.pipeline.adapters import MediaMapping, SourceAdapter
     from egregora.pipeline.base import PipelineStage, StageResult
 __all__ = ["CoreOrchestrator", "PipelineArtifacts", "PipelineConfig", "PipelineContext"]
@@ -158,7 +161,7 @@ class CoreOrchestrator:
         if not is_valid:
             raise ValueError(
                 "Source adapter produced invalid IR schema. Errors:\n"
-                + "\n".join((f"  - {err}" for err in errors))
+                + "\n".join(f"  - {err}" for err in errors)
             )
         total_messages = messages_table.count().execute()
         logger.info("[green]✅ Parsed[/] %s messages", total_messages)
@@ -189,7 +192,7 @@ class CoreOrchestrator:
             if not is_valid:
                 raise ValueError(
                     f"Stage '{stage.stage_name}' input validation failed:\n"
-                    + "\n".join((f"  - {err}" for err in errors))
+                    + "\n".join(f"  - {err}" for err in errors)
                 )
             try:
                 result: StageResult = stage.process(current_data, context.artifacts)

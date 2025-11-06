@@ -1,11 +1,14 @@
 """Shared Ibis schema definitions for the content pipeline."""
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
 import ibis
 import ibis.expr.datatypes as dt
 from ibis import udf
+
 from egregora.types import GroupSlug
 
 if TYPE_CHECKING:

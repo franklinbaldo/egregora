@@ -23,11 +23,13 @@ Usage:
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
+
     import ibis
     from ibis.backends.duckdb import Backend as DuckDBBackend
 

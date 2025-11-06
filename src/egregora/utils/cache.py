@@ -1,11 +1,13 @@
 """Persistent caches for enrichment and other pipeline artifacts."""
 
 from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Any
+
 import diskcache
 
 logger = logging.getLogger(__name__)

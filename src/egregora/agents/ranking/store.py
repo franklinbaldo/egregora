@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt

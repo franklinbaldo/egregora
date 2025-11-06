@@ -5,12 +5,15 @@ Uses pydantic-ai string notation for model specification.
 """
 
 from __future__ import annotations
+
 import logging
 import mimetypes
 from typing import TYPE_CHECKING
+
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
+
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
     DetailedMediaEnrichmentPromptTemplate,

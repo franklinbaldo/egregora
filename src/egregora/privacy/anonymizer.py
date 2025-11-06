@@ -11,6 +11,7 @@ Documentation:
 
 import re
 import uuid
+
 import ibis
 from ibis.expr.types import Table
 

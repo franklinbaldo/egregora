@@ -8,13 +8,16 @@ maintaining the same three-turn protocol:
 """
 
 from __future__ import annotations
+
 import os
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
+
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
@@ -147,11 +150,11 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
         candidates.extend(matches)
         if matches:
             if len(matches) > 1:
-                matches_str = ", ".join((str(match) for match in matches))
+                matches_str = ", ".join(str(match) for match in matches)
                 msg = f"Multiple posts found for {post_id}: {matches_str}"
                 raise ValueError(msg)
             return matches[0]
-    searched = ", ".join((str(candidate.parent) for candidate in candidates if candidate.parent))
+    searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
     msg = f"Post not found for id '{post_id}'. Looked in: {searched}"
     raise ValueError(msg)
 

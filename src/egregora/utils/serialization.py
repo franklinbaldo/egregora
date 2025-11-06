@@ -9,6 +9,7 @@ more human-readable and useful for debugging.
 import logging
 from pathlib import Path
 from typing import Annotated, Literal
+
 import ibis
 from ibis.expr.types import Table
 

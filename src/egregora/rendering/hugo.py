@@ -10,8 +10,10 @@ This template demonstrates the interface that needs to be implemented.
 """
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 
 if TYPE_CHECKING:
@@ -52,7 +54,7 @@ class HugoOutputFormat(OutputFormat):
         if not site_root.exists():
             return False
         config_files = ["config.toml", "hugo.toml", "config.yaml", "hugo.yaml"]
-        return any(((site_root / f).exists() for f in config_files))
+        return any((site_root / f).exists() for f in config_files)
 
     def scaffold_site(
         self, site_root: Path, site_name: str, theme: str = "PaperMod", **kwargs
@@ -154,13 +156,13 @@ class HugoOutputFormat(OutputFormat):
         filepath = output_dir / filename
         front_matter = f'''+++\ntitle = "{metadata["title"]}"\ndate = {date_str}\ndraft = false\n'''
         if "tags" in metadata:
-            tags = ", ".join((f'"{t}"' for t in metadata["tags"]))
+            tags = ", ".join(f'"{t}"' for t in metadata["tags"])
             front_matter += f"tags = [{tags}]\n"
         if "summary" in metadata:
             summary = metadata["summary"].replace('"', '\\"')
             front_matter += f'description = "{summary}"\n'
         if "authors" in metadata:
-            authors = ", ".join((f'"{a}"' for a in metadata["authors"]))
+            authors = ", ".join(f'"{a}"' for a in metadata["authors"])
             front_matter += f"authors = [{authors}]\n"
         front_matter += "+++\n\n"
         full_post = front_matter + content

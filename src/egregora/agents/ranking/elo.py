@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Annotated
+
 from egregora.agents.ranking.store import RankingStore
 
 DEFAULT_ELO = 1500
@@ -65,7 +66,7 @@ def initialize_ratings(
         RankingStore instance
 
     """
-    post_files = sorted((p for p in posts_dir.rglob("*.md") if p.is_file()))
+    post_files = sorted(p for p in posts_dir.rglob("*.md") if p.is_file())
     search_dirs = []
     hidden_posts_dir = posts_dir / ".posts"
     if hidden_posts_dir.exists():

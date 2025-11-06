@@ -1,8 +1,10 @@
 """MkDocs output format implementation."""
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from egregora.agents.tools.profiler import write_profile as write_profile_content
 from egregora.config.site import load_mkdocs_config, resolve_site_paths
 from egregora.init.scaffolding import ensure_mkdocs_project

@@ -11,12 +11,15 @@ Documentation:
 """
 
 from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
 import ibis
 import yaml
+
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import get_active_authors
 from egregora.agents.tools.rag import VectorStore, index_post

@@ -14,16 +14,20 @@ To complete this adapter:
 """
 
 from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
+
 import ibis
+
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 __all__ = ["SlackAdapter"]

@@ -15,6 +15,7 @@ Documentation:
 """
 
 import os
+
 from egregora.agents.tools.rag.pydantic_helpers import (
     build_rag_context_for_writer,
     find_relevant_docs,

@@ -1,6 +1,7 @@
 """Formatting utilities for writer module - markdown and table rendering."""
 
 from __future__ import annotations
+
 import hashlib
 import importlib
 import json
@@ -13,8 +14,10 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     import pandas as pd
 import pyarrow as pa
+
 from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 
 logger = logging.getLogger(__name__)

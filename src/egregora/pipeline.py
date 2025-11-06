@@ -2,10 +2,11 @@
 
 import logging
 from pathlib import Path
+
 import ibis
 from ibis.expr.types import Table
+
 from egregora.constants import Limits
-from egregora.sources.whatsapp import discover_chat_file, process_whatsapp_export
 
 logger = logging.getLogger(__name__)
 

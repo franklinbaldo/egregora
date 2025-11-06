@@ -1,6 +1,7 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
+
 from slugify import slugify as _slugify
 from werkzeug.exceptions import NotFound as _WerkzeugNotFound
 from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Annotated
+
 from egregora.config.model import ModelConfig
 from egregora.types import GroupSlug
 

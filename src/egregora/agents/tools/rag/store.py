@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
+
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
+
 from egregora.config import EMBEDDING_DIM
 from egregora.database import schema as database_schema
 
@@ -675,8 +677,8 @@ class VectorStore:
         columns_sql = ", ".join(column_defs)
         self.conn.execute(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")
         column_names = list(schema.names)
-        placeholders = ", ".join(("?" for _ in column_names))
-        values = [tuple((record.get(name) for name in column_names)) for record in records]
+        placeholders = ", ".join("?" for _ in column_names)
+        values = [tuple(record.get(name) for name in column_names) for record in records]
         if values:
             self.conn.executemany(
                 f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})", values

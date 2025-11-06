@@ -1,8 +1,10 @@
 """Avatar pipeline integration - processes avatar commands from messages."""
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
+
 from egregora.agents.tools.profiler import remove_profile_avatar, update_profile_avatar
 from egregora.enrichment.avatar import (
     AvatarProcessingError,
@@ -15,6 +17,7 @@ from egregora.ingestion.parser import extract_commands
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from google import genai
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)

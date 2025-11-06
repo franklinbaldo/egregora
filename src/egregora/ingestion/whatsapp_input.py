@@ -1,9 +1,11 @@
 """WhatsApp input source implementation."""
 
 from __future__ import annotations
+
 import logging
 import zipfile
 from typing import TYPE_CHECKING, Any
+
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
 from egregora.ingestion.base import InputMetadata, InputSource
@@ -14,6 +16,7 @@ from egregora.sources.whatsapp.models import WhatsAppExport
 if TYPE_CHECKING:
     from datetime import date
     from pathlib import Path
+
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 

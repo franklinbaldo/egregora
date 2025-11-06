@@ -10,15 +10,19 @@ This template demonstrates the interface that needs to be implemented.
 """
 
 from __future__ import annotations
+
 import json
 import logging
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
+
 import ibis
+
 from egregora.ingestion.base import InputMetadata, InputSource
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 

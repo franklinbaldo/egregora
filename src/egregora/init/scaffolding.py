@@ -3,9 +3,11 @@
 import logging
 from pathlib import Path
 from typing import Any
+
 import jinja2
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from egregora.config import DEFAULT_BLOG_DIR, SitePaths
 from egregora.config.site import _ConfigLoader, resolve_site_paths
 

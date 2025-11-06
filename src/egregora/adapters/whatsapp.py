@@ -10,6 +10,7 @@ Media Handling:
 """
 
 from __future__ import annotations
+
 import logging
 import re
 import warnings
@@ -17,7 +18,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
 import ibis
+
 from egregora.ingestion.parser import parse_export
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import create_ir_table

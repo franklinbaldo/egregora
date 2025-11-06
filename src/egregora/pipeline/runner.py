@@ -5,13 +5,16 @@ It handles the complete flow from parsing to final output generation.
 """
 
 from __future__ import annotations
+
 import logging
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 import duckdb
 import ibis
 from google import genai
+
 from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
@@ -132,7 +135,7 @@ def run_source_pipeline(
         if not is_valid:
             raise ValueError(
                 "Source adapter produced invalid IR schema. Errors:\n"
-                + "\n".join((f"  - {err}" for err in errors))
+                + "\n".join(f"  - {err}" for err in errors)
             )
         total_messages = messages_table.count().execute()
         logger.info("[green]✅ Parsed[/] %s messages", total_messages)
