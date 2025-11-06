@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -323,8 +324,8 @@ class SourceAdapter(ABC):
         standardized_name = f"{media_uuid}{file_extension}"
         standardized_path = target_dir / standardized_name
 
-        # Move file (with atomic deduplication)
-        # Use atomic rename operation to avoid TOCTOU race condition
+        # Move file (with atomic deduplication and cross-filesystem support)
+        # Try atomic rename first (fastest, works on same filesystem)
         try:
             source_file.rename(standardized_path)
             logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
@@ -332,6 +333,22 @@ class SourceAdapter(ABC):
             # File already exists (deduplication working!)
             logger.debug(f"Media file already exists (duplicate): {standardized_name}")
             source_file.unlink()  # Remove temp file
+        except OSError as e:
+            # Handle cross-filesystem move (errno 18: EXDEV)
+            # rename() only works within same filesystem, fall back to shutil.move()
+            if e.errno == 18:  # EXDEV: Cross-device link
+                logger.debug(f"Cross-filesystem move detected, using shutil.move()")
+                try:
+                    shutil.move(str(source_file), str(standardized_path))
+                    logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
+                except FileExistsError:
+                    # Deduplication after shutil.move()
+                    logger.debug(f"Media file already exists (duplicate): {standardized_name}")
+                    if source_file.exists():
+                        source_file.unlink()
+            else:
+                # Re-raise other OSErrors (permissions, disk full, etc.)
+                raise
 
         return standardized_path.resolve()
 
