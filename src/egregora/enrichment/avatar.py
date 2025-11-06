@@ -20,8 +20,11 @@ from google.genai import types as genai_types
 from PIL import Image
 
 from ..config import MEDIA_DIR_NAME
-from ..prompt_templates import AvatarEnrichmentPromptTemplate
-from ..utils.genai import call_with_retries_sync
+from ..enrichment.agents import (
+    AvatarEnrichmentContext,
+    create_avatar_enrichment_agent,
+    upload_file_for_enrichment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -509,60 +512,6 @@ def extract_avatar_from_zip(
     raise AvatarProcessingError(f"Failed to extract avatar: {media_filename}")
 
 
-def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, str, bool]:
-    """
-    Parse moderation result from enrichment text.
-
-    The enrichment agent outputs a structured MODERATION_STATUS line at the beginning
-    of the markdown. We parse this line first, then check for PII_DETECTED keyword.
-
-    Returns:
-        Tuple of (status, reason, has_pii)
-    """
-    import re
-
-    # Look for the structured status line at the beginning (more robust)
-    status_match = re.search(
-        r"^MODERATION_STATUS:\s*(APPROVED|QUESTIONABLE|BLOCKED)",
-        enrichment_text,
-        re.MULTILINE | re.IGNORECASE,
-    )
-
-    if status_match:
-        status_str = status_match.group(1).lower()
-        status: ModerationStatus = status_str  # type: ignore[assignment]
-        logger.debug(f"Found structured MODERATION_STATUS: {status}")
-    else:
-        # Fallback to keyword matching if structured format not found
-        logger.warning("No MODERATION_STATUS line found, falling back to keyword matching")
-
-        # Check keywords in order (most restrictive first)
-        if "BLOCKED" in enrichment_text:
-            status = "blocked"
-        elif "QUESTIONABLE" in enrichment_text:
-            status = "questionable"
-        elif "APPROVED" in enrichment_text:
-            status = "approved"
-        else:
-            # Default to questionable if no clear status found
-            logger.warning("No clear moderation status found in enrichment, defaulting to QUESTIONABLE")
-            status = "questionable"
-
-    # Check for PII (case-insensitive with word boundaries for robustness)
-    has_pii = bool(re.search(r"\bPII[_\s-]DETECTED\b", enrichment_text, re.IGNORECASE))
-
-    # Generate reason based on status
-    if status == "blocked":
-        reason = "Image contains inappropriate content or PII"
-    elif status == "questionable":
-        reason = "Image requires manual review"
-    else:  # approved
-        reason = "Image approved for use as avatar"
-
-    logger.info(f"Moderation result: status={status}, has_pii={has_pii}")
-    return status, reason, has_pii
-
-
 def enrich_and_moderate_avatar(
     avatar_uuid: uuid.UUID,
     avatar_path: Path,
@@ -589,71 +538,69 @@ def enrich_and_moderate_avatar(
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
     try:
-        # Upload image to Gemini
-        uploaded_file = vision_client.files.upload(path=str(avatar_path))
+        # Upload image for enrichment
+        file_uri, mime_type = upload_file_for_enrichment(vision_client, avatar_path)
 
-        # Generate enrichment prompt
+        # Get relative path for enrichment context
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
-        prompt_template = AvatarEnrichmentPromptTemplate(
+
+        # Create enrichment context
+        context = AvatarEnrichmentContext(
             media_filename=avatar_path.name,
             media_path=relative_path,
+            file_uri=file_uri,
         )
-        prompt = prompt_template.render()
 
-        # Build contents with text prompt and uploaded file
-        contents = [
-            genai_types.Content(
-                parts=[
-                    genai_types.Part(text=prompt),
-                    genai_types.Part(
-                        file_data=genai_types.FileData(
-                            file_uri=uploaded_file.uri,
-                            mime_type=uploaded_file.mime_type,
-                        )
-                    ),
-                ],
-                role="user",
-            )
+        # Create and run avatar enrichment agent with multimodal content
+        avatar_agent = create_avatar_enrichment_agent(model)
+
+        # Build multimodal message content with file
+        message_content = [
+            genai_types.Part(text="Analyze and moderate this avatar image"),
+            genai_types.Part(
+                file_data=genai_types.FileData(
+                    file_uri=file_uri,
+                    mime_type=mime_type,
+                )
+            ),
         ]
 
-        # Call vision model with retries
-        response = call_with_retries_sync(
-            vision_client.models.generate_content,
-            model=model,
-            contents=contents,
-        )
+        result = avatar_agent.run_sync(message_content, deps=context)
 
-        # Extract response text
-        if not response or not response.text:
-            raise AvatarProcessingError("Vision model failed to generate response")
+        # Extract structured output
+        is_appropriate = result.data.is_appropriate
+        reason = result.data.reason
+        description = result.data.description
 
-        enrichment_text = response.text
-
-        # Parse moderation result
-        status, reason, has_pii = _parse_moderation_result(enrichment_text)
+        # Determine status and has_pii from agent output
+        status = "approved" if is_appropriate else "blocked"
+        has_pii = "pii" in reason.lower() or "personal" in reason.lower()
 
         # Save enrichment markdown
+        enrichment_text = f"# Avatar Analysis\n\n{description}\n\n**Status**: {status}\n**Reason**: {reason}"
         enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
         enrichment_path.write_text(enrichment_text, encoding="utf-8")
         logger.info(f"Saved enrichment to: {enrichment_path}")
 
-        # If PII detected or blocked, delete both the avatar file and enrichment file
+        # If PII detected or blocked, delete both files
         if has_pii or status == "blocked":
             logger.warning(f"Avatar {avatar_uuid} blocked (PII: {has_pii}, Status: {status})")
 
-            # Force status to 'blocked' when PII is detected to maintain consistency
-            # Even if LLM said "approved", we block if PII is present
-            if has_pii:
+            if has_pii and status == "approved":
                 status = "blocked"
-                reason = "Image contains personally identifiable information (PII)"
 
-            if avatar_path.exists():
-                avatar_path.unlink()
+            # Delete files
+            try:
+                avatar_path.unlink(missing_ok=True)
                 logger.info(f"Deleted blocked avatar: {avatar_path}")
-            # Also delete the enrichment file to prevent orphaned files
-            if enrichment_path.exists():
-                enrichment_path.unlink()
+            except OSError as e:
+                logger.error(f"Failed to delete avatar {avatar_path}: {e}")
+
+            try:
+                enrichment_path.unlink(missing_ok=True)
                 logger.info(f"Deleted enrichment file: {enrichment_path}")
+            except OSError as e:
+                logger.error(f"Failed to delete enrichment {enrichment_path}: {e}")
 
         return AvatarModerationResult(
             status=status,
@@ -664,19 +611,9 @@ def enrich_and_moderate_avatar(
             enrichment_path=enrichment_path,
         )
 
-    except httpx.HTTPError as e:
-        # Network/API errors - these are transient, keep avatar for retry
-        logger.warning(f"Transient error during avatar moderation (keeping file for retry): {e}")
-        raise AvatarProcessingError(
-            "Failed to moderate avatar due to network error. Please try again later."
-        ) from e
     except Exception as e:
-        # Permanent failures (parsing errors, invalid responses, etc.)
-        # Clean up avatar file to prevent unmoderated avatars
-        if avatar_path.exists():
-            avatar_path.unlink()
-            logger.warning(f"Deleted avatar due to permanent moderation failure: {avatar_path}")
-        raise AvatarProcessingError(f"Failed to enrich avatar: {e}") from e
+        logger.error(f"Avatar enrichment failed for {avatar_uuid}: {e}", exc_info=True)
+        raise AvatarProcessingError(f"Failed to enrich avatar {avatar_uuid}: {e}") from e
 
 
 __all__ = [
