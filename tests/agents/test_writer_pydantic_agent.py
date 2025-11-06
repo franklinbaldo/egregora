@@ -30,9 +30,11 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
 
     prompt = 'You reviewed an empty conversation. Respond with JSON {"summary": "No posts", "notes": "N/A"}.'
 
+    # Note: TestModel doesn't create actual tool calls, so saved_posts will be empty
+    # This test just verifies the agent runs without errors
     saved_posts, saved_profiles = write_posts_with_pydantic_agent(
         prompt=prompt,
-        model_name="models/gemini-flash-latest",
+        model=TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
         period_date="2025-01-01",
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
@@ -43,8 +45,6 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         retrieval_nprobe=None,
         retrieval_overfetch=None,
         annotations_store=None,
-        agent_model=TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
-        register_tools=False,
     )
 
     assert saved_posts == []
