@@ -1,0 +1,247 @@
+name: Gemini PR Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    # Run if: (PR event and not draft) OR (comment on PR and contains @gemini)
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@gemini'))
+
+    steps:
+      - name: Check if PR is from a fork
+        id: fork_check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            # For comment events, get PR details from API
+            PR_DATA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "${{ github.event.issue.pull_request.url }}")
+            PR_HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name // "null"')
+            PR_BASE_REPO=$(echo "$PR_DATA" | jq -r '.base.repo.full_name')
+          else
+            # For pull_request events, use event data directly
+            PR_HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+            PR_BASE_REPO="${{ github.event.pull_request.base.repo.full_name }}"
+          fi
+
+          echo "PR head repository: $PR_HEAD_REPO"
+          echo "PR base repository: $PR_BASE_REPO"
+
+          if [ "$PR_HEAD_REPO" != "$PR_BASE_REPO" ] && [ "$PR_HEAD_REPO" != "null" ]; then
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "⚠️  PR is from a fork"
+          else
+            echo "is_fork=false" >> $GITHUB_OUTPUT
+            echo "✅ PR is from same repository"
+          fi
+
+      - name: Check collaborator status for fork PRs
+        if: github.event_name == 'issue_comment' && steps.fork_check.outputs.is_fork == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          REPO_FULL_NAME: ${{ github.repository }}
+        run: |
+          echo "⚠️  Fork PR with @gemini comment. Checking collaborator status..."
+
+          # Check if comment author is a collaborator
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                           -H "Authorization: token $GITHUB_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "https://api.github.com/repos/$REPO_FULL_NAME/collaborators/$COMMENT_AUTHOR")
+
+          if [ "$HTTP_CODE" = "204" ]; then
+            echo "✅ Comment author is a collaborator. Review allowed."
+          else
+            echo "❌ SECURITY: Comment author is not a collaborator on a fork PR."
+            echo "This prevents potential secret exposure to untrusted code."
+            echo "Only repository collaborators can trigger reviews on fork PRs."
+            exit 1
+          fi
+
+      - name: Validate GEMINI_API_KEY is set
+        id: api_key_check
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          IS_FORK: ${{ steps.fork_check.outputs.is_fork }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            if [ "$IS_FORK" = "true" ]; then
+              echo "ℹ️  Skipping review: GEMINI_API_KEY is not available for fork PRs"
+              echo "This is expected behavior - secrets are not exposed to fork PRs for security."
+              echo "A repository collaborator can trigger the review by commenting with @gemini"
+              echo "skip_review=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Error: GEMINI_API_KEY secret is not configured"
+              echo "Please add GEMINI_API_KEY to your repository secrets:"
+              echo "Settings → Secrets and variables → Actions → New repository secret"
+              echo "Get your API key at: https://makersuite.google.com/app/apikey"
+              exit 1
+            fi
+          else
+            echo "✅ GEMINI_API_KEY is configured"
+            echo "skip_review=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract user comment and PR details
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        id: extract
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.issue.pull_request.url }}
+        run: |
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            # Extract everything after @gemini safely using Python
+            python3 << 'PYTHON_EOF'
+import os
+import re
+import sys
+
+comment_body = os.environ.get('COMMENT_BODY', '')
+# Extract text after @gemini
+match = re.search(r'@gemini\s*(.*)', comment_body, re.DOTALL)
+user_comment = match.group(1).strip() if match else ''
+
+# Write to GITHUB_OUTPUT safely
+with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+    f.write('user_comment<<EOF\n')
+    f.write(user_comment + '\n')
+    f.write('EOF\n')
+    f.write(f'pr_number={os.environ["ISSUE_NUMBER"]}\n')
+    f.write('trigger_mode=comment\n')
+PYTHON_EOF
+
+            # Get PR head SHA from API
+            PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "$PR_URL")
+            PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+            echo "pr_head_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "user_comment=" >> $GITHUB_OUTPUT
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "pr_head_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+            echo "trigger_mode=automatic" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository (base branch - trusted code)
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Always checkout base branch to run trusted scripts
+          # PR code will be fetched separately for context generation
+
+      - name: Fetch PR head for context generation
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        env:
+          PR_HEAD_SHA: ${{ steps.extract.outputs.pr_head_sha }}
+        run: |
+          # Fetch the PR head commit
+          git fetch origin "$PR_HEAD_SHA"
+
+          # Create a worktree for the PR code (isolated from main checkout)
+          git worktree add pr-code "$PR_HEAD_SHA"
+
+          echo "✅ PR code fetched to pr-code/ directory"
+          echo "✅ Scripts will run from trusted base branch"
+
+      - name: Setup Node.js
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate repository bundle with Repomix
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        run: |
+          # Copy trusted .repomixignore to PR code directory to prevent malicious config
+          if [ -f .repomixignore ]; then
+            cp .repomixignore pr-code/.repomixignore
+            echo "✅ Using trusted .repomixignore configuration"
+          fi
+
+          # Run repomix on the PR code (from worktree)
+          # The repomix binary comes from npm (trusted source)
+          # The config comes from the base branch (trusted)
+          # Only the source files being analyzed come from the PR
+          cd pr-code
+          npx repomix --output ../repomix.txt
+          cd ..
+          echo "Repomix bundle created: $(wc -l < repomix.txt) lines"
+
+      - name: Fetch PR patch
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_URL="${{ github.event.issue.pull_request.url }}"
+          else
+            PR_URL="${{ github.event.pull_request.url }}"
+          fi
+          curl -H "Authorization: token $GITHUB_TOKEN" \
+               -H "Accept: application/vnd.github.v3.patch" \
+               "$PR_URL" \
+               -o pr.patch
+          echo "PR patch downloaded: $(wc -l < pr.patch) lines"
+
+      - name: Fetch PR conversation
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_COMMENTS_URL="${{ github.event.issue.comments_url }}"
+          else
+            PR_COMMENTS_URL="${{ github.event.pull_request.comments_url }}"
+          fi
+          curl -H "Authorization: token $GITHUB_TOKEN" \
+               -H "Accept: application/vnd.github.v3+json" \
+               "$PR_COMMENTS_URL" \
+               -o pr-comments.json
+          echo "PR conversation downloaded: $(jq length pr-comments.json) comments"
+
+      - name: Run Gemini code review
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.extract.outputs.pr_number }}
+          REPO_FULL_NAME: ${{ github.repository }}
+          TRIGGER_MODE: ${{ steps.extract.outputs.trigger_mode }}
+          USER_COMMENT: ${{ steps.extract.outputs.user_comment }}
+        run: |
+          node .github/scripts/gemini-pr-review.js
+
+      - name: Upload artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-artifacts
+          path: |
+            repomix.txt
+            pr.patch
+            pr-comments.json
+          retention-days: 7
+          if-no-files-found: ignore
