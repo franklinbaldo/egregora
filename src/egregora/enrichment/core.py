@@ -120,8 +120,8 @@ def enrich_table(
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
     # Create pydantic-ai agents for enrichment
-    url_agent = create_url_enrichment_agent(url_model)
-    media_agent = create_media_enrichment_agent(vision_model)
+    url_agent = create_url_enrichment_agent(url_model, text_client)
+    media_agent = create_media_enrichment_agent(vision_model, vision_client)
 
     if messages_table.count().execute() == 0:
         return messages_table
