@@ -15,12 +15,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 try:  # Prefer the richer adapter API when available.
     from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
@@ -114,9 +113,10 @@ class WriterAgentReturn(BaseModel):
     notes: str | None = None
 
 
-@dataclass
-class WriterAgentState:
+class WriterAgentState(BaseModel):
     """Mutable state shared with tool functions during a run."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     period_date: str
     output_dir: Path
@@ -130,8 +130,8 @@ class WriterAgentState:
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
 
-    saved_posts: list[str] = field(default_factory=list)
-    saved_profiles: list[str] = field(default_factory=list)
+    saved_posts: list[str] = Field(default_factory=list)
+    saved_profiles: list[str] = Field(default_factory=list)
 
     def record_post(self, path: str) -> None:
         logger.info("Writer agent saved post %s", path)

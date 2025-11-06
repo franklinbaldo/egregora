@@ -11,13 +11,12 @@ Pydantic AI's tool calling and state management.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import ibis
 from google import genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 
 try:
@@ -85,16 +84,17 @@ class EditorAgentResult(BaseModel):
 # Agent State
 
 
-@dataclass
-class EditorAgentState:
+class EditorAgentState(BaseModel):
     """State passed to editor agent tools."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     editor: Editor
     rag_dir: Path
-    client: genai.Client
-    model_config: ModelConfig
+    client: Any  # genai.Client, but use Any to allow test mocks
+    model_config_obj: ModelConfig  # Renamed to avoid conflict with pydantic's model_config
     post_path: Path
-    tool_calls_log: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls_log: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Helper Functions
@@ -283,7 +283,7 @@ def _register_editor_tools(agent: Agent) -> None:
             max_results=max_results,
             rag_dir=ctx.deps.rag_dir,
             client=ctx.deps.client,
-            model_config=ctx.deps.model_config,
+            model_config=ctx.deps.model_config_obj,
         )
 
     @agent.tool
@@ -306,7 +306,7 @@ def _register_editor_tools(agent: Agent) -> None:
         """
         ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
 
-        model = ctx.deps.model_config.get_model("editor")
+        model = ctx.deps.model_config_obj.get_model("editor")
         return await ask_llm_impl(
             question=question,
             client=ctx.deps.client,
@@ -365,7 +365,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         editor=editor,
         rag_dir=rag_dir,
         client=client,
-        model_config=model_config,
+        model_config_obj=model_config,
         post_path=post_path,
         tool_calls_log=[],
     )

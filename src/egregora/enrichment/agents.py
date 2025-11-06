@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 from google import genai
 from pydantic import BaseModel
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
@@ -34,8 +33,7 @@ class AvatarModerationOutput(BaseModel):
     description: str
 
 
-@dataclass
-class UrlEnrichmentContext:
+class UrlEnrichmentContext(BaseModel):
     """Context for URL enrichment agent."""
 
     url: str
@@ -45,8 +43,7 @@ class UrlEnrichmentContext:
     time: str
 
 
-@dataclass
-class MediaEnrichmentContext:
+class MediaEnrichmentContext(BaseModel):
     """Context for media enrichment agent."""
 
     media_type: str
@@ -60,8 +57,7 @@ class MediaEnrichmentContext:
     mime_type: str
 
 
-@dataclass
-class AvatarEnrichmentContext:
+class AvatarEnrichmentContext(BaseModel):
     """Context for avatar enrichment agent."""
 
     media_filename: str
@@ -84,7 +80,7 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
     )
 
     @agent.system_prompt
-    def url_system_prompt(ctx) -> str:
+    def url_system_prompt(ctx: RunContext[UrlEnrichmentContext]) -> str:
         """Generate system prompt from template."""
         template = DetailedUrlEnrichmentPromptTemplate(
             url=ctx.deps.url,
@@ -113,7 +109,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
     )
 
     @agent.system_prompt
-    def media_system_prompt(ctx) -> str:
+    def media_system_prompt(ctx: RunContext[MediaEnrichmentContext]) -> str:
         """Generate system prompt from template."""
         template = DetailedMediaEnrichmentPromptTemplate(
             media_type=ctx.deps.media_type,
@@ -144,7 +140,7 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     )
 
     @agent.system_prompt
-    def avatar_system_prompt(ctx) -> str:
+    def avatar_system_prompt(ctx: RunContext[AvatarEnrichmentContext]) -> str:
         """Generate system prompt from template."""
         template = AvatarEnrichmentPromptTemplate(
             media_filename=ctx.deps.media_filename,

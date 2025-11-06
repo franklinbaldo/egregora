@@ -10,12 +10,11 @@ maintaining the same three-turn protocol:
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
 
@@ -68,9 +67,10 @@ class RankingResult(BaseModel):
 # Agent State
 
 
-@dataclass
-class RankingAgentState:
+class RankingAgentState(BaseModel):
     """State passed to ranking agent tools."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     post_a_id: str
     post_b_id: str
