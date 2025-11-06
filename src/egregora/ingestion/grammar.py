@@ -26,7 +26,6 @@ from pyparsing import (
     Regex,
     Suppress,
     Word,
-    alphanums,
     nums,
     one_of,
     rest_of_line,
@@ -47,6 +46,7 @@ def build_date_grammar() -> ParserElement:
 
     Returns:
         Parser for date field
+
     """
     day = Word(nums, min=1, max=2)
     month = Word(nums, min=1, max=2)
@@ -76,6 +76,7 @@ def build_time_grammar() -> ParserElement:
 
     Returns:
         Parser for time field
+
     """
     hour = Word(nums, min=1, max=2)
     minute = Word(nums, exact=2)
@@ -101,6 +102,7 @@ def build_separator_grammar() -> ParserElement:
 
     Returns:
         Parser that consumes separator
+
     """
     return Suppress(Regex(r"[—\-]"))
 
@@ -113,6 +115,7 @@ def build_author_grammar() -> ParserElement:
 
     Returns:
         Parser for author field
+
     """
     # Match everything except colon
     # Use negative lookahead to stop before ':'
@@ -127,6 +130,7 @@ def build_message_grammar() -> ParserElement:
 
     Returns:
         Parser for message field
+
     """
     return rest_of_line("message")
 
@@ -143,6 +147,7 @@ def build_whatsapp_message_grammar() -> ParserElement:
 
     Returns:
         Complete parser for WhatsApp message lines
+
     """
     date = build_date_grammar()
     time = build_time_grammar()
@@ -156,14 +161,14 @@ def build_whatsapp_message_grammar() -> ParserElement:
     # Complete grammar
     grammar = (
         Optional(date + date_sep)  # Date is optional (continuation lines)
-        + time                      # Time is required
-        + Optional(Suppress(" "))   # Optional space before separator
-        + separator                 # Separator (- or —)
-        + Optional(Suppress(" "))   # Optional space after separator
-        + author                    # Author name
-        + Suppress(Literal(":"))    # Colon separator
-        + Optional(Suppress(" "))   # Optional space after colon
-        + message                   # Message text
+        + time  # Time is required
+        + Optional(Suppress(" "))  # Optional space before separator
+        + separator  # Separator (- or —)
+        + Optional(Suppress(" "))  # Optional space after separator
+        + author  # Author name
+        + Suppress(Literal(":"))  # Colon separator
+        + Optional(Suppress(" "))  # Optional space after colon
+        + message  # Message text
     )
 
     return grammar
@@ -188,6 +193,7 @@ def parse_whatsapp_line(line: str) -> dict[str, str] | None:
 
         >>> parse_whatsapp_line("This is a continuation")
         None
+
     """
     try:
         result = WHATSAPP_MESSAGE_GRAMMAR.parseString(line, parseAll=True)
@@ -198,7 +204,7 @@ def parse_whatsapp_line(line: str) -> dict[str, str] | None:
 
 
 __all__ = [
+    "WHATSAPP_MESSAGE_GRAMMAR",
     "build_whatsapp_message_grammar",
     "parse_whatsapp_line",
-    "WHATSAPP_MESSAGE_GRAMMAR",
 ]
