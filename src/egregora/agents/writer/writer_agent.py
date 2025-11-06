@@ -222,9 +222,7 @@ def _register_writer_tools(
                         original_filename=row.get("original_filename"),
                         description=(str(row.get("content", "")) or "")[:500],
                         similarity=(
-                            float(row.get("similarity"))
-                            if row.get("similarity") is not None
-                            else None
+                            float(row.get("similarity")) if row.get("similarity") is not None else None
                         ),
                     )
                     for row in batch
