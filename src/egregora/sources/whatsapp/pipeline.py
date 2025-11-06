@@ -12,7 +12,7 @@ from google import genai
 
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
@@ -20,12 +20,8 @@ from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.types import GroupSlug
-from egregora.utils.batch import (
-    GeminiBatchClient,  # noqa: F401  # Backwards compatibility for tests
-)
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
-from egregora.utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -134,16 +130,10 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         client = genai.Client(api_key=gemini_api_key)
 
     try:
-        text_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher"), batch_threshold=batch_threshold
-        )
-        vision_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
-        )
+        text_client = client
+        vision_client = client
+        embedding_client = client
         embedding_model_name = model_config.get_model("embedding")
-        embedding_batch_client = GeminiDispatcher(
-            client, embedding_model_name, batch_threshold=batch_threshold
-        )
         embedding_dimensionality = model_config.embedding_output_dimensionality
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -200,7 +190,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
             group_slug=str(group_slug),
-            vision_client=vision_batch_client,
+            vision_client=vision_client,
             model=model_config.get_model("enricher_vision"),
         )
         if avatar_results:
@@ -292,8 +282,8 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
-                            text_batch_client,
-                            vision_batch_client,
+                            text_client,
+                            vision_client,
                             enrichment_cache,
                             site_paths.docs_dir,
                             posts_dir,
@@ -312,8 +302,8 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
-                        text_batch_client,
-                        vision_batch_client,
+                        text_client,
+                        vision_client,
                         enrichment_cache,
                         site_paths.docs_dir,
                         posts_dir,
@@ -338,20 +328,24 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             else:
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
-                result = write_posts_for_period(
-                    enriched_table,
-                    period_key,
-                    client,
-                    embedding_batch_client,
-                    posts_dir,
-                    profiles_dir,
-                    site_paths.rag_dir,
-                    model_config,
+
+                # Create WriterConfig with all necessary parameters
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
                     enable_rag=True,
                     embedding_output_dimensionality=embedding_dimensionality,
                     retrieval_mode=retrieval_mode,
                     retrieval_nprobe=retrieval_nprobe,
                     retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_period(
+                    enriched_table,
+                    period_key,
+                    embedding_client,
+                    writer_config,
                 )
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
@@ -371,9 +365,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    embedding_batch_client,
+                    embedding_client,
                     store,
-                    embedding_model=embedding_batch_client.default_model,
+                    embedding_model=embedding_model_name,
                     output_dimensionality=embedding_dimensionality,
                 )
                 if media_chunks > 0:

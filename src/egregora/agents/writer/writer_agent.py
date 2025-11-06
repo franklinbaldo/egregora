@@ -15,12 +15,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 try:  # Prefer the richer adapter API when available.
     from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
@@ -41,15 +40,11 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             return json.dumps(messages, indent=2, default=str)
 
 
-try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
-
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
+# Model names now use pydantic-ai notation directly
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
@@ -114,9 +109,10 @@ class WriterAgentReturn(BaseModel):
     notes: str | None = None
 
 
-@dataclass
-class WriterAgentState:
+class WriterAgentState(BaseModel):
     """Mutable state shared with tool functions during a run."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     period_date: str
     output_dir: Path
@@ -130,8 +126,8 @@ class WriterAgentState:
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
 
-    saved_posts: list[str] = field(default_factory=list)
-    saved_profiles: list[str] = field(default_factory=list)
+    saved_posts: list[str] = Field(default_factory=list)
+    saved_profiles: list[str] = Field(default_factory=list)
 
     def record_post(self, path: str) -> None:
         logger.info("Writer agent saved post %s", path)
@@ -189,7 +185,7 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
         store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            batch_client=ctx.deps.batch_client,
+            client=ctx.deps.batch_client,
             store=store,
             media_types=media_types,
             top_k=limit,
@@ -267,7 +263,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     output_dir: Path,
     profiles_dir: Path,
     rag_dir: Path,
-    batch_client: Any,
+    client: Any,
     embedding_model: str,
     embedding_output_dimensionality: int,
     retrieval_mode: str,
@@ -284,16 +280,23 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         Tuple (saved_posts, saved_profiles, freeform_content_path)
     """
     logger.info("Running writer via Pydantic-AI backend")
+
+    # Model name is already in pydantic-ai notation (e.g., 'google-gla:gemini-flash-latest')
+    if agent_model is None:
+        model = model_name
+    else:
+        model = agent_model
+
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=agent_model or GoogleModel(model_name),
+            model=model,
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
         _register_writer_tools(agent)
     else:
         agent = Agent[WriterAgentState, str](
-            model=agent_model or GoogleModel(model_name),
+            model=model,
             deps_type=WriterAgentState,
         )
 
@@ -302,7 +305,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         output_dir=output_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        batch_client=batch_client,
+        batch_client=client,
         embedding_model=embedding_model,
         embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,
@@ -432,7 +435,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     output_dir: Path,
     profiles_dir: Path,
     rag_dir: Path,
-    batch_client: Any,
+    client: Any,
     embedding_model: str,
     embedding_output_dimensionality: int,
     retrieval_mode: str,
@@ -464,16 +467,22 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
+    # Model name is already in pydantic-ai notation (e.g., 'google-gla:gemini-flash-latest')
+    if agent_model is None:
+        model = model_name
+    else:
+        model = agent_model
+
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=agent_model or GoogleModel(model_name),
+            model=model,
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
         _register_writer_tools(agent)
     else:
         agent = Agent[WriterAgentState, str](
-            model=agent_model or GoogleModel(model_name),
+            model=model,
             deps_type=WriterAgentState,
         )
 
@@ -482,7 +491,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
         output_dir=output_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        batch_client=batch_client,
+        batch_client=client,
         embedding_model=embedding_model,
         embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,

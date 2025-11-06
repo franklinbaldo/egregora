@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from google import genai
 from google.genai import types as genai_types
 
 from egregora.agents.banner import generate_banner_for_post
@@ -12,7 +13,6 @@ from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
 from egregora.agents.writer.formatting import _stringify_value
-from egregora.utils import GeminiBatchClient
 from egregora.utils.write_post import write_post
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ def _handle_write_profile_tool(
 def _handle_search_media_tool(  # noqa: PLR0913
     fn_args: dict[str, Any],
     fn_call: genai_types.FunctionCall,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,
@@ -112,7 +112,7 @@ def _handle_search_media_tool(  # noqa: PLR0913
         store = VectorStore(rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            batch_client=batch_client,
+            client=client,
             store=store,
             media_types=media_types,
             top_k=limit,

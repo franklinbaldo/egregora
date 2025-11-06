@@ -51,7 +51,6 @@ from egregora.agents.writer.handlers import (
 from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.utils import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +185,6 @@ def _process_tool_calls(  # noqa: PLR0913
     saved_posts: list[str],
     saved_profiles: list[str],
     client: genai.Client,
-    batch_client: GeminiBatchClient,
     rag_dir: Path,
     annotations_store: AnnotationStore | None,
     *,
@@ -226,7 +224,7 @@ def _process_tool_calls(  # noqa: PLR0913
                     response = _handle_search_media_tool(
                         fn_args,
                         fn_call,
-                        batch_client,
+                        client,
                         rag_dir,
                         embedding_model=embedding_model,
                         embedding_output_dimensionality=embedding_output_dimensionality,
@@ -254,7 +252,7 @@ def _process_tool_calls(  # noqa: PLR0913
 
 def _index_posts_in_rag(
     saved_posts: list[str],
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,
@@ -269,7 +267,7 @@ def _index_posts_in_rag(
         for post_path in saved_posts:
             index_post(
                 Path(post_path),
-                batch_client,
+                client,
                 store,
                 embedding_model=embedding_model,
                 output_dimensionality=embedding_output_dimensionality,
@@ -282,8 +280,7 @@ def _index_posts_in_rag(
 def _write_posts_for_period_pydantic(
     table: Table,
     period_date: str,
-    client: genai.Client,  # Not used, kept for signature compatibility
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """
@@ -295,8 +292,7 @@ def _write_posts_for_period_pydantic(
     Args:
         table: Table with messages for the period (already enriched)
         period_date: Period identifier (e.g., "2025-01-01")
-        client: Gemini client (not used, kept for compatibility)
-        batch_client: Batch client for embeddings
+        client: Gemini client for embeddings
         config: Writer configuration object
 
     Returns:
@@ -334,7 +330,7 @@ def _write_posts_for_period_pydantic(
         rag_context = build_rag_context_for_prompt(
             conversation_md,
             config.rag_dir,
-            batch_client,
+            client,
             embedding_model=embedding_model,
             embedding_output_dimensionality=config.embedding_output_dimensionality,
             retrieval_mode=config.retrieval_mode,
@@ -393,7 +389,7 @@ Use these features appropriately in your posts. You understand how each extensio
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
-        batch_client=batch_client,
+        client=client,
         embedding_model=embedding_model,
         embedding_output_dimensionality=config.embedding_output_dimensionality,
         retrieval_mode=config.retrieval_mode,
@@ -406,7 +402,7 @@ Use these features appropriately in your posts. You understand how each extensio
     if config.enable_rag:
         _index_posts_in_rag(
             saved_posts,
-            batch_client,
+            client,
             config.rag_dir,
             embedding_model=embedding_model,
             embedding_output_dimensionality=config.embedding_output_dimensionality,
@@ -419,7 +415,6 @@ def write_posts_for_period(
     table: Table,
     period_date: str,
     client: genai.Client,
-    batch_client: GeminiBatchClient,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """
@@ -437,8 +432,7 @@ def write_posts_for_period(
     Args:
         table: Table with messages for the period (already enriched)
         period_date: Period identifier (e.g., "2025-01-01")
-        client: Gemini client (kept for signature compatibility, not used)
-        batch_client: Batch client for embeddings
+        client: Gemini client for embeddings
         config: Writer configuration object
 
     Returns:
@@ -449,7 +443,7 @@ def write_posts_for_period(
 
     Examples:
         >>> writer_config = WriterConfig()
-        >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client, writer_config)
+        >>> result = write_posts_for_period(table, "2025-01-01", client, writer_config)
     """
     # Use default config if none provided
     if config is None:
@@ -460,6 +454,5 @@ def write_posts_for_period(
         table=table,
         period_date=period_date,
         client=client,
-        batch_client=batch_client,
         config=config,
     )

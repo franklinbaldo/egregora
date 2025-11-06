@@ -5,7 +5,6 @@ from egregora.utils.batch import (
     BatchPromptResult,
     EmbeddingBatchRequest,
     EmbeddingBatchResult,
-    GeminiBatchClient,
     chunk_requests,
 )
 from egregora.utils.cache import (
@@ -42,7 +41,6 @@ __all__ = [
     "EmbeddingBatchResult",
     # Cache
     "EnrichmentCache",
-    "GeminiBatchClient",
     # Path safety
     "PathTraversalError",
     # ZIP validation

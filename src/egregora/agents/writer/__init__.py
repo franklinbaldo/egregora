@@ -10,6 +10,7 @@ Documentation:
 """
 
 from egregora.agents.writer.core import (
+    WriterConfig,
     get_top_authors,
     load_markdown_extensions,
     load_site_config,
@@ -19,6 +20,7 @@ from egregora.agents.writer.tools import PostMetadata
 
 __all__ = [
     "PostMetadata",
+    "WriterConfig",
     "get_top_authors",
     "load_markdown_extensions",
     "load_site_config",

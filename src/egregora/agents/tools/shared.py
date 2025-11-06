@@ -5,7 +5,6 @@ from google import genai
 
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig
-from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.genai import call_with_retries
 
 
@@ -37,7 +36,7 @@ async def query_rag(
 
         results = await query_similar_posts(
             table=dummy_table,
-            batch_client=GeminiBatchClient(client, default_model=model_config.get_model("embedding")),
+            client=client,
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,

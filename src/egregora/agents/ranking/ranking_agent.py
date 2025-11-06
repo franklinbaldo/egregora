@@ -9,20 +9,15 @@ maintaining the same three-turn protocol:
 
 from __future__ import annotations
 
+import os
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
-
-try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
 
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
@@ -68,9 +63,10 @@ class RankingResult(BaseModel):
 # Agent State
 
 
-@dataclass
-class RankingAgentState:
+class RankingAgentState(BaseModel):
     """State passed to ranking agent tools."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     post_a_id: str
     post_b_id: str
@@ -402,8 +398,19 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
 
     with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
         # Create agent - text output since we collect results in state
+        # Create model with pydantic-ai string notation
+        # Note: Pydantic-AI reads GOOGLE_API_KEY from environment automatically
+        if agent_model is None:
+            # Set API key in environment for pydantic-ai to use
+            if api_key:
+                os.environ["GOOGLE_API_KEY"] = api_key
+            # Model name is already in pydantic-ai notation
+            model_instance = model
+        else:
+            model_instance = agent_model
+
         agent = Agent[RankingAgentState, str](
-            model=agent_model or GoogleModel(model),
+            model=model_instance,
             deps_type=RankingAgentState,
             system_prompt="You are a blog post critic providing detailed comparisons.",
         )

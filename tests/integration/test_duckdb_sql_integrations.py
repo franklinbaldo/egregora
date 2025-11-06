@@ -134,8 +134,8 @@ def test_enrich_table_persists_results(tmp_path: Path):
         combined = enrich_table(
             messages_table,
             media_mapping={},
-            text_batch_client=text_client,
-            vision_batch_client=vision_client,
+            text_client=text_client,
+            vision_client=vision_client,
             cache=cache,
             docs_dir=docs_dir,
             posts_dir=posts_dir,
