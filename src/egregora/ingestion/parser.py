@@ -274,6 +274,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
     Args:
         exports: Sequence of WhatsApp export metadata
         timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
+
     """
     tables: list[Table] = []
     for export in exports:
@@ -350,13 +351,16 @@ def _normalize_text(value: str) -> str:
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> list[dict]:
+def _parse_messages(
+    lines: Iterable[str], export: WhatsAppExport, timezone: str | ZoneInfo | None = None
+) -> list[dict]:
     """Parse messages from an iterable of strings.
 
     Args:
         lines: Iterable of message lines
         export: WhatsApp export metadata
         timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
+
     """
     rows: list[dict] = []
     current_date = export.export_date
