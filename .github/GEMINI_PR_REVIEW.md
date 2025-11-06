@@ -6,12 +6,14 @@ This repository uses an automated code review system powered by Google's Gemini 
 
 1. **Trigger**: The workflow runs automatically when a PR is opened, synchronized, reopened, or marked as ready for review (draft PRs are skipped).
 
-2. **Context Collection**:
+2. **Validation**: The workflow first checks that `GEMINI_API_KEY` is configured and exits immediately if not, before running any expensive operations.
+
+3. **Context Collection**:
    - Checks out the repository with full history
    - Runs `npx repomix` to generate a complete textual bundle of the codebase (`repomix.txt`)
    - Fetches the PR's `.patch` file via GitHub API
 
-3. **AI Review**:
+4. **AI Review**:
    - Sends both the repository context and PR changes to Gemini
    - Gemini analyzes the code and provides a structured review covering:
      - Summary and overall assessment
@@ -24,7 +26,7 @@ This repository uses an automated code review system powered by Google's Gemini 
      - Architecture/design trade-offs
      - Actionable checklist
 
-4. **Comment Posting**:
+5. **Comment Posting**:
    - Posts the review as a comment on the PR
    - Automatically splits long reviews into multiple comments if needed
    - Indicates which Gemini model was used
@@ -92,8 +94,8 @@ You can change the model by setting the `GEMINI_MODEL` repository variable.
 ### Review not appearing
 
 1. Check that the PR is not in draft mode
-2. Verify `GEMINI_API_KEY` secret is set correctly
-3. Check the workflow run logs in the Actions tab
+2. Verify `GEMINI_API_KEY` secret is set correctly - the workflow will fail immediately with a clear error message if not configured
+3. Check the workflow run logs in the Actions tab for detailed error messages
 4. Ensure the API key has sufficient quota
 
 ### Review is incomplete
