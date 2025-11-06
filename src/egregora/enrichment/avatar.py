@@ -16,7 +16,6 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 from google import genai
-from google.genai import types as genai_types
 from PIL import Image
 
 from ..config import MEDIA_DIR_NAME
