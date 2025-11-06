@@ -107,6 +107,21 @@ PYTHON_EOF
                -o pr.patch
           echo "PR patch downloaded: $(wc -l < pr.patch) lines"
 
+      - name: Fetch PR conversation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_COMMENTS_URL="${{ github.event.issue.comments_url }}"
+          else
+            PR_COMMENTS_URL="${{ github.event.pull_request.comments_url }}"
+          fi
+          curl -H "Authorization: token $GITHUB_TOKEN" \
+               -H "Accept: application/vnd.github.v3+json" \
+               "$PR_COMMENTS_URL" \
+               -o pr-comments.json
+          echo "PR conversation downloaded: $(jq length pr-comments.json) comments"
+
       - name: Run Gemini code review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -127,4 +142,5 @@ PYTHON_EOF
           path: |
             repomix.txt
             pr.patch
+            pr-comments.json
           retention-days: 7

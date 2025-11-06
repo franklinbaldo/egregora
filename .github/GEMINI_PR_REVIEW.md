@@ -28,11 +28,13 @@ Comment on any PR with `@gemini {your specific request}` to trigger a custom rev
    - Checks out the repository with full history
    - Runs `npx repomix` to generate a complete textual bundle of the codebase (`repomix.txt`)
    - Fetches the PR's `.patch` file via GitHub API
+   - Fetches the entire PR conversation (all comments) for context
 
 4. **AI Review**:
-   - Sends repository context and PR changes to Gemini along with a description of its code review skills
-   - In automatic mode: Gemini performs a comprehensive review
-   - In comment mode: Gemini addresses your specific request while applying its review expertise
+   - Sends repository context, PR changes, and conversation history to Gemini
+   - Gemini considers what has already been discussed to avoid repetition
+   - In automatic mode: Provides a concise but complete review focusing on what matters most
+   - In comment mode: Addresses your specific request while being contextually aware
    - Review skills include:
      - Summary and overall assessment
      - Correctness & bugs
@@ -83,15 +85,16 @@ You can modify `.repomixignore` to adjust what gets included in the review conte
 
 ## Review Style & Expertise
 
-Gemini's code review skills emphasize:
+Gemini's code review approach emphasizes:
+- **Concise but complete** - every sentence adds value, no verbose explanations
+- **Contextually aware** - considers existing PR conversation to avoid repetition
+- **Ruthlessly prioritized** - critical issues first, minor style points last
 - **Direct and candid** - points out real issues without sugar-coating
 - **Professional** - constructive criticism, not personal attacks
-- **Specific** - cites exact locations (file:line) when possible
-- **Actionable** - provides concrete suggestions, not just problems
-- **Focused on substance** - avoids unnecessary praise or flattery
-- **Prioritized** - distinguishes critical issues from minor improvements
+- **Specific and actionable** - cites exact locations (file:line), provides implementable suggestions
+- **Focused on substance** - skips obvious points, avoids unnecessary praise or preamble
 
-When triggered via `@gemini` comments, Gemini applies these skills to your specific request while maintaining its comprehensive review capabilities.
+When triggered via `@gemini` comments, Gemini focuses on your specific request while remaining contextually aware of what has already been discussed in the PR.
 
 ## Usage Examples
 
@@ -146,6 +149,7 @@ The workflow requires these permissions:
 For debugging purposes, the workflow uploads artifacts containing:
 - `repomix.txt` - The full repository bundle
 - `pr.patch` - The PR changes in patch format
+- `pr-comments.json` - The complete PR conversation
 
 These are retained for 7 days and can be downloaded from the workflow run page.
 
