@@ -407,9 +407,8 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
         # Create model with API key if provided
         if agent_model is None:
             if api_key:
-                # Create client and provider with API key
-                client = genai.Client(api_key=api_key)
-                provider = GoogleProvider(client=client)
+                # Use pydantic-ai's GoogleProvider with API key directly
+                provider = GoogleProvider(api_key=api_key)
                 model_instance = GeminiModel(model, provider=provider)
             else:
                 model_instance = GeminiModel(model)
