@@ -121,7 +121,6 @@ class WriterAgentState(BaseModel):
     rag_dir: Path
     batch_client: Any
     embedding_model: str
-    embedding_output_dimensionality: int
     retrieval_mode: str
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
@@ -204,7 +203,6 @@ def _register_writer_tools(
                 top_k=limit,
                 min_similarity=0.7,
                 embedding_model=ctx.deps.embedding_model,
-                output_dimensionality=ctx.deps.embedding_output_dimensionality,
                 retrieval_mode=ctx.deps.retrieval_mode,
                 retrieval_nprobe=ctx.deps.retrieval_nprobe,
                 retrieval_overfetch=ctx.deps.retrieval_overfetch,
@@ -291,7 +289,6 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     rag_dir: Path,
     client: Any,
     embedding_model: str,
-    embedding_output_dimensionality: int,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
@@ -337,7 +334,6 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         rag_dir=rag_dir,
         batch_client=client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
@@ -467,7 +463,6 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     rag_dir: Path,
     client: Any,
     embedding_model: str,
-    embedding_output_dimensionality: int,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
@@ -527,7 +522,6 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
         rag_dir=rag_dir,
         batch_client=client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
