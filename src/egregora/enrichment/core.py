@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+from google import genai
 from ibis.expr.types import Table
 
 from egregora.config import ModelConfig
@@ -41,8 +42,6 @@ from egregora.prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
-from google import genai
-
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.genai_helpers import generate_content_batch, upload_file

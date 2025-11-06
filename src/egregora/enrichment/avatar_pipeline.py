@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from ibis.expr.types import Table
 from google import genai
+from ibis.expr.types import Table
 
 from ..agents.tools.profiler import remove_profile_avatar, update_profile_avatar
 from ..enrichment.media import extract_urls, find_media_references

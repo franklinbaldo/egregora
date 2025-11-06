@@ -5,10 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from google import genai
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
-
-from google import genai
 
 from egregora.agents.tools.profiler import get_active_authors, read_profile
 from egregora.agents.tools.rag import (

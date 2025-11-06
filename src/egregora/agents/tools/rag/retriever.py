@@ -9,9 +9,8 @@ from pathlib import Path
 from typing import TypedDict
 
 import ibis
-from ibis.expr.types import Table
-
 from google import genai
+from ibis.expr.types import Table
 
 from egregora.agents.tools.rag.chunker import chunk_document
 from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
