@@ -193,6 +193,7 @@ def create_table_if_not_exists(
     Note:
         This uses CREATE TABLE IF NOT EXISTS to safely handle existing tables.
         Primary keys and constraints should be added separately if needed.
+
     """
     # Check if table exists using Ibis
     if table_name not in conn.list_tables():
@@ -213,6 +214,7 @@ def quote_identifier(identifier: str) -> str:
     Note:
         DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
         Example: my"table → "my""table"
+
     """
     return f'"{identifier.replace('"', '""')}"'
 
@@ -228,6 +230,7 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
     Note:
         DuckDB requires ALTER TABLE for primary key constraints.
         This must be called on raw DuckDB connection, not Ibis connection.
+
     """
     try:
         conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
@@ -254,6 +257,7 @@ def ensure_identity_column(
     Note:
         This must be called on raw DuckDB connection, not Ibis connection.
         If the column already has identity configured, this is a no-op.
+
     """
     try:
         conn.execute(
@@ -279,6 +283,7 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
     Note:
         For vector columns, use index_type='HNSW' with cosine metric (optimized for 768-dim embeddings).
         This must be called on raw DuckDB connection, not Ibis connection.
+
     """
     try:
         if index_type == "HNSW":

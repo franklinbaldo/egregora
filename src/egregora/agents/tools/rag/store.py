@@ -29,7 +29,7 @@ DEFAULT_EXACT_INDEX_THRESHOLD = 1_000
 class _ConnectionProxy:
     """Allow attribute overrides on DuckDB connections (e.g., for monkeypatching)."""
 
-    def __init__(self, inner: duckdb.DuckDBPyConnection):
+    def __init__(self, inner: duckdb.DuckDBPyConnection) -> None:
         object.__setattr__(self, "_inner", inner)
         object.__setattr__(self, "_overrides", {})
 
@@ -83,13 +83,13 @@ class VectorStore:
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
         exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
-    ):
-        """
-        Initialize vector store.
+    ) -> None:
+        """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
             exact_index_threshold: Maximum row count before switching to ANN indexing
+
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
@@ -109,11 +109,11 @@ class VectorStore:
         self._ensure_dataset_loaded()
 
     def _init_vss(self) -> bool:
-        """
-        Initialize DuckDB VSS extension (lazy loading).
+        """Initialize DuckDB VSS extension (lazy loading).
 
         Returns:
             True if VSS was successfully loaded, False otherwise.
+
         """
         if self._vss_available:
             return True
@@ -132,7 +132,6 @@ class VectorStore:
 
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
-
         self._ensure_metadata_table()
 
         if not self.parquet_path.exists():
@@ -165,7 +164,6 @@ class VectorStore:
 
     def _ensure_metadata_table(self) -> None:
         """Create the internal metadata table when missing."""
-
         database_schema.create_table_if_not_exists(
             self._client,
             METADATA_TABLE_NAME,
@@ -175,7 +173,6 @@ class VectorStore:
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
-
         database_schema.create_table_if_not_exists(
             self._client,
             INDEX_META_TABLE,
@@ -186,7 +183,6 @@ class VectorStore:
 
     def _migrate_index_meta_table(self) -> None:
         """Ensure legacy index metadata tables gain any newly introduced columns."""
-
         existing_columns = {
             row[1].lower() for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
         }
@@ -211,7 +207,6 @@ class VectorStore:
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
-
         # Preserve the functionality of the target branch but with the ruff fix
         # Reduce return statements for ruff compliance
         if dtype.is_string():
@@ -230,10 +225,7 @@ class VectorStore:
             result = "DATE"
         elif dtype.is_array():
             inner = VectorStore._duckdb_type_from_ibis(dtype.value_type)
-            if inner is None:
-                result = None
-            else:
-                result = f"{inner}[]"
+            result = None if inner is None else f"{inner}[]"
         else:
             result = None
 
@@ -241,7 +233,6 @@ class VectorStore:
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
-
         row = self.conn.execute(
             f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
             [str(self.parquet_path)],
@@ -261,7 +252,6 @@ class VectorStore:
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
-
         self.conn.execute(
             f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?",
             [str(self.parquet_path)],
@@ -282,7 +272,6 @@ class VectorStore:
 
     def _read_parquet_metadata(self) -> DatasetMetadata:
         """Inspect the Parquet file for structural metadata."""
-
         stats = self.parquet_path.stat()
         row = self.conn.execute(
             "SELECT COUNT(*) FROM read_parquet(?)",
@@ -297,7 +286,6 @@ class VectorStore:
 
     def _duckdb_table_exists(self, table_name: str) -> bool:
         """Check whether a DuckDB table is materialized in the current database."""
-
         row = self.conn.execute(
             """
             SELECT COUNT(*)
@@ -310,7 +298,6 @@ class VectorStore:
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
-
         self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
         self._ensure_index_meta_table()
         table_present = self.conn.execute(
@@ -360,7 +347,6 @@ class VectorStore:
         embedding_dim: int | None = None,
     ) -> None:
         """Persist the latest index configuration for observability and telemetry."""
-
         timestamp = datetime.now()
         self.conn.execute(
             f"""
@@ -388,7 +374,6 @@ class VectorStore:
 
     def _clear_index_meta(self) -> None:
         """Remove metadata when the backing table is empty or missing."""
-
         self.conn.execute(
             f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?",
             [INDEX_NAME],
@@ -403,8 +388,7 @@ class VectorStore:
         return int(row[0]) if row and row[0] is not None else None
 
     def _validate_embedding_dimension(self, embeddings: list[list[float]], context: str) -> int:
-        """
-        Validate embedding dimensionality consistency.
+        """Validate embedding dimensionality consistency.
 
         All embeddings must be exactly 768 dimensions.
 
@@ -417,32 +401,34 @@ class VectorStore:
 
         Raises:
             ValueError: If embeddings are not 768 dimensions
+
         """
         if not embeddings:
-            raise ValueError(f"{context}: No embeddings provided")
+            msg = f"{context}: No embeddings provided"
+            raise ValueError(msg)
 
         # Check that all embeddings are 768 dimensions
         dimensions = {len(emb) for emb in embeddings}
         if len(dimensions) > 1:
-            raise ValueError(
-                f"{context}: Inconsistent embedding dimensions within batch: {sorted(dimensions)}"
-            )
+            msg = f"{context}: Inconsistent embedding dimensions within batch: {sorted(dimensions)}"
+            raise ValueError(msg)
 
         current_dim = dimensions.pop()
 
         # All embeddings must be exactly 768 dimensions
         if current_dim != EMBEDDING_DIM:
-            raise ValueError(
+            msg = (
                 f"{context}: Embedding dimension mismatch. "
                 f"Expected {EMBEDDING_DIM} (fixed dimension), got {current_dim}. "
                 f"All embeddings must use 768 dimensions."
             )
+            raise ValueError(msg)
+            raise ValueError(msg)
 
         return current_dim
 
     def add(self, chunks_table: Table) -> None:
-        """
-        Add chunks to the vector store.
+        """Add chunks to the vector store.
 
         Appends to existing Parquet file or creates new one.
 
@@ -471,6 +457,7 @@ class VectorStore:
                 - embedding: list[float] (exactly 768 dimensions)
                 - tags: list[str]
                 - category: str | None
+
         """
         self._validate_table_schema(chunks_table, context="new chunks")
 
@@ -529,7 +516,6 @@ class VectorStore:
 
     def _align_schemas(self, existing_table: Table, new_table: Table) -> tuple[Table, Table]:
         """Cast both tables to the canonical vector store schema."""
-
         existing_table = self._cast_to_vector_store_schema(existing_table)
         new_table = self._cast_to_vector_store_schema(new_table)
 
@@ -537,7 +523,6 @@ class VectorStore:
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""
-
         expected_columns = set(VECTOR_STORE_SCHEMA.names)
         table_columns = set(table.columns)
 
@@ -551,11 +536,11 @@ class VectorStore:
             if unexpected:
                 parts.append(f"unexpected columns: {', '.join(unexpected)}")
             detail = "; ".join(parts)
-            raise ValueError(f"{context} do not match the vector store schema ({detail}).")
+            msg = f"{context} do not match the vector store schema ({detail})."
+            raise ValueError(msg)
 
     def _cast_to_vector_store_schema(self, table: Table) -> Table:
         """Cast the table to the canonical vector store schema ordering and types."""
-
         casts = {}
         for column_name, dtype in VECTOR_STORE_SCHEMA.items():
             column = table[column_name]
@@ -581,8 +566,7 @@ class VectorStore:
         nprobe: int | None = None,
         overfetch: int | None = None,
     ) -> Table:
-        """
-        Search for similar chunks using cosine similarity.
+        """Search for similar chunks using cosine similarity.
 
         Args:
             query_vec: Query embedding vector
@@ -598,6 +582,7 @@ class VectorStore:
 
         Returns:
             Ibis Table with all stored columns plus similarity score
+
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
@@ -620,15 +605,18 @@ class VectorStore:
         # All embeddings must be fixed 768 dimensions
         embedding_dimensionality = len(query_vec)
         if embedding_dimensionality != EMBEDDING_DIM:
-            raise ValueError(
+            msg = (
                 f"Query embedding dimension mismatch. "
                 f"Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. "
                 f"All embeddings must use 768 dimensions."
             )
+            raise ValueError(msg)
+            raise ValueError(msg)
 
         mode_normalized = mode.lower()
         if mode_normalized not in {"ann", "exact"}:
-            raise ValueError("mode must be either 'ann' or 'exact'")
+            msg = "mode must be either 'ann' or 'exact'"
+            raise ValueError(msg)
 
         # Fallback to exact mode if ANN requested but VSS not available
         if mode_normalized == "ann" and not self._init_vss():
@@ -636,7 +624,8 @@ class VectorStore:
             mode_normalized = "exact"
 
         if nprobe is not None and nprobe <= 0:
-            raise ValueError("nprobe must be a positive integer")
+            msg = "nprobe must be a positive integer"
+            raise ValueError(msg)
 
         params: list[Any] = [query_vec]
         filters: list[str] = []
@@ -687,7 +676,7 @@ class VectorStore:
             try:
                 return self._execute_search_query(query, params, min_similarity)
             except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error(f"Search failed: {exc}")
+                logger.exception(f"Search failed: {exc}")
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
 
         fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
@@ -714,7 +703,7 @@ class VectorStore:
                 continue
             except Exception as exc:  # pragma: no cover - unexpected execution failure
                 last_error = exc
-                logger.error("ANN search aborted: %s", exc)
+                logger.exception("ANN search aborted: %s", exc)
                 break
 
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
@@ -726,7 +715,7 @@ class VectorStore:
                     min_similarity,
                 )
             except Exception as exc:  # pragma: no cover - unexpected execution failure
-                logger.error("Exact fallback search failed: %s", exc)
+                logger.exception("Exact fallback search failed: %s", exc)
 
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
@@ -763,7 +752,6 @@ class VectorStore:
 
     def _detect_vss_function(self) -> str:
         """Return the appropriate DuckDB VSS function name."""
-
         try:
             rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
         except duckdb.Error as exc:  # pragma: no cover - DuckDB compatibility
@@ -783,7 +771,6 @@ class VectorStore:
 
     def _candidate_vss_functions(self) -> list[str]:
         """Return preferred VSS table functions in fallback order."""
-
         candidates = [self._vss_function]
         for function_name in ("vss_match", "vss_search"):
             if function_name not in candidates:
@@ -792,7 +779,6 @@ class VectorStore:
 
     def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
         """Execute the provided search query and normalize the results."""
-
         cursor = self.conn.execute(query, params)
         columns = [description[0] for description in cursor.description or []]
         rows = cursor.fetchall()
@@ -810,7 +796,6 @@ class VectorStore:
 
     def _prepare_search_results(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Normalize DuckDB result rows to match the search schema."""
-
         if not records:
             return []
 
@@ -854,7 +839,6 @@ class VectorStore:
     @staticmethod
     def _normalize_date_filter(value: date | datetime | str) -> datetime:
         """Normalize date filter inputs to UTC-aware datetimes."""
-
         if isinstance(value, datetime):
             return VectorStore._ensure_utc_datetime(value)
 
@@ -872,17 +856,18 @@ class VectorStore:
                 try:
                     parsed_date = date.fromisoformat(cleaned)
                 except ValueError as exc:  # pragma: no cover - defensive guard
-                    raise ValueError(f"Invalid date_after value: {value!r}") from exc
+                    msg = f"Invalid date_after value: {value!r}"
+                    raise ValueError(msg) from exc
                 return datetime.combine(parsed_date, time.min, tzinfo=UTC)
 
             return VectorStore._ensure_utc_datetime(parsed_dt)
 
-        raise TypeError("date_after must be a date, datetime, or ISO8601 string")
+        msg = "date_after must be a date, datetime, or ISO8601 string"
+        raise TypeError(msg)
 
     @staticmethod
     def _ensure_utc_datetime(value: datetime) -> datetime:
         """Coerce datetime objects to UTC-aware variants."""
-
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
 
@@ -890,7 +875,6 @@ class VectorStore:
 
     def _table_from_rows(self, records: list[dict[str, Any]], schema: ibis.Schema) -> Table:
         """Create a DuckDB-backed table from an in-memory sequence of records."""
-
         if not records:
             return self._empty_table(schema)
 
@@ -899,7 +883,8 @@ class VectorStore:
         for column_name, dtype in schema.items():
             column_type = self._duckdb_type_from_ibis(dtype)
             if column_type is None:
-                raise TypeError(f"Unsupported dtype {dtype!r} for column {column_name}")
+                msg = f"Unsupported dtype {dtype!r} for column {column_name}"
+                raise TypeError(msg)
             column_defs.append(f"{column_name} {column_type}")
 
         columns_sql = ", ".join(column_defs)
@@ -918,7 +903,6 @@ class VectorStore:
 
     def _ensure_local_table(self, table: Table) -> Table:
         """Materialize a table on the store backend when necessary."""
-
         try:
             backend = table._find_backend()
         except (AttributeError, RuntimeError) as e:  # pragma: no cover - defensive against Ibis internals
@@ -940,18 +924,15 @@ class VectorStore:
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
         """Create an empty table with the given schema using the local backend."""
-
         return ibis.memtable([], schema=schema)
 
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""
-
         if self._owns_connection:
             self.conn.close()
 
     def get_all(self) -> Table:
-        """
-        Read entire vector store.
+        """Read entire vector store.
 
         Useful for analytics, exports, client-side usage.
         """

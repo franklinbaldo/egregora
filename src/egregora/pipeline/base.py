@@ -10,9 +10,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ibis.expr.types import Table
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 __all__ = [
     "PipelineStage",
@@ -85,11 +86,12 @@ class PipelineStage(ABC):
     - Error handling and retries
     """
 
-    def __init__(self, config: StageConfig):
+    def __init__(self, config: StageConfig) -> None:
         """Initialize the stage with configuration.
 
         Args:
             config: Stage configuration
+
         """
         self.config = config
 
@@ -101,7 +103,6 @@ class PipelineStage(ABC):
         Used for logging and debugging.
         Examples: "Message Filtering", "URL Enrichment", "Post Writing"
         """
-        pass
 
     @property
     @abstractmethod
@@ -111,7 +112,6 @@ class PipelineStage(ABC):
         Used for checkpoints and configuration.
         Examples: "filtering", "enrichment", "writing"
         """
-        pass
 
     @abstractmethod
     def process(
@@ -134,8 +134,8 @@ class PipelineStage(ABC):
         Raises:
             ValueError: If input data is invalid
             RuntimeError: If stage execution fails
+
         """
-        pass
 
     def supports_checkpointing(self) -> bool:
         """Whether this stage supports checkpointing for resume capability.
@@ -164,6 +164,7 @@ class PipelineStage(ABC):
         Note:
             Default implementation returns (True, []) (no validation).
             Override to add custom validation logic.
+
         """
         return True, []
 

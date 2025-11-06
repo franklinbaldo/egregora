@@ -24,8 +24,7 @@ def save_table_to_csv(
     *,
     index: Annotated[bool, "Whether to include the row index in the output"] = False,
 ) -> None:
-    """
-    Save an Ibis Table to CSV file.
+    """Save an Ibis Table to CSV file.
 
     Args:
         table: Ibis Table to save
@@ -34,6 +33,7 @@ def save_table_to_csv(
 
     Raises:
         IOError: If writing fails
+
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,8 +51,7 @@ def load_table_from_csv(
     *,
     schema: Annotated[dict | None, "An optional Ibis schema to apply to the loaded table"] = None,
 ) -> Table:
-    """
-    Load an Ibis Table from CSV file.
+    """Load an Ibis Table from CSV file.
 
     Args:
         input_path: Path to input CSV file
@@ -64,11 +63,13 @@ def load_table_from_csv(
     Raises:
         FileNotFoundError: If input file doesn't exist
         ValueError: If CSV format is invalid
+
     """
     input_path = Path(input_path).resolve()
 
     if not input_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {input_path}")
+        msg = f"CSV file not found: {input_path}"
+        raise FileNotFoundError(msg)
 
     # Let DuckDB auto-detect schema from CSV
     # Note: Passing schema directly to ibis.read_csv doesn't work well with DuckDB backend
@@ -83,8 +84,7 @@ def load_table_from_csv(
 def load_table_with_auto_schema(
     input_path: Annotated[Path, "The path to the input CSV file"],
 ) -> Table:
-    """
-    Load an Ibis Table from CSV with automatic schema detection.
+    """Load an Ibis Table from CSV with automatic schema detection.
 
     Use this when the CSV might not match MESSAGE_SCHEMA (e.g., enriched tables).
 
@@ -96,11 +96,13 @@ def load_table_with_auto_schema(
 
     Raises:
         FileNotFoundError: If input file doesn't exist
+
     """
     input_path = Path(input_path).resolve()
 
     if not input_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {input_path}")
+        msg = f"CSV file not found: {input_path}"
+        raise FileNotFoundError(msg)
 
     # Let Ibis infer schema automatically
     table = ibis.read_csv(str(input_path))
@@ -115,8 +117,7 @@ def save_table_to_parquet(
     table: Annotated[Table, "The Ibis table to save"],
     output_path: Annotated[Path, "The path to the output Parquet file"],
 ) -> None:
-    """
-    Save an Ibis Table to Parquet file.
+    """Save an Ibis Table to Parquet file.
 
     Parquet preserves schema and types, making it more robust than CSV.
     Recommended for production pipelines.
@@ -127,6 +128,7 @@ def save_table_to_parquet(
 
     Raises:
         IOError: If writing fails
+
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,8 +144,7 @@ def save_table_to_parquet(
 def load_table_from_parquet(
     input_path: Annotated[Path, "The path to the input Parquet file"],
 ) -> Table:
-    """
-    Load an Ibis Table from Parquet file.
+    """Load an Ibis Table from Parquet file.
 
     Parquet preserves schema and types automatically.
 
@@ -155,11 +156,13 @@ def load_table_from_parquet(
 
     Raises:
         FileNotFoundError: If input file doesn't exist
+
     """
     input_path = Path(input_path).resolve()
 
     if not input_path.exists():
-        raise FileNotFoundError(f"Parquet file not found: {input_path}")
+        msg = f"Parquet file not found: {input_path}"
+        raise FileNotFoundError(msg)
 
     # Read Parquet with preserved schema
     table = ibis.read_parquet(str(input_path))
@@ -177,8 +180,7 @@ def save_table(
     format: Annotated[SerializationFormat, "The output format ('csv' or 'parquet')"] = "csv",
     index: Annotated[bool, "Whether to include the row index (only for CSV, ignored for Parquet)"] = False,
 ) -> None:
-    """
-    Save an Ibis Table to file with automatic format detection or explicit format.
+    """Save an Ibis Table to file with automatic format detection or explicit format.
 
     Args:
         table: Ibis Table to save
@@ -189,6 +191,7 @@ def save_table(
     Raises:
         ValueError: If format is unsupported
         IOError: If writing fails
+
     """
     output_path = Path(output_path)
 
@@ -202,10 +205,11 @@ def save_table(
     elif format == "csv":
         save_table_to_csv(table, output_path, index=index)
     else:
-        raise ValueError(
+        msg = (
             f"Unsupported format: {format}. Use 'csv' or 'parquet', "
             f"or ensure file extension is .csv or .parquet"
         )
+        raise ValueError(msg)
 
 
 def load_table(
@@ -216,8 +220,7 @@ def load_table(
         "The input format ('csv' or 'parquet'), auto-detected from extension if not provided",
     ] = None,
 ) -> Table:
-    """
-    Load an Ibis Table from file with automatic format detection.
+    """Load an Ibis Table from file with automatic format detection.
 
     Args:
         input_path: Path to input file
@@ -229,11 +232,13 @@ def load_table(
     Raises:
         FileNotFoundError: If input file doesn't exist
         ValueError: If format cannot be determined or is unsupported
+
     """
     input_path = Path(input_path)
 
     if not input_path.exists():
-        raise FileNotFoundError(f"File not found: {input_path}")
+        msg = f"File not found: {input_path}"
+        raise FileNotFoundError(msg)
 
     # Auto-detect format from extension
     detected_format = format
@@ -243,14 +248,15 @@ def load_table(
         elif input_path.suffix.lower() == ".csv":
             detected_format = "csv"
         else:
-            raise ValueError(
+            msg = (
                 f"Cannot detect format from extension '{input_path.suffix}'. "
                 f"Use .csv or .parquet, or specify format explicitly"
             )
+            raise ValueError(msg)
 
     if detected_format == "parquet":
         return load_table_from_parquet(input_path)
-    elif detected_format == "csv":
+    if detected_format == "csv":
         return load_table_from_csv(input_path)
-    else:
-        raise ValueError(f"Unsupported format: {detected_format}")
+    msg = f"Unsupported format: {detected_format}"
+    raise ValueError(msg)

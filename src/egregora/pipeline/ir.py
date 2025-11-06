@@ -8,12 +8,16 @@ messages from any source without modification.
 
 from __future__ import annotations
 
-from zoneinfo import ZoneInfo
+from typing import TYPE_CHECKING
 
 import ibis.expr.datatypes as dt
-from ibis.expr.types import Table
 
 from egregora.schema import DEFAULT_TIMEZONE, ensure_message_schema
+
+if TYPE_CHECKING:
+    from zoneinfo import ZoneInfo
+
+    from ibis.expr.types import Table
 
 __all__ = [
     "IR_SCHEMA",
@@ -51,6 +55,7 @@ def validate_ir_schema(table: Table) -> tuple[bool, list[str]]:
         >>> is_valid, errors = validate_ir_schema(messages_table)
         >>> if not is_valid:
         ...     raise ValueError(f"IR schema validation failed: {errors}")
+
     """
     errors = []
     schema = table.schema()
@@ -113,6 +118,7 @@ def create_ir_table(
     Example:
         >>> raw_table = parse_raw_export(...)
         >>> ir_table = create_ir_table(raw_table, timezone="America/New_York")
+
     """
     # Delegate to existing schema enforcement logic
     # This reuses the battle-tested ensure_message_schema function

@@ -16,18 +16,23 @@ import logging
 import re
 import unicodedata
 import zipfile
-from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import ibis
 from dateutil import parser as date_parser
-from ibis.expr.types import Table
 
 from egregora.constants import EgregoraCommand
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
-from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    from ibis.expr.types import Table
+
+    from egregora.sources.whatsapp.models import WhatsAppExport
 
 # Constants
 SET_COMMAND_PARTS = 2
@@ -63,8 +68,7 @@ COMMAND_REGISTRY = {
 
 
 def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
-    """
-    Parse egregora commands from message text.
+    """Parse egregora commands from message text.
 
     Supported commands:
     - /egregora set alias "Franklin"
@@ -97,6 +101,7 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
             'command': 'unset',
             'target': 'avatar'
         }
+
     """
     # Normalize curly quotes to straight quotes (English only, as requested)
     # This handles copy-paste from phones/messaging apps
@@ -107,9 +112,9 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
     simple_cmd = message.strip().lower()
     if simple_cmd == EgregoraCommand.OPT_OUT.value:
         return {"command": "opt-out"}
-    elif simple_cmd == EgregoraCommand.OPT_IN.value:
+    if simple_cmd == EgregoraCommand.OPT_IN.value:
         return {"command": "opt-in"}
-    elif simple_cmd == "/egregora unset avatar":
+    if simple_cmd == "/egregora unset avatar":
         return {"command": "unset", "target": "avatar", "value": None}
 
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
@@ -130,8 +135,7 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
 
 
 def extract_commands(messages: Table) -> list[dict]:
-    """
-    Extract egregora commands from parsed Table.
+    """Extract egregora commands from parsed Table.
 
     Commands are messages starting with /egregora that set user preferences
     like aliases, bios, links, etc.
@@ -147,6 +151,7 @@ def extract_commands(messages: Table) -> list[dict]:
             'command': {...},
             'message': 'original message text'
         }]
+
     """
     if int(messages.count().execute()) == 0:
         return []
@@ -179,8 +184,7 @@ def extract_commands(messages: Table) -> list[dict]:
 
 
 def _add_message_ids(messages: Table) -> Table:
-    """
-    Add deterministic message_id column based on milliseconds since group creation.
+    """Add deterministic message_id column based on milliseconds since group creation.
 
     The message_id combines two components:
     1. Time delta in milliseconds from first message (timezone-independent)
@@ -201,6 +205,7 @@ def _add_message_ids(messages: Table) -> Table:
 
     Returns:
         Table with added 'message_id' column containing "{delta_ms}_{row_num}"
+
     """
     if int(messages.count().execute()) == 0:
         return messages
@@ -233,14 +238,11 @@ def _add_message_ids(messages: Table) -> Table:
 
     row_number = ibis.row_number().over(order_by=order_columns)
 
-    messages_with_id = messages.mutate(message_id=(delta_ms.cast("string") + "_" + row_number.cast("string")))
-
-    return messages_with_id
+    return messages.mutate(message_id=(delta_ms.cast("string") + "_" + row_number.cast("string")))
 
 
 def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
-    """
-    Remove all messages starting with /egregora from Table.
+    """Remove all messages starting with /egregora from Table.
 
     This serves dual purposes:
     1. Remove command spam from content (clean posts)
@@ -257,6 +259,7 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
 
     Returns:
         (filtered_table, num_removed)
+
     """
     total_messages = int(messages.count().execute())
     if total_messages == 0:
@@ -283,8 +286,7 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
 
 
 def parse_export(export: WhatsAppExport, timezone=None) -> Table:
-    """
-    Parse an individual export into an Ibis ``Table``.
+    """Parse an individual export into an Ibis ``Table``.
 
     Args:
         export: WhatsApp export metadata
@@ -292,8 +294,8 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
 
     Returns:
         Parsed and anonymized Table with correct timezone
-    """
 
+    """
     with zipfile.ZipFile(export.zip_path) as zf:
         validate_zip_contents(zf)
         ensure_safe_member_size(zf, export.chat_file)
@@ -303,7 +305,8 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                 rows = _parse_messages(text_stream, export)
         except UnicodeDecodeError as exc:
-            raise ZipValidationError(f"Failed to decode chat file '{export.chat_file}': {exc}") from exc
+            msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
+            raise ZipValidationError(msg) from exc
 
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
@@ -322,13 +325,11 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
         messages = messages.drop(_IMPORT_ORDER_COLUMN)
 
     messages = ensure_message_schema(messages, timezone=timezone)
-    messages = anonymize_table(messages)
-    return messages
+    return anonymize_table(messages)
 
 
 def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
     """Parse multiple exports and concatenate them ordered by timestamp."""
-
     tables: list[Table] = []
 
     for export in exports:
@@ -343,9 +344,8 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
                         text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                         rows = _parse_messages(text_stream, export)
                 except UnicodeDecodeError as exc:
-                    raise ZipValidationError(
-                        f"Failed to decode chat file '{export.chat_file}': {exc}"
-                    ) from exc
+                    msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
+                    raise ZipValidationError(msg) from exc
 
             if rows:
                 for row in rows:
@@ -393,9 +393,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
         combined = combined.drop(*drop_columns)
 
     combined = ensure_message_schema(combined)
-    combined = anonymize_table(combined)
-
-    return combined
+    return anonymize_table(combined)
 
 
 # Pattern captures optional date, mandatory time, separator (dash/en dash),
@@ -421,7 +419,6 @@ _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
 
 def _parse_message_date(token: str) -> date | None:
     """Parse ``token`` into a ``date`` in UTC, returning ``None`` when invalid."""
-
     normalized = token.strip()
     if not normalized:
         return None
@@ -435,13 +432,11 @@ def _parse_message_date(token: str) -> date | None:
 def _normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value)
     normalized = normalized.replace("\u202f", " ")
-    normalized = _INVISIBLE_MARKS.sub("", normalized)
-    return normalized
+    return _INVISIBLE_MARKS.sub("", normalized)
 
 
 def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     """Parse messages from an iterable of strings."""
-
     rows: list[dict] = []
     current_date = export.export_date
     builder: _MessageBuilder | None = None
@@ -508,10 +503,7 @@ def _parse_with_preferences(value: str) -> datetime | None:
 
 
 def _normalise_parsed_date(parsed: datetime) -> date:
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    else:
-        parsed = parsed.astimezone(UTC)
+    parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
     return parsed.date()
 
 

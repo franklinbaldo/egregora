@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
@@ -19,6 +19,9 @@ from egregora.prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -71,14 +74,14 @@ class AvatarEnrichmentContext(BaseModel):
 
 
 def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
-    """
-    Create URL enrichment agent with specified model.
+    """Create URL enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for URL enrichment
+
     """
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
         model,
@@ -101,14 +104,14 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
 
 
 def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
-    """
-    Create media enrichment agent with specified model.
+    """Create media enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for media enrichment
+
     """
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
         model,
@@ -133,14 +136,14 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
 
 
 def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
-    """
-    Create avatar enrichment agent with specified model.
+    """Create avatar enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for avatar moderation
+
     """
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
         model,
@@ -160,8 +163,7 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
 
 
 def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> BinaryContent:
-    """
-    Load a file as BinaryContent for pydantic-ai agents.
+    """Load a file as BinaryContent for pydantic-ai agents.
 
     Args:
         file_path: Path to the file
@@ -173,19 +175,20 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     Raises:
         ValueError: If file size exceeds max_size_mb
         FileNotFoundError: If file doesn't exist
+
     """
     # Validate file exists
     if not file_path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
+        msg = f"File not found: {file_path}"
+        raise FileNotFoundError(msg)
 
     # Validate file size
     file_size = file_path.stat().st_size
     max_size_bytes = max_size_mb * 1024 * 1024
     if file_size > max_size_bytes:
         size_mb = file_size / (1024 * 1024)
-        raise ValueError(
-            f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. File: {file_path.name}"
-        )
+        msg = f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. File: {file_path.name}"
+        raise ValueError(msg)
 
     media_type, _ = mimetypes.guess_type(str(file_path))
     if not media_type:

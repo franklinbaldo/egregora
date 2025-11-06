@@ -76,7 +76,7 @@ class TestIRSchema:
         ]
         table = ibis.memtable(data)
 
-        is_valid, errors = validate_ir_schema(table)
+        is_valid, _errors = validate_ir_schema(table)
 
         # The validation will fail because author is int instead of string
         assert not is_valid
@@ -161,7 +161,7 @@ class TestIRSchemaContract:
         core_fields = ["timestamp", "date", "author", "message"]
 
         for field in core_fields:
-            dtype = IR_SCHEMA[field]
+            IR_SCHEMA[field]
             # Most dtypes default to nullable=False
             # We just check they exist, not strict nullability as it's schema-dependent
             assert field in IR_SCHEMA

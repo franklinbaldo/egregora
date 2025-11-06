@@ -1,13 +1,13 @@
 """RAG system for blog post and media indexing and retrieval.
 
 DuckDB-based vector store for context-aware post enrichment and media search.
-Uses Google Gemini embedding models (default: gemini-embedding-001, 3072 dimensions).
+Uses Google Gemini embedding models (default: gemini-embedding-001, 768 dimensions).
 
 **Requires GOOGLE_API_KEY** - RAG features depend on Gemini embeddings API.
 Use `is_rag_available()` to check if RAG can be enabled.
 
 The embedding model is configurable via ModelConfig. See config.model.DEFAULT_EMBEDDING_MODEL
-and config.model.KNOWN_EMBEDDING_DIMENSIONS for supported models and their dimensions.
+and config.model.EMBEDDING_DIM for the embedding dimensionality.
 
 Documentation:
 - RAG Feature: docs/features/rag.md
@@ -46,6 +46,7 @@ def is_rag_available() -> bool:
         ...     results = query_similar_posts(...)
         ... else:
         ...     print("RAG disabled - no GOOGLE_API_KEY")
+
     """
     return os.environ.get("GOOGLE_API_KEY") is not None
 

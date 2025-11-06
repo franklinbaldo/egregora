@@ -12,8 +12,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
@@ -23,6 +22,9 @@ from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
 from egregora.utils.logfire_config import logfire_span
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 console = Console()
 
@@ -138,8 +140,7 @@ def load_profile(profile_path: Path) -> dict[str, Any]:
 
 
 def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
-    """
-    Load all existing comments for a post from DuckDB.
+    """Load all existing comments for a post from DuckDB.
     Format as markdown for agent context.
     """
     comments_table = store.get_comments_for_post(post_id)
@@ -165,7 +166,6 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
 
 def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     """Locate a post file within the MkDocs posts directory."""
-
     candidates: list[Path] = []
 
     search_dirs: list[Path] = []
@@ -190,11 +190,13 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
         if matches:
             if len(matches) > 1:
                 matches_str = ", ".join(str(match) for match in matches)
-                raise ValueError(f"Multiple posts found for {post_id}: {matches_str}")
+                msg = f"Multiple posts found for {post_id}: {matches_str}"
+                raise ValueError(msg)
             return matches[0]
 
     searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
-    raise ValueError(f"Post not found for id '{post_id}'. Looked in: {searched}")
+    msg = f"Post not found for id '{post_id}'. Looked in: {searched}"
+    raise ValueError(msg)
 
 
 def save_comparison(  # noqa: PLR0913
@@ -245,9 +247,11 @@ def _register_ranking_tools(agent: Agent) -> None:
 
         Args:
             winner: Which post is better - must be either "A" or "B"
+
         """
         if winner not in ("A", "B"):
-            raise ValueError(f"Winner must be 'A' or 'B', got: {winner}")
+            msg = f"Winner must be 'A' or 'B', got: {winner}"
+            raise ValueError(msg)
 
         ctx.deps.winner = winner
         console.print(f"[green]Winner: Post {winner}[/green]")
@@ -260,9 +264,11 @@ def _register_ranking_tools(agent: Agent) -> None:
         Args:
             comment: Markdown comment, max 250 chars. Reference existing comments if relevant
             stars: Star rating 1-5
+
         """
         if not MIN_STARS <= stars <= MAX_STARS:
-            raise ValueError(f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}")
+            msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
+            raise ValueError(msg)
 
         comment = _truncate_comment(comment)
         ctx.deps.comment_a = comment
@@ -280,9 +286,11 @@ def _register_ranking_tools(agent: Agent) -> None:
         Args:
             comment: Markdown comment, max 250 chars. Reference existing comments if relevant
             stars: Star rating 1-5
+
         """
         if not MIN_STARS <= stars <= MAX_STARS:
-            raise ValueError(f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}")
+            msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
+            raise ValueError(msg)
 
         comment = _truncate_comment(comment)
         ctx.deps.comment_b = comment
@@ -303,8 +311,7 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
     model: str = "models/gemini-flash-latest",
     agent_model: Any | None = None,
 ) -> dict[str, Any]:
-    """
-    Run a three-turn comparison between two posts using Pydantic AI agent.
+    """Run a three-turn comparison between two posts using Pydantic AI agent.
 
     Args:
         site_dir: Root directory of MkDocs site
@@ -317,6 +324,7 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
 
     Returns:
         dict with comparison results (winner, comments, stars, ratings)
+
     """
     # Setup
     rankings_dir = site_dir / "rankings"
@@ -424,11 +432,14 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
 
             # Verify all turns completed
             if state.winner is None:
-                raise ValueError("Agent did not choose a winner")
+                msg = "Agent did not choose a winner"
+                raise ValueError(msg)
             if state.comment_a is None or state.stars_a is None:
-                raise ValueError("Agent did not comment on Post A")
+                msg = "Agent did not comment on Post A"
+                raise ValueError(msg)
             if state.comment_b is None or state.stars_b is None:
-                raise ValueError("Agent did not comment on Post B")
+                msg = "Agent did not comment on Post B"
+                raise ValueError(msg)
 
             # Save comparison
             save_comparison(
@@ -466,4 +477,5 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
 
         except Exception as e:
             console.print(f"[red]Ranking agent failed: {e}[/red]")
-            raise RuntimeError("Ranking agent execution failed") from e
+            msg = "Ranking agent execution failed"
+            raise RuntimeError(msg) from e

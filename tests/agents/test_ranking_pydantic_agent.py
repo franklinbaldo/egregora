@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.ranking.ranking_agent import run_comparison_with_pydantic_agent
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture

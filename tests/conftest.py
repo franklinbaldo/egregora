@@ -38,10 +38,7 @@ try:  # Prefer the real SDK if it is available in the environment.
     from google.genai import types as genai_types  # type: ignore[import-not-found]
 
     # Some historical versions lacked the newer helper classes we rely on.
-    if hasattr(genai_types, "FunctionCall"):
-        _real_sdk_available = True
-    else:
-        _real_sdk_available = False
+    _real_sdk_available = bool(hasattr(genai_types, "FunctionCall"))
 except (ImportError, AttributeError):  # pragma: no cover - runtime safety for optional dependency
     # SDK not installed or incompatible version
     _real_sdk_available = False

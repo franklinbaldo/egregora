@@ -69,21 +69,19 @@ def get_media_subfolder(
 
     if media_type == "image":
         return "images"
-    elif media_type == "video":
+    if media_type == "video":
         return "videos"
-    elif media_type == "audio":
+    if media_type == "audio":
         return "audio"
-    elif media_type == "document":
+    if media_type == "document":
         return "documents"
-    else:
-        return "files"
+    return "files"
 
 
 def find_media_references(
     text: Annotated[str, "The message text to search for media references"],
 ) -> Annotated[list[str], "A list of media filenames found in the text"]:
-    """
-    Find media filenames in WhatsApp messages.
+    """Find media filenames in WhatsApp messages.
 
     WhatsApp marks media with special patterns like:
     - "IMG-20250101-WA0001.jpg (arquivo anexado)"
@@ -116,8 +114,7 @@ def extract_media_from_zip(
     docs_dir: Annotated[Path, "The MkDocs docs directory"],
     group_slug: Annotated[str, "The slug of the WhatsApp group"],
 ) -> Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"]:
-    """
-    Extract media files from ZIP and save to output_dir/media/.
+    """Extract media files from ZIP and save to output_dir/media/.
 
     Returns dict mapping original filename to saved path.
     """
@@ -176,8 +173,7 @@ def replace_media_mentions(
     docs_dir: Annotated[Path, "The MkDocs docs directory"],
     posts_dir: Annotated[Path, "The directory where posts are stored"],
 ) -> Annotated[str, "The message text with media references replaced by markdown links"]:
-    """
-    Replace WhatsApp media filenames with new UUID5 paths.
+    """Replace WhatsApp media filenames with new UUID5 paths.
 
     "Check this IMG-20250101-WA0001.jpg (file attached)"
     → "Check this ![Image](media/images/abc123def.jpg)"
@@ -222,10 +218,7 @@ def replace_media_mentions(
         is_image = ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
         # Create markdown link
-        if is_image:
-            replacement = f"![Image]({relative_link})"
-        else:
-            replacement = f"[{new_path.name}]({relative_link})"
+        replacement = f"![Image]({relative_link})" if is_image else f"[{new_path.name}]({relative_link})"
 
         # Replace all occurrences with any attachment marker
         for marker in ATTACHMENT_MARKERS:
@@ -248,12 +241,12 @@ def extract_and_replace_media(
     Annotated[Table, "The updated table with media references replaced"],
     Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ]:
-    """
-    Extract media from ZIP and replace mentions in Table.
+    """Extract media from ZIP and replace mentions in Table.
 
     Returns:
         - Updated Table with new media paths
         - Media mapping (original → extracted path)
+
     """
     # Step 1: Find all media references using batched iteration to avoid memory pressure
     all_media = set()

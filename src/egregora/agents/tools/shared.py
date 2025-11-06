@@ -9,12 +9,12 @@ from egregora.utils.genai import call_with_retries
 
 
 def edit_line(expect_version: int, index: int, new: str, editor) -> None:
-    """Replace a single line in the document"""
+    """Replace a single line in the document."""
     editor.edit_line(expect_version, index, new)
 
 
 def full_rewrite(expect_version: int, content: str, editor) -> None:
-    """Replace the entire document content"""
+    """Replace the entire document content."""
     editor.full_rewrite(expect_version, content)
 
 
@@ -88,7 +88,6 @@ async def ask_llm(
 
 def finish(expect_version: int, decision: str, notes: str) -> None:
     """Mark editing complete."""
-    pass
 
 
 def diversity_sampler(k: int, seed: int) -> str:

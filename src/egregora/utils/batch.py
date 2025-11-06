@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from google import genai
 from google.genai import types as genai_types
 
 from egregora.config import EMBEDDING_DIM
 from egregora.utils.genai import call_with_retries_sync, sleep_with_progress_sync
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    from google import genai
 
 _T = TypeVar("_T")
 
@@ -85,7 +88,6 @@ class GeminiBatchClient:
 
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file and wait for it to become ACTIVE before returning."""
-
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
@@ -200,7 +202,8 @@ class GeminiBatchClient:
 
         task_type = next((req.task_type for req in requests if req.task_type), None)
         if any(req.task_type not in (None, task_type) for req in requests):
-            raise ValueError("All embedding batch requests must use the same task_type")
+            msg = "All embedding batch requests must use the same task_type"
+            raise ValueError(msg)
 
         # Always use fixed 768 dimensions for all embeddings
         embed_config = genai_types.EmbedContentConfig(
@@ -289,22 +292,25 @@ class GeminiBatchClient:
                     error_message = (
                         getattr(job.error, "message", "unknown error") if job.error else "unknown error"
                     )
-                    raise RuntimeError(f"Batch job {job_name} finished with state {state}: {error_message}")
+                    msg = f"Batch job {job_name} finished with state {state}: {error_message}"
+                    raise RuntimeError(msg)
 
                 elapsed = time.monotonic() - start
                 logger.info("[green]✅ Batch job %s completed in %.1fs[/green]", job_name, elapsed)
                 return job
 
             if max_timeout is not None and (time.monotonic() - start) > max_timeout:
-                raise TimeoutError(f"Batch job {job_name} exceeded timeout ({max_timeout}s)")
+                msg = f"Batch job {job_name} exceeded timeout ({max_timeout}s)"
+                raise TimeoutError(msg)
 
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests(items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
+def chunk_requests[_T](items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
-        raise ValueError("Batch size must be positive")
+        msg = "Batch size must be positive"
+        raise ValueError(msg)
 
     for index in range(0, len(items), size):
         yield items[index : index + size]

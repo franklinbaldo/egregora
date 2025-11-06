@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
-
     with zipfile.ZipFile(zip_path) as zf:
         # Collect all .txt candidates
         candidates = []
@@ -53,7 +52,8 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
                 candidates.append((score, group_name, member))
 
         if not candidates:
-            raise ValueError(f"No WhatsApp chat file found in {zip_path}")
+            msg = f"No WhatsApp chat file found in {zip_path}"
+            raise ValueError(msg)
 
         # Sort by score (descending) and pick the best
         candidates.sort(reverse=True, key=lambda x: x[0])
@@ -81,8 +81,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """
-    Complete pipeline: ZIP → posts + profiles.
+    """Complete pipeline: ZIP → posts + profiles.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -98,6 +97,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
+
     """
     # Import group_by_period from core pipeline
     from egregora.pipeline import group_by_period
@@ -109,16 +109,18 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     # Validate MkDocs scaffold exists before proceeding
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-        raise ValueError(
+        msg = (
             f"No mkdocs.yml found for site at {output_dir}. "
             "Run 'egregora init <site-dir>' before processing exports."
         )
+        raise ValueError(msg)
 
     if not site_paths.docs_dir.exists():
-        raise ValueError(
+        msg = (
             f"Docs directory not found: {site_paths.docs_dir}. "
             "Re-run 'egregora init' to scaffold the MkDocs project."
         )
+        raise ValueError(msg)
 
     # Load site config and create model config
     site_config = load_site_config(site_paths.site_root)
@@ -167,10 +169,11 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             try:
                 directory.relative_to(site_paths.docs_dir)
             except ValueError as exc:
-                raise ValueError(
+                msg = (
                     f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
                     f"Expected parent {site_paths.docs_dir}, got {directory}."
-                ) from exc
+                )
+                raise ValueError(msg) from exc
             directory.mkdir(parents=True, exist_ok=True)
 
         # Extract and process egregora commands (before filtering)
@@ -194,7 +197,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         )
         if avatar_results:
             logger.info(f"[green]✓ Processed[/] {len(avatar_results)} avatar command(s)")
-            for author_uuid, result in avatar_results.items():
+            for result in avatar_results.values():
                 logger.info(f"  {result}")
 
         # Remove ALL /egregora messages (commands + ad-hoc exclusions)
@@ -371,7 +374,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 else:
                     logger.info("[yellow]No media enrichments to index for this run[/]")
             except Exception as e:
-                logger.error(f"[red]Failed to index media into RAG:[/] {e}")
+                logger.exception(f"[red]Failed to index media into RAG:[/] {e}")
 
         return results
     finally:
@@ -400,8 +403,7 @@ def process_whatsapp_export(  # noqa: PLR0913
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """
-    Public entry point that manages DuckDB/Ibis backend state for processing.
+    """Public entry point that manages DuckDB/Ibis backend state for processing.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -421,8 +423,8 @@ def process_whatsapp_export(  # noqa: PLR0913
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
-    """
 
+    """
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 

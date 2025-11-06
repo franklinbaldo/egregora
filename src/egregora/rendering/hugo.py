@@ -12,10 +12,12 @@ This template demonstrates the interface that needs to be implemented.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from egregora.rendering.base import OutputFormat, SiteConfiguration
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class HugoOutputFormat(OutputFormat):
 
         Returns:
             True if config.toml or hugo.toml exists
+
         """
         if not site_root.exists():
             return False
@@ -73,6 +76,7 @@ class HugoOutputFormat(OutputFormat):
         Raises:
             RuntimeError: If scaffolding fails
             NotImplementedError: This is a template - full implementation needed
+
         """
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
@@ -142,9 +146,11 @@ theme = "{theme}"
 
         Raises:
             ValueError: If site_root is not a valid Hugo site
+
         """
         if not self.supports_site(site_root):
-            raise ValueError(f"{site_root} is not a valid Hugo site")
+            msg = f"{site_root} is not a valid Hugo site"
+            raise ValueError(msg)
 
         # Find config file
         config_file = None
@@ -190,11 +196,13 @@ theme = "{theme}"
 
         Raises:
             ValueError: If required metadata is missing
+
         """
         required = ["title", "slug", "date"]
         for key in required:
             if key not in metadata:
-                raise ValueError(f"Missing required metadata: {key}")
+                msg = f"Missing required metadata: {key}"
+                raise ValueError(msg)
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -250,9 +258,11 @@ draft = false
 
         Returns:
             Path to the written file (as string)
+
         """
         if not author_id:
-            raise ValueError("author_id cannot be empty")
+            msg = "author_id cannot be empty"
+            raise ValueError(msg)
 
         profiles_dir.mkdir(parents=True, exist_ok=True)
 
@@ -291,6 +301,7 @@ type = "profile"
         Raises:
             FileNotFoundError: If config file doesn't exist
             NotImplementedError: TOML parsing needed
+
         """
         # Find config file
         for filename in ["config.toml", "hugo.toml"]:
@@ -303,13 +314,15 @@ type = "profile"
                 logger.warning("Hugo config parsing not fully implemented")
                 return {"site_name": "Hugo Site"}
 
-        raise FileNotFoundError(f"No Hugo config file found in {site_root}")
+        msg = f"No Hugo config file found in {site_root}"
+        raise FileNotFoundError(msg)
 
     def get_markdown_extensions(self) -> list[str]:
         """Get list of supported markdown extensions for Hugo.
 
         Returns:
             List of markdown extension identifiers
+
         """
         return [
             "tables",

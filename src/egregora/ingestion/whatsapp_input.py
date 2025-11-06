@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import logging
 import zipfile
-from datetime import date
-from pathlib import Path
-from typing import Any
-
-from ibis.expr.types import Table
+from typing import TYPE_CHECKING, Any
 
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import (
@@ -19,6 +15,12 @@ from egregora.ingestion.base import InputMetadata, InputSource
 from egregora.ingestion.parser import parse_export
 from egregora.schema import group_slug
 from egregora.sources.whatsapp.models import WhatsAppExport
+
+if TYPE_CHECKING:
+    from datetime import date
+    from pathlib import Path
+
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,7 @@ class WhatsAppInputSource(InputSource):
 
         Returns:
             True if it's a ZIP file containing a .txt chat file
+
         """
         if not source_path.exists():
             return False
@@ -95,9 +98,11 @@ class WhatsAppInputSource(InputSource):
         Raises:
             ValueError: If source_path is not a valid WhatsApp export
             RuntimeError: If parsing fails
+
         """
         if not self.supports_format(source_path):
-            raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
+            msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
+            raise ValueError(msg)
 
         # Detect chat file and media files in ZIP
         chat_file, media_files = self._detect_zip_contents(source_path)
@@ -127,7 +132,8 @@ class WhatsAppInputSource(InputSource):
         try:
             table = parse_export(export, timezone=timezone)
         except Exception as e:
-            raise RuntimeError(f"Failed to parse WhatsApp export: {e}") from e
+            msg = f"Failed to parse WhatsApp export: {e}"
+            raise RuntimeError(msg) from e
 
         # Create metadata
         metadata = InputMetadata(
@@ -165,9 +171,11 @@ class WhatsAppInputSource(InputSource):
         Returns:
             Mapping of original filename -> relative path from output_dir
             Example: {"IMG-001.jpg": "media/images/abc123.jpg"}
+
         """
         if not self.supports_format(source_path):
-            raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
+            msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
+            raise ValueError(msg)
 
         if group_slug is None:
             # Infer from filename
@@ -217,7 +225,7 @@ class WhatsAppInputSource(InputSource):
             except ValueError as e:
                 # This should never happen if extract_media_from_zip works correctly
                 # Log error and skip this file rather than exposing absolute paths
-                logger.error(
+                logger.exception(
                     f"Media file {original} at {absolute_path} is not relative to "
                     f"output_dir {output_dir}. This is a bug. Skipping file. Error: {e}"
                 )
@@ -235,6 +243,7 @@ class WhatsAppInputSource(InputSource):
             ValueError: If no .txt chat file found
             zipfile.BadZipFile: If ZIP is corrupted
             PermissionError: If permission denied
+
         """
         try:
             with zipfile.ZipFile(zip_path) as zf:
@@ -243,7 +252,8 @@ class WhatsAppInputSource(InputSource):
                 # Find .txt chat file
                 txt_files = [f for f in all_files if f.endswith(".txt")]
                 if not txt_files:
-                    raise ValueError(f"No .txt chat file found in {zip_path}")
+                    msg = f"No .txt chat file found in {zip_path}"
+                    raise ValueError(msg)
 
                 # Use the first .txt file as chat file
                 chat_file = txt_files[0]
@@ -253,9 +263,11 @@ class WhatsAppInputSource(InputSource):
 
                 return chat_file, media_files
         except zipfile.BadZipFile as e:
-            raise ValueError(f"Corrupted ZIP file: {zip_path}") from e
+            msg = f"Corrupted ZIP file: {zip_path}"
+            raise ValueError(msg) from e
         except PermissionError as e:
-            raise ValueError(f"Permission denied reading ZIP: {zip_path}") from e
+            msg = f"Permission denied reading ZIP: {zip_path}"
+            raise ValueError(msg) from e
 
     def _infer_group_name(self, zip_path: Path) -> str:
         """Infer group name from ZIP filename.
@@ -265,6 +277,7 @@ class WhatsAppInputSource(InputSource):
 
         Returns:
             Inferred group name
+
         """
         # Remove .zip extension and use filename
         name = zip_path.stem

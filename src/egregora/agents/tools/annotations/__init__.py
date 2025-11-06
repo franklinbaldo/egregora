@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import duckdb
 import ibis
 
 from egregora.database import schema as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    import duckdb
 
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
@@ -33,7 +36,7 @@ class Annotation:
 class AnnotationStore:
     """DuckDB-backed storage for writer annotations accessed via Ibis."""
 
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._backend = ibis.duckdb.connect(str(self.db_path))
@@ -42,7 +45,6 @@ class AnnotationStore:
     @property
     def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
-
         return self._backend.con
 
     def _initialize(self) -> None:
@@ -94,7 +96,8 @@ class AnnotationStore:
                 [sequence_name],
             ).fetchone()
             if sequence_state is None:
-                raise RuntimeError(f"Could not find sequence metadata for {sequence_name}")
+                msg = f"Could not find sequence metadata for {sequence_name}"
+                raise RuntimeError(msg)
 
             start_value, increment_by, last_value = sequence_state
             current_next = int(start_value) if last_value is None else int(last_value) + int(increment_by)
@@ -119,17 +122,19 @@ class AnnotationStore:
         commentary: str,
     ) -> Annotation:
         """Persist an annotation and return the saved record."""
-
         sanitized_parent_id = (parent_id or "").strip()
         sanitized_parent_type = (parent_type or "").strip().lower()
         sanitized_commentary = (commentary or "").strip()
 
         if not sanitized_parent_id:
-            raise ValueError("parent_id is required")
+            msg = "parent_id is required"
+            raise ValueError(msg)
         if sanitized_parent_type not in ("message", "annotation"):
-            raise ValueError("parent_type must be 'message' or 'annotation'")
+            msg = "parent_type must be 'message' or 'annotation'"
+            raise ValueError(msg)
         if not sanitized_commentary:
-            raise ValueError("commentary must not be empty")
+            msg = "commentary must not be empty"
+            raise ValueError(msg)
 
         try:
             validate_newsletter_privacy(sanitized_commentary)
@@ -147,7 +152,8 @@ class AnnotationStore:
                 .execute()
             )
             if parent_exists == 0:
-                raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
+                msg = f"parent annotation with id {sanitized_parent_id} does not exist"
+                raise ValueError(msg)
 
         cursor = self._connection.execute(
             f"""
@@ -165,7 +171,8 @@ class AnnotationStore:
         )
         row = cursor.fetchone()
         if row is None:
-            raise RuntimeError("Could not insert annotation")
+            msg = "Could not insert annotation"
+            raise RuntimeError(msg)
         annotation_id = int(row[0])
 
         return Annotation(
@@ -179,7 +186,6 @@ class AnnotationStore:
 
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
-
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return []
@@ -198,7 +204,6 @@ class AnnotationStore:
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
-
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return None
@@ -217,7 +222,6 @@ class AnnotationStore:
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
-
         records = self._fetch_records(
             f"""
             SELECT id, parent_id, parent_type, author, commentary, created_at
@@ -246,6 +250,7 @@ class AnnotationStore:
             >>> joined = annotations_store.join_with_messages(messages_table)
             >>> # Now you can do vectorized operations like:
             >>> annotated_messages = joined.filter(joined.commentary.notnull())
+
         """
         # Get annotations as an Ibis table
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
@@ -255,11 +260,9 @@ class AnnotationStore:
 
         # Perform left join: messages with their annotations (if any)
         # This preserves all messages even if they don't have annotations
-        joined = messages_table.left_join(
+        return messages_table.left_join(
             message_annotations, messages_table.message_id == message_annotations.parent_id
         )
-
-        return joined
 
     @staticmethod
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:

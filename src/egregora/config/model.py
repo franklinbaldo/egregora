@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Literal
 
 from egregora.config.site import load_mkdocs_config
@@ -29,8 +28,7 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 
 def from_pydantic_ai_model(model_name: str) -> str:
-    """
-    Convert pydantic-ai string notation to Google API model format.
+    """Convert pydantic-ai string notation to Google API model format.
 
     Use this ONLY for direct Google GenAI SDK calls (e.g., embeddings).
     Pydantic-AI agents should use the pydantic-ai format directly.
@@ -44,6 +42,7 @@ def from_pydantic_ai_model(model_name: str) -> str:
 
     Returns:
         Model name in Google API format (models/model-name)
+
     """
     # Remove pydantic-ai provider prefix if present
     if ":" in model_name:
@@ -63,20 +62,19 @@ class ModelConfig:
         self,
         cli_model: str | None = None,
         site_config: dict[str, Any] | None = None,
-    ):
-        """
-        Initialize model config with CLI override and site config.
+    ) -> None:
+        """Initialize model config with CLI override and site config.
 
         Args:
             cli_model: Model specified via CLI flag (highest priority)
             site_config: Configuration from mkdocs.yml extra.egregora section
+
         """
         self.cli_model = cli_model
         self.site_config = site_config or {}
 
     def get_model(self, model_type: ModelType) -> str:
-        """
-        Get model name for a specific task with fallback hierarchy.
+        """Get model name for a specific task with fallback hierarchy.
 
         Priority:
         1. CLI flag (--model)
@@ -89,6 +87,7 @@ class ModelConfig:
 
         Returns:
             Model name to use
+
         """
         # 1. CLI flag (highest priority)
         if self.cli_model:
@@ -123,14 +122,14 @@ class ModelConfig:
 
 
 def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
+    """Load egregora configuration from mkdocs.yml if it exists.
 
     Args:
         output_dir: Output directory (will look for mkdocs.yml in parent/root)
 
     Returns:
         Dict with egregora config from extra.egregora section
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
 

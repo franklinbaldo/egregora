@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from tests.utils.mock_batch_client import create_mock_batch_client
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture

@@ -14,17 +14,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import ibis
 import yaml
-from google import genai
-from google.genai import types as genai_types
-from ibis.expr.types import Table
 
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import get_active_authors
@@ -52,6 +46,11 @@ from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.prompt_templates import WriterPromptTemplate
 
+if TYPE_CHECKING:
+    from google import genai
+    from google.genai import types as genai_types
+    from ibis.expr.types import Table
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,7 +77,6 @@ MAX_CONVERSATION_TURNS = 10
 
 def _memes_enabled(site_config: dict[str, Any]) -> bool:
     """Return True when meme helper text should be appended to the prompt."""
-
     if not isinstance(site_config, dict):
         return False
 
@@ -90,8 +88,7 @@ def _memes_enabled(site_config: dict[str, Any]) -> bool:
 
 
 def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
+    """Load egregora configuration from mkdocs.yml if it exists.
 
     Reads the `extra.egregora` section from mkdocs.yml in the output directory.
     Returns empty dict if no config found.
@@ -101,6 +98,7 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
 
     Returns:
         Dict with egregora config (writer_prompt, rag settings, etc.)
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
@@ -113,8 +111,7 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
 
 
 def load_markdown_extensions(output_dir: Path) -> str:
-    """
-    Load markdown_extensions section from mkdocs.yml and format for LLM.
+    """Load markdown_extensions section from mkdocs.yml and format for LLM.
 
     The LLM understands these extension names and knows how to use them.
     We just pass the YAML config directly.
@@ -124,6 +121,7 @@ def load_markdown_extensions(output_dir: Path) -> str:
 
     Returns:
         Formatted YAML string with markdown_extensions section
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
@@ -153,8 +151,7 @@ def load_markdown_extensions(output_dir: Path) -> str:
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
-    """
-    Get top N active authors by message count.
+    """Get top N active authors by message count.
 
     Args:
         table: Table with 'author' column
@@ -162,6 +159,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
 
     Returns:
         List of author UUIDs (most active first)
+
     """
     # Filter out system and enrichment entries
     author_counts = (
@@ -276,7 +274,7 @@ def _index_posts_in_rag(
             )
         logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
     except Exception as e:
-        logger.error(f"Failed to index posts in RAG: {e}")
+        logger.exception(f"Failed to index posts in RAG: {e}")
 
 
 def _write_posts_for_period_pydantic(
@@ -285,8 +283,7 @@ def _write_posts_for_period_pydantic(
     client: genai.Client,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
-    """
-    Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
+    """Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
 
     This is the new implementation using Pydantic AI for type safety and observability.
     Automatically traces to Logfire if LOGFIRE_TOKEN is set.
@@ -299,8 +296,8 @@ def _write_posts_for_period_pydantic(
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
-    """
 
+    """
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
@@ -310,10 +307,7 @@ def _write_posts_for_period_pydantic(
         return {"posts": [], "profiles": []}
 
     # Setup
-    if config.model_config is None:
-        model_config = ModelConfig()
-    else:
-        model_config = config.model_config
+    model_config = ModelConfig() if config.model_config is None else config.model_config
     model = model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
 
@@ -415,8 +409,7 @@ def write_posts_for_period(
     client: genai.Client,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
-    """
-    Let LLM analyze period's messages, write 0-N posts, and update author profiles.
+    """Let LLM analyze period's messages, write 0-N posts, and update author profiles.
 
     Uses Pydantic AI for type safety and Logfire observability.
 
@@ -442,6 +435,7 @@ def write_posts_for_period(
     Examples:
         >>> writer_config = WriterConfig()
         >>> result = write_posts_for_period(table, "2025-01-01", client, writer_config)
+
     """
     # Use default config if none provided
     if config is None:

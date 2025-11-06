@@ -105,27 +105,28 @@ def __getattr__(name):
             spec.loader.exec_module(module)
             return getattr(module, name)
 
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
 
 __all__ = [
     # IR Schema
     "IR_SCHEMA",
-    "validate_ir_schema",
-    "create_ir_table",
-    # Adapters
-    "SourceAdapter",
-    "MediaMapping",
-    # Stages
-    "PipelineStage",
-    "StageConfig",
-    "StageResult",
     # Orchestrator
     "CoreOrchestrator",
+    "MediaMapping",
     "PipelineArtifacts",
     "PipelineConfig",
     "PipelineContext",
+    # Stages
+    "PipelineStage",
+    # Adapters
+    "SourceAdapter",
+    "StageConfig",
+    "StageResult",
+    "create_ir_table",
     # Utilities (from pipeline.py module)
     "group_by_period",
     "period_has_posts",
+    "validate_ir_schema",
 ]

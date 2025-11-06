@@ -6,9 +6,7 @@ from pydantic import BaseModel
 
 
 class DocumentSnapshot(BaseModel):
-    """
-    A versioned, line-indexed representation of a document for editing.
-    """
+    """A versioned, line-indexed representation of a document for editing."""
 
     doc_id: Annotated[str, "The unique ID of the document"]
     version: Annotated[int, "The version number of the document"]
@@ -17,11 +15,9 @@ class DocumentSnapshot(BaseModel):
 
 
 class Editor:
-    """
-    A class to encapsulate the editor tools.
-    """
+    """A class to encapsulate the editor tools."""
 
-    def __init__(self, snapshot: Annotated[DocumentSnapshot, "The initial snapshot of the document"]):
+    def __init__(self, snapshot: Annotated[DocumentSnapshot, "The initial snapshot of the document"]) -> None:
         self.snapshot = snapshot
 
     def edit_line(
@@ -30,9 +26,7 @@ class Editor:
         index: Annotated[int, "The 0-based index of the line to edit"],
         new: Annotated[str, "The new content for the line"],
     ) -> dict[str, Any]:
-        """
-        Replaces a single line in the document.
-        """
+        """Replaces a single line in the document."""
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,
@@ -56,9 +50,7 @@ class Editor:
         expect_version: Annotated[int, "The expected version of the document for optimistic concurrency"],
         content: Annotated[str, "The new, complete content of the document"],
     ) -> dict[str, Any]:
-        """
-        Replaces the entire document content.
-        """
+        """Replaces the entire document content."""
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,
@@ -80,9 +72,7 @@ class Editor:
         decision: Annotated[str, "The decision: 'publish' or 'hold'"],
         notes: Annotated[str, "Notes on the decision"],
     ) -> dict[str, Any]:
-        """
-        Marks the document for the publish queue or holds it.
-        """
+        """Marks the document for the publish queue or holds it."""
         if expect_version != self.snapshot.version:
             return {
                 "ok": False,

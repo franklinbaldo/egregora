@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
-from egregora.sources.base import Export
 from egregora.types import GroupSlug
+
+if TYPE_CHECKING:
+    from egregora.sources.base import Export
 
 
 class MergeConfig(BaseModel):
@@ -54,8 +56,7 @@ class MergeConfig(BaseModel):
 
 @dataclass(slots=True)
 class GroupSource:
-    """
-    Source for generating posts.
+    """Source for generating posts.
     Can be real (single group) or virtual (merge of multiple groups).
     """
 

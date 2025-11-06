@@ -6,8 +6,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

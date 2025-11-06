@@ -10,13 +10,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
-from ibis.expr.types import Table
-
-from egregora.pipeline.adapters import MediaMapping, SourceAdapter
-from egregora.pipeline.base import PipelineStage, StageResult
 from egregora.pipeline.ir import validate_ir_schema
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
+    from egregora.pipeline.adapters import MediaMapping, SourceAdapter
+    from egregora.pipeline.base import PipelineStage, StageResult
 
 __all__ = [
     "CoreOrchestrator",
@@ -164,18 +166,20 @@ class CoreOrchestrator:
         >>> stages = create_standard_stages(config)
         >>> orchestrator = CoreOrchestrator(adapter, stages)
         >>> result = orchestrator.run(config)
+
     """
 
     def __init__(
         self,
         source_adapter: SourceAdapter,
         stages: list[PipelineStage],
-    ):
+    ) -> None:
         """Initialize the orchestrator.
 
         Args:
             source_adapter: Adapter for parsing the source format
             stages: List of pipeline stages to execute in order
+
         """
         self.source_adapter = source_adapter
         self.stages = stages
@@ -192,6 +196,7 @@ class CoreOrchestrator:
         Raises:
             ValueError: If input is invalid or IR schema validation fails
             RuntimeError: If pipeline execution fails
+
         """
         logger.info(f"[bold cyan]🚀 Starting pipeline:[/] {self.source_adapter.source_name}")
         logger.info(f"[cyan]Input:[/] {config.input_path}")
@@ -288,9 +293,10 @@ class CoreOrchestrator:
                     logger.info(f"[green]✔ Completed:[/] {stage.stage_name}")
 
             except Exception as e:
-                logger.error(f"[red]❌ Stage failed:[/] {stage.stage_name}")
-                logger.error(f"[red]Error:[/] {e}")
-                raise RuntimeError(f"Stage '{stage.stage_name}' failed: {e}") from e
+                logger.exception(f"[red]❌ Stage failed:[/] {stage.stage_name}")
+                logger.exception(f"[red]Error:[/] {e}")
+                msg = f"Stage '{stage.stage_name}' failed: {e}"
+                raise RuntimeError(msg) from e
 
         # Step 5: Return results
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")

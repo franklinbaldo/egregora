@@ -32,7 +32,8 @@ def _vector_store_row(store_module, **overrides):
     defaults.update(overrides)
 
     if defaults.get("chunk_id") is None:
-        raise ValueError("chunk_id is required for vector store rows")
+        msg = "chunk_id is required for vector store rows"
+        raise ValueError(msg)
 
     if defaults.get("document_id") is None:
         defaults["document_id"] = defaults["chunk_id"]

@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
-import duckdb
 import ibis
 
 from egregora.agents.ranking.store import RankingStore
@@ -13,6 +13,9 @@ from egregora.database import schema as database_schema
 from egregora.enrichment.core import enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
+
+if TYPE_CHECKING:
+    import duckdb
 
 
 class DummyBatchClient:

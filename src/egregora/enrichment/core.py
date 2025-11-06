@@ -309,9 +309,11 @@ def enrich_table(
                         pii_media_deleted = True
                         pii_detected_count += 1
                     except (FileNotFoundError, PermissionError) as delete_error:
-                        logger.error("Failed to delete %s: %s", media_job.file_path, delete_error)
+                        logger.exception("Failed to delete %s: %s", media_job.file_path, delete_error)
                     except OSError as delete_error:
-                        logger.error("Unexpected OS error deleting %s: %s", media_job.file_path, delete_error)
+                        logger.exception(
+                            "Unexpected OS error deleting %s: %s", media_job.file_path, delete_error
+                        )
 
                 media_job.markdown = markdown_content
                 cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
@@ -393,11 +395,13 @@ def enrich_table(
 
     # Optional DuckDB persistence
     if (duckdb_connection is None) != (target_table is None):
-        raise ValueError("duckdb_connection and target_table must be provided together when persisting")
+        msg = "duckdb_connection and target_table must be provided together when persisting"
+        raise ValueError(msg)
 
     if duckdb_connection and target_table:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", target_table):
-            raise ValueError("target_table must be a valid DuckDB identifier")
+            msg = "target_table must be a valid DuckDB identifier"
+            raise ValueError(msg)
 
         # Ensure target table exists with correct schema
         database_schema.create_table_if_not_exists(

@@ -7,14 +7,16 @@ and Pydantic AI's rag_context() helper for standardized retrieval prompts.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
-
-from google import genai
+from typing import TYPE_CHECKING, Any
 
 from egregora.agents.tools.rag.embedder import embed_query
 from egregora.agents.tools.rag.store import VectorStore
 from egregora.utils.logfire_config import logfire_info, logfire_span
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,7 @@ async def find_relevant_docs(
         ... )
         >>> for doc in docs:
         ...     print(f"{doc['post_title']}: {doc['similarity']:.2f}")
+
     """
     with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
         try:
@@ -97,7 +100,7 @@ async def find_relevant_docs(
             logfire_info("Found relevant docs", count=len(records), query=query)
 
             # Format for Pydantic AI
-            docs = [
+            return [
                 {
                     "content": record.get("content", ""),
                     "post_title": record.get("post_title", "Untitled"),
@@ -108,8 +111,6 @@ async def find_relevant_docs(
                 }
                 for record in records
             ]
-
-            return docs
 
         except Exception as exc:
             logger.error("Failed to find relevant docs: %s", exc, exc_info=True)
@@ -128,6 +129,7 @@ def format_rag_context(docs: list[dict[str, Any]]) -> str:
 
     Returns:
         Formatted context string for LLM prompt
+
     """
     if not docs:
         return ""
@@ -165,7 +167,7 @@ async def build_rag_context_for_writer(
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> str:
-    """Build RAG context string for writer agent.
+    r"""Build RAG context string for writer agent.
 
     High-level helper that combines find_relevant_docs() and format_rag_context().
 
@@ -192,6 +194,7 @@ async def build_rag_context_for_writer(
         ...     embedding_model="models/gemini-embedding-001"
         ... )
         >>> prompt = f"{conversation}\n\n{context}"
+
     """
     docs = await find_relevant_docs(
         query,

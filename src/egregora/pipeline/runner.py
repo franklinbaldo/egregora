@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 import tempfile
-from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import duckdb
 import ibis
@@ -29,6 +29,9 @@ from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
+
+if TYPE_CHECKING:
+    from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +93,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
     Raises:
         ValueError: If source is unknown or configuration is invalid
         RuntimeError: If pipeline execution fails
+
     """
     # Import group_by_period from the parent module
     from egregora.pipeline import group_by_period
@@ -108,16 +112,18 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
     site_paths = resolve_site_paths(output_dir)
 
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-        raise ValueError(
+        msg = (
             f"No mkdocs.yml found for site at {output_dir}. "
             "Run 'egregora init <site-dir>' before processing exports."
         )
+        raise ValueError(msg)
 
     if not site_paths.docs_dir.exists():
-        raise ValueError(
+        msg = (
             f"Docs directory not found: {site_paths.docs_dir}. "
             "Re-run 'egregora init' to scaffold the MkDocs project."
         )
+        raise ValueError(msg)
 
     # Step 3: Set up database backend
     runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
@@ -180,10 +186,11 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             try:
                 directory.relative_to(site_paths.docs_dir)
             except ValueError as exc:
-                raise ValueError(
+                msg = (
                     f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
                     f"Expected parent {site_paths.docs_dir}, got {directory}."
-                ) from exc
+                )
+                raise ValueError(msg) from exc
             directory.mkdir(parents=True, exist_ok=True)
 
         # Step 9: Extract and process /egregora commands
@@ -390,7 +397,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                 else:
                     logger.info("[yellow]No media enrichments to index[/]")
             except Exception as e:
-                logger.error(f"[red]Failed to index media into RAG:[/] {e}")
+                logger.exception(f"[red]Failed to index media into RAG:[/] {e}")
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results

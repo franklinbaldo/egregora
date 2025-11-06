@@ -22,6 +22,7 @@ class PipelineEnrichmentConfig:
         max_enrichments: Maximum number of enrichments per period
         enable_url: Whether to enrich URLs found in messages
         enable_media: Whether to enrich media attachments
+
     """
 
     batch_threshold: int = 10
@@ -32,9 +33,11 @@ class PipelineEnrichmentConfig:
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if self.batch_threshold < 1:
-            raise ValueError(f"batch_threshold must be >= 1, got {self.batch_threshold}")
+            msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
+            raise ValueError(msg)
         if self.max_enrichments < 0:
-            raise ValueError(f"max_enrichments must be >= 0, got {self.max_enrichments}")
+            msg = f"max_enrichments must be >= 0, got {self.max_enrichments}"
+            raise ValueError(msg)
 
     @classmethod
     def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:

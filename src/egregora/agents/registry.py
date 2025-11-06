@@ -54,13 +54,15 @@ class ToolRegistry:
         tools_path: Path to the directory containing tool YAML files
         _tools: Dictionary mapping tool IDs to Tool objects
         _profiles: Dictionary mapping profile names to profile configurations
+
     """
 
-    def __init__(self, egregora_path: Path):
+    def __init__(self, egregora_path: Path) -> None:
         """Initialize the tool registry.
 
         Args:
             egregora_path: Path to the .egregora directory
+
         """
         self.tools_path = egregora_path / "tools"
         self._tools: dict[str, Tool] = self._load_tools()
@@ -74,6 +76,7 @@ class ToolRegistry:
 
         Returns:
             Dictionary mapping tool IDs to Tool objects
+
         """
         tools = {}
         for tool_file in self.tools_path.glob("*.yaml"):
@@ -100,6 +103,7 @@ class ToolRegistry:
 
         Returns:
             Dictionary mapping profile names to profile configurations
+
         """
         profiles_path = self.tools_path / "profiles.yaml"
         if profiles_path.exists():
@@ -118,6 +122,7 @@ class ToolRegistry:
 
         Returns:
             Set of tool IDs that the agent is allowed to use
+
         """
         toolset = set()
 
@@ -145,6 +150,7 @@ class ToolRegistry:
 
         Returns:
             SHA256 hash of the combined tool configurations, or empty string if no tools
+
         """
         if not tool_ids:
             return ""
@@ -176,6 +182,7 @@ class ToolRegistry:
 
         Returns:
             SHA256 hash of the agent configuration and template
+
         """
         # A more robust implementation would deeply sort keys
         front_matter_str = yaml.dump(
@@ -194,13 +201,15 @@ class SkillRegistry:
     Attributes:
         skills_path: Path to the directory containing skill files
         _skills: Dictionary mapping skill IDs to Skill objects
+
     """
 
-    def __init__(self, egregora_path: Path):
+    def __init__(self, egregora_path: Path) -> None:
         """Initialize the skill registry.
 
         Args:
             egregora_path: Path to the .egregora directory
+
         """
         self.skills_path = egregora_path / "skills"
         self._skills: dict[str, Skill] = self._load_skills()
@@ -213,6 +222,7 @@ class SkillRegistry:
 
         Returns:
             Dictionary mapping skill IDs to Skill objects
+
         """
         skills = {}
         if not self.skills_path.exists():
@@ -235,6 +245,7 @@ class SkillRegistry:
 
         Returns:
             SHA256 hash of the combined skill contents, or empty string if no skills
+
         """
         if not skill_ids:
             return ""
@@ -262,5 +273,6 @@ class SkillRegistry:
 
         Returns:
             The skill's content as a string, or None if the skill doesn't exist
+
         """
         return self._skills[skill_id].content if skill_id in self._skills else None

@@ -95,7 +95,6 @@ def _respect_min_interval_sync() -> None:
 
 async def _sleep_with_progress(delay: float, description: str) -> None:
     """Sleep for ``delay`` seconds, showing a progress bar when interactive."""
-
     if delay <= 0:
         return
 

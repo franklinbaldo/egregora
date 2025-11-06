@@ -25,7 +25,7 @@ TDeps = TypeVar("TDeps")
 TResult = TypeVar("TResult")
 
 
-def create_agent(
+def create_agent[TDeps](
     model_name: str,
     *,
     system_prompt: str,
@@ -61,6 +61,7 @@ def create_agent(
         ...     system_prompt="You are a helpful assistant",
         ...     deps_type=MyAgentState,
         ... )
+
     """
     if enable_logfire:
         configure_logfire()
@@ -75,7 +76,7 @@ def create_agent(
     )
 
 
-def create_agent_with_result_type(  # noqa: PLR0913
+def create_agent_with_result_type[TDeps, TResult](  # noqa: PLR0913
     model_name: str,
     *,
     system_prompt: str,
@@ -111,6 +112,7 @@ def create_agent_with_result_type(  # noqa: PLR0913
         ...     deps_type=MyAgentState,
         ...     result_type=Summary,
         ... )
+
     """
     if enable_logfire:
         configure_logfire()

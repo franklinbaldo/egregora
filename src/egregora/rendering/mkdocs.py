@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from egregora.agents.tools.profiler import write_profile as write_profile_content
 from egregora.config.site import (
@@ -14,6 +13,9 @@ from egregora.config.site import (
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.utils.write_post import write_post as write_mkdocs_post
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         Returns:
             True if mkdocs.yml exists in site_root or parent directories
+
         """
         if not site_root.exists():
             return False
@@ -67,13 +70,15 @@ class MkDocsOutputFormat(OutputFormat):
 
         Raises:
             RuntimeError: If scaffolding fails
+
         """
         site_root = site_root.expanduser().resolve()
 
         try:
             _docs_dir, created = ensure_mkdocs_project(site_root)
         except Exception as e:
-            raise RuntimeError(f"Failed to scaffold MkDocs site: {e}") from e
+            msg = f"Failed to scaffold MkDocs site: {e}"
+            raise RuntimeError(msg) from e
 
         mkdocs_path = site_root / "mkdocs.yml"
         return mkdocs_path, created
@@ -90,14 +95,17 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If site_root is not a valid MkDocs site
             FileNotFoundError: If required directories don't exist
+
         """
         if not self.supports_site(site_root):
-            raise ValueError(f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)")
+            msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
+            raise ValueError(msg)
 
         try:
             site_paths = resolve_site_paths(site_root)
         except Exception as e:
-            raise RuntimeError(f"Failed to resolve site paths: {e}") from e
+            msg = f"Failed to resolve site paths: {e}"
+            raise RuntimeError(msg) from e
 
         # Convert SitePaths to SiteConfiguration
         config_file = site_paths.mkdocs_path
@@ -138,11 +146,13 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If required metadata is missing
             RuntimeError: If writing fails
+
         """
         try:
             return write_mkdocs_post(content, metadata, output_dir)
         except Exception as e:
-            raise RuntimeError(f"Failed to write MkDocs post: {e}") from e
+            msg = f"Failed to write MkDocs post: {e}"
+            raise RuntimeError(msg) from e
 
     def write_profile(
         self,
@@ -167,9 +177,11 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If author_id is invalid or content is missing
             RuntimeError: If writing fails
+
         """
         if not author_id:
-            raise ValueError("author_id cannot be empty")
+            msg = "author_id cannot be empty"
+            raise ValueError(msg)
 
         # Extract content from profile_data
         if isinstance(profile_data, str):
@@ -186,7 +198,8 @@ class MkDocsOutputFormat(OutputFormat):
         try:
             return write_profile_content(author_id, content, profiles_dir)
         except Exception as e:
-            raise RuntimeError(f"Failed to write profile: {e}") from e
+            msg = f"Failed to write profile: {e}"
+            raise RuntimeError(msg) from e
 
     def load_config(self, site_root: Path) -> dict[str, Any]:
         """Load MkDocs site configuration.
@@ -200,11 +213,13 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             FileNotFoundError: If mkdocs.yml doesn't exist
             ValueError: If config is invalid
+
         """
         config, mkdocs_path = load_mkdocs_config(site_root)
 
         if mkdocs_path is None:
-            raise FileNotFoundError(f"No mkdocs.yml found in {site_root} or parent directories")
+            msg = f"No mkdocs.yml found in {site_root} or parent directories"
+            raise FileNotFoundError(msg)
 
         return config
 
@@ -213,6 +228,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         Returns:
             List of markdown extension identifiers
+
         """
         return [
             # Standard extensions
