@@ -80,9 +80,31 @@ from egregora.pipeline.orchestrator import (
     PipelineContext,
 )
 
-# Note: group_by_period is in the parent egregora.pipeline module (pipeline.py)
-# It will be imported directly from there when needed
-# We don't re-export it here to avoid circular imports
+# Import utilities from pipeline.py module for backward compatibility
+# Use __getattr__ to avoid circular import during module initialization
+def __getattr__(name):
+    """Lazy import for backward compatibility with pipeline.py module."""
+    if name in ("group_by_period", "period_has_posts"):
+        # Import the module-level pipeline.py file (not this package)
+        import sys
+        from importlib import import_module
+
+        # Get the parent module to access pipeline.py sibling
+        parent = sys.modules["egregora"]
+        module_path = parent.__path__[0]
+
+        # Import pipeline.py using spec_from_file_location to avoid name collision
+        from importlib.util import spec_from_file_location, module_from_spec
+        from pathlib import Path
+
+        pipeline_py = Path(module_path) / "pipeline.py"
+        spec = spec_from_file_location("egregora._pipeline_utils", pipeline_py)
+        if spec and spec.loader:
+            module = module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return getattr(module, name)
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     # IR Schema
@@ -101,4 +123,7 @@ __all__ = [
     "PipelineArtifacts",
     "PipelineConfig",
     "PipelineContext",
+    # Utilities (from pipeline.py module)
+    "group_by_period",
+    "period_has_posts",
 ]

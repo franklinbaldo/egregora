@@ -34,7 +34,7 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        batch_client=batch_client,
+        client=batch_client,
         embedding_model="models/gemini-embedding-001",
         embedding_output_dimensionality=3072,
         retrieval_mode="exact",

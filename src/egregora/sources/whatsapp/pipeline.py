@@ -12,7 +12,7 @@ from google import genai
 
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_site_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
@@ -328,20 +328,24 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             else:
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
-                result = write_posts_for_period(
-                    enriched_table,
-                    period_key,
-                    client,
-                    embedding_client,
-                    posts_dir,
-                    profiles_dir,
-                    site_paths.rag_dir,
-                    model_config,
+
+                # Create WriterConfig with all necessary parameters
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
                     enable_rag=True,
                     embedding_output_dimensionality=embedding_dimensionality,
                     retrieval_mode=retrieval_mode,
                     retrieval_nprobe=retrieval_nprobe,
                     retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_period(
+                    enriched_table,
+                    period_key,
+                    embedding_client,
+                    writer_config,
                 )
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
