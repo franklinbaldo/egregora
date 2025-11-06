@@ -1,4 +1,13 @@
-"""Banner/cover image generation for blog posts using Gemini image generation."""
+"""Banner/cover image generation using Gemini image generation API.
+
+This module uses Google's Gemini image generation API directly (not pydantic-ai)
+because image generation requires streaming binary data handling that isn't yet
+supported by pydantic-ai's text-focused agent interface.
+
+Requires GOOGLE_API_KEY environment variable or explicit api_key parameter.
+"""
+
+from __future__ import annotations
 
 import logging
 import mimetypes
@@ -7,51 +16,88 @@ from pathlib import Path
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
-class BannerGenerator:
-    """Generate cover images for blog posts using Gemini 2.5 Flash Image."""
+class BannerRequest(BaseModel):
+    """Request parameters for banner generation."""
 
-    def __init__(self, api_key: str | None = None):
+    post_title: str = Field(description="The blog post title")
+    post_summary: str = Field(description="Brief summary of the post")
+    output_dir: Path = Field(description="Directory to save the generated banner")
+    slug: str = Field(description="Post slug (used for filename)")
+
+
+class BannerResult(BaseModel):
+    """Result from banner generation."""
+
+    success: bool = Field(description="Whether banner was generated successfully")
+    banner_path: Path | None = Field(default=None, description="Path to generated banner")
+    error: str | None = Field(default=None, description="Error message if generation failed")
+
+
+class BannerGenerator:
+    """Generate cover images for blog posts using Gemini 2.5 Flash Image.
+
+    This is a Gemini-specific feature that requires GOOGLE_API_KEY.
+    The generator can be disabled by not providing an API key, in which case
+    all generation attempts will return None gracefully.
+    """
+
+    def __init__(self, api_key: str | None = None, enabled: bool = True):
         """Initialize the banner generator.
 
         Args:
-            api_key: Gemini API key. If None, reads from GEMINI_API_KEY env var.
+            api_key: Gemini API key. If None, reads from GOOGLE_API_KEY env var.
+            enabled: Whether banner generation is enabled. If False, skips all generation.
+
+        Raises:
+            ValueError: If enabled=True but no API key is available
         """
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        self.enabled = enabled
+
+        if not enabled:
+            logger.info("Banner generation disabled")
+            self.client = None
+            self.model = None
+            self.api_key = None
+            return
+
+        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY must be provided or set in environment")
+            raise ValueError(
+                "Banner generation requires GOOGLE_API_KEY. "
+                "Set environment variable or pass api_key parameter, "
+                "or set enabled=False to disable banner generation."
+            )
 
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.5-flash-image"
 
-    def generate_banner(
-        self,
-        post_title: str,
-        post_summary: str,
-        output_dir: Path,
-        slug: str,
-    ) -> Path | None:
+    def generate_banner(self, request: BannerRequest) -> BannerResult:
         """Generate a banner image for a blog post.
 
         Args:
-            post_title: The blog post title
-            post_summary: Brief summary of the post
-            output_dir: Directory to save the generated banner
-            slug: Post slug (used for filename)
+            request: Banner generation parameters
 
         Returns:
-            Path to the generated banner image, or None if generation failed
+            BannerResult with success status and path (if successful)
         """
-        output_dir.mkdir(parents=True, exist_ok=True)
+        if not self.enabled:
+            logger.info(f"Banner generation disabled, skipping: {request.post_title}")
+            return BannerResult(
+                success=False, error="Banner generation disabled (no GOOGLE_API_KEY)"
+            )
+
+        request.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Construct the prompt for image generation
-        prompt = self._build_prompt(post_title, post_summary)
+        prompt = self._build_prompt(request.post_title, request.post_summary)
 
         try:
-            logger.info(f"Generating banner for post: {post_title}")
+            logger.info(f"Generating banner for post: {request.post_title}")
 
             contents = [
                 types.Content(
@@ -79,14 +125,16 @@ class BannerGenerator:
                 ],
             )
 
-            # Generate the image
+            # Generate the image using streaming API
             for chunk in self.client.models.generate_content_stream(
                 model=self.model,
                 contents=contents,
                 config=generate_content_config,
             ):
                 if not (
-                    chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
+                    chunk.candidates
+                    and chunk.candidates[0].content
+                    and chunk.candidates[0].content.parts
                 ):
                     continue
 
@@ -96,28 +144,28 @@ class BannerGenerator:
                 if part.inline_data and part.inline_data.data:
                     inline_data = part.inline_data
                     data_buffer = inline_data.data
-                    file_extension = mimetypes.guess_extension(inline_data.mime_type)
+                    file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
 
                     # Save the banner
-                    banner_filename = f"banner-{slug}{file_extension}"
-                    banner_path = output_dir / banner_filename
+                    banner_filename = f"banner-{request.slug}{file_extension}"
+                    banner_path = request.output_dir / banner_filename
 
                     with open(banner_path, "wb") as f:
                         f.write(data_buffer)
 
                     logger.info(f"Banner saved to: {banner_path}")
-                    return banner_path
+                    return BannerResult(success=True, banner_path=banner_path)
 
                 # Log any text responses
                 if hasattr(chunk, "text") and chunk.text:
                     logger.debug(f"Gemini response: {chunk.text}")
 
-            logger.warning(f"No image generated for post: {post_title}")
-            return None
+            logger.warning(f"No image generated for post: {request.post_title}")
+            return BannerResult(success=False, error="No image data received from API")
 
         except Exception as e:
-            logger.error(f"Failed to generate banner for {post_title}: {e}")
-            return None
+            logger.error(f"Failed to generate banner for {request.post_title}: {e}", exc_info=True)
+            return BannerResult(success=False, error=str(e))
 
     def _build_prompt(self, title: str, summary: str) -> str:
         """Build the prompt for banner image generation.
@@ -156,19 +204,44 @@ def generate_banner_for_post(
 ) -> Path | None:
     """Convenience function to generate a banner for a post.
 
+    This function gracefully handles missing API keys by returning None
+    instead of raising an error.
+
     Args:
         post_title: The blog post title
         post_summary: Brief summary of the post
         output_dir: Directory to save the banner
         slug: Post slug (for filename)
-        api_key: Optional Gemini API key
+        api_key: Optional Gemini API key (reads from GOOGLE_API_KEY env if not provided)
 
     Returns:
-        Path to generated banner, or None if failed
+        Path to generated banner, or None if generation failed or is disabled
     """
     try:
-        generator = BannerGenerator(api_key=api_key)
-        return generator.generate_banner(post_title, post_summary, output_dir, slug)
+        # Check if API key is available
+        effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        enabled = effective_key is not None
+
+        generator = BannerGenerator(api_key=api_key, enabled=enabled)
+        request = BannerRequest(
+            post_title=post_title,
+            post_summary=post_summary,
+            output_dir=output_dir,
+            slug=slug,
+        )
+        result = generator.generate_banner(request)
+
+        return result.banner_path if result.success else None
+
     except Exception as e:
-        logger.error(f"Banner generation failed: {e}")
+        logger.error(f"Banner generation failed: {e}", exc_info=True)
         return None
+
+
+def is_banner_generation_available() -> bool:
+    """Check if banner generation is available (GOOGLE_API_KEY is set).
+
+    Returns:
+        True if GOOGLE_API_KEY environment variable is set
+    """
+    return os.environ.get("GOOGLE_API_KEY") is not None

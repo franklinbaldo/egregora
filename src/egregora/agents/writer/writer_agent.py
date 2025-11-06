@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             return json.dumps(messages, indent=2, default=str)
 
 
-from egregora.agents.banner import generate_banner_for_post
+from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
@@ -139,8 +139,15 @@ class WriterAgentState(BaseModel):
         self.saved_profiles.append(path)
 
 
-def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) -> None:
-    """Attach tool implementations to the agent."""
+def _register_writer_tools(
+    agent: Agent[WriterAgentState, WriterAgentReturn], enable_banner: bool = False
+) -> None:
+    """Attach tool implementations to the agent.
+
+    Args:
+        agent: The writer agent to register tools with
+        enable_banner: Whether to register banner generation tool (requires GOOGLE_API_KEY)
+    """
 
     @agent.tool
     def write_post_tool(
@@ -238,22 +245,29 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
             parent_type=annotation.parent_type,
         )
 
-    @agent.tool
-    def generate_banner_tool(
-        ctx: RunContext[WriterAgentState],
-        post_slug: str,
-        title: str,
-        summary: str,
-    ) -> BannerResult:
-        banner_path = generate_banner_for_post(
-            post_title=title,
-            post_summary=summary,
-            output_dir=ctx.deps.output_dir,
-            slug=post_slug,
-        )
-        if banner_path:
-            return BannerResult(status="success", path=str(banner_path))
-        return BannerResult(status="skipped", path=None)
+    # Banner generation is optional (requires GOOGLE_API_KEY)
+    if enable_banner:
+
+        @agent.tool
+        def generate_banner_tool(
+            ctx: RunContext[WriterAgentState],
+            post_slug: str,
+            title: str,
+            summary: str,
+        ) -> BannerResult:
+            banner_path = generate_banner_for_post(
+                post_title=title,
+                post_summary=summary,
+                output_dir=ctx.deps.output_dir,
+                slug=post_slug,
+            )
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="skipped", path=None)
+
+        logger.info("Banner generation tool registered")
+    else:
+        logger.info("Banner generation tool disabled (no GOOGLE_API_KEY)")
 
 
 def write_posts_with_pydantic_agent(  # noqa: PLR0913
@@ -294,7 +308,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent)
+        _register_writer_tools(agent, enable_banner=is_banner_generation_available())
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
@@ -480,7 +494,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent)
+        _register_writer_tools(agent, enable_banner=is_banner_generation_available())
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
