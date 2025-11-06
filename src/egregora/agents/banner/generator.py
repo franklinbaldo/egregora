@@ -46,7 +46,7 @@ class BannerGenerator:
     all generation attempts will return None gracefully.
     """
 
-    def __init__(self, api_key: str | None = None, enabled: bool = True) -> None:
+    def __init__(self, api_key: str | None = None, *, enabled: bool = True) -> None:
         """Initialize the banner generator.
 
         Args:

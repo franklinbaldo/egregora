@@ -44,4 +44,4 @@ def configure_logging() -> None:
         handler = managed_handler
         handler.markup = True
     root_logger.setLevel(level)
-    logging.captureWarnings(True)
+    logging.captureWarnings(capture=True)

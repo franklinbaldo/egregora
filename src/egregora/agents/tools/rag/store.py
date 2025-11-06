@@ -122,7 +122,7 @@ class VectorStore:
         else:
             return True
 
-    def _ensure_dataset_loaded(self, force: bool = False) -> None:
+    def _ensure_dataset_loaded(self, *, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
         self._ensure_metadata_table()
         if not self.parquet_path.exists():

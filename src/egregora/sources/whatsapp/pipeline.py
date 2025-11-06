@@ -315,6 +315,7 @@ def process_whatsapp_export(
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",
+    *,
     enable_enrichment: bool = True,
     from_date: date | None = None,
     to_date: date | None = None,
