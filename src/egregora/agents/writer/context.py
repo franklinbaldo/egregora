@@ -84,44 +84,40 @@ def build_rag_context_for_prompt(
         )
     if not table_markdown.strip():
         return ""
-    try:
-        query_vector = embed_query(table_markdown, model=embedding_model)
-        store = VectorStore(rag_dir / "chunks.parquet")
-        search_results = store.search(
-            query_vec=query_vector,
-            top_k=top_k,
-            min_similarity=0.7,
-            mode=retrieval_mode,
-            nprobe=retrieval_nprobe,
-            overfetch=retrieval_overfetch,
-        )
-        df = search_results.execute()
-        if getattr(df, "empty", False):
-            logger.info("Writer RAG: no similar posts found for query")
-            return ""
-        records = df.to_dict("records")
-        if not records:
-            return ""
-        lines = [
-            "## Related Previous Posts (for continuity and linking):",
-            "You can reference these posts in your writing to maintain conversation continuity.\n",
-        ]
-        for row in records:
-            title = row.get("post_title") or "Untitled"
-            post_date = row.get("post_date") or ""
-            snippet = (row.get("content") or "")[:400]
-            tags = row.get("tags") or []
-            similarity = row.get("similarity")
-            lines.append(f"### [{title}] ({post_date})")
-            lines.append(f"{snippet}...")
-            lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
-            if similarity is not None:
-                lines.append(f"- Similarity: {float(similarity):.2f}")
-            lines.append("")
-        return "\n".join(lines).strip()
-    except Exception as exc:
-        logger.warning("Writer RAG context failed: %s", exc, exc_info=True)
+    query_vector = embed_query(table_markdown, model=embedding_model)
+    store = VectorStore(rag_dir / "chunks.parquet")
+    search_results = store.search(
+        query_vec=query_vector,
+        top_k=top_k,
+        min_similarity=0.7,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
+    )
+    df = search_results.execute()
+    if getattr(df, "empty", False):
+        logger.info("Writer RAG: no similar posts found for query")
         return ""
+    records = df.to_dict("records")
+    if not records:
+        return ""
+    lines = [
+        "## Related Previous Posts (for continuity and linking):",
+        "You can reference these posts in your writing to maintain conversation continuity.\n",
+    ]
+    for row in records:
+        title = row.get("post_title") or "Untitled"
+        post_date = row.get("post_date") or ""
+        snippet = (row.get("content") or "")[:400]
+        tags = row.get("tags") or []
+        similarity = row.get("similarity")
+        lines.append(f"### [{title}] ({post_date})")
+        lines.append(f"{snippet}...")
+        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
+        if similarity is not None:
+            lines.append(f"- Similarity: {float(similarity):.2f}")
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def _query_rag_for_context(

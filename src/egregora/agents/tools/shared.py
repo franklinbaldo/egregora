@@ -40,7 +40,7 @@ async def query_rag(
             formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
             formatted.append("")
         return "\n".join(formatted)
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, OSError, RuntimeError) as e:
         return f"RAG query failed: {e!s}"
 
 
@@ -56,7 +56,7 @@ async def ask_llm(question: str, client: genai.Client, model_config: ModelConfig
             config=genai.types.GenerateContentConfig(temperature=0.7),
         )
         return (response.text or "No response").strip()
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, OSError, RuntimeError) as e:
         return f"[LLM query failed: {e!s}]"
 
 
