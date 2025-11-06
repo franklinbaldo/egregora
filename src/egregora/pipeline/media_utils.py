@@ -131,7 +131,7 @@ def process_media_for_period(
     temp_dir: Path,
     docs_dir: Path,
     posts_dir: Path,
-    **adapter_kwargs,
+    **adapter_kwargs: object,
 ) -> tuple[Table, dict[str, Path]]:
     """Process media files for a period: extract, standardize, and update references.
 

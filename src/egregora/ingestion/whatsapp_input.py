@@ -72,8 +72,8 @@ class WhatsAppInputSource(InputSource):
         source_path: Path,
         group_name: str | None = None,
         export_date: date | None = None,
-        timezone: Any = None,
-        **_kwargs,
+        timezone: str | None = None,
+        **_kwargs: Any,
     ) -> tuple[Table, InputMetadata]:
         """Parse WhatsApp export ZIP into standardized Ibis Table.
 
@@ -136,7 +136,7 @@ class WhatsAppInputSource(InputSource):
         output_dir: Path,
         group_slug: str | None = None,
         table: Table | None = None,
-        **_kwargs,
+        **_kwargs: Any,
     ) -> dict[str, str]:
         """Extract media files from WhatsApp export ZIP.
 

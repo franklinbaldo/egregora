@@ -30,11 +30,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
+    import duckdb
     import ibis
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
 
-def _get_duckdb_connection(con: DuckDBBackend) -> Any:
+def _get_duckdb_connection(con: DuckDBBackend) -> duckdb.DuckDBPyConnection:
     """Extract the underlying DuckDB connection from Ibis backend.
 
     Args:

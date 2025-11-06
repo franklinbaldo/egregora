@@ -12,7 +12,8 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
@@ -23,8 +24,6 @@ from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
 from egregora.utils.logfire_config import logfire_span
 
-if TYPE_CHECKING:
-    from pathlib import Path
 console = Console()
 FRONTMATTER_PARTS = 3
 MAX_COMMENT_LENGTH = 250
@@ -295,7 +294,7 @@ async def run_comparison_with_pydantic_agent(
     profile_path: Path,
     api_key: str,
     model: str = "models/gemini-flash-latest",
-    agent_model: Any | None = None,
+    agent_model: object | None = None,  # Test model injection - accepts any Pydantic AI compatible model
 ) -> dict[str, Any]:
     """Run a three-turn comparison between two posts using Pydantic AI agent.
 

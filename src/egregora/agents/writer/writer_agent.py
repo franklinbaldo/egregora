@@ -15,9 +15,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,7 +32,7 @@ except ImportError:
         """Lightweight shim mirroring the adapter interface used in tests."""
 
         @staticmethod
-        def dump_json(messages: Any) -> str:
+        def dump_json(messages: object) -> str:
             if hasattr(messages, "model_dump_json"):
                 return messages.model_dump_json(indent=2)
             if hasattr(messages, "model_dump"):
@@ -259,13 +261,13 @@ def write_posts_with_pydantic_agent(
     output_dir: Path,
     profiles_dir: Path,
     rag_dir: Path,
-    client: Any,
+    client: object,
     embedding_model: str,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
     annotations_store: AnnotationStore | None,
-    agent_model: Any | None = None,
+    agent_model: object | None = None,
     register_tools: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling.
@@ -343,7 +345,7 @@ class WriterStreamResult:
     """
 
     def __init__(
-        self, agent: Any, prompt: str, state: WriterAgentState, period_date: str, model_name: str
+        self, agent: object, prompt: str, state: WriterAgentState, period_date: str, model_name: str
     ) -> None:
         self.agent = agent
         self.prompt = prompt
@@ -354,7 +356,7 @@ class WriterStreamResult:
         self._response = None
         self._span = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Enter async context - start logfire span and pydantic-ai stream."""
         self._span = logfire_span("writer_agent_stream", period=self.period_date, model=self.model_name)
         self._span.__enter__()
@@ -362,7 +364,12 @@ class WriterStreamResult:
         self._response = await self._stream_context.__aenter__()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         """Exit async context - close stream and span."""
         try:
             if self._stream_context:
@@ -372,7 +379,7 @@ class WriterStreamResult:
                 self._span.__exit__(exc_type, exc_val, exc_tb)
         return False
 
-    async def stream_text(self):
+    async def stream_text(self) -> AsyncGenerator[str, None]:
         """Stream text chunks from the agent."""
         if not self._response:
             msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
@@ -400,13 +407,13 @@ async def write_posts_with_pydantic_agent_stream(
     output_dir: Path,
     profiles_dir: Path,
     rag_dir: Path,
-    client: Any,
+    client: object,
     embedding_model: str,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
     annotations_store: AnnotationStore | None,
-    agent_model: Any | None = None,
+    agent_model: object | None = None,
     register_tools: bool = True,
 ) -> WriterStreamResult:
     """Execute the writer flow using Pydantic-AI agent with streaming.

@@ -31,13 +31,13 @@ class _ConnectionProxy:
         object.__setattr__(self, "_inner", inner)
         object.__setattr__(self, "_overrides", {})
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401  # Proxy pattern requires Any for attribute access
         overrides = object.__getattribute__(self, "_overrides")
         if name in overrides:
             return overrides[name]
         return getattr(object.__getattribute__(self, "_inner"), name)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401  # Proxy pattern requires Any for attribute assignment
         if name in {"_inner", "_overrides"}:
             object.__setattr__(self, name, value)
             return

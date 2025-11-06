@@ -11,6 +11,7 @@ Pydantic AI's tool calling and state management.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
@@ -27,8 +28,6 @@ from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from google import genai
 logger = logging.getLogger(__name__)
 
@@ -293,7 +292,7 @@ async def run_editor_session_with_pydantic_agent(
     rag_dir: Path,
     context: dict[str, Any] | None = None,
     _max_turns: int = 15,
-    agent_model: Any | None = None,
+    agent_model: object | None = None,  # Test model injection - accepts any Pydantic AI compatible model
 ) -> dict[str, Any]:
     """Run a full editing session on a post using Pydantic AI agent.
 

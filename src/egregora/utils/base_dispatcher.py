@@ -48,7 +48,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
         *,
         force_batch: bool = False,
         force_individual: bool = False,
-        **kwargs,
+        **kwargs: object,
     ) -> list[TResult]:
         """Dispatch requests using the optimal strategy.
 
@@ -123,7 +123,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
         """
 
     @abstractmethod
-    def _execute_batch(self, requests: Sequence[TRequest], **kwargs) -> list[TResult]:
+    def _execute_batch(self, requests: Sequence[TRequest], **kwargs: object) -> list[TResult]:
         """Execute requests as a batch.
 
         Subclasses must implement this to handle batch API calls.

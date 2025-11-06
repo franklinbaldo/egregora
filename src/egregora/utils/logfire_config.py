@@ -6,7 +6,10 @@ Logfire is only configured when LOGFIRE_TOKEN is set in the environment.
 
 import logging
 import os
+from contextlib import AbstractContextManager
 from functools import lru_cache
+from types import ModuleType
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +37,7 @@ def configure_logfire() -> bool:
         return False
 
 
-def get_logfire():
+def get_logfire() -> ModuleType | None:
     """Get logfire module if available.
 
     Returns:
@@ -49,7 +52,7 @@ def get_logfire():
         return logfire
 
 
-def logfire_span(name: str, **kwargs):
+def logfire_span(name: str, **kwargs: object) -> AbstractContextManager[Any]:
     """Create a Logfire span if available, otherwise no-op context manager.
 
     Args:
@@ -68,7 +71,7 @@ def logfire_span(name: str, **kwargs):
     return nullcontext()
 
 
-def logfire_info(message: str, **kwargs) -> None:
+def logfire_info(message: str, **kwargs: object) -> None:
     """Log info message to Logfire if available.
 
     Args:

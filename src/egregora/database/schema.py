@@ -179,7 +179,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 
 
 def create_table_if_not_exists(
-    conn,
+    conn: duckdb.DuckDBPyConnection,
     table_name: str,
     schema: ibis.Schema,
 ) -> None:
@@ -216,10 +216,10 @@ def quote_identifier(identifier: str) -> str:
         Example: my"table → "my""table"
 
     """
-    return f'"{identifier.replace('"', '""')}"'
+    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
 
 
-def add_primary_key(conn, table_name: str, column_name: str) -> None:
+def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_name: str) -> None:
     """Add a primary key constraint to an existing table.
 
     Args:
@@ -240,7 +240,7 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
 
 
 def ensure_identity_column(
-    conn,
+    conn: duckdb.DuckDBPyConnection,
     table_name: str,
     column_name: str,
     *,
@@ -270,7 +270,13 @@ def ensure_identity_column(
         )
 
 
-def create_index(conn, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW") -> None:
+def create_index(
+    conn: duckdb.DuckDBPyConnection,
+    table_name: str,
+    index_name: str,
+    column_name: str,
+    index_type: str = "HNSW",
+) -> None:
     """Create an index on a table.
 
     Args:

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Annotated, Any
 
+import ibis.expr.types as ir
 import pyarrow as pa
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ def write_profile(
 
 
 def get_active_authors(
-    table: Annotated[Any, "The Ibis table with an 'author' column"],
+    table: Annotated[ir.Table, "The Ibis table with an 'author' column"],
     limit: Annotated[int | None, "An optional limit on the number of authors to return"] = None,
 ) -> Annotated[list[str], "A list of unique author UUIDs, excluding 'system' and 'egregora'"]:
     """Get list of unique authors from a Table.
@@ -358,9 +359,9 @@ def get_opted_out_authors(
 
 
 def filter_opted_out_authors(
-    table: Annotated[Any, "The Ibis table with an 'author' column"],
+    table: Annotated[ir.Table, "The Ibis table with an 'author' column"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-) -> tuple[Annotated[Any, "The filtered table"], Annotated[int, "The number of removed messages"]]:
+) -> tuple[Annotated[ir.Table, "The filtered table"], Annotated[int, "The number of removed messages"]]:
     """Remove all messages from opted-out authors.
 
     This should be called EARLY in the pipeline, BEFORE anonymization,

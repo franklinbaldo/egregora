@@ -85,7 +85,7 @@ async def test_editor_agent_with_test_model(test_post: Path, model_config: Model
         model_config=model_config,
         rag_dir=rag_dir,
         context={},
-        max_turns=15,
+        _max_turns=15,
         agent_model=test_model,
     )
 
@@ -129,7 +129,7 @@ async def test_editor_agent_with_edit_tool(test_post: Path, model_config: ModelC
         model_config=model_config,
         rag_dir=rag_dir,
         context={},
-        max_turns=15,
+        _max_turns=15,
         agent_model=test_model,
     )
 
@@ -165,7 +165,7 @@ async def test_editor_agent_hold_decision(test_post: Path, model_config: ModelCo
         model_config=model_config,
         rag_dir=rag_dir,
         context={},
-        max_turns=15,
+        _max_turns=15,
         agent_model=test_model,
     )
 

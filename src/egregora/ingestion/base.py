@@ -40,7 +40,7 @@ class InputSource(ABC):
     """
 
     @abstractmethod
-    def parse(self, source_path: Path, **kwargs) -> tuple[Table, InputMetadata]:
+    def parse(self, source_path: Path, **kwargs: Any) -> tuple[Table, InputMetadata]:
         """Parse the input source into a standardized Ibis Table.
 
         Args:
@@ -59,7 +59,7 @@ class InputSource(ABC):
         """
 
     @abstractmethod
-    def extract_media(self, source_path: Path, output_dir: Path, **kwargs) -> dict[str, str]:
+    def extract_media(self, source_path: Path, output_dir: Path, **kwargs: Any) -> dict[str, str]:
         """Extract media files from the source.
 
         Args:

@@ -51,8 +51,25 @@ app = typer.Typer(
 )
 logger = logging.getLogger(__name__)
 
+# Type alias for JSON-serializable values
+JsonValue = (
+    None
+    | str
+    | int
+    | float
+    | bool
+    | datetime
+    | date
+    | dict[str, Any]
+    | list[Any]
+    | tuple[Any, ...]
+    | set[Any]
+)
 
-def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
+
+def _make_json_safe(
+    value: JsonValue, *, strict: bool = False
+) -> str | int | float | bool | dict[str, Any] | list[Any] | None:
     """Return a JSON-serializable representation of ``value``.
 
     Args:
@@ -1020,7 +1037,7 @@ def write_posts(
             console.print(f"[green]✅ Generated {posts_count} posts[/green]")
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
             if posts_count > 0:
-                console.print(f"[cyan]Posts saved to:[/cyan] {posts_output_dir}")
+                console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
                 for post_path in result.get("posts", [])[:5]:
                     console.print(f"  • {Path(post_path).name}")
                 if posts_count > 5:

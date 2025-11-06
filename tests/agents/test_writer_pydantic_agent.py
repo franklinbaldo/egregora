@@ -39,7 +39,6 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         rag_dir=rag_dir,
         client=batch_client,
         embedding_model="models/gemini-embedding-001",
-        embedding_output_dimensionality=3072,
         retrieval_mode="exact",
         retrieval_nprobe=None,
         retrieval_overfetch=None,

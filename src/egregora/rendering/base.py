@@ -32,7 +32,7 @@ class OutputFormat(ABC):
     """
 
     @abstractmethod
-    def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
         """Create the initial site structure.
 
         Args:
@@ -67,7 +67,7 @@ class OutputFormat(ABC):
         """
 
     @abstractmethod
-    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs) -> str:
+    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs: object) -> str:
         """Write a blog post in the appropriate format.
 
         Args:
@@ -89,7 +89,7 @@ class OutputFormat(ABC):
 
     @abstractmethod
     def write_profile(
-        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs
+        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs: object
     ) -> str:
         """Write an author profile page.
 

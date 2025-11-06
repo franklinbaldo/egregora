@@ -10,7 +10,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,7 +67,7 @@ def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
 
 
 @lru_cache(maxsize=1)
-def _pandas_na_singleton() -> Any | None:
+def _pandas_na_singleton() -> object | None:
     """Return the pandas.NA singleton when pandas is available."""
     try:
         pandas_module = importlib.import_module("pandas")
@@ -76,7 +76,7 @@ def _pandas_na_singleton() -> Any | None:
     return pandas_module.NA
 
 
-def _stringify_value(value: Any) -> str:
+def _stringify_value(value: object) -> str:
     """Convert values to safe strings for table rendering."""
     if isinstance(value, str):
         return value
@@ -94,14 +94,14 @@ def _stringify_value(value: Any) -> str:
     return str(value)
 
 
-def _escape_table_cell(value: Any) -> str:
+def _escape_table_cell(value: object) -> str:
     """Escape markdown table delimiters and normalize whitespace."""
     text = _stringify_value(value)
     text = text.replace("|", "\\|")
     return text.replace("\n", "<br>")
 
 
-def _compute_message_id(row: Any) -> str:
+def _compute_message_id(row: Mapping[str, object]) -> str:
     """Derive a deterministic identifier for a conversation row.
 
     Prefers stored message_id field if available, otherwise computes a hash.
@@ -162,7 +162,7 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
     return "\n\n".join(formatted_blocks)
 
 
-def _merge_message_and_annotations(message_value: Any, annotations: list[Annotation]) -> str:
+def _merge_message_and_annotations(message_value: object, annotations: list[Annotation]) -> str:
     """Append annotation content after the original message text."""
     message_text = _stringify_value(message_value)
     annotations_block = _format_annotations_for_message(annotations)
@@ -174,8 +174,8 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
 
 
 def _table_to_records(
-    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
-) -> tuple[list[dict[str, Any]], list[str]]:
+    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+) -> tuple[list[dict[str, object]], list[str]]:
     """Normalize heterogeneous tabular inputs into row dictionaries."""
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
@@ -201,7 +201,7 @@ def _table_to_records(
     raise TypeError(msg)
 
 
-def _ensure_msg_id_column(rows: list[dict[str, Any]], column_order: list[str]) -> list[str]:
+def _ensure_msg_id_column(rows: list[dict[str, object]], column_order: list[str]) -> list[str]:
     """Ensure all rows have msg_id field and return updated column order.
 
     Prefers stored message_id field, falls back to existing msg_id,
@@ -226,7 +226,7 @@ def _ensure_msg_id_column(rows: list[dict[str, Any]], column_order: list[str]) -
 
 
 def _build_conversation_markdown(
-    data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
+    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
     annotations_store: AnnotationStore | None,
 ) -> str:
     """Render conversation rows into markdown with inline annotations."""

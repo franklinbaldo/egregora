@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import ibis
+import pandas as pd
+import pyarrow as pa
 from google.genai import types as genai_types
 from ibis.expr.types import Table
 
@@ -48,14 +50,14 @@ class MediaEnrichmentJob:
     mime_type: str | None = None
 
 
-def _ensure_datetime(value: Any) -> datetime:
+def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
     """Convert pandas/ibis timestamp objects to ``datetime``."""
     if hasattr(value, "to_pydatetime"):
         return value.to_pydatetime()
     return value
 
 
-def _safe_timestamp_plus_one(timestamp: Any) -> Any:
+def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
@@ -85,7 +87,7 @@ def _get_stable_ordering(table: Table) -> list:
     return []
 
 
-def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
+def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert backend frames into ``dict`` records consistently.
 
     Note: This is legacy fallback code. Most code paths should now use
