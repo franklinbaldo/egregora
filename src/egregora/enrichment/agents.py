@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from google import genai
-from google.genai import types as genai_types
 from pydantic import BaseModel
 from pydantic_ai import Agent
 

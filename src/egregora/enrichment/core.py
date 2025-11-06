@@ -43,7 +43,6 @@ from egregora.enrichment.media import (
     find_media_references,
     replace_media_mentions,
 )
-
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 
 logger = logging.getLogger(__name__)
