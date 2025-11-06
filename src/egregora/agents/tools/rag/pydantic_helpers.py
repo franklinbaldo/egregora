@@ -10,9 +10,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from google import genai
+
 from egregora.agents.tools.rag.embedder import embed_query
 from egregora.agents.tools.rag.store import VectorStore
-from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def find_relevant_docs(
     query: str,
     *,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     rag_dir: Path,
     embedding_model: str,
     output_dimensionality: int = 3072,
@@ -38,7 +39,7 @@ async def find_relevant_docs(
 
     Args:
         query: Natural language query
-        batch_client: Gemini batch client for embeddings
+        client: Gemini API client for embeddings
         rag_dir: Directory containing vector store
         embedding_model: Embedding model name
         output_dimensionality: Embedding dimension size
@@ -59,7 +60,7 @@ async def find_relevant_docs(
     Example:
         >>> docs = await find_relevant_docs(
         ...     "quantum computing",
-        ...     batch_client=client,
+        ...     client=client,
         ...     rag_dir=Path("./rag"),
         ...     embedding_model="models/gemini-embedding-001"
         ... )
@@ -71,7 +72,7 @@ async def find_relevant_docs(
             # Embed query
             query_vector = embed_query(
                 query,
-                batch_client,
+                client,
                 model=embedding_model,
                 output_dimensionality=output_dimensionality,
             )
@@ -158,7 +159,7 @@ def format_rag_context(docs: list[dict[str, Any]]) -> str:
 async def build_rag_context_for_writer(
     query: str,
     *,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     rag_dir: Path,
     embedding_model: str,
     output_dimensionality: int = 3072,
@@ -173,7 +174,7 @@ async def build_rag_context_for_writer(
 
     Args:
         query: Natural language query (usually conversation markdown)
-        batch_client: Gemini batch client
+        client: Gemini API client
         rag_dir: Vector store directory
         embedding_model: Embedding model name
         output_dimensionality: Embedding dimension
@@ -188,7 +189,7 @@ async def build_rag_context_for_writer(
     Example:
         >>> context = await build_rag_context_for_writer(
         ...     "Discussion about quantum computing...",
-        ...     batch_client=client,
+        ...     client=client,
         ...     rag_dir=Path("./rag"),
         ...     embedding_model="models/gemini-embedding-001"
         ... )
@@ -196,7 +197,7 @@ async def build_rag_context_for_writer(
     """
     docs = await find_relevant_docs(
         query,
-        batch_client=batch_client,
+        client=client,
         rag_dir=rag_dir,
         embedding_model=embedding_model,
         output_dimensionality=output_dimensionality,

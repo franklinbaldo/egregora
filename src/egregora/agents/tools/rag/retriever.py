@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import TypedDict
 
 import ibis
+from google import genai
 from ibis.expr.types import Table
 
 from egregora.agents.tools.rag.chunker import chunk_document
 from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
 from egregora.agents.tools.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.config.site import MEDIA_DIR_NAME
-from egregora.utils.batch import GeminiBatchClient
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ DEDUP_MAX_RANK = 2
 
 def index_post(
     post_path: Path,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -65,7 +65,7 @@ def index_post(
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
     embeddings = embed_chunks(
         chunk_texts,
-        batch_client,
+        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
         output_dimensionality=output_dimensionality,
@@ -119,7 +119,7 @@ def index_post(
 
 def query_similar_posts(
     table: Table,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -163,7 +163,7 @@ def query_similar_posts(
     # Embed query (use RETRIEVAL_QUERY task type)
     query_vec = embed_query(
         query_text,
-        batch_client,
+        client,
         model=embedding_model,
         output_dimensionality=output_dimensionality,
     )
@@ -266,7 +266,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
 def index_media_enrichment(
     enrichment_path: Path,
     docs_dir: Path,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -308,7 +308,7 @@ def index_media_enrichment(
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
     embeddings = embed_chunks(
         chunk_texts,
-        batch_client,
+        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
         output_dimensionality=output_dimensionality,
@@ -354,7 +354,7 @@ def index_media_enrichment(
 
 def index_all_media(
     docs_dir: Path,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -398,7 +398,7 @@ def index_all_media(
         chunks_count = index_media_enrichment(
             enrichment_path,
             docs_dir,
-            batch_client,
+            client,
             store,
             embedding_model=embedding_model,
             output_dimensionality=output_dimensionality,
@@ -476,7 +476,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
 
 def query_media(
     query: str,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     store: VectorStore,
     media_types: list[str] | None = None,
     top_k: int = 5,
@@ -512,7 +512,7 @@ def query_media(
     # Embed query (use RETRIEVAL_QUERY task type)
     query_vec = embed_query(
         query,
-        batch_client,
+        client,
         model=embedding_model,
         output_dimensionality=output_dimensionality,
     )

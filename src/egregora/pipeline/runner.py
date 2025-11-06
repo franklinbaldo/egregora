@@ -29,7 +29,6 @@ from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
-from egregora.utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -142,16 +141,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
         if client is None:
             client = genai.Client(api_key=gemini_api_key)
 
-        text_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher"), batch_threshold=batch_threshold
-        )
-        vision_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
-        )
-        embedding_model_name = model_config.get_model("embedding")
-        embedding_batch_client = GeminiDispatcher(
-            client, embedding_model_name, batch_threshold=batch_threshold
-        )
+        # Get model names for enrichment and embedding
+        text_model = model_config.get_model("enricher")
+        vision_model = model_config.get_model("enricher_vision")
+        embedding_model = model_config.get_model("embedding")
         embedding_dimensionality = model_config.embedding_output_dimensionality
 
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
@@ -210,8 +203,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
             group_slug=str(group_slug),
-            vision_client=vision_batch_client,
-            model=model_config.get_model("enricher_vision"),
+            vision_client=client,
+            model=vision_model,
         )
         if avatar_results:
             logger.info(f"[green]✓ Processed[/] {len(avatar_results)} avatar command(s)")
@@ -304,8 +297,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
-                            text_batch_client,
-                            vision_batch_client,
+                            client,
+                            client,
                             enrichment_cache,
                             site_paths.docs_dir,
                             posts_dir,
@@ -324,8 +317,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
-                        text_batch_client,
-                        vision_batch_client,
+                        client,
+                        client,
                         enrichment_cache,
                         site_paths.docs_dir,
                         posts_dir,
@@ -351,20 +344,27 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             else:
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
-                result = write_posts_for_period(
-                    enriched_table,
-                    period_key,
-                    client,
-                    embedding_batch_client,
-                    posts_dir,
-                    profiles_dir,
-                    site_paths.rag_dir,
-                    model_config,
+
+                # Import WriterConfig here to avoid circular imports
+                from egregora.agents.writer import WriterConfig
+
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
+                    model_config=model_config,
                     enable_rag=True,
                     embedding_output_dimensionality=embedding_dimensionality,
                     retrieval_mode=retrieval_mode,
                     retrieval_nprobe=retrieval_nprobe,
                     retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_period(
+                    enriched_table,
+                    period_key,
+                    client,
+                    writer_config,
                 )
                 if resume:
                     steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
@@ -384,9 +384,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    embedding_batch_client,
+                    client,
                     store,
-                    embedding_model=embedding_batch_client.default_model,
+                    embedding_model=embedding_model,
                     output_dimensionality=embedding_dimensionality,
                 )
                 if media_chunks > 0:

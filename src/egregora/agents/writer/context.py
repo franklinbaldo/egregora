@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from google import genai
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
@@ -14,8 +15,7 @@ from egregora.agents.tools.rag import (
     build_rag_context_for_writer,
     query_similar_posts,
 )
-from egregora.utils import GeminiBatchClient
-from egregora.utils.batch import EmbeddingBatchRequest
+from egregora.agents.tools.rag.embedder import embed_query
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class RagErrorReason:
 def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
     rag_dir: Path,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     *,
     embedding_model: str,
     embedding_output_dimensionality: int = 3072,
@@ -59,7 +59,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     Args:
         table_markdown: Conversation text to use as query
         rag_dir: Directory containing vector store
-        batch_client: Gemini batch client
+        client: Gemini client
         embedding_model: Embedding model name
         embedding_output_dimensionality: Embedding dimension
         retrieval_mode: "ann" or "exact"
@@ -78,7 +78,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return asyncio.run(
             build_rag_context_for_writer(
                 query=table_markdown,
-                batch_client=batch_client,
+                client=client,
                 rag_dir=rag_dir,
                 embedding_model=embedding_model,
                 output_dimensionality=embedding_output_dimensionality,
@@ -92,21 +92,12 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return ""
 
     try:
-        requests = [
-            EmbeddingBatchRequest(
-                text=table_markdown,
-                tag="writer_query",
-                model=embedding_model,
-                task_type="RETRIEVAL_QUERY",
-                output_dimensionality=embedding_output_dimensionality,
-            )
-        ]
-        results = batch_client.embed_content(requests)
-        if not results or results[0].embedding is None:
-            logger.warning("Writer RAG: embedding request returned no vector")
-            return ""
-
-        query_vector = results[0].embedding
+        query_vector = embed_query(
+            table_markdown,
+            client,
+            model=embedding_model,
+            output_dimensionality=embedding_output_dimensionality,
+        )
         store = VectorStore(rag_dir / "chunks.parquet")
         search_results = store.search(
             query_vec=query_vector,
@@ -153,7 +144,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
 
 def _query_rag_for_context(  # noqa: PLR0913
     table: Table,
-    batch_client: GeminiBatchClient,
+    client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,
@@ -170,7 +161,7 @@ def _query_rag_for_context(  # noqa: PLR0913
 
     Args:
         table: Conversation table to query
-        batch_client: Gemini batch client for embeddings
+        client: Gemini client for embeddings
         rag_dir: Directory containing RAG vector store
         embedding_model: Model name for embeddings
         embedding_output_dimensionality: Embedding dimension size
@@ -196,7 +187,7 @@ def _query_rag_for_context(  # noqa: PLR0913
             store = VectorStore(rag_dir / "chunks.parquet")
             similar_posts = query_similar_posts(
                 table,
-                batch_client,
+                client,
                 store,
                 embedding_model=embedding_model,
                 top_k=5,

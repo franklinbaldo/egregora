@@ -3,7 +3,7 @@ Golden-fixture test that exercises the WhatsApp pipeline through the new
 Pydantic-AI writer backend.
 
 Rather than replaying previously recorded Gemini HTTP traffic, we stub the
-`GoogleModel` with `pydantic_ai.models.test.TestModel`, which deterministically
+`GeminiModel` with `pydantic_ai.models.test.TestModel`, which deterministically
 calls the writer tools and returns structured output. This keeps the test fast,
 deterministic, and completely offline while still validating that the Pydantic
 agent orchestrates file generation end-to-end.
@@ -85,7 +85,7 @@ def test_pipeline_with_golden_fixtures(
         return GoldenTestModel(period_date=whatsapp_fixture.export_date.isoformat())
 
     monkeypatch.setattr(
-        "egregora.agents.writer.writer_agent.GoogleModel",
+        "egregora.agents.writer.writer_agent.GeminiModel",
         _make_test_model,
     )
 

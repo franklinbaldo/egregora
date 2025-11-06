@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from google import genai
 from ibis.expr.types import Table
 
 from ..agents.tools.profiler import remove_profile_avatar, update_profile_avatar
 from ..enrichment.media import extract_urls, find_media_references
 from ..ingestion.parser import extract_commands
-from ..utils.gemini_dispatcher import GeminiDispatcher
 from .avatar import (
     AvatarProcessingError,
     download_avatar_from_url,
@@ -27,7 +27,7 @@ def process_avatar_commands(  # noqa: PLR0913
     docs_dir: Path,
     profiles_dir: Path,
     group_slug: str,
-    vision_client: GeminiDispatcher,
+    vision_client: genai.Client,
     model: str = "gemini-2.0-flash-exp",
 ) -> dict[str, str]:
     """
@@ -48,7 +48,7 @@ def process_avatar_commands(  # noqa: PLR0913
         docs_dir: MkDocs docs directory
         profiles_dir: Directory where profiles are stored
         group_slug: Group slug for UUID namespace
-        vision_client: Gemini vision client for enrichment
+        vision_client: Gemini client for enrichment
         model: Model name for vision processing
 
     Returns:
@@ -113,7 +113,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
     docs_dir: Path,
     profiles_dir: Path,
     group_slug: str,
-    vision_client: GeminiDispatcher,
+    vision_client: genai.Client,
     model: str,
     value: str | None = None,
 ) -> str:
@@ -174,7 +174,6 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
             avatar_uuid=avatar_uuid,
             avatar_path=avatar_path,
             docs_dir=docs_dir,
-            vision_client=vision_client,
             model=model,
         )
 
@@ -198,9 +197,46 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
 
     except AvatarProcessingError as e:
         logger.error(f"Failed to process avatar for {author_uuid}: {e}")
+
+        # Clean up avatar and enrichment files if processing failed
+        # Note: If enrichment succeeded but later steps failed, files may still exist
+        if avatar_path and avatar_path.exists():
+            try:
+                avatar_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up avatar file after processing failure: {avatar_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+
+            # Also clean up enrichment file if it exists
+            try:
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                if enrichment_path.exists():
+                    enrichment_path.unlink(missing_ok=True)
+                    logger.info(f"Cleaned up enrichment file after processing failure: {enrichment_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+
         return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
         logger.exception(f"Unexpected error processing avatar for {author_uuid}")
+
+        # Clean up avatar and enrichment files if processing failed
+        if avatar_path and avatar_path.exists():
+            try:
+                avatar_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up avatar file after unexpected error: {avatar_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+
+            # Also clean up enrichment file if it exists
+            try:
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                if enrichment_path.exists():
+                    enrichment_path.unlink(missing_ok=True)
+                    logger.info(f"Cleaned up enrichment file after unexpected error: {enrichment_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
 
 

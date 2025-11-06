@@ -11,24 +11,20 @@ Pydantic AI's tool calling and state management.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import frontmatter
 import ibis
-from pydantic import BaseModel, Field
+from google import genai
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 
-try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
-
+from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig
+from egregora.config import ModelConfig, to_pydantic_ai_model
 from egregora.prompt_templates import EditorPromptTemplate
-from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
 
@@ -75,6 +71,13 @@ class FinishResult(BaseModel):
     notes: str = ""
 
 
+class BannerResult(BaseModel):
+    """Result of a banner generation operation."""
+
+    status: str
+    path: str | None = None
+
+
 class EditorAgentResult(BaseModel):
     """Final result from the editor agent."""
 
@@ -85,16 +88,17 @@ class EditorAgentResult(BaseModel):
 # Agent State
 
 
-@dataclass
-class EditorAgentState:
+class EditorAgentState(BaseModel):
     """State passed to editor agent tools."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     editor: Editor
     rag_dir: Path
-    client: Any  # genai.Client
-    model_config: ModelConfig
+    client: Any  # genai.Client, but use Any to allow test mocks
+    model_config_obj: ModelConfig  # Renamed to avoid conflict with pydantic's model_config
     post_path: Path
-    tool_calls_log: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls_log: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Helper Functions
@@ -116,7 +120,7 @@ async def query_rag_impl(
     query: str,
     max_results: int,
     rag_dir: Path,
-    client: Any,
+    client: genai.Client,
     model_config: ModelConfig,
 ) -> QueryRAGResult:
     """RAG search implementation."""
@@ -131,7 +135,7 @@ async def query_rag_impl(
 
         results = await query_similar_posts(
             table=dummy_table,
-            batch_client=GeminiBatchClient(client, default_model=embedding_model),
+            client=client,
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,
@@ -160,7 +164,7 @@ async def query_rag_impl(
 
 async def ask_llm_impl(
     question: str,
-    client: Any,
+    client: genai.Client,
     model: str,
 ) -> AskLLMResult:
     """Simple Q&A with fresh LLM instance."""
@@ -283,7 +287,7 @@ def _register_editor_tools(agent: Agent) -> None:
             max_results=max_results,
             rag_dir=ctx.deps.rag_dir,
             client=ctx.deps.client,
-            model_config=ctx.deps.model_config,
+            model_config=ctx.deps.model_config_obj,
         )
 
     @agent.tool
@@ -306,17 +310,66 @@ def _register_editor_tools(agent: Agent) -> None:
         """
         ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
 
-        model = ctx.deps.model_config.get_model("editor")
+        model = ctx.deps.model_config_obj.get_model("editor")
         return await ask_llm_impl(
             question=question,
             client=ctx.deps.client,
             model=model,
         )
 
+    @agent.tool
+    def generate_banner_tool(ctx: RunContext[EditorAgentState]) -> BannerResult:
+        """Generate a cover banner image for this post.
+
+        Creates an AI-generated banner image based on the post's title and summary
+        from its front matter. The banner will be saved in the same directory as
+        the post.
+
+        Returns:
+            BannerResult with status and path to the generated banner
+        """
+        try:
+            # Load front matter from the post
+            post = frontmatter.load(ctx.deps.post_path)
+
+            # Extract required metadata
+            title = post.get("title", "")
+            summary = post.get("summary", "")
+            slug = post.get("slug", ctx.deps.post_path.stem)
+
+            if not title:
+                return BannerResult(
+                    status="error",
+                    path=None,
+                )
+
+            # Use post directory as output directory
+            output_dir = ctx.deps.post_path.parent
+
+            # Generate banner
+            ctx.deps.tool_calls_log.append(
+                {"tool": "generate_banner", "args": {"slug": slug, "title": title}}
+            )
+
+            banner_path = generate_banner_for_post(
+                post_title=title,
+                post_summary=summary or title,
+                output_dir=output_dir,
+                slug=slug,
+            )
+
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="failed", path=None)
+
+        except Exception:
+            logger.exception("Banner generation failed in editor")
+            return BannerResult(status="error", path=None)
+
 
 async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     post_path: Path,
-    client: Any,
+    client: genai.Client,
     model_config: ModelConfig,
     rag_dir: Path,
     context: dict[str, Any] | None = None,
@@ -327,7 +380,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
 
     Args:
         post_path: Path to the post markdown file
-        client: Gemini client
+        client: genai.Client instance
         model_config: Model configuration
         rag_dir: Path to RAG database
         context: Optional context (ELO score, ranking comments, etc.)
@@ -365,7 +418,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         editor=editor,
         rag_dir=rag_dir,
         client=client,
-        model_config=model_config,
+        model_config_obj=model_config,
         post_path=post_path,
         tool_calls_log=[],
     )
@@ -375,21 +428,30 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
 
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
+        # Create model with pydantic-ai string notation
+        # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+        if agent_model is None:
+            model = to_pydantic_ai_model(model_name)
+        else:
+            model = agent_model
+
         # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](
-            model=agent_model or GoogleModel(model_name),
+            model=model,
             deps_type=EditorAgentState,
             output_type=EditorAgentResult,
-            system_prompt=f"""You are an autonomous editor for Egregora blog posts.
-
-Your task: Review and improve the post, then decide if it's ready to publish or needs human review.
-
-Current document version: {snapshot.version}
-Document has {len(snapshot.lines)} lines.
-
-When you're done, use the result to indicate your decision and notes.
-""",
         )
+
+        @agent.system_prompt
+        def editor_system_prompt(ctx: RunContext[EditorAgentState]) -> str:
+            """Generate system prompt from template."""
+            template = EditorPromptTemplate(
+                post_content=snapshot_to_markdown(ctx.deps.editor.snapshot),
+                doc_id=ctx.deps.post_path.stem,
+                version=ctx.deps.editor.snapshot.version,
+                lines=ctx.deps.editor.snapshot.lines,
+            )
+            return template.render()
 
         # Register tools
         _register_editor_tools(agent)
