@@ -123,6 +123,24 @@ Ask Gemini to focus on specific aspects by commenting on the PR:
 
 The text after `@gemini` becomes part of the prompt, directing Gemini to focus on your specific concerns while still applying its full code review expertise.
 
+## Security
+
+### Input Sanitization
+The workflow safely handles user-controlled input from `@gemini` comments to prevent code injection:
+- All GitHub context values are passed through environment variables
+- Comment body extraction uses Python (not shell substitution) to prevent command injection
+- No user input is directly interpolated into shell commands
+
+### Permissions
+The workflow requires these permissions:
+- `contents: read` - To checkout the repository
+- `pull-requests: write` - To post review comments
+
+### Best Practices
+- The workflow validates `GEMINI_API_KEY` before running expensive operations
+- Artifacts are uploaded for debugging but expire after 7 days
+- The workflow runs in the PR head context, not the base branch
+
 ## Artifacts
 
 For debugging purposes, the workflow uploads artifacts containing:
