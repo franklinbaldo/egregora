@@ -7,11 +7,7 @@ from egregora.utils.batch import (
     EmbeddingBatchResult,
     chunk_requests,
 )
-from egregora.utils.cache import (
-    ENRICHMENT_CACHE_VERSION,
-    EnrichmentCache,
-    make_enrichment_cache_key,
-)
+from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.checkpoints import DEFAULT_STEP_ORDER, CheckpointStore
 from egregora.utils.genai import (
     call_with_retries,
@@ -32,21 +28,15 @@ from egregora.utils.zip import (
 __all__ = [
     "DEFAULT_STEP_ORDER",
     "ENRICHMENT_CACHE_VERSION",
-    # Batch API
     "BatchPromptRequest",
     "BatchPromptResult",
-    # Checkpoints
     "CheckpointStore",
     "EmbeddingBatchRequest",
     "EmbeddingBatchResult",
-    # Cache
     "EnrichmentCache",
-    # Path safety
     "PathTraversalError",
-    # ZIP validation
     "ZipValidationError",
     "ZipValidationLimits",
-    # GenAI utilities
     "call_with_retries",
     "call_with_retries_sync",
     "chunk_requests",

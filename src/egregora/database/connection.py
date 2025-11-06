@@ -32,7 +32,6 @@ def duckdb_backend() -> Generator[ibis.BaseBackend, None, None]:
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
     old_backend = getattr(ibis.options, "default_backend", None)
-
     try:
         ibis.options.default_backend = backend
         logger.debug("DuckDB backend initialized")

@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 
@@ -60,14 +59,10 @@ class SlackInputSource(InputSource):
         """
         if not source_path.exists():
             return False
-
         if not source_path.is_dir():
             return False
-
-        # Check for Slack export markers
         channels_file = source_path / "channels.json"
         users_file = source_path / "users.json"
-
         return channels_file.exists() and users_file.exists()
 
     def parse(
@@ -99,26 +94,17 @@ class SlackInputSource(InputSource):
         if not self.supports_format(source_path):
             msg = f"Source path {source_path} is not a valid Slack export directory"
             raise ValueError(msg)
-
-        # Load users for name mapping
         users = self._load_users(source_path)
-
-        # Find all channel directories
         channels = self._find_channels(source_path)
-
         if channel_name:
-            # Filter to specific channel
             channels = [c for c in channels if c["name"] == channel_name]
             if not channels:
                 msg = f"Channel '{channel_name}' not found in export"
                 raise ValueError(msg)
-
-        # Parse messages from all channels
         all_messages = []
         for channel in channels:
             messages = self._parse_channel(source_path, channel, users)
             all_messages.extend(messages)
-
         if not all_messages:
             logger.warning("No messages found in Slack export")
             from egregora.schema import MESSAGE_SCHEMA
@@ -131,35 +117,20 @@ class SlackInputSource(InputSource):
                 export_date=export_date or date.today(),
                 timezone=str(timezone) if timezone else "UTC",
             )
-            return empty_table, metadata
-
-        # Create Ibis table
+            return (empty_table, metadata)
         table = ibis.memtable(all_messages)
-
-        # Sort by timestamp
         table = table.order_by("timestamp")
-
-        # Create metadata
         metadata = InputMetadata(
             source_type=self.source_type,
             group_name=channel_name or "Slack Export",
             group_slug=self._slugify(channel_name or "slack-export"),
             export_date=export_date or date.today(),
             timezone=str(timezone) if timezone else "UTC",
-            additional_metadata={
-                "channel_count": len(channels),
-                "message_count": len(all_messages),
-            },
+            additional_metadata={"channel_count": len(channels), "message_count": len(all_messages)},
         )
+        return (table, metadata)
 
-        return table, metadata
-
-    def extract_media(
-        self,
-        source_path: Path,
-        output_dir: Path,
-        **kwargs,
-    ) -> dict[str, str]:
+    def extract_media(self, source_path: Path, output_dir: Path, **kwargs) -> dict[str, str]:
         """Extract media files from Slack export.
 
         Slack exports don't include media files directly - files are referenced
@@ -177,11 +148,6 @@ class SlackInputSource(InputSource):
             NotImplementedError: This is a template - full implementation needed
 
         """
-        # TODO: Implement media download using Slack API
-        # This would require:
-        # 1. Scanning messages for file attachments
-        # 2. Using Slack API with token to download files
-        # 3. Saving files to output_dir/media/
         logger.warning("Slack media extraction not implemented - files will remain as URLs")
         return {}
 
@@ -190,11 +156,8 @@ class SlackInputSource(InputSource):
         users_file = source_path / "users.json"
         if not users_file.exists():
             return {}
-
         with users_file.open("r", encoding="utf-8") as f:
             users_list = json.load(f)
-
-        # Create mapping: user_id -> {name, real_name, display_name}
         users_map = {}
         for user in users_list:
             user_id = user.get("id")
@@ -205,7 +168,6 @@ class SlackInputSource(InputSource):
                     "real_name": profile.get("real_name", "Unknown"),
                     "display_name": profile.get("display_name", "Unknown"),
                 }
-
         return users_map
 
     def _find_channels(self, source_path: Path) -> list[dict[str, Any]]:
@@ -213,98 +175,67 @@ class SlackInputSource(InputSource):
         channels_file = source_path / "channels.json"
         if not channels_file.exists():
             return []
-
         with channels_file.open("r", encoding="utf-8") as f:
             channels = json.load(f)
-
-        # Filter to channels that have message files
         valid_channels = []
         for channel in channels:
             channel_dir = source_path / channel["name"]
             if channel_dir.exists() and channel_dir.is_dir():
                 valid_channels.append(channel)
-
         return valid_channels
 
     def _parse_channel(
-        self,
-        source_path: Path,
-        channel: dict[str, Any],
-        users: dict[str, dict[str, Any]],
+        self, source_path: Path, channel: dict[str, Any], users: dict[str, dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Parse all messages from a single channel."""
         channel_name = channel["name"]
         channel_dir = source_path / channel_name
-
         if not channel_dir.exists():
             return []
-
         messages = []
-
-        # Process all JSON files in channel directory (one per day)
         for json_file in sorted(channel_dir.glob("*.json")):
             with json_file.open("r", encoding="utf-8") as f:
                 day_messages = json.load(f)
-
             for msg in day_messages:
                 parsed = self._parse_message(msg, channel_name, users)
                 if parsed:
                     messages.append(parsed)
-
         return messages
 
     def _parse_message(
-        self,
-        msg: dict[str, Any],
-        channel_name: str,
-        users: dict[str, dict[str, Any]],
+        self, msg: dict[str, Any], channel_name: str, users: dict[str, dict[str, Any]]
     ) -> dict[str, Any] | None:
         """Parse a single Slack message into MESSAGE_SCHEMA format."""
-        # Skip non-message types
         msg_type = msg.get("type")
         if msg_type != "message":
             return None
-
-        # Skip bot messages and system messages
         if msg.get("subtype") in ("bot_message", "channel_join", "channel_leave"):
             return None
-
-        # Get timestamp (Slack uses Unix timestamp as string)
         ts = msg.get("ts")
         if not ts:
             return None
-
         try:
             timestamp = datetime.fromtimestamp(float(ts), tz=UTC)
         except (ValueError, TypeError):
-            logger.warning(f"Invalid timestamp: {ts}")
+            logger.warning("Invalid timestamp: %s", ts)
             return None
-
-        # Get author
         user_id = msg.get("user", "Unknown")
         user_info = users.get(user_id, {})
         author = user_info.get("display_name") or user_info.get("name", user_id)
-
-        # Get message text
         text = msg.get("text", "")
-
-        # Handle file attachments (TODO: download files)
         files = msg.get("files", [])
         if files:
             for file in files:
                 file_name = file.get("name", "file")
                 file_url = file.get("url_private", "")
                 text += f"\n[File: {file_name}]({file_url})"
-
-        # Create message ID (use timestamp + user)
         message_id = f"{ts}_{user_id}"
-
         return {
             "timestamp": timestamp,
             "date": timestamp.date(),
             "author": author,
             "message": text,
-            "original_line": json.dumps(msg),  # Store raw JSON for debugging
+            "original_line": json.dumps(msg),
             "tagged_line": text,
             "message_id": message_id,
         }
@@ -313,7 +244,6 @@ class SlackInputSource(InputSource):
         """Convert text to URL-safe slug."""
         import re
 
-        # Convert to lowercase and replace spaces/special chars with hyphens
         slug = text.lower()
-        slug = re.sub(r"[^a-z0-9]+", "-", slug)
+        slug = re.sub("[^a-z0-9]+", "-", slug)
         return slug.strip("-")

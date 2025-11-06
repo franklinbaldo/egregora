@@ -12,12 +12,9 @@ logger = logging.getLogger(__name__)
 
 def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
     """Resolves the agent name based on post, section, and default fallbacks."""
-    # 1. Check for agent in post's front-matter
     post = frontmatter.load(post_path)
     if "egregora" in post and "agent" in post["egregora"]:
         return post["egregora"]["agent"]
-
-    # 2. Check for agent in section's _agent.md
     current_dir = post_path.parent
     while current_dir != docs_path.parent:
         agent_md_path = current_dir / "_agent.md"
@@ -28,8 +25,6 @@ def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
         if current_dir == docs_path:
             break
         current_dir = current_dir.parent
-
-    # 3. Fallback to default agent
     return "_default"
 
 
@@ -40,19 +35,18 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
     """
     post = frontmatter.load(post_path)
     post_vars = post.get("egregora", {}).get("variables", {})
-
     merged_vars = agent_config.variables.defaults.copy()
     allowed_vars = agent_config.variables.allowed
-
     for key, value in post_vars.items():
         if key in allowed_vars:
             merged_vars[key] = value
         else:
             logger.warning(
-                f"Variable '{key}' from {post_path.name} not allowed by agent "
-                f"{agent_config.agent_id}, ignoring"
+                "Variable '%s' from %s not allowed by agent %s, ignoring",
+                key,
+                post_path.name,
+                agent_config.agent_id,
             )
-
     return merged_vars
 
 
@@ -71,4 +65,4 @@ class AgentResolver:
         agent_name = agent_override or resolve_agent_name(post_path, self.docs_path)
         agent_config, prompt_template = load_agent(agent_name, self.egregora_path)
         final_vars = merge_variables(agent_config, post_path)
-        return agent_config, prompt_template, final_vars
+        return (agent_config, prompt_template, final_vars)

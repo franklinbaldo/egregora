@@ -18,7 +18,6 @@ from egregora.rendering.base import OutputFormat, SiteConfiguration
 
 if TYPE_CHECKING:
     from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,8 +53,6 @@ class HugoOutputFormat(OutputFormat):
         """
         if not site_root.exists():
             return False
-
-        # Hugo config can be config.toml, hugo.toml, or config.yaml
         config_files = ["config.toml", "hugo.toml", "config.yaml", "hugo.yaml"]
         return any((site_root / f).exists() for f in config_files)
 
@@ -80,60 +77,20 @@ class HugoOutputFormat(OutputFormat):
         """
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
-
         config_file = site_root / "config.toml"
-
         if config_file.exists():
-            logger.info(f"Hugo site already exists at {site_root}")
-            return config_file, False
-
-        # Create Hugo directory structure
-        # TODO: Use `hugo new site` command or create manually
-        # Directory structure:
-        # site_root/
-        #   ├── config.toml
-        #   ├── content/
-        #   │   ├── posts/
-        #   │   └── profiles/
-        #   ├── static/
-        #   │   └── media/
-        #   ├── themes/
-        #   └── layouts/
-
-        # Create directories
+            logger.info("Hugo site already exists at %s", site_root)
+            return (config_file, False)
         (site_root / "content" / "posts").mkdir(parents=True, exist_ok=True)
         (site_root / "content" / "profiles").mkdir(parents=True, exist_ok=True)
         (site_root / "static" / "media").mkdir(parents=True, exist_ok=True)
         (site_root / "themes").mkdir(parents=True, exist_ok=True)
         (site_root / "layouts").mkdir(parents=True, exist_ok=True)
-
-        # Create config.toml
-        config_content = f"""baseURL = "http://localhost:1313/"
-languageCode = "en-us"
-title = "{site_name}"
-theme = "{theme}"
-
-[params]
-  description = "Automated conversation archive"
-  author = "Egregora"
-
-[[menu.main]]
-  name = "Posts"
-  url = "/posts/"
-  weight = 1
-
-[[menu.main]]
-  name = "Profiles"
-  url = "/profiles/"
-  weight = 2
-"""
-
+        config_content = f'baseURL = "http://localhost:1313/"\nlanguageCode = "en-us"\ntitle = "{site_name}"\ntheme = "{theme}"\n\n[params]\n  description = "Automated conversation archive"\n  author = "Egregora"\n\n[[menu.main]]\n  name = "Posts"\n  url = "/posts/"\n  weight = 1\n\n[[menu.main]]\n  name = "Profiles"\n  url = "/profiles/"\n  weight = 2\n'
         config_file.write_text(config_content, encoding="utf-8")
-
-        logger.info(f"Created Hugo site at {site_root}")
-        logger.warning(f"Remember to install the {theme} theme or choose another theme!")
-
-        return config_file, True
+        logger.info("Created Hugo site at %s", site_root)
+        logger.warning("Remember to install the %s theme or choose another theme!", theme)
+        return (config_file, True)
 
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing Hugo site.
@@ -151,24 +108,19 @@ theme = "{theme}"
         if not self.supports_site(site_root):
             msg = f"{site_root} is not a valid Hugo site"
             raise ValueError(msg)
-
-        # Find config file
         config_file = None
         for filename in ["config.toml", "hugo.toml", "config.yaml", "hugo.yaml"]:
             candidate = site_root / filename
             if candidate.exists():
                 config_file = candidate
                 break
-
-        # Hugo uses content/ directory
         content_dir = site_root / "content"
         posts_dir = content_dir / "posts"
         profiles_dir = content_dir / "profiles"
         media_dir = site_root / "static" / "media"
-
         return SiteConfiguration(
             site_root=site_root,
-            site_name="Hugo Site",  # TODO: Parse from config
+            site_name="Hugo Site",
             docs_dir=content_dir,
             posts_dir=posts_dir,
             profiles_dir=profiles_dir,
@@ -176,13 +128,7 @@ theme = "{theme}"
             config_file=config_file,
         )
 
-    def write_post(
-        self,
-        content: str,
-        metadata: dict[str, Any],
-        output_dir: Path,
-        **kwargs,
-    ) -> str:
+    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs) -> str:
         """Write a blog post in Hugo format.
 
         Args:
@@ -203,50 +149,29 @@ theme = "{theme}"
             if key not in metadata:
                 msg = f"Missing required metadata: {key}"
                 raise ValueError(msg)
-
         output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Hugo filename format: slug.md or YYYY-MM-DD-slug.md
         slug = metadata["slug"]
         date_str = metadata["date"]
         filename = f"{date_str}-{slug}.md"
         filepath = output_dir / filename
-
-        # Build Hugo front matter (TOML format)
-        # Alternatively, could use YAML with --- delimiters
-        front_matter = f"""+++
-title = "{metadata["title"]}"
-date = {date_str}
-draft = false
-"""
-
+        front_matter = f'''+++\ntitle = "{metadata["title"]}"\ndate = {date_str}\ndraft = false\n'''
         if "tags" in metadata:
             tags = ", ".join(f'"{t}"' for t in metadata["tags"])
             front_matter += f"tags = [{tags}]\n"
-
         if "summary" in metadata:
             summary = metadata["summary"].replace('"', '\\"')
             front_matter += f'description = "{summary}"\n'
-
         if "authors" in metadata:
             authors = ", ".join(f'"{a}"' for a in metadata["authors"])
             front_matter += f"authors = [{authors}]\n"
-
         front_matter += "+++\n\n"
-
-        # Write post
         full_post = front_matter + content
         filepath.write_text(full_post, encoding="utf-8")
-
-        logger.info(f"Wrote Hugo post to {filepath}")
+        logger.info("Wrote Hugo post to %s", filepath)
         return str(filepath)
 
     def write_profile(
-        self,
-        author_id: str,
-        profile_data: dict[str, Any],
-        profiles_dir: Path,
-        **kwargs,
+        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs
     ) -> str:
         """Write an author profile page in Hugo format.
 
@@ -263,30 +188,17 @@ draft = false
         if not author_id:
             msg = "author_id cannot be empty"
             raise ValueError(msg)
-
         profiles_dir.mkdir(parents=True, exist_ok=True)
-
-        # Extract content
         if isinstance(profile_data, str):
             content = profile_data
             title = author_id
         else:
             content = profile_data.get("content", "")
             title = profile_data.get("name", author_id)
-
-        # Hugo front matter
-        front_matter = f"""+++
-title = "{title}"
-type = "profile"
-+++
-
-"""
-
-        # Write profile
+        front_matter = f'+++\ntitle = "{title}"\ntype = "profile"\n+++\n\n'
         filepath = profiles_dir / f"{author_id}.md"
         filepath.write_text(front_matter + content, encoding="utf-8")
-
-        logger.info(f"Wrote Hugo profile to {filepath}")
+        logger.info("Wrote Hugo profile to %s", filepath)
         return str(filepath)
 
     def load_config(self, site_root: Path) -> dict[str, Any]:
@@ -303,17 +215,11 @@ type = "profile"
             NotImplementedError: TOML parsing needed
 
         """
-        # Find config file
         for filename in ["config.toml", "hugo.toml"]:
             config_file = site_root / filename
             if config_file.exists():
-                # TODO: Parse TOML config
-                # import tomli or toml
-                # with config_file.open("rb") as f:
-                #     return tomli.load(f)
                 logger.warning("Hugo config parsing not fully implemented")
                 return {"site_name": "Hugo Site"}
-
         msg = f"No Hugo config file found in {site_root}"
         raise FileNotFoundError(msg)
 
@@ -331,7 +237,6 @@ type = "profile"
             "definition_lists",
             "strikethrough",
             "task_lists",
-            # Hugo uses Goldmark by default which supports:
             "autolink",
             "typographer",
         ]

@@ -22,7 +22,6 @@ class ProcessConfig:
     - Works with any source (WhatsApp, Slack, Discord, etc.)
     """
 
-    # Use zip_file for backward compatibility, but it now accepts any input file
     zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
     period: Annotated[str, "Grouping period: 'day' or 'week'"] = "day"

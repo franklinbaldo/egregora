@@ -17,23 +17,16 @@ class MergeConfig(BaseModel):
     """Configuration for merging multiple groups into a virtual group."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    name: str  # "RC Americas"
+    name: str
     source_groups: list[GroupSlug] = Field(
-        ...,
-        validation_alias=AliasChoices("source_groups", "groups"),
-        min_length=1,
+        ..., validation_alias=AliasChoices("source_groups", "groups"), min_length=1
     )
     tag_style: Literal["emoji", "brackets", "prefix"] = "emoji"
     group_emojis: dict[GroupSlug, str] = Field(
-        default_factory=dict,
-        validation_alias=AliasChoices("group_emojis", "emojis"),
+        default_factory=dict, validation_alias=AliasChoices("group_emojis", "emojis")
     )
     default_emoji: str = "📱"
-    model_override: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("model_override", "model"),
-    )
+    model_override: str | None = Field(default=None, validation_alias=AliasChoices("model_override", "model"))
 
     @field_validator("source_groups", mode="before")
     @classmethod
@@ -61,8 +54,8 @@ class GroupSource:
     Can be real (single group) or virtual (merge of multiple groups).
     """
 
-    slug: GroupSlug  # "rc-latam" or "rc-americas"
-    name: str  # "RC LatAm" or "RC Americas"
-    exports: list[Export]  # Exports for this source (platform-agnostic)
+    slug: GroupSlug
+    name: str
+    exports: list[Export]
     is_virtual: bool = False
     merge_config: MergeConfig | None = None

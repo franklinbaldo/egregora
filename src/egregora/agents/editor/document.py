@@ -28,19 +28,9 @@ class Editor:
     ) -> dict[str, Any]:
         """Replaces a single line in the document."""
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
-
+            return {"ok": False, "reason": "version_mismatch", "current_version": self.snapshot.version}
         if index not in self.snapshot.lines:
-            return {
-                "ok": False,
-                "reason": "index_out_of_bounds",
-                "max_index": len(self.snapshot.lines) - 1,
-            }
-
+            return {"ok": False, "reason": "index_out_of_bounds", "max_index": len(self.snapshot.lines) - 1}
         self.snapshot.lines[index] = new
         self.snapshot.version += 1
         return {"ok": True, "new_version": self.snapshot.version}
@@ -52,15 +42,9 @@ class Editor:
     ) -> dict[str, Any]:
         """Replaces the entire document content."""
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
-
+            return {"ok": False, "reason": "version_mismatch", "current_version": self.snapshot.version}
         if not content:
             return {"ok": False, "reason": "content_empty"}
-
         lines = content.split("\n")
         self.snapshot.lines = dict(enumerate(lines))
         self.snapshot.version += 1
@@ -74,13 +58,5 @@ class Editor:
     ) -> dict[str, Any]:
         """Marks the document for the publish queue or holds it."""
         if expect_version != self.snapshot.version:
-            return {
-                "ok": False,
-                "reason": "version_mismatch",
-                "current_version": self.snapshot.version,
-            }
-
-        # This is a placeholder. In a real implementation, this method would
-        # interact with a database or a publishing queue to officially record
-        # the agent's decision. For now, it just confirms the action.
+            return {"ok": False, "reason": "version_mismatch", "current_version": self.snapshot.version}
         return {"ok": True, "decision": decision, "notes": notes}

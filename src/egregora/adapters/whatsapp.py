@@ -30,43 +30,25 @@ from egregora.types import GroupSlug
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
-
 __all__ = ["WhatsAppAdapter"]
-
-# WhatsApp attachment markers (in various languages)
-ATTACHMENT_MARKERS = (
-    "(arquivo anexado)",  # Portuguese
-    "(file attached)",  # English
-    "(archivo adjunto)",  # Spanish
-    "\u200e<attached:",  # Unicode left-to-right mark + <attached:
-)
-
-# Pattern for WhatsApp media references
-# Matches: "IMG-20250101-WA0001.jpg (file attached)" or bare "IMG-20250101-WA0001.jpg"
-WA_MEDIA_PATTERN = re.compile(r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b")
-
-# Media type detection by extension (for markdown alt text)
+ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
+WA_MEDIA_PATTERN = re.compile("\\b((?:IMG|VID|AUD|PTT|DOC)-\\d+-WA\\d+\\.\\w+)\\b")
 MEDIA_EXTENSIONS = {
-    # Images
     ".jpg": "image",
     ".jpeg": "image",
     ".png": "image",
     ".gif": "image",
     ".webp": "image",
-    # Videos
     ".mp4": "video",
     ".mov": "video",
     ".3gp": "video",
     ".avi": "video",
-    # Audio
     ".opus": "audio",
     ".ogg": "audio",
     ".mp3": "audio",
     ".m4a": "audio",
     ".aac": "audio",
-    # Documents
     ".pdf": "document",
     ".doc": "document",
     ".docx": "document",
@@ -95,16 +77,10 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
     """
     if not message:
         return message
-
     result = message
-
-    # Find all WhatsApp media filenames
     media_files = WA_MEDIA_PATTERN.findall(message)
-
     for filename in media_files:
         media_type = _detect_media_type(filename)
-
-        # Generate markdown based on media type
         if media_type == "image":
             markdown = f"![Image]({filename})"
         elif media_type == "video":
@@ -115,16 +91,11 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
             markdown = f"[Document]({filename})"
         else:
             markdown = f"[File]({filename})"
-
-        # Replace filename with attachment marker
         for marker in ATTACHMENT_MARKERS:
-            pattern = re.escape(filename) + r"\s*" + re.escape(marker)
+            pattern = re.escape(filename) + "\\s*" + re.escape(marker)
             result = re.sub(pattern, markdown, result, flags=re.IGNORECASE)
-
-        # Also replace bare filename (if not already replaced)
         if filename in result and markdown not in result:
-            result = re.sub(r"\b" + re.escape(filename) + r"\b", markdown, result)
-
+            result = re.sub("\\b" + re.escape(filename) + "\\b", markdown, result)
     return result
 
 
@@ -153,13 +124,7 @@ class WhatsAppAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "whatsapp"
 
-    def parse(
-        self,
-        input_path: Path,
-        *,
-        timezone: str | None = None,
-        **kwargs: Any,
-    ) -> Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Table:
         """Parse WhatsApp ZIP export into IR-compliant table.
 
         Converts WhatsApp media references to standard markdown format:
@@ -182,15 +147,10 @@ class WhatsAppAdapter(SourceAdapter):
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
-
         if not input_path.is_file() or not str(input_path).endswith(".zip"):
             msg = f"Expected a ZIP file, got: {input_path}"
             raise ValueError(msg)
-
-        # Discover chat file in ZIP
         group_name, chat_file = discover_chat_file(input_path)
-
-        # Create WhatsAppExport metadata object
         export = WhatsAppExport(
             zip_path=input_path,
             group_name=group_name,
@@ -199,11 +159,8 @@ class WhatsAppAdapter(SourceAdapter):
             chat_file=chat_file,
             media_files=[],
         )
-
-        # Parse the export (this handles anonymization internally)
         messages_table = parse_export(export, timezone=timezone)
 
-        # Convert WhatsApp media references to markdown format
         @ibis.udf.scalar.python
         def convert_media_to_markdown(message: str | None) -> str | None:
             if message is None:
@@ -211,19 +168,11 @@ class WhatsAppAdapter(SourceAdapter):
             return _convert_whatsapp_media_to_markdown(message)
 
         messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
-
-        # Ensure IR schema compliance
         ir_table = create_ir_table(messages_table, timezone=timezone)
-
-        logger.debug(f"Parsed WhatsApp export with {ir_table.count().execute()} messages")
+        logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
-    def deliver_media(
-        self,
-        media_reference: str,
-        temp_dir: Path,
-        **kwargs: Any,
-    ) -> Path | None:
+    def deliver_media(self, media_reference: str, temp_dir: Path, **kwargs: Any) -> Path | None:
         """Deliver media file from WhatsApp ZIP to temporary directory.
 
         Extracts the requested media file from the ZIP and writes it to temp_dir.
@@ -248,69 +197,53 @@ class WhatsAppAdapter(SourceAdapter):
             >>> # Returns: Path("/tmp/IMG-20250101-WA0001.jpg")
 
         """
-        # Validate media reference for path traversal attacks
         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
-            logger.warning(f"Suspicious media reference (path traversal attempt): {media_reference}")
+            logger.warning("Suspicious media reference (path traversal attempt): %s", media_reference)
             return None
-
-        # Get ZIP path from kwargs
         zip_path = kwargs.get("zip_path")
         if not zip_path:
             logger.warning("deliver_media() called without zip_path kwarg")
             return None
-
         if not isinstance(zip_path, Path):
             zip_path = Path(zip_path)
-
         if not zip_path.exists():
-            logger.warning(f"ZIP file does not exist: {zip_path}")
+            logger.warning("ZIP file does not exist: %s", zip_path)
             return None
-
-        # Extract file from ZIP
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
-                # Search for the file in ZIP (WhatsApp may nest in subdirectories)
                 found_path = None
                 for info in zf.infolist():
                     if info.is_dir():
                         continue
-                    # Check if filename matches (case-insensitive)
                     if Path(info.filename).name.lower() == media_reference.lower():
                         found_path = info.filename
                         break
-
                 if not found_path:
-                    logger.debug(f"Media file not found in ZIP: {media_reference}")
+                    logger.debug("Media file not found in ZIP: %s", media_reference)
                     return None
-
-                # Extract to temp directory
                 file_content = zf.read(found_path)
                 output_file = temp_dir / media_reference
                 output_file.write_bytes(file_content)
-
-                logger.debug(f"Delivered media: {media_reference} → {output_file}")
+                logger.debug("Delivered media: %s → %s", media_reference, output_file)
                 return output_file
-
         except zipfile.BadZipFile as e:
-            logger.exception(f"Invalid ZIP file: {zip_path}: {e}")
+            logger.exception("Invalid ZIP file: %s: %s", zip_path, e)
             return None
         except (KeyError, OSError, PermissionError) as e:
-            logger.exception(f"Failed to extract {media_reference} from {zip_path}: {e}")
+            logger.exception("Failed to extract %s from %s: %s", media_reference, zip_path, e)
             return None
         except Exception as e:
-            # Catch any unexpected errors but log them as warnings for investigation
             logger.warning(
-                f"Unexpected error extracting {media_reference} from {zip_path}: {type(e).__name__}: {e}",
+                "Unexpected error extracting %s from %s: %s: %s",
+                media_reference,
+                zip_path,
+                type(e).__name__,
+                e,
                 exc_info=True,
             )
             return None
 
-    def extract_media(
-        self,
-        input_path: Path,
-        output_dir: Path,
-        **kwargs: Any,
-    ) -> MediaMapping:
+    def extract_media(self, input_path: Path, output_dir: Path, **kwargs: Any) -> MediaMapping:
         """Extract media files from WhatsApp ZIP (DEPRECATED).
 
         This method is deprecated in favor of deliver_media(). Media extraction
@@ -327,12 +260,10 @@ class WhatsAppAdapter(SourceAdapter):
 
         """
         warnings.warn(
-            "extract_media() is deprecated and will be removed in a future version. "
-            "Use deliver_media() for lazy media extraction instead.",
+            "extract_media() is deprecated and will be removed in a future version. Use deliver_media() for lazy media extraction instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # Deprecated: Use deliver_media() instead for lazy extraction
         return {}
 
     def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
@@ -353,11 +284,8 @@ class WhatsAppAdapter(SourceAdapter):
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
-
-        # Discover chat file and group name
         group_name, chat_file = discover_chat_file(input_path)
         group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
-
         return {
             "group_name": group_name,
             "group_slug": str(group_slug),

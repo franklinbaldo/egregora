@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pandas as pd
-
 import pyarrow as pa
 
 from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
@@ -28,28 +27,16 @@ def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
     """Persist freeform LLM responses that skipped tool calls."""
     freeform_dir = output_dir / "freeform"
     freeform_dir.mkdir(parents=True, exist_ok=True)
-
     base_name = f"{date}-freeform"
     candidate_path = freeform_dir / f"{base_name}.md"
     suffix = 1
-
     while candidate_path.exists():
         suffix += 1
         candidate_path = freeform_dir / f"{base_name}-{suffix}.md"
-
     normalized_content = content.strip()
     front_matter = "\n".join(
-        [
-            "---",
-            f"title: Freeform Response ({date})",
-            f"date: {date}",
-            "---",
-            "",
-            normalized_content,
-            "",
-        ]
+        ["---", f"title: Freeform Response ({date})", f"date: {date}", "---", "", normalized_content, ""]
     )
-
     candidate_path.write_text(front_matter, encoding="utf-8")
     return candidate_path
 
@@ -59,11 +46,9 @@ def _load_freeform_memory(output_dir: Path) -> str:
     freeform_dir = output_dir / "freeform"
     if not freeform_dir.exists():
         return ""
-
     files = sorted(freeform_dir.glob("*.md"))
     if not files:
         return ""
-
     latest = max(files, key=lambda path: path.stat().st_mtime)
     try:
         return latest.read_text(encoding="utf-8")
@@ -76,7 +61,7 @@ def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
     """Return the pandas DataFrame type when pandas is available."""
     try:
         pandas_module = importlib.import_module("pandas")
-    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    except ModuleNotFoundError:
         return None
     return pandas_module.DataFrame
 
@@ -86,7 +71,7 @@ def _pandas_na_singleton() -> Any | None:
     """Return the pandas.NA singleton when pandas is available."""
     try:
         pandas_module = importlib.import_module("pandas")
-    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    except ModuleNotFoundError:
         return None
     return pandas_module.NA
 
@@ -95,22 +80,17 @@ def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
     if isinstance(value, str):
         return value
-
     pandas_na = _pandas_na_singleton()
     pyarrow_na = getattr(pa, "NA", None)
-
     if value is None or value is pandas_na or value is pyarrow_na:
         return ""
-
     if isinstance(value, pa.Scalar):
         return _stringify_value(value.as_py()) if value.is_valid else ""
-
     try:
         if math.isnan(value):
             return ""
     except TypeError:
         pass
-
     return str(value)
 
 
@@ -135,19 +115,15 @@ def _compute_message_id(row: Any) -> str:
     if not (hasattr(row, "get") and hasattr(row, "items")):
         msg = "_compute_message_id expects an object with mapping-style access"
         raise TypeError(msg)
-
-    # Prefer stored message_id if available
     stored_message_id = row.get("message_id")
     if stored_message_id:
         return _stringify_value(stored_message_id)
-
     parts: list[str] = []
     for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
         value = row.get(key)
         normalized = _stringify_value(value)
         if normalized:
             parts.append(normalized)
-
     if not parts:
         fallback_pairs = []
         for key, value in sorted(row.items()):
@@ -160,7 +136,6 @@ def _compute_message_id(row: Any) -> str:
             parts.extend(fallback_pairs)
         else:
             parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
-
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -169,7 +144,6 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
     """Return formatted annotation text for inclusion in a table cell."""
     if not annotations:
         return ""
-
     formatted_blocks: list[str] = []
     for annotation in annotations:
         timestamp = (
@@ -178,17 +152,13 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
             else annotation.created_at.replace(tzinfo=UTC)
         )
         timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
-
         parent_note = ""
         if annotation.parent_type == "annotation":
             parent_note = f" · parent #{annotation.parent_id}"
-
         commentary = _stringify_value(annotation.commentary)
         formatted_blocks.append(
-            f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
-            f"\n{commentary}"
+            f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**\n{commentary}"
         )
-
     return "\n\n".join(formatted_blocks)
 
 
@@ -196,7 +166,6 @@ def _merge_message_and_annotations(message_value: Any, annotations: list[Annotat
     """Append annotation content after the original message text."""
     message_text = _stringify_value(message_value)
     annotations_block = _format_annotations_for_message(annotations)
-
     if not annotations_block:
         return message_text
     if message_text:
@@ -214,14 +183,12 @@ def _table_to_records(
         records = [
             {name: columns[name][row_index] for name in column_names} for row_index in range(data.num_rows)
         ]
-        return records, column_names
-
+        return (records, column_names)
     dataframe_type = _pandas_dataframe_type()
     if dataframe_type is not None and isinstance(data, dataframe_type):
         df_column_names = [str(column) for column in data.columns]
         df_records = [{str(k): v for k, v in record.items()} for record in data.to_dict("records")]
-        return df_records, df_column_names
-
+        return (df_records, df_column_names)
     if isinstance(data, Iterable):
         iter_records = [{str(k): v for k, v in row.items()} for row in data]
         iter_column_names: list[str] = []
@@ -229,8 +196,7 @@ def _table_to_records(
             for key in record:
                 if key not in iter_column_names:
                     iter_column_names.append(str(key))
-        return iter_records, iter_column_names
-
+        return (iter_records, iter_column_names)
     msg = "Unsupported data source for markdown rendering"
     raise TypeError(msg)
 
@@ -243,17 +209,13 @@ def _ensure_msg_id_column(rows: list[dict[str, Any]], column_order: list[str]) -
     """
     if "msg_id" not in column_order:
         if "message_id" in column_order:
-            # Use the stored message_id as msg_id for display
             for row in rows:
                 row["msg_id"] = _stringify_value(row.get("message_id"))
         else:
-            # Fall back to computing hash-based IDs
             msg_ids = [_compute_message_id(row) for row in rows]
             for row, msg_id in zip(rows, msg_ids, strict=False):
                 row["msg_id"] = msg_id
         return ["msg_id", *column_order]
-
-    # msg_id already in column order - normalize values
     for row in rows:
         existing_msg_id = row.get("msg_id")
         if existing_msg_id:
@@ -271,33 +233,23 @@ def _build_conversation_markdown(
     records, column_order = _table_to_records(data)
     if not records:
         return ""
-
     rows = [dict(record) for record in records]
     column_order = _ensure_msg_id_column(rows, column_order)
-
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
                 annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(msg_id_value)
-
     header = [_escape_table_cell(column) for column in column_order]
     separator = ["---"] * len(column_order)
-    lines = [
-        "| " + " | ".join(header) + " |",
-        "| " + " | ".join(separator) + " |",
-    ]
-
+    lines = ["| " + " | ".join(header) + " |", "| " + " | ".join(separator) + " |"]
     for row in rows:
         msg_id = row.get("msg_id")
         message_value = row.get("message", "")
         message_annotations = annotations_map.get(msg_id, []) if msg_id else []
-
         merged_message = _merge_message_and_annotations(message_value, message_annotations)
         row["message"] = merged_message
-
         cells = [_escape_table_cell(row.get(column, "")) for column in column_order]
         lines.append("| " + " | ".join(cells) + " |")
-
     return "\n".join(lines)

@@ -10,9 +10,7 @@ from egregora.privacy.anonymizer import anonymize_author, anonymize_mentions, an
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 __all__ = [
-    # PII Detection
     "PrivacyViolationError",
-    # Anonymization
     "anonymize_author",
     "anonymize_mentions",
     "anonymize_table",
