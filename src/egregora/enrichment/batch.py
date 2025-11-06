@@ -76,7 +76,6 @@ _STABLE_ORDER_CANDIDATES: tuple[str, ...] = (
 
 def _get_stable_ordering(table: Table) -> list:
     """Return a deterministic ordering for ``table`` when batching rows."""
-
     columns = list(table.columns)
     for candidate in _STABLE_ORDER_CANDIDATES:
         if candidate in columns:
@@ -94,7 +93,6 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     Note: This is legacy fallback code. Most code paths should now use
     stream_ibis from egregora.data instead, which handles timezones correctly.
     """
-
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
@@ -103,11 +101,12 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
         except Exception as e:
             # PyArrow can fail with timezone-aware timestamps
             # This should rarely be hit since stream_ibis (above) handles it
-            raise RuntimeError(
+            msg = (
                 "Failed to convert frame to records. "
                 "This indicates the stream_ibis fast path was not used. "
                 f"Original error: {e}"
-            ) from e
+            )
+            raise RuntimeError(msg) from e
     if isinstance(frame, list):
         return [dict(row) for row in frame]
 
@@ -130,6 +129,7 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
     Note:
         Uses the table's backend connection automatically via Ibis's
         _find_backend() method.
+
     """
     # Try to get the backend connection from the table
     try:
@@ -183,7 +183,6 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
-
     results: list[dict[str, Any]] = []
     for batch in _iter_table_record_batches(table):
         results.extend(batch)
@@ -197,7 +196,6 @@ def build_batch_requests(
     include_file: bool = False,
 ) -> list[BatchPromptRequest]:
     """Convert prompt records into ``BatchPromptRequest`` objects."""
-
     requests: list[BatchPromptRequest] = []
     for record in records:
         parts = [genai_types.Part(text=record["prompt"])]
@@ -235,5 +233,4 @@ def map_batch_results(
     responses: list[BatchPromptResult],
 ) -> dict[str | None, BatchPromptResult]:
     """Return a mapping from result tag to the ``BatchPromptResult``."""
-
     return {result.tag: result for result in responses}

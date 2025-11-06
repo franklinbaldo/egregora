@@ -10,12 +10,14 @@ For content generation and enrichment, use pydantic-ai agents instead.
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-from google import genai
 from google.genai import types as genai_types
 
 from egregora.utils.genai import call_with_retries_sync
+
+if TYPE_CHECKING:
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ def embed_text(
 
     Raises:
         RuntimeError: If embedding fails
+
     """
     # Build config if needed
     config = None
@@ -64,13 +67,15 @@ def embed_text(
         values = getattr(embedding, "values", None) if embedding else None
 
         if values is None:
-            raise RuntimeError(f"No embedding returned for text: {text[:50]}...")
+            msg = f"No embedding returned for text: {text[:50]}..."
+            raise RuntimeError(msg)
 
         return list(values)
 
     except Exception as e:
         logger.error("Failed to embed text: %s", e, exc_info=True)
-        raise RuntimeError(f"Embedding failed: {e}") from e
+        msg = f"Embedding failed: {e}"
+        raise RuntimeError(msg) from e
 
 
 def embed_batch(
@@ -97,6 +102,7 @@ def embed_batch(
 
     Raises:
         RuntimeError: If any embedding fails
+
     """
     if not texts:
         return []
@@ -115,7 +121,7 @@ def embed_batch(
             )
             embeddings.append(embedding)
         except Exception as e:
-            logger.error("Failed to embed text %d/%d: %s", i + 1, len(texts), e)
+            logger.exception("Failed to embed text %d/%d: %s", i + 1, len(texts), e)
             raise
 
     logger.info("Embedded %d text(s)", len(embeddings))

@@ -11,12 +11,10 @@ Pydantic AI's tool calling and state management.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import ibis
-from google import genai
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 
@@ -27,6 +25,11 @@ from egregora.config import ModelConfig, to_pydantic_ai_model
 from egregora.prompt_templates import EditorPromptTemplate
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +213,7 @@ def _register_editor_tools(agent: Agent) -> None:
             expect_version: Expected document version (for optimistic concurrency)
             index: Line index to edit (0-based)
             new_text: New content for this line
+
         """
         result_dict = ctx.deps.editor.edit_line(
             expect_version=expect_version,
@@ -227,10 +231,9 @@ def _register_editor_tools(agent: Agent) -> None:
                 message=f"Line {index} edited successfully",
                 new_version=result_dict.get("version"),
             )
-        else:
-            return EditLineResult(
-                success=False, message=result_dict.get("error", "Edit failed"), new_version=None
-            )
+        return EditLineResult(
+            success=False, message=result_dict.get("error", "Edit failed"), new_version=None
+        )
 
     @agent.tool
     def full_rewrite_tool(
@@ -243,6 +246,7 @@ def _register_editor_tools(agent: Agent) -> None:
         Args:
             expect_version: Expected document version
             content: New complete document content
+
         """
         result_dict = ctx.deps.editor.full_rewrite(
             expect_version=expect_version,
@@ -257,12 +261,11 @@ def _register_editor_tools(agent: Agent) -> None:
                 message="Document rewritten successfully",
                 new_version=result_dict.get("version"),
             )
-        else:
-            return FullRewriteResult(
-                success=False,
-                message=result_dict.get("error", "Rewrite failed"),
-                new_version=None,
-            )
+        return FullRewriteResult(
+            success=False,
+            message=result_dict.get("error", "Rewrite failed"),
+            new_version=None,
+        )
 
     @agent.tool
     async def query_rag_tool(
@@ -277,6 +280,7 @@ def _register_editor_tools(agent: Agent) -> None:
         Args:
             query: Search query (e.g. 'consciousness emergence', 'AI alignment')
             max_results: Maximum results to return (default 5)
+
         """
         ctx.deps.tool_calls_log.append(
             {"tool": "query_rag", "args": {"query": query, "max_results": max_results}}
@@ -307,6 +311,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
         Args:
             question: Question to ask the LLM
+
         """
         ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
 
@@ -327,6 +332,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
         Returns:
             BannerResult with status and path to the generated banner
+
         """
         try:
             # Load front matter from the post
@@ -394,10 +400,12 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         - notes: str - Editor notes
         - edits_made: bool - Whether any edits were made
         - tool_calls: list - Log of tool calls
+
     """
     # Load post content
     if not post_path.exists():
-        raise FileNotFoundError(f"Post not found: {post_path}")
+        msg = f"Post not found: {post_path}"
+        raise FileNotFoundError(msg)
 
     original_content = post_path.read_text(encoding="utf-8")
     snapshot = markdown_to_snapshot(original_content, doc_id=str(post_path))
@@ -430,10 +438,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
         # Create model with pydantic-ai string notation
         # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
-        if agent_model is None:
-            model = to_pydantic_ai_model(model_name)
-        else:
-            model = agent_model
+        model = to_pydantic_ai_model(model_name) if agent_model is None else agent_model
 
         # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](
@@ -473,4 +478,5 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
 
         except Exception as e:
             logger.exception("Editor agent failed")
-            raise RuntimeError("Editor agent execution failed") from e
+            msg = "Editor agent execution failed"
+            raise RuntimeError(msg) from e

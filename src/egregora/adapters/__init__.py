@@ -29,10 +29,12 @@ def get_adapter(source_identifier: str):
 
     Raises:
         ValueError: If source identifier is not recognized
+
     """
     if source_identifier not in ADAPTER_REGISTRY:
         available = ", ".join(ADAPTER_REGISTRY.keys())
-        raise ValueError(f"Unknown source: '{source_identifier}'. Available sources: {available}")
+        msg = f"Unknown source: '{source_identifier}'. Available sources: {available}"
+        raise ValueError(msg)
 
     adapter_class = ADAPTER_REGISTRY[source_identifier]
     return adapter_class()

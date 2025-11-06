@@ -59,8 +59,7 @@ logger = logging.getLogger(__name__)
 
 
 def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
-    """
-    Return a JSON-serializable representation of ``value``.
+    """Return a JSON-serializable representation of ``value``.
 
     Args:
         value: Value to convert
@@ -69,6 +68,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 
     Raises:
         TypeError: If strict=True and value is not JSON-serializable
+
     """
     if value is None or isinstance(value, str | int | float | bool):
         return value
@@ -87,7 +87,8 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 
     # Unknown type - log warning and convert to string (or raise in strict mode)
     if strict:
-        raise TypeError(f"Cannot serialize type {type(value).__name__} to JSON. Value: {value!r}")
+        msg = f"Cannot serialize type {type(value).__name__} to JSON. Value: {value!r}"
+        raise TypeError(msg)
 
     logger.warning(
         "Converting non-serializable type %s to string for JSON export: %r",
@@ -100,7 +101,6 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 @app.callback()
 def _initialize_cli() -> None:
     """Configure logging when the CLI is invoked."""
-
     configure_logging()
 
 
@@ -125,9 +125,8 @@ def init(
         Path,
         typer.Argument(help="Directory path for the new site (e.g., 'my-blog')"),
     ],
-):
-    """
-    Initialize a new MkDocs site scaffold for serving Egregora posts.
+) -> None:
+    """Initialize a new MkDocs site scaffold for serving Egregora posts.
 
     Creates:
     - mkdocs.yml with Material theme + blog plugin
@@ -168,7 +167,7 @@ def init(
         )
 
 
-def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp"):  # noqa: PLR0912, PLR0915
+def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -> None:  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -315,9 +314,8 @@ def process(
         typer.Option(help="Advanced: multiply ANN candidate pool before filtering"),
     ] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
-):
-    """
-    Process chat export and generate blog posts + author profiles.
+) -> None:
+    """Process chat export and generate blog posts + author profiles.
 
     Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
@@ -388,13 +386,12 @@ def edit(
         bool,
         typer.Option(help="Print the rendered prompt and exit without running the session."),
     ] = False,
-):
-    """
-    Interactive LLM-powered editor with RAG and meta-LLM capabilities.
+) -> None:
+    """Interactive LLM-powered editor with RAG and meta-LLM capabilities.
     The editor can:
     - Read and edit posts line-by-line
     - Search similar posts via RAG
-    - Make autonomous editing decisions
+    - Make autonomous editing decisions.
     """
     post_file = post_path.resolve()
     if not post_file.exists():
@@ -435,7 +432,7 @@ def edit(
         template = jinja_env.from_string(prompt_template)
         prompt = template.render(final_vars)
         console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
-        raise typer.Exit()
+        raise typer.Exit
 
     # Get API key
     api_key = _resolve_gemini_key(gemini_key)
@@ -490,8 +487,8 @@ app.add_typer(agents_app)
 
 @agents_app.command("list")
 def agents_list(
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
-):
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
+) -> None:
     """List all available agents."""
     egregora_path = site_dir.resolve() / ".egregora"
     agents_path = egregora_path / "agents"
@@ -507,8 +504,8 @@ def agents_list(
 @agents_app.command("explain")
 def agents_explain(
     agent_name: Annotated[str, typer.Argument(help="Name of the agent to explain")],
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
-):
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
+) -> None:
     """Explain an agent's configuration, tools, and skills."""
     egregora_path = site_dir.resolve() / ".egregora"
     try:
@@ -541,8 +538,8 @@ def agents_explain(
 
 @agents_app.command("lint")
 def agents_lint(
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
-):
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
+) -> None:
     """Validate the schema of all agents, tools, and skills."""
     egregora_path = site_dir.resolve() / ".egregora"
     errors = 0
@@ -571,7 +568,6 @@ def agents_lint(
 
 def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     """Register ranking commands when the optional extra is installed."""
-
     try:
         ranking_agent = importlib.import_module("egregora.ranking.agent")
         ranking_elo = importlib.import_module("egregora.ranking.elo")
@@ -728,7 +724,6 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
     ) -> None:
         """Run ELO-based ranking comparisons on posts using the ranking agent."""
-
         config = RankingCliConfig(
             site_dir=site_dir,
             comparisons=comparisons,
@@ -748,9 +743,8 @@ def parse(
     timezone: Annotated[
         str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
     ] = None,
-):
-    """
-    Parse WhatsApp export ZIP to CSV.
+) -> None:
+    """Parse WhatsApp export ZIP to CSV.
 
     This is the first stage of the pipeline. It:
     - Extracts messages from the ZIP file
@@ -819,9 +813,8 @@ def group(  # noqa: PLR0915
     to_date: Annotated[
         str | None, typer.Option(help="Only include messages up to this date (YYYY-MM-DD)")
     ] = None,
-):
-    """
-    Group messages by time period (day/week/month).
+) -> None:
+    """Group messages by time period (day/week/month).
 
     This is the second stage of the pipeline. It:
     - Loads messages from CSV
@@ -921,9 +914,8 @@ def enrich(  # noqa: PLR0915
     enable_url: Annotated[bool, typer.Option(help="Enable URL enrichment")] = True,
     enable_media: Annotated[bool, typer.Option(help="Enable media enrichment")] = True,
     max_enrichments: Annotated[int, typer.Option(help="Maximum number of enrichments to perform")] = 50,
-):
-    """
-    Enrich messages with LLM-generated context for URLs and media.
+) -> None:
+    """Enrich messages with LLM-generated context for URLs and media.
 
     This is the third stage of the pipeline. It:
     - Loads messages from CSV
@@ -1046,9 +1038,8 @@ def gather_context(  # noqa: PLR0915
     retrieval_mode: Annotated[str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")] = "ann",
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
-):
-    """
-    Gather context for post generation (RAG, profiles, freeform memory).
+) -> None:
+    """Gather context for post generation (RAG, profiles, freeform memory).
 
     This is the fourth stage of the pipeline. It:
     - Loads enriched messages from CSV
@@ -1185,9 +1176,8 @@ def write_posts(  # noqa: PLR0915
     retrieval_mode: Annotated[str, typer.Option(help="Retrieval strategy: 'ann' or 'exact'")] = "ann",
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
-):
-    """
-    Generate blog posts from enriched messages using LLM.
+) -> None:
+    """Generate blog posts from enriched messages using LLM.
 
     This is the fifth (final) stage of the pipeline. It:
     - Loads enriched messages from CSV
@@ -1300,7 +1290,7 @@ def write_posts(  # noqa: PLR0915
 _register_ranking_cli(app)
 
 
-def main():
+def main() -> None:
     """Entry point for the CLI."""
     app()
 

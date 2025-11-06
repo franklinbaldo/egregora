@@ -48,10 +48,12 @@ def get_stage(stage_identifier: str, config: StageConfig) -> PipelineStage:
         >>> stage = get_stage("filtering", config)
         >>> stage.stage_name
         'Message Filtering'
+
     """
     if stage_identifier not in STAGE_REGISTRY:
         available = ", ".join(STAGE_REGISTRY.keys())
-        raise ValueError(f"Unknown stage: '{stage_identifier}'. Available stages: {available}")
+        msg = f"Unknown stage: '{stage_identifier}'. Available stages: {available}"
+        raise ValueError(msg)
 
     stage_class = STAGE_REGISTRY[stage_identifier]
     return stage_class(config)
@@ -67,16 +69,17 @@ def list_stages() -> list[str]:
         >>> from egregora.pipeline.stages import list_stages
         >>> list_stages()
         ['filtering']
+
     """
     return list(STAGE_REGISTRY.keys())
 
 
 __all__ = [
+    # Registry
+    "STAGE_REGISTRY",
     # Stage classes
     "FilteringStage",
     "FilteringStageConfig",
-    # Registry
-    "STAGE_REGISTRY",
     "get_stage",
     "list_stages",
 ]

@@ -42,7 +42,7 @@ def _construct_env(loader: yaml.SafeLoader, node: yaml.Node) -> str:
         # Simple form: !ENV VAR_NAME
         var_name = loader.construct_scalar(node)
         return os.environ.get(var_name, "")
-    elif isinstance(node, yaml.SequenceNode):
+    if isinstance(node, yaml.SequenceNode):
         # List form: !ENV [VAR_NAME, "default"]
         items = loader.construct_sequence(node)
         if not items:

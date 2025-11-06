@@ -23,13 +23,13 @@ def make_enrichment_cache_key(
         str, "A version string to invalidate caches when the format changes"
     ] = ENRICHMENT_CACHE_VERSION,
 ) -> Annotated[str, "A stable, unique cache key"]:
-    """
-    Create a stable cache key using the enrichment type and identifier.
+    """Create a stable cache key using the enrichment type and identifier.
 
     Args:
         kind: Entry type, e.g. "url" or "media".
         identifier: Unique identifier for the entry.
         version: Optional semantic version to bust caches when format changes.
+
     """
     raw = f"{version}:{kind}:{identifier}".encode()
     return sha256(raw).hexdigest()
@@ -73,7 +73,8 @@ class EnrichmentCache:
     ) -> None:
         """Persist enrichment payload."""
         if self._cache is None:
-            raise RuntimeError("Cache not initialised")
+            msg = "Cache not initialised"
+            raise RuntimeError(msg)
         self._cache.set(key, payload, expire=None)
         logger.debug("Cached enrichment entry for key %s", key)
 

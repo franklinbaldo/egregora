@@ -9,13 +9,14 @@ This stage handles:
 from __future__ import annotations
 
 import logging
-from typing import Any
-
-from ibis.expr.types import Table
+from typing import TYPE_CHECKING, Any
 
 from egregora.agents.tools.profiler import filter_opted_out_authors
 from egregora.ingestion.parser import filter_egregora_messages
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class FilteringStageConfig(StageConfig):
         from_date: Any = None,  # date or None
         to_date: Any = None,  # date or None
         **kwargs: Any,
-    ):
+    ) -> None:
         super().__init__(enabled=enabled, **kwargs)
         self.profiles_dir = profiles_dir
         self.from_date = from_date
@@ -49,10 +50,11 @@ class FilteringStage(PipelineStage):
     3. Applies date range filtering (if configured)
     """
 
-    def __init__(self, config: FilteringStageConfig):
+    def __init__(self, config: FilteringStageConfig) -> None:
         super().__init__(config)
         if not isinstance(config, FilteringStageConfig):
-            raise TypeError(f"Expected FilteringStageConfig, got {type(config)}")
+            msg = f"Expected FilteringStageConfig, got {type(config)}"
+            raise TypeError(msg)
         self.filter_config = config
 
     @property
@@ -72,6 +74,7 @@ class FilteringStage(PipelineStage):
 
         Returns:
             StageResult with filtered table and metrics
+
         """
         original_count = data.count().execute()
         metrics = {"messages_in": original_count}

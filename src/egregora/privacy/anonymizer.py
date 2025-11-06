@@ -35,15 +35,13 @@ def anonymize_mentions(text: str) -> str:
 
     def replace_mention(match: re.Match[str]) -> str:
         name = match.group("name")
-        pseudonym = anonymize_author(name)
-        return pseudonym
+        return anonymize_author(name)
 
     return MENTION_PATTERN.sub(replace_mention, text)
 
 
 def anonymize_table(table: Table) -> Table:
     """Anonymize author column and mentions in message column using vectorized operations."""
-
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
     unique_authors_result = table.select("author").distinct().execute()

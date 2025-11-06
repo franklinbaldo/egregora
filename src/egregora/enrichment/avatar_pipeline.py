@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from google import genai
-from ibis.expr.types import Table
-
-from ..agents.tools.profiler import remove_profile_avatar, update_profile_avatar
-from ..enrichment.media import extract_urls, find_media_references
-from ..ingestion.parser import extract_commands
-from .avatar import (
+from egregora.agents.tools.profiler import remove_profile_avatar, update_profile_avatar
+from egregora.enrichment.avatar import (
     AvatarProcessingError,
     download_avatar_from_url,
     enrich_and_moderate_avatar,
     extract_avatar_from_zip,
 )
+from egregora.enrichment.media import extract_urls, find_media_references
+from egregora.ingestion.parser import extract_commands
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from google import genai
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +33,7 @@ def process_avatar_commands(  # noqa: PLR0913
     vision_client: genai.Client,
     model: str = "gemini-2.0-flash-exp",
 ) -> dict[str, str]:
-    """
-    Process all avatar commands from messages table.
+    """Process all avatar commands from messages table.
 
     This function:
     1. Extracts avatar commands from messages
@@ -53,6 +55,7 @@ def process_avatar_commands(  # noqa: PLR0913
 
     Returns:
         Dict mapping author_uuid to result message
+
     """
     logger.info("Processing avatar commands from messages")
 
@@ -117,11 +120,11 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
     model: str,
     value: str | None = None,
 ) -> str:
-    """
-    Process a 'set avatar' command.
+    """Process a 'set avatar' command.
 
     Returns:
         Result message describing what happened
+
     """
     logger.info(f"Processing 'set avatar' command for {author_uuid}")
 
@@ -153,7 +156,8 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                         group_slug=group_slug,
                     )
                 else:
-                    raise AvatarProcessingError("No valid URL or media attachment found for avatar")
+                    msg = "No valid URL or media attachment found for avatar"
+                    raise AvatarProcessingError(msg)
         else:
             # No value provided, check for media attachment in message
             media_refs = find_media_references(message)
@@ -166,7 +170,8 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                     group_slug=group_slug,
                 )
             else:
-                raise AvatarProcessingError("No media attachment found for avatar command")
+                msg = "No media attachment found for avatar command"
+                raise AvatarProcessingError(msg)
 
         # Enrich and moderate the avatar
         logger.info(f"Enriching and moderating avatar for {author_uuid}")
@@ -190,13 +195,13 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
 
         if moderation_result.status == "approved":
             return f"✅ Avatar approved and set for {author_uuid}"
-        elif moderation_result.status == "questionable":
+        if moderation_result.status == "questionable":
             return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
-        else:  # blocked
-            return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
+        # blocked
+        return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
 
     except AvatarProcessingError as e:
-        logger.error(f"Failed to process avatar for {author_uuid}: {e}")
+        logger.exception(f"Failed to process avatar for {author_uuid}: {e}")
 
         # Clean up avatar and enrichment files if processing failed
         # Note: If enrichment succeeded but later steps failed, files may still exist
@@ -205,7 +210,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                 avatar_path.unlink(missing_ok=True)
                 logger.info(f"Cleaned up avatar file after processing failure: {avatar_path}")
             except OSError as cleanup_error:
-                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+                logger.exception(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
 
             # Also clean up enrichment file if it exists
             try:
@@ -214,7 +219,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                     enrichment_path.unlink(missing_ok=True)
                     logger.info(f"Cleaned up enrichment file after processing failure: {enrichment_path}")
             except OSError as cleanup_error:
-                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+                logger.exception(f"Failed to clean up enrichment file: {cleanup_error}")
 
         return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
@@ -226,7 +231,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                 avatar_path.unlink(missing_ok=True)
                 logger.info(f"Cleaned up avatar file after unexpected error: {avatar_path}")
             except OSError as cleanup_error:
-                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+                logger.exception(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
 
             # Also clean up enrichment file if it exists
             try:
@@ -235,7 +240,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                     enrichment_path.unlink(missing_ok=True)
                     logger.info(f"Cleaned up enrichment file after unexpected error: {enrichment_path}")
             except OSError as cleanup_error:
-                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+                logger.exception(f"Failed to clean up enrichment file: {cleanup_error}")
 
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
 
@@ -245,11 +250,11 @@ def _process_unset_avatar_command(
     timestamp: str,
     profiles_dir: Path,
 ) -> str:
-    """
-    Process an 'unset avatar' command.
+    """Process an 'unset avatar' command.
 
     Returns:
         Result message describing what happened
+
     """
     logger.info(f"Processing 'unset avatar' command for {author_uuid}")
 

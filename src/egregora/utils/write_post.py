@@ -15,8 +15,7 @@ def write_post(
     metadata: dict[str, Any],
     output_dir: Path = Path("output/posts"),
 ) -> str:
-    """
-    Save a blog post with YAML front matter.
+    """Save a blog post with YAML front matter.
 
     This is a tool for the LLM to use as a CMS. The LLM decides:
     - How many posts to create (0-N per period)
@@ -41,12 +40,13 @@ def write_post(
     Raises:
         PrivacyViolationError: If content contains PII (phone numbers, etc)
         ValueError: If required metadata is missing
-    """
 
+    """
     required = ["title", "slug", "date"]
     for key in required:
         if key not in metadata:
-            raise ValueError(f"Missing required metadata: {key}")
+            msg = f"Missing required metadata: {key}"
+            raise ValueError(msg)
 
     validate_newsletter_privacy(content)
 

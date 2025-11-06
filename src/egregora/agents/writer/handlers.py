@@ -156,7 +156,7 @@ def _handle_search_media_tool(  # noqa: PLR0913
             ],
         )
     except Exception as e:
-        logger.error(f"search_media failed: {e}")
+        logger.exception(f"search_media failed: {e}")
         return genai_types.Content(
             role="user",
             parts=[
@@ -177,9 +177,9 @@ def _handle_annotate_conversation_tool(
     annotations_store: AnnotationStore | None,
 ) -> genai_types.Content:
     """Persist annotation data using the AnnotationStore."""
-
     if annotations_store is None:
-        raise RuntimeError("Annotation store is not configured")
+        msg = "Annotation store is not configured"
+        raise RuntimeError(msg)
 
     parent_id = _stringify_value(fn_args.get("parent_id"))
     parent_type = _stringify_value(fn_args.get("parent_type"))
@@ -253,25 +253,24 @@ def _handle_generate_banner_tool(
                     )
                 ],
             )
-        else:
-            logger.warning(f"Banner generation returned None for post: {title}")
-            return genai_types.Content(
-                role="user",
-                parts=[
-                    genai_types.Part(
-                        function_response=genai_types.FunctionResponse(
-                            id=getattr(fn_call, "id", None),
-                            name="generate_banner",
-                            response={
-                                "status": "failed",
-                                "message": "Banner generation did not produce an image",
-                            },
-                        )
+        logger.warning(f"Banner generation returned None for post: {title}")
+        return genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        id=getattr(fn_call, "id", None),
+                        name="generate_banner",
+                        response={
+                            "status": "failed",
+                            "message": "Banner generation did not produce an image",
+                        },
                     )
-                ],
-            )
+                )
+            ],
+        )
     except Exception as e:
-        logger.error(f"Failed to generate banner for {title}: {e}")
+        logger.exception(f"Failed to generate banner for {title}: {e}")
         return genai_types.Content(
             role="user",
             parts=[

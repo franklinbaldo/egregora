@@ -11,14 +11,18 @@ agent orchestrates file generation end-to-end.
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
 from egregora.sources.whatsapp import process_whatsapp_export
 from tests.utils.mock_batch_client import create_mock_genai_client
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
 
 
 def test_pipeline_with_golden_fixtures(

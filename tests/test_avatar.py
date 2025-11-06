@@ -343,7 +343,7 @@ class TestProfileAvatarManagement:
         avatar_path = Path("media/avatars/avatar.jpg")
         timestamp = "2025-01-15T10:00:00"
 
-        result = update_profile_avatar(
+        update_profile_avatar(
             author_uuid=author_uuid,
             avatar_uuid=avatar_uuid,
             avatar_path=avatar_path,
@@ -370,7 +370,7 @@ class TestProfileAvatarManagement:
 
         author_uuid = "test-author-uuid"
 
-        result = update_profile_avatar(
+        update_profile_avatar(
             author_uuid=author_uuid,
             avatar_uuid="avatar-123",
             avatar_path=Path("media/avatars/avatar.jpg"),
@@ -393,7 +393,7 @@ class TestProfileAvatarManagement:
 
         author_uuid = "test-author-uuid"
 
-        result = update_profile_avatar(
+        update_profile_avatar(
             author_uuid=author_uuid,
             avatar_uuid="avatar-123",
             avatar_path=Path("media/avatars/avatar.jpg"),

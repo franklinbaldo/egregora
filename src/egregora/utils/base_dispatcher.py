@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +31,13 @@ class BaseDispatcher[TRequest, TResult](ABC):
         self,
         batch_threshold: int = 10,
         max_parallel: int = 5,
-    ):
+    ) -> None:
         """Initialize dispatcher with routing configuration.
 
         Args:
             batch_threshold: Minimum number of requests to use batch API
             max_parallel: Maximum parallel workers for individual calls
+
         """
         self._batch_threshold = batch_threshold
         self._max_parallel = max_parallel
@@ -64,12 +67,14 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Raises:
             ValueError: If both force flags are True
+
         """
         if not requests:
             return []
 
         if force_batch and force_individual:
-            raise ValueError("Cannot force both batch and individual strategies")
+            msg = "Cannot force both batch and individual strategies"
+            raise ValueError(msg)
 
         # Manual override
         if force_batch:
@@ -83,9 +88,8 @@ class BaseDispatcher[TRequest, TResult](ABC):
         if len(requests) < self._batch_threshold:
             logger.info(f"Using individual calls for {len(requests)} items")
             return self._execute_individual(requests)
-        else:
-            logger.info(f"Using batch API for {len(requests)} items")
-            return self._execute_batch(requests, **kwargs)
+        logger.info(f"Using batch API for {len(requests)} items")
+        return self._execute_batch(requests, **kwargs)
 
     def _execute_individual(self, requests: Sequence[TRequest]) -> list[TResult]:
         """Execute requests individually with parallelism.
@@ -97,6 +101,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             List of results in the same order as requests
+
         """
         with ThreadPoolExecutor(max_workers=self._max_parallel) as executor:
             futures = [executor.submit(self._execute_one, req) for req in requests]
@@ -114,8 +119,8 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             Result object (may contain error information)
+
         """
-        pass
 
     @abstractmethod
     def _execute_batch(self, requests: Sequence[TRequest], **kwargs) -> list[TResult]:
@@ -129,5 +134,5 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             List of results in the same order as requests
+
         """
-        pass

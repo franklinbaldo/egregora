@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
@@ -19,6 +19,9 @@ from egregora.prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -71,14 +74,14 @@ class AvatarEnrichmentContext(BaseModel):
 
 
 def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
-    """
-    Create URL enrichment agent with specified model.
+    """Create URL enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for URL enrichment
+
     """
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
         model,
@@ -101,14 +104,14 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
 
 
 def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
-    """
-    Create media enrichment agent with specified model.
+    """Create media enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for media enrichment
+
     """
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
         model,
@@ -133,14 +136,14 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
 
 
 def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
-    """
-    Create avatar enrichment agent with specified model.
+    """Create avatar enrichment agent with specified model.
 
     Args:
         model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for avatar moderation
+
     """
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
         model,
@@ -160,14 +163,14 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
 
 
 def load_file_as_binary_content(file_path: Path) -> BinaryContent:
-    """
-    Load a file as BinaryContent for pydantic-ai agents.
+    """Load a file as BinaryContent for pydantic-ai agents.
 
     Args:
         file_path: Path to the file
 
     Returns:
         BinaryContent object with file bytes and media type
+
     """
     media_type, _ = mimetypes.guess_type(str(file_path))
     if not media_type:

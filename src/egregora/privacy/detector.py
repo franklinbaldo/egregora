@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class PrivacyViolationError(RuntimeError):
@@ -58,14 +61,12 @@ _UUID_PATTERN = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
 
 def _within_any(span: tuple[int, int], ranges: Sequence[tuple[int, int]]) -> bool:
     """Return ``True`` if ``span`` is fully contained inside one of ``ranges``."""
-
     start, end = span
     return any(r_start <= start and end <= r_end for r_start, r_end in ranges)
 
 
 def validate_newsletter_privacy(newsletter_text: str) -> bool:
     """Ensure newsletter text does not contain phone number patterns."""
-
     uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(newsletter_text)]
 
     for pattern in _PII_PATTERNS:
@@ -73,7 +74,8 @@ def validate_newsletter_privacy(newsletter_text: str) -> bool:
             span = match.span()
             if _within_any(span, uuid_spans):
                 continue
-            raise PrivacyViolationError(f"Possible phone number leak detected: {pattern.description}")
+            msg = f"Possible phone number leak detected: {pattern.description}"
+            raise PrivacyViolationError(msg)
 
     return True
 

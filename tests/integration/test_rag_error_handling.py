@@ -136,7 +136,7 @@ class TestRagErrorHandling:
         assert context.text != ""
         assert "Test Post 1" in context.text
         assert "Test Post 2" in context.text
-        assert len(context.records) == 2  # noqa: PLR2004
+        assert len(context.records) == 2
 
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
@@ -170,7 +170,7 @@ class TestRagErrorHandling:
 
         # Should return tuple for backward compatibility
         assert isinstance(result, tuple)
-        assert len(result) == 2  # noqa: PLR2004
+        assert len(result) == 2
         text, records = result
         assert isinstance(text, str)
         assert isinstance(records, list)

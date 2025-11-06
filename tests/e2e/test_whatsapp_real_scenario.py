@@ -5,10 +5,10 @@ import zipfile
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import ibis
 import pytest
-from conftest import WhatsAppFixture
 
 from egregora.enrichment.core import enrich_table
 from egregora.enrichment.media import extract_and_replace_media
@@ -16,6 +16,9 @@ from egregora.ingestion.parser import filter_egregora_messages, parse_export
 from egregora.sources.whatsapp import process_whatsapp_export
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
+
+if TYPE_CHECKING:
+    from conftest import WhatsAppFixture
 
 
 def create_export_from_fixture(fixture: WhatsAppFixture):
@@ -73,13 +76,12 @@ class DummyGenaiClient:
 
         # File upload support
         def dummy_upload(*a, **k):
-            file_obj = SimpleNamespace(
+            return SimpleNamespace(
                 uri="stub://file",
                 mime_type="image/jpeg",
                 name="stub-file",
                 state=SimpleNamespace(name="ACTIVE"),
             )
-            return file_obj
 
         self.files = SimpleNamespace(
             upload=dummy_upload,

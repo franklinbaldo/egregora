@@ -17,7 +17,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,13 +41,15 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
 
 
 from egregora.agents.banner import generate_banner_for_post
-from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
 from egregora.config import to_pydantic_ai_model
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
+
+if TYPE_CHECKING:
+    from egregora.agents.tools.annotations import AnnotationStore
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +226,8 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
         commentary: str,
     ) -> AnnotationResult:
         if ctx.deps.annotations_store is None:
-            raise RuntimeError("Annotation store is not configured")
+            msg = "Annotation store is not configured"
+            raise RuntimeError(msg)
         annotation = ctx.deps.annotations_store.save_annotation(
             parent_id=parent_id,
             parent_type=parent_type,
@@ -273,20 +276,17 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     agent_model: Any | None = None,
     register_tools: bool = True,
 ) -> tuple[list[str], list[str]]:
-    """
-    Execute the writer flow using Pydantic-AI agent tooling.
+    """Execute the writer flow using Pydantic-AI agent tooling.
 
     Returns:
         Tuple (saved_posts, saved_profiles, freeform_content_path)
+
     """
     logger.info("Running writer via Pydantic-AI backend")
 
     # Create model with pydantic-ai string notation
     # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
-    if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
-    else:
-        model = agent_model
+    model = to_pydantic_ai_model(model_name) if agent_model is None else agent_model
 
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
@@ -347,8 +347,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
                 except Exception as record_exc:  # pragma: no cover - best effort recording
                     logger.warning("Failed to persist writer agent messages: %s", record_exc)
     except Exception as exc:  # pragma: no cover - Pydantic-AI wraps HTTP errors
-        logger.error("Pydantic writer agent failed: %s", exc)
-        raise RuntimeError("Writer agent execution failed") from exc
+        logger.exception("Pydantic writer agent failed: %s", exc)
+        msg = "Writer agent execution failed"
+        raise RuntimeError(msg) from exc
 
     return state.saved_posts, state.saved_profiles
 
@@ -373,7 +374,7 @@ class WriterStreamResult:
         state: WriterAgentState,
         period_date: str,
         model_name: str,
-    ):
+    ) -> None:
         self.agent = agent
         self.prompt = prompt
         self.state = state
@@ -407,10 +408,11 @@ class WriterStreamResult:
     async def stream_text(self):
         """Stream text chunks from the agent."""
         if not self._response:
-            raise RuntimeError(
+            msg = (
                 "WriterStreamResult must be used as async context manager "
                 "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             )
+            raise RuntimeError(msg)
         async for chunk in self._response.stream_text():
             yield chunk
 
@@ -421,10 +423,11 @@ class WriterStreamResult:
         so we can return it directly without waiting for additional data.
         """
         if not self._response:
-            raise RuntimeError(
+            msg = (
                 "WriterStreamResult must be used as async context manager "
                 "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             )
+            raise RuntimeError(msg)
         return self.state.saved_posts, self.state.saved_profiles
 
 
@@ -446,8 +449,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     agent_model: Any | None = None,
     register_tools: bool = True,
 ) -> WriterStreamResult:
-    """
-    Execute the writer flow using Pydantic-AI agent with streaming.
+    """Execute the writer flow using Pydantic-AI agent with streaming.
 
     This is an async version that streams agent responses token-by-token.
     Useful for interactive CLI tools and real-time progress updates.
@@ -465,15 +467,13 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
 
     Returns:
         WriterStreamResult async context manager for streaming and results
+
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
     # Create model with pydantic-ai string notation
     # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
-    if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
-    else:
-        model = agent_model
+    model = to_pydantic_ai_model(model_name) if agent_model is None else agent_model
 
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](

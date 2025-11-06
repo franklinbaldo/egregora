@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
-
-from google import genai
+from typing import TYPE_CHECKING, Annotated
 
 from egregora.utils.genai_helpers import embed_batch, embed_text
+
+if TYPE_CHECKING:
+    from google import genai
 
 logger = logging.getLogger(__name__)
 

@@ -14,15 +14,17 @@ logger = logging.getLogger(__name__)
 class BannerGenerator:
     """Generate cover images for blog posts using Gemini 2.5 Flash Image."""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None) -> None:
         """Initialize the banner generator.
 
         Args:
             api_key: Gemini API key. If None, reads from GEMINI_API_KEY env var.
+
         """
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY must be provided or set in environment")
+            msg = "GEMINI_API_KEY must be provided or set in environment"
+            raise ValueError(msg)
 
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.5-flash-image"
@@ -44,6 +46,7 @@ class BannerGenerator:
 
         Returns:
             Path to the generated banner image, or None if generation failed
+
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,7 +119,7 @@ class BannerGenerator:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to generate banner for {post_title}: {e}")
+            logger.exception(f"Failed to generate banner for {post_title}: {e}")
             return None
 
     def _build_prompt(self, title: str, summary: str) -> str:
@@ -128,6 +131,7 @@ class BannerGenerator:
 
         Returns:
             Prompt string for image generation
+
         """
         return f"""Create a cover image for this blog post:
 
@@ -165,10 +169,11 @@ def generate_banner_for_post(
 
     Returns:
         Path to generated banner, or None if failed
+
     """
     try:
         generator = BannerGenerator(api_key=api_key)
         return generator.generate_banner(post_title, post_summary, output_dir, slug)
     except Exception as e:
-        logger.error(f"Banner generation failed: {e}")
+        logger.exception(f"Banner generation failed: {e}")
         return None

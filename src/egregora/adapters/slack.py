@@ -18,14 +18,17 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
-from ibis.expr.types import Table
 
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +82,11 @@ class SlackAdapter(SourceAdapter):
 
         Raises:
             NotImplementedError: This is a stub implementation
+
         """
         if not input_path.exists():
-            raise FileNotFoundError(f"Input path does not exist: {input_path}")
+            msg = f"Input path does not exist: {input_path}"
+            raise FileNotFoundError(msg)
 
         # STUB: Minimal implementation that returns an empty table
         # with the correct schema to demonstrate the contract
@@ -101,9 +106,7 @@ class SlackAdapter(SourceAdapter):
 
         # Convert parsed data to IR table
         table = ibis.memtable(messages_data)
-        ir_table = create_ir_table(table, timezone=timezone)
-
-        return ir_table
+        return create_ir_table(table, timezone=timezone)
 
     def _parse_slack_json(self, input_path: Path) -> list[dict[str, Any]]:
         """Parse Slack JSON export (stub implementation).
@@ -124,6 +127,7 @@ class SlackAdapter(SourceAdapter):
             - Handle threaded messages
             - Map user IDs to display names
             - Convert Slack markdown to standard format
+
         """
         # Check if this is a real Slack export with data
         has_data = False
@@ -187,6 +191,7 @@ class SlackAdapter(SourceAdapter):
                     "message_id": "1234567890123456",
                     ...
                 }
+
         """
         ir_messages = []
 
@@ -238,6 +243,7 @@ class SlackAdapter(SourceAdapter):
 
         Note:
             A real implementation would handle Slack file attachments.
+
         """
         return {}
 
@@ -253,6 +259,7 @@ class SlackAdapter(SourceAdapter):
 
         Note:
             Stub implementation returns minimal metadata.
+
         """
         return {
             "channel_name": "unknown-channel",

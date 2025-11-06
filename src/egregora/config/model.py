@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from egregora.config.site import load_mkdocs_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 
@@ -32,8 +34,7 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 
 def to_pydantic_ai_model(model_name: str) -> str:
-    """
-    Convert Google API model format to pydantic-ai string notation.
+    """Convert Google API model format to pydantic-ai string notation.
 
     Examples:
         "models/gemini-flash-latest" -> "google-gla:gemini-flash-latest"
@@ -45,6 +46,7 @@ def to_pydantic_ai_model(model_name: str) -> str:
 
     Returns:
         Model name in pydantic-ai format (provider:model)
+
     """
     # Remove "models/" prefix if present
     if model_name.startswith("models/"):
@@ -62,21 +64,20 @@ class ModelConfig:
         self,
         cli_model: str | None = None,
         site_config: dict[str, Any] | None = None,
-    ):
-        """
-        Initialize model config with CLI override and site config.
+    ) -> None:
+        """Initialize model config with CLI override and site config.
 
         Args:
             cli_model: Model specified via CLI flag (highest priority)
             site_config: Configuration from mkdocs.yml extra.egregora section
+
         """
         self.cli_model = cli_model
         self.site_config = site_config or {}
         self.embedding_output_dimensionality = self._resolve_embedding_output_dimensionality()
 
     def get_model(self, model_type: ModelType) -> str:
-        """
-        Get model name for a specific task with fallback hierarchy.
+        """Get model name for a specific task with fallback hierarchy.
 
         Priority:
         1. CLI flag (--model)
@@ -89,6 +90,7 @@ class ModelConfig:
 
         Returns:
             Model name to use
+
         """
         # 1. CLI flag (highest priority)
         if self.cli_model:
@@ -123,7 +125,6 @@ class ModelConfig:
 
     def _resolve_embedding_output_dimensionality(self) -> int:
         """Determine the embedding vector dimensionality for the active model."""
-
         candidate_keys = (
             ("embedding", "output_dimensionality"),
             ("embedding", "dimensionality"),
@@ -176,14 +177,14 @@ class ModelConfig:
 
 
 def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
+    """Load egregora configuration from mkdocs.yml if it exists.
 
     Args:
         output_dir: Output directory (will look for mkdocs.yml in parent/root)
 
     Returns:
         Dict with egregora config from extra.egregora section
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
 

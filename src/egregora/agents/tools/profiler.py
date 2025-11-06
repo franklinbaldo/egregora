@@ -18,8 +18,7 @@ def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The profile content as markdown, or an empty string if no profile exists"]:
-    """
-    Read the current profile for an author.
+    """Read the current profile for an author.
 
     Args:
         author_uuid: The UUID5 pseudonym of the author
@@ -27,6 +26,7 @@ def read_profile(
 
     Returns:
         The profile content as markdown, or empty string if no profile exists
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
@@ -44,8 +44,7 @@ def write_profile(
     content: Annotated[str, "The profile content in markdown format"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the saved profile file"]:
-    """
-    Write or update an author's profile.
+    """Write or update an author's profile.
 
     Args:
         author_uuid: The UUID5 pseudonym of the author
@@ -54,6 +53,7 @@ def write_profile(
 
     Returns:
         Path to the saved profile file
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
@@ -72,8 +72,7 @@ def get_active_authors(
     table: Annotated[Any, "The Ibis table with an 'author' column"],
     limit: Annotated[int | None, "An optional limit on the number of authors to return"] = None,
 ) -> Annotated[list[str], "A list of unique author UUIDs, excluding 'system' and 'egregora'"]:
-    """
-    Get list of unique authors from a Table.
+    """Get list of unique authors from a Table.
 
     Args:
         table: Ibis Table with 'author' column
@@ -81,6 +80,7 @@ def get_active_authors(
 
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora')
+
     """
     authors: list[str | None] = []
 
@@ -127,14 +127,14 @@ def get_active_authors(
 
 
 def _validate_alias(alias: str) -> str | None:
-    """
-    Validate and sanitize alias input.
+    """Validate and sanitize alias input.
 
     Args:
         alias: Raw alias from user command
 
     Returns:
         Sanitized alias or None if invalid
+
     """
     if not alias:
         return None
@@ -161,9 +161,7 @@ def _validate_alias(alias: str) -> str | None:
     alias = alias.replace("'", "&#x27;")
 
     # Escape backticks (prevent markdown code injection)
-    alias = alias.replace("`", "&#96;")
-
-    return alias
+    return alias.replace("`", "&#96;")
 
 
 def apply_command_to_profile(
@@ -172,8 +170,7 @@ def apply_command_to_profile(
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the updated profile"]:
-    """
-    Apply an egregora command to an author's profile.
+    """Apply an egregora command to an author's profile.
 
     Commands update profile metadata (aliases, bio, links, etc).
     These are user-controlled preferences, not LLM-generated content.
@@ -186,6 +183,7 @@ def apply_command_to_profile(
 
     Returns:
         Path to updated profile
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
@@ -264,8 +262,7 @@ def apply_command_to_profile(
 
 
 def _update_profile_metadata(content: str, section_name: str, key: str, new_value: str) -> str:
-    """
-    Update a metadata section in profile content.
+    """Update a metadata section in profile content.
 
     Creates section if it doesn't exist. Replaces entire section content
     to ensure idempotence (no duplicate accumulation).
@@ -278,6 +275,7 @@ def _update_profile_metadata(content: str, section_name: str, key: str, new_valu
 
     Returns:
         Updated profile content
+
     """
     section_pattern = rf"(## {section_name}\s*\n)(.*?)(?=\n## |\Z)"
 
@@ -310,8 +308,7 @@ def get_author_display_name(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The author's alias if set and public, otherwise their UUID"]:
-    """
-    Get display name for an author.
+    """Get display name for an author.
 
     Returns alias if set and public, otherwise returns UUID.
 
@@ -325,6 +322,7 @@ def get_author_display_name(
 
     Returns:
         Alias (if set, pre-escaped) or UUID
+
     """
     profile = read_profile(author_uuid, profiles_dir)
 
@@ -344,8 +342,7 @@ def process_commands(
     commands: Annotated[list[dict[str, Any]], "A list of command dictionaries from extract_commands()"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[int, "The number of commands processed"]:
-    """
-    Process a batch of egregora commands.
+    """Process a batch of egregora commands.
 
     Updates author profiles based on commands extracted from messages.
     Commands are processed in timestamp order to ensure deterministic results.
@@ -356,6 +353,7 @@ def process_commands(
 
     Returns:
         Number of commands processed
+
     """
     if not commands:
         return 0
@@ -374,7 +372,7 @@ def process_commands(
         try:
             apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
         except Exception as e:
-            logger.error(f"Failed to process command for {author_uuid}: {e}")
+            logger.exception(f"Failed to process command for {author_uuid}: {e}")
 
     return len(commands)
 
@@ -383,8 +381,7 @@ def is_opted_out(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[bool, "True if the author has opted out, False otherwise"]:
-    """
-    Check if an author has opted out of processing.
+    """Check if an author has opted out of processing.
 
     Args:
         author_uuid: The anonymized author UUID
@@ -392,6 +389,7 @@ def is_opted_out(
 
     Returns:
         True if opted out, False otherwise
+
     """
     profile = read_profile(author_uuid, profiles_dir)
 
@@ -405,8 +403,7 @@ def is_opted_out(
 def get_opted_out_authors(
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[set[str], "A set of author UUIDs who have opted out"]:
-    """
-    Get set of all authors who have opted out.
+    """Get set of all authors who have opted out.
 
     Scans all profiles to find opted-out users.
 
@@ -415,6 +412,7 @@ def get_opted_out_authors(
 
     Returns:
         Set of author UUIDs who have opted out
+
     """
     if not profiles_dir.exists():
         return set()
@@ -436,8 +434,7 @@ def filter_opted_out_authors(
     Annotated[Any, "The filtered table"],
     Annotated[int, "The number of removed messages"],
 ]:
-    """
-    Remove all messages from opted-out authors.
+    """Remove all messages from opted-out authors.
 
     This should be called EARLY in the pipeline, BEFORE anonymization,
     enrichment, or any processing.
@@ -448,6 +445,7 @@ def filter_opted_out_authors(
 
     Returns:
         (filtered_table, num_removed_messages)
+
     """
     if table.count().execute() == 0:
         return table, 0
@@ -487,8 +485,7 @@ def update_profile_avatar(  # noqa: PLR0913
     timestamp: Annotated[str, "The timestamp of when the avatar was set"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the updated profile"]:
-    """
-    Update an author's profile with avatar information.
+    """Update an author's profile with avatar information.
 
     This should be called after avatar moderation is complete.
     Only approved avatars will be set as active.
@@ -504,6 +501,7 @@ def update_profile_avatar(  # noqa: PLR0913
 
     Returns:
         Path to updated profile
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
@@ -553,8 +551,7 @@ def remove_profile_avatar(
     timestamp: Annotated[str, "The timestamp of when the avatar was removed"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the updated profile"]:
-    """
-    Remove avatar from an author's profile.
+    """Remove avatar from an author's profile.
 
     Args:
         author_uuid: The anonymized author UUID
@@ -563,6 +560,7 @@ def remove_profile_avatar(
 
     Returns:
         Path to updated profile
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
@@ -588,8 +586,7 @@ def get_avatar_info(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[dict | None, "Avatar info dict or None if no avatar"]:
-    """
-    Get avatar information from an author's profile.
+    """Get avatar information from an author's profile.
 
     Args:
         author_uuid: The anonymized author UUID
@@ -603,6 +600,7 @@ def get_avatar_info(
             'status': 'approved|questionable|blocked',
             'reason': '...',  # if not approved
         }
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"

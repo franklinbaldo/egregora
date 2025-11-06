@@ -210,6 +210,7 @@ def create_raw_client_from_genai(genai_client: Any) -> RawGeminiClient:
             api_key = getattr(api_client, "_api_key", None)
 
     if not api_key:
-        raise ValueError("Could not extract API key from genai.Client")
+        msg = "Could not extract API key from genai.Client"
+        raise ValueError(msg)
 
     return RawGeminiClient(api_key=api_key)

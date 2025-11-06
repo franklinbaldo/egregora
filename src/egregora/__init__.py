@@ -6,8 +6,8 @@ from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file, proces
 __version__ = "2.0.0"
 
 __all__ = [
+    "WhatsAppExport",
+    "discover_chat_file",
     # WhatsApp pipeline (backward compatibility)
     "process_whatsapp_export",
-    "discover_chat_file",
-    "WhatsAppExport",
 ]

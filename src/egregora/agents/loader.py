@@ -40,18 +40,21 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
         'gemini-2.0-flash-exp'
         >>> print(config.agent_id)
         'writer_v1'
+
     """
     agent_path = egregora_path / "agents" / f"{agent_name}.jinja"
 
     if not agent_path.exists():
-        raise FileNotFoundError(f"Agent template not found: {agent_path}")
+        msg = f"Agent template not found: {agent_path}"
+        raise FileNotFoundError(msg)
 
     raw_content = agent_path.read_text(encoding="utf-8")
 
     # Extract front-matter from within Jinja comment
     match = re.search(r"{#---(.*?)#---#}", raw_content, re.DOTALL)
     if not match:
-        raise ValueError(f"Front-matter not found in {agent_path}")
+        msg = f"Front-matter not found in {agent_path}"
+        raise ValueError(msg)
 
     front_matter_str = match.group(1)
 
@@ -62,11 +65,13 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
     try:
         config_dict = yaml.safe_load(front_matter_str)
     except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in {agent_path}: {e}") from e
+        msg = f"Invalid YAML in {agent_path}: {e}"
+        raise ValueError(msg) from e
 
     try:
         agent_config = AgentConfig(**config_dict)
     except Exception as e:
-        raise ValueError(f"Invalid agent config in {agent_path}: {e}") from e
+        msg = f"Invalid agent config in {agent_path}: {e}"
+        raise ValueError(msg) from e
 
     return agent_config, prompt_template

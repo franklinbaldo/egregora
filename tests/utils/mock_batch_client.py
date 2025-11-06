@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
-from google import genai
 from google.genai import types as genai_types
 
 from egregora.utils.batch import (
@@ -21,6 +19,11 @@ from egregora.utils.batch import (
     EmbeddingBatchRequest,
     EmbeddingBatchResult,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from google import genai
 
 
 class MockGeminiBatchClient:
@@ -140,9 +143,7 @@ class MockGeminiBatchClient:
 
         # Normalize to unit length (cosine similarity friendly)
         magnitude = sum(x * x for x in vector) ** 0.5
-        normalized = [x / magnitude for x in vector]
-
-        return normalized
+        return [x / magnitude for x in vector]
 
 
 class MockGeminiClient:
@@ -166,7 +167,6 @@ class MockGeminiClient:
 
     def close(self):
         """Mock close method - does nothing."""
-        pass
 
     def _upload_file(self, file: str, **kwargs) -> genai_types.File:
         """Mock file upload."""

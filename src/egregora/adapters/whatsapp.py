@@ -17,10 +17,9 @@ import warnings
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
-from ibis.expr.types import Table
 
 from egregora.ingestion.parser import parse_export
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
@@ -28,6 +27,9 @@ from egregora.pipeline.ir import create_ir_table
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.pipeline import discover_chat_file
 from egregora.types import GroupSlug
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,7 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
 
     Returns:
         Message with media references converted to markdown
+
     """
     if not message:
         return message
@@ -139,6 +142,7 @@ class WhatsAppAdapter(SourceAdapter):
         >>> table = adapter.parse(Path("export.zip"), timezone="UTC")
         >>> metadata = adapter.get_metadata(Path("export.zip"))
         >>> print(metadata["group_name"])
+
     """
 
     @property
@@ -173,12 +177,15 @@ class WhatsAppAdapter(SourceAdapter):
         Raises:
             ValueError: If ZIP is invalid or chat file not found
             FileNotFoundError: If input_path does not exist
+
         """
         if not input_path.exists():
-            raise FileNotFoundError(f"Input path does not exist: {input_path}")
+            msg = f"Input path does not exist: {input_path}"
+            raise FileNotFoundError(msg)
 
         if not input_path.is_file() or not str(input_path).endswith(".zip"):
-            raise ValueError(f"Expected a ZIP file, got: {input_path}")
+            msg = f"Expected a ZIP file, got: {input_path}"
+            raise ValueError(msg)
 
         # Discover chat file in ZIP
         group_name, chat_file = discover_chat_file(input_path)
@@ -239,6 +246,7 @@ class WhatsAppAdapter(SourceAdapter):
             ...     zip_path=Path("export.zip")
             ... )
             >>> # Returns: Path("/tmp/IMG-20250101-WA0001.jpg")
+
         """
         # Validate media reference for path traversal attacks
         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
@@ -284,10 +292,10 @@ class WhatsAppAdapter(SourceAdapter):
                 return output_file
 
         except zipfile.BadZipFile as e:
-            logger.error(f"Invalid ZIP file: {zip_path}: {e}")
+            logger.exception(f"Invalid ZIP file: {zip_path}: {e}")
             return None
         except (KeyError, OSError, PermissionError) as e:
-            logger.error(f"Failed to extract {media_reference} from {zip_path}: {e}")
+            logger.exception(f"Failed to extract {media_reference} from {zip_path}: {e}")
             return None
         except Exception as e:
             # Catch any unexpected errors but log them as warnings for investigation
@@ -316,6 +324,7 @@ class WhatsAppAdapter(SourceAdapter):
 
         Returns:
             Empty dict (media extraction handled by deliver_media())
+
         """
         warnings.warn(
             "extract_media() is deprecated and will be removed in a future version. "
@@ -339,9 +348,11 @@ class WhatsAppAdapter(SourceAdapter):
                 - group_slug: URL-safe group identifier
                 - chat_file: Name of chat file in ZIP
                 - export_date: Current date
+
         """
         if not input_path.exists():
-            raise FileNotFoundError(f"Input path does not exist: {input_path}")
+            msg = f"Input path does not exist: {input_path}"
+            raise FileNotFoundError(msg)
 
         # Discover chat file and group name
         group_name, chat_file = discover_chat_file(input_path)

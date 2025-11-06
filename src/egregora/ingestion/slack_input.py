@@ -14,13 +14,16 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, date, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
-from ibis.expr.types import Table
 
 from egregora.ingestion.base import InputMetadata, InputSource
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,7 @@ class SlackInputSource(InputSource):
 
         Returns:
             True if it's a directory containing channels.json and users.json
+
         """
         if not source_path.exists():
             return False
@@ -90,9 +94,11 @@ class SlackInputSource(InputSource):
             ValueError: If source_path is not a valid Slack export
             RuntimeError: If parsing fails
             NotImplementedError: This is a template - full implementation needed
+
         """
         if not self.supports_format(source_path):
-            raise ValueError(f"Source path {source_path} is not a valid Slack export directory")
+            msg = f"Source path {source_path} is not a valid Slack export directory"
+            raise ValueError(msg)
 
         # Load users for name mapping
         users = self._load_users(source_path)
@@ -104,7 +110,8 @@ class SlackInputSource(InputSource):
             # Filter to specific channel
             channels = [c for c in channels if c["name"] == channel_name]
             if not channels:
-                raise ValueError(f"Channel '{channel_name}' not found in export")
+                msg = f"Channel '{channel_name}' not found in export"
+                raise ValueError(msg)
 
         # Parse messages from all channels
         all_messages = []
@@ -168,6 +175,7 @@ class SlackInputSource(InputSource):
 
         Raises:
             NotImplementedError: This is a template - full implementation needed
+
         """
         # TODO: Implement media download using Slack API
         # This would require:
@@ -308,5 +316,4 @@ class SlackInputSource(InputSource):
         # Convert to lowercase and replace spaces/special chars with hyphens
         slug = text.lower()
         slug = re.sub(r"[^a-z0-9]+", "-", slug)
-        slug = slug.strip("-")
-        return slug
+        return slug.strip("-")

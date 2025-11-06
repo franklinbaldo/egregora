@@ -5,17 +5,20 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, date, datetime
-from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 import ibis
-from google import genai
-from ibis.expr.types import Table
 
 from egregora.agents.tools.rag.chunker import chunk_document
 from egregora.agents.tools.rag.embedder import embed_chunks, embed_query
 from egregora.agents.tools.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.config.site import MEDIA_DIR_NAME
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from google import genai
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +42,7 @@ def index_post(
     embedding_model: str,
     output_dimensionality: int = 3072,
 ) -> int:
-    """
-    Chunk, embed, and index a blog post.
+    """Chunk, embed, and index a blog post.
 
     Args:
         post_path: Path to markdown file with YAML frontmatter
@@ -49,6 +51,7 @@ def index_post(
 
     Returns:
         Number of chunks indexed
+
     """
     logger.info(f"Indexing post: {post_path.name}")
 
@@ -130,8 +133,7 @@ def query_similar_posts(
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> Table:
-    """
-    Find similar previous blog posts for a period's table.
+    """Find similar previous blog posts for a period's table.
 
     Strategy:
     1. Convert table to text (markdown table)
@@ -151,6 +153,7 @@ def query_similar_posts(
 
     Returns:
         Table with columns: [post_title, content, similarity, post_date, tags, ...]
+
     """
     msg_count = table.count().execute()
     logger.info(f"Querying similar posts for period with {msg_count} messages")
@@ -204,14 +207,14 @@ def query_similar_posts(
 
 
 def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | None:
-    """
-    Parse a media enrichment markdown file to extract metadata.
+    """Parse a media enrichment markdown file to extract metadata.
 
     Args:
         enrichment_path: Path to enrichment .md file
 
     Returns:
         Dict with extracted metadata or None if parsing fails
+
     """
     try:
         content = enrichment_path.read_text(encoding="utf-8")
@@ -259,7 +262,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
         return metadata
 
     except Exception as e:
-        logger.error(f"Failed to parse media enrichment {enrichment_path}: {e}")
+        logger.exception(f"Failed to parse media enrichment {enrichment_path}: {e}")
         return None
 
 
@@ -272,8 +275,7 @@ def index_media_enrichment(
     embedding_model: str,
     output_dimensionality: int = 3072,
 ) -> int:
-    """
-    Chunk, embed, and index a media enrichment file.
+    """Chunk, embed, and index a media enrichment file.
 
     Args:
         enrichment_path: Path to enrichment .md file
@@ -283,6 +285,7 @@ def index_media_enrichment(
 
     Returns:
         Number of chunks indexed
+
     """
     logger.info(f"Indexing media enrichment: {enrichment_path.name}")
 
@@ -360,8 +363,7 @@ def index_all_media(
     embedding_model: str,
     output_dimensionality: int = 3072,
 ) -> int:
-    """
-    Index all media enrichment files from media directories.
+    """Index all media enrichment files from media directories.
 
     Enrichment files are co-located with media (e.g., video.mp4.md).
     Scans all subdirectories under docs/media/ for .md files.
@@ -373,6 +375,7 @@ def index_all_media(
 
     Returns:
         Total number of chunks indexed
+
     """
     media_dir = docs_dir / MEDIA_DIR_NAME
 
@@ -412,7 +415,6 @@ def index_all_media(
 
 def _coerce_post_date(value: object) -> date | None:
     """Normalize post metadata values to ``date`` objects."""
-
     if value is None:
         return None
 
@@ -443,16 +445,12 @@ def _coerce_post_date(value: object) -> date | None:
 
 def _coerce_message_datetime(value: object) -> datetime | None:
     """Ensure message timestamps are timezone-aware UTC datetimes."""
-
     if value is None:
         return None
 
     result: datetime | None = None
     if isinstance(value, datetime):
-        if value.tzinfo is None:
-            result = value.replace(tzinfo=UTC)
-        else:
-            result = value.astimezone(UTC)
+        result = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
     elif isinstance(value, str):
         text = value.strip()
         if text.endswith("Z"):
@@ -464,10 +462,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
             except ValueError:
                 logger.warning("Unable to parse message datetime: %s", value)
             else:
-                if parsed.tzinfo is None:
-                    result = parsed.replace(tzinfo=UTC)
-                else:
-                    result = parsed.astimezone(UTC)
+                result = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
     else:
         logger.warning("Unsupported message datetime type: %s", type(value))
 
@@ -489,8 +484,7 @@ def query_media(
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> Table:
-    """
-    Search for relevant media by description or topic.
+    """Search for relevant media by description or topic.
 
     Args:
         query: Natural language search query (e.g., "funny meme about AI")
@@ -506,6 +500,7 @@ def query_media(
 
     Returns:
         Ibis Table with columns: [media_uuid, media_type, media_path, content, similarity, ...]
+
     """
     logger.info(f"Searching media for: {query}")
 

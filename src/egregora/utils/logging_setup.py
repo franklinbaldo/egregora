@@ -19,7 +19,6 @@ console = Console()
 
 def _resolve_level() -> Annotated[int, "The logging level to use"]:
     """Return the logging level defined via environment variable."""
-
     level_name = os.getenv(_LOG_LEVEL_ENV, _DEFAULT_LEVEL_NAME).upper()
     level = getattr(logging, level_name, None)
     if isinstance(level, int):
@@ -31,7 +30,6 @@ def _resolve_level() -> Annotated[int, "The logging level to use"]:
 
 def configure_logging() -> None:
     """Configure logging once with a Rich handler."""
-
     root_logger = logging.getLogger()
     level = _resolve_level()
 

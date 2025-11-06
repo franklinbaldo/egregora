@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from egregora.types import GroupSlug
+if TYPE_CHECKING:
+    from datetime import date
+    from pathlib import Path
+
+    from egregora.types import GroupSlug
 
 
 @dataclass(slots=True)
 class Export:
-    """
-    Base class for chat export metadata.
+    """Base class for chat export metadata.
 
     Platform-specific implementations (WhatsApp, Slack, Discord, etc.)
     should inherit from this class and add their specific fields.

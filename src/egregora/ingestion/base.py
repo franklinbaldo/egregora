@@ -55,8 +55,8 @@ class InputSource(ABC):
         Raises:
             ValueError: If source_path is invalid or cannot be parsed
             RuntimeError: If parsing fails
+
         """
-        pass
 
     @abstractmethod
     def extract_media(self, source_path: Path, output_dir: Path, **kwargs) -> dict[str, str]:
@@ -70,8 +70,8 @@ class InputSource(ABC):
         Returns:
             Mapping of original filename -> extracted file path
             Example: {"IMG-001.jpg": "media/images/img-001.jpg"}
+
         """
-        pass
 
     @abstractmethod
     def supports_format(self, source_path: Path) -> bool:
@@ -82,14 +82,13 @@ class InputSource(ABC):
 
         Returns:
             True if this source can parse the given path, False otherwise
+
         """
-        pass
 
     @property
     @abstractmethod
     def source_type(self) -> str:
         """Return the type identifier for this source (e.g., 'whatsapp', 'slack')."""
-        pass
 
 
 class InputSourceRegistry:
@@ -103,6 +102,7 @@ class InputSourceRegistry:
 
         Args:
             source_class: Class inheriting from InputSource
+
         """
         instance = source_class()
         self._sources[instance.source_type] = source_class
@@ -118,10 +118,12 @@ class InputSourceRegistry:
 
         Raises:
             KeyError: If source_type is not registered
+
         """
         if source_type not in self._sources:
             available = ", ".join(self._sources.keys())
-            raise KeyError(f"Input source '{source_type}' not found. Available: {available}")
+            msg = f"Input source '{source_type}' not found. Available: {available}"
+            raise KeyError(msg)
         return self._sources[source_type]()
 
     def detect_source(self, source_path: Path) -> InputSource | None:
@@ -132,6 +134,7 @@ class InputSourceRegistry:
 
         Returns:
             Instance of detected input source, or None if no match
+
         """
         for source_class in self._sources.values():
             instance = source_class()
