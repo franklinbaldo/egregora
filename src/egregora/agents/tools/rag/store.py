@@ -336,16 +336,19 @@ class VectorStore:
             self._clear_index_meta()
             return
 
+        # Use HNSW index for better performance with fixed-dimension vectors
         try:
             self.conn.execute(
                 f"""
                 CREATE INDEX {INDEX_NAME}
-                ON {TABLE_NAME}(embedding)
-                USING vss(metric='cosine', storage_type='ivfflat')
+                ON {TABLE_NAME}
+                USING HNSW (embedding)
+                WITH (metric = 'cosine')
                 """
             )
+            logger.info("Created HNSW index on embedding column")
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
-            logger.warning("Skipping VSS index rebuild: %s", exc)
+            logger.warning("Skipping HNSW index creation: %s", exc)
 
     def _upsert_index_meta(
         self,
