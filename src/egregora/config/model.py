@@ -10,49 +10,24 @@ from egregora.config.site import load_mkdocs_config
 
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 
-# Known output dimensionalities for supported embedding models. The keys should
-# match the fully-qualified Gemini model identifiers returned by
-# ``ModelConfig.get_model("embedding")``.
+# Known output dimensionalities for supported embedding models.
+# Keys use pydantic-ai notation (google-gla:model-name)
 KNOWN_EMBEDDING_DIMENSIONS = {
-    "models/text-embedding-004": 3072,
-    "models/gemini-embedding-001": 3072,
+    "google-gla:text-embedding-004": 3072,
+    "google-gla:gemini-embedding-001": 3072,
 }
 
 logger = logging.getLogger(__name__)
 
-# Default models for different tasks
-DEFAULT_WRITER_MODEL = "models/gemini-flash-latest"
-DEFAULT_ENRICHER_MODEL = "models/gemini-flash-latest"
-DEFAULT_ENRICHER_VISION_MODEL = "models/gemini-flash-latest"
-DEFAULT_RANKING_MODEL = "models/gemini-flash-latest"
-DEFAULT_EDITOR_MODEL = "models/gemini-flash-latest"
-DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
+# Default models for different tasks (using pydantic-ai notation)
+DEFAULT_WRITER_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_ENRICHER_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_ENRICHER_VISION_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_RANKING_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_EDITOR_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_EMBEDDING_MODEL = "google-gla:gemini-embedding-001"
 
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
-
-
-def to_pydantic_ai_model(model_name: str) -> str:
-    """
-    Convert Google API model format to pydantic-ai string notation.
-
-    Examples:
-        "models/gemini-flash-latest" -> "google-gla:gemini-flash-latest"
-        "models/gemini-2.0-flash-exp" -> "google-gla:gemini-2.0-flash-exp"
-        "gemini-flash-latest" -> "google-gla:gemini-flash-latest"
-
-    Args:
-        model_name: Model name in Google API format
-
-    Returns:
-        Model name in pydantic-ai format (provider:model)
-    """
-    # Remove "models/" prefix if present
-    if model_name.startswith("models/"):
-        model_name = model_name.replace("models/", "", 1)
-
-    # Add pydantic-ai provider prefix
-    # Use google-gla for standard Gemini API (reads from GOOGLE_API_KEY)
-    return f"google-gla:{model_name}"
 
 
 class ModelConfig:

@@ -81,9 +81,9 @@ def embed_batch(
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
     output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
 ) -> Annotated[list[list[float]], "List of embedding vectors"]:
-    """Embed multiple texts using individual API calls.
+    """Embed multiple texts using the batch embeddings API.
 
-    This processes texts sequentially with retry logic for rate limiting.
+    This uses the Gemini batch_embed_contents API for efficient parallel processing.
 
     Args:
         client: Gemini API client
@@ -103,20 +103,37 @@ def embed_batch(
 
     logger.info("[blue]📚 Embedding model:[/] %s — %d text(s)", model, len(texts))
 
-    embeddings: list[list[float]] = []
-    for i, text in enumerate(texts):
-        try:
-            embedding = embed_text(
-                client,
-                text,
-                model=model,
-                task_type=task_type,
-                output_dimensionality=output_dimensionality,
-            )
-            embeddings.append(embedding)
-        except Exception as e:
-            logger.error("Failed to embed text %d/%d: %s", i + 1, len(texts), e)
-            raise
+    # Build config if needed
+    config = None
+    if task_type or output_dimensionality:
+        config = genai_types.EmbedContentConfig(
+            task_type=task_type,
+            output_dimensionality=output_dimensionality,
+        )
 
-    logger.info("Embedded %d text(s)", len(embeddings))
-    return embeddings
+    try:
+        # Use batch_embed_contents for efficient parallel processing
+        response = call_with_retries_sync(
+            client.models.batch_embed_contents,
+            model=model,
+            requests=[
+                genai_types.EmbedContentRequest(content=text, config=config)
+                for text in texts
+            ],
+        )
+
+        # Extract embeddings from batch response
+        embeddings: list[list[float]] = []
+        for i, embedding_result in enumerate(response.embeddings):
+            values = getattr(embedding_result, "values", None)
+            if values is None:
+                logger.error("No embedding returned for text %d/%d", i + 1, len(texts))
+                raise RuntimeError(f"No embedding returned for text {i}: {texts[i][:50]}...")
+            embeddings.append(list(values))
+
+        logger.info("Embedded %d text(s)", len(embeddings))
+        return embeddings
+
+    except Exception as e:
+        logger.error("Failed to batch embed texts: %s", e, exc_info=True)
+        raise RuntimeError(f"Batch embedding failed: {e}") from e

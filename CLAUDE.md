@@ -1,0 +1,389 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+**Egregora** transforms WhatsApp group conversations into beautiful blog posts using LLM-powered synthesis. It's a privacy-first, staged pipeline that anonymizes personal data before any AI processing.
+
+**Repository**: https://github.com/franklinbaldo/egregora
+**Python**: 3.12+
+**Package Manager**: uv
+**Primary LLM**: Google Gemini API
+
+## Common Commands
+
+### Development Setup
+
+```bash
+# Install dependencies with all extras
+uv sync --all-extras
+
+# Quick setup (installs deps + pre-commit hooks)
+python dev_tools/setup_hooks.py
+```
+
+### Testing
+
+```bash
+# Run all tests
+uv run pytest tests/
+
+# Run specific test categories
+uv run pytest tests/unit/              # Unit tests
+uv run pytest tests/integration/       # Integration tests (requires API key)
+uv run pytest tests/e2e/               # End-to-end tests
+uv run pytest tests/agents/            # Agent-specific tests
+
+# Run specific test
+uv run pytest tests/unit/test_anonymizer.py
+uv run pytest -k test_parse_basic
+
+# With coverage
+uv run pytest --cov=egregora --cov-report=html tests/
+
+# VCR cassette replay (no API key needed for most tests)
+uv run pytest tests/e2e/test_with_golden_fixtures.py
+```
+
+**Important**: Integration tests use pytest-vcr to record/replay Gemini API calls. First runs need `GOOGLE_API_KEY`, subsequent runs use cassettes from `tests/cassettes/`.
+
+### Linting & Formatting
+
+```bash
+# All checks (recommended before commit)
+uv run pre-commit run --all-files
+
+# Individual tools
+uv run ruff check src/              # Lint
+uv run ruff format src/             # Format
+uv run ruff check --fix src/        # Auto-fix
+uv run mypy src/                    # Type check
+```
+
+**Line length**: 110 characters (see pyproject.toml)
+
+### Running the Pipeline
+
+```bash
+# Set API key
+export GOOGLE_API_KEY="your-api-key"
+
+# Process WhatsApp export (creates blog in ./output)
+uv run egregora process whatsapp-export.zip --output=./output
+
+# Serve generated blog locally
+cd output
+uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
+
+# Other commands
+uv run egregora edit posts/my-post.md        # AI-powered post editor
+uv run egregora rank --site-dir=. --comparisons=50  # Elo ranking
+```
+
+## Architecture: Staged Pipeline
+
+Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops and stateful operations:
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Ingestion  │ -> │   Privacy   │ -> │ Augmentation│
+└─────────────┘    └─────────────┘    └─────────────┘
+      ↓                   ↓                   ↓
+   Parse ZIP        Anonymize UUIDs     Enrich context
+                    Detect PII          Build profiles
+
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Knowledge  │ <- │ Generation  │ -> │Publication  │
+└─────────────┘    └─────────────┘    └─────────────┘
+      ↑                   ↓                   ↓
+   RAG Index        LLM Writer           MkDocs Site
+   Annotations      Tool Calling         Templates
+   Rankings
+```
+
+### Pipeline Stages
+
+1. **Ingestion** (`src/egregora/ingestion/`)
+   - Parses WhatsApp `.zip` exports → Ibis tables
+   - Entry point: `parse_export()` in `ingestion/parser.py`
+   - Schema: `CONVERSATION_SCHEMA` (timestamp, author, message, original_line, tagged_line, message_id)
+
+2. **Privacy** (`src/egregora/privacy/`)
+   - **Critical invariant**: Anonymization happens BEFORE any LLM sees data
+   - Converts real names → deterministic UUIDs (`anonymizer.py`)
+   - PII detection: phones, emails, addresses (`detector.py`)
+   - Respects opt-out commands in messages
+
+3. **Augmentation** (`src/egregora/enrichment/`)
+   - LLM-powered URL/media descriptions (`enrichment/core.py`)
+   - Author profile generation (`agents/tools/profiler.py`)
+   - Uses DiskCache for persistence across runs (`.egregora-cache/`)
+
+4. **Knowledge** (`src/egregora/agents/tools/`)
+   - **RAG**: Vector store with DuckDB VSS (`agents/tools/rag/store.py`)
+   - **Annotations**: Conversation metadata (`agents/tools/annotations/`)
+   - **Rankings**: Elo-based post quality (`agents/ranking/`)
+
+5. **Generation** (`src/egregora/agents/writer/`)
+   - Pydantic-AI agent with tool calling (`writer_agent.py`)
+   - Decides: 0-N posts per period, themes, structure ("trust the LLM")
+   - Tools: `write_post`, `read/write_profile`, `search_media`, `annotate`, `generate_banner`
+   - Backend switchable via `EGREGORA_LLM_BACKEND` env var
+
+6. **Publication** (`src/egregora/init/`, `rendering/`)
+   - MkDocs site scaffolding (`init/scaffolding.py`)
+   - Jinja2 templates for posts, profiles, indexes
+
+### Key Design Principles
+
+1. **"Trust the LLM"** - Give AI full context, let it make editorial decisions (post count, themes, structure)
+2. **Ibis tables everywhere** - Stay in DuckDB, convert to pandas only at boundaries
+3. **Privacy-first architecture** - Anonymize before LLM processing (no PII in API calls)
+4. **Schemas as contracts** - All tables conform to centralized schemas (`database/schema.py`)
+5. **Functional transformations** - Pipeline stages are pure functions: `Table → Table`
+
+## Code Structure
+
+```
+src/egregora/
+├── cli.py                    # Typer CLI (entry point)
+├── pipeline.py               # Grouping utilities (group_by_period)
+├── database/
+│   ├── schema.py            # ALL table schemas (CONVERSATION_SCHEMA, RAG_CHUNKS_SCHEMA, etc.)
+│   └── connection.py        # DuckDB connection management
+├── config/
+│   ├── types.py             # Config dataclasses
+│   ├── pipeline.py          # Pipeline-specific configs
+│   └── site.py              # Site/MkDocs config loading
+├── ingestion/
+│   ├── parser.py            # WhatsApp export parsing (regex patterns)
+│   ├── whatsapp_input.py    # WhatsApp-specific logic
+│   └── base.py              # Abstract base classes
+├── privacy/
+│   ├── anonymizer.py        # UUID generation (deterministic hashing)
+│   └── detector.py          # PII regex patterns
+├── enrichment/
+│   ├── core.py              # LLM enrichment (URLs, media)
+│   ├── batch.py             # Batch API handling
+│   └── avatar.py            # Avatar download/validation
+├── agents/
+│   ├── writer/
+│   │   ├── writer_agent.py  # Main Pydantic-AI agent
+│   │   ├── tools.py         # Tool definitions
+│   │   └── context.py       # RAG context loading
+│   ├── editor/
+│   │   └── editor_agent.py  # Interactive post refinement
+│   ├── ranking/
+│   │   ├── ranking_agent.py # Elo pairwise comparisons
+│   │   └── elo.py           # Elo algorithm
+│   └── tools/
+│       ├── rag/             # Vector store (DuckDB VSS)
+│       ├── annotations/     # Conversation metadata
+│       └── profiler.py      # Author profiles
+├── utils/
+│   ├── gemini_dispatcher.py # LLM API client (handles retries, batching)
+│   ├── cache.py             # DiskCache wrapper
+│   └── logfire_config.py    # Observability (Pydantic Logfire)
+└── rendering/
+    ├── mkdocs.py            # MkDocs renderer
+    └── templates/           # Jinja2 templates
+```
+
+## Database Schemas
+
+All schemas are centralized in `src/egregora/database/schema.py`:
+
+**Ephemeral (in-memory, never persisted)**:
+- `CONVERSATION_SCHEMA` - Pipeline data (timestamp, author, message, etc.)
+- `WHATSAPP_CONVERSATION_SCHEMA` - Alias for CONVERSATION_SCHEMA
+
+**Persistent (DuckDB + Parquet)**:
+- `RAG_CHUNKS_SCHEMA` - Vector embeddings for RAG retrieval
+- `RAG_CHUNKS_METADATA_SCHEMA` - Parquet file metadata (mtime, size, row_count)
+- `RAG_INDEX_META_SCHEMA` - ANN index metadata
+- `ANNOTATIONS_SCHEMA` - Conversation threading/metadata
+- `ELO_RATINGS_SCHEMA` - Post quality rankings
+
+**Key invariant**: All pipeline stages must accept and return tables conforming to `CONVERSATION_SCHEMA`.
+
+## Testing Strategy
+
+### Test Organization
+
+- `tests/unit/` - Pure functions, no external dependencies
+- `tests/integration/` - DuckDB, API calls (VCR cassettes)
+- `tests/e2e/` - Full pipeline runs with golden fixtures
+- `tests/agents/` - Pydantic-AI agent tests
+- `tests/evals/` - LLM output quality evaluations
+- `tests/linting/` - Code quality checks (imports, style)
+
+### VCR Cassettes
+
+Tests use `pytest-vcr` to record/replay Gemini API interactions:
+
+- **First run**: Real API calls → saved to `tests/cassettes/*.yaml`
+- **Subsequent runs**: Replay from cassettes (no API key needed)
+- **Re-recording**: Delete cassettes, set `GOOGLE_API_KEY`, re-run tests
+
+**VSS Extension**: Tests use `--retrieval-mode=exact` to avoid VSS extension dependency in CI.
+
+### Golden Fixtures
+
+End-to-end tests compare output against golden files in `tests/fixtures/golden/expected_output/`:
+
+```bash
+# Run with golden comparison
+uv run pytest tests/e2e/test_with_golden_fixtures.py
+
+# Update golden files (when intentionally changing output)
+# Delete old output and re-run tests
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+GOOGLE_API_KEY          # Required for Gemini API
+EGREGORA_LLM_BACKEND    # "pydantic-ai" or "google-genai" (default: pydantic-ai)
+```
+
+### MkDocs Config (`mkdocs.yml`)
+
+Generated sites store config in `mkdocs.yml`:
+
+```yaml
+extra:
+  egregora:
+    models:
+      writer: models/gemini-2.0-flash-exp       # Blog post generation
+      enricher: models/gemini-1.5-flash         # URL/media descriptions
+      embedding: models/text-embedding-004      # Vector embeddings
+    retrieval:
+      mode: ann                                  # "ann" or "exact"
+      nprobe: 10                                 # ANN quality (higher = better, slower)
+      embedding_dimensions: 768
+```
+
+## Development Workflow
+
+### Adding a New Feature
+
+1. **Understand the stage** - Which pipeline stage does this affect?
+2. **Check schemas** - Does `CONVERSATION_SCHEMA` need updates? (rarely)
+3. **Write tests first** - Add test in appropriate `tests/` subdirectory
+4. **Keep it simple** - Can the LLM do this with better prompting?
+5. **Update docs** - Add docstrings, update CLAUDE.md if architecture changes
+
+### Modifying Pipeline Stages
+
+**Critical rules**:
+- All stages accept `Table` → return `Table`
+- Privacy stage MUST run before any LLM processing
+- Preserve `CONVERSATION_SCHEMA` columns throughout pipeline
+- Add new columns via `.mutate()`, never drop core columns
+
+### Adding LLM Tools (Writer Agent)
+
+1. Define tool in `src/egregora/agents/writer/tools.py`
+2. Register in `ToolRegistry` (`agents/registry.py`)
+3. Add to agent initialization in `writer_agent.py`
+4. Test with VCR cassette recording
+
+### Debugging Tips
+
+```python
+# Inspect Ibis tables
+table = parse_export(zip_path)
+print(table.schema())
+print(table.limit(5).execute())  # Convert to pandas for inspection
+
+# Enable debug logging
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Check DuckDB VSS extension
+import duckdb
+conn = duckdb.connect()
+conn.execute("INSTALL vss; LOAD vss")
+conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
+```
+
+## TENET-BREAK Philosophy
+
+Egregora uses `TENET-BREAK` comments for intentional violations of core principles:
+
+**Core tenets**:
+- `no-compat` - No backwards compatibility shims
+- `clean` - Clean code; clarity over cleverness
+- `no-defensive` - Don't guard against impossible states (trust types + tests)
+- `propagate-errors` - Let errors bubble; don't swallow
+
+**Format**:
+```python
+# TENET-BREAK(scope)[@owner][P0|P1|P2][due:YYYY-MM-DD]:
+# tenet=<code>; why=<constraint>; exit=<condition> (#issue)
+```
+
+See `CONTRIBUTING.md` for full details and examples.
+
+## Privacy & Security
+
+**Anonymization flow**:
+1. Parse WhatsApp export → real names in memory
+2. Generate deterministic UUIDs (same person = same UUID across runs)
+3. Replace names with UUIDs BEFORE any LLM API call
+4. PII detection: scan for phones, emails, addresses
+5. Only anonymized data sent to Gemini API
+
+**User controls** (in-chat commands):
+```
+/egregora set alias "Casey"       # Set display name
+/egregora set bio "AI researcher" # Add profile
+/egregora opt-out                 # Exclude from posts
+/egregora opt-in                  # Re-include
+```
+
+## Common Pitfalls
+
+1. **Don't bypass privacy stage** - Never send raw conversation data to LLM APIs
+2. **Use Ibis, not pandas** - Convert to pandas only at boundaries (display, serialization)
+3. **Respect schemas** - Don't add arbitrary columns without updating `database/schema.py`
+4. **VCR cassettes** - Commit cassettes to repo so tests run without API keys
+5. **VSS extension** - Use `--retrieval-mode=exact` in environments without DuckDB VSS
+
+## Dependencies
+
+**Core stack**:
+- **Ibis** - DataFrame API (type-safe transformations)
+- **DuckDB** - Analytics database + VSS extension (vector search)
+- **Pydantic-AI** - LLM agent framework
+- **Google Gemini** - Content generation API
+- **MkDocs Material** - Static site generation
+- **uv** - Fast Python package manager
+
+**Optional**:
+- **pytest-vcr** - HTTP recording for deterministic tests
+- **Pydantic Logfire** - Observability (opt-in via env var)
+
+## Deployment
+
+```bash
+# Build static site
+cd output
+mkdocs build
+
+# Deploy to GitHub Pages
+mkdocs gh-deploy
+
+# Or use: Netlify, Vercel, Cloudflare Pages
+# (deploy the ./site directory generated by mkdocs build)
+```
+
+## Related Documentation
+
+- `README.md` - User-facing documentation, quick start
+- `CONTRIBUTING.md` - Detailed contributor guide, TENET-BREAK philosophy
+- `docs/` - Comprehensive guides (architecture, privacy, API reference)
+- `tests/fixtures/golden/` - Example outputs from real pipeline runs

@@ -20,7 +20,7 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
-from egregora.config import ModelConfig, to_pydantic_ai_model
+from egregora.config import ModelConfig
 from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.agents import (
@@ -118,10 +118,9 @@ def enrich_table(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    # Create pydantic-ai agents with configured models
-    # Convert from Google API format to pydantic-ai format and create agents
-    url_enrichment_agent = create_url_enrichment_agent(to_pydantic_ai_model(url_model))
-    media_enrichment_agent = create_media_enrichment_agent(to_pydantic_ai_model(vision_model))
+    # Create pydantic-ai agents with configured models (already in pydantic-ai notation)
+    url_enrichment_agent = create_url_enrichment_agent(url_model)
+    media_enrichment_agent = create_media_enrichment_agent(vision_model)
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -261,7 +260,7 @@ def enrich_table(
                 url_job.markdown = result.data.markdown
                 cache.store(url_job.key, {"markdown": result.data.markdown, "type": "url"})
             except Exception as e:
-                logger.warning("Failed to enrich URL %s: %s", url_job.url, e)
+                logger.warning("Failed to enrich URL %s: %s", url_job.url, e, exc_info=True)
                 url_job.markdown = f"[Failed to enrich URL: {url_job.url}]"
 
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
@@ -318,7 +317,7 @@ def enrich_table(
                 cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
 
             except Exception as e:
-                logger.warning("Failed to enrich media %s: %s", media_job.file_path.name, e)
+                logger.warning("Failed to enrich media %s: %s", media_job.file_path.name, e, exc_info=True)
                 media_job.markdown = None
 
     for url_job in url_jobs:

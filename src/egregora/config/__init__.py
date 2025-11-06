@@ -12,7 +12,6 @@ from egregora.config.model import (
     ModelConfig,
     ModelType,
     load_site_config,
-    to_pydantic_ai_model,
 )
 from egregora.config.pipeline import (
     PipelineEnrichmentConfig,
@@ -77,5 +76,4 @@ __all__ = [
     "load_mkdocs_config",
     "load_site_config",
     "resolve_site_paths",
-    "to_pydantic_ai_model",
 ]

@@ -44,7 +44,7 @@ from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
-from egregora.config import to_pydantic_ai_model
+# Model names now use pydantic-ai notation directly
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
@@ -281,10 +281,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend")
 
-    # Create model with pydantic-ai string notation
-    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+    # Model name is already in pydantic-ai notation (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
+        model = model_name
     else:
         model = agent_model
 
@@ -468,10 +467,9 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
-    # Create model with pydantic-ai string notation
-    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+    # Model name is already in pydantic-ai notation (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
+        model = model_name
     else:
         model = agent_model
 

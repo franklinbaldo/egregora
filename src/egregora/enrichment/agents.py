@@ -159,16 +159,35 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     return agent
 
 
-def load_file_as_binary_content(file_path: Path) -> BinaryContent:
+def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> BinaryContent:
     """
     Load a file as BinaryContent for pydantic-ai agents.
 
     Args:
         file_path: Path to the file
+        max_size_mb: Maximum file size in megabytes (default: 20MB)
 
     Returns:
         BinaryContent object with file bytes and media type
+
+    Raises:
+        ValueError: If file size exceeds max_size_mb
+        FileNotFoundError: If file doesn't exist
     """
+    # Validate file exists
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Validate file size
+    file_size = file_path.stat().st_size
+    max_size_bytes = max_size_mb * 1024 * 1024
+    if file_size > max_size_bytes:
+        size_mb = file_size / (1024 * 1024)
+        raise ValueError(
+            f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. "
+            f"File: {file_path.name}"
+        )
+
     media_type, _ = mimetypes.guess_type(str(file_path))
     if not media_type:
         media_type = "application/octet-stream"
