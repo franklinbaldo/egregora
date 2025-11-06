@@ -198,9 +198,46 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
 
     except AvatarProcessingError as e:
         logger.error(f"Failed to process avatar for {author_uuid}: {e}")
+
+        # Clean up avatar and enrichment files if processing failed
+        # Note: If enrichment succeeded but later steps failed, files may still exist
+        if avatar_path and avatar_path.exists():
+            try:
+                avatar_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up avatar file after processing failure: {avatar_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+
+            # Also clean up enrichment file if it exists
+            try:
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                if enrichment_path.exists():
+                    enrichment_path.unlink(missing_ok=True)
+                    logger.info(f"Cleaned up enrichment file after processing failure: {enrichment_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+
         return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
         logger.exception(f"Unexpected error processing avatar for {author_uuid}")
+
+        # Clean up avatar and enrichment files if processing failed
+        if avatar_path and avatar_path.exists():
+            try:
+                avatar_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up avatar file after unexpected error: {avatar_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+
+            # Also clean up enrichment file if it exists
+            try:
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                if enrichment_path.exists():
+                    enrichment_path.unlink(missing_ok=True)
+                    logger.info(f"Cleaned up enrichment file after unexpected error: {enrichment_path}")
+            except OSError as cleanup_error:
+                logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
 
 

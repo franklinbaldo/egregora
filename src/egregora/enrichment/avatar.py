@@ -613,6 +613,24 @@ def enrich_and_moderate_avatar(
 
     except Exception as e:
         logger.error(f"Avatar enrichment failed for {avatar_uuid}: {e}", exc_info=True)
+
+        # Clean up avatar file on failure
+        try:
+            if avatar_path and avatar_path.exists():
+                avatar_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up avatar file after failure: {avatar_path}")
+        except OSError as cleanup_error:
+            logger.error(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
+
+        # Clean up enrichment file if it was created
+        try:
+            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+            if enrichment_path.exists():
+                enrichment_path.unlink(missing_ok=True)
+                logger.info(f"Cleaned up enrichment file after failure: {enrichment_path}")
+        except (OSError, AttributeError) as cleanup_error:
+            logger.error(f"Failed to clean up enrichment file: {cleanup_error}")
+
         raise AvatarProcessingError(f"Failed to enrich avatar {avatar_uuid}: {e}") from e
 
 
