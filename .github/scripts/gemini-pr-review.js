@@ -21,7 +21,7 @@ const COMMENT_SPLIT_THRESHOLD = 60000; // Leave some buffer
 // Environment variables
 const {
   GEMINI_API_KEY,
-  GEMINI_MODEL = 'gemini-1.5-flash-002',
+  GEMINI_MODEL = 'gemini-flash-latest',
   GITHUB_TOKEN,
   PR_NUMBER,
   REPO_FULL_NAME
