@@ -15,7 +15,7 @@ import logging
 import re
 import warnings
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
@@ -167,7 +167,7 @@ class WhatsAppAdapter(SourceAdapter):
             zip_path=input_path,
             group_name=group_name,
             group_slug=GroupSlug(group_name.lower().replace(" ", "-")),
-            export_date=datetime.now().date(),
+            export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
         )
@@ -294,5 +294,5 @@ class WhatsAppAdapter(SourceAdapter):
             "group_name": group_name,
             "group_slug": str(group_slug),
             "chat_file": chat_file,
-            "export_date": datetime.now().date().isoformat(),
+            "export_date": datetime.now(tz=UTC).date().isoformat(),
         }

@@ -114,7 +114,7 @@ class SlackInputSource(InputSource):
                 source_type=self.source_type,
                 group_name=channel_name or "Slack Export",
                 group_slug=self._slugify(channel_name or "slack-export"),
-                export_date=export_date or date.today(),
+                export_date=export_date or datetime.now(tz=UTC).date(),
                 timezone=str(timezone) if timezone else "UTC",
             )
             return (empty_table, metadata)
@@ -124,7 +124,7 @@ class SlackInputSource(InputSource):
             source_type=self.source_type,
             group_name=channel_name or "Slack Export",
             group_slug=self._slugify(channel_name or "slack-export"),
-            export_date=export_date or date.today(),
+            export_date=export_date or datetime.now(tz=UTC).date(),
             timezone=str(timezone) if timezone else "UTC",
             additional_metadata={"channel_count": len(channels), "message_count": len(all_messages)},
         )

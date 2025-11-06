@@ -3,7 +3,7 @@
 import logging
 import re
 import zipfile
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -123,7 +123,7 @@ def _process_whatsapp_export(
             zip_path=zip_path,
             group_name=group_name,
             group_slug=group_slug,
-            export_date=datetime.now().date(),
+            export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
         )

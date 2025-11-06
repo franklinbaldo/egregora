@@ -282,7 +282,7 @@ class VectorStore:
         embedding_dim: int | None = None,
     ) -> None:
         """Persist the latest index configuration for observability and telemetry."""
-        timestamp = datetime.now()
+        timestamp = datetime.now(tz=UTC)
         self.conn.execute(
             f"\n            INSERT INTO {INDEX_META_TABLE} (\n                index_name,\n                mode,\n                row_count,\n                threshold,\n                nlist,\n                embedding_dim,\n                created_at,\n                updated_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(index_name) DO UPDATE SET\n                mode=excluded.mode,\n                row_count=excluded.row_count,\n                threshold=excluded.threshold,\n                nlist=excluded.nlist,\n                embedding_dim=excluded.embedding_dim,\n                updated_at=excluded.updated_at\n            ",
             [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
