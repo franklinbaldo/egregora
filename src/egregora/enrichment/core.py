@@ -91,10 +91,10 @@ def enrich_table(
     docs_dir: Path,
     posts_dir: Path,
     model_config: ModelConfig | None = None,
-    enable_url: bool = True,
-    enable_media: bool = True,
     max_enrichments: int = 50,
     *,
+    enable_url: bool = True,
+    enable_media: bool = True,
     duckdb_connection: "DuckDBBackend | None" = None,
     target_table: str | None = None,
 ) -> Table:

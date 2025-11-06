@@ -139,7 +139,10 @@ class WriterAgentState(BaseModel):
 
 
 def _register_writer_tools(
-    agent: Agent[WriterAgentState, WriterAgentReturn], enable_banner: bool = False, enable_rag: bool = False
+    agent: Agent[WriterAgentState, WriterAgentReturn],
+    *,
+    enable_banner: bool = False,
+    enable_rag: bool = False,
 ) -> None:
     """Attach tool implementations to the agent.
 

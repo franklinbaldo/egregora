@@ -241,6 +241,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 @app.command()
 def process(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
+    *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
@@ -318,6 +319,7 @@ def process(
 @app.command()
 def edit(
     post_path: Annotated[Path, typer.Argument(help="Path to the post markdown file")],
+    *,
     site_dir: Annotated[
         Path | None, typer.Option(help="Site directory (for finding RAG database). Defaults to post parent.")
     ] = None,
@@ -493,6 +495,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
         @app.command(hidden=True)
         def rank(
             _site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
+            *,
             _comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
             _strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
             _export_parquet: Annotated[
@@ -596,6 +599,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
     @app.command()
     def rank(
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
+        *,
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
         strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
         export_parquet: Annotated[
@@ -754,6 +758,7 @@ def group(
 @app.command()
 def enrich(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
+    *,
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
     output: Annotated[Path, typer.Option(help="Output enriched CSV file")],
     site_dir: Annotated[Path, typer.Option(help="Site directory (for media storage)")],
@@ -846,6 +851,7 @@ def enrich(
 @app.command()
 def gather_context(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
+    *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     output: Annotated[Path, typer.Option(help="Output context JSON file")],
@@ -954,6 +960,7 @@ def gather_context(
 @app.command()
 def write_posts(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
+    *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     context: Annotated[
