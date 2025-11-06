@@ -22,15 +22,20 @@ Comment on any PR with `@gemini {your specific request}` to trigger a custom rev
 
 1. **Trigger**: The workflow activates either automatically (PR events) or on-demand (via `@gemini` comment).
 
-2. **Validation**: The workflow first checks that `GEMINI_API_KEY` is configured and exits immediately if not, before running any expensive operations.
+2. **Security Check** (comment-triggered only): For `@gemini` comments, verifies that either:
+   - The PR is from the same repository, OR
+   - The comment author is a repository collaborator
+   - This prevents malicious code execution from untrusted fork PRs
 
-3. **Context Collection**:
+3. **Validation**: The workflow checks that `GEMINI_API_KEY` is configured and exits immediately if not, before running any expensive operations.
+
+4. **Context Collection**:
    - Checks out the repository with full history
    - Runs `npx repomix` to generate a complete textual bundle of the codebase (`repomix.txt`)
    - Fetches the PR's `.patch` file via GitHub API
    - Fetches the entire PR conversation (all comments) for context
 
-4. **AI Review**:
+5. **AI Review**:
    - Sends repository context, PR changes, and conversation history to Gemini
    - Gemini considers what has already been discussed to avoid repetition
    - In automatic mode: Provides a concise but complete review focusing on what matters most
@@ -46,7 +51,7 @@ Comment on any PR with `@gemini {your specific request}` to trigger a custom rev
      - Architecture/design trade-offs
      - Actionable checklist
 
-5. **Comment Posting**:
+6. **Comment Posting**:
    - Posts the review as a comment on the PR
    - Automatically splits long reviews into multiple comments if needed
    - Indicates which Gemini model was used
@@ -127,6 +132,24 @@ Ask Gemini to focus on specific aspects by commenting on the PR:
 The text after `@gemini` becomes part of the prompt, directing Gemini to focus on your specific concerns while still applying its full code review expertise.
 
 ## Security
+
+### Fork PR Protection
+**CRITICAL:** The workflow implements protection against malicious fork PRs:
+
+When triggered via `@gemini` comments:
+- If the PR is from the **same repository**: workflow runs normally
+- If the PR is from a **fork**: the workflow checks if the comment author is a repository collaborator
+  - **Collaborators**: Review proceeds normally
+  - **Non-collaborators**: Workflow exits immediately with a security error
+
+**Why this matters:** Without this protection, an attacker could:
+1. Fork the repository
+2. Modify `.github/scripts/gemini-pr-review.js` with malicious code
+3. Open a PR with the malicious changes
+4. Comment `@gemini` to trigger the workflow
+5. Execute arbitrary code with access to `GEMINI_API_KEY`
+
+The collaborator check prevents this attack vector while still allowing trusted team members to trigger reviews on fork PRs.
 
 ### Input Sanitization
 The workflow safely handles user-controlled input from `@gemini` comments to prevent code injection:
