@@ -143,12 +143,27 @@ PYTHON_EOF
             echo "trigger_mode=automatic" >> $GITHUB_OUTPUT
           fi
 
-      - name: Checkout repository
+      - name: Checkout repository (base branch - trusted code)
         if: steps.api_key_check.outputs.skip_review != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ steps.extract.outputs.pr_head_sha }}
+          # Always checkout base branch to run trusted scripts
+          # PR code will be fetched separately for context generation
+
+      - name: Fetch PR head for context generation
+        if: steps.api_key_check.outputs.skip_review != 'true'
+        env:
+          PR_HEAD_SHA: ${{ steps.extract.outputs.pr_head_sha }}
+        run: |
+          # Fetch the PR head commit
+          git fetch origin "$PR_HEAD_SHA"
+
+          # Create a worktree for the PR code (isolated from main checkout)
+          git worktree add pr-code "$PR_HEAD_SHA"
+
+          echo "✅ PR code fetched to pr-code/ directory"
+          echo "✅ Scripts will run from trusted base branch"
 
       - name: Setup Node.js
         if: steps.api_key_check.outputs.skip_review != 'true'
@@ -159,7 +174,19 @@ PYTHON_EOF
       - name: Generate repository bundle with Repomix
         if: steps.api_key_check.outputs.skip_review != 'true'
         run: |
-          npx repomix --output repomix.txt
+          # Copy trusted .repomixignore to PR code directory to prevent malicious config
+          if [ -f .repomixignore ]; then
+            cp .repomixignore pr-code/.repomixignore
+            echo "✅ Using trusted .repomixignore configuration"
+          fi
+
+          # Run repomix on the PR code (from worktree)
+          # The repomix binary comes from npm (trusted source)
+          # The config comes from the base branch (trusted)
+          # Only the source files being analyzed come from the PR
+          cd pr-code
+          npx repomix --output ../repomix.txt
+          cd ..
           echo "Repomix bundle created: $(wc -l < repomix.txt) lines"
 
       - name: Fetch PR patch
