@@ -207,6 +207,37 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
+
+    # Load or create EgregoraConfig (Phase 2: reduces parameters)
+    base_config = load_egregora_config(output_dir)
+
+    # Override config values from CLI flags using model_copy
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "period": config.period,
+                    "timezone": config.timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": config.retrieval_mode or base_config.rag.mode,
+                    "nprobe": config.retrieval_nprobe
+                    if config.retrieval_nprobe is not None
+                    else base_config.rag.nprobe,
+                    "overfetch": config.retrieval_overfetch
+                    if config.retrieval_overfetch is not None
+                    else base_config.rag.overfetch,
+                }
+            ),
+        },
+    )
+
     try:
         console.print(
             Panel(
@@ -219,16 +250,9 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
             source=source,
             input_path=config.zip_file,
             output_dir=config.output_dir,
-            gemini_api_key=api_key,
-            period=config.period,
-            enable_enrichment=config.enable_enrichment,
-            from_date=from_date_obj,
-            to_date=to_date_obj,
-            timezone=timezone_obj,
-            model=config.model,
-            retrieval_mode=config.retrieval_mode,
-            retrieval_nprobe=config.retrieval_nprobe,
-            retrieval_overfetch=config.retrieval_overfetch,
+            config=egregora_config,
+            api_key=api_key,
+            model_override=config.model,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:

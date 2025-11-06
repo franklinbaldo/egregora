@@ -166,6 +166,18 @@ class PipelineConfig(BaseModel):
         ge=1,
         description="Minimum items before batching API calls",
     )
+    resume: bool = Field(
+        default=True,
+        description="Resume from checkpoint if available",
+    )
+    from_date: str | None = Field(
+        default=None,
+        description="Start date for filtering (ISO format: YYYY-MM-DD)",
+    )
+    to_date: str | None = Field(
+        default=None,
+        description="End date for filtering (ISO format: YYYY-MM-DD)",
+    )
 
 
 class FeaturesConfig(BaseModel):

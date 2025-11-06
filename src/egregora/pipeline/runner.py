@@ -20,6 +20,7 @@ from egregora.agents.tools.profiler import filter_opted_out_authors, process_com
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
 from egregora.config import ModelConfig, load_egregora_config, resolve_site_paths
+from egregora.config.schema import EgregoraConfig
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
@@ -42,22 +43,15 @@ def run_source_pipeline(
     source: str,
     input_path: Path,
     output_dir: Path,
+    config: EgregoraConfig,
     *,
-    period: str = "day",
-    enable_enrichment: bool = True,
-    from_date: date | None = None,
-    to_date: date | None = None,
-    timezone: str | None = None,
-    gemini_api_key: str | None = None,
-    model: str | None = None,
-    resume: bool = True,
-    batch_threshold: int = 10,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    api_key: str | None = None,
+    model_override: str | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete source-agnostic pipeline.
+
+    MODERN (Phase 2): Uses EgregoraConfig instead of 16 individual parameters.
 
     This is the main entry point for processing chat exports from any source.
     It handles:
@@ -73,18 +67,9 @@ def run_source_pipeline(
         source: Source identifier ("whatsapp", "slack", etc.)
         input_path: Path to input file (ZIP, JSON, etc.)
         output_dir: Output directory for generated content
-        period: Grouping period ("day", "week", "month")
-        enable_enrichment: Whether to enrich with URL/media context
-        from_date: Optional start date filter
-        to_date: Optional end date filter
-        timezone: Timezone for timestamp normalization
-        gemini_api_key: Google Gemini API key
-        model: Model override
-        resume: Whether to resume from checkpoints
-        batch_threshold: Threshold for batch processing
-        retrieval_mode: RAG retrieval mode ("ann" or "exact")
-        retrieval_nprobe: Number of probes for ANN retrieval
-        retrieval_overfetch: Overfetch factor for retrieval
+        config: Egregora configuration (models, RAG, pipeline, enrichment, etc.)
+        api_key: Google Gemini API key (optional override)
+        model_override: Model override for CLI --model flag
         client: Optional pre-configured genai.Client
 
     Returns:
@@ -121,10 +106,29 @@ def run_source_pipeline(
     try:
         if options is not None:
             options.default_backend = backend
-        egregora_config = load_egregora_config(site_paths.site_root)
-        model_config = ModelConfig(config=egregora_config, cli_model=model)
+        # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
+        timezone = config.pipeline.timezone
+        period = config.pipeline.period
+        resume = config.pipeline.resume
+        batch_threshold = config.pipeline.batch_threshold
+        enable_enrichment = config.enrichment.enabled
+        retrieval_mode = config.rag.mode
+        retrieval_nprobe = config.rag.nprobe
+        retrieval_overfetch = config.rag.overfetch
+
+        # Parse date strings if provided
+        from datetime import date as date_type
+
+        from_date: date_type | None = None
+        to_date: date_type | None = None
+        if config.pipeline.from_date:
+            from_date = date_type.fromisoformat(config.pipeline.from_date)
+        if config.pipeline.to_date:
+            to_date = date_type.fromisoformat(config.pipeline.to_date)
+
+        model_config = ModelConfig(config=config, cli_model=model_override)
         if client is None:
-            client = genai.Client(api_key=gemini_api_key)
+            client = genai.Client(api_key=api_key)
         text_model = model_config.get_model("enricher")
         vision_model = model_config.get_model("enricher_vision")
         embedding_model = model_config.get_model("embedding")
