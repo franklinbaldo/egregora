@@ -20,7 +20,7 @@ import ibis
 from google import genai
 from ibis.expr.types import Table
 
-from egregora.config import ModelConfig
+from egregora.config import ModelConfig, to_pydantic_ai_model
 from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.agents import (
@@ -118,9 +118,10 @@ def enrich_table(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    # Create pydantic-ai agents for enrichment with provided clients
-    url_agent = create_url_enrichment_agent(url_model, client=text_client)
-    media_agent = create_media_enrichment_agent(vision_model, client=vision_client)
+    # Create pydantic-ai agents with configured models
+    # Convert from Google API format to pydantic-ai format and create agents
+    url_enrichment_agent = create_url_enrichment_agent(to_pydantic_ai_model(url_model))
+    media_enrichment_agent = create_media_enrichment_agent(to_pydantic_ai_model(vision_model))
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -256,7 +257,7 @@ def enrich_table(
                 time=ts.strftime("%H:%M"),
             )
             try:
-                result = url_agent.run_sync("Enrich this URL", deps=context)
+                result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
                 url_job.markdown = result.data.markdown
                 cache.store(url_job.key, {"markdown": result.data.markdown, "type": "url"})
             except Exception as e:
@@ -292,7 +293,7 @@ def enrich_table(
                     binary_content,
                 ]
 
-                result = media_agent.run_sync(message_content, deps=context)
+                result = media_enrichment_agent.run_sync(message_content, deps=context)
                 markdown_content = result.data.markdown.strip()
                 if not markdown_content:
                     markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"

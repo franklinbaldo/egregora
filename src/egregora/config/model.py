@@ -31,6 +31,30 @@ DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
 
 
+def to_pydantic_ai_model(model_name: str) -> str:
+    """
+    Convert Google API model format to pydantic-ai string notation.
+
+    Examples:
+        "models/gemini-flash-latest" -> "google-gla:gemini-flash-latest"
+        "models/gemini-2.0-flash-exp" -> "google-gla:gemini-2.0-flash-exp"
+        "gemini-flash-latest" -> "google-gla:gemini-flash-latest"
+
+    Args:
+        model_name: Model name in Google API format
+
+    Returns:
+        Model name in pydantic-ai format (provider:model)
+    """
+    # Remove "models/" prefix if present
+    if model_name.startswith("models/"):
+        model_name = model_name.replace("models/", "", 1)
+
+    # Add pydantic-ai provider prefix
+    # Use google-gla for standard Gemini API (reads from GOOGLE_API_KEY)
+    return f"google-gla:{model_name}"
+
+
 class ModelConfig:
     """Centralized model configuration with fallback hierarchy."""
 

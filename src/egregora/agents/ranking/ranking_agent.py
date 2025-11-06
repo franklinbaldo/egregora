@@ -9,6 +9,7 @@ maintaining the same three-turn protocol:
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,12 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
 
-try:
-    from pydantic_ai.models.gemini import GeminiModel
-    from pydantic_ai.providers.gemini import GeminiProvider as GoogleProvider  # pragma: no cover
-except ImportError:  # pragma: no cover - newer SDK uses google module
-    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
-    from pydantic_ai.providers.google import GoogleProvider  # type: ignore
+from egregora.config import to_pydantic_ai_model
 
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
@@ -404,14 +400,13 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
 
     with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
         # Create agent - text output since we collect results in state
-        # Create model with API key if provided
+        # Create model with pydantic-ai string notation
+        # Note: Pydantic-AI reads GOOGLE_API_KEY from environment automatically
         if agent_model is None:
+            # Set API key in environment for pydantic-ai to use
             if api_key:
-                # Use pydantic-ai's GoogleProvider with API key directly
-                provider = GoogleProvider(api_key=api_key)
-                model_instance = GeminiModel(model, provider=provider)
-            else:
-                model_instance = GeminiModel(model)
+                os.environ["GOOGLE_API_KEY"] = api_key
+            model_instance = to_pydantic_ai_model(model)
         else:
             model_instance = agent_model
 

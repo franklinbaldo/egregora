@@ -174,7 +174,6 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
             avatar_uuid=avatar_uuid,
             avatar_path=avatar_path,
             docs_dir=docs_dir,
-            vision_client=vision_client,
             model=model,
         )
 

@@ -18,7 +18,7 @@ import httpx
 from google import genai
 from PIL import Image
 
-from ..config import MEDIA_DIR_NAME
+from ..config import MEDIA_DIR_NAME, to_pydantic_ai_model
 from ..enrichment.agents import (
     AvatarEnrichmentContext,
     create_avatar_enrichment_agent,
@@ -515,18 +515,19 @@ def enrich_and_moderate_avatar(
     avatar_uuid: uuid.UUID,
     avatar_path: Path,
     docs_dir: Path,
-    vision_client: genai.Client,
-    model: str = "gemini-2.0-flash-exp",
+    model: str = "models/gemini-flash-latest",
 ) -> AvatarModerationResult:
     """
     Enrich avatar image with AI description and moderation.
+
+    Creates pydantic-ai agent with configured model.
+    Reads auth from GOOGLE_API_KEY environment variable.
 
     Args:
         avatar_uuid: UUID of the avatar
         avatar_path: Path to avatar image
         docs_dir: MkDocs docs directory
-        vision_client: Gemini client (used for agent authentication)
-        model: Model name for vision processing
+        model: Model name in Google API format (default: models/gemini-flash-latest)
 
     Returns:
         AvatarModerationResult with moderation verdict
@@ -535,6 +536,9 @@ def enrich_and_moderate_avatar(
         AvatarProcessingError: If enrichment fails
     """
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
+
+    # Create agent with configured model
+    avatar_enrichment_agent = create_avatar_enrichment_agent(to_pydantic_ai_model(model))
 
     try:
         # Load image as binary content (no upload needed!)
@@ -549,16 +553,14 @@ def enrich_and_moderate_avatar(
             media_path=relative_path,
         )
 
-        # Create avatar enrichment agent with the provided client
-        avatar_agent = create_avatar_enrichment_agent(model, client=vision_client)
-
+        # Use module-level avatar enrichment agent
         # Build multimodal message content
         message_content = [
             "Analyze and moderate this avatar image",
             binary_content,
         ]
 
-        result = avatar_agent.run_sync(message_content, deps=context)
+        result = avatar_enrichment_agent.run_sync(message_content, deps=context)
 
         # Extract structured output
         is_appropriate = result.data.is_appropriate

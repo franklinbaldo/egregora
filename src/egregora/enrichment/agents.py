@@ -1,4 +1,8 @@
-"""Pydantic AI agents for enrichment tasks."""
+"""Pydantic AI agents for enrichment tasks.
+
+Factory functions create agents with configurable models from CLI/config.
+Uses pydantic-ai string notation for model specification.
+"""
 
 from __future__ import annotations
 
@@ -6,12 +10,9 @@ import logging
 import mimetypes
 from pathlib import Path
 
-from google import genai
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
 
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
@@ -65,27 +66,20 @@ class AvatarEnrichmentContext(BaseModel):
     media_path: str
 
 
-def create_url_enrichment_agent(
-    model_name: str,
-    client: genai.Client | None = None,
-) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
-    """Create an agent for URL enrichment.
+# Agent factory functions
+# Models are configurable via CLI/mkdocs.yml through ModelConfig
+
+
+def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
+    """
+    Create URL enrichment agent with specified model.
 
     Args:
-        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
-        client: Optional genai.Client. If provided, will be used for inference.
-                If None, uses GOOGLE_API_KEY from environment.
+        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
-        Configured pydantic-ai Agent
+        Configured agent for URL enrichment
     """
-    # Create model with optional client
-    if client:
-        provider = GoogleProvider(client=client)
-        model = GoogleModel(model_name, provider=provider)
-    else:
-        model = GoogleModel(model_name)
-
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
         model,
         output_type=EnrichmentOutput,
@@ -93,7 +87,7 @@ def create_url_enrichment_agent(
 
     @agent.system_prompt
     def url_system_prompt(ctx: RunContext[UrlEnrichmentContext]) -> str:
-        """Generate system prompt from template."""
+        """Generate system prompt for URL enrichment."""
         template = DetailedUrlEnrichmentPromptTemplate(
             url=ctx.deps.url,
             original_message=ctx.deps.original_message,
@@ -106,27 +100,16 @@ def create_url_enrichment_agent(
     return agent
 
 
-def create_media_enrichment_agent(
-    model_name: str,
-    client: genai.Client | None = None,
-) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
-    """Create an agent for media enrichment.
+def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
+    """
+    Create media enrichment agent with specified model.
 
     Args:
-        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
-        client: Optional genai.Client. If provided, will be used for inference.
-                If None, uses GOOGLE_API_KEY from environment.
+        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
-        Configured pydantic-ai Agent
+        Configured agent for media enrichment
     """
-    # Create model with optional client
-    if client:
-        provider = GoogleProvider(client=client)
-        model = GoogleModel(model_name, provider=provider)
-    else:
-        model = GoogleModel(model_name)
-
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
         model,
         output_type=EnrichmentOutput,
@@ -134,7 +117,7 @@ def create_media_enrichment_agent(
 
     @agent.system_prompt
     def media_system_prompt(ctx: RunContext[MediaEnrichmentContext]) -> str:
-        """Generate system prompt from template."""
+        """Generate system prompt for media enrichment."""
         template = DetailedMediaEnrichmentPromptTemplate(
             media_type=ctx.deps.media_type,
             media_filename=ctx.deps.media_filename,
@@ -149,27 +132,16 @@ def create_media_enrichment_agent(
     return agent
 
 
-def create_avatar_enrichment_agent(
-    model_name: str,
-    client: genai.Client | None = None,
-) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
-    """Create an agent for avatar enrichment and moderation.
+def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
+    """
+    Create avatar enrichment agent with specified model.
 
     Args:
-        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
-        client: Optional genai.Client. If provided, will be used for inference.
-                If None, uses GOOGLE_API_KEY from environment.
+        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
-        Configured pydantic-ai Agent
+        Configured agent for avatar moderation
     """
-    # Create model with optional client
-    if client:
-        provider = GoogleProvider(client=client)
-        model = GoogleModel(model_name, provider=provider)
-    else:
-        model = GoogleModel(model_name)
-
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
         model,
         output_type=AvatarModerationOutput,
@@ -177,7 +149,7 @@ def create_avatar_enrichment_agent(
 
     @agent.system_prompt
     def avatar_system_prompt(ctx: RunContext[AvatarEnrichmentContext]) -> str:
-        """Generate system prompt from template."""
+        """Generate system prompt for avatar moderation."""
         template = AvatarEnrichmentPromptTemplate(
             media_filename=ctx.deps.media_filename,
             media_path=ctx.deps.media_path,
@@ -188,44 +160,18 @@ def create_avatar_enrichment_agent(
 
 
 def load_file_as_binary_content(file_path: Path) -> BinaryContent:
-    """Load a file and return as pydantic-ai BinaryContent.
+    """
+    Load a file as BinaryContent for pydantic-ai agents.
 
     Args:
-        file_path: Path to file to load
+        file_path: Path to the file
 
     Returns:
-        BinaryContent with file data and MIME type
-
-    Raises:
-        RuntimeError: If file loading fails
+        BinaryContent object with file bytes and media type
     """
-    logger.debug("Loading media file: %s", file_path)
+    media_type, _ = mimetypes.guess_type(str(file_path))
+    if not media_type:
+        media_type = "application/octet-stream"
 
-    try:
-        # Read file bytes
-        file_data = file_path.read_bytes()
-
-        # Infer MIME type
-        mime_type, _ = mimetypes.guess_type(str(file_path))
-        if not mime_type:
-            # Fallback based on extension
-            ext = file_path.suffix.lower()
-            mime_type_map = {
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".png": "image/png",
-                ".gif": "image/gif",
-                ".webp": "image/webp",
-                ".mp4": "video/mp4",
-                ".mp3": "audio/mpeg",
-                ".pdf": "application/pdf",
-            }
-            mime_type = mime_type_map.get(ext, "application/octet-stream")
-
-        logger.debug(f"Loaded {len(file_data)} bytes with MIME type {mime_type}")
-
-        return BinaryContent(data=file_data, media_type=mime_type)
-
-    except Exception as e:
-        logger.error(f"Failed to load file {file_path}: {e}", exc_info=True)
-        raise RuntimeError(f"File loading failed: {e}") from e
+    file_bytes = file_path.read_bytes()
+    return BinaryContent(data=file_bytes, media_type=media_type)

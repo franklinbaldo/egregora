@@ -40,12 +40,7 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             return json.dumps(messages, indent=2, default=str)
 
 
-try:
-    from pydantic_ai.models.gemini import GeminiModel
-    from pydantic_ai.providers.gemini import GeminiProvider as GoogleProvider  # pragma: no cover
-except ImportError:  # pragma: no cover - newer SDK uses google module
-    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
-    from pydantic_ai.providers.google import GoogleProvider  # type: ignore
+from egregora.config import to_pydantic_ai_model
 
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
@@ -287,13 +282,10 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend")
 
-    # Create model with provided client
+    # Create model with pydantic-ai string notation
+    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        if client:
-            provider = GoogleProvider(client=client)
-            model = GeminiModel(model_name, provider=provider)
-        else:
-            model = GeminiModel(model_name)
+        model = to_pydantic_ai_model(model_name)
     else:
         model = agent_model
 
@@ -477,13 +469,10 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
-    # Create model with provided client
+    # Create model with pydantic-ai string notation
+    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        if client:
-            provider = GoogleProvider(client=client)
-            model = GeminiModel(model_name, provider=provider)
-        else:
-            model = GeminiModel(model_name)
+        model = to_pydantic_ai_model(model_name)
     else:
         model = agent_model
 
