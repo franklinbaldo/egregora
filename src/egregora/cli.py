@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import random
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
@@ -286,14 +286,14 @@ def process(
     to_date_obj = None
     if from_date:
         try:
-            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
         except ValueError as e:
             console.print(f"[red]Invalid from_date format: {e}[/red]")
             console.print("[yellow]Expected format: YYYY-MM-DD[/yellow]")
             raise typer.Exit(1) from e
     if to_date:
         try:
-            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
         except ValueError as e:
             console.print(f"[red]Invalid to_date format: {e}[/red]")
             console.print("[yellow]Expected format: YYYY-MM-DD[/yellow]")
@@ -665,7 +665,7 @@ def parse(
             zip_path=zip_path,
             group_name=group_name,
             group_slug=group_slug,
-            export_date=datetime.now().date(),
+            export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
         )
@@ -711,13 +711,13 @@ def group(
     to_date_obj = None
     if from_date:
         try:
-            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
         except ValueError as e:
             console.print(f"[red]Invalid from_date format: {e}[/red]")
             raise typer.Exit(1) from e
     if to_date:
         try:
-            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
         except ValueError as e:
             console.print(f"[red]Invalid to_date format: {e}[/red]")
             raise typer.Exit(1) from e

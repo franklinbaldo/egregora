@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
@@ -323,7 +323,7 @@ def write_posts_with_pydantic_agent(
         if record_dir:
             output_path = Path(record_dir).expanduser()
             output_path.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
             filename = output_path / f"writer-{period_date}-{timestamp}.json"
             try:
                 payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())

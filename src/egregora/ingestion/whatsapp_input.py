@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import zipfile
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from egregora.enrichment.batch import _iter_table_record_batches
@@ -99,9 +100,7 @@ class WhatsAppInputSource(InputSource):
         if group_name is None:
             group_name = self._infer_group_name(source_path)
         if export_date is None:
-            from datetime import date as date_type
-
-            export_date = date_type.today()
+            export_date = datetime.now(tz=UTC).date()
         slug = group_slug(group_name)
         export = WhatsAppExport(
             zip_path=source_path,

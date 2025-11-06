@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
 import ibis
@@ -155,7 +155,7 @@ class SlackAdapter(SourceAdapter):
             if msg.get("type") != "message":
                 continue
             ts_str = msg.get("ts", "0")
-            timestamp = datetime.fromtimestamp(float(ts_str))
+            timestamp = datetime.fromtimestamp(float(ts_str), tz=UTC)
             ir_msg = {
                 "timestamp": timestamp,
                 "date": timestamp.date(),
@@ -208,5 +208,5 @@ class SlackAdapter(SourceAdapter):
         return {
             "channel_name": "unknown-channel",
             "workspace": "unknown-workspace",
-            "export_date": datetime.now().date().isoformat(),
+            "export_date": datetime.now(tz=UTC).date().isoformat(),
         }

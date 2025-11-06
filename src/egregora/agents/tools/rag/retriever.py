@@ -190,8 +190,9 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
             date_str = date_match.group(1).strip()
             time_str = time_match.group(1).strip()
             try:
-                parsed = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                metadata["message_date"] = parsed.replace(tzinfo=UTC)
+                metadata["message_date"] = datetime.strptime(
+                    f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
+                ).replace(tzinfo=UTC)
             except ValueError:
                 logger.warning("Failed to parse date/time: %s %s", date_str, time_str)
                 metadata["message_date"] = None

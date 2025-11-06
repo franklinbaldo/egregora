@@ -18,6 +18,7 @@ import unicodedata
 import zipfile
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import ibis
 from dateutil import parser as date_parser
@@ -230,7 +231,7 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     return (filtered_messages, removed_count)
 
 
-def parse_export(export: WhatsAppExport, timezone: str | None = None) -> Table:
+def parse_export(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
     """Parse an individual export into an Ibis ``Table``.
 
     Args:
@@ -247,7 +248,7 @@ def parse_export(export: WhatsAppExport, timezone: str | None = None) -> Table:
         try:
             with zf.open(export.chat_file) as raw:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                rows = _parse_messages(text_stream, export)
+                rows = _parse_messages(text_stream, export, timezone)
         except UnicodeDecodeError as exc:
             msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
             raise ZipValidationError(msg) from exc
@@ -267,8 +268,14 @@ def parse_export(export: WhatsAppExport, timezone: str | None = None) -> Table:
     return anonymize_table(messages)
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
-    """Parse multiple exports and concatenate them ordered by timestamp."""
+def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None = None) -> Table:
+    """Parse multiple exports and concatenate them ordered by timestamp.
+
+    Args:
+        exports: Sequence of WhatsApp export metadata
+        timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
+
+    """
     tables: list[Table] = []
     for export in exports:
         try:
@@ -278,7 +285,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
                 try:
                     with zf.open(export.chat_file) as raw:
                         text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                        rows = _parse_messages(text_stream, export)
+                        rows = _parse_messages(text_stream, export, timezone)
                 except UnicodeDecodeError as exc:
                     msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
                     raise ZipValidationError(msg) from exc
@@ -296,7 +303,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
             continue
     if not tables:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return ensure_message_schema(empty_table)
+        return ensure_message_schema(empty_table, timezone=timezone)
     combined = tables[0]
     for table in tables[1:]:
         combined = combined.union(table, distinct=False)
@@ -317,7 +324,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
         drop_columns.append(_IMPORT_SOURCE_COLUMN)
     if drop_columns:
         combined = combined.drop(*drop_columns)
-    combined = ensure_message_schema(combined)
+    combined = ensure_message_schema(combined, timezone=timezone)
     return anonymize_table(combined)
 
 
@@ -344,8 +351,17 @@ def _normalize_text(value: str) -> str:
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
-def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
-    """Parse messages from an iterable of strings."""
+def _parse_messages(
+    lines: Iterable[str], export: WhatsAppExport, timezone: str | ZoneInfo | None = None
+) -> list[dict]:
+    """Parse messages from an iterable of strings.
+
+    Args:
+        lines: Iterable of message lines
+        export: WhatsApp export metadata
+        timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
+
+    """
     rows: list[dict] = []
     current_date = export.export_date
     builder: _MessageBuilder | None = None
@@ -377,6 +393,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             author=_normalize_text(match.group("author").strip()),
             initial_message=_normalize_text(match.group("message").strip()),
             original_line=prepared.normalized,
+            timezone=timezone,
         )
     if builder is not None:
         row = builder.finalize()
@@ -425,6 +442,12 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
 
 
 def _parse_message_time(time_token: str, am_pm: str | None, context_line: str) -> datetime.time | None:
+    """Parse time from WhatsApp message line.
+
+    Returns naive time objects intentionally - downstream code (ensure_message_schema)
+    expects naive times to properly localize them to the phone's actual timezone.
+    Adding tzinfo here would cause incorrect double-conversion.
+    """
     try:
         if am_pm:
             return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
@@ -442,8 +465,16 @@ def _start_message_builder(
     author: str,
     initial_message: str,
     original_line: str,
+    timezone: str | ZoneInfo | None = None,
 ) -> _MessageBuilder:
-    builder = _MessageBuilder(timestamp=datetime.combine(msg_date, msg_time), date=msg_date, author=author)
+    if timezone is None:
+        tz = UTC
+    elif isinstance(timezone, ZoneInfo):
+        tz = timezone
+    else:
+        tz = ZoneInfo(timezone)
+    timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz)
+    builder = _MessageBuilder(timestamp=timestamp, date=msg_date, author=author)
     builder.append(initial_message, original_line)
     return builder
 
