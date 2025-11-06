@@ -98,12 +98,14 @@ def _handle_search_media_tool(  # noqa: PLR0913
     rag_dir: Path,
     *,
     embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> genai_types.Content:
-    """Handle search_media tool call."""
+    """Handle search_media tool call.
+
+    All embeddings use fixed 768 dimensions.
+    """
     query = fn_args.get("query", "")
     media_types = fn_args.get("media_types")
     limit = fn_args.get("limit", 5)
@@ -112,13 +114,11 @@ def _handle_search_media_tool(  # noqa: PLR0913
         store = VectorStore(rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            client=client,
             store=store,
             media_types=media_types,
             top_k=limit,
             min_similarity=0.7,
             embedding_model=embedding_model,
-            output_dimensionality=embedding_output_dimensionality,
             retrieval_mode=retrieval_mode,
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,

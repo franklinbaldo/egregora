@@ -40,11 +40,12 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             return json.dumps(messages, indent=2, default=str)
 
 
-from egregora.agents.banner import generate_banner_for_post
+from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
-from egregora.agents.tools.rag import VectorStore, query_media
-from egregora.config import to_pydantic_ai_model
+from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
+
+# Models from config are already in pydantic-ai format
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
@@ -120,7 +121,6 @@ class WriterAgentState(BaseModel):
     rag_dir: Path
     batch_client: Any
     embedding_model: str
-    embedding_output_dimensionality: int
     retrieval_mode: str
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
@@ -138,8 +138,18 @@ class WriterAgentState(BaseModel):
         self.saved_profiles.append(path)
 
 
-def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) -> None:
-    """Attach tool implementations to the agent."""
+def _register_writer_tools(
+    agent: Agent[WriterAgentState, WriterAgentReturn],
+    enable_banner: bool = False,
+    enable_rag: bool = False,
+) -> None:
+    """Attach tool implementations to the agent.
+
+    Args:
+        agent: The writer agent to register tools with
+        enable_banner: Whether to register banner generation tool (requires GOOGLE_API_KEY)
+        enable_rag: Whether to register RAG search tools (requires GOOGLE_API_KEY)
+    """
 
     @agent.tool
     def write_post_tool(
@@ -175,46 +185,53 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
         ctx.deps.record_profile(path)
         return WriteProfileResult(status="success", path=path)
 
-    @agent.tool
-    def search_media_tool(
-        ctx: RunContext[WriterAgentState],
-        query: str,
-        media_types: list[str] | None = None,
-        limit: int = 5,
-    ) -> SearchMediaResult:
-        store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
-        results = query_media(
-            query=query,
-            client=ctx.deps.batch_client,
-            store=store,
-            media_types=media_types,
-            top_k=limit,
-            min_similarity=0.7,
-            embedding_model=ctx.deps.embedding_model,
-            output_dimensionality=ctx.deps.embedding_output_dimensionality,
-            retrieval_mode=ctx.deps.retrieval_mode,
-            retrieval_nprobe=ctx.deps.retrieval_nprobe,
-            retrieval_overfetch=ctx.deps.retrieval_overfetch,
-        )
+    # RAG search is optional (requires GOOGLE_API_KEY)
+    if enable_rag:
 
-        # Use Ibis streaming instead of pandas .execute().iterrows()
-        # This avoids materializing the full result set and complies with Ibis-first policy
-        items: list[MediaItem] = []
-        for batch in stream_ibis(results, store._client, batch_size=100):
-            items.extend(
-                MediaItem(
-                    media_type=row.get("media_type"),
-                    media_path=row.get("media_path"),
-                    original_filename=row.get("original_filename"),
-                    description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity")) if row.get("similarity") is not None else None,
-                )
-                for row in batch
+        @agent.tool
+        def search_media_tool(
+            ctx: RunContext[WriterAgentState],
+            query: str,
+            media_types: list[str] | None = None,
+            limit: int = 5,
+        ) -> SearchMediaResult:
+            store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
+            results = query_media(
+                query=query,
+                store=store,
+                media_types=media_types,
+                top_k=limit,
+                min_similarity=0.7,
+                embedding_model=ctx.deps.embedding_model,
+                retrieval_mode=ctx.deps.retrieval_mode,
+                retrieval_nprobe=ctx.deps.retrieval_nprobe,
+                retrieval_overfetch=ctx.deps.retrieval_overfetch,
             )
 
-        if not items:
-            logger.info("Writer agent search_media returned no matches for query %s", query)
-        return SearchMediaResult(results=items)
+            # Use Ibis streaming instead of pandas .execute().iterrows()
+            # This avoids materializing the full result set and complies with Ibis-first policy
+            items: list[MediaItem] = []
+            for batch in stream_ibis(results, store._client, batch_size=100):
+                items.extend(
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=(str(row.get("content", "")) or "")[:500],
+                        similarity=(
+                            float(row.get("similarity")) if row.get("similarity") is not None else None
+                        ),
+                    )
+                    for row in batch
+                )
+
+            if not items:
+                logger.info("Writer agent search_media returned no matches for query %s", query)
+            return SearchMediaResult(results=items)
+
+        logger.info("RAG search tool registered")
+    else:
+        logger.info("RAG search tool disabled (no GOOGLE_API_KEY)")
 
     @agent.tool
     def annotate_conversation_tool(
@@ -237,22 +254,29 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
             parent_type=annotation.parent_type,
         )
 
-    @agent.tool
-    def generate_banner_tool(
-        ctx: RunContext[WriterAgentState],
-        post_slug: str,
-        title: str,
-        summary: str,
-    ) -> BannerResult:
-        banner_path = generate_banner_for_post(
-            post_title=title,
-            post_summary=summary,
-            output_dir=ctx.deps.output_dir,
-            slug=post_slug,
-        )
-        if banner_path:
-            return BannerResult(status="success", path=str(banner_path))
-        return BannerResult(status="skipped", path=None)
+    # Banner generation is optional (requires GOOGLE_API_KEY)
+    if enable_banner:
+
+        @agent.tool
+        def generate_banner_tool(
+            ctx: RunContext[WriterAgentState],
+            post_slug: str,
+            title: str,
+            summary: str,
+        ) -> BannerResult:
+            banner_path = generate_banner_for_post(
+                post_title=title,
+                post_summary=summary,
+                output_dir=ctx.deps.output_dir,
+                slug=post_slug,
+            )
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="skipped", path=None)
+
+        logger.info("Banner generation tool registered")
+    else:
+        logger.info("Banner generation tool disabled (no GOOGLE_API_KEY)")
 
 
 def write_posts_with_pydantic_agent(  # noqa: PLR0913
@@ -265,7 +289,6 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     rag_dir: Path,
     client: Any,
     embedding_model: str,
-    embedding_output_dimensionality: int,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
@@ -281,10 +304,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend")
 
-    # Create model with pydantic-ai string notation
-    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+    # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
+        model = model_name
     else:
         model = agent_model
 
@@ -294,7 +316,11 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent)
+        _register_writer_tools(
+            agent,
+            enable_banner=is_banner_generation_available(),
+            enable_rag=is_rag_available(),
+        )
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
@@ -308,7 +334,6 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         rag_dir=rag_dir,
         batch_client=client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
@@ -438,7 +463,6 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     rag_dir: Path,
     client: Any,
     embedding_model: str,
-    embedding_output_dimensionality: int,
     retrieval_mode: str,
     retrieval_nprobe: int | None,
     retrieval_overfetch: int | None,
@@ -468,10 +492,9 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 
-    # Create model with pydantic-ai string notation
-    # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+    # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
-        model = to_pydantic_ai_model(model_name)
+        model = model_name
     else:
         model = agent_model
 
@@ -481,7 +504,11 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent)
+        _register_writer_tools(
+            agent,
+            enable_banner=is_banner_generation_available(),
+            enable_rag=is_rag_available(),
+        )
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
@@ -495,7 +522,6 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
         rag_dir=rag_dir,
         batch_client=client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=embedding_output_dimensionality,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,

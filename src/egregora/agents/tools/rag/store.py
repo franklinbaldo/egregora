@@ -12,6 +12,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from ibis.expr.types import Table
 
+from egregora.config import EMBEDDING_DIM
 from egregora.database import schema as database_schema
 
 logger = logging.getLogger(__name__)
@@ -335,16 +336,19 @@ class VectorStore:
             self._clear_index_meta()
             return
 
+        # Use HNSW index for better performance with fixed-dimension vectors
         try:
             self.conn.execute(
                 f"""
                 CREATE INDEX {INDEX_NAME}
-                ON {TABLE_NAME}(embedding)
-                USING vss(metric='cosine', storage_type='ivfflat')
+                ON {TABLE_NAME}
+                USING HNSW (embedding)
+                WITH (metric = 'cosine')
                 """
             )
+            logger.info("Created HNSW index on embedding column")
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
-            logger.warning("Skipping VSS index rebuild: %s", exc)
+            logger.warning("Skipping HNSW index creation: %s", exc)
 
     def _upsert_index_meta(
         self,
@@ -402,20 +406,22 @@ class VectorStore:
         """
         Validate embedding dimensionality consistency.
 
+        All embeddings must be exactly 768 dimensions.
+
         Args:
             embeddings: List of embedding vectors to validate
             context: Description of where these embeddings come from (for error messages)
 
         Returns:
-            The consistent embedding dimension
+            The embedding dimension (always 768)
 
         Raises:
-            ValueError: If embeddings have inconsistent dimensions or don't match stored dimension
+            ValueError: If embeddings are not 768 dimensions
         """
         if not embeddings:
             raise ValueError(f"{context}: No embeddings provided")
 
-        # Check consistency within this batch
+        # Check that all embeddings are 768 dimensions
         dimensions = {len(emb) for emb in embeddings}
         if len(dimensions) > 1:
             raise ValueError(
@@ -424,13 +430,12 @@ class VectorStore:
 
         current_dim = dimensions.pop()
 
-        # Check against stored dimension
-        stored_dim = self._get_stored_embedding_dim()
-        if stored_dim is not None and current_dim != stored_dim:
+        # All embeddings must be exactly 768 dimensions
+        if current_dim != EMBEDDING_DIM:
             raise ValueError(
                 f"{context}: Embedding dimension mismatch. "
-                f"Expected {stored_dim} (from existing data), got {current_dim}. "
-                f"Cannot mix different embedding models/dimensions in the same store."
+                f"Expected {EMBEDDING_DIM} (fixed dimension), got {current_dim}. "
+                f"All embeddings must use 768 dimensions."
             )
 
         return current_dim
@@ -463,7 +468,7 @@ class VectorStore:
                 # Common fields
                 - chunk_index: int
                 - content: str
-                - embedding: list[float] (configured dimensionality)
+                - embedding: list[float] (exactly 768 dimensions)
                 - tags: list[str]
                 - category: str | None
         """
@@ -612,17 +617,13 @@ class VectorStore:
         if not table_present or table_present[0] == 0:
             return self._empty_table(SEARCH_RESULT_SCHEMA)
 
+        # All embeddings must be fixed 768 dimensions
         embedding_dimensionality = len(query_vec)
-        if embedding_dimensionality == 0:
-            raise ValueError("Query embedding vector must not be empty")
-
-        # Validate query vector dimension against stored dimension
-        stored_dim = self._get_stored_embedding_dim()
-        if stored_dim is not None and embedding_dimensionality != stored_dim:
+        if embedding_dimensionality != EMBEDDING_DIM:
             raise ValueError(
                 f"Query embedding dimension mismatch. "
-                f"Expected {stored_dim} (from indexed data), got {embedding_dimensionality}. "
-                f"Ensure you're using the same embedding model as when indexing."
+                f"Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. "
+                f"All embeddings must use 768 dimensions."
             )
 
         mode_normalized = mode.lower()
@@ -667,13 +668,14 @@ class VectorStore:
 
         order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
 
+        # Use fixed 768-dimension arrays for HNSW optimization
         exact_base_query = f"""
             WITH candidates AS (
                 SELECT
                     * EXCLUDE (embedding),
                     array_cosine_similarity(
-                        embedding::FLOAT[{embedding_dimensionality}],
-                        ?::FLOAT[{embedding_dimensionality}]
+                        embedding::FLOAT[{EMBEDDING_DIM}],
+                        ?::FLOAT[{EMBEDDING_DIM}]
                     ) AS similarity
                 FROM {TABLE_NAME}
             )
@@ -740,6 +742,7 @@ class VectorStore:
         nprobe_clause: str,
         embedding_dimensionality: int,
     ) -> str:
+        # Use fixed 768-dimension arrays for HNSW optimization (ignore embedding_dimensionality param)
         return f"""
             WITH candidates AS (
                 SELECT
@@ -748,7 +751,7 @@ class VectorStore:
                 FROM {function_name}(
                     '{TABLE_NAME}',
                     'embedding',
-                    ?::FLOAT[{embedding_dimensionality}],
+                    ?::FLOAT[{EMBEDDING_DIM}],
                     top_k := {ann_limit},
                     metric := 'cosine'{nprobe_clause}
                 ) AS vs

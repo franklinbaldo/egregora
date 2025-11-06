@@ -1,5 +1,20 @@
-"""Banner/cover image generation for blog posts."""
+"""Banner/cover image generation for blog posts.
 
-from egregora.agents.banner.generator import BannerGenerator, generate_banner_for_post
+Requires GOOGLE_API_KEY environment variable.
+"""
 
-__all__ = ["BannerGenerator", "generate_banner_for_post"]
+from egregora.agents.banner.generator import (
+    BannerGenerator,
+    BannerRequest,
+    BannerResult,
+    generate_banner_for_post,
+    is_banner_generation_available,
+)
+
+__all__ = [
+    "BannerGenerator",
+    "BannerRequest",
+    "BannerResult",
+    "generate_banner_for_post",
+    "is_banner_generation_available",
+]

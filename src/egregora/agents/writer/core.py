@@ -57,14 +57,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class WriterConfig:
-    """Configuration for the writer functions."""
+    """Configuration for the writer functions.
+
+    All embeddings use fixed 768-dimension output.
+    """
 
     output_dir: Path = Path("output/posts")
     profiles_dir: Path = Path("output/profiles")
     rag_dir: Path = Path("output/rag")
     model_config: ModelConfig | None = None
     enable_rag: bool = True
-    embedding_output_dimensionality: int = 3072
     retrieval_mode: str = "ann"
     retrieval_nprobe: int | None = None
     retrieval_overfetch: int | None = None
@@ -189,12 +191,14 @@ def _process_tool_calls(  # noqa: PLR0913
     annotations_store: AnnotationStore | None,
     *,
     embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> tuple[bool, list[genai_types.Content], list[str]]:
-    """Process all tool calls from LLM response."""
+    """Process all tool calls from LLM response.
+
+    All embeddings use fixed 768 dimensions.
+    """
     has_tool_calls = False
     tool_responses: list[genai_types.Content] = []
     freeform_parts: list[str] = []
@@ -227,7 +231,6 @@ def _process_tool_calls(  # noqa: PLR0913
                         client,
                         rag_dir,
                         embedding_model=embedding_model,
-                        embedding_output_dimensionality=embedding_output_dimensionality,
                         retrieval_mode=retrieval_mode,
                         retrieval_nprobe=retrieval_nprobe,
                         retrieval_overfetch=retrieval_overfetch,
@@ -252,13 +255,14 @@ def _process_tool_calls(  # noqa: PLR0913
 
 def _index_posts_in_rag(
     saved_posts: list[str],
-    client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
 ) -> None:
-    """Index newly created posts in RAG system."""
+    """Index newly created posts in RAG system.
+
+    All embeddings use fixed 768 dimensions.
+    """
     if not saved_posts:
         return
 
@@ -267,10 +271,8 @@ def _index_posts_in_rag(
         for post_path in saved_posts:
             index_post(
                 Path(post_path),
-                client,
                 store,
                 embedding_model=embedding_model,
-                output_dimensionality=embedding_output_dimensionality,
             )
         logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
     except Exception as e:
@@ -332,7 +334,6 @@ def _write_posts_for_period_pydantic(
             config.rag_dir,
             client,
             embedding_model=embedding_model,
-            embedding_output_dimensionality=config.embedding_output_dimensionality,
             retrieval_mode=config.retrieval_mode,
             retrieval_nprobe=config.retrieval_nprobe,
             retrieval_overfetch=config.retrieval_overfetch,
@@ -391,21 +392,18 @@ Use these features appropriately in your posts. You understand how each extensio
         rag_dir=config.rag_dir,
         client=client,
         embedding_model=embedding_model,
-        embedding_output_dimensionality=config.embedding_output_dimensionality,
         retrieval_mode=config.retrieval_mode,
         retrieval_nprobe=config.retrieval_nprobe,
         retrieval_overfetch=config.retrieval_overfetch,
         annotations_store=annotations_store,
     )
 
-    # Index new posts in RAG
+    # Index new posts in RAG (using fixed 768 dimensions)
     if config.enable_rag:
         _index_posts_in_rag(
             saved_posts,
-            client,
             config.rag_dir,
             embedding_model=embedding_model,
-            embedding_output_dimensionality=config.embedding_output_dimensionality,
         )
 
     return {"posts": saved_posts, "profiles": saved_profiles}

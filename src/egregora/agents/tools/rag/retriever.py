@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TypedDict
 
 import ibis
-from google import genai
 from ibis.expr.types import Table
 
 from egregora.agents.tools.rag.chunker import chunk_document
@@ -33,19 +32,19 @@ DEDUP_MAX_RANK = 2
 
 def index_post(
     post_path: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a blog post.
 
+    All embeddings use fixed 768-dimension output.
+
     Args:
         post_path: Path to markdown file with YAML frontmatter
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
 
     Returns:
         Number of chunks indexed
@@ -62,13 +61,11 @@ def index_post(
     # Extract content for embedding
     chunk_texts = [chunk["content"] for chunk in chunks]
 
-    # Embed chunks (RETRIEVAL_DOCUMENT task type)
+    # Embed chunks (RETRIEVAL_DOCUMENT task type, fixed 768 dimensions)
     embeddings = embed_chunks(
         chunk_texts,
-        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dimensionality=output_dimensionality,
     )
 
     # Build table for storage
@@ -119,13 +116,11 @@ def index_post(
 
 def query_similar_posts(
     table: Table,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
     top_k: int = 5,
     deduplicate: bool = True,
-    output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -141,8 +136,8 @@ def query_similar_posts(
 
     Args:
         table: Period's table (messages)
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
         top_k: Number of results to return
         deduplicate: Keep only 1 chunk per post (highest similarity)
         retrieval_mode: "ann" (default) or "exact" for brute-force search
@@ -160,12 +155,10 @@ def query_similar_posts(
 
     logger.debug(f"Query text length: {len(query_text)} chars")
 
-    # Embed query (use RETRIEVAL_QUERY task type)
+    # Embed query (use RETRIEVAL_QUERY task type, fixed 768 dimensions)
     query_vec = embed_query(
         query_text,
-        client,
         model=embedding_model,
-        output_dimensionality=output_dimensionality,
     )
 
     # Search vector store
@@ -266,11 +259,9 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
 def index_media_enrichment(
     enrichment_path: Path,
     docs_dir: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a media enrichment file.
@@ -278,8 +269,8 @@ def index_media_enrichment(
     Args:
         enrichment_path: Path to enrichment .md file
         docs_dir: Docs directory (for resolving relative paths)
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
 
     Returns:
         Number of chunks indexed
@@ -305,13 +296,11 @@ def index_media_enrichment(
     # Extract content for embedding
     chunk_texts = [chunk["content"] for chunk in chunks]
 
-    # Embed chunks (RETRIEVAL_DOCUMENT task type)
+    # Embed chunks (RETRIEVAL_DOCUMENT task type, fixed 768 dimensions)
     embeddings = embed_chunks(
         chunk_texts,
-        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dimensionality=output_dimensionality,
     )
 
     # Build table for storage
@@ -354,11 +343,9 @@ def index_media_enrichment(
 
 def index_all_media(
     docs_dir: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Index all media enrichment files from media directories.
@@ -368,8 +355,8 @@ def index_all_media(
 
     Args:
         docs_dir: Docs directory
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
 
     Returns:
         Total number of chunks indexed
@@ -398,10 +385,8 @@ def index_all_media(
         chunks_count = index_media_enrichment(
             enrichment_path,
             docs_dir,
-            client,
             store,
             embedding_model=embedding_model,
-            output_dimensionality=output_dimensionality,
         )
         total_chunks += chunks_count
 
@@ -476,7 +461,6 @@ def _coerce_message_datetime(value: object) -> datetime | None:
 
 def query_media(
     query: str,
-    client: genai.Client,
     store: VectorStore,
     media_types: list[str] | None = None,
     top_k: int = 5,
@@ -484,7 +468,6 @@ def query_media(
     deduplicate: bool = True,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -494,12 +477,12 @@ def query_media(
 
     Args:
         query: Natural language search query (e.g., "funny meme about AI")
-        client: Gemini client
         store: Vector store
         media_types: Optional filter by media type (e.g., ["image", "video"])
         top_k: Number of results to return
         min_similarity: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
+        embedding_model: Embedding model name
         retrieval_mode: "ann" (default) or "exact" for brute-force search
         retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
         retrieval_overfetch: Candidate multiplier for ANN mode before filtering
@@ -509,12 +492,10 @@ def query_media(
     """
     logger.info(f"Searching media for: {query}")
 
-    # Embed query (use RETRIEVAL_QUERY task type)
+    # Embed query (use RETRIEVAL_QUERY task type, fixed 768 dimensions)
     query_vec = embed_query(
         query,
-        client,
         model=embedding_model,
-        output_dimensionality=output_dimensionality,
     )
 
     # Search vector store (filter to media documents only)

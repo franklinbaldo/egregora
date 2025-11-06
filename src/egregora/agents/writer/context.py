@@ -42,7 +42,6 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     client: genai.Client,
     *,
     embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -56,12 +55,13 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     fetch similar chunks, and convert them into a short "Relevant context" block
     for the LLM prompt.
 
+    All embeddings use fixed 768 dimensions.
+
     Args:
         table_markdown: Conversation text to use as query
         rag_dir: Directory containing vector store
         client: Gemini client
         embedding_model: Embedding model name
-        embedding_output_dimensionality: Embedding dimension
         retrieval_mode: "ann" or "exact"
         retrieval_nprobe: ANN nprobe
         retrieval_overfetch: ANN overfetch
@@ -81,7 +81,6 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 client=client,
                 rag_dir=rag_dir,
                 embedding_model=embedding_model,
-                output_dimensionality=embedding_output_dimensionality,
                 top_k=top_k,
                 retrieval_mode=retrieval_mode,
                 retrieval_nprobe=retrieval_nprobe,
@@ -94,9 +93,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     try:
         query_vector = embed_query(
             table_markdown,
-            client,
             model=embedding_model,
-            output_dimensionality=embedding_output_dimensionality,
         )
         store = VectorStore(rag_dir / "chunks.parquet")
         search_results = store.search(
@@ -148,7 +145,6 @@ def _query_rag_for_context(  # noqa: PLR0913
     rag_dir: Path,
     *,
     embedding_model: str,
-    embedding_output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -159,12 +155,13 @@ def _query_rag_for_context(  # noqa: PLR0913
     Returns a Result[RagContext, str] with observability data, or legacy tuple
     format when return_records is specified for backward compatibility.
 
+    All embeddings use fixed 768 dimensions.
+
     Args:
         table: Conversation table to query
         client: Gemini client for embeddings
         rag_dir: Directory containing RAG vector store
         embedding_model: Model name for embeddings
-        embedding_output_dimensionality: Embedding dimension size
         retrieval_mode: "ann" or "exact" retrieval mode
         retrieval_nprobe: ANN nprobe parameter
         retrieval_overfetch: ANN overfetch multiplier
@@ -187,12 +184,10 @@ def _query_rag_for_context(  # noqa: PLR0913
             store = VectorStore(rag_dir / "chunks.parquet")
             similar_posts = query_similar_posts(
                 table,
-                client,
                 store,
                 embedding_model=embedding_model,
                 top_k=5,
                 deduplicate=True,
-                output_dimensionality=embedding_output_dimensionality,
                 retrieval_mode=retrieval_mode,
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,

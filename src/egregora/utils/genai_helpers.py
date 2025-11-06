@@ -1,72 +1,154 @@
-"""Simple helpers for embeddings using google.genai client.
+"""Simple helpers for embeddings using Google Generative AI HTTP API.
 
-This module provides straightforward functions for embeddings operations.
+This module provides straightforward functions for embeddings operations using
+direct HTTP API calls (no SDK dependency).
+
 These are utility functions, not agents - they don't need the full pydantic-ai
 agent infrastructure since they're simple vector calculations.
 
 For content generation and enrichment, use pydantic-ai agents instead.
+
+All embeddings use a fixed 768-dimension output for consistency and HNSW optimization.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+import os
+from typing import Annotated, Any
 
-from google import genai
-from google.genai import types as genai_types
+import httpx
 
-from egregora.utils.genai import call_with_retries_sync
+from egregora.config import EMBEDDING_DIM, from_pydantic_ai_model
 
 logger = logging.getLogger(__name__)
 
+# Google Generative AI API base URL
+GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
-def embed_text(
-    client: Annotated[genai.Client, "The Gemini API client"],
-    text: Annotated[str, "The text to embed"],
-    *,
-    model: Annotated[str, "The embedding model to use"],
-    task_type: Annotated[str | None, "The task type for the embedding"] = None,
-    output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
-) -> Annotated[list[float], "The embedding vector"]:
-    """Embed a single text using the genai client.
+# Default timeout for API calls (seconds)
+DEFAULT_TIMEOUT = 60.0
 
-    Args:
-        client: Gemini API client
-        text: Text to embed
-        model: Embedding model name (e.g., "models/text-embedding-004")
-        task_type: Optional task type (e.g., "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
-        output_dimensionality: Optional output dimensionality (e.g., 768, 3072)
+
+def _get_api_key() -> str:
+    """Get Google API key from environment.
 
     Returns:
-        List of floats representing the embedding vector
+        API key string
+
+    Raises:
+        ValueError: If GOOGLE_API_KEY is not set
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GOOGLE_API_KEY environment variable is required for embeddings. "
+            "Set it before calling embedding functions."
+        )
+    return api_key
+
+
+def _call_with_retries(
+    func: Any,
+    *args: Any,
+    max_retries: int = 3,
+    **kwargs: Any,
+) -> Any:
+    """Simple retry wrapper for HTTP calls.
+
+    Args:
+        func: Function to call
+        *args: Positional arguments
+        max_retries: Maximum number of retries
+        **kwargs: Keyword arguments
+
+    Returns:
+        Function result
+
+    Raises:
+        Exception: If all retries fail
+    """
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}. Retrying...")
+            continue
+    raise RuntimeError(f"All {max_retries} attempts failed") from last_error
+
+
+def embed_text(
+    text: Annotated[str, "The text to embed"],
+    *,
+    model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
+    task_type: Annotated[str | None, "The task type for the embedding"] = None,
+    api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
+    timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
+) -> Annotated[list[float], "The embedding vector (768 dimensions)"]:
+    """Embed a single text using the Google Generative AI HTTP API.
+
+    All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
+
+    Args:
+        text: Text to embed
+        model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
+        task_type: Optional task type (e.g., "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
+        api_key: Optional API key (reads from GOOGLE_API_KEY env var if not provided)
+        timeout: Request timeout in seconds
+
+    Returns:
+        List of 768 floats representing the embedding vector
 
     Raises:
         RuntimeError: If embedding fails
+        ValueError: If GOOGLE_API_KEY is not available
     """
-    # Build config if needed
-    config = None
-    if task_type or output_dimensionality:
-        config = genai_types.EmbedContentConfig(
-            task_type=task_type,
-            output_dimensionality=output_dimensionality,
-        )
+    # Get API key
+    effective_api_key = api_key or _get_api_key()
+
+    # Convert from pydantic-ai format to Google API format
+    google_model = from_pydantic_ai_model(model)
+
+    # Build request payload with fixed 768 dimensions
+    payload: dict[str, Any] = {
+        "model": google_model,
+        "content": {"parts": [{"text": text}]},
+        "outputDimensionality": EMBEDDING_DIM,  # Always 768
+    }
+
+    if task_type:
+        payload["taskType"] = task_type
+
+    # API endpoint
+    url = f"{GENAI_API_BASE}/{google_model}:embedContent"
 
     try:
-        response = call_with_retries_sync(
-            client.models.embed_content,
-            model=model,
-            contents=text,
-            config=config,
-        )
 
-        # Extract embedding from response
-        embedding = getattr(response, "embedding", None)
-        values = getattr(embedding, "values", None) if embedding else None
+        def _make_request() -> list[float]:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(
+                    url,
+                    params={"key": effective_api_key},
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
 
-        if values is None:
-            raise RuntimeError(f"No embedding returned for text: {text[:50]}...")
+                # Extract embedding from response
+                embedding = data.get("embedding")
+                if not embedding:
+                    raise RuntimeError(f"No embedding in response: {data}")
 
-        return list(values)
+                values = embedding.get("values")
+                if not values:
+                    raise RuntimeError(f"No values in embedding: {embedding}")
+
+                return list(values)
+
+        return _call_with_retries(_make_request)
 
     except Exception as e:
         logger.error("Failed to embed text: %s", e, exc_info=True)
@@ -74,49 +156,90 @@ def embed_text(
 
 
 def embed_batch(
-    client: Annotated[genai.Client, "The Gemini API client"],
     texts: Annotated[list[str], "List of texts to embed"],
     *,
-    model: Annotated[str, "The embedding model to use"],
+    model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
-    output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
-) -> Annotated[list[list[float]], "List of embedding vectors"]:
-    """Embed multiple texts using individual API calls.
+    api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
+    timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
+) -> Annotated[list[list[float]], "List of embedding vectors (768 dimensions each)"]:
+    """Embed multiple texts using the Google Generative AI batch HTTP API.
 
-    This processes texts sequentially with retry logic for rate limiting.
+    This uses the batchEmbedContents API for efficient parallel processing.
+    All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
 
     Args:
-        client: Gemini API client
         texts: List of texts to embed
-        model: Embedding model name
+        model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
         task_type: Optional task type
-        output_dimensionality: Optional output dimensionality
+        api_key: Optional API key (reads from GOOGLE_API_KEY env var if not provided)
+        timeout: Request timeout in seconds
 
     Returns:
-        List of embedding vectors
+        List of 768-dimensional embedding vectors
 
     Raises:
         RuntimeError: If any embedding fails
+        ValueError: If GOOGLE_API_KEY is not available
     """
     if not texts:
         return []
 
     logger.info("[blue]📚 Embedding model:[/] %s — %d text(s)", model, len(texts))
 
-    embeddings: list[list[float]] = []
-    for i, text in enumerate(texts):
-        try:
-            embedding = embed_text(
-                client,
-                text,
-                model=model,
-                task_type=task_type,
-                output_dimensionality=output_dimensionality,
-            )
-            embeddings.append(embedding)
-        except Exception as e:
-            logger.error("Failed to embed text %d/%d: %s", i + 1, len(texts), e)
-            raise
+    # Get API key
+    effective_api_key = api_key or _get_api_key()
 
-    logger.info("Embedded %d text(s)", len(embeddings))
-    return embeddings
+    # Convert from pydantic-ai format to Google API format
+    google_model = from_pydantic_ai_model(model)
+
+    # Build request payload with fixed 768 dimensions
+    requests = []
+    for text in texts:
+        request: dict[str, Any] = {
+            "model": google_model,
+            "content": {"parts": [{"text": text}]},
+            "outputDimensionality": EMBEDDING_DIM,  # Always 768
+        }
+        if task_type:
+            request["taskType"] = task_type
+        requests.append(request)
+
+    payload = {"requests": requests}
+
+    # API endpoint
+    url = f"{GENAI_API_BASE}/{google_model}:batchEmbedContents"
+
+    try:
+
+        def _make_request() -> list[list[float]]:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(
+                    url,
+                    params={"key": effective_api_key},
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract embeddings from batch response
+                embeddings_data = data.get("embeddings", [])
+                if not embeddings_data:
+                    raise RuntimeError(f"No embeddings in response: {data}")
+
+                embeddings: list[list[float]] = []
+                for i, embedding_result in enumerate(embeddings_data):
+                    values = embedding_result.get("values")
+                    if values is None:
+                        logger.error("No embedding returned for text %d/%d", i + 1, len(texts))
+                        raise RuntimeError(f"No embedding returned for text {i}: {texts[i][:50]}...")
+                    embeddings.append(list(values))
+
+                logger.info("Embedded %d text(s)", len(embeddings))
+                return embeddings
+
+        return _call_with_retries(_make_request)
+
+    except Exception as e:
+        logger.error("Failed to batch embed texts: %s", e, exc_info=True)
+        raise RuntimeError(f"Batch embedding failed: {e}") from e

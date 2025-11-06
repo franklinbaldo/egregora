@@ -1125,7 +1125,6 @@ def gather_context(  # noqa: PLR0915
                         client,
                         site_paths.rag_dir,
                         embedding_model=model_config.get_model("embedding"),
-                        embedding_output_dimensionality=model_config.embedding_output_dimensionality,
                         retrieval_mode=retrieval_mode,
                         retrieval_nprobe=retrieval_nprobe,
                         retrieval_overfetch=retrieval_overfetch,
@@ -1249,8 +1248,6 @@ def write_posts(  # noqa: PLR0915
                 console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
             # Setup configuration for writer
-            embedding_dimensionality = model_config.embedding_output_dimensionality
-
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
@@ -1265,7 +1262,6 @@ def write_posts(  # noqa: PLR0915
                 rag_dir=site_paths.rag_dir,
                 model_config=model_config,
                 enable_rag=enable_rag,
-                embedding_output_dimensionality=embedding_dimensionality,
                 retrieval_mode=retrieval_mode,
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,

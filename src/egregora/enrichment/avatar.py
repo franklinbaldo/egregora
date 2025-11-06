@@ -17,7 +17,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from PIL import Image
 
-from ..config import MEDIA_DIR_NAME, to_pydantic_ai_model
+from ..config import MEDIA_DIR_NAME
 from ..enrichment.agents import (
     AvatarEnrichmentContext,
     create_avatar_enrichment_agent,
@@ -536,8 +536,8 @@ def enrich_and_moderate_avatar(
     """
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
-    # Create agent with configured model
-    avatar_enrichment_agent = create_avatar_enrichment_agent(to_pydantic_ai_model(model))
+    # Create agent with configured model (already in pydantic-ai format)
+    avatar_enrichment_agent = create_avatar_enrichment_agent(model)
 
     try:
         # Load image as binary content (no upload needed!)
