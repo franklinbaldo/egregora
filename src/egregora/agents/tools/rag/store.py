@@ -113,7 +113,7 @@ class VectorStore:
             self._vss_available = True
             self._vss_function = self._detect_vss_function()
             logger.info("DuckDB VSS extension loaded")
-        except Exception as e:
+        except (duckdb.Error, RuntimeError) as e:
             logger.warning("VSS extension unavailable, falling back to exact search: %s", e)
             self._vss_available = False
             return False

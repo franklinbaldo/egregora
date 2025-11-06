@@ -192,6 +192,22 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
     raise AvatarProcessingError(msg)
 
 
+def _check_dimensions(width: int, height: int) -> None:
+    """Check if image dimensions are within allowed limits.
+
+    Args:
+        width: Image width in pixels
+        height: Image height in pixels
+
+    Raises:
+        AvatarProcessingError: If dimensions exceed limits
+
+    """
+    if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+        msg = f"Image dimensions too large: {width}x{height} pixels. Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels."
+        raise AvatarProcessingError(msg)
+
+
 def _validate_image_dimensions(content: bytes) -> None:
     """Validate image dimensions to prevent memory exhaustion attacks.
 
@@ -208,9 +224,7 @@ def _validate_image_dimensions(content: bytes) -> None:
     try:
         img = Image.open(io.BytesIO(content))
         width, height = img.size
-        if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
-            msg = f"Image dimensions too large: {width}x{height} pixels. Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels."
-            raise AvatarProcessingError(msg)
+        _check_dimensions(width, height)
         logger.debug("Image dimensions validated: %sx%s pixels", width, height)
     except AvatarProcessingError:
         raise

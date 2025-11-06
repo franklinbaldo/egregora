@@ -446,12 +446,12 @@ def agents_lint(site_dir: Annotated[Path, typer.Option(help="Site directory")] =
     for agent_file in (egregora_path / "agents").glob("*.jinja"):
         try:
             load_agent(agent_file.stem, egregora_path)
-        except Exception as e:
+        except (FileNotFoundError, ValueError, TypeError, KeyError, OSError, RuntimeError) as e:
             console.print(f"[red]Error in agent {agent_file.name}: {e}[/red]")
             errors += 1
     try:
         ToolRegistry(egregora_path)
-    except Exception as e:
+    except (FileNotFoundError, ValueError, TypeError, KeyError, OSError, RuntimeError) as e:
         console.print(f"[red]Error loading tool profiles: {e}[/red]")
         errors += 1
     if errors == 0:

@@ -232,16 +232,6 @@ class WhatsAppAdapter(SourceAdapter):
         except (KeyError, OSError, PermissionError) as e:
             logger.exception("Failed to extract %s from %s: %s", media_reference, zip_path, e)
             return None
-        except Exception as e:
-            logger.warning(
-                "Unexpected error extracting %s from %s: %s: %s",
-                media_reference,
-                zip_path,
-                type(e).__name__,
-                e,
-                exc_info=True,
-            )
-            return None
 
     def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from WhatsApp ZIP (DEPRECATED).

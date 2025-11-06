@@ -30,7 +30,6 @@ from egregora.agents.writer.handlers import (
     _handle_generate_banner_tool,
     _handle_read_profile_tool,
     _handle_search_media_tool,
-    _handle_tool_error,
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
@@ -114,19 +113,14 @@ def load_markdown_extensions(output_dir: Path) -> str:
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, no custom markdown extensions")
         return ""
-    try:
-        extensions = config.get("markdown_extensions", [])
-        if not extensions:
-            return ""
-        yaml_section = yaml.dump(
-            {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-        logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
-    except Exception as e:
-        logger.warning("Could not load markdown extensions from %s: %s", mkdocs_path, e)
+    extensions = config.get("markdown_extensions", [])
+    if not extensions:
         return ""
-    else:
-        return yaml_section
+    yaml_section = yaml.dump(
+        {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
+    )
+    logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
+    return yaml_section
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
@@ -185,35 +179,30 @@ def _process_tool_calls(
             fn_call = function_call
             fn_name = fn_call.name
             fn_args = fn_call.args or {}
-            try:
-                if fn_name == "write_post":
-                    tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
-                elif fn_name == "read_profile":
-                    tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
-                elif fn_name == "write_profile":
-                    tool_responses.append(
-                        _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
-                    )
-                elif fn_name == "search_media":
-                    response = _handle_search_media_tool(
-                        fn_args,
-                        fn_call,
-                        client,
-                        rag_dir,
-                        embedding_model=embedding_model,
-                        retrieval_mode=retrieval_mode,
-                        retrieval_nprobe=retrieval_nprobe,
-                        retrieval_overfetch=retrieval_overfetch,
-                    )
-                    tool_responses.append(response)
-                elif fn_name == "annotate_conversation":
-                    tool_responses.append(
-                        _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
-                    )
-                elif fn_name == "generate_banner":
-                    tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
-            except Exception as e:
-                tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
+            if fn_name == "write_post":
+                tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
+            elif fn_name == "read_profile":
+                tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
+            elif fn_name == "write_profile":
+                tool_responses.append(
+                    _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
+                )
+            elif fn_name == "search_media":
+                response = _handle_search_media_tool(
+                    fn_args,
+                    fn_call,
+                    client,
+                    rag_dir,
+                    embedding_model=embedding_model,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
+                )
+                tool_responses.append(response)
+            elif fn_name == "annotate_conversation":
+                tool_responses.append(_handle_annotate_conversation_tool(fn_args, fn_call, annotations_store))
+            elif fn_name == "generate_banner":
+                tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
             continue
         text = getattr(part, "text", "")
         if text:

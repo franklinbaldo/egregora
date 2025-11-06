@@ -56,20 +56,83 @@ def _call_with_retries(func: Any, *args: Any, max_retries: int = 3, **kwargs: An
         Function result
 
     Raises:
-        Exception: If all retries fail
+        RuntimeError: If all retries fail
+        httpx.HTTPError: For HTTP-related errors
 
     """
     last_error = None
     for attempt in range(max_retries):
         try:
             return func(*args, **kwargs)
-        except Exception as e:
+        except httpx.HTTPError as e:
             last_error = e
             if attempt < max_retries - 1:
                 logger.warning("Attempt %s/%s failed: %s. Retrying...", attempt + 1, max_retries, e)
             continue
     msg = f"All {max_retries} attempts failed"
     raise RuntimeError(msg) from last_error
+
+
+def _validate_embedding_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate that embedding response contains required fields.
+
+    Args:
+        data: Response data from API
+
+    Returns:
+        The embedding data from the response
+
+    Raises:
+        RuntimeError: If response is missing embedding data or values
+
+    """
+    embedding = data.get("embedding")
+    if not embedding:
+        msg = f"No embedding in response: {data}"
+        raise RuntimeError(msg)
+    values = embedding.get("values")
+    if not values:
+        msg = f"No values in embedding: {embedding}"
+        raise RuntimeError(msg)
+    return embedding
+
+
+def _validate_batch_response(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Validate that batch embedding response contains embeddings.
+
+    Args:
+        data: Response data from batch API
+
+    Returns:
+        The embeddings data from the response
+
+    Raises:
+        RuntimeError: If response is missing embeddings
+
+    """
+    embeddings_data = data.get("embeddings", [])
+    if not embeddings_data:
+        msg = f"No embeddings in response: {data}"
+        raise RuntimeError(msg)
+    return embeddings_data
+
+
+def _validate_embedding_values(values: Any, text_index: int, text: str) -> None:
+    """Validate that embedding values exist for a text.
+
+    Args:
+        values: Embedding values from API response
+        text_index: Index of the text in batch
+        text: The original text (for error messages)
+
+    Raises:
+        RuntimeError: If values are missing
+
+    """
+    if values is None:
+        logger.error("No embedding returned for text %d/%d", text_index + 1, text_index + 1)
+        msg = f"No embedding returned for text {text_index}: {text[:50]}..."
+        raise RuntimeError(msg)
 
 
 def embed_text(
@@ -109,28 +172,16 @@ def embed_text(
     if task_type:
         payload["taskType"] = task_type
     url = f"{GENAI_API_BASE}/{google_model}:embedContent"
-    try:
 
-        def _make_request() -> list[float]:
-            with httpx.Client(timeout=timeout) as client:
-                response = client.post(url, params={"key": effective_api_key}, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                embedding = data.get("embedding")
-                if not embedding:
-                    msg = f"No embedding in response: {data}"
-                    raise RuntimeError(msg)
-                values = embedding.get("values")
-                if not values:
-                    msg = f"No values in embedding: {embedding}"
-                    raise RuntimeError(msg)
-                return list(values)
+    def _make_request() -> list[float]:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(url, params={"key": effective_api_key}, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            embedding = _validate_embedding_response(data)
+            return list(embedding["values"])
 
-        return _call_with_retries(_make_request)
-    except Exception as e:
-        logger.error("Failed to embed text: %s", e, exc_info=True)
-        msg = f"Embedding failed: {e}"
-        raise RuntimeError(msg) from e
+    return _call_with_retries(_make_request)
 
 
 def embed_batch(
@@ -178,30 +229,19 @@ def embed_batch(
         requests.append(request)
     payload = {"requests": requests}
     url = f"{GENAI_API_BASE}/{google_model}:batchEmbedContents"
-    try:
 
-        def _make_request() -> list[list[float]]:
-            with httpx.Client(timeout=timeout) as client:
-                response = client.post(url, params={"key": effective_api_key}, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                embeddings_data = data.get("embeddings", [])
-                if not embeddings_data:
-                    msg = f"No embeddings in response: {data}"
-                    raise RuntimeError(msg)
-                embeddings: list[list[float]] = []
-                for i, embedding_result in enumerate(embeddings_data):
-                    values = embedding_result.get("values")
-                    if values is None:
-                        logger.error("No embedding returned for text %d/%d", i + 1, len(texts))
-                        msg = f"No embedding returned for text {i}: {texts[i][:50]}..."
-                        raise RuntimeError(msg)
-                    embeddings.append(list(values))
-                logger.info("Embedded %d text(s)", len(embeddings))
-                return embeddings
+    def _make_request() -> list[list[float]]:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(url, params={"key": effective_api_key}, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            embeddings_data = _validate_batch_response(data)
+            embeddings: list[list[float]] = []
+            for i, embedding_result in enumerate(embeddings_data):
+                values = embedding_result.get("values")
+                _validate_embedding_values(values, i, texts[i])
+                embeddings.append(list(values))
+            logger.info("Embedded %d text(s)", len(embeddings))
+            return embeddings
 
-        return _call_with_retries(_make_request)
-    except Exception as e:
-        logger.error("Failed to batch embed texts: %s", e, exc_info=True)
-        msg = f"Batch embedding failed: {e}"
-        raise RuntimeError(msg) from e
+    return _call_with_retries(_make_request)

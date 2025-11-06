@@ -180,8 +180,10 @@ class CoreOrchestrator:
             context.metadata.update(metadata)
             if metadata:
                 logger.info("[cyan]INFO Metadata:[/] %s", metadata)
-        except Exception as e:
-            logger.debug("Could not extract metadata: %s", e)
+        except NotImplementedError:
+            logger.debug(
+                "Source adapter %s does not support metadata extraction", self.source_adapter.source_name
+            )
         current_data = messages_table
         for stage in self.stages:
             if not stage.config.enabled:

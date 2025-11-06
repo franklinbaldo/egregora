@@ -81,6 +81,77 @@ uv run egregora edit posts/my-post.md        # AI-powered post editor
 uv run egregora rank --site-dir=. --comparisons=50  # Elo ranking
 ```
 
+## Parallel Task Delegation with Subagents
+
+When working on repetitive tasks across multiple files (e.g., fixing the same linting rule in 10+ files), use **parallel subagent delegation** for maximum efficiency.
+
+### When to Use Subagents
+
+Use parallel subagents when you have:
+- **Similar tasks** across multiple files (same linting rule, same refactoring pattern)
+- **Independent work** - files don't depend on each other
+- **Clear instructions** - the fix pattern is well-defined
+- **5+ files** - worthwhile for parallelization overhead
+
+### How to Delegate Tasks
+
+Launch multiple subagents in a single message using multiple `Task` tool calls:
+
+```python
+# Example: Fix BLE001 (blind exception catches) across 10 files
+# Launch 5 subagents in parallel, each handling 2-3 related files
+
+Task 1: Fix BLE001 in writer_agent.py
+Task 2: Fix BLE001 in cli.py
+Task 3: Fix BLE001 in enrichment/batch.py + enrichment/core.py
+Task 4: Fix BLE001 in pipeline files (3 files)
+Task 5: Fix BLE001 in utils files (3 files)
+```
+
+**Key guidelines for subagent prompts:**
+1. **Be specific**: State exact file paths and error codes to fix
+2. **Provide clear rules**: "NEVER use `except Exception:`" - let errors propagate
+3. **Include verification**: "Run `ruff check <file> --select=BLE001` to verify"
+4. **Disable git operations**: "Do NOT commit or push changes"
+5. **Request summary**: "Return: Summary of changes and confirmation errors are fixed"
+
+### Example Results
+
+**Phase 2C Exception Handling** (24 errors across 13 files):
+- Launched 6 subagents in parallel
+- Completed in ~2 minutes vs. ~15-20 minutes sequentially
+- Fixed: 13 BLE001 errors + 11 TRY301 errors
+- All subagents returned detailed summaries for review
+
+### After Subagents Complete
+
+1. **Verify their work**: Run `ruff check` to confirm all errors fixed
+2. **Review changes**: Check git diff for correctness
+3. **Run tests**: Ensure no regressions introduced
+4. **Commit once**: Single commit with comprehensive message documenting all fixes
+5. **Format code**: Run `ruff format` before committing
+
+### Anti-Patterns to Avoid
+
+❌ **Don't delegate when:**
+- Tasks require coordinated changes across files (use sequential approach)
+- You need to see intermediate results to decide next steps
+- Files are interdependent (changes in one affect others)
+- The task is exploratory (better to do it yourself first)
+
+❌ **Don't:**
+- Let subagents commit/push (causes merge conflicts)
+- Give vague instructions (leads to inconsistent fixes)
+- Delegate without a clear pattern (subagents need examples)
+- Skip verification after subagents complete
+
+### Benefits
+
+✅ **Speed**: 5-10x faster for multi-file refactoring
+✅ **Consistency**: All subagents follow same instructions
+✅ **Focus**: You review summaries instead of making repetitive edits
+✅ **Scalability**: Handles 20+ files as easily as 5 files
+
 ## Architecture: Staged Pipeline
 
 Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops and stateful operations:

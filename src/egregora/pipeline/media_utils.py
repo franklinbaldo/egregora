@@ -57,22 +57,18 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 
     """
     references = set()
-    try:
-        messages = table.select("message").execute()
-        for row in messages.itertuples(index=False):
-            message = row.message
-            if not message:
-                continue
-            for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
-                reference = match.group(2)
+    messages = table.select("message").execute()
+    for row in messages.itertuples(index=False):
+        message = row.message
+        if not message:
+            continue
+        for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
+            reference = match.group(2)
+            references.add(reference)
+        for match in MARKDOWN_LINK_PATTERN.finditer(message):
+            reference = match.group(2)
+            if not reference.startswith(("http://", "https://")):
                 references.add(reference)
-            for match in MARKDOWN_LINK_PATTERN.finditer(message):
-                reference = match.group(2)
-                if not reference.startswith(("http://", "https://")):
-                    references.add(reference)
-    except Exception as e:
-        logger.warning("Failed to extract media references: %s", e)
-        return set()
     logger.debug("Extracted %s unique media references", len(references))
     return references
 
@@ -201,7 +197,7 @@ def process_media_for_period(
             )
             media_mapping[media_ref] = standardized_path
             processed_count += 1
-        except Exception as e:
+        except OSError as e:
             logger.warning("Failed to process media '%s': %s", media_ref, e)
             failed_refs.append(media_ref)
             continue
