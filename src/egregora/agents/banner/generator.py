@@ -87,9 +87,7 @@ class BannerGenerator:
         """
         if not self.enabled:
             logger.info(f"Banner generation disabled, skipping: {request.post_title}")
-            return BannerResult(
-                success=False, error="Banner generation disabled (no GOOGLE_API_KEY)"
-            )
+            return BannerResult(success=False, error="Banner generation disabled (no GOOGLE_API_KEY)")
 
         request.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -132,9 +130,7 @@ class BannerGenerator:
                 config=generate_content_config,
             ):
                 if not (
-                    chunk.candidates
-                    and chunk.candidates[0].content
-                    and chunk.candidates[0].content.parts
+                    chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
                 ):
                     continue
 
