@@ -35,7 +35,7 @@ Some content here.
 ## Section 2
 
 More content here.
-"""
+""",
     )
     return post_path
 

@@ -85,7 +85,7 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
                 "author_uuid": genai_types.Schema(
                     type=genai_types.Type.STRING,
                     description="The anonymized author UUID",
-                )
+                ),
             },
             required=["author_uuid"],
         ),
@@ -209,6 +209,6 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
                 search_media_decl,
                 annotate_conversation_decl,
                 generate_banner_decl,
-            ]
-        )
+            ],
+        ),
     ]

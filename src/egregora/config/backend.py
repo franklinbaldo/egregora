@@ -20,6 +20,7 @@ Example:
 
     # Use legacy for all
     export EGREGORA_LLM_BACKEND=legacy
+
 """
 
 import os
@@ -46,6 +47,7 @@ def get_backend(agent: Literal["writer", "editor", "ranking"]) -> Backend:
         >>> os.environ["EGREGORA_EDITOR_BACKEND"] = "legacy"
         >>> get_backend("editor")
         'legacy'
+
     """
     # Check agent-specific override
     agent_env = f"EGREGORA_{agent.upper()}_BACKEND"
@@ -70,5 +72,6 @@ def use_pydantic_ai(agent: Literal["writer", "editor", "ranking"]) -> bool:
 
     Returns:
         True if Pydantic AI should be used, False for legacy
+
     """
     return get_backend(agent) == "pydantic-ai"

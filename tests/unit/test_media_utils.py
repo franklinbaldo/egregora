@@ -21,7 +21,7 @@ class TestExtractMarkdownMediaRefs:
             [
                 {"message": "Check this ![photo](IMG-001.jpg)"},
                 {"message": "Another ![image](IMG-002.png)"},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -34,7 +34,7 @@ class TestExtractMarkdownMediaRefs:
             [
                 {"message": "Watch [video](VID-001.mp4)"},
                 {"message": "Listen [audio](AUD-001.opus)"},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -46,7 +46,7 @@ class TestExtractMarkdownMediaRefs:
         table = ibis.memtable(
             [
                 {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -58,7 +58,7 @@ class TestExtractMarkdownMediaRefs:
         table = ibis.memtable(
             [
                 {"message": "[Link](https://example.com) and ![img](photo.jpg)"},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -73,7 +73,7 @@ class TestExtractMarkdownMediaRefs:
                 {"message": "![img](photo.jpg)"},
                 {"message": ""},
                 {"message": None},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -87,7 +87,7 @@ class TestExtractMarkdownMediaRefs:
                 {"message": "![img](photo.jpg)"},
                 {"message": "Another ![img2](photo.jpg)"},
                 {"message": "[link](photo.jpg)"},
-            ]
+            ],
         )
 
         refs = extract_markdown_media_refs(table)
@@ -173,7 +173,7 @@ class TestReplaceMarkdownMediaRefs:
             table = ibis.memtable(
                 [
                     {"message": "Check this ![photo](IMG-001.jpg)"},
-                ]
+                ],
             )
 
             mapping = {"IMG-001.jpg": media_file}
@@ -185,7 +185,6 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_link_reference(self):
         """Test replacing link markdown reference."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             docs_dir = Path(tmpdir) / "docs"
             posts_dir = docs_dir / "posts"
@@ -202,7 +201,7 @@ class TestReplaceMarkdownMediaRefs:
             table = ibis.memtable(
                 [
                     {"message": "Watch [video](VID-001.mp4)"},
-                ]
+                ],
             )
 
             mapping = {"VID-001.mp4": media_file}
@@ -231,7 +230,7 @@ class TestReplaceMarkdownMediaRefs:
             table = ibis.memtable(
                 [
                     {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
-                ]
+                ],
             )
 
             mapping = {
@@ -256,7 +255,7 @@ class TestReplaceMarkdownMediaRefs:
             table = ibis.memtable(
                 [
                     {"message": "Check this ![photo](IMG-001.jpg)"},
-                ]
+                ],
             )
 
             updated = replace_markdown_media_refs(table, {}, docs_dir, posts_dir)
@@ -282,7 +281,7 @@ class TestReplaceMarkdownMediaRefs:
             table = ibis.memtable(
                 [
                     {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
-                ]
+                ],
             )
 
             mapping = {"IMG-001.jpg": media_file}

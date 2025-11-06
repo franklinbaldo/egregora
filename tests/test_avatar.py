@@ -144,7 +144,7 @@ class TestSSRFProtection:
         """Test that IPv4-mapped IPv6 localhost (::ffff:127.0.0.1) is blocked."""
         # Mock DNS resolution to return IPv4-mapped IPv6 address
         mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:127.0.0.1", 80, 0, 0))
+            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:127.0.0.1", 80, 0, 0)),
         ]
 
         with pytest.raises(AvatarProcessingError, match="IPv4-mapped"):
@@ -155,7 +155,7 @@ class TestSSRFProtection:
         """Test that IPv4-mapped IPv6 private addresses are blocked."""
         # Mock DNS resolution to return IPv4-mapped IPv6 address for private network
         mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:192.168.1.1", 80, 0, 0))
+            (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:192.168.1.1", 80, 0, 0)),
         ]
 
         with pytest.raises(AvatarProcessingError, match="IPv4-mapped"):

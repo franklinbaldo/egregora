@@ -33,7 +33,7 @@ class TestIRSchema:
                 "original_line": "raw line",
                 "tagged_line": "tagged line",
                 "message_id": "123",
-            }
+            },
         ]
         table = ibis.memtable(data, schema=ibis.schema(IR_SCHEMA))
 
@@ -50,7 +50,7 @@ class TestIRSchema:
                 "timestamp": "2024-01-01 12:00:00",
                 "author": "user1",
                 # Missing: date, message, original_line, tagged_line, message_id
-            }
+            },
         ]
         table = ibis.memtable(data)
 
@@ -72,7 +72,7 @@ class TestIRSchema:
                 "original_line": "raw",
                 "tagged_line": "tagged",
                 "message_id": "123",
-            }
+            },
         ]
         table = ibis.memtable(data)
 
@@ -89,7 +89,7 @@ class TestIRSchema:
                 "timestamp": "2024-01-01 12:00:00",
                 "author": "user1",
                 "message": "Hello world",
-            }
+            },
         ]
         table = ibis.memtable(data)
 
@@ -112,7 +112,7 @@ class TestIRSchema:
                 "timestamp": "2024-01-01 12:00:00",
                 "author": "alice",
                 "message": "Test message",
-            }
+            },
         ]
         table = ibis.memtable(data)
 
@@ -131,7 +131,7 @@ class TestIRSchema:
                 "timestamp": "2024-01-01 12:00:00",
                 "author": "user1",
                 "message": "Hello",
-            }
+            },
         ]
         table = ibis.memtable(data)
 

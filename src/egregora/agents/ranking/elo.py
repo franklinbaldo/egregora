@@ -14,11 +14,11 @@ def calculate_expected_score(
     rating_a: Annotated[float, "ELO rating of player A"],
     rating_b: Annotated[float, "ELO rating of player B"],
 ) -> Annotated[tuple[float, float], "A tuple of expected scores for A and B"]:
-    """
-    Calculate expected scores for two players.
+    """Calculate expected scores for two players.
 
     Returns:
         (expected_a, expected_b): Expected scores (0-1) for each player
+
     """
     expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
     expected_b = 1 / (1 + 10 ** ((rating_a - rating_b) / 400))
@@ -31,8 +31,7 @@ def calculate_elo_update(
     winner: Annotated[str, "The winning post ('A' or 'B')"],
     k_factor: Annotated[int, "The K-factor for ELO calculation"] = K_FACTOR,
 ) -> Annotated[tuple[float, float], "A tuple of updated ELO ratings for A and B"]:
-    """
-    Calculate new ELO ratings after a comparison.
+    """Calculate new ELO ratings after a comparison.
 
     Args:
         rating_a: Current ELO rating for post A
@@ -42,6 +41,7 @@ def calculate_elo_update(
 
     Returns:
         (new_rating_a, new_rating_b): Updated ELO ratings
+
     """
     expected_a, expected_b = calculate_expected_score(rating_a, rating_b)
 
@@ -60,8 +60,7 @@ def initialize_ratings(
     posts_dir: Annotated[Path, "Directory containing the blog post files"],
     rankings_dir: Annotated[Path, "Directory to store the ranking database"],
 ) -> Annotated[RankingStore, "An initialized RankingStore instance"]:
-    """
-    Initialize ELO ratings for all posts.
+    """Initialize ELO ratings for all posts.
 
     Creates DuckDB database with default scores for all posts.
 
@@ -71,6 +70,7 @@ def initialize_ratings(
 
     Returns:
         RankingStore instance
+
     """
     # Find all markdown posts (including nested directories like .posts)
     post_files = sorted(p for p in posts_dir.rglob("*.md") if p.is_file())
@@ -111,8 +111,7 @@ def update_ratings(
     post_b: Annotated[str, "The ID of post B"],
     winner: Annotated[str, "The winning post ('A' or 'B')"],
 ) -> Annotated[tuple[float, float], "A tuple of the new ELO ratings for A and B"]:
-    """
-    Update ELO ratings after a comparison.
+    """Update ELO ratings after a comparison.
 
     Args:
         rankings_dir: Directory containing ranking data
@@ -122,6 +121,7 @@ def update_ratings(
 
     Returns:
         (new_rating_a, new_rating_b): Updated ELO ratings
+
     """
     store = RankingStore(rankings_dir)
 
@@ -150,8 +150,7 @@ def get_posts_to_compare(
     rankings_dir: Annotated[Path, "Directory containing the ranking database"],
     strategy: Annotated[str, "The selection strategy to use"] = "fewest_games",
 ) -> Annotated[tuple[str, str], "A tuple of two post IDs to compare"]:
-    """
-    Select two posts to compare based on strategy.
+    """Select two posts to compare based on strategy.
 
     Args:
         rankings_dir: Directory containing ranking data
@@ -159,6 +158,7 @@ def get_posts_to_compare(
 
     Returns:
         (post_a_id, post_b_id): IDs of posts to compare
+
     """
     store = RankingStore(rankings_dir)
     posts = store.get_posts_to_compare(strategy=strategy, n=MIN_POSTS_TO_COMPARE)

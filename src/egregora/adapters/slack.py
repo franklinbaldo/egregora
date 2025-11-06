@@ -79,6 +79,7 @@ class SlackAdapter(SourceAdapter):
 
         Raises:
             NotImplementedError: This is a stub implementation
+
         """
         if not input_path.exists():
             raise FileNotFoundError(f"Input path does not exist: {input_path}")
@@ -124,6 +125,7 @@ class SlackAdapter(SourceAdapter):
             - Handle threaded messages
             - Map user IDs to display names
             - Convert Slack markdown to standard format
+
         """
         # Check if this is a real Slack export with data
         has_data = False
@@ -141,7 +143,7 @@ class SlackAdapter(SourceAdapter):
         if has_data:
             logger.warning(
                 "⚠️  SlackAdapter is a STUB and returns empty results. "
-                "To process Slack exports, implement the _parse_slack_json() method."
+                "To process Slack exports, implement the _parse_slack_json() method.",
             )
             # For now, return empty to allow tests to pass
             # In production, uncomment the line below:
@@ -187,6 +189,7 @@ class SlackAdapter(SourceAdapter):
                     "message_id": "1234567890123456",
                     ...
                 }
+
         """
         ir_messages = []
 
@@ -238,6 +241,7 @@ class SlackAdapter(SourceAdapter):
 
         Note:
             A real implementation would handle Slack file attachments.
+
         """
         return {}
 
@@ -253,6 +257,7 @@ class SlackAdapter(SourceAdapter):
 
         Note:
             Stub implementation returns minimal metadata.
+
         """
         return {
             "channel_name": "unknown-channel",

@@ -83,12 +83,12 @@ class VectorStore:
         connection: duckdb.DuckDBPyConnection | None = None,
         exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ):
-        """
-        Initialize vector store.
+        """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
             exact_index_threshold: Maximum row count before switching to ANN indexing
+
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
@@ -108,11 +108,11 @@ class VectorStore:
         self._ensure_dataset_loaded()
 
     def _init_vss(self) -> bool:
-        """
-        Initialize DuckDB VSS extension (lazy loading).
+        """Initialize DuckDB VSS extension (lazy loading).
 
         Returns:
             True if VSS was successfully loaded, False otherwise.
+
         """
         if self._vss_available:
             return True
@@ -131,7 +131,6 @@ class VectorStore:
 
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
-
         self._ensure_metadata_table()
 
         if not self.parquet_path.exists():
@@ -164,7 +163,6 @@ class VectorStore:
 
     def _ensure_metadata_table(self) -> None:
         """Create the internal metadata table when missing."""
-
         database_schema.create_table_if_not_exists(
             self._client,
             METADATA_TABLE_NAME,
@@ -174,7 +172,6 @@ class VectorStore:
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
-
         database_schema.create_table_if_not_exists(
             self._client,
             INDEX_META_TABLE,
@@ -185,7 +182,6 @@ class VectorStore:
 
     def _migrate_index_meta_table(self) -> None:
         """Ensure legacy index metadata tables gain any newly introduced columns."""
-
         existing_columns = {
             row[1].lower() for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
         }
@@ -210,7 +206,6 @@ class VectorStore:
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
-
         # Preserve the functionality of the target branch but with the ruff fix
         # Reduce return statements for ruff compliance
         if dtype.is_string():
@@ -240,7 +235,6 @@ class VectorStore:
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
-
         row = self.conn.execute(
             f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
             [str(self.parquet_path)],
@@ -260,7 +254,6 @@ class VectorStore:
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
-
         self.conn.execute(
             f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?",
             [str(self.parquet_path)],
@@ -281,7 +274,6 @@ class VectorStore:
 
     def _read_parquet_metadata(self) -> DatasetMetadata:
         """Inspect the Parquet file for structural metadata."""
-
         stats = self.parquet_path.stat()
         row = self.conn.execute(
             "SELECT COUNT(*) FROM read_parquet(?)",
@@ -296,7 +288,6 @@ class VectorStore:
 
     def _duckdb_table_exists(self, table_name: str) -> bool:
         """Check whether a DuckDB table is materialized in the current database."""
-
         row = self.conn.execute(
             """
             SELECT COUNT(*)
@@ -309,7 +300,6 @@ class VectorStore:
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
-
         self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
         self._ensure_index_meta_table()
         table_present = self.conn.execute(
@@ -341,7 +331,7 @@ class VectorStore:
                 CREATE INDEX {INDEX_NAME}
                 ON {TABLE_NAME}(embedding)
                 USING vss(metric='cosine', storage_type='ivfflat')
-                """
+                """,
             )
         except duckdb.Error as exc:  # pragma: no cover - depends on extension availability
             logger.warning("Skipping VSS index rebuild: %s", exc)
@@ -356,7 +346,6 @@ class VectorStore:
         embedding_dim: int | None = None,
     ) -> None:
         """Persist the latest index configuration for observability and telemetry."""
-
         timestamp = datetime.now()
         self.conn.execute(
             f"""
@@ -384,7 +373,6 @@ class VectorStore:
 
     def _clear_index_meta(self) -> None:
         """Remove metadata when the backing table is empty or missing."""
-
         self.conn.execute(
             f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?",
             [INDEX_NAME],
@@ -399,8 +387,7 @@ class VectorStore:
         return int(row[0]) if row and row[0] is not None else None
 
     def _validate_embedding_dimension(self, embeddings: list[list[float]], context: str) -> int:
-        """
-        Validate embedding dimensionality consistency.
+        """Validate embedding dimensionality consistency.
 
         Args:
             embeddings: List of embedding vectors to validate
@@ -411,6 +398,7 @@ class VectorStore:
 
         Raises:
             ValueError: If embeddings have inconsistent dimensions or don't match stored dimension
+
         """
         if not embeddings:
             raise ValueError(f"{context}: No embeddings provided")
@@ -419,7 +407,7 @@ class VectorStore:
         dimensions = {len(emb) for emb in embeddings}
         if len(dimensions) > 1:
             raise ValueError(
-                f"{context}: Inconsistent embedding dimensions within batch: {sorted(dimensions)}"
+                f"{context}: Inconsistent embedding dimensions within batch: {sorted(dimensions)}",
             )
 
         current_dim = dimensions.pop()
@@ -430,14 +418,13 @@ class VectorStore:
             raise ValueError(
                 f"{context}: Embedding dimension mismatch. "
                 f"Expected {stored_dim} (from existing data), got {current_dim}. "
-                f"Cannot mix different embedding models/dimensions in the same store."
+                f"Cannot mix different embedding models/dimensions in the same store.",
             )
 
         return current_dim
 
     def add(self, chunks_table: Table) -> None:
-        """
-        Add chunks to the vector store.
+        """Add chunks to the vector store.
 
         Appends to existing Parquet file or creates new one.
 
@@ -466,6 +453,7 @@ class VectorStore:
                 - embedding: list[float] (configured dimensionality)
                 - tags: list[str]
                 - category: str | None
+
         """
         self._validate_table_schema(chunks_table, context="new chunks")
 
@@ -524,7 +512,6 @@ class VectorStore:
 
     def _align_schemas(self, existing_table: Table, new_table: Table) -> tuple[Table, Table]:
         """Cast both tables to the canonical vector store schema."""
-
         existing_table = self._cast_to_vector_store_schema(existing_table)
         new_table = self._cast_to_vector_store_schema(new_table)
 
@@ -532,7 +519,6 @@ class VectorStore:
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""
-
         expected_columns = set(VECTOR_STORE_SCHEMA.names)
         table_columns = set(table.columns)
 
@@ -550,7 +536,6 @@ class VectorStore:
 
     def _cast_to_vector_store_schema(self, table: Table) -> Table:
         """Cast the table to the canonical vector store schema ordering and types."""
-
         casts = {}
         for column_name, dtype in VECTOR_STORE_SCHEMA.items():
             column = table[column_name]
@@ -576,8 +561,7 @@ class VectorStore:
         nprobe: int | None = None,
         overfetch: int | None = None,
     ) -> Table:
-        """
-        Search for similar chunks using cosine similarity.
+        """Search for similar chunks using cosine similarity.
 
         Args:
             query_vec: Query embedding vector
@@ -593,6 +577,7 @@ class VectorStore:
 
         Returns:
             Ibis Table with all stored columns plus similarity score
+
         """
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
@@ -622,7 +607,7 @@ class VectorStore:
             raise ValueError(
                 f"Query embedding dimension mismatch. "
                 f"Expected {stored_dim} (from indexed data), got {embedding_dimensionality}. "
-                f"Ensure you're using the same embedding model as when indexing."
+                f"Ensure you're using the same embedding model as when indexing.",
             )
 
         mode_normalized = mode.lower()
@@ -760,7 +745,6 @@ class VectorStore:
 
     def _detect_vss_function(self) -> str:
         """Return the appropriate DuckDB VSS function name."""
-
         try:
             rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
         except duckdb.Error as exc:  # pragma: no cover - DuckDB compatibility
@@ -780,7 +764,6 @@ class VectorStore:
 
     def _candidate_vss_functions(self) -> list[str]:
         """Return preferred VSS table functions in fallback order."""
-
         candidates = [self._vss_function]
         for function_name in ("vss_match", "vss_search"):
             if function_name not in candidates:
@@ -789,7 +772,6 @@ class VectorStore:
 
     def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
         """Execute the provided search query and normalize the results."""
-
         cursor = self.conn.execute(query, params)
         columns = [description[0] for description in cursor.description or []]
         rows = cursor.fetchall()
@@ -807,7 +789,6 @@ class VectorStore:
 
     def _prepare_search_results(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Normalize DuckDB result rows to match the search schema."""
-
         if not records:
             return []
 
@@ -851,7 +832,6 @@ class VectorStore:
     @staticmethod
     def _normalize_date_filter(value: date | datetime | str) -> datetime:
         """Normalize date filter inputs to UTC-aware datetimes."""
-
         if isinstance(value, datetime):
             return VectorStore._ensure_utc_datetime(value)
 
@@ -879,7 +859,6 @@ class VectorStore:
     @staticmethod
     def _ensure_utc_datetime(value: datetime) -> datetime:
         """Coerce datetime objects to UTC-aware variants."""
-
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
 
@@ -887,7 +866,6 @@ class VectorStore:
 
     def _table_from_rows(self, records: list[dict[str, Any]], schema: ibis.Schema) -> Table:
         """Create a DuckDB-backed table from an in-memory sequence of records."""
-
         if not records:
             return self._empty_table(schema)
 
@@ -915,7 +893,6 @@ class VectorStore:
 
     def _ensure_local_table(self, table: Table) -> Table:
         """Materialize a table on the store backend when necessary."""
-
         try:
             backend = table._find_backend()
         except (AttributeError, RuntimeError) as e:  # pragma: no cover - defensive against Ibis internals
@@ -937,18 +914,15 @@ class VectorStore:
 
     def _empty_table(self, schema: ibis.Schema) -> Table:
         """Create an empty table with the given schema using the local backend."""
-
         return ibis.memtable([], schema=schema)
 
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""
-
         if self._owns_connection:
             self.conn.close()
 
     def get_all(self) -> Table:
-        """
-        Read entire vector store.
+        """Read entire vector store.
 
         Useful for analytics, exports, client-side usage.
         """

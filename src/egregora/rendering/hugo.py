@@ -48,6 +48,7 @@ class HugoOutputFormat(OutputFormat):
 
         Returns:
             True if config.toml or hugo.toml exists
+
         """
         if not site_root.exists():
             return False
@@ -57,7 +58,11 @@ class HugoOutputFormat(OutputFormat):
         return any((site_root / f).exists() for f in config_files)
 
     def scaffold_site(
-        self, site_root: Path, site_name: str, theme: str = "PaperMod", **kwargs
+        self,
+        site_root: Path,
+        site_name: str,
+        theme: str = "PaperMod",
+        **kwargs,
     ) -> tuple[Path, bool]:
         """Create the initial Hugo site structure.
 
@@ -73,6 +78,7 @@ class HugoOutputFormat(OutputFormat):
         Raises:
             RuntimeError: If scaffolding fails
             NotImplementedError: This is a template - full implementation needed
+
         """
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
@@ -142,6 +148,7 @@ theme = "{theme}"
 
         Raises:
             ValueError: If site_root is not a valid Hugo site
+
         """
         if not self.supports_site(site_root):
             raise ValueError(f"{site_root} is not a valid Hugo site")
@@ -190,6 +197,7 @@ theme = "{theme}"
 
         Raises:
             ValueError: If required metadata is missing
+
         """
         required = ["title", "slug", "date"]
         for key in required:
@@ -250,6 +258,7 @@ draft = false
 
         Returns:
             Path to the written file (as string)
+
         """
         if not author_id:
             raise ValueError("author_id cannot be empty")
@@ -291,6 +300,7 @@ type = "profile"
         Raises:
             FileNotFoundError: If config file doesn't exist
             NotImplementedError: TOML parsing needed
+
         """
         # Find config file
         for filename in ["config.toml", "hugo.toml"]:
@@ -310,6 +320,7 @@ type = "profile"
 
         Returns:
             List of markdown extension identifiers
+
         """
         return [
             "tables",

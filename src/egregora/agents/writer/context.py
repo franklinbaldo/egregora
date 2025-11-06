@@ -49,8 +49,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     top_k: int = 5,
     use_pydantic_helpers: bool = False,
 ) -> str:
-    """
-    Build a lightweight RAG context string from the conversation markdown.
+    """Build a lightweight RAG context string from the conversation markdown.
 
     This mirrors the pattern from the Pydantic-AI RAG example: embed the query,
     fetch similar chunks, and convert them into a short "Relevant context" block
@@ -70,6 +69,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
 
     Returns:
         Formatted RAG context string
+
     """
     # Use new Pydantic AI helpers if requested
     if use_pydantic_helpers:
@@ -86,7 +86,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 retrieval_mode=retrieval_mode,
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
-            )
+            ),
         )
     if not table_markdown.strip():
         return ""
@@ -99,7 +99,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 model=embedding_model,
                 task_type="RETRIEVAL_QUERY",
                 output_dimensionality=embedding_output_dimensionality,
-            )
+            ),
         ]
         results = batch_client.embed_content(requests)
         if not results or results[0].embedding is None:
@@ -189,8 +189,8 @@ def _query_rag_for_context(  # noqa: PLR0913
         >>> result = _query_rag_for_context(table, client, rag_dir, embedding_model="...")
         >>> if isinstance(result, Success):
         ...     print(result.unwrap().text)
-    """
 
+    """
     try:
         with logfire_span("rag_query", query_type="similar_posts"):
             store = VectorStore(rag_dir / "chunks.parquet")

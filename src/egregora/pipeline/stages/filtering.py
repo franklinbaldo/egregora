@@ -72,6 +72,7 @@ class FilteringStage(PipelineStage):
 
         Returns:
             StageResult with filtered table and metrics
+
         """
         original_count = data.count().execute()
         metrics = {"messages_in": original_count}
@@ -118,11 +119,11 @@ class FilteringStage(PipelineStage):
             if removed_by_date > 0:
                 logger.info(
                     f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date "
-                    f"(kept {post_date_filter_count})"
+                    f"(kept {post_date_filter_count})",
                 )
             else:
                 logger.info(
-                    f"[green]✓ All[/] {post_date_filter_count} messages are within the specified date range"
+                    f"[green]✓ All[/] {post_date_filter_count} messages are within the specified date range",
                 )
         else:
             metrics["date_filtered_messages_removed"] = 0
@@ -132,7 +133,7 @@ class FilteringStage(PipelineStage):
         total_removed = original_count - final_count
 
         logger.info(
-            f"[green]✓ Filtering complete:[/] {final_count} messages remaining ({total_removed} removed)"
+            f"[green]✓ Filtering complete:[/] {final_count} messages remaining ({total_removed} removed)",
         )
 
         return StageResult(

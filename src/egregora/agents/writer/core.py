@@ -14,11 +14,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
 from pathlib import Path
+from typing import Any
 
 import ibis
 import yaml
@@ -77,7 +74,6 @@ MAX_CONVERSATION_TURNS = 10
 
 def _memes_enabled(site_config: dict[str, Any]) -> bool:
     """Return True when meme helper text should be appended to the prompt."""
-
     if not isinstance(site_config, dict):
         return False
 
@@ -89,8 +85,7 @@ def _memes_enabled(site_config: dict[str, Any]) -> bool:
 
 
 def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
+    """Load egregora configuration from mkdocs.yml if it exists.
 
     Reads the `extra.egregora` section from mkdocs.yml in the output directory.
     Returns empty dict if no config found.
@@ -100,6 +95,7 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
 
     Returns:
         Dict with egregora config (writer_prompt, rag settings, etc.)
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
@@ -112,8 +108,7 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
 
 
 def load_markdown_extensions(output_dir: Path) -> str:
-    """
-    Load markdown_extensions section from mkdocs.yml and format for LLM.
+    """Load markdown_extensions section from mkdocs.yml and format for LLM.
 
     The LLM understands these extension names and knows how to use them.
     We just pass the YAML config directly.
@@ -123,6 +118,7 @@ def load_markdown_extensions(output_dir: Path) -> str:
 
     Returns:
         Formatted YAML string with markdown_extensions section
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
     if not mkdocs_path:
@@ -152,8 +148,7 @@ def load_markdown_extensions(output_dir: Path) -> str:
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
-    """
-    Get top N active authors by message count.
+    """Get top N active authors by message count.
 
     Args:
         table: Table with 'author' column
@@ -161,6 +156,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
 
     Returns:
         List of author UUIDs (most active first)
+
     """
     # Filter out system and enrichment entries
     author_counts = (
@@ -220,7 +216,7 @@ def _process_tool_calls(  # noqa: PLR0913
                     tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
                 elif fn_name == "write_profile":
                     tool_responses.append(
-                        _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
+                        _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles),
                     )
                 elif fn_name == "search_media":
                     response = _handle_search_media_tool(
@@ -237,7 +233,7 @@ def _process_tool_calls(  # noqa: PLR0913
                     tool_responses.append(response)
                 elif fn_name == "annotate_conversation":
                     tool_responses.append(
-                        _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store)
+                        _handle_annotate_conversation_tool(fn_args, fn_call, annotations_store),
                     )
                 elif fn_name == "generate_banner":
                     tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
@@ -286,8 +282,7 @@ def _write_posts_for_period_pydantic(
     batch_client: GeminiBatchClient,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
-    """
-    Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
+    """Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
 
     This is the new implementation using Pydantic AI for type safety and observability.
     Automatically traces to Logfire if LOGFIRE_TOKEN is set.
@@ -301,8 +296,8 @@ def _write_posts_for_period_pydantic(
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
-    """
 
+    """
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
@@ -422,8 +417,7 @@ def write_posts_for_period(
     batch_client: GeminiBatchClient,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
-    """
-    Let LLM analyze period's messages, write 0-N posts, and update author profiles.
+    """Let LLM analyze period's messages, write 0-N posts, and update author profiles.
 
     Uses Pydantic AI for type safety and Logfire observability.
 
@@ -450,6 +444,7 @@ def write_posts_for_period(
     Examples:
         >>> writer_config = WriterConfig()
         >>> result = write_posts_for_period(table, "2025-01-01", client, batch_client, writer_config)
+
     """
     # Use default config if none provided
     if config is None:

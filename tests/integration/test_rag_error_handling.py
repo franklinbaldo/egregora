@@ -55,7 +55,12 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_rag_error_returns_failure_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that RAG errors return Failure result."""
         # Simulate VectorStore raising an exception
@@ -75,7 +80,12 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_no_hits_returns_failure_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that no hits return Failure result."""
         # Mock empty result
@@ -97,7 +107,12 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_successful_query_returns_success_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that successful queries return Success result."""
         # Mock successful result
@@ -141,7 +156,12 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_return_records_backward_compatibility(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that return_records=True maintains backward compatibility."""
         # Mock successful result
@@ -155,7 +175,7 @@ class TestRagErrorHandling:
                 "content": "Test content",
                 "tags": ["test"],
                 "similarity": 0.95,
-            }
+            },
         ]
         mock_result.execute.return_value.to_dict.return_value = mock_records
         mock_query.return_value = mock_result
@@ -179,7 +199,12 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_return_records_error_case(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that return_records=True handles errors correctly."""
         # Simulate error
@@ -199,7 +224,13 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
     def test_rag_error_logging(  # noqa: PLR0913
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
+        self,
+        mock_query,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
+        caplog,
     ):
         """Test that RAG errors are logged with full traceback."""
         import logging

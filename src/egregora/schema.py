@@ -38,6 +38,7 @@ def group_slug(group_name: str) -> GroupSlug:
 
     Returns:
         A URL-safe slug suitable for use in file paths and URLs
+
     """
     return GroupSlug(group_name.lower().replace(" ", "-"))
 
@@ -53,7 +54,6 @@ def _builtin_timezone(_: str, __: dt.Timestamp) -> dt.Timestamp:  # pragma: no c
     backend implementation. DuckDB mirrors Polars' ``replace_time_zone``
     semantics when a naive timestamp is paired with the export's timezone.
     """
-    ...
 
 
 def ensure_message_schema(
@@ -71,7 +71,6 @@ def ensure_message_schema(
     - Dropping any extra columns not in MESSAGE_SCHEMA
     - Normalizing timezone information
     """
-
     target_schema = dict(MESSAGE_SCHEMA)
 
     tz = timezone or DEFAULT_TIMEZONE
@@ -124,7 +123,6 @@ def _normalise_timestamp(
     desired_timezone: str,
 ) -> Table:
     """Normalize timestamp column to desired timezone."""
-
     # Determine the current dtype metadata
     schema = table.schema()
     current_dtype = schema.get("timestamp")
@@ -159,7 +157,6 @@ def _normalise_timestamp(
 
 def _ensure_date_column(table: Table) -> Table:
     """Ensure date column exists, deriving from timestamp if needed."""
-
     if "date" in table.columns:
         # Cast existing date column
         return table.mutate(date=table["date"].cast(dt.Date()))

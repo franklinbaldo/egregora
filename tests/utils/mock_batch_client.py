@@ -76,7 +76,7 @@ class MockGeminiBatchClient:
                     genai_types.Candidate(
                         content=genai_types.Content(parts=[genai_types.Part(text=mock_text)]),
                         finish_reason=genai_types.FinishReason.STOP,
-                    )
+                    ),
                 ],
             )
 
@@ -85,7 +85,7 @@ class MockGeminiBatchClient:
                     tag=req.tag,
                     response=response,
                     error=None,
-                )
+                ),
             )
 
         return results
@@ -120,7 +120,7 @@ class MockGeminiBatchClient:
                     tag=req.tag,
                     embedding=embedding,
                     error=None,
-                )
+                ),
             )
 
         return results
@@ -166,7 +166,6 @@ class MockGeminiClient:
 
     def close(self):
         """Mock close method - does nothing."""
-        pass
 
     def _upload_file(self, file: str, **kwargs) -> genai_types.File:
         """Mock file upload."""
@@ -218,7 +217,7 @@ This is a mock generated post. Original content length: {len(text)} chars.
                 genai_types.Candidate(
                     content=genai_types.Content(parts=[genai_types.Part(text=mock_response_text)]),
                     finish_reason=genai_types.FinishReason.STOP,
-                )
+                ),
             ],
         )
 

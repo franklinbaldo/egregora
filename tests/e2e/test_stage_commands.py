@@ -1,5 +1,4 @@
-"""
-Tests for independent pipeline stage CLI commands.
+"""Tests for independent pipeline stage CLI commands.
 
 These tests verify that each stage command works correctly in isolation,
 using pytest-vcr to replay API interactions where needed.
@@ -74,7 +73,8 @@ class TestParseCommand:
     def test_parse_missing_zip(self, test_output_dir):
         """Test parse command with missing ZIP file."""
         result = runner.invoke(
-            app, ["parse", "nonexistent.zip", "--output", str(test_output_dir / "out.csv")]
+            app,
+            ["parse", "nonexistent.zip", "--output", str(test_output_dir / "out.csv")],
         )
 
         assert result.exit_code == 1

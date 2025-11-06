@@ -21,15 +21,11 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from ibis.expr.types import Table
 
 from egregora.enrichment.media import get_media_subfolder
 from egregora.pipeline.adapters import SourceAdapter
-
-if TYPE_CHECKING:
-    pass  # Imports moved to top level
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +60,7 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
         ... ])
         >>> extract_markdown_media_refs(table)
         {'IMG-001.jpg', 'VID-002.mp4'}
+
     """
     references = set()
 
@@ -128,6 +125,7 @@ def replace_markdown_media_refs(
         ...     posts_dir=Path("/site/docs/posts")
         ... )
         >>> # Message is now: "See ![photo](../media/abc123.jpg)"
+
     """
     if not media_mapping:
         return table
@@ -213,6 +211,7 @@ def process_media_for_period(
         ... )
         >>> print(mapping)
         {'IMG-001.jpg': Path('/abs/path/output/media/images/abc-uuid.jpg')}
+
     """
     media_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)

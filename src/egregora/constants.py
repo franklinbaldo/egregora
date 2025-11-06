@@ -1,5 +1,4 @@
-"""
-Central location for all constants used throughout the application.
+"""Central location for all constants used throughout the application.
 
 This module provides type-safe constants using enums to replace magic strings
 and numbers scattered throughout the codebase.

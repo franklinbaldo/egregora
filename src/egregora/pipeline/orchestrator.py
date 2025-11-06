@@ -164,6 +164,7 @@ class CoreOrchestrator:
         >>> stages = create_standard_stages(config)
         >>> orchestrator = CoreOrchestrator(adapter, stages)
         >>> result = orchestrator.run(config)
+
     """
 
     def __init__(
@@ -176,6 +177,7 @@ class CoreOrchestrator:
         Args:
             source_adapter: Adapter for parsing the source format
             stages: List of pipeline stages to execute in order
+
         """
         self.source_adapter = source_adapter
         self.stages = stages
@@ -192,6 +194,7 @@ class CoreOrchestrator:
         Raises:
             ValueError: If input is invalid or IR schema validation fails
             RuntimeError: If pipeline execution fails
+
         """
         logger.info(f"[bold cyan]🚀 Starting pipeline:[/] {self.source_adapter.source_name}")
         logger.info(f"[cyan]Input:[/] {config.input_path}")
@@ -216,7 +219,7 @@ class CoreOrchestrator:
         if not is_valid:
             raise ValueError(
                 "Source adapter produced invalid IR schema. Errors:\n"
-                + "\n".join(f"  - {err}" for err in errors)
+                + "\n".join(f"  - {err}" for err in errors),
             )
 
         total_messages = messages_table.count().execute()
@@ -234,7 +237,7 @@ class CoreOrchestrator:
                 context.artifacts["media_mapping"] = media_mapping
         except NotImplementedError:
             logger.debug(
-                f"Source adapter {self.source_adapter.source_name} does not support media extraction"
+                f"Source adapter {self.source_adapter.source_name} does not support media extraction",
             )
 
         # Step 3: Get metadata (if available)
@@ -261,7 +264,7 @@ class CoreOrchestrator:
             if not is_valid:
                 raise ValueError(
                     f"Stage '{stage.stage_name}' input validation failed:\n"
-                    + "\n".join(f"  - {err}" for err in errors)
+                    + "\n".join(f"  - {err}" for err in errors),
                 )
 
             # Execute stage

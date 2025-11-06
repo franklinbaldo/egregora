@@ -33,7 +33,7 @@ skills:
   enable: []
 env: {}
 #---#}
-Default prompt."""
+Default prompt.""",
     )
     (egregora_path / "agents" / "curator.jinja").write_text(
         """{#---
@@ -51,19 +51,19 @@ skills:
   enable: [skill_a]
 env: {}
 #---#}
-Curator prompt."""
+Curator prompt.""",
     )
 
     # Create dummy tool profiles
     (egregora_path / "tools" / "profiles.yaml").write_text(
-        "profiles:\n  minimal:\n    allow: [tool_a]\n    deny: [tool_c]"
+        "profiles:\n  minimal:\n    allow: [tool_a]\n    deny: [tool_c]",
     )
 
     # Create dummy docs structure
     docs_path = site_path / "docs"
     (docs_path / "posts").mkdir(parents=True)
     (docs_path / "posts" / "post_with_agent.md").write_text(
-        "---\negregora:\n  agent: curator\n---\nPost content."
+        "---\negregora:\n  agent: curator\n---\nPost content.",
     )
     (docs_path / "posts" / "post_without_agent.md").write_text("Post content.")
     (docs_path / "other_posts").mkdir(parents=True)

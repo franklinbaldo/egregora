@@ -62,7 +62,6 @@ class SourceAdapter(ABC):
 
         Examples: "WhatsApp", "Slack", "Discord", "Telegram"
         """
-        pass
 
     @property
     @abstractmethod
@@ -72,7 +71,6 @@ class SourceAdapter(ABC):
         Used in CLI and configuration. Should be lowercase, alphanumeric.
         Examples: "whatsapp", "slack", "discord", "telegram"
         """
-        pass
 
     @abstractmethod
     def parse(
@@ -122,8 +120,8 @@ class SourceAdapter(ABC):
             >>> # Table contains: "Check this out ![photo](IMG-001.jpg)"
             >>> is_valid, errors = validate_ir_schema(table)
             >>> assert is_valid, f"Schema validation failed: {errors}"
+
         """
-        pass
 
     def extract_media(
         self,
@@ -155,6 +153,7 @@ class SourceAdapter(ABC):
             For sources where media is handled elsewhere (e.g., via URLs or
             period-specific extraction), returning an empty dict is appropriate.
             The pipeline will handle media extraction at the appropriate stage.
+
         """
         return {}
 
@@ -197,6 +196,7 @@ class SourceAdapter(ABC):
         Note:
             Default implementation returns None (no media support).
             Override this method if your source can deliver media files.
+
         """
         return None
 
@@ -226,6 +226,7 @@ class SourceAdapter(ABC):
             >>> metadata = adapter.get_metadata(Path("export.zip"))
             >>> print(metadata["group_name"])
             'My Group Chat'
+
         """
         return {}
 
@@ -256,6 +257,7 @@ class SourceAdapter(ABC):
             >>> uuid1 = SourceAdapter.generate_media_uuid(Path("photo1.jpg"))
             >>> uuid2 = SourceAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
             >>> uuid1 == uuid2  # True if content is identical
+
         """
         # Compute SHA-256 hash of file content
         sha256 = hashlib.sha256()
@@ -306,6 +308,7 @@ class SourceAdapter(ABC):
             ... )
             >>> print(standardized)
             /abs/path/docs/media/images/abc123-uuid.jpg
+
         """
         # Generate content-based UUID
         media_uuid = self.generate_media_uuid(source_file)

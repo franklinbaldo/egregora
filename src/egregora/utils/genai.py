@@ -95,7 +95,6 @@ def _respect_min_interval_sync() -> None:
 
 async def _sleep_with_progress(delay: float, description: str) -> None:
     """Sleep for ``delay`` seconds, showing a progress bar when interactive."""
-
     if delay <= 0:
         return
 
@@ -187,7 +186,7 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
 
             logger.info(
                 f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
+                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]",
             )
 
             await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
@@ -221,7 +220,7 @@ def call_with_retries_sync(
 
             logger.info(
                 f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
+                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]",
             )
 
             _sleep_with_progress_sync(delay, f"Rate limit cooldown ({delay:.0f}s)")

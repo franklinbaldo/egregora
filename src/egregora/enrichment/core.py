@@ -312,7 +312,7 @@ def enrich_table(
                     "prompt": prompt,
                     "file_uri": media_job.upload_uri,
                     "mime_type": media_job.mime_type,
-                }
+                },
             )
 
         media_responses: list[BatchPromptResult] = []
@@ -381,7 +381,7 @@ def enrich_table(
                 "message": f"[URL Enrichment] {url_job.url}\nEnrichment saved: {url_job.path}",
                 "original_line": "",
                 "tagged_line": "",
-            }
+            },
         )
 
     for media_job in media_jobs:
@@ -401,7 +401,7 @@ def enrich_table(
                 ),
                 "original_line": "",
                 "tagged_line": "",
-            }
+            },
         )
 
     if pii_media_deleted:
@@ -431,7 +431,7 @@ def enrich_table(
 
     # Ensure timestamp column is in UTC to match CONVERSATION_SCHEMA
     messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)"),
     )
 
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
@@ -469,7 +469,7 @@ def enrich_table(
             try:
                 duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")
                 duckdb_connection.raw_sql(
-                    f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
+                    f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}",
                 )
                 duckdb_connection.raw_sql("COMMIT")
             except Exception:

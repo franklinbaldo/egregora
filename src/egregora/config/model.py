@@ -39,20 +39,19 @@ class ModelConfig:
         cli_model: str | None = None,
         site_config: dict[str, Any] | None = None,
     ):
-        """
-        Initialize model config with CLI override and site config.
+        """Initialize model config with CLI override and site config.
 
         Args:
             cli_model: Model specified via CLI flag (highest priority)
             site_config: Configuration from mkdocs.yml extra.egregora section
+
         """
         self.cli_model = cli_model
         self.site_config = site_config or {}
         self.embedding_output_dimensionality = self._resolve_embedding_output_dimensionality()
 
     def get_model(self, model_type: ModelType) -> str:
-        """
-        Get model name for a specific task with fallback hierarchy.
+        """Get model name for a specific task with fallback hierarchy.
 
         Priority:
         1. CLI flag (--model)
@@ -65,6 +64,7 @@ class ModelConfig:
 
         Returns:
             Model name to use
+
         """
         # 1. CLI flag (highest priority)
         if self.cli_model:
@@ -99,7 +99,6 @@ class ModelConfig:
 
     def _resolve_embedding_output_dimensionality(self) -> int:
         """Determine the embedding vector dimensionality for the active model."""
-
         candidate_keys = (
             ("embedding", "output_dimensionality"),
             ("embedding", "dimensionality"),
@@ -152,14 +151,14 @@ class ModelConfig:
 
 
 def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """
-    Load egregora configuration from mkdocs.yml if it exists.
+    """Load egregora configuration from mkdocs.yml if it exists.
 
     Args:
         output_dir: Output directory (will look for mkdocs.yml in parent/root)
 
     Returns:
         Dict with egregora config from extra.egregora section
+
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
 

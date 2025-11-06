@@ -29,6 +29,7 @@ def get_adapter(source_identifier: str):
 
     Raises:
         ValueError: If source identifier is not recognized
+
     """
     if source_identifier not in ADAPTER_REGISTRY:
         available = ", ".join(ADAPTER_REGISTRY.keys())

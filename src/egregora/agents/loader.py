@@ -40,6 +40,7 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
         'gemini-2.0-flash-exp'
         >>> print(config.agent_id)
         'writer_v1'
+
     """
     agent_path = egregora_path / "agents" / f"{agent_name}.jinja"
 

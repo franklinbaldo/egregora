@@ -42,7 +42,7 @@ CONVERSATION_SCHEMA = ibis.schema(
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
         "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
-    }
+    },
 )
 
 # Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
@@ -72,7 +72,7 @@ RAG_CHUNKS_SCHEMA = ibis.schema(
         "tags": dt.Array(dt.string),
         "authors": dt.Array(dt.string),
         "category": dt.String(nullable=True),
-    }
+    },
 )
 
 RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
@@ -86,7 +86,7 @@ RAG_CHUNKS_METADATA_SCHEMA = ibis.schema(
         "row_count": dt.int64,
         # Optional hash of the Parquet file for integrity checks
         "checksum": dt.String(nullable=True),
-    }
+    },
 )
 
 RAG_INDEX_META_SCHEMA = ibis.schema(
@@ -107,7 +107,7 @@ RAG_INDEX_META_SCHEMA = ibis.schema(
         "created_at": dt.timestamp,
         # Timestamp of the last update to the index metadata
         "updated_at": dt.timestamp(nullable=True),
-    }
+    },
 )
 
 RAG_SEARCH_RESULT_SCHEMA = ibis.schema(
@@ -130,7 +130,7 @@ RAG_SEARCH_RESULT_SCHEMA = ibis.schema(
         "authors": dt.Array(dt.string),
         "category": dt.String(nullable=True),
         "similarity": dt.float64,
-    }
+    },
 )
 
 # ============================================================================
@@ -145,7 +145,7 @@ ANNOTATIONS_SCHEMA = ibis.schema(
         "author": dt.string,
         "commentary": dt.string,
         "created_at": dt.timestamp,
-    }
+    },
 )
 
 # ============================================================================
@@ -158,7 +158,7 @@ ELO_RATINGS_SCHEMA = ibis.schema(
         "elo_global": dt.float64,  # DEFAULT 1500
         "num_comparisons": dt.int64,  # DEFAULT 0
         "last_updated": dt.timestamp,
-    }
+    },
 )
 
 ELO_HISTORY_SCHEMA = ibis.schema(
@@ -169,7 +169,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
         "loser_id": dt.string,  # NOT NULL
         "elo_change": dt.float64,  # NOT NULL
         "tie": dt.boolean,  # DEFAULT FALSE
-    }
+    },
 )
 
 
@@ -193,6 +193,7 @@ def create_table_if_not_exists(
     Note:
         This uses CREATE TABLE IF NOT EXISTS to safely handle existing tables.
         Primary keys and constraints should be added separately if needed.
+
     """
     # Check if table exists using Ibis
     if table_name not in conn.list_tables():
@@ -213,6 +214,7 @@ def quote_identifier(identifier: str) -> str:
     Note:
         DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
         Example: my"table → "my""table"
+
     """
     return f'"{identifier.replace('"', '""')}"'
 
@@ -228,6 +230,7 @@ def add_primary_key(conn, table_name: str, column_name: str) -> None:
     Note:
         DuckDB requires ALTER TABLE for primary key constraints.
         This must be called on raw DuckDB connection, not Ibis connection.
+
     """
     try:
         conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
@@ -254,15 +257,20 @@ def ensure_identity_column(
     Note:
         This must be called on raw DuckDB connection, not Ibis connection.
         If the column already has identity configured, this is a no-op.
+
     """
     try:
         conn.execute(
-            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY"
+            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY",
         )
     except duckdb.Error as e:
         # Identity already configured or column contains incompatible data - log and continue
         logger.debug(
-            "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
+            "Could not set identity on %s.%s (generated=%s): %s",
+            table_name,
+            column_name,
+            generated,
+            e,
         )
 
 
@@ -279,13 +287,14 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
     Note:
         For vector columns, use index_type='HNSW' with appropriate metric.
         This must be called on raw DuckDB connection, not Ibis connection.
+
     """
     try:
         if index_type == "HNSW":
             conn.execute(
                 f"CREATE INDEX IF NOT EXISTS {index_name} "
                 f"ON {table_name} USING HNSW ({column_name}) "
-                "WITH (metric = 'cosine')"
+                "WITH (metric = 'cosine')",
             )
         else:
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")

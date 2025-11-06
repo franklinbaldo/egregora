@@ -74,7 +74,7 @@ def embed_query(
             model=model,
             task_type="RETRIEVAL_QUERY",
             output_dimensionality=output_dimensionality,
-        )
+        ),
     ]
 
     results = batch_client.embed_content(

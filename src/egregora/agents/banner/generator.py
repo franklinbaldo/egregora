@@ -19,6 +19,7 @@ class BannerGenerator:
 
         Args:
             api_key: Gemini API key. If None, reads from GEMINI_API_KEY env var.
+
         """
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
@@ -44,6 +45,7 @@ class BannerGenerator:
 
         Returns:
             Path to the generated banner image, or None if generation failed
+
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -57,7 +59,7 @@ class BannerGenerator:
                 types.Content(
                     role="user",
                     parts=[types.Part.from_text(text=prompt)],
-                )
+                ),
             ]
 
             generate_content_config = types.GenerateContentConfig(
@@ -74,8 +76,8 @@ class BannerGenerator:
                             "and accessible. Create minimalist, abstract representations that "
                             "capture the essence of the article without literal depictions. "
                             "Use bold colors, clear composition, and modern design principles."
-                        )
-                    )
+                        ),
+                    ),
                 ],
             )
 
@@ -128,6 +130,7 @@ class BannerGenerator:
 
         Returns:
             Prompt string for image generation
+
         """
         return f"""Create a cover image for this blog post:
 
@@ -165,6 +168,7 @@ def generate_banner_for_post(
 
     Returns:
         Path to generated banner, or None if failed
+
     """
     try:
         generator = BannerGenerator(api_key=api_key)

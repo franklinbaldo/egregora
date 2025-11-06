@@ -47,8 +47,8 @@ class OutputFormat(ABC):
 
         Raises:
             RuntimeError: If scaffolding fails
+
         """
-        pass
 
     @abstractmethod
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
@@ -63,8 +63,8 @@ class OutputFormat(ABC):
         Raises:
             ValueError: If site_root is not a valid site
             FileNotFoundError: If required directories don't exist
+
         """
-        pass
 
     @abstractmethod
     def write_post(
@@ -90,8 +90,8 @@ class OutputFormat(ABC):
         Raises:
             ValueError: If required metadata is missing
             RuntimeError: If writing fails
+
         """
-        pass
 
     @abstractmethod
     def write_profile(
@@ -115,8 +115,8 @@ class OutputFormat(ABC):
         Raises:
             ValueError: If author_id is invalid
             RuntimeError: If writing fails
+
         """
-        pass
 
     @abstractmethod
     def load_config(self, site_root: Path) -> dict[str, Any]:
@@ -131,8 +131,8 @@ class OutputFormat(ABC):
         Raises:
             FileNotFoundError: If config file doesn't exist
             ValueError: If config is invalid
+
         """
-        pass
 
     @abstractmethod
     def supports_site(self, site_root: Path) -> bool:
@@ -143,14 +143,13 @@ class OutputFormat(ABC):
 
         Returns:
             True if this format can handle the site, False otherwise
+
         """
-        pass
 
     @property
     @abstractmethod
     def format_type(self) -> str:
         """Return the type identifier for this format (e.g., 'mkdocs', 'hugo')."""
-        pass
 
     @abstractmethod
     def get_markdown_extensions(self) -> list[str]:
@@ -159,8 +158,8 @@ class OutputFormat(ABC):
         Returns:
             List of markdown extension identifiers
             Example: ["tables", "fenced_code", "admonitions"]
+
         """
-        pass
 
 
 class OutputFormatRegistry:
@@ -174,6 +173,7 @@ class OutputFormatRegistry:
 
         Args:
             format_class: Class inheriting from OutputFormat
+
         """
         instance = format_class()
         self._formats[instance.format_type] = format_class
@@ -189,6 +189,7 @@ class OutputFormatRegistry:
 
         Raises:
             KeyError: If format_type is not registered
+
         """
         if format_type not in self._formats:
             available = ", ".join(self._formats.keys())
@@ -203,6 +204,7 @@ class OutputFormatRegistry:
 
         Returns:
             Instance of detected output format, or None if no match
+
         """
         for format_class in self._formats.values():
             instance = format_class()

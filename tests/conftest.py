@@ -49,7 +49,6 @@ except (ImportError, AttributeError):  # pragma: no cover - runtime safety for o
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
-
     if _real_sdk_available:
         # Some historical versions lacked the newer helper classes we rely on.
         if hasattr(genai_types, "FunctionCall"):
@@ -77,8 +76,9 @@ def _install_google_stubs() -> None:
             self.aio = types.SimpleNamespace(models=self.models)
             self.files = types.SimpleNamespace(
                 upload=lambda *a, **k: types.SimpleNamespace(
-                    uri="stub://file", mime_type="application/octet-stream"
-                )
+                    uri="stub://file",
+                    mime_type="application/octet-stream",
+                ),
             )
 
             dummy_job = types.SimpleNamespace(
@@ -89,7 +89,8 @@ def _install_google_stubs() -> None:
                 error=None,
             )
             self.batches = types.SimpleNamespace(
-                create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
+                create=lambda *a, **k: dummy_job,
+                get=lambda *a, **k: dummy_job,
             )
 
         def close(self) -> None:  # pragma: no cover - compatibility stub
@@ -182,7 +183,6 @@ class WhatsAppFixture:
 @pytest.fixture(scope="session")
 def whatsapp_fixture() -> WhatsAppFixture:
     """Load WhatsApp archive metadata once for the entire test session."""
-
     zip_path = Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
     with zipfile.ZipFile(zip_path) as archive:
         validate_zip_contents(archive)
@@ -261,8 +261,7 @@ def mock_batch_client(monkeypatch):
 
 @pytest.fixture(scope="module")
 def vcr_config():
-    """
-    VCR configuration for recording and replaying HTTP interactions.
+    """VCR configuration for recording and replaying HTTP interactions.
 
     This configuration filters out sensitive data like API keys from cassettes
     and properly handles binary file uploads (images, etc.).

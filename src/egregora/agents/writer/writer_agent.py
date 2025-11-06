@@ -277,11 +277,11 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     agent_model: Any | None = None,
     register_tools: bool = True,
 ) -> tuple[list[str], list[str]]:
-    """
-    Execute the writer flow using Pydantic-AI agent tooling.
+    """Execute the writer flow using Pydantic-AI agent tooling.
 
     Returns:
         Tuple (saved_posts, saved_profiles, freeform_content_path)
+
     """
     logger.info("Running writer via Pydantic-AI backend")
     if register_tools:
@@ -405,7 +405,7 @@ class WriterStreamResult:
         if not self._response:
             raise RuntimeError(
                 "WriterStreamResult must be used as async context manager "
-                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)",
             )
         async for chunk in self._response.stream_text():
             yield chunk
@@ -419,7 +419,7 @@ class WriterStreamResult:
         if not self._response:
             raise RuntimeError(
                 "WriterStreamResult must be used as async context manager "
-                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)",
             )
         return self.state.saved_posts, self.state.saved_profiles
 
@@ -442,8 +442,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
     agent_model: Any | None = None,
     register_tools: bool = True,
 ) -> WriterStreamResult:
-    """
-    Execute the writer flow using Pydantic-AI agent with streaming.
+    """Execute the writer flow using Pydantic-AI agent with streaming.
 
     This is an async version that streams agent responses token-by-token.
     Useful for interactive CLI tools and real-time progress updates.
@@ -461,6 +460,7 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
 
     Returns:
         WriterStreamResult async context manager for streaming and results
+
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
 

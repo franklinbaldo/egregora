@@ -60,8 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
-    """
-    Return a JSON-serializable representation of ``value``.
+    """Return a JSON-serializable representation of ``value``.
 
     Args:
         value: Value to convert
@@ -70,6 +69,7 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 
     Raises:
         TypeError: If strict=True and value is not JSON-serializable
+
     """
     if value is None or isinstance(value, str | int | float | bool):
         return value
@@ -101,13 +101,11 @@ def _make_json_safe(value: Any, *, strict: bool = False) -> Any:
 @app.callback()
 def _initialize_cli() -> None:
     """Configure logging when the CLI is invoked."""
-
     configure_logging()
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
     """Return the Gemini API key honoring CLI override precedence."""
-
     return cli_override or os.getenv("GOOGLE_API_KEY")
 
 
@@ -118,8 +116,7 @@ def init(
         typer.Argument(help="Directory path for the new site (e.g., 'my-blog')"),
     ],
 ):
-    """
-    Initialize a new MkDocs site scaffold for serving Egregora posts.
+    """Initialize a new MkDocs site scaffold for serving Egregora posts.
 
     Creates:
     - mkdocs.yml with Material theme + blog plugin
@@ -144,7 +141,7 @@ def init(
                 f"• Process WhatsApp export: [cyan]egregora process export.zip --output={output_dir}[/cyan]",
                 title="🛠️ Initialization Complete",
                 border_style="green",
-            )
+            ),
         )
     else:
         console.print(
@@ -156,7 +153,7 @@ def init(
                 f"• Manually edit [cyan]mkdocs.yml[/cyan] or remove it to reinitialize.",
                 title="📁 Site Exists",
                 border_style="yellow",
-            )
+            ),
         )
 
 
@@ -243,7 +240,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp"): 
                 f"[cyan]Grouping:[/cyan] {config.period}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
-            )
+            ),
         )
         run_source_pipeline(
             source=source,
@@ -276,20 +273,24 @@ def process(
     period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
-        str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
+        str | None,
+        typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)"),
     ] = None,
     to_date: Annotated[
-        str | None, typer.Option(help="Only process messages up to this date (YYYY-MM-DD)")
+        str | None,
+        typer.Option(help="Only process messages up to this date (YYYY-MM-DD)"),
     ] = None,
     timezone: Annotated[
-        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
+        str | None,
+        typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')"),
     ] = None,
     gemini_key: Annotated[
         str | None,
         typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
     ] = None,
     model: Annotated[
-        str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
+        str | None,
+        typer.Option(help="Gemini model to use (or configure in mkdocs.yml)"),
     ] = None,
     retrieval_mode: Annotated[
         str,
@@ -308,8 +309,7 @@ def process(
     ] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
-    """
-    Process chat export and generate blog posts + author profiles.
+    """Process chat export and generate blog posts + author profiles.
 
     Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
@@ -381,8 +381,7 @@ def edit(
         typer.Option(help="Print the rendered prompt and exit without running the session."),
     ] = False,
 ):
-    """
-    Interactive LLM-powered editor with RAG and meta-LLM capabilities.
+    """Interactive LLM-powered editor with RAG and meta-LLM capabilities.
     The editor can:
     - Read and edit posts line-by-line
     - Search similar posts via RAG
@@ -403,7 +402,7 @@ def edit(
             site_path = site_path.parent
             if site_path == site_path.parent:  # Reached root
                 console.print(
-                    "[red]Could not determine site directory. Please specify with --site-dir.[/red]"
+                    "[red]Could not determine site directory. Please specify with --site-dir.[/red]",
                 )
                 raise typer.Exit(1)
         site_path = site_path.parent
@@ -452,7 +451,7 @@ def edit(
                 egregora_path=egregora_path,
                 docs_path=docs_path,
                 agent_override=agent,
-            )
+            ),
         )
 
         # Persist edited content to disk
@@ -469,7 +468,7 @@ def edit(
                 f"Tool calls: {len(result.tool_calls)}",
                 title="✅ Done",
                 border_style="green",
-            )
+            ),
         )
     except Exception as e:
         console.print(f"[red]Editor session failed: {e}[/red]")
@@ -482,7 +481,7 @@ app.add_typer(agents_app)
 
 @agents_app.command("list")
 def agents_list(
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
 ):
     """List all available agents."""
     egregora_path = site_dir.resolve() / ".egregora"
@@ -499,7 +498,7 @@ def agents_list(
 @agents_app.command("explain")
 def agents_explain(
     agent_name: Annotated[str, typer.Argument(help="Name of the agent to explain")],
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
 ):
     """Explain an agent's configuration, tools, and skills."""
     egregora_path = site_dir.resolve() / ".egregora"
@@ -533,7 +532,7 @@ def agents_explain(
 
 @agents_app.command("lint")
 def agents_lint(
-    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path("."),
+    site_dir: Annotated[Path, typer.Option(help="Site directory")] = Path(),
 ):
     """Validate the schema of all agents, tools, and skills."""
     egregora_path = site_dir.resolve() / ".egregora"
@@ -563,7 +562,6 @@ def agents_lint(
 
 def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
     """Register ranking commands when the optional extra is installed."""
-
     try:
         ranking_agent = importlib.import_module("egregora.ranking.agent")
         ranking_elo = importlib.import_module("egregora.ranking.elo")
@@ -580,7 +578,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
             comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
             strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
             export_parquet: Annotated[
-                bool, typer.Option(help="Export rankings to Parquet after comparisons")
+                bool,
+                typer.Option(help="Export rankings to Parquet after comparisons"),
             ] = False,
             gemini_key: Annotated[
                 str | None,
@@ -601,7 +600,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         return
 
     def _run_ranking_session(  # noqa: PLR0915
-        config: RankingCliConfig, gemini_key: str | None
+        config: RankingCliConfig,
+        gemini_key: str | None,
     ) -> None:
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
@@ -649,7 +649,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
                 Panel(
                     f"[bold cyan]Comparison {i + 1} of {config.comparisons}[/bold cyan]",
                     border_style="cyan",
-                )
+                ),
             )
 
             try:
@@ -699,7 +699,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
                 f"• Lowest ELO: {stats['lowest_elo']:.0f}",
                 title="📊 Rankings",
                 border_style="green",
-            )
+            ),
         )
 
     @app.command()
@@ -708,19 +708,20 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: PLR0915
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
         strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
         export_parquet: Annotated[
-            bool, typer.Option(help="Export rankings to Parquet after comparisons")
+            bool,
+            typer.Option(help="Export rankings to Parquet after comparisons"),
         ] = False,
         gemini_key: Annotated[
             str | None,
             typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)"),
         ] = None,
         model: Annotated[
-            str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
+            str | None,
+            typer.Option(help="Gemini model to use (or configure in mkdocs.yml)"),
         ] = None,
         debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
     ) -> None:
         """Run ELO-based ranking comparisons on posts using the ranking agent."""
-
         config = RankingCliConfig(
             site_dir=site_dir,
             comparisons=comparisons,
@@ -738,11 +739,11 @@ def parse(
     zip_file: Annotated[Path, typer.Argument(help="Path to WhatsApp export ZIP")],
     output: Annotated[Path, typer.Option(help="Output CSV file path")] = Path("messages.csv"),
     timezone: Annotated[
-        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
+        str | None,
+        typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')"),
     ] = None,
 ):
-    """
-    Parse WhatsApp export ZIP to CSV.
+    """Parse WhatsApp export ZIP to CSV.
 
     This is the first stage of the pipeline. It:
     - Extracts messages from the ZIP file
@@ -806,14 +807,15 @@ def group(  # noqa: PLR0915
     period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
     output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path("periods"),
     from_date: Annotated[
-        str | None, typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)")
+        str | None,
+        typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)"),
     ] = None,
     to_date: Annotated[
-        str | None, typer.Option(help="Only include messages up to this date (YYYY-MM-DD)")
+        str | None,
+        typer.Option(help="Only include messages up to this date (YYYY-MM-DD)"),
     ] = None,
 ):
-    """
-    Group messages by time period (day/week/month).
+    """Group messages by time period (day/week/month).
 
     This is the second stage of the pipeline. It:
     - Loads messages from CSV
@@ -866,7 +868,7 @@ def group(  # noqa: PLR0915
             if from_date_obj and to_date_obj:
                 messages_table = messages_table.filter(
                     (messages_table.timestamp.date() >= from_date_obj)
-                    & (messages_table.timestamp.date() <= to_date_obj)
+                    & (messages_table.timestamp.date() <= to_date_obj),
                 )
                 console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
             elif from_date_obj:
@@ -914,8 +916,7 @@ def enrich(  # noqa: PLR0915
     enable_media: Annotated[bool, typer.Option(help="Enable media enrichment")] = True,
     max_enrichments: Annotated[int, typer.Option(help="Maximum number of enrichments to perform")] = 50,
 ):
-    """
-    Enrich messages with LLM-generated context for URLs and media.
+    """Enrich messages with LLM-generated context for URLs and media.
 
     This is the third stage of the pipeline. It:
     - Loads messages from CSV
@@ -993,7 +994,7 @@ def enrich(  # noqa: PLR0915
             enrichment_cache = EnrichmentCache(cache_dir)
 
             console.print(
-                f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}"
+                f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}",
             )
 
             # Enrich table
@@ -1042,8 +1043,7 @@ def gather_context(  # noqa: PLR0915
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
 ):
-    """
-    Gather context for post generation (RAG, profiles, freeform memory).
+    """Gather context for post generation (RAG, profiles, freeform memory).
 
     This is the fourth stage of the pipeline. It:
     - Loads enriched messages from CSV
@@ -1109,7 +1109,7 @@ def gather_context(  # noqa: PLR0915
                 api_key = _resolve_gemini_key(gemini_key)
                 if not api_key:
                     console.print(
-                        "[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]"
+                        "[yellow]Warning: RAG enabled but no API key provided, skipping RAG[/yellow]",
                     )
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
@@ -1170,7 +1170,8 @@ def write_posts(  # noqa: PLR0915
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     context: Annotated[
-        Path | None, typer.Option(help="Context JSON file (from gather-context command)")
+        Path | None,
+        typer.Option(help="Context JSON file (from gather-context command)"),
     ] = None,
     gemini_key: Annotated[
         str | None,
@@ -1182,8 +1183,7 @@ def write_posts(  # noqa: PLR0915
     retrieval_nprobe: Annotated[int | None, typer.Option(help="DuckDB VSS nprobe for ANN")] = None,
     retrieval_overfetch: Annotated[int | None, typer.Option(help="Multiply ANN candidate pool")] = None,
 ):
-    """
-    Generate blog posts from enriched messages using LLM.
+    """Generate blog posts from enriched messages using LLM.
 
     This is the fifth (final) stage of the pipeline. It:
     - Loads enriched messages from CSV

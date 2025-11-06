@@ -74,7 +74,7 @@ async def ask_llm(
                 genai.types.Content(
                     role="user",
                     parts=[genai.types.Part(text=question)],
-                )
+                ),
             ],
             config=genai.types.GenerateContentConfig(temperature=0.7),
         )
@@ -87,7 +87,6 @@ async def ask_llm(
 
 def finish(expect_version: int, decision: str, notes: str) -> None:
     """Mark editing complete."""
-    pass
 
 
 def diversity_sampler(k: int, seed: int) -> str:

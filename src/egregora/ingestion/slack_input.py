@@ -53,6 +53,7 @@ class SlackInputSource(InputSource):
 
         Returns:
             True if it's a directory containing channels.json and users.json
+
         """
         if not source_path.exists():
             return False
@@ -90,6 +91,7 @@ class SlackInputSource(InputSource):
             ValueError: If source_path is not a valid Slack export
             RuntimeError: If parsing fails
             NotImplementedError: This is a template - full implementation needed
+
         """
         if not self.supports_format(source_path):
             raise ValueError(f"Source path {source_path} is not a valid Slack export directory")
@@ -168,6 +170,7 @@ class SlackInputSource(InputSource):
 
         Raises:
             NotImplementedError: This is a template - full implementation needed
+
         """
         # TODO: Implement media download using Slack API
         # This would require:

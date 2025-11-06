@@ -42,7 +42,6 @@ class AnnotationStore:
     @property
     def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
-
         return self._backend.con
 
     def _initialize(self) -> None:
@@ -58,7 +57,7 @@ class AnnotationStore:
                 commentary VARCHAR,
                 created_at TIMESTAMP
             )
-            """
+            """,
         )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         column_default_row = self._connection.execute(
@@ -72,13 +71,13 @@ class AnnotationStore:
         ).fetchone()
         if not column_default_row or column_default_row[0] != f"nextval('{sequence_name}')":
             self._connection.execute(
-                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')",
             )
         self._backend.raw_sql(
             f"""
             CREATE INDEX IF NOT EXISTS idx_annotations_parent_created
             ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)
-            """
+            """,
         )
 
         max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()
@@ -119,7 +118,6 @@ class AnnotationStore:
         commentary: str,
     ) -> Annotation:
         """Persist an annotation and return the saved record."""
-
         sanitized_parent_id = (parent_id or "").strip()
         sanitized_parent_type = (parent_type or "").strip().lower()
         sanitized_commentary = (commentary or "").strip()
@@ -144,7 +142,7 @@ class AnnotationStore:
                 annotations_table.filter(annotations_table.id == int(sanitized_parent_id))
                 .limit(1)
                 .count()
-                .execute()
+                .execute(),
             )
             if parent_exists == 0:
                 raise ValueError(f"parent annotation with id {sanitized_parent_id} does not exist")
@@ -179,7 +177,6 @@ class AnnotationStore:
 
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
-
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return []
@@ -198,7 +195,6 @@ class AnnotationStore:
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
-
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return None
@@ -217,13 +213,12 @@ class AnnotationStore:
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
-
         records = self._fetch_records(
             f"""
             SELECT id, parent_id, parent_type, author, commentary, created_at
             FROM {ANNOTATIONS_TABLE}
             ORDER BY created_at ASC, id ASC
-            """
+            """,
         )
 
         for row in records:
@@ -246,6 +241,7 @@ class AnnotationStore:
             >>> joined = annotations_store.join_with_messages(messages_table)
             >>> # Now you can do vectorized operations like:
             >>> annotated_messages = joined.filter(joined.commentary.notnull())
+
         """
         # Get annotations as an Ibis table
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
@@ -256,7 +252,8 @@ class AnnotationStore:
         # Perform left join: messages with their annotations (if any)
         # This preserves all messages even if they don't have annotations
         joined = messages_table.left_join(
-            message_annotations, messages_table.message_id == message_annotations.parent_id
+            message_annotations,
+            messages_table.message_id == message_annotations.parent_id,
         )
 
         return joined

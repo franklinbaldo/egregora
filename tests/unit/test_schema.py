@@ -21,8 +21,7 @@ EMPTY_FRAME = ibis.memtable([], schema=ibis.schema(SIMPLE_SCHEMA))
 
 
 def test_ensure_message_schema_with_datetime_objects():
-    """
-    Test that ensure_message_schema correctly handles a DataFrame
+    """Test that ensure_message_schema correctly handles a DataFrame
     where the timestamp column is of type object, containing Python
     datetime objects.
     """
@@ -44,8 +43,7 @@ def test_ensure_message_schema_with_datetime_objects():
 
 
 def test_ensure_message_schema_with_tz_aware_datetime():
-    """
-    Test that ensure_message_schema correctly handles a DataFrame
+    """Test that ensure_message_schema correctly handles a DataFrame
     with a timezone-aware timestamp column, converting it to UTC
     and nanosecond precision.
     """

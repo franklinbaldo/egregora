@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def duckdb_backend() -> Generator[ibis.BaseBackend, None, None]:
-    """
-    Context manager for temporary DuckDB backend.
+    """Context manager for temporary DuckDB backend.
 
     Sets up an in-memory DuckDB database as the default Ibis backend,
     and properly cleans up connections on exit.
@@ -28,6 +27,7 @@ def duckdb_backend() -> Generator[ibis.BaseBackend, None, None]:
         >>> with duckdb_backend():
         ...     table = ibis.read_csv("data.csv")
         ...     result = table.execute()
+
     """
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)

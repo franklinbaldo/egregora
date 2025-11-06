@@ -51,6 +51,7 @@ def validate_ir_schema(table: Table) -> tuple[bool, list[str]]:
         >>> is_valid, errors = validate_ir_schema(messages_table)
         >>> if not is_valid:
         ...     raise ValueError(f"IR schema validation failed: {errors}")
+
     """
     errors = []
     schema = table.schema()
@@ -65,7 +66,7 @@ def validate_ir_schema(table: Table) -> tuple[bool, list[str]]:
         actual_dtype = schema[col_name]
         if not _is_dtype_compatible(actual_dtype, expected_dtype):
             errors.append(
-                f"Column '{col_name}' has incompatible type. Expected: {expected_dtype}, Got: {actual_dtype}"
+                f"Column '{col_name}' has incompatible type. Expected: {expected_dtype}, Got: {actual_dtype}",
             )
 
     return len(errors) == 0, errors
@@ -113,6 +114,7 @@ def create_ir_table(
     Example:
         >>> raw_table = parse_raw_export(...)
         >>> ir_table = create_ir_table(raw_table, timezone="America/New_York")
+
     """
     # Delegate to existing schema enforcement logic
     # This reuses the battle-tested ensure_message_schema function

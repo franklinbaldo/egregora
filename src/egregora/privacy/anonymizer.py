@@ -43,7 +43,6 @@ def anonymize_mentions(text: str) -> str:
 
 def anonymize_table(table: Table) -> Table:
     """Anonymize author column and mentions in message column using vectorized operations."""
-
     # 1. Anonymize Authors
     # Get unique author names, create a mapping, and then replace using CASE statements
     unique_authors_result = table.select("author").distinct().execute()

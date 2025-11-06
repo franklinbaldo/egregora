@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class RankingStore:
-    """
-    Ranking store using DuckDB with optional Parquet exports.
+    """Ranking store using DuckDB with optional Parquet exports.
 
     Uses persistent DuckDB database for fast updates and ACID transactions.
     Can export to Parquet for sharing and external analytics.
@@ -24,11 +23,11 @@ class RankingStore:
     """
 
     def __init__(self, rankings_dir: Path):
-        """
-        Initialize ranking store.
+        """Initialize ranking store.
 
         Args:
             rankings_dir: Directory for ranking data (e.g., site_root/rankings/)
+
         """
         self.rankings_dir = rankings_dir
         rankings_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +53,7 @@ class RankingStore:
                 games_played INTEGER NOT NULL DEFAULT 0,
                 last_updated TIMESTAMP NOT NULL
             )
-        """
+        """,
         )
 
         # Comparison history table
@@ -72,39 +71,38 @@ class RankingStore:
                 comment_b VARCHAR NOT NULL,
                 stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
             )
-        """
+        """,
         )
 
         # Create indexes for efficient queries
         self.conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """
+        """,
         )
         self.conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """
+        """,
         )
         self.conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """
+        """,
         )
         self.conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """
+        """,
         )
         self.conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """
+        """,
         )
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
-        """
-        Initialize ratings for new posts.
+        """Initialize ratings for new posts.
 
         Only inserts posts that don't already exist (idempotent).
 
@@ -113,6 +111,7 @@ class RankingStore:
 
         Returns:
             Number of new posts initialized
+
         """
         if not post_ids:
             return 0
@@ -144,14 +143,14 @@ class RankingStore:
         return inserted
 
     def get_rating(self, post_id: str) -> dict[str, Any] | None:
-        """
-        Get rating for a specific post.
+        """Get rating for a specific post.
 
         Args:
             post_id: Post ID
 
         Returns:
             dict with elo_global and games_played, or None if not found
+
         """
         result = self.conn.execute(
             """
@@ -165,10 +164,13 @@ class RankingStore:
         return None
 
     def update_ratings(
-        self, post_a: str, post_b: str, new_elo_a: float, new_elo_b: float
+        self,
+        post_a: str,
+        post_b: str,
+        new_elo_a: float,
+        new_elo_b: float,
     ) -> tuple[float, float]:
-        """
-        Update ELO ratings after a comparison.
+        """Update ELO ratings after a comparison.
 
         Args:
             post_a: First post ID
@@ -178,6 +180,7 @@ class RankingStore:
 
         Returns:
             (new_elo_a, new_elo_b)
+
         """
         now = datetime.now(UTC)
 
@@ -220,8 +223,7 @@ class RankingStore:
         return new_elo_a, new_elo_b
 
     def save_comparison(self, comparison_data: dict[str, Any]) -> None:
-        """
-        Save comparison to history.
+        """Save comparison to history.
 
         Args:
             comparison_data: dict with keys:
@@ -235,6 +237,7 @@ class RankingStore:
                 - stars_a: int
                 - comment_b: str
                 - stars_b: int
+
         """
         self.conn.execute(
             """
@@ -257,8 +260,7 @@ class RankingStore:
         logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
 
     def get_posts_to_compare(self, strategy: str = "fewest_games", n: int = 2) -> list[str]:
-        """
-        Select posts to compare based on strategy.
+        """Select posts to compare based on strategy.
 
         Args:
             strategy: Selection strategy (currently only "fewest_games")
@@ -266,6 +268,7 @@ class RankingStore:
 
         Returns:
             List of post IDs
+
         """
         if strategy == "fewest_games":
             result = self.conn.execute(
@@ -277,18 +280,17 @@ class RankingStore:
                 [n],
             ).fetchall()
             return [row[0] for row in result]
-        else:
-            raise ValueError(f"Unknown strategy: {strategy}")
+        raise ValueError(f"Unknown strategy: {strategy}")
 
     def get_comments_for_post(self, post_id: str) -> Table:
-        """
-        Get all comments for a specific post.
+        """Get all comments for a specific post.
 
         Args:
             post_id: Post ID
 
         Returns:
             Ibis Table with columns: profile_id, timestamp, comment, stars
+
         """
         result = self.conn.execute(
             """
@@ -314,7 +316,7 @@ class RankingStore:
                         "timestamp": dt.Timestamp(timezone=None),
                         "comment": dt.string,
                         "stars": dt.int64,
-                    }
+                    },
                 ),
             )
 
@@ -323,8 +325,7 @@ class RankingStore:
         return ibis.memtable(rows)
 
     def get_top_posts(self, n: int = 10, min_games: int = 5) -> Table:
-        """
-        Get top-rated posts.
+        """Get top-rated posts.
 
         Args:
             n: Number of posts to return
@@ -332,6 +333,7 @@ class RankingStore:
 
         Returns:
             Ibis Table with post_id, elo_global, games_played, last_updated
+
         """
         cursor = self.conn.execute(
             """
@@ -346,28 +348,27 @@ class RankingStore:
         return self._rows_to_memtable(cursor)
 
     def get_all_ratings(self) -> Table:
-        """
-        Get all ratings as Ibis Table.
+        """Get all ratings as Ibis Table.
 
         Returns:
             Ibis Table with all elo_ratings data
+
         """
         cursor = self.conn.execute("SELECT * FROM elo_ratings ORDER BY elo_global DESC")
         return self._rows_to_memtable(cursor)
 
     def get_all_history(self) -> Table:
-        """
-        Get all comparison history as Ibis Table.
+        """Get all comparison history as Ibis Table.
 
         Returns:
             Ibis Table with all elo_history data
+
         """
         cursor = self.conn.execute("SELECT * FROM elo_history ORDER BY timestamp")
         return self._rows_to_memtable(cursor)
 
     def _rows_to_memtable(self, cursor: duckdb.DuckDBPyConnection) -> Table:
         """Convert a DuckDB cursor result into an Ibis memtable."""
-
         description = cursor.description or []
         columns = [column[0] for column in description]
         rows = cursor.fetchall()
@@ -379,8 +380,7 @@ class RankingStore:
         return ibis.memtable(records)
 
     def export_to_parquet(self) -> None:
-        """
-        Export DuckDB tables to Parquet for sharing/analytics.
+        """Export DuckDB tables to Parquet for sharing/analytics.
 
         Creates:
             - rankings/elo_ratings.parquet
@@ -392,22 +392,22 @@ class RankingStore:
         self.conn.execute(
             f"""
             COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
-        """
+        """,
         )
         self.conn.execute(
             f"""
             COPY elo_history TO '{history_path}' (FORMAT PARQUET)
-        """
+        """,
         )
 
         logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
 
     def stats(self) -> dict[str, Any]:
-        """
-        Get ranking store statistics.
+        """Get ranking store statistics.
 
         Returns:
             dict with stats about ratings and history
+
         """
         ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
         ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
@@ -418,21 +418,21 @@ class RankingStore:
         avg_games_result = self.conn.execute(
             """
             SELECT AVG(games_played) FROM elo_ratings
-        """
+        """,
         ).fetchone()
         avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
 
         top_elo_result = self.conn.execute(
             """
             SELECT MAX(elo_global) FROM elo_ratings
-        """
+        """,
         ).fetchone()
         top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
 
         bottom_elo_result = self.conn.execute(
             """
             SELECT MIN(elo_global) FROM elo_ratings
-        """
+        """,
         ).fetchone()
         bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
 

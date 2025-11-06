@@ -41,6 +41,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         Returns:
             True if mkdocs.yml exists in site_root or parent directories
+
         """
         if not site_root.exists():
             return False
@@ -67,6 +68,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         Raises:
             RuntimeError: If scaffolding fails
+
         """
         site_root = site_root.expanduser().resolve()
 
@@ -90,6 +92,7 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If site_root is not a valid MkDocs site
             FileNotFoundError: If required directories don't exist
+
         """
         if not self.supports_site(site_root):
             raise ValueError(f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)")
@@ -138,6 +141,7 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If required metadata is missing
             RuntimeError: If writing fails
+
         """
         try:
             return write_mkdocs_post(content, metadata, output_dir)
@@ -167,6 +171,7 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             ValueError: If author_id is invalid or content is missing
             RuntimeError: If writing fails
+
         """
         if not author_id:
             raise ValueError("author_id cannot be empty")
@@ -200,6 +205,7 @@ class MkDocsOutputFormat(OutputFormat):
         Raises:
             FileNotFoundError: If mkdocs.yml doesn't exist
             ValueError: If config is invalid
+
         """
         config, mkdocs_path = load_mkdocs_config(site_root)
 
@@ -213,6 +219,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         Returns:
             List of markdown extension identifiers
+
         """
         return [
             # Standard extensions

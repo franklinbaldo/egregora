@@ -142,8 +142,7 @@ def load_profile(profile_path: Path) -> dict[str, Any]:
 
 
 def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
-    """
-    Load all existing comments for a post from DuckDB.
+    """Load all existing comments for a post from DuckDB.
     Format as markdown for agent context.
     """
     comments_table = store.get_comments_for_post(post_id)
@@ -169,7 +168,6 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
 
 def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     """Locate a post file within the MkDocs posts directory."""
-
     candidates: list[Path] = []
 
     search_dirs: list[Path] = []
@@ -249,6 +247,7 @@ def _register_ranking_tools(agent: Agent) -> None:
 
         Args:
             winner: Which post is better - must be either "A" or "B"
+
         """
         if winner not in ("A", "B"):
             raise ValueError(f"Winner must be 'A' or 'B', got: {winner}")
@@ -264,6 +263,7 @@ def _register_ranking_tools(agent: Agent) -> None:
         Args:
             comment: Markdown comment, max 250 chars. Reference existing comments if relevant
             stars: Star rating 1-5
+
         """
         if not MIN_STARS <= stars <= MAX_STARS:
             raise ValueError(f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}")
@@ -284,6 +284,7 @@ def _register_ranking_tools(agent: Agent) -> None:
         Args:
             comment: Markdown comment, max 250 chars. Reference existing comments if relevant
             stars: Star rating 1-5
+
         """
         if not MIN_STARS <= stars <= MAX_STARS:
             raise ValueError(f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}")
@@ -307,8 +308,7 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
     model: str = "models/gemini-flash-latest",
     agent_model: Any | None = None,
 ) -> dict[str, Any]:
-    """
-    Run a three-turn comparison between two posts using Pydantic AI agent.
+    """Run a three-turn comparison between two posts using Pydantic AI agent.
 
     Args:
         site_dir: Root directory of MkDocs site
@@ -321,6 +321,7 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
 
     Returns:
         dict with comparison results (winner, comments, stars, ratings)
+
     """
     # Setup
     rankings_dir = site_dir / "rankings"
@@ -445,7 +446,9 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
                 raise ValueError(msg)
 
             new_elo_a, new_elo_b = calculate_elo_update(
-                rating_a["elo_global"], rating_b["elo_global"], state.winner
+                rating_a["elo_global"],
+                rating_b["elo_global"],
+                state.winner,
             )
             store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
 

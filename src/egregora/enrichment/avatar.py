@@ -86,8 +86,6 @@ class AvatarModerationResult:
 class AvatarProcessingError(Exception):
     """Error during avatar processing."""
 
-    pass
-
 
 def _get_avatar_directory(docs_dir: Path) -> Path:
     """Get or create the avatars directory."""
@@ -97,8 +95,7 @@ def _get_avatar_directory(docs_dir: Path) -> Path:
 
 
 def _validate_url_for_ssrf(url: str) -> None:
-    """
-    Validate URL to prevent SSRF attacks.
+    """Validate URL to prevent SSRF attacks.
 
     Checks:
     - Only HTTP/HTTPS schemes allowed
@@ -110,6 +107,7 @@ def _validate_url_for_ssrf(url: str) -> None:
 
     Raises:
         AvatarProcessingError: If URL is not safe to fetch
+
     """
     # Parse URL
     try:
@@ -152,12 +150,12 @@ def _validate_url_for_ssrf(url: str) -> None:
                         # Log security event at WARNING level for monitoring
                         logger.warning(
                             f"⚠️  SSRF attempt blocked (IPv4-mapped): {url} resolves to {ip_str} "
-                            f"(maps to {ipv4_addr} in blocked range {blocked_range})"
+                            f"(maps to {ipv4_addr} in blocked range {blocked_range})",
                         )
                         raise AvatarProcessingError(
                             f"URL resolves to blocked IPv4-mapped address: {ip_str} "
                             f"(maps to {ipv4_addr} in range {blocked_range}). "
-                            "Access to private/internal networks is not allowed."
+                            "Access to private/internal networks is not allowed.",
                         )
 
             # Check against blocked ranges
@@ -165,12 +163,12 @@ def _validate_url_for_ssrf(url: str) -> None:
                 if ip_addr in blocked_range:
                     # Log security event at WARNING level for monitoring
                     logger.warning(
-                        f"⚠️  SSRF attempt blocked: {url} resolves to {ip_str} in blocked range {blocked_range}"
+                        f"⚠️  SSRF attempt blocked: {url} resolves to {ip_str} in blocked range {blocked_range}",
                     )
                     raise AvatarProcessingError(
                         f"URL resolves to blocked IP address: {ip_str} "
                         f"(in range {blocked_range}). "
-                        "Access to private/internal networks is not allowed."
+                        "Access to private/internal networks is not allowed.",
                     )
 
         except ValueError as e:
@@ -187,8 +185,7 @@ def _generate_avatar_uuid(content: bytes, group_slug: str) -> uuid.UUID:
 
 
 def _validate_image_format(filename: str) -> str:
-    """
-    Validate image format.
+    """Validate image format.
 
     Returns the file extension if valid.
     Raises AvatarProcessingError if invalid.
@@ -196,14 +193,13 @@ def _validate_image_format(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     if ext not in SUPPORTED_IMAGE_EXTENSIONS:
         raise AvatarProcessingError(
-            f"Unsupported image format: {ext}. Supported formats: {', '.join(SUPPORTED_IMAGE_EXTENSIONS)}"
+            f"Unsupported image format: {ext}. Supported formats: {', '.join(SUPPORTED_IMAGE_EXTENSIONS)}",
         )
     return ext
 
 
 def _validate_image_content(content: bytes, expected_mime: str) -> None:
-    """
-    Validate that image content matches expected MIME type using magic bytes.
+    """Validate that image content matches expected MIME type using magic bytes.
 
     This prevents attacks where executable code is disguised with an image MIME type header.
 
@@ -213,6 +209,7 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
 
     Raises:
         AvatarProcessingError: If content doesn't match expected type
+
     """
     # Check magic bytes
     for magic, mime_type in MAGIC_BYTES.items():
@@ -223,26 +220,24 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
                     if expected_mime != "image/webp":
                         raise AvatarProcessingError(f"Image content is WEBP but declared as {expected_mime}")
                     return
-                else:
-                    raise AvatarProcessingError(f"RIFF file is not WEBP format (expected {expected_mime})")
+                raise AvatarProcessingError(f"RIFF file is not WEBP format (expected {expected_mime})")
 
             # Normal validation for other formats
             if mime_type != expected_mime:
                 raise AvatarProcessingError(
                     f"Image content type mismatch: content appears to be {mime_type} "
-                    f"but declared as {expected_mime}"
+                    f"but declared as {expected_mime}",
                 )
             return
 
     # No magic bytes matched
     raise AvatarProcessingError(
-        "Unable to verify image format. Content does not match any supported image type."
+        "Unable to verify image format. Content does not match any supported image type.",
     )
 
 
 def _validate_image_dimensions(content: bytes) -> None:
-    """
-    Validate image dimensions to prevent memory exhaustion attacks.
+    """Validate image dimensions to prevent memory exhaustion attacks.
 
     Extremely large dimensions could cause memory issues during image processing
     even if the file size is within limits (e.g., highly compressed images).
@@ -252,6 +247,7 @@ def _validate_image_dimensions(content: bytes) -> None:
 
     Raises:
         AvatarProcessingError: If dimensions exceed limits
+
     """
     try:
         img = Image.open(io.BytesIO(content))
@@ -260,7 +256,7 @@ def _validate_image_dimensions(content: bytes) -> None:
         if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
             raise AvatarProcessingError(
                 f"Image dimensions too large: {width}x{height} pixels. "
-                f"Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels."
+                f"Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels.",
             )
 
         logger.debug(f"Image dimensions validated: {width}x{height} pixels")
@@ -277,8 +273,7 @@ def download_avatar_from_url(
     group_slug: str,
     timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
 ) -> tuple[uuid.UUID, Path]:
-    """
-    Download avatar from URL and save to avatars directory.
+    """Download avatar from URL and save to avatars directory.
 
     Args:
         url: URL of the avatar image
@@ -291,6 +286,7 @@ def download_avatar_from_url(
 
     Raises:
         AvatarProcessingError: If download fails or image is invalid
+
     """
     logger.info(f"Downloading avatar from URL: {url}")
 
@@ -331,7 +327,7 @@ def download_avatar_from_url(
                     if content_type not in ALLOWED_MIME_TYPES:
                         raise AvatarProcessingError(
                             f"Invalid image MIME type: {content_type}. "
-                            f"Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+                            f"Allowed types: {', '.join(ALLOWED_MIME_TYPES)}",
                         )
 
                     # Check Content-Length header before downloading (early size validation)
@@ -342,7 +338,7 @@ def download_avatar_from_url(
                             if content_length > MAX_AVATAR_SIZE_BYTES:
                                 raise AvatarProcessingError(
                                     f"Avatar image too large: {content_length} bytes "
-                                    f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                                    f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)",
                                 )
                         except ValueError:
                             logger.warning(f"Invalid Content-Length header: {content_length_str}")
@@ -354,7 +350,7 @@ def download_avatar_from_url(
                         content.extend(chunk)
                         if len(content) > MAX_AVATAR_SIZE_BYTES:
                             raise AvatarProcessingError(
-                                f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
+                                f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download",
                             )
 
                     content = bytes(content)
@@ -417,8 +413,7 @@ def extract_avatar_from_zip(
     docs_dir: Path,
     group_slug: str,
 ) -> tuple[uuid.UUID, Path]:
-    """
-    Extract avatar image from WhatsApp ZIP export.
+    """Extract avatar image from WhatsApp ZIP export.
 
     Args:
         zip_path: Path to WhatsApp export ZIP
@@ -431,6 +426,7 @@ def extract_avatar_from_zip(
 
     Raises:
         AvatarProcessingError: If extraction fails or image is invalid
+
     """
     logger.info(f"Extracting avatar from ZIP: {media_filename}")
 
@@ -458,7 +454,7 @@ def extract_avatar_from_zip(
                     if info.file_size > MAX_AVATAR_SIZE_BYTES:
                         raise AvatarProcessingError(
                             f"Avatar image too large: {info.file_size} bytes "
-                            f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                            f"(max: {MAX_AVATAR_SIZE_BYTES} bytes)",
                         )
 
                     # Read content
@@ -510,14 +506,14 @@ def extract_avatar_from_zip(
 
 
 def _parse_moderation_result(enrichment_text: str) -> tuple[ModerationStatus, str, bool]:
-    """
-    Parse moderation result from enrichment text.
+    """Parse moderation result from enrichment text.
 
     The enrichment agent outputs a structured MODERATION_STATUS line at the beginning
     of the markdown. We parse this line first, then check for PII_DETECTED keyword.
 
     Returns:
         Tuple of (status, reason, has_pii)
+
     """
     import re
 
@@ -570,8 +566,7 @@ def enrich_and_moderate_avatar(
     vision_client: GeminiDispatcher,
     model: str = "gemini-2.0-flash-exp",
 ) -> AvatarModerationResult:
-    """
-    Enrich avatar image with AI description and moderation.
+    """Enrich avatar image with AI description and moderation.
 
     Args:
         avatar_uuid: UUID of the avatar
@@ -585,6 +580,7 @@ def enrich_and_moderate_avatar(
 
     Raises:
         AvatarProcessingError: If enrichment fails
+
     """
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
@@ -610,11 +606,11 @@ def enrich_and_moderate_avatar(
                             file_data=genai_types.FileData(
                                 file_uri=uploaded_file.uri,
                                 mime_type=uploaded_file.mime_type,
-                            )
+                            ),
                         ),
                     ],
                     role="user",
-                )
+                ),
             ],
             model=model,
             tag=f"avatar-{avatar_uuid}",
@@ -669,7 +665,7 @@ def enrich_and_moderate_avatar(
         # Network/API errors - these are transient, keep avatar for retry
         logger.warning(f"Transient error during avatar moderation (keeping file for retry): {e}")
         raise AvatarProcessingError(
-            "Failed to moderate avatar due to network error. Please try again later."
+            "Failed to moderate avatar due to network error. Please try again later.",
         ) from e
     except Exception as e:
         # Permanent failures (parsing errors, invalid responses, etc.)

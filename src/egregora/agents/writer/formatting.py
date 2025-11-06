@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
     """Persist freeform LLM responses that skipped tool calls."""
-
     freeform_dir = output_dir / "freeform"
     freeform_dir.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +46,7 @@ def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
             "",
             normalized_content,
             "",
-        ]
+        ],
     )
 
     candidate_path.write_text(front_matter, encoding="utf-8")
@@ -56,7 +55,6 @@ def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
 
 def _load_freeform_memory(output_dir: Path) -> str:
     """Return the latest freeform memo content (if any)."""
-
     freeform_dir = output_dir / "freeform"
     if not freeform_dir.exists():
         return ""
@@ -75,7 +73,6 @@ def _load_freeform_memory(output_dir: Path) -> str:
 @lru_cache(maxsize=1)
 def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
     """Return the pandas DataFrame type when pandas is available."""
-
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
@@ -86,7 +83,6 @@ def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
 @lru_cache(maxsize=1)
 def _pandas_na_singleton() -> Any | None:
     """Return the pandas.NA singleton when pandas is available."""
-
     try:
         pandas_module = importlib.import_module("pandas")
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
@@ -96,7 +92,6 @@ def _pandas_na_singleton() -> Any | None:
 
 def _stringify_value(value: Any) -> str:
     """Convert values to safe strings for table rendering."""
-
     if isinstance(value, str):
         return value
 
@@ -120,7 +115,6 @@ def _stringify_value(value: Any) -> str:
 
 def _escape_table_cell(value: Any) -> str:
     """Escape markdown table delimiters and normalize whitespace."""
-
     text = _stringify_value(value)
     text = text.replace("|", "\\|")
     return text.replace("\n", "<br>")
@@ -137,7 +131,6 @@ def _compute_message_id(row: Any) -> str:
     value is ignored during hash computation. The function is private to this
     module, so no downstream backwards compatibility considerations apply.
     """
-
     if not (hasattr(row, "get") and hasattr(row, "items")):
         raise TypeError("_compute_message_id expects an object with mapping-style access")
 
@@ -172,7 +165,6 @@ def _compute_message_id(row: Any) -> str:
 
 def _format_annotations_for_message(annotations: list[Annotation]) -> str:
     """Return formatted annotation text for inclusion in a table cell."""
-
     if not annotations:
         return ""
 
@@ -192,7 +184,7 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
         commentary = _stringify_value(annotation.commentary)
         formatted_blocks.append(
             f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**"
-            f"\n{commentary}"
+            f"\n{commentary}",
         )
 
     return "\n\n".join(formatted_blocks)
@@ -200,7 +192,6 @@ def _format_annotations_for_message(annotations: list[Annotation]) -> str:
 
 def _merge_message_and_annotations(message_value: Any, annotations: list[Annotation]) -> str:
     """Append annotation content after the original message text."""
-
     message_text = _stringify_value(message_value)
     annotations_block = _format_annotations_for_message(annotations)
 
@@ -215,7 +206,6 @@ def _table_to_records(
     data: pa.Table | Iterable[Mapping[str, Any]] | Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Normalize heterogeneous tabular inputs into row dictionaries."""
-
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
         columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
@@ -275,7 +265,6 @@ def _build_conversation_markdown(
     annotations_store: AnnotationStore | None,
 ) -> str:
     """Render conversation rows into markdown with inline annotations."""
-
     records, column_order = _table_to_records(data)
     if not records:
         return ""

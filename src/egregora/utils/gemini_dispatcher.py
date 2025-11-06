@@ -43,6 +43,7 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
             default_model: Default embedding model to use
             batch_threshold: Minimum requests for batch API
             max_parallel: Maximum parallel workers
+
         """
         super().__init__(batch_threshold, max_parallel)
         self._client = client
@@ -60,12 +61,15 @@ class GeminiEmbeddingDispatcher(BaseDispatcher[EmbeddingBatchRequest, EmbeddingB
         **kwargs,
     ) -> Annotated[list[EmbeddingBatchResult], "A list of embedding results"]:
         """Embed content using optimal strategy (batch or individual).
+
         Args:
             requests: Embedding requests to execute
             **kwargs: Additional arguments for dispatching, including `force_batch`,
                 `force_individual`, `display_name`, `poll_interval`, and `timeout`.
+
         Returns:
             List of embedding results
+
         """
         return self.dispatch(requests, **kwargs)
 
@@ -132,6 +136,7 @@ class GeminiGenerationDispatcher(BaseDispatcher[BatchPromptRequest, BatchPromptR
             default_model: Default generation model to use
             batch_threshold: Minimum requests for batch API
             max_parallel: Maximum parallel workers
+
         """
         super().__init__(batch_threshold, max_parallel)
         self._client = client
@@ -149,12 +154,15 @@ class GeminiGenerationDispatcher(BaseDispatcher[BatchPromptRequest, BatchPromptR
         **kwargs,
     ) -> Annotated[list[BatchPromptResult], "A list of prompt results"]:
         """Generate content using optimal strategy (batch or individual).
+
         Args:
             requests: Generation requests to execute
             **kwargs: Additional arguments for dispatching, including `force_batch`,
                 `force_individual`, `display_name`, `poll_interval`, and `timeout`.
+
         Returns:
             List of generation results
+
         """
         return self.dispatch(requests, **kwargs)
 
@@ -213,6 +221,7 @@ class GeminiDispatcher:
             default_model: Default model (used for both embedding and generation)
             batch_threshold: Minimum requests for batch API
             max_parallel: Maximum parallel workers
+
         """
         self._client = client
         self._default_model = default_model
@@ -221,10 +230,16 @@ class GeminiDispatcher:
 
         # Create specialized dispatchers
         self._embedding_dispatcher = GeminiEmbeddingDispatcher(
-            client, default_model, batch_threshold, max_parallel
+            client,
+            default_model,
+            batch_threshold,
+            max_parallel,
         )
         self._generation_dispatcher = GeminiGenerationDispatcher(
-            client, default_model, batch_threshold, max_parallel
+            client,
+            default_model,
+            batch_threshold,
+            max_parallel,
         )
 
         # Expose batch client for direct access (compatibility)

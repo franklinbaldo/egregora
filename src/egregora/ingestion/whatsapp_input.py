@@ -47,6 +47,7 @@ class WhatsAppInputSource(InputSource):
 
         Returns:
             True if it's a ZIP file containing a .txt chat file
+
         """
         if not source_path.exists():
             return False
@@ -95,6 +96,7 @@ class WhatsAppInputSource(InputSource):
         Raises:
             ValueError: If source_path is not a valid WhatsApp export
             RuntimeError: If parsing fails
+
         """
         if not self.supports_format(source_path):
             raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
@@ -165,6 +167,7 @@ class WhatsAppInputSource(InputSource):
         Returns:
             Mapping of original filename -> relative path from output_dir
             Example: {"IMG-001.jpg": "media/images/abc123.jpg"}
+
         """
         if not self.supports_format(source_path):
             raise ValueError(f"Source path {source_path} is not a valid WhatsApp export ZIP")
@@ -219,7 +222,7 @@ class WhatsAppInputSource(InputSource):
                 # Log error and skip this file rather than exposing absolute paths
                 logger.error(
                     f"Media file {original} at {absolute_path} is not relative to "
-                    f"output_dir {output_dir}. This is a bug. Skipping file. Error: {e}"
+                    f"output_dir {output_dir}. This is a bug. Skipping file. Error: {e}",
                 )
                 # Skip this file - don't add to result
 
@@ -235,6 +238,7 @@ class WhatsAppInputSource(InputSource):
             ValueError: If no .txt chat file found
             zipfile.BadZipFile: If ZIP is corrupted
             PermissionError: If permission denied
+
         """
         try:
             with zipfile.ZipFile(zip_path) as zf:
@@ -265,6 +269,7 @@ class WhatsAppInputSource(InputSource):
 
         Returns:
             Inferred group name
+
         """
         # Remove .zip extension and use filename
         name = zip_path.stem

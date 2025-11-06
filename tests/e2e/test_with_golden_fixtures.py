@@ -1,5 +1,4 @@
-"""
-Golden-fixture test that exercises the WhatsApp pipeline through the new
+"""Golden-fixture test that exercises the WhatsApp pipeline through the new
 Pydantic-AI writer backend.
 
 Rather than replaying previously recorded Gemini HTTP traffic, we stub the

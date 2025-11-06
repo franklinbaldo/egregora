@@ -28,7 +28,7 @@ tags: [test]
 
 This is the first test post.
 It has some interesting content about AI.
-"""
+""",
     )
 
     post_b = posts_dir / "post-b.md"
@@ -43,7 +43,7 @@ tags: [test]
 
 This is the second test post.
 It discusses philosophy and consciousness.
-"""
+""",
     )
 
     return post_a, post_b
@@ -66,7 +66,7 @@ def test_profile(tmp_path: Path) -> Path:
 ## Bio
 
 I love reading about AI and philosophy.
-"""
+""",
     )
 
     return profile_path

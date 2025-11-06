@@ -78,7 +78,7 @@ def test_ranking_store_initialize_handles_empty_batches(tmp_path: Path):
         SELECT table_name
         FROM information_schema.tables
         WHERE lower(table_name) = lower('__elo_init_posts')
-        """
+        """,
     ).fetchall()
 
     assert temp_tables == []
@@ -97,7 +97,7 @@ def test_annotation_store_uses_identity_column(tmp_path: Path):
         SELECT id, parent_id, parent_type, author, commentary
         FROM annotations
         ORDER BY id
-        """
+        """,
     ).fetchall()
 
     assert rows == [

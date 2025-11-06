@@ -16,7 +16,6 @@ EMBEDDING_DIM = 1536
 
 def _vector_store_row(store_module, **overrides):
     """Construct a row matching VECTOR_STORE_SCHEMA with sensible defaults."""
-
     base = dict.fromkeys(store_module.VECTOR_STORE_SCHEMA.names)
 
     defaults = {
@@ -57,7 +56,6 @@ def test_rag_metadata_schema_includes_nullable_checksum():
 
 def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
     """Instantiating a store must not clobber an existing Ibis backend."""
-
     previous_backend = ibis.get_backend()
     custom_backend = ibis.duckdb.connect()
     ibis.set_backend(custom_backend)
@@ -76,7 +74,6 @@ def test_vector_store_does_not_override_existing_backend(tmp_path, monkeypatch):
 
 def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
     """VectorStore.add must materialize tables built on other backends."""
-
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
@@ -98,7 +95,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
                         content="hello",
                         embedding=[0.0, 1.0],
                         tags=["tag"],
-                    )
+                    ),
                 ],
                 schema=store_module.VECTOR_STORE_SCHEMA,
             )
@@ -114,7 +111,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
                         content="world",
                         embedding=[1.0, 0.0],
                         tags=["tag"],
-                    )
+                    ),
                 ],
                 schema=store_module.VECTOR_STORE_SCHEMA,
             )
@@ -130,7 +127,6 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
 
 def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
     """Adding rows must fail fast when the input schema diverges."""
-
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
@@ -143,7 +139,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
                 "chunk_id": "chunk-1",
                 "content": "hello",
                 "embedding": [0.0, 1.0],
-            }
+            },
         ]
 
         with pytest.raises(ValueError, match="missing columns"):
@@ -158,7 +154,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
                 content="hello",
                 embedding=[0.0, 1.0],
                 tags=["tag"],
-            )
+            ),
         ]
         store.add(ibis.memtable(valid_rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
@@ -188,14 +184,12 @@ def _load_vector_store():
 
 def _table_columns(connection, table_name: str) -> list[tuple[str, bool]]:
     """Return DuckDB column names and primary key flags for the given table."""
-
     pragma_rows = connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     return [(str(row[1]), bool(row[5])) for row in pragma_rows]
 
 
 def test_metadata_tables_match_central_schema(tmp_path):
     """Metadata tables must follow the centralized schema definitions."""
-
     store_module = _load_vector_store()
     conn = duckdb.connect(":memory:")
     store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
@@ -227,7 +221,6 @@ def test_metadata_tables_match_central_schema(tmp_path):
 
 def test_metadata_round_trip(tmp_path):
     """Persisted dataset metadata should be retrievable and removable."""
-
     store_module = _load_vector_store()
     conn = duckdb.connect(":memory:")
     store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
@@ -246,7 +239,6 @@ def test_metadata_round_trip(tmp_path):
 
 def test_upsert_index_meta_persists_values(tmp_path):
     """Index metadata upserts should reflect the latest configuration."""
-
     store_module = _load_vector_store()
     conn = duckdb.connect(":memory:")
     store = store_module.VectorStore(tmp_path / "chunks.parquet", connection=conn)
@@ -279,7 +271,6 @@ def test_upsert_index_meta_persists_values(tmp_path):
 
 def test_search_builds_expected_sql(tmp_path, monkeypatch):
     """ANN mode should emit vss_search while exact mode falls back to cosine scans."""
-
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: True)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
@@ -297,7 +288,7 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
                 content="hello",
                 embedding=[0.0, 1.0],
                 tags=["tag"],
-            )
+            ),
         ]
         store.add(ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA))
 
@@ -341,7 +332,6 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 
 def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
     """Run an end-to-end ANN query when the VSS extension can be installed."""
-
     store_module = _load_vector_store()
     connection = duckdb.connect(str(tmp_path / "chunks.duckdb"))
 
@@ -368,7 +358,7 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
                         "embedding": embedding,
                         "tags": ["retrieval"],
                         "authors": ["author"],
-                    }
+                    },
                 )
                 return base
 
@@ -394,7 +384,6 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
 
 def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
     """Temporal filters must accept typed inputs and cross-year comparisons."""
-
     store_module = _load_vector_store()
     monkeypatch.setattr(store_module.VectorStore, "_init_vss", lambda self: None)
     monkeypatch.setattr(store_module.VectorStore, "_rebuild_index", lambda self: None)
@@ -416,7 +405,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
                     "embedding": embedding,
                     "tags": overrides.get("tags", ["tag"]),
                     "authors": overrides.get("authors", ["author"]),
-                }
+                },
             )
             base.update(overrides)
             return base

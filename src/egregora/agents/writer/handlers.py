@@ -38,14 +38,16 @@ def _handle_write_post_tool(
                     id=getattr(fn_call, "id", None),
                     name="write_post",
                     response={"status": "success", "path": path},
-                )
-            )
+                ),
+            ),
         ],
     )
 
 
 def _handle_read_profile_tool(
-    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path
+    fn_args: dict[str, Any],
+    fn_call: genai_types.FunctionCall,
+    profiles_dir: Path,
 ) -> genai_types.Content:
     """Handle read_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
@@ -59,8 +61,8 @@ def _handle_read_profile_tool(
                     id=getattr(fn_call, "id", None),
                     name="read_profile",
                     response={"content": profile_content or "No profile exists yet."},
-                )
-            )
+                ),
+            ),
         ],
     )
 
@@ -85,8 +87,8 @@ def _handle_write_profile_tool(
                     id=getattr(fn_call, "id", None),
                     name="write_profile",
                     response={"status": "success", "path": path},
-                )
-            )
+                ),
+            ),
         ],
     )
 
@@ -151,8 +153,8 @@ def _handle_search_media_tool(  # noqa: PLR0913
                         id=getattr(fn_call, "id", None),
                         name="search_media",
                         response={"results": formatted_results},
-                    )
-                )
+                    ),
+                ),
             ],
         )
     except Exception as e:
@@ -165,8 +167,8 @@ def _handle_search_media_tool(  # noqa: PLR0913
                         id=getattr(fn_call, "id", None),
                         name="search_media",
                         response={"status": "error", "error": str(e)},
-                    )
-                )
+                    ),
+                ),
             ],
         )
 
@@ -177,7 +179,6 @@ def _handle_annotate_conversation_tool(
     annotations_store: AnnotationStore | None,
 ) -> genai_types.Content:
     """Persist annotation data using the AnnotationStore."""
-
     if annotations_store is None:
         raise RuntimeError("Annotation store is not configured")
 
@@ -208,8 +209,8 @@ def _handle_annotate_conversation_tool(
                     id=getattr(fn_call, "id", None),
                     name="annotate_conversation",
                     response=response_payload,
-                )
-            )
+                ),
+            ),
         ],
     )
 
@@ -249,27 +250,26 @@ def _handle_generate_banner_tool(
                                 "banner_path": relative_path,
                                 "message": f"Banner generated successfully for '{title}'",
                             },
-                        )
-                    )
+                        ),
+                    ),
                 ],
             )
-        else:
-            logger.warning(f"Banner generation returned None for post: {title}")
-            return genai_types.Content(
-                role="user",
-                parts=[
-                    genai_types.Part(
-                        function_response=genai_types.FunctionResponse(
-                            id=getattr(fn_call, "id", None),
-                            name="generate_banner",
-                            response={
-                                "status": "failed",
-                                "message": "Banner generation did not produce an image",
-                            },
-                        )
-                    )
-                ],
-            )
+        logger.warning(f"Banner generation returned None for post: {title}")
+        return genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        id=getattr(fn_call, "id", None),
+                        name="generate_banner",
+                        response={
+                            "status": "failed",
+                            "message": "Banner generation did not produce an image",
+                        },
+                    ),
+                ),
+            ],
+        )
     except Exception as e:
         logger.error(f"Failed to generate banner for {title}: {e}")
         return genai_types.Content(
@@ -280,14 +280,16 @@ def _handle_generate_banner_tool(
                         id=getattr(fn_call, "id", None),
                         name="generate_banner",
                         response={"status": "error", "error": str(e)},
-                    )
-                )
+                    ),
+                ),
             ],
         )
 
 
 def _handle_tool_error(
-    fn_call: genai_types.FunctionCall, fn_name: str, error: Exception
+    fn_call: genai_types.FunctionCall,
+    fn_name: str,
+    error: Exception,
 ) -> genai_types.Content:
     """Handle tool execution error."""
     return genai_types.Content(
@@ -298,7 +300,7 @@ def _handle_tool_error(
                     id=getattr(fn_call, "id", None),
                     name=fn_name,
                     response={"status": "error", "error": str(error)},
-                )
-            )
+                ),
+            ),
         ],
     )

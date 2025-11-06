@@ -174,7 +174,7 @@ async def ask_llm_impl(
                 genai_types.Content(
                     role="user",
                     parts=[genai_types.Part(text=question)],
-                )
+                ),
             ],
             config=genai_types.GenerateContentConfig(temperature=0.7),
         )
@@ -206,6 +206,7 @@ def _register_editor_tools(agent: Agent) -> None:
             expect_version: Expected document version (for optimistic concurrency)
             index: Line index to edit (0-based)
             new_text: New content for this line
+
         """
         result_dict = ctx.deps.editor.edit_line(
             expect_version=expect_version,
@@ -214,7 +215,7 @@ def _register_editor_tools(agent: Agent) -> None:
         )
 
         ctx.deps.tool_calls_log.append(
-            {"tool": "edit_line", "args": {"expect_version": expect_version, "index": index}}
+            {"tool": "edit_line", "args": {"expect_version": expect_version, "index": index}},
         )
 
         if result_dict.get("ok"):
@@ -223,10 +224,11 @@ def _register_editor_tools(agent: Agent) -> None:
                 message=f"Line {index} edited successfully",
                 new_version=result_dict.get("version"),
             )
-        else:
-            return EditLineResult(
-                success=False, message=result_dict.get("error", "Edit failed"), new_version=None
-            )
+        return EditLineResult(
+            success=False,
+            message=result_dict.get("error", "Edit failed"),
+            new_version=None,
+        )
 
     @agent.tool
     def full_rewrite_tool(
@@ -239,6 +241,7 @@ def _register_editor_tools(agent: Agent) -> None:
         Args:
             expect_version: Expected document version
             content: New complete document content
+
         """
         result_dict = ctx.deps.editor.full_rewrite(
             expect_version=expect_version,
@@ -253,12 +256,11 @@ def _register_editor_tools(agent: Agent) -> None:
                 message="Document rewritten successfully",
                 new_version=result_dict.get("version"),
             )
-        else:
-            return FullRewriteResult(
-                success=False,
-                message=result_dict.get("error", "Rewrite failed"),
-                new_version=None,
-            )
+        return FullRewriteResult(
+            success=False,
+            message=result_dict.get("error", "Rewrite failed"),
+            new_version=None,
+        )
 
     @agent.tool
     async def query_rag_tool(
@@ -273,9 +275,10 @@ def _register_editor_tools(agent: Agent) -> None:
         Args:
             query: Search query (e.g. 'consciousness emergence', 'AI alignment')
             max_results: Maximum results to return (default 5)
+
         """
         ctx.deps.tool_calls_log.append(
-            {"tool": "query_rag", "args": {"query": query, "max_results": max_results}}
+            {"tool": "query_rag", "args": {"query": query, "max_results": max_results}},
         )
 
         return await query_rag_impl(
@@ -303,6 +306,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
         Args:
             question: Question to ask the LLM
+
         """
         ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
 
@@ -341,6 +345,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         - notes: str - Editor notes
         - edits_made: bool - Whether any edits were made
         - tool_calls: list - Log of tool calls
+
     """
     # Load post content
     if not post_path.exists():

@@ -36,7 +36,6 @@ def configure_default_limits(
     limits: Annotated[ZipValidationLimits, "The new default validation limits"],
 ) -> None:
     """Override module-wide validation limits."""
-
     global _DEFAULT_LIMITS  # noqa: PLW0603
     _DEFAULT_LIMITS = limits
 
@@ -51,14 +50,13 @@ def validate_zip_contents(
     Guards against zip bombs, resource exhaustion and path traversal by
     inspecting the metadata of each member before extraction.
     """
-
     limits = limits or _DEFAULT_LIMITS
     total_size = 0
     members = zf.infolist()
 
     if len(members) > limits.max_member_count:
         raise ZipValidationError(
-            f"ZIP archive contains too many files ({len(members)} > {limits.max_member_count})"
+            f"ZIP archive contains too many files ({len(members)} > {limits.max_member_count})",
         )
 
     for info in members:
@@ -66,7 +64,7 @@ def validate_zip_contents(
 
         if info.file_size > limits.max_member_size:
             raise ZipValidationError(
-                f"ZIP member '{info.filename}' exceeds maximum size of {limits.max_member_size} bytes"
+                f"ZIP member '{info.filename}' exceeds maximum size of {limits.max_member_size} bytes",
             )
 
         total_size += info.file_size
@@ -81,12 +79,11 @@ def ensure_safe_member_size(
     limits: Annotated[ZipValidationLimits | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Ensure an individual member stays within safe boundaries before reading."""
-
     limits = limits or _DEFAULT_LIMITS
     info = zf.getinfo(member_name)
     if info.file_size > limits.max_member_size:
         raise ZipValidationError(
-            f"ZIP member '{member_name}' exceeds maximum size of {limits.max_member_size} bytes"
+            f"ZIP member '{member_name}' exceeds maximum size of {limits.max_member_size} bytes",
         )
 
 

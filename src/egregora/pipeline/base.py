@@ -90,6 +90,7 @@ class PipelineStage(ABC):
 
         Args:
             config: Stage configuration
+
         """
         self.config = config
 
@@ -101,7 +102,6 @@ class PipelineStage(ABC):
         Used for logging and debugging.
         Examples: "Message Filtering", "URL Enrichment", "Post Writing"
         """
-        pass
 
     @property
     @abstractmethod
@@ -111,7 +111,6 @@ class PipelineStage(ABC):
         Used for checkpoints and configuration.
         Examples: "filtering", "enrichment", "writing"
         """
-        pass
 
     @abstractmethod
     def process(
@@ -134,8 +133,8 @@ class PipelineStage(ABC):
         Raises:
             ValueError: If input data is invalid
             RuntimeError: If stage execution fails
+
         """
-        pass
 
     def supports_checkpointing(self) -> bool:
         """Whether this stage supports checkpointing for resume capability.
@@ -164,6 +163,7 @@ class PipelineStage(ABC):
         Note:
             Default implementation returns (True, []) (no validation).
             Override to add custom validation logic.
+
         """
         return True, []
 

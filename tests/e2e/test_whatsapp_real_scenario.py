@@ -46,7 +46,6 @@ class DummyBatchClient:
 
     def generate_content(self, requests, **kwargs):
         """Return canned batch responses for enrichment pipelines."""
-
         results = [
             BatchPromptResult(
                 tag=getattr(request, "tag", None),
@@ -72,7 +71,7 @@ class DummyGenaiClient:
         self.models = SimpleNamespace(generate_content=lambda *a, **k: response)
         self.aio = SimpleNamespace(models=self.models)
         self.files = SimpleNamespace(
-            upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg")
+            upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg"),
         )
         dummy_job = SimpleNamespace(
             name="stub-job",
@@ -271,10 +270,18 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     posts_two.mkdir()
 
     _, mapping_one = extract_and_replace_media(
-        table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug)
+        table,
+        export.zip_path,
+        docs_dir_one,
+        posts_one,
+        str(export.group_slug),
     )
     _, mapping_two = extract_and_replace_media(
-        table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug)
+        table,
+        export.zip_path,
+        docs_dir_two,
+        posts_two,
+        str(export.group_slug),
     )
 
     assert mapping_one.keys() == mapping_two.keys()

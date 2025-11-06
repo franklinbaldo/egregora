@@ -91,6 +91,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
     Raises:
         ValueError: If source is unknown or configuration is invalid
         RuntimeError: If pipeline execution fails
+
     """
     # Import group_by_period from the parent module
     from egregora.pipeline import group_by_period
@@ -111,13 +112,13 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
         raise ValueError(
             f"No mkdocs.yml found for site at {output_dir}. "
-            "Run 'egregora init <site-dir>' before processing exports."
+            "Run 'egregora init <site-dir>' before processing exports.",
         )
 
     if not site_paths.docs_dir.exists():
         raise ValueError(
             f"Docs directory not found: {site_paths.docs_dir}. "
-            "Re-run 'egregora init' to scaffold the MkDocs project."
+            "Re-run 'egregora init' to scaffold the MkDocs project.",
         )
 
     # Step 3: Set up database backend
@@ -143,14 +144,20 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             client = genai.Client(api_key=gemini_api_key)
 
         text_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher"), batch_threshold=batch_threshold
+            client,
+            model_config.get_model("enricher"),
+            batch_threshold=batch_threshold,
         )
         vision_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
+            client,
+            model_config.get_model("enricher_vision"),
+            batch_threshold=batch_threshold,
         )
         embedding_model_name = model_config.get_model("embedding")
         embedding_batch_client = GeminiDispatcher(
-            client, embedding_model_name, batch_threshold=batch_threshold
+            client,
+            embedding_model_name,
+            batch_threshold=batch_threshold,
         )
         embedding_dimensionality = model_config.embedding_output_dimensionality
 
@@ -167,7 +174,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
         if not is_valid:
             raise ValueError(
                 "Source adapter produced invalid IR schema. Errors:\n"
-                + "\n".join(f"  - {err}" for err in errors)
+                + "\n".join(f"  - {err}" for err in errors),
             )
 
         total_messages = messages_table.count().execute()
@@ -190,7 +197,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             except ValueError as exc:
                 raise ValueError(
                     f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
-                    f"Expected parent {site_paths.docs_dir}, got {directory}."
+                    f"Expected parent {site_paths.docs_dir}, got {directory}.",
                 ) from exc
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -232,7 +239,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             if from_date and to_date:
                 messages_table = messages_table.filter(
                     (messages_table.timestamp.date() >= from_date)
-                    & (messages_table.timestamp.date() <= to_date)
+                    & (messages_table.timestamp.date() <= to_date),
                 )
                 logger.info(f"📅 [cyan]Filtering[/] from {from_date} to {to_date}")
             elif from_date:
@@ -299,7 +306,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                         logger.info(f"Cached enrichment missing; regenerating {period_key}")
                         if resume:
                             steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "in_progress"
+                                period_key,
+                                "enrichment",
+                                "in_progress",
                             )["steps"]
                         enriched_table = enrich_table(
                             period_table,
@@ -373,7 +382,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
             logger.info(
-                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}"
+                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}",
             )
 
         # Step 15: Index media into RAG

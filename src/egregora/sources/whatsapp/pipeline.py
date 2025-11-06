@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
-
     with zipfile.ZipFile(zip_path) as zf:
         # Collect all .txt candidates
         candidates = []
@@ -85,8 +84,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """
-    Complete pipeline: ZIP → posts + profiles.
+    """Complete pipeline: ZIP → posts + profiles.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -102,6 +100,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
+
     """
     # Import group_by_period from core pipeline
     from egregora.pipeline import group_by_period
@@ -115,13 +114,13 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
     if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
         raise ValueError(
             f"No mkdocs.yml found for site at {output_dir}. "
-            "Run 'egregora init <site-dir>' before processing exports."
+            "Run 'egregora init <site-dir>' before processing exports.",
         )
 
     if not site_paths.docs_dir.exists():
         raise ValueError(
             f"Docs directory not found: {site_paths.docs_dir}. "
-            "Re-run 'egregora init' to scaffold the MkDocs project."
+            "Re-run 'egregora init' to scaffold the MkDocs project.",
         )
 
     # Load site config and create model config
@@ -135,14 +134,20 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
     try:
         text_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher"), batch_threshold=batch_threshold
+            client,
+            model_config.get_model("enricher"),
+            batch_threshold=batch_threshold,
         )
         vision_batch_client = GeminiDispatcher(
-            client, model_config.get_model("enricher_vision"), batch_threshold=batch_threshold
+            client,
+            model_config.get_model("enricher_vision"),
+            batch_threshold=batch_threshold,
         )
         embedding_model_name = model_config.get_model("embedding")
         embedding_batch_client = GeminiDispatcher(
-            client, embedding_model_name, batch_threshold=batch_threshold
+            client,
+            embedding_model_name,
+            batch_threshold=batch_threshold,
         )
         embedding_dimensionality = model_config.embedding_output_dimensionality
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
@@ -180,7 +185,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             except ValueError as exc:
                 raise ValueError(
                     f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
-                    f"Expected parent {site_paths.docs_dir}, got {directory}."
+                    f"Expected parent {site_paths.docs_dir}, got {directory}.",
                 ) from exc
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -225,7 +230,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             if from_date and to_date:
                 messages_table = messages_table.filter(
                     (messages_table.timestamp.date() >= from_date)
-                    & (messages_table.timestamp.date() <= to_date)
+                    & (messages_table.timestamp.date() <= to_date),
                 )
                 logger.info(f"📅 [cyan]Filtering[/] messages from {from_date} to {to_date}")
             elif from_date:
@@ -240,7 +245,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
 
             if removed_by_date > 0:
                 logger.info(
-                    f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date (kept {filtered_count})"
+                    f"🗓️  [yellow]Filtered out[/] {removed_by_date} messages by date (kept {filtered_count})",
                 )
             else:
                 logger.info(f"[green]✓ All[/] {filtered_count} messages are within the specified date range")
@@ -287,7 +292,9 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                         logger.info("Cached enrichment missing; regenerating %s", period_key)
                         if resume:
                             steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "in_progress"
+                                period_key,
+                                "enrichment",
+                                "in_progress",
                             )["steps"]
                         enriched_table = enrich_table(
                             period_table,
@@ -360,7 +367,7 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
             logger.info(
-                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}"
+                f"[green]✔ Generated[/] {post_count} posts / {profile_count} profiles for {period_key}",
             )
 
         # Index all media enrichments into RAG (if enrichment was enabled)
@@ -410,8 +417,7 @@ def process_whatsapp_export(  # noqa: PLR0913
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """
-    Public entry point that manages DuckDB/Ibis backend state for processing.
+    """Public entry point that manages DuckDB/Ibis backend state for processing.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -431,8 +437,8 @@ def process_whatsapp_export(  # noqa: PLR0913
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
-    """
 
+    """
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 

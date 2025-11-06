@@ -17,6 +17,7 @@ def configure_logfire() -> bool:
 
     Returns:
         bool: True if Logfire was configured, False otherwise
+
     """
     token = os.environ.get("LOGFIRE_TOKEN")
     if not token:
@@ -42,6 +43,7 @@ def get_logfire():
 
     Returns:
         logfire module or None if not available
+
     """
     try:
         import logfire
@@ -60,6 +62,7 @@ def logfire_span(name: str, **kwargs):
 
     Returns:
         Context manager (span or nullcontext)
+
     """
     logfire = get_logfire()
     if logfire and configure_logfire():
@@ -76,6 +79,7 @@ def logfire_info(message: str, **kwargs):
     Args:
         message: Log message
         **kwargs: Additional log attributes
+
     """
     logfire = get_logfire()
     if logfire and configure_logfire():

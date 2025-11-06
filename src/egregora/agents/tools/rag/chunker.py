@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def estimate_tokens(text: str) -> int:
-    """
-    Estimate token count (rough approximation: ~4 chars per token).
+    """Estimate token count (rough approximation: ~4 chars per token).
 
     Gemini embedding limit: 2048 tokens
     We use 1800 tokens max per chunk for safety.
@@ -25,8 +24,7 @@ def chunk_markdown(
     max_tokens: int = 1800,
     overlap_tokens: int = 150,
 ) -> list[str]:
-    """
-    Chunk markdown content respecting token limits.
+    """Chunk markdown content respecting token limits.
 
     Strategy:
     - Split on paragraph boundaries (\\n\\n)
@@ -40,6 +38,7 @@ def chunk_markdown(
 
     Returns:
         List of text chunks
+
     """
     # Split into paragraphs
     paragraphs = content.split("\n\n")
@@ -88,11 +87,11 @@ def chunk_markdown(
 
 
 def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
-    """
-    Parse blog post with YAML frontmatter.
+    """Parse blog post with YAML frontmatter.
 
     Returns:
         (metadata_dict, content_string)
+
     """
     with open(post_path, encoding="utf-8") as f:
         post = frontmatter.load(f)
@@ -129,8 +128,7 @@ def chunk_document(
     post_path: Path,
     max_tokens: int = 1800,
 ) -> list[dict[str, Any]]:
-    """
-    Chunk a blog post into indexable chunks.
+    """Chunk a blog post into indexable chunks.
 
     Args:
         post_path: Path to markdown file with YAML frontmatter
@@ -144,6 +142,7 @@ def chunk_document(
             'post_title': str,
             'metadata': {...}
         }
+
     """
     metadata, content = parse_post(post_path)
 
@@ -160,7 +159,7 @@ def chunk_document(
                 "post_slug": metadata["slug"],
                 "post_title": metadata["title"],
                 "metadata": metadata,
-            }
+            },
         )
 
     logger.info(f"Chunked {post_path.name} into {len(chunks)} chunks")

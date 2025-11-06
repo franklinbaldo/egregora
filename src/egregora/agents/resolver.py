@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
-    """
-    Resolves the agent name based on post, section, and default fallbacks.
-    """
+    """Resolves the agent name based on post, section, and default fallbacks."""
     # 1. Check for agent in post's front-matter
     post = frontmatter.load(post_path)
     if "egregora" in post and "agent" in post["egregora"]:
@@ -36,8 +34,7 @@ def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
 
 
 def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any]:
-    """
-    Merges variables from the post's front-matter into the agent's variables,
+    """Merges variables from the post's front-matter into the agent's variables,
     respecting the allowlist.
     """
     post = frontmatter.load(post_path)
@@ -52,7 +49,7 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
         else:
             logger.warning(
                 f"Variable '{key}' from {post_path.name} not allowed by agent "
-                f"{agent_config.agent_id}, ignoring"
+                f"{agent_config.agent_id}, ignoring",
             )
 
     return merged_vars
@@ -64,10 +61,11 @@ class AgentResolver:
         self.docs_path = docs_path
 
     def resolve(
-        self, post_path: Path, agent_override: str | None = None
+        self,
+        post_path: Path,
+        agent_override: str | None = None,
     ) -> tuple[AgentConfig, str, dict[str, Any]]:
-        """
-        Resolves the agent for a given post and returns the agent config, prompt template,
+        """Resolves the agent for a given post and returns the agent config, prompt template,
         and the final merged variables.
         """
         agent_name = agent_override or resolve_agent_name(post_path, self.docs_path)

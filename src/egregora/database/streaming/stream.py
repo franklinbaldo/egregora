@@ -44,12 +44,13 @@ def _get_duckdb_connection(con: DuckDBBackend) -> Any:
 
     Raises:
         AttributeError: If connection doesn't expose DuckDB API
+
     """
     # Ibis DuckDB backend exposes the connection as .con
     if not hasattr(con, "con"):
         raise AttributeError(
             f"Backend {type(con).__name__} doesn't expose DuckDB connection. "
-            "stream_ibis requires ibis.duckdb backend."
+            "stream_ibis requires ibis.duckdb backend.",
         )
     return con.con
 
@@ -85,6 +86,7 @@ def stream_ibis(
         >>> expr = ensure_deterministic_order(expr)
         >>> for batch in stream_ibis(expr, con):
         >>>     ...
+
     """
     # Get the underlying DuckDB connection from Ibis
     duckdb_con = _get_duckdb_connection(con)
@@ -130,6 +132,7 @@ def copy_expr_to_parquet(
 
     Note:
         The output directory must exist. DuckDB will create the file.
+
     """
     duckdb_con = _get_duckdb_connection(con)
     sql = con.compile(expr)
@@ -162,6 +165,7 @@ def copy_expr_to_ndjson(
 
     Note:
         Output format is newline-delimited JSON (one JSON object per line).
+
     """
     duckdb_con = _get_duckdb_connection(con)
     sql = con.compile(expr)
@@ -201,6 +205,7 @@ def ensure_deterministic_order(expr: ibis.Expr) -> ibis.Expr:
     Note:
         If your table has different key columns, call .order_by() directly:
         >>> expr = table.order_by("timestamp", "message_id")
+
     """
     schema = expr.schema()
     sortable_columns = [col for col in ["published_at", "timestamp", "id"] if col in schema.names]

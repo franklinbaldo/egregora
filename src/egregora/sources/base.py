@@ -11,8 +11,7 @@ from egregora.types import GroupSlug
 
 @dataclass(slots=True)
 class Export:
-    """
-    Base class for chat export metadata.
+    """Base class for chat export metadata.
 
     Platform-specific implementations (WhatsApp, Slack, Discord, etc.)
     should inherit from this class and add their specific fields.

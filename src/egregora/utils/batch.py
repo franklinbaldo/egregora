@@ -82,7 +82,6 @@ class GeminiBatchClient:
 
     def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
         """Upload a media file and wait for it to become ACTIVE before returning."""
-
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
@@ -176,7 +175,7 @@ class GeminiBatchClient:
                     tag=request.tag,
                     response=response,
                     error=error,
-                )
+                ),
             )
 
         return results
@@ -218,7 +217,7 @@ class GeminiBatchClient:
             inlined_requests=genai_types.EmbedContentBatch(
                 contents=contents,
                 config=embed_config,
-            )
+            ),
         )
 
         logger.info("[blue]📚 Embedding model:[/] %s — %d item(s)", model_name, len(contents))
@@ -262,7 +261,7 @@ class GeminiBatchClient:
                     tag=req.tag,
                     embedding=embedding_values,
                     error=error,
-                )
+                ),
             )
 
         return results

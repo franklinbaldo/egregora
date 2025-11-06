@@ -32,8 +32,7 @@ def period_has_posts(period_key: str, posts_dir: Path) -> bool:
 
 
 def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
-    """
-    Group Table by time period.
+    """Group Table by time period.
 
     Args:
         table: Table with timestamp column
@@ -41,6 +40,7 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
 
     Returns:
         Dict mapping period string to Table
+
     """
     if table.count().execute() == 0:
         return {}

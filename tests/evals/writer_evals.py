@@ -16,6 +16,7 @@ def create_writer_dataset() -> Dataset:
 
     Returns:
         Dataset with test cases for writer evaluation
+
     """
     cases = [
         Case(
@@ -114,6 +115,7 @@ def create_writer_quality_dataset_with_judges() -> Dataset:
 
     Returns:
         Dataset with test cases and LLM judges
+
     """
     from pydantic_evals.evaluators import LLMJudge
 

@@ -89,6 +89,7 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
 
     Returns:
         Message with media references converted to markdown
+
     """
     if not message:
         return message
@@ -139,6 +140,7 @@ class WhatsAppAdapter(SourceAdapter):
         >>> table = adapter.parse(Path("export.zip"), timezone="UTC")
         >>> metadata = adapter.get_metadata(Path("export.zip"))
         >>> print(metadata["group_name"])
+
     """
 
     @property
@@ -173,6 +175,7 @@ class WhatsAppAdapter(SourceAdapter):
         Raises:
             ValueError: If ZIP is invalid or chat file not found
             FileNotFoundError: If input_path does not exist
+
         """
         if not input_path.exists():
             raise FileNotFoundError(f"Input path does not exist: {input_path}")
@@ -239,6 +242,7 @@ class WhatsAppAdapter(SourceAdapter):
             ...     zip_path=Path("export.zip")
             ... )
             >>> # Returns: Path("/tmp/IMG-20250101-WA0001.jpg")
+
         """
         # Validate media reference for path traversal attacks
         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
@@ -316,6 +320,7 @@ class WhatsAppAdapter(SourceAdapter):
 
         Returns:
             Empty dict (media extraction handled by deliver_media())
+
         """
         warnings.warn(
             "extract_media() is deprecated and will be removed in a future version. "
@@ -339,6 +344,7 @@ class WhatsAppAdapter(SourceAdapter):
                 - group_slug: URL-safe group identifier
                 - chat_file: Name of chat file in ZIP
                 - export_date: Current date
+
         """
         if not input_path.exists():
             raise FileNotFoundError(f"Input path does not exist: {input_path}")

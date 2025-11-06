@@ -65,6 +65,7 @@ async def find_relevant_docs(
         ... )
         >>> for doc in docs:
         ...     print(f"{doc['post_title']}: {doc['similarity']:.2f}")
+
     """
     with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
         try:
@@ -129,6 +130,7 @@ def format_rag_context(docs: list[dict[str, Any]]) -> str:
 
     Returns:
         Formatted context string for LLM prompt
+
     """
     if not docs:
         return ""
@@ -193,6 +195,7 @@ async def build_rag_context_for_writer(
         ...     embedding_model="models/gemini-embedding-001"
         ... )
         >>> prompt = f"{conversation}\n\n{context}"
+
     """
     docs = await find_relevant_docs(
         query,

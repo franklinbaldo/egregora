@@ -11,7 +11,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def _load_project_version() -> str:
     """Read the canonical project version from ``pyproject.toml``."""
-
     pyproject = PROJECT_ROOT / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text("utf-8"))
     return data["project"]["version"]
@@ -19,7 +18,6 @@ def _load_project_version() -> str:
 
 def test_package_version_matches_pyproject() -> None:
     """Ensure the distributed package reports the same version as the project."""
-
     package_init = PROJECT_ROOT / "src" / "egregora" / "__init__.py"
     init_contents = package_init.read_text("utf-8")
 
@@ -34,7 +32,6 @@ def test_package_version_matches_pyproject() -> None:
 
 def test_changelog_mentions_current_version() -> None:
     """Fail if the changelog lacks a section for the current release."""
-
     changelog = PROJECT_ROOT / "CHANGELOG.md"
     changelog_text = changelog.read_text("utf-8")
     version = _load_project_version()

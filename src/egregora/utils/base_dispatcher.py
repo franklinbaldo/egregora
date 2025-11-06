@@ -35,6 +35,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
         Args:
             batch_threshold: Minimum number of requests to use batch API
             max_parallel: Maximum parallel workers for individual calls
+
         """
         self._batch_threshold = batch_threshold
         self._max_parallel = max_parallel
@@ -64,6 +65,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Raises:
             ValueError: If both force flags are True
+
         """
         if not requests:
             return []
@@ -83,9 +85,8 @@ class BaseDispatcher[TRequest, TResult](ABC):
         if len(requests) < self._batch_threshold:
             logger.info(f"Using individual calls for {len(requests)} items")
             return self._execute_individual(requests)
-        else:
-            logger.info(f"Using batch API for {len(requests)} items")
-            return self._execute_batch(requests, **kwargs)
+        logger.info(f"Using batch API for {len(requests)} items")
+        return self._execute_batch(requests, **kwargs)
 
     def _execute_individual(self, requests: Sequence[TRequest]) -> list[TResult]:
         """Execute requests individually with parallelism.
@@ -97,6 +98,7 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             List of results in the same order as requests
+
         """
         with ThreadPoolExecutor(max_workers=self._max_parallel) as executor:
             futures = [executor.submit(self._execute_one, req) for req in requests]
@@ -114,8 +116,8 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             Result object (may contain error information)
+
         """
-        pass
 
     @abstractmethod
     def _execute_batch(self, requests: Sequence[TRequest], **kwargs) -> list[TResult]:
@@ -129,5 +131,5 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         Returns:
             List of results in the same order as requests
+
         """
-        pass

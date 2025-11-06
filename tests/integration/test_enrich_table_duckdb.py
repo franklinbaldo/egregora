@@ -21,7 +21,6 @@ class StubBatchClient:
 
     def generate_content(self, requests, **kwargs):
         """Return canned responses matching the provided tags."""
-
         results: list[BatchPromptResult] = []
         for request in requests:
             tag = getattr(request, "tag", None)
@@ -30,7 +29,7 @@ class StubBatchClient:
                     tag=tag,
                     response=SimpleNamespace(text=f"{self.prefix}:{tag}"),
                     error=None,
-                )
+                ),
             )
         return results
 
@@ -57,7 +56,7 @@ def _make_base_table():
             "original_line": "",
             "tagged_line": "",
             "message_id": "1",
-        }
+        },
     ]
     return ibis.memtable(rows, schema=CONVERSATION_SCHEMA)
 

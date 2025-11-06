@@ -31,6 +31,7 @@ class AgentConfig(BaseModel):
         tools: Tool configuration (profiles, allow/deny lists)
         skills: Enabled skills
         env: Environment variables
+
     """
 
     agent_id: str

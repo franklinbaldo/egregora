@@ -22,6 +22,7 @@ class PipelineEnrichmentConfig:
         max_enrichments: Maximum number of enrichments per period
         enable_url: Whether to enrich URLs found in messages
         enable_media: Whether to enrich media attachments
+
     """
 
     batch_threshold: int = 10

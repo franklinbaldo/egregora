@@ -36,12 +36,14 @@ class CheckpointStore:
         logger.debug("Checkpoint store initialized at %s", self.root)
 
     def path_for_period(
-        self, period: Annotated[str, "The period identifier, e.g., '2024-01-01'"]
+        self,
+        period: Annotated[str, "The period identifier, e.g., '2024-01-01'"],
     ) -> Annotated[Path, "The full path to the checkpoint file"]:
         return self.root / f"{period}.json"
 
     def load(
-        self, period: Annotated[str, "The period identifier to load"]
+        self,
+        period: Annotated[str, "The period identifier to load"],
     ) -> Annotated[dict[str, Any], "The loaded or default checkpoint data"]:
         """Load checkpoint data or return default structure."""
         path = self.path_for_period(period)

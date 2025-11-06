@@ -30,8 +30,7 @@ def process_avatar_commands(  # noqa: PLR0913
     vision_client: GeminiDispatcher,
     model: str = "gemini-2.0-flash-exp",
 ) -> dict[str, str]:
-    """
-    Process all avatar commands from messages table.
+    """Process all avatar commands from messages table.
 
     This function:
     1. Extracts avatar commands from messages
@@ -53,6 +52,7 @@ def process_avatar_commands(  # noqa: PLR0913
 
     Returns:
         Dict mapping author_uuid to result message
+
     """
     logger.info("Processing avatar commands from messages")
 
@@ -105,7 +105,7 @@ def process_avatar_commands(  # noqa: PLR0913
     return results
 
 
-def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
+def _process_set_avatar_command(  # noqa: PLR0913
     author_uuid: str,
     timestamp: str,
     message: str,
@@ -117,11 +117,11 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
     model: str,
     value: str | None = None,
 ) -> str:
-    """
-    Process a 'set avatar' command.
+    """Process a 'set avatar' command.
 
     Returns:
         Result message describing what happened
+
     """
     logger.info(f"Processing 'set avatar' command for {author_uuid}")
 
@@ -191,10 +191,10 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
 
         if moderation_result.status == "approved":
             return f"✅ Avatar approved and set for {author_uuid}"
-        elif moderation_result.status == "questionable":
+        if moderation_result.status == "questionable":
             return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
-        else:  # blocked
-            return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
+        # blocked
+        return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
 
     except AvatarProcessingError as e:
         logger.error(f"Failed to process avatar for {author_uuid}: {e}")
@@ -209,11 +209,11 @@ def _process_unset_avatar_command(
     timestamp: str,
     profiles_dir: Path,
 ) -> str:
-    """
-    Process an 'unset avatar' command.
+    """Process an 'unset avatar' command.
 
     Returns:
         Result message describing what happened
+
     """
     logger.info(f"Processing 'unset avatar' command for {author_uuid}")
 

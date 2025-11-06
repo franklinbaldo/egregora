@@ -11,12 +11,9 @@ from werkzeug.utils import safe_join as _werkzeug_safe_join
 class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
 
-    pass
-
 
 def slugify(text: str, max_len: int = 60) -> str:
-    """
-    Convert text to a safe URL-friendly slug using python-slugify.
+    """Convert text to a safe URL-friendly slug using python-slugify.
 
     Uses the industry-standard python-slugify library with Unicode transliteration
     support (100M+ downloads). Handles Cyrillic, Greek, Arabic, CJK, and more.
@@ -39,14 +36,14 @@ def slugify(text: str, max_len: int = 60) -> str:
         'etc-passwd'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
+
     """
     slug = _slugify(text, max_length=max_len, separator="-")
     return slug if slug else "post"
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
-    """
-    Safely join path parts and ensure result stays within base_dir.
+    """Safely join path parts and ensure result stays within base_dir.
 
     Uses werkzeug.utils.safe_join, the industry-standard path security
     function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
@@ -82,6 +79,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     References:
         https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.utils.safe_join
+
     """
     # Additional security: reject paths with backslashes to prevent
     # cross-platform path traversal attacks. On POSIX, backslashes are
@@ -102,13 +100,13 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         result_str = _werkzeug_safe_join(base_str, *normalized_parts)
     except (_WerkzeugNotFound, _WerkzeugSecurityError) as exc:
         raise PathTraversalError(
-            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory",
         ) from exc
 
     if result_str is None:
         # Path traversal attempt detected (Werkzeug < 3.0)
         raise PathTraversalError(
-            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+            f"Path traversal detected: joining {parts} to {base_dir} would escape base directory",
         )
 
     return Path(result_str)
