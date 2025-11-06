@@ -105,9 +105,18 @@ def _initialize_cli() -> None:
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
-    """Return the Gemini API key honoring CLI override precedence."""
+    """Return the Gemini API key honoring CLI override precedence.
 
-    return cli_override or os.getenv("GOOGLE_API_KEY")
+    If a CLI override is provided, it will be set in the GOOGLE_API_KEY
+    environment variable so that all subsequent code (including pydantic-ai
+    agents) can access it without explicit passing.
+    """
+    if cli_override:
+        # Set the environment variable so pydantic-ai agents can use it
+        os.environ["GOOGLE_API_KEY"] = cli_override
+        return cli_override
+
+    return os.getenv("GOOGLE_API_KEY")
 
 
 @app.command()
