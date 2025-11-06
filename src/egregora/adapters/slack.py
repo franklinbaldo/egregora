@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import ibis
 
@@ -29,6 +29,12 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
+
+
+class _EmptyKwargs(TypedDict):
+    """Empty TypedDict for unused kwargs in adapter methods."""
+
+
 logger = logging.getLogger(__name__)
 __all__ = ["SlackAdapter"]
 
@@ -61,7 +67,7 @@ class SlackAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "slack"
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: Any) -> Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
         """Parse Slack export into IR-compliant table.
 
         Args:
@@ -162,7 +168,7 @@ class SlackAdapter(SourceAdapter):
             ir_messages.append(ir_msg)
         return ir_messages
 
-    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
+    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: _EmptyKwargs) -> MediaMapping:
         """Extract media files from Slack export.
 
         Slack exports may include uploaded files. This would need to:
@@ -185,7 +191,7 @@ class SlackAdapter(SourceAdapter):
         """
         return {}
 
-    def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, _input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
         """Extract metadata from Slack export.
 
         Args:

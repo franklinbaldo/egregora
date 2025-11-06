@@ -230,7 +230,7 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     return (filtered_messages, removed_count)
 
 
-def parse_export(export: WhatsAppExport, timezone=None) -> Table:
+def parse_export(export: WhatsAppExport, timezone: str | None = None) -> Table:
     """Parse an individual export into an Ibis ``Table``.
 
     Args:
@@ -371,7 +371,7 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             rows.append(row)
             position += 1
         builder = _start_message_builder(
-            export=export,
+            _export=export,
             msg_date=msg_date,
             msg_time=msg_time,
             author=_normalize_text(match.group("author").strip()),
@@ -424,7 +424,7 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
     return (parsed, parsed)
 
 
-def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
+def _parse_message_time(time_token: str, am_pm: str | None, context_line: str) -> datetime.time | None:
     try:
         if am_pm:
             return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
@@ -438,7 +438,7 @@ def _start_message_builder(
     *,
     _export: WhatsAppExport,
     msg_date: date,
-    msg_time,
+    msg_time: datetime.time | None,
     author: str,
     initial_message: str,
     original_line: str,

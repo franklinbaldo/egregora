@@ -7,7 +7,6 @@ configuration objects to reduce parameter counts in pipeline functions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass
@@ -40,7 +39,7 @@ class PipelineEnrichmentConfig:
             raise ValueError(msg)
 
     @classmethod
-    def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:
+    def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
         """Create config from CLI arguments."""
         return cls(
             batch_threshold=kwargs.get("batch_threshold", 10),

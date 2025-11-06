@@ -17,7 +17,7 @@ import warnings
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
 
@@ -32,6 +32,18 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 __all__ = ["WhatsAppAdapter"]
+
+
+class _EmptyKwargs(TypedDict):
+    """Empty TypedDict for unused kwargs in adapter methods."""
+
+
+class DeliverMediaKwargs(TypedDict, total=False):
+    """Kwargs for WhatsAppAdapter.deliver_media method."""
+
+    zip_path: Path
+
+
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
 WA_MEDIA_PATTERN = re.compile("\\b((?:IMG|VID|AUD|PTT|DOC)-\\d+-WA\\d+\\.\\w+)\\b")
 MEDIA_EXTENSIONS = {
@@ -124,7 +136,7 @@ class WhatsAppAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "whatsapp"
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: Any) -> Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
         """Parse WhatsApp ZIP export into IR-compliant table.
 
         Converts WhatsApp media references to standard markdown format:
@@ -172,7 +184,9 @@ class WhatsAppAdapter(SourceAdapter):
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
-    def deliver_media(self, media_reference: str, temp_dir: Path, **kwargs: Any) -> Path | None:
+    def deliver_media(
+        self, media_reference: str, temp_dir: Path, **kwargs: Unpack[DeliverMediaKwargs]
+    ) -> Path | None:
         """Deliver media file from WhatsApp ZIP to temporary directory.
 
         Extracts the requested media file from the ZIP and writes it to temp_dir.
@@ -233,7 +247,7 @@ class WhatsAppAdapter(SourceAdapter):
             logger.exception("Failed to extract %s from %s: %s", media_reference, zip_path, e)
             return None
 
-    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
+    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: _EmptyKwargs) -> MediaMapping:
         """Extract media files from WhatsApp ZIP (DEPRECATED).
 
         This method is deprecated in favor of deliver_media(). Media extraction
@@ -256,7 +270,7 @@ class WhatsAppAdapter(SourceAdapter):
         )
         return {}
 
-    def get_metadata(self, input_path: Path, **_kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
         """Extract metadata from WhatsApp export.
 
         Args:

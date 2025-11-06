@@ -3,8 +3,9 @@
 import logging
 import re
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import duckdb
 import ibis
@@ -57,9 +58,9 @@ def _process_whatsapp_export(
     site_paths: SitePaths,
     period: str = "day",
     enable_enrichment: bool = True,
-    from_date=None,
-    to_date=None,
-    timezone=None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    timezone: str | ZoneInfo | None = None,
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,
@@ -87,9 +88,11 @@ def _process_whatsapp_export(
         Dict mapping period to {'posts': [...], 'profiles': [...]}
 
     """
+    from ibis.expr.types import Schema, Table
+
     from egregora.pipeline import group_by_period
 
-    def _load_enriched_table(path: Path, schema):
+    def _load_enriched_table(path: Path, schema: Schema) -> Table:
         if not path.exists():
             raise FileNotFoundError(path)
         return ibis.read_csv(str(path), table_schema=schema)
@@ -313,9 +316,9 @@ def process_whatsapp_export(
     output_dir: Path = Path("output"),
     period: str = "day",
     enable_enrichment: bool = True,
-    from_date=None,
-    to_date=None,
-    timezone=None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    timezone: str | ZoneInfo | None = None,
     gemini_api_key: str | None = None,
     model: str | None = None,
     resume: bool = True,

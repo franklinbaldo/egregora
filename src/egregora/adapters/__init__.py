@@ -10,11 +10,12 @@ Available Adapters:
 
 from egregora.adapters.slack import SlackAdapter
 from egregora.adapters.whatsapp import WhatsAppAdapter
+from egregora.pipeline.adapters import SourceAdapter
 
 ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}
 
 
-def get_adapter(source_identifier: str):
+def get_adapter(source_identifier: str) -> SourceAdapter:
     """Get an adapter instance by source identifier.
 
     Args:

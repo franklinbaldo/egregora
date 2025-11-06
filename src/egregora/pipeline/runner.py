@@ -32,6 +32,8 @@ from egregora.utils.checkpoints import CheckpointStore
 
 if TYPE_CHECKING:
     from datetime import date
+
+    import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
 __all__ = ["run_source_pipeline"]
 
@@ -95,7 +97,7 @@ def run_source_pipeline(
     """
     from egregora.pipeline import group_by_period
 
-    def _load_enriched_table(path: Path, schema):
+    def _load_enriched_table(path: Path, schema: ir.Schema) -> ir.Table:
         if not path.exists():
             raise FileNotFoundError(path)
         return ibis.read_csv(str(path), table_schema=schema)

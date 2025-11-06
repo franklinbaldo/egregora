@@ -11,13 +11,18 @@ The registries handle:
 - Validating tool and skill references
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from egregora.agents.models import AgentConfig, AgentTools
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +114,7 @@ class ToolRegistry:
             return yaml.safe_load(profiles_path.read_text(encoding="utf-8")).get("profiles", {})
         return {}
 
-    def resolve_toolset(self, agent_tools_config) -> set[str]:
+    def resolve_toolset(self, agent_tools_config: AgentTools) -> set[str]:
         """Resolve the final set of tool IDs for an agent.
 
         Combines tools from profiles with agent-specific allow/deny lists to determine
@@ -161,7 +166,7 @@ class ToolRegistry:
         combined_hash_input = "".join(hashes)
         return hashlib.sha256(combined_hash_input.encode("utf-8")).hexdigest()
 
-    def get_agent_hash(self, agent_config, prompt_template: str) -> str:
+    def get_agent_hash(self, agent_config: AgentConfig, prompt_template: str) -> str:
         """Get the hash for an agent's configuration.
 
         Computes a deterministic SHA256 hash of the agent's full configuration,

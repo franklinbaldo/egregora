@@ -81,7 +81,7 @@ from egregora.pipeline.orchestrator import (
 )
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> object:
     """Lazy import for backward compatibility with pipeline.py module."""
     if name in ("group_by_period", "period_has_posts"):
         import sys

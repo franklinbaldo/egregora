@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import ibis
 from google import genai
@@ -7,13 +10,16 @@ from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig, from_pydantic_ai_model
 from egregora.utils.genai import call_with_retries
 
+if TYPE_CHECKING:
+    from egregora.agents.editor.document import Editor
 
-def edit_line(expect_version: int, index: int, new: str, editor) -> None:
+
+def edit_line(expect_version: int, index: int, new: str, editor: Editor) -> None:
     """Replace a single line in the document."""
     editor.edit_line(expect_version, index, new)
 
 
-def full_rewrite(expect_version: int, content: str, editor) -> None:
+def full_rewrite(expect_version: int, content: str, editor: Editor) -> None:
     """Replace the entire document content."""
     editor.full_rewrite(expect_version, content)
 

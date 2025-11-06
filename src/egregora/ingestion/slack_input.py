@@ -70,8 +70,8 @@ class SlackInputSource(InputSource):
         source_path: Path,
         channel_name: str | None = None,
         export_date: date | None = None,
-        timezone: Any = None,
-        **_kwargs,
+        timezone: str | None = None,
+        **_kwargs: Any,
     ) -> tuple[Table, InputMetadata]:
         """Parse Slack export directory into standardized Ibis Table.
 
@@ -130,7 +130,7 @@ class SlackInputSource(InputSource):
         )
         return (table, metadata)
 
-    def extract_media(self, _source_path: Path, _output_dir: Path, **_kwargs) -> dict[str, str]:
+    def extract_media(self, _source_path: Path, _output_dir: Path, **_kwargs: Any) -> dict[str, str]:
         """Extract media files from Slack export.
 
         Slack exports don't include media files directly - files are referenced
