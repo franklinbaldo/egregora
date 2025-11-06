@@ -35,16 +35,16 @@ def index_post(
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a blog post.
+
+    All embeddings use fixed 768-dimension output.
 
     Args:
         post_path: Path to markdown file with YAML frontmatter
         store: Vector store
         embedding_model: Embedding model name
-        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Number of chunks indexed
@@ -61,12 +61,11 @@ def index_post(
     # Extract content for embedding
     chunk_texts = [chunk["content"] for chunk in chunks]
 
-    # Embed chunks (RETRIEVAL_DOCUMENT task type)
+    # Embed chunks (RETRIEVAL_DOCUMENT task type, fixed 768 dimensions)
     embeddings = embed_chunks(
         chunk_texts,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dimensionality=output_dimensionality,
     )
 
     # Build table for storage
@@ -122,7 +121,6 @@ def query_similar_posts(
     embedding_model: str,
     top_k: int = 5,
     deduplicate: bool = True,
-    output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -157,11 +155,10 @@ def query_similar_posts(
 
     logger.debug(f"Query text length: {len(query_text)} chars")
 
-    # Embed query (use RETRIEVAL_QUERY task type)
+    # Embed query (use RETRIEVAL_QUERY task type, fixed 768 dimensions)
     query_vec = embed_query(
         query_text,
         model=embedding_model,
-        output_dimensionality=output_dimensionality,
     )
 
     # Search vector store
@@ -265,7 +262,6 @@ def index_media_enrichment(
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Chunk, embed, and index a media enrichment file.
@@ -275,7 +271,6 @@ def index_media_enrichment(
         docs_dir: Docs directory (for resolving relative paths)
         store: Vector store
         embedding_model: Embedding model name
-        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Number of chunks indexed
@@ -301,12 +296,11 @@ def index_media_enrichment(
     # Extract content for embedding
     chunk_texts = [chunk["content"] for chunk in chunks]
 
-    # Embed chunks (RETRIEVAL_DOCUMENT task type)
+    # Embed chunks (RETRIEVAL_DOCUMENT task type, fixed 768 dimensions)
     embeddings = embed_chunks(
         chunk_texts,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
-        output_dimensionality=output_dimensionality,
     )
 
     # Build table for storage
@@ -352,7 +346,6 @@ def index_all_media(
     store: VectorStore,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
 ) -> int:
     """
     Index all media enrichment files from media directories.
@@ -364,7 +357,6 @@ def index_all_media(
         docs_dir: Docs directory
         store: Vector store
         embedding_model: Embedding model name
-        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Total number of chunks indexed
@@ -395,7 +387,6 @@ def index_all_media(
             docs_dir,
             store,
             embedding_model=embedding_model,
-            output_dimensionality=output_dimensionality,
         )
         total_chunks += chunks_count
 
@@ -477,7 +468,6 @@ def query_media(
     deduplicate: bool = True,
     *,
     embedding_model: str,
-    output_dimensionality: int = 3072,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -493,7 +483,6 @@ def query_media(
         min_similarity: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
         embedding_model: Embedding model name
-        output_dimensionality: Output dimensionality for embeddings
         retrieval_mode: "ann" (default) or "exact" for brute-force search
         retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
         retrieval_overfetch: Candidate multiplier for ANN mode before filtering
@@ -503,11 +492,10 @@ def query_media(
     """
     logger.info(f"Searching media for: {query}")
 
-    # Embed query (use RETRIEVAL_QUERY task type)
+    # Embed query (use RETRIEVAL_QUERY task type, fixed 768 dimensions)
     query_vec = embed_query(
         query,
         model=embedding_model,
-        output_dimensionality=output_dimensionality,
     )
 
     # Search vector store (filter to media documents only)

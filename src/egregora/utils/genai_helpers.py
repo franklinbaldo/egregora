@@ -7,6 +7,8 @@ These are utility functions, not agents - they don't need the full pydantic-ai
 agent infrastructure since they're simple vector calculations.
 
 For content generation and enrichment, use pydantic-ai agents instead.
+
+All embeddings use a fixed 768-dimension output for consistency and HNSW optimization.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from typing import Annotated, Any
 
 import httpx
 
-from egregora.config import from_pydantic_ai_model
+from egregora.config import EMBEDDING_DIM, from_pydantic_ai_model
 
 logger = logging.getLogger(__name__)
 
@@ -83,22 +85,22 @@ def embed_text(
     *,
     model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
-    output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
     api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
     timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
-) -> Annotated[list[float], "The embedding vector"]:
+) -> Annotated[list[float], "The embedding vector (768 dimensions)"]:
     """Embed a single text using the Google Generative AI HTTP API.
+
+    All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
 
     Args:
         text: Text to embed
         model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
         task_type: Optional task type (e.g., "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
-        output_dimensionality: Optional output dimensionality (e.g., 768, 3072)
         api_key: Optional API key (reads from GOOGLE_API_KEY env var if not provided)
         timeout: Request timeout in seconds
 
     Returns:
-        List of floats representing the embedding vector
+        List of 768 floats representing the embedding vector
 
     Raises:
         RuntimeError: If embedding fails
@@ -110,16 +112,15 @@ def embed_text(
     # Convert from pydantic-ai format to Google API format
     google_model = from_pydantic_ai_model(model)
 
-    # Build request payload
+    # Build request payload with fixed 768 dimensions
     payload: dict[str, Any] = {
         "model": google_model,
         "content": {"parts": [{"text": text}]},
+        "outputDimensionality": EMBEDDING_DIM,  # Always 768
     }
 
     if task_type:
         payload["taskType"] = task_type
-    if output_dimensionality:
-        payload["outputDimensionality"] = output_dimensionality
 
     # API endpoint
     url = f"{GENAI_API_BASE}/{google_model}:embedContent"
@@ -159,24 +160,23 @@ def embed_batch(
     *,
     model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
-    output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
     api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
     timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
-) -> Annotated[list[list[float]], "List of embedding vectors"]:
+) -> Annotated[list[list[float]], "List of embedding vectors (768 dimensions each)"]:
     """Embed multiple texts using the Google Generative AI batch HTTP API.
 
     This uses the batchEmbedContents API for efficient parallel processing.
+    All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
 
     Args:
         texts: List of texts to embed
         model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
         task_type: Optional task type
-        output_dimensionality: Optional output dimensionality
         api_key: Optional API key (reads from GOOGLE_API_KEY env var if not provided)
         timeout: Request timeout in seconds
 
     Returns:
-        List of embedding vectors
+        List of 768-dimensional embedding vectors
 
     Raises:
         RuntimeError: If any embedding fails
@@ -193,17 +193,16 @@ def embed_batch(
     # Convert from pydantic-ai format to Google API format
     google_model = from_pydantic_ai_model(model)
 
-    # Build request payload
+    # Build request payload with fixed 768 dimensions
     requests = []
     for text in texts:
         request: dict[str, Any] = {
             "model": google_model,
             "content": {"parts": [{"text": text}]},
+            "outputDimensionality": EMBEDDING_DIM,  # Always 768
         }
         if task_type:
             request["taskType"] = task_type
-        if output_dimensionality:
-            request["outputDimensionality"] = output_dimensionality
         requests.append(request)
 
     payload = {"requests": requests}
