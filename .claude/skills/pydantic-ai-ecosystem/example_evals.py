@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""
+Example Pydantic Evals usage for testing AI agents.
+"""
+
+from pydantic_ai import Agent
+from pydantic_evals import Case, Dataset
+from pydantic_evals.evaluators import IsInstance, LLMJudge
+
+
+# Create agent to evaluate
+agent = Agent(
+    'gemini-1.5-pro',
+    instructions='Answer geography questions concisely and accurately.'
+)
+
+
+# Define test cases
+cases = [
+    Case(
+        name='capital_france',
+        inputs='What is the capital of France?',
+        expected_output='Paris'
+    ),
+    Case(
+        name='capital_japan',
+        inputs='What is the capital of Japan?',
+        expected_output='Tokyo'
+    ),
+    Case(
+        name='largest_ocean',
+        inputs='What is the largest ocean on Earth?',
+        expected_output='Pacific Ocean'
+    ),
+]
+
+
+# Create dataset with evaluators
+dataset = Dataset(
+    cases=cases,
+    evaluators=[
+        IsInstance(type_name='str'),
+        LLMJudge(
+            model='openai:gpt-4',
+            prompt='Does the answer correctly match the expected output? Consider semantic equivalence.'
+        )
+    ]
+)
+
+
+async def run_agent(question: str) -> str:
+    """Wrapper to run agent and return output."""
+    result = await agent.run(question)
+    return result.output
+
+
+async def main():
+    """Run evaluation and print results."""
+    print("Running evaluation...")
+    report = await dataset.evaluate(run_agent)
+
+    print("\n" + "="*50)
+    print("EVALUATION REPORT")
+    print("="*50)
+    report.print()
+
+    print(f"\nAverage Score: {report.average_score():.2%}")
+    print(f"Total Cases: {len(report.case_results)}")
+    print(f"Passed: {sum(1 for r in report.case_results if r.score >= 0.8)}")
+
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
