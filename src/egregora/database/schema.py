@@ -281,7 +281,7 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
         index_type: Type of index (HNSW for vector search, standard otherwise)
 
     Note:
-        For vector columns, use index_type='HNSW' with appropriate metric.
+        For vector columns, use index_type='HNSW' with cosine metric (optimized for 768-dim embeddings).
         This must be called on raw DuckDB connection, not Ibis connection.
 
     """

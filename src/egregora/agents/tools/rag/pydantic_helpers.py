@@ -27,7 +27,6 @@ async def find_relevant_docs(
     client: genai.Client,
     rag_dir: Path,
     embedding_model: str,
-    output_dimensionality: int = 3072,
     top_k: int = 5,
     min_similarity: float = 0.7,
     retrieval_mode: str = "ann",
@@ -39,12 +38,13 @@ async def find_relevant_docs(
     This is a Pydantic AI compatible retrieval function that can be used
     with pydantic_ai's rag_context() helper.
 
+    All embeddings use fixed 768-dimension output.
+
     Args:
         query: Natural language query
         client: Gemini API client for embeddings
         rag_dir: Directory containing vector store
         embedding_model: Embedding model name
-        output_dimensionality: Embedding dimension size
         top_k: Number of results to return
         min_similarity: Minimum similarity threshold (0-1)
         retrieval_mode: "ann" or "exact" retrieval
@@ -72,12 +72,10 @@ async def find_relevant_docs(
     """
     with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
         try:
-            # Embed query
+            # Embed query (fixed 768 dimensions)
             query_vector = embed_query(
                 query,
-                client,
                 model=embedding_model,
-                output_dimensionality=output_dimensionality,
             )
 
             # Query vector store
@@ -164,7 +162,6 @@ async def build_rag_context_for_writer(
     client: genai.Client,
     rag_dir: Path,
     embedding_model: str,
-    output_dimensionality: int = 3072,
     top_k: int = 5,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
@@ -174,12 +171,13 @@ async def build_rag_context_for_writer(
 
     High-level helper that combines find_relevant_docs() and format_rag_context().
 
+    All embeddings use fixed 768-dimension output.
+
     Args:
         query: Natural language query (usually conversation markdown)
         client: Gemini API client
         rag_dir: Vector store directory
         embedding_model: Embedding model name
-        output_dimensionality: Embedding dimension
         top_k: Number of results
         retrieval_mode: "ann" or "exact"
         retrieval_nprobe: ANN nprobe
@@ -203,7 +201,6 @@ async def build_rag_context_for_writer(
         client=client,
         rag_dir=rag_dir,
         embedding_model=embedding_model,
-        output_dimensionality=output_dimensionality,
         top_k=top_k,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,

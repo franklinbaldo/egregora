@@ -21,7 +21,7 @@ from pydantic_ai import Agent, RunContext
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig, to_pydantic_ai_model
+from egregora.config import ModelConfig
 from egregora.prompt_templates import EditorPromptTemplate
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
@@ -138,7 +138,6 @@ async def query_rag_impl(
 
         results = await query_similar_posts(
             table=dummy_table,
-            client=client,
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,
@@ -436,9 +435,11 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
 
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
-        # Create model with pydantic-ai string notation
-        # Converts from Google API format to pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
-        model = to_pydantic_ai_model(model_name) if agent_model is None else agent_model
+        # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+        if agent_model is None:
+            model = model_name
+        else:
+            model = agent_model
 
         # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](

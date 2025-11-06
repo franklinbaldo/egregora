@@ -111,24 +111,24 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "issue_comment" ]; then
             # Extract everything after @gemini safely using Python
-            python3 << 'PYTHON_EOF'
-            import os
-            import re
-            import sys
+            python3 <<'PYTHON_EOF'
+import os
+import re
+import sys
 
-            comment_body = os.environ.get('COMMENT_BODY', '')
-            # Extract text after @gemini
-            match = re.search(r'@gemini\s*(.*)', comment_body, re.DOTALL)
-            user_comment = match.group(1).strip() if match else ''
+comment_body = os.environ.get('COMMENT_BODY', '')
+# Extract text after @gemini
+match = re.search(r'@gemini\s*(.*)', comment_body, re.DOTALL)
+user_comment = match.group(1).strip() if match else ''
 
-            # Write to GITHUB_OUTPUT safely
-            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                f.write('user_comment<<EOF\n')
-                f.write(user_comment + '\n')
-                f.write('EOF\n')
-                f.write(f'pr_number={os.environ["ISSUE_NUMBER"]}\n')
-                f.write('trigger_mode=comment\n')
-            PYTHON_EOF
+# Write to GITHUB_OUTPUT safely
+with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+    f.write('user_comment<<EOF\n')
+    f.write(user_comment + '\n')
+    f.write('EOF\n')
+    f.write(f'pr_number={os.environ["ISSUE_NUMBER"]}\n')
+    f.write('trigger_mode=comment\n')
+PYTHON_EOF
 
             # Get PR head SHA from API
             PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \

@@ -20,7 +20,7 @@ from rich.console import Console
 
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
-from egregora.config import resolve_site_paths, to_pydantic_ai_model
+from egregora.config import resolve_site_paths
 from egregora.utils.logfire_config import logfire_span
 
 if TYPE_CHECKING:
@@ -412,7 +412,8 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
             # Set API key in environment for pydantic-ai to use
             if api_key:
                 os.environ["GOOGLE_API_KEY"] = api_key
-            model_instance = to_pydantic_ai_model(model)
+            # Model from config is already in pydantic-ai format
+            model_instance = model
         else:
             model_instance = agent_model
 

@@ -151,7 +151,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
         text_model = model_config.get_model("enricher")
         vision_model = model_config.get_model("enricher_vision")
         embedding_model = model_config.get_model("embedding")
-        embedding_dimensionality = model_config.embedding_output_dimensionality
 
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -361,7 +360,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                     rag_dir=site_paths.rag_dir,
                     model_config=model_config,
                     enable_rag=True,
-                    embedding_output_dimensionality=embedding_dimensionality,
                     retrieval_mode=retrieval_mode,
                     retrieval_nprobe=retrieval_nprobe,
                     retrieval_overfetch=retrieval_overfetch,
@@ -391,10 +389,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    client,
                     store,
                     embedding_model=embedding_model,
-                    output_dimensionality=embedding_dimensionality,
                 )
                 if media_chunks > 0:
                     logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")

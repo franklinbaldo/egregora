@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from google.genai import types as genai_types
 
+from egregora.config import EMBEDDING_DIM
 from egregora.utils.genai import call_with_retries_sync, sleep_with_progress_sync
 
 if TYPE_CHECKING:
@@ -42,13 +43,15 @@ class BatchPromptResult:
 
 @dataclass(slots=True)
 class EmbeddingBatchRequest:
-    """Embed request executed through the batch embeddings API."""
+    """Embed request executed through the batch embeddings API.
+
+    All embeddings use fixed 768-dimension output.
+    """
 
     text: str
     tag: str | None = None
     model: str | None = None
     task_type: str | None = None
-    output_dimensionality: int | None = None
 
 
 @dataclass(slots=True)
@@ -202,18 +205,10 @@ class GeminiBatchClient:
             msg = "All embedding batch requests must use the same task_type"
             raise ValueError(msg)
 
-        output_dim = next((req.output_dimensionality for req in requests if req.output_dimensionality), None)
-        if any(req.output_dimensionality not in (None, output_dim) for req in requests):
-            msg = "All embedding batch requests must use the same output dimensionality"
-            raise ValueError(msg)
-
-        embed_config = (
-            genai_types.EmbedContentConfig(
-                task_type=task_type,
-                output_dimensionality=output_dim,
-            )
-            if task_type or output_dim
-            else None
+        # Always use fixed 768 dimensions for all embeddings
+        embed_config = genai_types.EmbedContentConfig(
+            task_type=task_type,
+            output_dimensionality=EMBEDDING_DIM,
         )
 
         contents = [genai_types.Content(parts=[genai_types.Part(text=req.text)]) for req in requests]
