@@ -80,6 +80,7 @@ from egregora.pipeline.orchestrator import (
     PipelineContext,
 )
 
+
 # Import utilities from pipeline.py module for backward compatibility
 # Use __getattr__ to avoid circular import during module initialization
 def __getattr__(name):
@@ -94,7 +95,7 @@ def __getattr__(name):
         module_path = parent.__path__[0]
 
         # Import pipeline.py using spec_from_file_location to avoid name collision
-        from importlib.util import spec_from_file_location, module_from_spec
+        from importlib.util import module_from_spec, spec_from_file_location
         from pathlib import Path
 
         pipeline_py = Path(module_path) / "pipeline.py"
@@ -105,6 +106,7 @@ def __getattr__(name):
             return getattr(module, name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # IR Schema
