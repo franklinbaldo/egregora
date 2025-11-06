@@ -56,18 +56,35 @@ _ConfigLoader.add_constructor("!ENV", _construct_env)
 
 @dataclass(frozen=True, slots=True)
 class SitePaths:
-    """Resolved paths for an Egregora MkDocs site."""
+    """Resolved paths for an Egregora MkDocs site.
+
+    SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
+    - .egregora/config.yml - Configuration
+    - .egregora/prompts/ - Custom prompt overrides
+    - .egregora/rag/ - Vector store data
+    - .egregora/.cache/ - Ephemeral cache
+    """
 
     site_root: Path
     mkdocs_path: Path | None
+
+    # Egregora directories (.egregora/)
+    egregora_dir: Path
+    config_path: Path
+    prompts_dir: Path
+    rag_dir: Path
+    cache_dir: Path
+
+    # Content directories (docs/)
     docs_dir: Path
     blog_dir: str
     posts_dir: Path
     profiles_dir: Path
     media_dir: Path
     rankings_dir: Path
-    rag_dir: Path
     enriched_dir: Path
+
+    # Legacy config dict (will be removed)
     config: dict[str, Any]
 
 
@@ -129,10 +146,22 @@ def _extract_blog_dir(config: dict[str, Any]) -> str | None:
 
 
 def resolve_site_paths(start: Annotated[Path, "The starting directory for path resolution"]) -> SitePaths:
-    """Resolve all important directories for the site."""
+    """Resolve all important directories for the site.
+
+    SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
+    """
     start = start.expanduser().resolve()
     config, mkdocs_path = load_mkdocs_config(start)
     site_root = mkdocs_path.parent if mkdocs_path else start
+
+    # .egregora/ structure (new)
+    egregora_dir = site_root / ".egregora"
+    config_path = egregora_dir / "config.yml"
+    prompts_dir = egregora_dir / "prompts"
+    rag_dir = egregora_dir / "rag"
+    cache_dir = egregora_dir / ".cache"
+
+    # Content directories (docs/)
     docs_dir = _resolve_docs_dir(site_root, config)
     blog_dir = _extract_blog_dir(config) or DEFAULT_BLOG_DIR
     blog_path = Path(blog_dir)
@@ -143,19 +172,26 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
     profiles_dir = (docs_dir / PROFILES_DIR_NAME).resolve()
     media_dir = (docs_dir / MEDIA_DIR_NAME).resolve()
     rankings_dir = (site_root / "rankings").resolve()
-    rag_dir = (site_root / "rag").resolve()
     enriched_dir = (site_root / "enriched").resolve()
+
     return SitePaths(
         site_root=site_root,
         mkdocs_path=mkdocs_path,
+        # .egregora/ paths
+        egregora_dir=egregora_dir,
+        config_path=config_path,
+        prompts_dir=prompts_dir,
+        rag_dir=rag_dir,
+        cache_dir=cache_dir,
+        # Content paths
         docs_dir=docs_dir,
         blog_dir=blog_dir,
         posts_dir=posts_dir,
         profiles_dir=profiles_dir,
         media_dir=media_dir,
         rankings_dir=rankings_dir,
-        rag_dir=rag_dir,
         enriched_dir=enriched_dir,
+        # Legacy (will remove later)
         config=config,
     )
 

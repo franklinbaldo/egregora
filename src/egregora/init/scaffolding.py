@@ -9,6 +9,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.config import DEFAULT_BLOG_DIR, SitePaths
+from egregora.config.loader import create_default_config
 from egregora.config.site import _ConfigLoader, resolve_site_paths
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,14 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
 
 
 def _create_site_structure(site_paths: SitePaths, env: Environment, context: dict[str, Any]) -> None:
-    """Create essential directories and index files for the blog structure."""
+    """Create essential directories and index files for the blog structure.
+
+    SIMPLIFIED (Alpha): Always create .egregora/ structure.
+    """
+    # Create .egregora/ structure (new!)
+    _create_egregora_structure(site_paths)
+
+    # Create docs/ structure
     docs_dir = site_paths.docs_dir
     posts_dir = site_paths.posts_dir
     profiles_dir = site_paths.profiles_dir
@@ -111,31 +119,67 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     _render_egregora_config(site_paths.site_root, env, context)
 
 
-def _render_egregora_config(site_root: Path, env: Environment, context: dict[str, Any]) -> None:
-    """Render .egregora configuration templates using Jinja2.
+def _create_egregora_structure(site_paths: SitePaths) -> None:
+    """Create .egregora/ directory structure (SIMPLIFIED - Alpha version).
 
-    Walks through the .egregora template directory and renders each file,
-    preserving directory structure.
+    Creates:
+    - .egregora/config.yml (Pydantic-generated default config)
+    - .egregora/prompts/ (for custom prompt overrides)
+    - .egregora/prompts/README.md
+    - .egregora/.gitignore (ignore ephemeral data)
     """
-    egregora_template_dir = SITE_TEMPLATES_DIR / ".egregora"
-    egregora_config_dir = site_root / ".egregora"
-    if not egregora_template_dir.exists():
-        return
-    if egregora_config_dir.exists():
-        return
-    for template_path in egregora_template_dir.rglob("*"):
-        if template_path.is_file():
-            rel_path = template_path.relative_to(egregora_template_dir)
-            output_path = egregora_config_dir / rel_path
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            template_rel = template_path.relative_to(SITE_TEMPLATES_DIR)
-            try:
-                template = env.get_template(str(template_rel))
-                content = template.render(**context)
-                output_path.write_text(content, encoding="utf-8")
-            except (jinja2.TemplateError, jinja2.UndefinedError) as e:
-                logger.warning("Failed to render %s as Jinja template: %s. Copying as-is.", template_rel, e)
-                output_path.write_bytes(template_path.read_bytes())
+    egregora_dir = site_paths.egregora_dir
+    egregora_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create prompts directory
+    prompts_dir = site_paths.prompts_dir
+    prompts_dir.mkdir(exist_ok=True)
+
+    # Create prompts README
+    prompts_readme = prompts_dir / "README.md"
+    if not prompts_readme.exists():
+        prompts_readme.write_text(
+            "# Custom Prompts\n\n"
+            "Place custom prompt overrides here with same names as package defaults.\n\n"
+            "Available prompts:\n"
+            "- `writer.md` - Main blog post writer prompt\n"
+            "- `enricher_url.md` - URL enrichment prompt\n"
+            "- `enricher_media.md` - Media enrichment prompt\n\n"
+            "The custom prompt will be used instead of the package default.\n",
+            encoding="utf-8",
+        )
+
+    # Create .gitignore
+    gitignore = egregora_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(
+            "# Ephemeral data (regenerated on each run)\n"
+            ".cache/\n"
+            "rag/*.duckdb\n"
+            "rag/*.parquet\n"
+            "rag/*.duckdb.wal\n"
+            "\n"
+            "# Python cache\n"
+            "__pycache__/\n"
+            "*.pyc\n",
+            encoding="utf-8",
+        )
+
+    # Create default config.yml using Pydantic config loader
+    config_path = site_paths.config_path
+    if not config_path.exists():
+        create_default_config(site_paths.site_root)
+        logger.info("Created default .egregora/config.yml")
+
+
+def _render_egregora_config(site_root: Path, env: Environment, context: dict[str, Any]) -> None:
+    """Legacy: Render .egregora configuration templates using Jinja2.
+
+    DEPRECATED (Alpha): Use _create_egregora_structure instead.
+    Kept temporarily for compatibility during transition.
+    """
+    # This function is now a no-op - _create_egregora_structure handles it
+    pass
 
 
 __all__ = ["ensure_mkdocs_project"]
