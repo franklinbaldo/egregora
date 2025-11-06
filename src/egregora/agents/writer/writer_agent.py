@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
-from egregora.agents.tools.rag import VectorStore, query_media
+from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
 
 # Models from config are already in pydantic-ai format
 from egregora.database.streaming import stream_ibis
@@ -140,13 +140,16 @@ class WriterAgentState(BaseModel):
 
 
 def _register_writer_tools(
-    agent: Agent[WriterAgentState, WriterAgentReturn], enable_banner: bool = False
+    agent: Agent[WriterAgentState, WriterAgentReturn],
+    enable_banner: bool = False,
+    enable_rag: bool = False,
 ) -> None:
     """Attach tool implementations to the agent.
 
     Args:
         agent: The writer agent to register tools with
         enable_banner: Whether to register banner generation tool (requires GOOGLE_API_KEY)
+        enable_rag: Whether to register RAG search tools (requires GOOGLE_API_KEY)
     """
 
     @agent.tool
@@ -183,46 +186,57 @@ def _register_writer_tools(
         ctx.deps.record_profile(path)
         return WriteProfileResult(status="success", path=path)
 
-    @agent.tool
-    def search_media_tool(
-        ctx: RunContext[WriterAgentState],
-        query: str,
-        media_types: list[str] | None = None,
-        limit: int = 5,
-    ) -> SearchMediaResult:
-        store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
-        results = query_media(
-            query=query,
-            client=ctx.deps.batch_client,
-            store=store,
-            media_types=media_types,
-            top_k=limit,
-            min_similarity=0.7,
-            embedding_model=ctx.deps.embedding_model,
-            output_dimensionality=ctx.deps.embedding_output_dimensionality,
-            retrieval_mode=ctx.deps.retrieval_mode,
-            retrieval_nprobe=ctx.deps.retrieval_nprobe,
-            retrieval_overfetch=ctx.deps.retrieval_overfetch,
-        )
+    # RAG search is optional (requires GOOGLE_API_KEY)
+    if enable_rag:
 
-        # Use Ibis streaming instead of pandas .execute().iterrows()
-        # This avoids materializing the full result set and complies with Ibis-first policy
-        items: list[MediaItem] = []
-        for batch in stream_ibis(results, store._client, batch_size=100):
-            items.extend(
-                MediaItem(
-                    media_type=row.get("media_type"),
-                    media_path=row.get("media_path"),
-                    original_filename=row.get("original_filename"),
-                    description=(str(row.get("content", "")) or "")[:500],
-                    similarity=float(row.get("similarity")) if row.get("similarity") is not None else None,
-                )
-                for row in batch
+        @agent.tool
+        def search_media_tool(
+            ctx: RunContext[WriterAgentState],
+            query: str,
+            media_types: list[str] | None = None,
+            limit: int = 5,
+        ) -> SearchMediaResult:
+            store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
+            results = query_media(
+                query=query,
+                client=ctx.deps.batch_client,
+                store=store,
+                media_types=media_types,
+                top_k=limit,
+                min_similarity=0.7,
+                embedding_model=ctx.deps.embedding_model,
+                output_dimensionality=ctx.deps.embedding_output_dimensionality,
+                retrieval_mode=ctx.deps.retrieval_mode,
+                retrieval_nprobe=ctx.deps.retrieval_nprobe,
+                retrieval_overfetch=ctx.deps.retrieval_overfetch,
             )
 
-        if not items:
-            logger.info("Writer agent search_media returned no matches for query %s", query)
-        return SearchMediaResult(results=items)
+            # Use Ibis streaming instead of pandas .execute().iterrows()
+            # This avoids materializing the full result set and complies with Ibis-first policy
+            items: list[MediaItem] = []
+            for batch in stream_ibis(results, store._client, batch_size=100):
+                items.extend(
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=(str(row.get("content", "")) or "")[:500],
+                        similarity=(
+                            float(row.get("similarity"))
+                            if row.get("similarity") is not None
+                            else None
+                        ),
+                    )
+                    for row in batch
+                )
+
+            if not items:
+                logger.info("Writer agent search_media returned no matches for query %s", query)
+            return SearchMediaResult(results=items)
+
+        logger.info("RAG search tool registered")
+    else:
+        logger.info("RAG search tool disabled (no GOOGLE_API_KEY)")
 
     @agent.tool
     def annotate_conversation_tool(
@@ -308,7 +322,11 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent, enable_banner=is_banner_generation_available())
+        _register_writer_tools(
+            agent,
+            enable_banner=is_banner_generation_available(),
+            enable_rag=is_rag_available(),
+        )
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
@@ -494,7 +512,11 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
-        _register_writer_tools(agent, enable_banner=is_banner_generation_available())
+        _register_writer_tools(
+            agent,
+            enable_banner=is_banner_generation_available(),
+            enable_rag=is_rag_available(),
+        )
     else:
         agent = Agent[WriterAgentState, str](
             model=model,
