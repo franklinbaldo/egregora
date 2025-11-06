@@ -88,8 +88,9 @@ def _process_whatsapp_export(
         Dict mapping period to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.pipeline import group_by_period
     from ibis.expr.types import Schema, Table
+
+    from egregora.pipeline import group_by_period
 
     def _load_enriched_table(path: Path, schema: Schema) -> Table:
         if not path.exists():
