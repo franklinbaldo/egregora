@@ -434,7 +434,7 @@ class WriterStreamResult:
             raise RuntimeError(msg)
 
         # Extract from message history
-        all_messages = getattr(self._response, "all_messages", lambda: [])()
+        all_messages = getattr(self._response, "all_messages", list)()
         saved_posts, saved_profiles = _extract_tool_results(all_messages)
         return (saved_posts, saved_profiles)
 
