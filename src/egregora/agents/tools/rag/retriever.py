@@ -262,7 +262,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
 
 def index_media_enrichment(
     enrichment_path: Path,
-    docs_dir: Path,
+    _docs_dir: Path,
     store: VectorStore,
     *,
     embedding_model: str,

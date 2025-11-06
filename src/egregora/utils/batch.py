@@ -86,7 +86,7 @@ class GeminiBatchClient:
         """Return the default generative model for this batch client."""
         return self._default_model
 
-    def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
+    def upload_file(self, *, path: str, _display_name: str | None = None) -> genai_types.File:
         """Upload a media file and wait for it to become ACTIVE before returning."""
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
@@ -122,7 +122,7 @@ class GeminiBatchClient:
         self,
         requests: Sequence[BatchPromptRequest],
         *,
-        display_name: str | None = None,
+        _display_name: str | None = None,
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[BatchPromptResult]:
@@ -190,7 +190,7 @@ class GeminiBatchClient:
         self,
         requests: Sequence[EmbeddingBatchRequest],
         *,
-        display_name: str | None = None,
+        _display_name: str | None = None,
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:

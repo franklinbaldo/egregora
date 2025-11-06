@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import ibis
 import pandas as pd
 import pytest
-from egregora.database_schema import CONVERSATION_SCHEMA
 
+from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.core import enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 

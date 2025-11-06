@@ -68,7 +68,7 @@ class SlackAdapter(SourceAdapter):
         input_path: Path,
         *,
         timezone: str | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> Table:
         """Parse Slack export into IR-compliant table.
 
@@ -221,9 +221,9 @@ class SlackAdapter(SourceAdapter):
 
     def extract_media(
         self,
-        input_path: Path,
-        output_dir: Path,
-        **kwargs: Any,
+        _input_path: Path,
+        _output_dir: Path,
+        **_kwargs: Any,
     ) -> MediaMapping:
         """Extract media files from Slack export.
 
@@ -247,7 +247,7 @@ class SlackAdapter(SourceAdapter):
         """
         return {}
 
-    def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         """Extract metadata from Slack export.
 
         Args:

@@ -116,7 +116,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
     docs_dir: Path,
     profiles_dir: Path,
     group_slug: str,
-    vision_client: genai.Client,
+    _vision_client: genai.Client,
     model: str,
     value: str | None = None,
 ) -> str:

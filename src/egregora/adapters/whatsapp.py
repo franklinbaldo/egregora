@@ -158,7 +158,7 @@ class WhatsAppAdapter(SourceAdapter):
         input_path: Path,
         *,
         timezone: str | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> Table:
         """Parse WhatsApp ZIP export into IR-compliant table.
 
@@ -307,9 +307,9 @@ class WhatsAppAdapter(SourceAdapter):
 
     def extract_media(
         self,
-        input_path: Path,
-        output_dir: Path,
-        **kwargs: Any,
+        _input_path: Path,
+        _output_dir: Path,
+        **_kwargs: Any,
     ) -> MediaMapping:
         """Extract media files from WhatsApp ZIP (DEPRECATED).
 
@@ -335,7 +335,7 @@ class WhatsAppAdapter(SourceAdapter):
         # Deprecated: Use deliver_media() instead for lazy extraction
         return {}
 
-    def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         """Extract metadata from WhatsApp export.
 
         Args:

@@ -126,9 +126,9 @@ class SourceAdapter(ABC):
 
     def extract_media(
         self,
-        input_path: Path,
-        output_dir: Path,
-        **kwargs: Any,
+        _input_path: Path,
+        _output_dir: Path,
+        **_kwargs: Any,
     ) -> MediaMapping:
         """Extract media files from the export (OPTIONAL).
 
@@ -160,9 +160,9 @@ class SourceAdapter(ABC):
 
     def deliver_media(
         self,
-        media_reference: str,
-        temp_dir: Path,
-        **kwargs: Any,
+        _media_reference: str,
+        _temp_dir: Path,
+        **_kwargs: Any,
     ) -> Path | None:
         """Deliver media file to temporary directory (OPTIONAL).
 
@@ -201,7 +201,7 @@ class SourceAdapter(ABC):
         """
         return None
 
-    def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         """Extract metadata from the export (OPTIONAL).
 
         **This method is optional.** The default implementation returns an empty

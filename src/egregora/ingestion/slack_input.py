@@ -76,7 +76,7 @@ class SlackInputSource(InputSource):
         channel_name: str | None = None,
         export_date: date | None = None,
         timezone: Any = None,
-        **kwargs,
+        **_kwargs,
     ) -> tuple[Table, InputMetadata]:
         """Parse Slack export directory into standardized Ibis Table.
 
@@ -156,9 +156,9 @@ class SlackInputSource(InputSource):
 
     def extract_media(
         self,
-        source_path: Path,
-        output_dir: Path,
-        **kwargs,
+        _source_path: Path,
+        _output_dir: Path,
+        **_kwargs,
     ) -> dict[str, str]:
         """Extract media files from Slack export.
 
@@ -256,7 +256,7 @@ class SlackInputSource(InputSource):
     def _parse_message(
         self,
         msg: dict[str, Any],
-        channel_name: str,
+        _channel_name: str,
         users: dict[str, dict[str, Any]],
     ) -> dict[str, Any] | None:
         """Parse a single Slack message into MESSAGE_SCHEMA format."""

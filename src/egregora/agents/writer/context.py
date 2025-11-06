@@ -141,7 +141,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
 
 def _query_rag_for_context(  # noqa: PLR0913
     table: Table,
-    client: genai.Client,
+    _client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,

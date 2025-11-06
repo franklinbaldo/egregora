@@ -57,7 +57,7 @@ class MkDocsOutputFormat(OutputFormat):
         _config, mkdocs_path_found = load_mkdocs_config(site_root)
         return mkdocs_path_found is not None
 
-    def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, _site_name: str, **_kwargs) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
 
         Args:
@@ -130,7 +130,7 @@ class MkDocsOutputFormat(OutputFormat):
         content: str,
         metadata: dict[str, Any],
         output_dir: Path,
-        **kwargs,
+        **_kwargs,
     ) -> str:
         """Write a blog post in MkDocs format.
 
@@ -159,7 +159,7 @@ class MkDocsOutputFormat(OutputFormat):
         author_id: str,
         profile_data: dict[str, Any],
         profiles_dir: Path,
-        **kwargs,
+        **_kwargs,
     ) -> str:
         """Write an author profile page in MkDocs format.
 

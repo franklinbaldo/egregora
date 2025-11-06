@@ -82,7 +82,7 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
-        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
+        _exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ) -> None:
         """Initialize vector store.
 
@@ -729,7 +729,7 @@ class VectorStore:
         *,
         ann_limit: int,
         nprobe_clause: str,
-        embedding_dimensionality: int,
+        _embedding_dimensionality: int,
     ) -> str:
         # Use fixed 768-dimension arrays for HNSW optimization (ignore embedding_dimensionality param)
         return f"""

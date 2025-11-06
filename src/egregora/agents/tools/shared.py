@@ -22,7 +22,7 @@ async def query_rag(
     query: str,
     max_results: int,
     rag_dir: Path,
-    client: genai.Client,
+    _client: genai.Client,
     model_config: ModelConfig,
 ) -> str:
     """RAG search returning formatted context string."""

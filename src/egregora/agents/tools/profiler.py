@@ -261,7 +261,7 @@ def apply_command_to_profile(
     return str(profile_path)
 
 
-def _update_profile_metadata(content: str, section_name: str, key: str, new_value: str) -> str:
+def _update_profile_metadata(content: str, section_name: str, _key: str, new_value: str) -> str:
     """Update a metadata section in profile content.
 
     Creates section if it doesn't exist. Replaces entire section content
