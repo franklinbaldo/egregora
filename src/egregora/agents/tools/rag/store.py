@@ -113,11 +113,12 @@ class VectorStore:
             self._vss_available = True
             self._vss_function = self._detect_vss_function()
             logger.info("DuckDB VSS extension loaded")
-            return True
         except Exception as e:
             logger.warning("VSS extension unavailable, falling back to exact search: %s", e)
             self._vss_available = False
             return False
+        else:
+            return True
 
     def _ensure_dataset_loaded(self, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
@@ -531,8 +532,6 @@ class VectorStore:
             query = base_query + where_clause + order_clause
             try:
                 result = self._execute_search_query(query, params, min_similarity)
-                self._vss_function = function_name
-                return result
             except duckdb.Error as exc:
                 last_error = exc
                 logger.warning("ANN search failed with %s: %s", function_name, exc)
@@ -541,6 +540,9 @@ class VectorStore:
                 last_error = exc
                 logger.exception("ANN search aborted: %s", exc)
                 break
+            else:
+                self._vss_function = function_name
+                return result
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:

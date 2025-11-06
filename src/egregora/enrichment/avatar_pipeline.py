@@ -159,11 +159,6 @@ def _process_set_avatar_command(
             timestamp=str(timestamp),
             profiles_dir=profiles_dir,
         )
-        if moderation_result.status == "approved":
-            return f"✅ Avatar approved and set for {author_uuid}"
-        if moderation_result.status == "questionable":
-            return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
-        return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
     except AvatarProcessingError as e:
         logger.exception("Failed to process avatar for %s: %s", author_uuid, e)
         if avatar_path and avatar_path.exists():
@@ -196,6 +191,12 @@ def _process_set_avatar_command(
             except OSError as cleanup_error:
                 logger.exception("Failed to clean up enrichment file: %s", cleanup_error)
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
+    else:
+        if moderation_result.status == "approved":
+            return f"✅ Avatar approved and set for {author_uuid}"
+        if moderation_result.status == "questionable":
+            return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
+        return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
 
 
 def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir: Path) -> str:
@@ -208,10 +209,11 @@ def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir
     logger.info("Processing 'unset avatar' command for %s", author_uuid)
     try:
         remove_profile_avatar(author_uuid=author_uuid, timestamp=str(timestamp), profiles_dir=profiles_dir)
-        return f"✅ Avatar removed for {author_uuid}"
     except Exception as e:
         logger.exception("Failed to remove avatar for %s", author_uuid)
         return f"❌ Failed to remove avatar for {author_uuid}: {e}"
+    else:
+        return f"✅ Avatar removed for {author_uuid}"
 
 
 __all__ = ["process_avatar_commands"]

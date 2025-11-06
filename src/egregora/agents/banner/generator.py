@@ -166,10 +166,11 @@ def generate_banner_for_post(
             post_title=post_title, post_summary=post_summary, output_dir=output_dir, slug=slug
         )
         result = generator.generate_banner(request)
-        return result.banner_path if result.success else None
     except Exception as e:
         logger.error("Banner generation failed: %s", e, exc_info=True)
         return None
+    else:
+        return result.banner_path if result.success else None
 
 
 def is_banner_generation_available() -> bool:

@@ -345,6 +345,11 @@ async def run_comparison_with_pydantic_agent(
                 rating_a["elo_global"], rating_b["elo_global"], state.winner
             )
             store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
+        except Exception as e:
+            console.print(f"[red]Ranking agent failed: {e}[/red]")
+            msg = "Ranking agent execution failed"
+            raise RuntimeError(msg) from e
+        else:
             return {
                 "winner": state.winner,
                 "comment_a": state.comment_a,
@@ -352,7 +357,3 @@ async def run_comparison_with_pydantic_agent(
                 "comment_b": state.comment_b,
                 "stars_b": state.stars_b,
             }
-        except Exception as e:
-            console.print(f"[red]Ranking agent failed: {e}[/red]")
-            msg = "Ranking agent execution failed"
-            raise RuntimeError(msg) from e

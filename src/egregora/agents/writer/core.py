@@ -122,10 +122,11 @@ def load_markdown_extensions(output_dir: Path) -> str:
             {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
         )
         logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
-        return yaml_section
     except Exception as e:
         logger.warning("Could not load markdown extensions from %s: %s", mkdocs_path, e)
         return ""
+    else:
+        return yaml_section
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
