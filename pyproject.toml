@@ -88,6 +88,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["ALL"]  # Enable ALL stable rules per user request
 ignore = []  # Clean slate!
+fixable = ["ALL"]  # Allow auto-fixing for all fixable violations
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
