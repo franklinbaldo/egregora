@@ -19,16 +19,6 @@ from egregora.config.loader import (
     load_egregora_config,
     save_egregora_config,
 )
-from egregora.config.schema import (
-    EgregoraConfig,
-    EnrichmentConfig as EgregoraEnrichmentConfig,
-    FeaturesConfig,
-    ModelsConfig,
-    PipelineConfig as EgregoraPipelineConfig,
-    PrivacyConfig,
-    RAGConfig,
-    WriterConfig as EgregoraWriterConfig,
-)
 
 # Model configuration (will be updated to use EgregoraConfig)
 from egregora.config.model import (
@@ -47,6 +37,22 @@ from egregora.config.model import (
 
 # Pipeline config
 from egregora.config.pipeline import PipelineEnrichmentConfig
+from egregora.config.schema import (
+    EgregoraConfig,
+    FeaturesConfig,
+    ModelsConfig,
+    PrivacyConfig,
+    RAGConfig,
+)
+from egregora.config.schema import (
+    EnrichmentConfig as EgregoraEnrichmentConfig,
+)
+from egregora.config.schema import (
+    PipelineConfig as EgregoraPipelineConfig,
+)
+from egregora.config.schema import (
+    WriterConfig as EgregoraWriterConfig,
+)
 
 # Site paths and MkDocs utilities
 from egregora.config.site import (
