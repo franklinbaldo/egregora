@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ModelsConfig(BaseModel):
@@ -236,11 +236,10 @@ class EgregoraConfig(BaseModel):
         description="Feature flags",
     )
 
-    class Config:
-        """Pydantic config."""
-
-        extra = "forbid"  # Reject unknown fields
-        validate_assignment = True  # Validate on attribute assignment
+    model_config = ConfigDict(
+        extra="forbid",  # Reject unknown fields
+        validate_assignment=True,  # Validate on attribute assignment
+    )
 
 
 __all__ = [
