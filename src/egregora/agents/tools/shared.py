@@ -36,7 +36,7 @@ async def query_rag(
 
         results = await query_similar_posts(
             table=dummy_table,
-            batch_client=client,
+            client=client,
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,

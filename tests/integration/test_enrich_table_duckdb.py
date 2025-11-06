@@ -76,8 +76,8 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
     combined = enrich_table(
         table,
         media_mapping={},
-        text_batch_client=text_client,
-        vision_batch_client=text_client,
+        text_client=text_client,
+        vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
@@ -111,8 +111,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     enrich_table(
         table,
         media_mapping={},
-        text_batch_client=text_client,
-        vision_batch_client=text_client,
+        text_client=text_client,
+        vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
@@ -128,8 +128,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     enrich_table(
         table,
         media_mapping={},
-        text_batch_client=text_client,
-        vision_batch_client=text_client,
+        text_client=text_client,
+        vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,

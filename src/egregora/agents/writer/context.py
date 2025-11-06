@@ -15,7 +15,7 @@ from egregora.agents.tools.rag import (
     build_rag_context_for_writer,
     query_similar_posts,
 )
-from egregora.utils.batch import EmbeddingBatchRequest
+from egregora.agents.tools.rag.embedder import embed_query
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
@@ -92,21 +92,12 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return ""
 
     try:
-        requests = [
-            EmbeddingBatchRequest(
-                text=table_markdown,
-                tag="writer_query",
-                model=embedding_model,
-                task_type="RETRIEVAL_QUERY",
-                output_dimensionality=embedding_output_dimensionality,
-            )
-        ]
-        results = client.embed_content(requests)
-        if not results or results[0].embedding is None:
-            logger.warning("Writer RAG: embedding request returned no vector")
-            return ""
-
-        query_vector = results[0].embedding
+        query_vector = embed_query(
+            table_markdown,
+            client,
+            model=embedding_model,
+            output_dimensionality=embedding_output_dimensionality,
+        )
         store = VectorStore(rag_dir / "chunks.parquet")
         search_results = store.search(
             query_vec=query_vector,

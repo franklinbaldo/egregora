@@ -189,7 +189,7 @@ def _register_writer_tools(agent: Agent[WriterAgentState, WriterAgentReturn]) ->
         store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            batch_client=ctx.deps.batch_client,
+            client=ctx.deps.batch_client,
             store=store,
             media_types=media_types,
             top_k=limit,

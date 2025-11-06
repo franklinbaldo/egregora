@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 from google import genai
+from google.genai import types as genai_types
 from ibis.expr.types import Table
 
 from egregora.config import ModelConfig
@@ -290,7 +291,19 @@ def enrich_table(
                     mime_type=mime_type,
                 )
 
-                result = media_agent.run_sync("Enrich this media", deps=context)
+                # Build multimodal message with file URI
+                message_content = [
+                    genai_types.Part(
+                        text="Analyze and enrich this media file. Provide a detailed description in markdown format."
+                    ),
+                    genai_types.Part(
+                        file_data=genai_types.FileData(
+                            file_uri=file_uri,
+                            mime_type=mime_type,
+                        )
+                    ),
+                ]
+                result = media_agent.run_sync(message_content, deps=context)
                 markdown_content = result.data.markdown.strip()
                 if not markdown_content:
                     markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
