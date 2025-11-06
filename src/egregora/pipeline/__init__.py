@@ -88,7 +88,6 @@ def __getattr__(name):
     if name in ("group_by_period", "period_has_posts"):
         # Import the module-level pipeline.py file (not this package)
         import sys
-        from importlib import import_module
 
         # Get the parent module to access pipeline.py sibling
         parent = sys.modules["egregora"]

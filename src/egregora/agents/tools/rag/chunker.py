@@ -93,7 +93,7 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
         (metadata_dict, content_string)
 
     """
-    with open(post_path, encoding="utf-8") as f:
+    with post_path.open(encoding="utf-8") as f:
         post = frontmatter.load(f)
 
     metadata = dict(post.metadata)

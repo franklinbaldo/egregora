@@ -306,7 +306,7 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests[_T](items: Sequence[_T], *, size: int) -> Iterable[Sequence[_T]]:
+def chunk_requests[T](items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
     """Yield fixed-size batches from ``items``."""
     if size <= 0:
         msg = "Batch size must be positive"

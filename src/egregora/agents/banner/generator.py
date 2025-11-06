@@ -149,7 +149,7 @@ class BannerGenerator:
                     banner_filename = f"banner-{request.slug}{file_extension}"
                     banner_path = request.output_dir / banner_filename
 
-                    with open(banner_path, "wb") as f:
+                    with banner_path.open("wb") as f:
                         f.write(data_buffer)
 
                     logger.info(f"Banner saved to: {banner_path}")

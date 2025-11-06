@@ -134,7 +134,7 @@ class SlackAdapter(SourceAdapter):
 
         if input_path.is_file() and input_path.suffix == ".json":
             try:
-                with open(input_path) as f:
+                with input_path.open() as f:
                     data = json.load(f)
                     has_data = bool(data)
             except (OSError, json.JSONDecodeError):

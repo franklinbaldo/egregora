@@ -388,6 +388,7 @@ def edit(
     ] = False,
 ) -> None:
     """Interactive LLM-powered editor with RAG and meta-LLM capabilities.
+
     The editor can:
     - Read and edit posts line-by-line
     - Search similar posts via RAG

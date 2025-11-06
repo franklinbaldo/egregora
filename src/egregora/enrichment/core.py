@@ -74,11 +74,11 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
             f.write(content)
 
         # Atomic rename (replaces destination if it exists)
-        os.replace(temp_path, path)
+        Path(temp_path).replace(path)
     except OSError as e:
         # Clean up temp file on error
         try:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
         except (FileNotFoundError, PermissionError):
             # Temp file already gone or can't delete - not critical
             pass

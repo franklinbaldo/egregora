@@ -141,6 +141,7 @@ def load_profile(profile_path: Path) -> dict[str, Any]:
 
 def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     """Load all existing comments for a post from DuckDB.
+
     Format as markdown for agent context.
     """
     comments_table = store.get_comments_for_post(post_id)

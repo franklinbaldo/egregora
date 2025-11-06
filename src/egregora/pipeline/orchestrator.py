@@ -247,7 +247,7 @@ class CoreOrchestrator:
             metadata = self.source_adapter.get_metadata(config.input_path)
             context.metadata.update(metadata)
             if metadata:
-                logger.info(f"[cyan]ℹ️  Metadata:[/] {metadata}")
+                logger.info(f"[cyan]INFO Metadata:[/] {metadata}")
         except Exception as e:
             logger.debug(f"Could not extract metadata: {e}")
 
