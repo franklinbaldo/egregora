@@ -23,7 +23,7 @@ from ..config import MEDIA_DIR_NAME
 from ..enrichment.agents import (
     AvatarEnrichmentContext,
     create_avatar_enrichment_agent,
-    upload_file_for_enrichment,
+    load_file_as_binary_content,
 )
 
 logger = logging.getLogger(__name__)
@@ -526,7 +526,7 @@ def enrich_and_moderate_avatar(
         avatar_uuid: UUID of the avatar
         avatar_path: Path to avatar image
         docs_dir: MkDocs docs directory
-        vision_client: Gemini client
+        vision_client: Gemini client (used for agent authentication)
         model: Model name for vision processing
 
     Returns:
@@ -538,8 +538,8 @@ def enrich_and_moderate_avatar(
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
     try:
-        # Upload image for enrichment
-        file_uri, mime_type = upload_file_for_enrichment(vision_client, avatar_path)
+        # Load image as binary content (no upload needed!)
+        binary_content = load_file_as_binary_content(avatar_path)
 
         # Get relative path for enrichment context
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
@@ -548,21 +548,15 @@ def enrich_and_moderate_avatar(
         context = AvatarEnrichmentContext(
             media_filename=avatar_path.name,
             media_path=relative_path,
-            file_uri=file_uri,
         )
 
-        # Create and run avatar enrichment agent with multimodal content
-        avatar_agent = create_avatar_enrichment_agent(model)
+        # Create avatar enrichment agent with the provided client
+        avatar_agent = create_avatar_enrichment_agent(model, client=vision_client)
 
-        # Build multimodal message content with file
+        # Build multimodal message content
         message_content = [
-            genai_types.Part(text="Analyze and moderate this avatar image"),
-            genai_types.Part(
-                file_data=genai_types.FileData(
-                    file_uri=file_uri,
-                    mime_type=mime_type,
-                )
-            ),
+            "Analyze and moderate this avatar image",
+            binary_content,
         ]
 
         result = avatar_agent.run_sync(message_content, deps=context)

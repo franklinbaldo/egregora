@@ -22,8 +22,10 @@ from pydantic_ai import Agent, RunContext
 
 try:
     from pydantic_ai.models.gemini import GeminiModel
+    from pydantic_ai.providers.gemini import GeminiProvider as GoogleProvider  # pragma: no cover
 except ImportError:  # pragma: no cover - newer SDK uses google module
     from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
+    from pydantic_ai.providers.google import GoogleProvider  # type: ignore
 
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
@@ -433,9 +435,19 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
 
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
+        # Create model with provided client
+        if agent_model is None:
+            if client:
+                provider = GoogleProvider(client=client)
+                model = GeminiModel(model_name, provider=provider)
+            else:
+                model = GeminiModel(model_name)
+        else:
+            model = agent_model
+
         # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](
-            model=agent_model or GeminiModel(model_name),
+            model=model,
             deps_type=EditorAgentState,
             output_type=EditorAgentResult,
         )

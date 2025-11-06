@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from pathlib import Path
 
 from google import genai
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
-from egregora.utils.genai import call_with_retries_sync
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,6 @@ class MediaEnrichmentContext(BaseModel):
     sender_uuid: str
     date: str
     time: str
-    file_uri: str  # Uploaded file URI
-    mime_type: str
 
 
 class AvatarEnrichmentContext(BaseModel):
@@ -62,21 +63,32 @@ class AvatarEnrichmentContext(BaseModel):
 
     media_filename: str
     media_path: str
-    file_uri: str  # Uploaded file URI
 
 
-def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
+def create_url_enrichment_agent(
+    model_name: str,
+    client: genai.Client | None = None,
+) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
     """Create an agent for URL enrichment.
 
     Args:
-        model: Model name to use (e.g., "models/gemini-2.0-flash-exp")
+        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
+        client: Optional genai.Client. If provided, will be used for inference.
+                If None, uses GOOGLE_API_KEY from environment.
 
     Returns:
         Configured pydantic-ai Agent
     """
+    # Create model with optional client
+    if client:
+        provider = GoogleProvider(client=client)
+        model = GoogleModel(model_name, provider=provider)
+    else:
+        model = GoogleModel(model_name)
+
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
         model,
-        result_type=EnrichmentOutput,
+        output_type=EnrichmentOutput,
     )
 
     @agent.system_prompt
@@ -94,18 +106,30 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
     return agent
 
 
-def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
+def create_media_enrichment_agent(
+    model_name: str,
+    client: genai.Client | None = None,
+) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
     """Create an agent for media enrichment.
 
     Args:
-        model: Model name to use (e.g., "models/gemini-2.0-flash-thinking-exp")
+        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
+        client: Optional genai.Client. If provided, will be used for inference.
+                If None, uses GOOGLE_API_KEY from environment.
 
     Returns:
         Configured pydantic-ai Agent
     """
+    # Create model with optional client
+    if client:
+        provider = GoogleProvider(client=client)
+        model = GoogleModel(model_name, provider=provider)
+    else:
+        model = GoogleModel(model_name)
+
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
         model,
-        result_type=EnrichmentOutput,
+        output_type=EnrichmentOutput,
     )
 
     @agent.system_prompt
@@ -125,18 +149,30 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
     return agent
 
 
-def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
+def create_avatar_enrichment_agent(
+    model_name: str,
+    client: genai.Client | None = None,
+) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
     """Create an agent for avatar enrichment and moderation.
 
     Args:
-        model: Model name to use (e.g., "models/gemini-2.0-flash-thinking-exp")
+        model_name: Model name to use (e.g., "gemini-2.0-flash-exp")
+        client: Optional genai.Client. If provided, will be used for inference.
+                If None, uses GOOGLE_API_KEY from environment.
 
     Returns:
         Configured pydantic-ai Agent
     """
+    # Create model with optional client
+    if client:
+        provider = GoogleProvider(client=client)
+        model = GoogleModel(model_name, provider=provider)
+    else:
+        model = GoogleModel(model_name)
+
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
         model,
-        result_type=AvatarModerationOutput,
+        output_type=AvatarModerationOutput,
     )
 
     @agent.system_prompt
@@ -151,53 +187,45 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     return agent
 
 
-def upload_file_for_enrichment(client: genai.Client, file_path: Path) -> tuple[str, str]:
-    """Upload a file for enrichment and return URI and MIME type.
+def load_file_as_binary_content(file_path: Path) -> BinaryContent:
+    """Load a file and return as pydantic-ai BinaryContent.
 
     Args:
-        client: Gemini API client
-        file_path: Path to file to upload
+        file_path: Path to file to load
 
     Returns:
-        Tuple of (file_uri, mime_type)
+        BinaryContent with file data and MIME type
 
     Raises:
-        RuntimeError: If upload fails
+        RuntimeError: If file loading fails
     """
-    import time
-
-    logger.debug("Uploading media file for enrichment: %s", file_path)
+    logger.debug("Loading media file: %s", file_path)
 
     try:
-        uploaded_file = call_with_retries_sync(client.files.upload, file=str(file_path))
+        # Read file bytes
+        file_data = file_path.read_bytes()
 
-        # Wait for file to become ACTIVE (required before use)
-        max_wait = 60  # seconds
-        poll_interval = 2  # seconds
-        elapsed = 0
+        # Infer MIME type
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            # Fallback based on extension
+            ext = file_path.suffix.lower()
+            mime_type_map = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+                ".mp4": "video/mp4",
+                ".mp3": "audio/mpeg",
+                ".pdf": "application/pdf",
+            }
+            mime_type = mime_type_map.get(ext, "application/octet-stream")
 
-        while uploaded_file.state.name != "ACTIVE":
-            if elapsed >= max_wait:
-                logger.warning(
-                    "File %s did not become ACTIVE after %ds (state: %s)",
-                    file_path,
-                    max_wait,
-                    uploaded_file.state.name,
-                )
-                break
+        logger.debug(f"Loaded {len(file_data)} bytes with MIME type {mime_type}")
 
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            uploaded_file = call_with_retries_sync(client.files.get, name=uploaded_file.name)
-            logger.debug(
-                "Waiting for file %s to become ACTIVE (current: %s, elapsed: %ds)",
-                file_path,
-                uploaded_file.state.name,
-                elapsed,
-            )
-
-        return uploaded_file.uri, uploaded_file.mime_type
+        return BinaryContent(data=file_data, media_type=mime_type)
 
     except Exception as e:
-        logger.error("Failed to upload file %s: %s", file_path, e, exc_info=True)
-        raise RuntimeError(f"File upload failed: {e}") from e
+        logger.error(f"Failed to load file {file_path}: {e}", exc_info=True)
+        raise RuntimeError(f"File loading failed: {e}") from e

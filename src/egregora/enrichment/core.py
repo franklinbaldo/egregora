@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 from google import genai
-from google.genai import types as genai_types
 from ibis.expr.types import Table
 
 from egregora.config import ModelConfig
@@ -29,7 +28,7 @@ from egregora.enrichment.agents import (
     UrlEnrichmentContext,
     create_media_enrichment_agent,
     create_url_enrichment_agent,
-    upload_file_for_enrichment,
+    load_file_as_binary_content,
 )
 from egregora.enrichment.batch import (
     MediaEnrichmentJob,
@@ -119,9 +118,9 @@ def enrich_table(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    # Create pydantic-ai agents for enrichment
-    url_agent = create_url_enrichment_agent(url_model)
-    media_agent = create_media_enrichment_agent(vision_model)
+    # Create pydantic-ai agents for enrichment with provided clients
+    url_agent = create_url_enrichment_agent(url_model, client=text_client)
+    media_agent = create_media_enrichment_agent(vision_model, client=vision_client)
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -268,10 +267,8 @@ def enrich_table(
     if pending_media_jobs:
         for media_job in pending_media_jobs:
             try:
-                # Upload file
-                file_uri, mime_type = upload_file_for_enrichment(vision_client, media_job.file_path)
-                media_job.upload_uri = file_uri
-                media_job.mime_type = mime_type
+                # Load file as binary content (no upload needed!)
+                binary_content = load_file_as_binary_content(media_job.file_path)
 
                 ts = _ensure_datetime(media_job.timestamp)
                 try:
@@ -287,22 +284,14 @@ def enrich_table(
                     sender_uuid=media_job.sender_uuid,
                     date=ts.strftime("%Y-%m-%d"),
                     time=ts.strftime("%H:%M"),
-                    file_uri=file_uri,
-                    mime_type=mime_type,
                 )
 
-                # Build multimodal message with file URI
+                # Build multimodal message with binary content
                 message_content = [
-                    genai_types.Part(
-                        text="Analyze and enrich this media file. Provide a detailed description in markdown format."
-                    ),
-                    genai_types.Part(
-                        file_data=genai_types.FileData(
-                            file_uri=file_uri,
-                            mime_type=mime_type,
-                        )
-                    ),
+                    "Analyze and enrich this media file. Provide a detailed description in markdown format.",
+                    binary_content,
                 ]
+
                 result = media_agent.run_sync(message_content, deps=context)
                 markdown_content = result.data.markdown.strip()
                 if not markdown_content:
