@@ -111,7 +111,7 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "issue_comment" ]; then
             # Extract everything after @gemini safely using Python
-            python3 << 'PYTHON_EOF'
+            python3 <<'PYTHON_EOF'
 import os
 import re
 import sys
