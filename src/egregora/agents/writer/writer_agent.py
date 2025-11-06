@@ -300,37 +300,32 @@ def write_posts_with_pydantic_agent(
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=annotations_store,
     )
-    try:
-        with logfire_span("writer_agent", period=period_date, model=model_name):
-            result = agent.run_sync(prompt, deps=state)
-            result_payload = getattr(result, "data", result)
-            usage = result.usage()
-            logfire_info(
-                "Writer agent completed",
-                period=period_date,
-                posts_created=len(state.saved_posts),
-                profiles_updated=len(state.saved_profiles),
-                tokens_total=usage.total_tokens if usage else 0,
-                tokens_input=usage.input_tokens if usage else 0,
-                tokens_output=usage.output_tokens if usage else 0,
-            )
-            logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
-            record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
-            if record_dir:
-                output_path = Path(record_dir).expanduser()
-                output_path.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                filename = output_path / f"writer-{period_date}-{timestamp}.json"
-                try:
-                    payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
-                    filename.write_bytes(payload)
-                    logger.info("Recorded writer agent conversation to %s", filename)
-                except Exception as record_exc:
-                    logger.warning("Failed to persist writer agent messages: %s", record_exc)
-    except Exception as exc:
-        logger.exception("Pydantic writer agent failed: %s", exc)
-        msg = "Writer agent execution failed"
-        raise RuntimeError(msg) from exc
+    with logfire_span("writer_agent", period=period_date, model=model_name):
+        result = agent.run_sync(prompt, deps=state)
+        result_payload = getattr(result, "data", result)
+        usage = result.usage()
+        logfire_info(
+            "Writer agent completed",
+            period=period_date,
+            posts_created=len(state.saved_posts),
+            profiles_updated=len(state.saved_profiles),
+            tokens_total=usage.total_tokens if usage else 0,
+            tokens_input=usage.input_tokens if usage else 0,
+            tokens_output=usage.output_tokens if usage else 0,
+        )
+        logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
+        record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
+        if record_dir:
+            output_path = Path(record_dir).expanduser()
+            output_path.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            filename = output_path / f"writer-{period_date}-{timestamp}.json"
+            try:
+                payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
+                filename.write_bytes(payload)
+                logger.info("Recorded writer agent conversation to %s", filename)
+            except (OSError, TypeError, ValueError, AttributeError) as record_exc:
+                logger.warning("Failed to persist writer agent messages: %s", record_exc)
     return (state.saved_posts, state.saved_profiles)
 
 

@@ -128,7 +128,7 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
             ordered_table = ensure_deterministic_order(table)
             yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
             return
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
     count = table.count().execute()
     if not count:

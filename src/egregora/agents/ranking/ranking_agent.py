@@ -194,6 +194,43 @@ def _truncate_comment(comment: str) -> str:
     return comment
 
 
+def _validate_agent_state(state: RankingAgentState) -> None:
+    """Validate that agent completed all required tasks.
+
+    Args:
+        state: Agent state to validate
+
+    Raises:
+        ValueError: If any required task was not completed
+
+    """
+    if state.winner is None:
+        msg = "Agent did not choose a winner"
+        raise ValueError(msg)
+    if state.comment_a is None or state.stars_a is None:
+        msg = "Agent did not comment on Post A"
+        raise ValueError(msg)
+    if state.comment_b is None or state.stars_b is None:
+        msg = "Agent did not comment on Post B"
+        raise ValueError(msg)
+
+
+def _validate_ratings_exist(rating_a: dict[str, Any] | None, rating_b: dict[str, Any] | None) -> None:
+    """Validate that ratings exist for both posts.
+
+    Args:
+        rating_a: Rating for post A
+        rating_b: Rating for post B
+
+    Raises:
+        ValueError: If either rating is missing
+
+    """
+    if rating_a is None or rating_b is None:
+        msg = "Missing ratings for posts despite initialization"
+        raise ValueError(msg)
+
+
 def _register_ranking_tools(agent: Agent) -> None:
     """Register all ranking tools on the agent."""
 
@@ -316,15 +353,7 @@ async def run_comparison_with_pydantic_agent(
         _register_ranking_tools(agent)
         try:
             await agent.run(prompt, deps=state)
-            if state.winner is None:
-                msg = "Agent did not choose a winner"
-                raise ValueError(msg)
-            if state.comment_a is None or state.stars_a is None:
-                msg = "Agent did not comment on Post A"
-                raise ValueError(msg)
-            if state.comment_b is None or state.stars_b is None:
-                msg = "Agent did not comment on Post B"
-                raise ValueError(msg)
+            _validate_agent_state(state)
             save_comparison(
                 store=store,
                 profile_id=profile["uuid"],
@@ -338,9 +367,7 @@ async def run_comparison_with_pydantic_agent(
             )
             rating_a = store.get_rating(post_a_id)
             rating_b = store.get_rating(post_b_id)
-            if rating_a is None or rating_b is None:
-                msg = "Missing ratings for posts despite initialization"
-                raise ValueError(msg)
+            _validate_ratings_exist(rating_a, rating_b)
             new_elo_a, new_elo_b = calculate_elo_update(
                 rating_a["elo_global"], rating_b["elo_global"], state.winner
             )

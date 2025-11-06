@@ -283,17 +283,14 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
     Note:
         For vector columns, use index_type='HNSW' with cosine metric (optimized for 768-dim embeddings).
         This must be called on raw DuckDB connection, not Ibis connection.
+        Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
-    try:
-        if index_type == "HNSW":
-            conn.execute(
-                f"CREATE INDEX IF NOT EXISTS {index_name} "
-                f"ON {table_name} USING HNSW ({column_name}) "
-                "WITH (metric = 'cosine')"
-            )
-        else:
-            conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
-    except Exception as e:
-        # Index may already exist or column may not support this index type
-        logging.getLogger(__name__).debug("Could not create index %s: %s", index_name, e)
+    if index_type == "HNSW":
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS {index_name} "
+            f"ON {table_name} USING HNSW ({column_name}) "
+            "WITH (metric = 'cosine')"
+        )
+    else:
+        conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")

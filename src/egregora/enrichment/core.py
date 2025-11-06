@@ -208,62 +208,52 @@ def enrich_table(
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
-            try:
-                result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
-                url_job.markdown = result.data.markdown
-                cache.store(url_job.key, {"markdown": result.data.markdown, "type": "url"})
-            except Exception as e:
-                logger.warning("Failed to enrich URL %s: %s", url_job.url, e, exc_info=True)
-                url_job.markdown = f"[Failed to enrich URL: {url_job.url}]"
+            result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
+            url_job.markdown = result.data.markdown
+            cache.store(url_job.key, {"markdown": result.data.markdown, "type": "url"})
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
     if pending_media_jobs:
         for media_job in pending_media_jobs:
+            binary_content = load_file_as_binary_content(media_job.file_path)
+            ts = _ensure_datetime(media_job.timestamp)
             try:
-                binary_content = load_file_as_binary_content(media_job.file_path)
-                ts = _ensure_datetime(media_job.timestamp)
-                try:
-                    media_path = media_job.file_path.relative_to(docs_dir)
-                except ValueError:
-                    media_path = media_job.file_path
-                context = MediaEnrichmentContext(
-                    media_type=media_job.media_type or "unknown",
-                    media_filename=media_job.file_path.name,
-                    media_path=str(media_path),
-                    original_message=media_job.original_message,
-                    sender_uuid=media_job.sender_uuid,
-                    date=ts.strftime("%Y-%m-%d"),
-                    time=ts.strftime("%H:%M"),
+                media_path = media_job.file_path.relative_to(docs_dir)
+            except ValueError:
+                media_path = media_job.file_path
+            context = MediaEnrichmentContext(
+                media_type=media_job.media_type or "unknown",
+                media_filename=media_job.file_path.name,
+                media_path=str(media_path),
+                original_message=media_job.original_message,
+                sender_uuid=media_job.sender_uuid,
+                date=ts.strftime("%Y-%m-%d"),
+                time=ts.strftime("%H:%M"),
+            )
+            message_content = [
+                "Analyze and enrich this media file. Provide a detailed description in markdown format.",
+                binary_content,
+            ]
+            result = media_enrichment_agent.run_sync(message_content, deps=context)
+            markdown_content = result.data.markdown.strip()
+            if not markdown_content:
+                markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
+            if "PII_DETECTED" in markdown_content:
+                logger.warning(
+                    "PII detected in media: %s. Media will be deleted after redaction.",
+                    media_job.file_path.name,
                 )
-                message_content = [
-                    "Analyze and enrich this media file. Provide a detailed description in markdown format.",
-                    binary_content,
-                ]
-                result = media_enrichment_agent.run_sync(message_content, deps=context)
-                markdown_content = result.data.markdown.strip()
-                if not markdown_content:
-                    markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
-                if "PII_DETECTED" in markdown_content:
-                    logger.warning(
-                        "PII detected in media: %s. Media will be deleted after redaction.",
-                        media_job.file_path.name,
-                    )
-                    markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
-                    try:
-                        media_job.file_path.unlink()
-                        logger.info("Deleted media file containing PII: %s", media_job.file_path)
-                        pii_media_deleted = True
-                        pii_detected_count += 1
-                    except (FileNotFoundError, PermissionError) as delete_error:
-                        logger.exception("Failed to delete %s: %s", media_job.file_path, delete_error)
-                    except OSError as delete_error:
-                        logger.exception(
-                            "Unexpected OS error deleting %s: %s", media_job.file_path, delete_error
-                        )
-                media_job.markdown = markdown_content
-                cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
-            except Exception as e:
-                logger.warning("Failed to enrich media %s: %s", media_job.file_path.name, e, exc_info=True)
-                media_job.markdown = None
+                markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+                try:
+                    media_job.file_path.unlink()
+                    logger.info("Deleted media file containing PII: %s", media_job.file_path)
+                    pii_media_deleted = True
+                    pii_detected_count += 1
+                except (FileNotFoundError, PermissionError) as delete_error:
+                    logger.exception("Failed to delete %s: %s", media_job.file_path, delete_error)
+                except OSError as delete_error:
+                    logger.exception("Unexpected OS error deleting %s: %s", media_job.file_path, delete_error)
+            media_job.markdown = markdown_content
+            cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
     for url_job in url_jobs:
         if not url_job.markdown:
             continue

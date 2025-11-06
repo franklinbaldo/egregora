@@ -28,14 +28,10 @@ def configure_logfire() -> bool:
 
         logfire.configure(token=token)
         logger.info("Logfire configured successfully")
+        return True
     except ImportError:
         logger.warning("logfire package not installed, skipping configuration")
         return False
-    except Exception as exc:
-        logger.warning("Failed to configure Logfire: %s", exc)
-        return False
-    else:
-        return True
 
 
 def get_logfire():

@@ -23,6 +23,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _require_avatar_source() -> None:
+    """Raise error if no avatar source is found.
+
+    Raises:
+        AvatarProcessingError: Always raises when no avatar source is available
+
+    """
+    msg = "No valid URL or media attachment found for avatar"
+    raise AvatarProcessingError(msg)
+
+
+def _require_media_attachment() -> None:
+    """Raise error if no media attachment is found.
+
+    Raises:
+        AvatarProcessingError: Always raises when no media attachment is found
+
+    """
+    msg = "No media attachment found for avatar command"
+    raise AvatarProcessingError(msg)
+
+
 def process_avatar_commands(
     messages_table: Table,
     zip_path: Path | None,
@@ -134,8 +156,7 @@ def _process_set_avatar_command(
                         group_slug=group_slug,
                     )
                 else:
-                    msg = "No valid URL or media attachment found for avatar"
-                    raise AvatarProcessingError(msg)
+                    _require_avatar_source()
         else:
             media_refs = find_media_references(message)
             if media_refs and zip_path:
@@ -144,8 +165,7 @@ def _process_set_avatar_command(
                     zip_path=zip_path, media_filename=media_refs[0], docs_dir=docs_dir, group_slug=group_slug
                 )
             else:
-                msg = "No media attachment found for avatar command"
-                raise AvatarProcessingError(msg)
+                _require_media_attachment()
         logger.info("Enriching and moderating avatar for %s", author_uuid)
         moderation_result = enrich_and_moderate_avatar(
             avatar_uuid=avatar_uuid, avatar_path=avatar_path, docs_dir=docs_dir, model=model

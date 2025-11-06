@@ -162,15 +162,12 @@ class WhatsAppInputSource(InputSource):
             group_slug = create_slug(group_name)
         media_filenames = set()
         if table is not None:
-            try:
-                batch_size = 1000
-                for batch_records in _iter_table_record_batches(table.select("message"), batch_size):
-                    for row in batch_records:
-                        message = row.get("message", "")
-                        refs = find_media_references(message)
-                        media_filenames.update(refs)
-            except Exception as e:
-                logger.warning("Failed to scan table for media references: %s", e)
+            batch_size = 1000
+            for batch_records in _iter_table_record_batches(table.select("message"), batch_size):
+                for row in batch_records:
+                    message = row.get("message", "")
+                    refs = find_media_references(message)
+                    media_filenames.update(refs)
         if not media_filenames:
             _, media_files = self._detect_zip_contents(source_path)
             media_filenames = set(media_files)
