@@ -367,7 +367,7 @@ def _register_editor_tools(agent: Agent) -> None:
                 return BannerResult(status="success", path=str(banner_path))
             return BannerResult(status="failed", path=None)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Banner generation failed in editor")
             return BannerResult(status="error", path=None)
 
