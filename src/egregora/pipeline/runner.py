@@ -19,7 +19,7 @@ from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
-from egregora.config import ModelConfig, load_egregora_config, resolve_site_paths
+from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table
@@ -32,8 +32,6 @@ from egregora.utils.cache import EnrichmentCache
 from egregora.utils.checkpoints import CheckpointStore
 
 if TYPE_CHECKING:
-    from datetime import date
-
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
 __all__ = ["run_source_pipeline"]
