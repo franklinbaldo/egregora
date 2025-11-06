@@ -57,14 +57,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class WriterConfig:
-    """Configuration for the writer functions."""
+    """Configuration for the writer functions.
+
+    All embeddings use fixed 768-dimension output.
+    """
 
     output_dir: Path = Path("output/posts")
     profiles_dir: Path = Path("output/profiles")
     rag_dir: Path = Path("output/rag")
     model_config: ModelConfig | None = None
     enable_rag: bool = True
-    embedding_output_dimensionality: int = 3072
     retrieval_mode: str = "ann"
     retrieval_nprobe: int | None = None
     retrieval_overfetch: int | None = None
