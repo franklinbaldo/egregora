@@ -134,7 +134,6 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
         vision_client = client
         embedding_client = client
         embedding_model_name = model_config.get_model("embedding")
-        embedding_dimensionality = model_config.embedding_output_dimensionality
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
         checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
@@ -335,7 +334,6 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     profiles_dir=profiles_dir,
                     rag_dir=site_paths.rag_dir,
                     enable_rag=True,
-                    embedding_output_dimensionality=embedding_dimensionality,
                     retrieval_mode=retrieval_mode,
                     retrieval_nprobe=retrieval_nprobe,
                     retrieval_overfetch=retrieval_overfetch,
@@ -367,7 +365,6 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                     site_paths.docs_dir,
                     store,
                     embedding_model=embedding_model_name,
-                    output_dimensionality=embedding_dimensionality,
                 )
                 if media_chunks > 0:
                     logger.info(f"[green]✓ Indexed[/] {media_chunks} media chunks into RAG")
