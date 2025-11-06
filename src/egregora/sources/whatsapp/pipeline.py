@@ -17,8 +17,8 @@ from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_egregora_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
-from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
+from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.types import GroupSlug

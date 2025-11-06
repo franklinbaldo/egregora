@@ -20,10 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
-from google import genai
 from ibis.expr.types import Table
 
-from egregora.config import ModelConfig
 from egregora.config.schema import EgregoraConfig
 from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
