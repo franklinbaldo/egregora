@@ -9,8 +9,9 @@ import ibis
 
 from egregora.agents.ranking.store import RankingStore
 from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.config.loader import create_default_config
 from egregora.database import schema as database_schema
-from egregora.enrichment.core import enrich_table
+from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 
@@ -133,18 +134,29 @@ def test_enrich_table_persists_results(tmp_path: Path):
 
     conn, table_name = _create_conversation_table(tmp_path)
 
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_media": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=cache,
+        docs_dir=docs_dir,
+        posts_dir=posts_dir,
+        duckdb_connection=conn,
+        target_table=table_name,
+    )
+
     try:
         combined = enrich_table(
             messages_table,
             media_mapping={},
-            _text_client=text_client,
-            _vision_client=vision_client,
-            cache=cache,
-            docs_dir=docs_dir,
-            posts_dir=posts_dir,
-            enable_media=False,
-            duckdb_connection=conn,
-            target_table=table_name,
+            config=config,
+            context=enrichment_context,
         )
     finally:
         cache.close()

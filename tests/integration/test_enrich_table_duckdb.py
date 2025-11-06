@@ -8,8 +8,9 @@ import ibis
 import pandas as pd
 import pytest
 
+from egregora.config.loader import create_default_config
 from egregora.database.schema import CONVERSATION_SCHEMA
-from egregora.enrichment.core import enrich_table
+from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 
 
@@ -73,17 +74,28 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
     table = _make_base_table()
     text_client = StubBatchClient("url")
 
-    combined = enrich_table(
-        table,
-        media_mapping={},
-        _text_client=text_client,
-        _vision_client=text_client,
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_media": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
-        enable_media=False,
         duckdb_connection=duckdb_backend,
         target_table="conversation_output",
+    )
+
+    combined = enrich_table(
+        table,
+        media_mapping={},
+        config=config,
+        context=enrichment_context,
     )
 
     persisted = duckdb_backend.table("conversation_output")
@@ -108,17 +120,28 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     table = _make_base_table()
     text_client = StubBatchClient("url")
 
-    enrich_table(
-        table,
-        media_mapping={},
-        _text_client=text_client,
-        _vision_client=text_client,
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_media": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
-        enable_media=False,
         duckdb_connection=duckdb_backend,
         target_table="conversation_output",
+    )
+
+    enrich_table(
+        table,
+        media_mapping={},
+        config=config,
+        context=enrichment_context,
     )
 
     first_df = (
@@ -128,14 +151,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     enrich_table(
         table,
         media_mapping={},
-        _text_client=text_client,
-        _vision_client=text_client,
-        cache=cache,
-        docs_dir=docs_dir,
-        posts_dir=posts_dir,
-        enable_media=False,
-        duckdb_connection=duckdb_backend,
-        target_table="conversation_output",
+        config=config,
+        context=enrichment_context,
     )
 
     second_df = (

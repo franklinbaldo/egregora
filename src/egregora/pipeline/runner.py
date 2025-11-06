@@ -23,6 +23,7 @@ from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table
+from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages
 from egregora.pipeline.ir import validate_ir_schema
@@ -242,15 +243,17 @@ def run_source_pipeline(
                             steps_state = checkpoint_store.update_step(
                                 period_key, "enrichment", "in_progress"
                             )["steps"]
+                        # MODERN (Phase 2): Create enrichment context
+                        enrichment_context = EnrichmentRuntimeContext(
+                            cache=enrichment_cache,
+                            docs_dir=site_paths.docs_dir,
+                            posts_dir=posts_dir,
+                        )
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
-                            client,
-                            client,
-                            enrichment_cache,
-                            site_paths.docs_dir,
-                            posts_dir,
-                            model_config,
+                            config,
+                            enrichment_context,
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
@@ -262,15 +265,17 @@ def run_source_pipeline(
                         steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
                             "steps"
                         ]
+                    # MODERN (Phase 2): Create enrichment context
+                    enrichment_context = EnrichmentRuntimeContext(
+                        cache=enrichment_cache,
+                        docs_dir=site_paths.docs_dir,
+                        posts_dir=posts_dir,
+                    )
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
-                        client,
-                        client,
-                        enrichment_cache,
-                        site_paths.docs_dir,
-                        posts_dir,
-                        model_config,
+                        config,
+                        enrichment_context,
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:

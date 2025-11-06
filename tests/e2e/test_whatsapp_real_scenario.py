@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.enrichment.core import enrich_table
+from egregora.config.loader import create_default_config
+from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.ingestion.parser import filter_egregora_messages, parse_export
 from egregora.sources.whatsapp import process_whatsapp_export
@@ -403,16 +404,27 @@ def test_enrichment_adds_egregora_messages(
     text_client = DummyBatchClient("text-model")
     vision_client = DummyBatchClient("vision-model")
 
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=cache,
+        docs_dir=docs_dir,
+        posts_dir=posts_dir,
+    )
+
     try:
         enriched = enrich_table(
             updated_table,
             media_mapping,
-            text_client,
-            vision_client,
-            cache,
-            docs_dir,
-            posts_dir,
-            enable_url=False,
+            config=config,
+            context=enrichment_context,
         )
     finally:
         cache.close()
@@ -517,17 +529,28 @@ def test_enrichment_handles_schema_mismatch(
     text_client = DummyBatchClient("text-model")
     vision_client = DummyBatchClient("vision-model")
 
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=cache,
+        docs_dir=docs_dir,
+        posts_dir=posts_dir,
+    )
+
     try:
         # This should not raise an exception
         enriched = enrich_table(
             updated_table,
             media_mapping,
-            text_client,
-            vision_client,
-            cache,
-            docs_dir,
-            posts_dir,
-            enable_url=False,
+            config=config,
+            context=enrichment_context,
         )
         # Verify that the new rows have been added
         assert enriched.count().execute() > updated_table.count().execute()

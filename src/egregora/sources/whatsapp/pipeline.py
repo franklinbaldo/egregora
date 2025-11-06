@@ -17,6 +17,7 @@ from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.config import ModelConfig, SitePaths, load_egregora_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table, extract_and_replace_media
+from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.ingestion.parser import extract_commands, filter_egregora_messages, parse_export
 from egregora.sources.whatsapp.models import WhatsAppExport
@@ -224,15 +225,17 @@ def _process_whatsapp_export(
                             steps_state = checkpoint_store.update_step(
                                 period_key, "enrichment", "in_progress"
                             )["steps"]
+                        # MODERN (Phase 2): Create enrichment context
+                        enrichment_context = EnrichmentRuntimeContext(
+                            cache=enrichment_cache,
+                            docs_dir=site_paths.docs_dir,
+                            posts_dir=posts_dir,
+                        )
                         enriched_table = enrich_table(
                             period_table,
                             media_mapping,
-                            text_client,
-                            vision_client,
-                            enrichment_cache,
-                            site_paths.docs_dir,
-                            posts_dir,
-                            model_config,
+                            egregora_config,
+                            enrichment_context,
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
@@ -244,15 +247,17 @@ def _process_whatsapp_export(
                         steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
                             "steps"
                         ]
+                    # MODERN (Phase 2): Create enrichment context
+                    enrichment_context = EnrichmentRuntimeContext(
+                        cache=enrichment_cache,
+                        docs_dir=site_paths.docs_dir,
+                        posts_dir=posts_dir,
+                    )
                     enriched_table = enrich_table(
                         period_table,
                         media_mapping,
-                        text_client,
-                        vision_client,
-                        enrichment_cache,
-                        site_paths.docs_dir,
-                        posts_dir,
-                        model_config,
+                        egregora_config,
+                        enrichment_context,
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
