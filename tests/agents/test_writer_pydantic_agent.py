@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
+from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_posts_with_pydantic_agent
+from egregora.config.loader import create_default_config
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 if TYPE_CHECKING:
@@ -30,21 +31,34 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
 
     prompt = 'You reviewed an empty conversation. Respond with JSON {"summary": "No posts", "notes": "N/A"}.'
 
-    # Note: TestModel doesn't create actual tool calls, so saved_posts will be empty
-    # This test just verifies the agent runs without errors
-    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
-        prompt=prompt,
-        model=TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}'),
+    # MODERN (Phase 2): Create config and context
+    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    config = create_default_config(site_root)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "rag": config.rag.model_copy(update={"mode": "exact"}),
+        },
+    )
+
+    context = WriterRuntimeContext(
         period_date="2025-01-01",
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
         client=batch_client,
-        embedding_model="models/gemini-embedding-001",
-        retrieval_mode="exact",
-        retrieval_nprobe=None,
-        retrieval_overfetch=None,
         annotations_store=None,
+    )
+
+    # Note: TestModel doesn't create actual tool calls, so saved_posts will be empty
+    # This test just verifies the agent runs without errors
+    test_model = TestModel(call_tools=[], custom_output_text='{"summary": "No posts", "notes": "N/A"}')
+
+    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+        prompt=prompt,
+        config=config,
+        context=context,
+        test_model=test_model,
     )
 
     assert saved_posts == []
