@@ -34,10 +34,11 @@ jobs:
 
       - name: Extract user comment and PR details
         id: extract
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           if [ "${{ github.event_name }}" = "issue_comment" ]; then
             # Extract everything after @gemini
-            COMMENT_BODY='${{ github.event.comment.body }}'
             USER_COMMENT=$(echo "$COMMENT_BODY" | sed -n 's/.*@gemini\s*\(.*\)/\1/p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             echo "user_comment<<EOF" >> $GITHUB_OUTPUT
             echo "$USER_COMMENT" >> $GITHUB_OUTPUT
