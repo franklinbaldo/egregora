@@ -33,6 +33,11 @@ MAX_IMAGE_DIMENSION = 4096
 DEFAULT_DOWNLOAD_TIMEOUT = 30.0
 MAX_REDIRECT_HOPS = 10
 DOWNLOAD_CHUNK_SIZE = 8192
+# IP version constants
+IPV4_VERSION = 4
+IPV6_VERSION = 6
+# WEBP file format requires minimum 12 bytes to check RIFF header
+WEBP_HEADER_SIZE = 12
 MAGIC_BYTES = {
     b"\xff\xd8\xff": "image/jpeg",
     b"\x89PNG\r\n\x1a\n": "image/png",
@@ -111,11 +116,11 @@ def _validate_url_for_ssrf(url: str) -> None:
     for ip_str in ip_addresses:
         try:
             ip_addr = ipaddress.ip_address(ip_str)
-            if ip_addr.version == 6 and ip_addr.ipv4_mapped:
+            if ip_addr.version == IPV6_VERSION and ip_addr.ipv4_mapped:
                 ipv4_addr = ip_addr.ipv4_mapped
                 logger.debug("Detected IPv4-mapped address: %s -> %s", ip_addr, ipv4_addr)
                 for blocked_range in BLOCKED_IP_RANGES:
-                    if blocked_range.version == 4 and ipv4_addr in blocked_range:
+                    if blocked_range.version == IPV4_VERSION and ipv4_addr in blocked_range:
                         logger.warning(
                             "⚠️  SSRF attempt blocked (IPv4-mapped): %s resolves to %s (maps to %s in blocked range %s)",
                             url,
@@ -176,7 +181,7 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
     """
     for magic, mime_type in MAGIC_BYTES.items():
         if content.startswith(magic):
-            if magic == b"RIFF" and len(content) >= 12:
+            if magic == b"RIFF" and len(content) >= WEBP_HEADER_SIZE:
                 if content[8:12] == b"WEBP":
                     if expected_mime != "image/webp":
                         msg = f"Image content is WEBP but declared as {expected_mime}"

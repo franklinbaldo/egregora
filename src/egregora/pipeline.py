@@ -38,8 +38,14 @@ def group_by_period(table: Table, period: str = "day") -> dict[str, Table]:
     elif period == "week":
         week_num = table.timestamp.week_of_year()
         iso_year = ibis.cases(
-            ((week_num >= 52) & (table.timestamp.month() == 1), table.timestamp.year() - 1),
-            ((week_num == 1) & (table.timestamp.month() == 12), table.timestamp.year() + 1),
+            (
+                (week_num >= Limits.LAST_WEEK_OF_YEAR) & (table.timestamp.month() == 1),
+                table.timestamp.year() - 1,
+            ),
+            (
+                (week_num == 1) & (table.timestamp.month() == Limits.DECEMBER_MONTH),
+                table.timestamp.year() + 1,
+            ),
             else_=table.timestamp.year(),
         )
         year_str = iso_year.cast("string")

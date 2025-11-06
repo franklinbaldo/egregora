@@ -7,6 +7,7 @@ Source adapters are responsible for parsing raw exports from different platforms
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import logging
 import shutil
@@ -287,7 +288,7 @@ class SourceAdapter(ABC):
             logger.debug("Media file already exists (duplicate): %s", standardized_name)
             source_file.unlink()
         except OSError as e:
-            if e.errno == 18:
+            if e.errno == errno.EXDEV:
                 logger.debug("Cross-filesystem move detected, using shutil.move()")
                 try:
                     shutil.move(str(source_file), str(standardized_path))

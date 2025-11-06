@@ -100,6 +100,9 @@ class Limits:
     SINGLE_DIGIT_THRESHOLD = 10
     DEFAULT_REQUEST_TIMEOUT = 30
     LONG_REQUEST_TIMEOUT = 120
+    # ISO 8601 calendar constants
+    LAST_WEEK_OF_YEAR = 52  # ISO week numbering has weeks 1-52/53
+    DECEMBER_MONTH = 12  # December is month 12
 
 
 class SystemIdentifier(str, Enum):

@@ -51,6 +51,9 @@ app = typer.Typer(
 )
 logger = logging.getLogger(__name__)
 
+# CLI display constants
+MAX_POSTS_TO_DISPLAY = 5
+
 # Type alias for JSON-serializable values
 JsonValue = (
     None
@@ -1045,10 +1048,10 @@ def write_posts(
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
             if posts_count > 0:
                 console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
-                for post_path in result.get("posts", [])[:5]:
+                for post_path in result.get("posts", [])[:MAX_POSTS_TO_DISPLAY]:
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > MAX_POSTS_TO_DISPLAY:
+                    console.print(f"  ... and {posts_count - MAX_POSTS_TO_DISPLAY} more")
     finally:
         if client:
             client.close()

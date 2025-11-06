@@ -7,6 +7,9 @@ from werkzeug.exceptions import NotFound as _WerkzeugNotFound
 from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError
 from werkzeug.utils import safe_join as _werkzeug_safe_join
 
+# Windows absolute path format: C:\, D:\, etc. (3 characters minimum)
+WINDOWS_ABSOLUTE_PATH_MIN_LENGTH = 3
+
 
 class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
@@ -83,7 +86,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     """
     normalized_parts = []
     for part in parts:
-        if len(part) >= 3 and part[1:3] == ":\\":
+        if len(part) >= WINDOWS_ABSOLUTE_PATH_MIN_LENGTH and part[1:3] == ":\\":
             msg = f"Absolute Windows paths not allowed: {part}"
             raise PathTraversalError(msg)
         normalized_parts.append(part.replace("\\", "/"))
