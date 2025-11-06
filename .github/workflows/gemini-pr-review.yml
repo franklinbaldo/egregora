@@ -3,6 +3,8 @@ name: Gemini PR Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -11,8 +13,10 @@ permissions:
 jobs:
   code-review:
     runs-on: ubuntu-latest
-    # Skip draft PRs unless they become ready for review
-    if: github.event.pull_request.draft == false
+    # Run if: (PR event and not draft) OR (comment on PR and contains @gemini)
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@gemini'))
 
     steps:
       - name: Validate GEMINI_API_KEY is set
@@ -28,11 +32,37 @@ jobs:
           fi
           echo "✅ GEMINI_API_KEY is configured"
 
+      - name: Extract user comment and PR details
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            # Extract everything after @gemini
+            COMMENT_BODY='${{ github.event.comment.body }}'
+            USER_COMMENT=$(echo "$COMMENT_BODY" | sed -n 's/.*@gemini\s*\(.*\)/\1/p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            echo "user_comment<<EOF" >> $GITHUB_OUTPUT
+            echo "$USER_COMMENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "trigger_mode=comment" >> $GITHUB_OUTPUT
+
+            # Get PR head SHA from API
+            PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "${{ github.event.issue.pull_request.url }}")
+            PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+            echo "pr_head_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "user_comment=" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "pr_head_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+            echo "trigger_mode=automatic" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ steps.extract.outputs.pr_head_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,9 +78,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_URL="${{ github.event.issue.pull_request.url }}"
+          else
+            PR_URL="${{ github.event.pull_request.url }}"
+          fi
           curl -H "Authorization: token $GITHUB_TOKEN" \
                -H "Accept: application/vnd.github.v3.patch" \
-               "${{ github.event.pull_request.url }}" \
+               "$PR_URL" \
                -o pr.patch
           echo "PR patch downloaded: $(wc -l < pr.patch) lines"
 
@@ -59,8 +94,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.extract.outputs.pr_number }}
           REPO_FULL_NAME: ${{ github.repository }}
+          TRIGGER_MODE: ${{ steps.extract.outputs.trigger_mode }}
+          USER_COMMENT: ${{ steps.extract.outputs.user_comment }}
         run: |
           node .github/scripts/gemini-pr-review.js
 

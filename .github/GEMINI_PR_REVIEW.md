@@ -2,9 +2,25 @@
 
 This repository uses an automated code review system powered by Google's Gemini AI to provide comprehensive, candid feedback on every pull request.
 
+## Trigger Modes
+
+The workflow can be triggered in two ways:
+
+### 1. Automatic Mode
+Runs automatically when a PR is opened, synchronized, reopened, or marked as ready for review (draft PRs are skipped).
+
+### 2. On-Demand Mode (via Comment)
+Comment on any PR with `@gemini {your specific request}` to trigger a custom review.
+
+**Examples:**
+- `@gemini Please focus on security vulnerabilities`
+- `@gemini Review the performance implications of these changes`
+- `@gemini Check if this follows our architectural patterns`
+- `@gemini` (for a standard comprehensive review)
+
 ## How It Works
 
-1. **Trigger**: The workflow runs automatically when a PR is opened, synchronized, reopened, or marked as ready for review (draft PRs are skipped).
+1. **Trigger**: The workflow activates either automatically (PR events) or on-demand (via `@gemini` comment).
 
 2. **Validation**: The workflow first checks that `GEMINI_API_KEY` is configured and exits immediately if not, before running any expensive operations.
 
@@ -14,8 +30,10 @@ This repository uses an automated code review system powered by Google's Gemini 
    - Fetches the PR's `.patch` file via GitHub API
 
 4. **AI Review**:
-   - Sends both the repository context and PR changes to Gemini
-   - Gemini analyzes the code and provides a structured review covering:
+   - Sends repository context and PR changes to Gemini along with a description of its code review skills
+   - In automatic mode: Gemini performs a comprehensive review
+   - In comment mode: Gemini addresses your specific request while applying its review expertise
+   - Review skills include:
      - Summary and overall assessment
      - Correctness & bugs
      - API/contracts & backwards-compatibility
@@ -63,15 +81,47 @@ Current exclusions include:
 
 You can modify `.repomixignore` to adjust what gets included in the review context.
 
-## Review Tone
+## Review Style & Expertise
 
-The AI reviewer is configured to be:
+Gemini's code review skills emphasize:
 - **Direct and candid** - points out real issues without sugar-coating
 - **Professional** - constructive criticism, not personal attacks
-- **Specific** - cites exact locations when possible
-- **Actionable** - provides concrete suggestions
+- **Specific** - cites exact locations (file:line) when possible
+- **Actionable** - provides concrete suggestions, not just problems
 - **Focused on substance** - avoids unnecessary praise or flattery
 - **Prioritized** - distinguishes critical issues from minor improvements
+
+When triggered via `@gemini` comments, Gemini applies these skills to your specific request while maintaining its comprehensive review capabilities.
+
+## Usage Examples
+
+### Automatic Review (Default)
+Simply open, update, or mark your PR as ready for review. Gemini will automatically provide a comprehensive code review.
+
+### Targeted Review (via Comment)
+Ask Gemini to focus on specific aspects by commenting on the PR:
+
+```
+@gemini Please review the error handling in the new authentication module
+```
+
+```
+@gemini Focus on potential SQL injection vulnerabilities
+```
+
+```
+@gemini Analyze the time complexity of the new sorting algorithm
+```
+
+```
+@gemini Check if the API changes are backwards-compatible
+```
+
+```
+@gemini Review the test coverage for edge cases
+```
+
+The text after `@gemini` becomes part of the prompt, directing Gemini to focus on your specific concerns while still applying its full code review expertise.
 
 ## Artifacts
 
