@@ -4,7 +4,7 @@ import ibis
 from google import genai
 
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig
+from egregora.config import ModelConfig, from_pydantic_ai_model
 from egregora.utils.genai import call_with_retries
 
 
@@ -65,10 +65,13 @@ async def ask_llm(
 ) -> str:
     """Simple Q&A with fresh LLM instance."""
     try:
-        model = model_config.get_model("editor")
+        # Get model in pydantic-ai format and convert to Google SDK format
+        model_pydantic = model_config.get_model("editor")
+        model_google = from_pydantic_ai_model(model_pydantic)
+
         response = await call_with_retries(
             client.aio.models.generate_content,
-            model=model,
+            model=model_google,  # Use Google SDK format
             contents=[
                 genai.types.Content(
                     role="user",
