@@ -86,7 +86,7 @@ line-length = 110  # Slightly more generous for strings/logs
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "PL", "TID", "RUF", "C4", "PT", "PERF", "FURB"]
+select = ["ALL"]  # Enable ALL stable rules per user request
 ignore = []  # Clean slate!
 
 [tool.ruff.lint.flake8-tidy-imports]
