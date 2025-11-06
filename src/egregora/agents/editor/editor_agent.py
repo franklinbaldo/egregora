@@ -109,7 +109,7 @@ def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
 
 
 async def query_rag_impl(
-    query: str, max_results: int, rag_dir: Path, client: genai.Client, model_config: ModelConfig
+    query: str, max_results: int, rag_dir: Path, _client: genai.Client, model_config: ModelConfig
 ) -> QueryRAGResult:
     """RAG search implementation."""
     if not rag_dir.exists():
@@ -292,7 +292,7 @@ async def run_editor_session_with_pydantic_agent(
     model_config: ModelConfig,
     rag_dir: Path,
     context: dict[str, Any] | None = None,
-    max_turns: int = 15,
+    _max_turns: int = 15,
     agent_model: Any | None = None,
 ) -> dict[str, Any]:
     """Run a full editing session on a post using Pydantic AI agent.

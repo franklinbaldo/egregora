@@ -85,7 +85,7 @@ def _handle_write_profile_tool(
 def _handle_search_media_tool(
     fn_args: dict[str, Any],
     fn_call: genai_types.FunctionCall,
-    client: genai.Client,
+    _client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,

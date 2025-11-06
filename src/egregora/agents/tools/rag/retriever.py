@@ -206,7 +206,7 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
 
 
 def index_media_enrichment(
-    enrichment_path: Path, docs_dir: Path, store: VectorStore, *, embedding_model: str
+    enrichment_path: Path, _docs_dir: Path, store: VectorStore, *, embedding_model: str
 ) -> int:
     """Chunk, embed, and index a media enrichment file.
 

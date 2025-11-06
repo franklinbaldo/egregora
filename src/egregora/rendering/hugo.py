@@ -57,7 +57,7 @@ class HugoOutputFormat(OutputFormat):
         return any((site_root / f).exists() for f in config_files)
 
     def scaffold_site(
-        self, site_root: Path, site_name: str, theme: str = "PaperMod", **kwargs
+        self, site_root: Path, site_name: str, theme: str = "PaperMod", **_kwargs
     ) -> tuple[Path, bool]:
         """Create the initial Hugo site structure.
 
@@ -128,7 +128,7 @@ class HugoOutputFormat(OutputFormat):
             config_file=config_file,
         )
 
-    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs) -> str:
+    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **_kwargs) -> str:
         """Write a blog post in Hugo format.
 
         Args:
@@ -171,7 +171,7 @@ class HugoOutputFormat(OutputFormat):
         return str(filepath)
 
     def write_profile(
-        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs
+        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **_kwargs
     ) -> str:
         """Write an author profile page in Hugo format.
 

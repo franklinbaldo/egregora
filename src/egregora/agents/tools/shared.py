@@ -19,7 +19,7 @@ def full_rewrite(expect_version: int, content: str, editor) -> None:
 
 
 async def query_rag(
-    query: str, max_results: int, rag_dir: Path, client: genai.Client, model_config: ModelConfig
+    query: str, max_results: int, rag_dir: Path, _client: genai.Client, model_config: ModelConfig
 ) -> str:
     """RAG search returning formatted context string."""
     if not rag_dir.exists():

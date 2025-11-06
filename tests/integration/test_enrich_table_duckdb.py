@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import ibis
 import pandas as pd
 import pytest
-from egregora.database_schema import CONVERSATION_SCHEMA
 
+from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.core import enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 
@@ -76,8 +76,8 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
     combined = enrich_table(
         table,
         media_mapping={},
-        text_client=text_client,
-        vision_client=text_client,
+        _text_client=text_client,
+        _vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
@@ -111,8 +111,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     enrich_table(
         table,
         media_mapping={},
-        text_client=text_client,
-        vision_client=text_client,
+        _text_client=text_client,
+        _vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
@@ -128,8 +128,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     enrich_table(
         table,
         media_mapping={},
-        text_client=text_client,
-        vision_client=text_client,
+        _text_client=text_client,
+        _vision_client=text_client,
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,

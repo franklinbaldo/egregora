@@ -74,7 +74,7 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
-        exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
+        _exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ) -> None:
         """Initialize vector store.
 
@@ -556,7 +556,7 @@ class VectorStore:
         return self._empty_table(SEARCH_RESULT_SCHEMA)
 
     def _build_ann_query(
-        self, function_name: str, *, ann_limit: int, nprobe_clause: str, embedding_dimensionality: int
+        self, function_name: str, *, ann_limit: int, nprobe_clause: str, _embedding_dimensionality: int
     ) -> str:
         return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::FLOAT[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "
 

@@ -63,7 +63,7 @@ class FilteringStage(PipelineStage):
     def stage_identifier(self) -> str:
         return "filtering"
 
-    def process(self, data: Table, context: dict[str, Any]) -> StageResult:
+    def process(self, data: Table, _context: dict[str, Any]) -> StageResult:
         """Filter unwanted messages from the table.
 
         Args:

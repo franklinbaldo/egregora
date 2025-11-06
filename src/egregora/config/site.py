@@ -23,7 +23,7 @@ class _ConfigLoader(yaml.SafeLoader):
     """YAML loader that tolerates MkDocs plugin tags."""
 
 
-def _construct_python_name(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> str:
+def _construct_python_name(loader: yaml.SafeLoader, _suffix: str, node: yaml.Node) -> str:
     """Return python/name tags as plain strings."""
     if isinstance(node, yaml.ScalarNode):
         return loader.construct_scalar(node)

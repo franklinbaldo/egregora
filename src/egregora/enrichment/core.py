@@ -85,8 +85,8 @@ else:
 def enrich_table(
     messages_table: Table,
     media_mapping: dict[str, Path],
-    text_client: genai.Client,
-    vision_client: genai.Client,
+    _text_client: genai.Client,
+    _vision_client: genai.Client,
     cache: EnrichmentCache,
     docs_dir: Path,
     posts_dir: Path,

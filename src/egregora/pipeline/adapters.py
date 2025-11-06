@@ -106,7 +106,7 @@ class SourceAdapter(ABC):
 
         """
 
-    def extract_media(self, input_path: Path, output_dir: Path, **kwargs: Any) -> MediaMapping:
+    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from the export (OPTIONAL).
 
         Some sources bundle media with the export (e.g., WhatsApp ZIP).
@@ -135,7 +135,7 @@ class SourceAdapter(ABC):
         """
         return {}
 
-    def deliver_media(self, media_reference: str, temp_dir: Path, **kwargs: Any) -> Path | None:
+    def deliver_media(self, _media_reference: str, _temp_dir: Path, **_kwargs: Any) -> Path | None:
         """Deliver media file to temporary directory (OPTIONAL).
 
         This method is called lazily by the runner for each media reference
@@ -173,7 +173,7 @@ class SourceAdapter(ABC):
         """
         return None
 
-    def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
+    def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         """Extract metadata from the export (OPTIONAL).
 
         **This method is optional.** The default implementation returns an empty

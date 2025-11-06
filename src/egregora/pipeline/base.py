@@ -124,7 +124,7 @@ class PipelineStage(ABC):
         """
         return False
 
-    def validate_input(self, data: Table, context: dict[str, Any]) -> tuple[bool, list[str]]:
+    def validate_input(self, _data: Table, _context: dict[str, Any]) -> tuple[bool, list[str]]:
         """Validate input data before processing (optional).
 
         Args:

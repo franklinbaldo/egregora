@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 async def find_relevant_docs(
     query: str,
     *,
-    client: genai.Client,
+    _client: genai.Client,
     rag_dir: Path,
     embedding_model: str,
     top_k: int = 5,

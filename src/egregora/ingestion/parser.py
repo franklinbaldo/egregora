@@ -435,7 +435,13 @@ def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
 
 
 def _start_message_builder(
-    *, export: WhatsAppExport, msg_date: date, msg_time, author: str, initial_message: str, original_line: str
+    *,
+    _export: WhatsAppExport,
+    msg_date: date,
+    msg_time,
+    author: str,
+    initial_message: str,
+    original_line: str,
 ) -> _MessageBuilder:
     builder = _MessageBuilder(timestamp=datetime.combine(msg_date, msg_time), date=msg_date, author=author)
     builder.append(initial_message, original_line)

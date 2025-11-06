@@ -475,19 +475,19 @@ def _register_ranking_cli(app: typer.Typer) -> None:
 
         @app.command(hidden=True)
         def rank(
-            site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
-            comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
-            strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
-            export_parquet: Annotated[
+            _site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
+            _comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
+            _strategy: Annotated[str, typer.Option(help="Post selection strategy")] = "fewest_games",
+            _export_parquet: Annotated[
                 bool, typer.Option(help="Export rankings to Parquet after comparisons")
             ] = False,
-            gemini_key: Annotated[
+            _gemini_key: Annotated[
                 str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")
             ] = None,
-            model: Annotated[
+            _model: Annotated[
                 str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
             ] = None,
-            debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+            _debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
         ) -> None:
             install_cmd = escape("pip install 'egregora[ranking]'")
             console.print(f"[red]Ranking commands require the optional extra: {install_cmd}[/red]")

@@ -45,7 +45,7 @@ def save_table_to_csv(
 def load_table_from_csv(
     input_path: Annotated[Path, "The path to the input CSV file"],
     *,
-    schema: Annotated[dict | None, "An optional Ibis schema to apply to the loaded table"] = None,
+    _schema: Annotated[dict | None, "An optional Ibis schema to apply to the loaded table"] = None,
 ) -> Table:
     """Load an Ibis Table from CSV file.
 
