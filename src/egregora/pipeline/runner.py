@@ -19,7 +19,7 @@ from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
-from egregora.config import ModelConfig, load_site_config, resolve_site_paths
+from egregora.config import ModelConfig, load_egregora_config, resolve_site_paths
 from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
@@ -121,8 +121,8 @@ def run_source_pipeline(
     try:
         if options is not None:
             options.default_backend = backend
-        site_config = load_site_config(site_paths.site_root)
-        model_config = ModelConfig(cli_model=model, site_config=site_config)
+        egregora_config = load_egregora_config(site_paths.site_root)
+        model_config = ModelConfig(config=egregora_config, cli_model=model)
         if client is None:
             client = genai.Client(api_key=gemini_api_key)
         text_model = model_config.get_model("enricher")

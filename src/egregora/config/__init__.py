@@ -20,7 +20,7 @@ from egregora.config.loader import (
     save_egregora_config,
 )
 
-# Model configuration (will be updated to use EgregoraConfig)
+# Model configuration (MODERN: uses EgregoraConfig)
 from egregora.config.model import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_EMBEDDING_MODEL,
@@ -32,7 +32,7 @@ from egregora.config.model import (
     ModelConfig,
     ModelType,
     from_pydantic_ai_model,
-    load_site_config,
+    get_model_config,
 )
 
 # Pipeline config
@@ -98,6 +98,7 @@ __all__ = [
     # Model utilities
     "ModelConfig",
     "ModelType",
+    "get_model_config",
     "from_pydantic_ai_model",
     "EMBEDDING_DIM",
     "DEFAULT_WRITER_MODEL",
@@ -129,6 +130,4 @@ __all__ = [
     "MediaEnrichmentContext",
     "URLEnrichmentContext",
     "WriterPromptContext",
-    # Legacy (will be removed)
-    "load_site_config",
 ]

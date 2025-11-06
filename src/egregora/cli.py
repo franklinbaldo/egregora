@@ -28,8 +28,8 @@ from egregora.config import (
     ProcessConfig,
     RankingCliConfig,
     find_mkdocs_file,
+    load_egregora_config,
     load_mkdocs_config,
-    load_site_config,
     resolve_site_paths,
 )
 from egregora.database import duckdb_backend
@@ -382,8 +382,8 @@ def edit(
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(cli_model=model, site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config, cli_model=model)
     genai.Client(api_key=api_key)
     try:
         result = asyncio.run(
@@ -546,8 +546,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:
             console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
             console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
             raise typer.Exit(1)
-        site_config = load_site_config(site_path)
-        model_config = ModelConfig(cli_model=config.model, site_config=site_config)
+        egregora_config = load_egregora_config(site_path)
+        model_config = ModelConfig(config=egregora_config, cli_model=config.model)
         ranking_model = model_config.get_model("ranking")
         logger.info("[blue]⚖️  Ranking model:[/] %s", ranking_model)
         for i in range(config.comparisons):
@@ -802,8 +802,8 @@ def enrich(
         raise typer.Exit(1)
     site_paths = resolve_site_paths(site_path)
     posts_dir = site_paths.posts_dir
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config)
     client: genai.Client | None = None
     enrichment_cache: EnrichmentCache | None = None
     try:
@@ -887,8 +887,8 @@ def gather_context(
     output_path = output.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     site_paths = resolve_site_paths(site_path)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config)
     mkdocs_config = load_mkdocs_config(site_path)
     client: genai.Client | None = None
     try:
@@ -1005,8 +1005,8 @@ def write_posts(
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
     site_paths = resolve_site_paths(site_path)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(cli_model=model, site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config, cli_model=model)
     client: genai.Client | None = None
     try:
         with duckdb_backend():
