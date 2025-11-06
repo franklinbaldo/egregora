@@ -12,9 +12,9 @@ from typing import Any, TypeVar
 from pydantic_ai import Agent
 
 try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
+    from pydantic_ai.models.gemini import GeminiModel
+except ImportError:  # pragma: no cover - newer SDK uses google module
+    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
 
 from egregora.utils.logfire_config import configure_logfire
 
@@ -66,7 +66,7 @@ def create_agent(
         configure_logfire()
         logger.debug("Logfire configured for agent %s", model_name)
 
-    model = agent_model or GoogleModel(model_name)
+    model = agent_model or GeminiModel(model_name)
 
     return Agent[TDeps, str](
         model=model,
@@ -116,7 +116,7 @@ def create_agent_with_result_type(  # noqa: PLR0913
         configure_logfire()
         logger.debug("Logfire configured for agent %s with result type %s", model_name, result_type)
 
-    model = agent_model or GoogleModel(model_name)
+    model = agent_model or GeminiModel(model_name)
 
     return Agent[TDeps, TResult](
         model=model,

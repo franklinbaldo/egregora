@@ -81,10 +81,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
         model,
         result_type=EnrichmentOutput,
-        system_prompt=(
-            "You are a helpful assistant that enriches URLs by providing detailed markdown descriptions. "
-            "Generate clear, informative markdown content based on the URL and context provided."
-        ),
     )
 
     @agent.system_prompt
@@ -114,10 +110,6 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
         model,
         result_type=EnrichmentOutput,
-        system_prompt=(
-            "You are a helpful assistant that enriches media files by providing detailed markdown descriptions. "
-            "Analyze the media content and generate clear, informative markdown."
-        ),
     )
 
     @agent.system_prompt
@@ -149,10 +141,6 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
         model,
         result_type=AvatarModerationOutput,
-        system_prompt=(
-            "You are a content moderation assistant. Analyze avatar images and determine if they are appropriate. "
-            "Provide a clear reason and description."
-        ),
     )
 
     @agent.system_prompt

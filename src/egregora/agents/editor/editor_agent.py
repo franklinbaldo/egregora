@@ -21,9 +21,9 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
+    from pydantic_ai.models.gemini import GeminiModel
+except ImportError:  # pragma: no cover - newer SDK uses google module
+    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
 
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
@@ -377,19 +377,21 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
         # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](
-            model=agent_model or GoogleModel(model_name),
+            model=agent_model or GeminiModel(model_name),
             deps_type=EditorAgentState,
             output_type=EditorAgentResult,
-            system_prompt=f"""You are an autonomous editor for Egregora blog posts.
-
-Your task: Review and improve the post, then decide if it's ready to publish or needs human review.
-
-Current document version: {snapshot.version}
-Document has {len(snapshot.lines)} lines.
-
-When you're done, use the result to indicate your decision and notes.
-""",
         )
+
+        @agent.system_prompt
+        def editor_system_prompt(ctx: RunContext[EditorAgentState]) -> str:
+            """Generate system prompt from template."""
+            template = EditorPromptTemplate(
+                post_content=snapshot_to_markdown(ctx.deps.editor.snapshot),
+                doc_id=ctx.deps.post_path.stem,
+                version=ctx.deps.editor.snapshot.version,
+                lines=ctx.deps.editor.snapshot.lines,
+            )
+            return template.render()
 
         # Register tools
         _register_editor_tools(agent)

@@ -42,9 +42,9 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
 
 
 try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs exposed the Gemini model directly
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
+    from pydantic_ai.models.gemini import GeminiModel
+except ImportError:  # pragma: no cover - newer SDK uses google module
+    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
 
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
@@ -286,14 +286,14 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
     logger.info("Running writer via Pydantic-AI backend")
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=agent_model or GoogleModel(model_name),
+            model=agent_model or GeminiModel(model_name),
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
         _register_writer_tools(agent)
     else:
         agent = Agent[WriterAgentState, str](
-            model=agent_model or GoogleModel(model_name),
+            model=agent_model or GeminiModel(model_name),
             deps_type=WriterAgentState,
         )
 
@@ -466,14 +466,14 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
 
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=agent_model or GoogleModel(model_name),
+            model=agent_model or GeminiModel(model_name),
             deps_type=WriterAgentState,
             output_type=WriterAgentReturn,
         )
         _register_writer_tools(agent)
     else:
         agent = Agent[WriterAgentState, str](
-            model=agent_model or GoogleModel(model_name),
+            model=agent_model or GeminiModel(model_name),
             deps_type=WriterAgentState,
         )
 

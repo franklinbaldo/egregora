@@ -20,9 +20,9 @@ from pydantic_ai import Agent, RunContext
 from rich.console import Console
 
 try:
-    from pydantic_ai.models.google import GoogleModel
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
+    from pydantic_ai.models.gemini import GeminiModel
+except ImportError:  # pragma: no cover - newer SDK uses google module
+    from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
 
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
@@ -403,7 +403,7 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
     with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
         # Create agent - text output since we collect results in state
         agent = Agent[RankingAgentState, str](
-            model=agent_model or GoogleModel(model),
+            model=agent_model or GeminiModel(model),
             deps_type=RankingAgentState,
             system_prompt="You are a blog post critic providing detailed comparisons.",
         )
