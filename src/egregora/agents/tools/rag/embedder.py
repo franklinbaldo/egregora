@@ -11,9 +11,6 @@ from typing import Annotated
 from egregora.config import EMBEDDING_DIM
 from egregora.utils.genai_helpers import embed_batch, embed_text
 
-if TYPE_CHECKING:
-    from google import genai
-
 logger = logging.getLogger(__name__)
 
 

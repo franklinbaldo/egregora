@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from egregora.config.site import load_mkdocs_config
 
@@ -28,8 +28,7 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 
 def from_pydantic_ai_model(model_name: str) -> str:
-    """
-    Convert pydantic-ai string notation to Google API model format.
+    """Convert pydantic-ai string notation to Google API model format.
 
     Use this ONLY for direct Google GenAI SDK calls (e.g., embeddings).
     Pydantic-AI agents should use the pydantic-ai format directly.
@@ -43,6 +42,7 @@ def from_pydantic_ai_model(model_name: str) -> str:
 
     Returns:
         Model name in Google API format (models/model-name)
+
     """
     # Remove pydantic-ai provider prefix if present
     if ":" in model_name:

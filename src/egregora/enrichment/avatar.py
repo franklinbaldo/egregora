@@ -17,8 +17,8 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from PIL import Image
 
-from ..config import MEDIA_DIR_NAME
-from ..enrichment.agents import (
+from egregora.config import MEDIA_DIR_NAME
+from egregora.enrichment.agents import (
     AvatarEnrichmentContext,
     create_avatar_enrichment_agent,
     load_file_as_binary_content,

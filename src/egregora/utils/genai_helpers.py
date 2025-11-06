@@ -21,9 +21,6 @@ import httpx
 
 from egregora.config import EMBEDDING_DIM, from_pydantic_ai_model
 
-if TYPE_CHECKING:
-    from google import genai
-
 logger = logging.getLogger(__name__)
 
 # Google Generative AI API base URL
@@ -41,13 +38,15 @@ def _get_api_key() -> str:
 
     Raises:
         ValueError: If GOOGLE_API_KEY is not set
+
     """
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        raise ValueError(
+        msg = (
             "GOOGLE_API_KEY environment variable is required for embeddings. "
             "Set it before calling embedding functions."
         )
+        raise ValueError(msg)
     return api_key
 
 
@@ -70,6 +69,7 @@ def _call_with_retries(
 
     Raises:
         Exception: If all retries fail
+
     """
     last_error = None
     for attempt in range(max_retries):
@@ -80,7 +80,8 @@ def _call_with_retries(
             if attempt < max_retries - 1:
                 logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}. Retrying...")
             continue
-    raise RuntimeError(f"All {max_retries} attempts failed") from last_error
+    msg = f"All {max_retries} attempts failed"
+    raise RuntimeError(msg) from last_error
 
 
 def embed_text(
@@ -108,6 +109,7 @@ def embed_text(
     Raises:
         RuntimeError: If embedding fails
         ValueError: If GOOGLE_API_KEY is not available
+
     """
     # Get API key
     effective_api_key = api_key or _get_api_key()
@@ -143,11 +145,13 @@ def embed_text(
                 # Extract embedding from response
                 embedding = data.get("embedding")
                 if not embedding:
-                    raise RuntimeError(f"No embedding in response: {data}")
+                    msg = f"No embedding in response: {data}"
+                    raise RuntimeError(msg)
 
                 values = embedding.get("values")
                 if not values:
-                    raise RuntimeError(f"No values in embedding: {embedding}")
+                    msg = f"No values in embedding: {embedding}"
+                    raise RuntimeError(msg)
 
                 return list(values)
 
@@ -185,6 +189,7 @@ def embed_batch(
     Raises:
         RuntimeError: If any embedding fails
         ValueError: If GOOGLE_API_KEY is not available
+
     """
     if not texts:
         return []
@@ -229,14 +234,16 @@ def embed_batch(
                 # Extract embeddings from batch response
                 embeddings_data = data.get("embeddings", [])
                 if not embeddings_data:
-                    raise RuntimeError(f"No embeddings in response: {data}")
+                    msg = f"No embeddings in response: {data}"
+                    raise RuntimeError(msg)
 
                 embeddings: list[list[float]] = []
                 for i, embedding_result in enumerate(embeddings_data):
                     values = embedding_result.get("values")
                     if values is None:
                         logger.error("No embedding returned for text %d/%d", i + 1, len(texts))
-                        raise RuntimeError(f"No embedding returned for text {i}: {texts[i][:50]}...")
+                        msg = f"No embedding returned for text {i}: {texts[i][:50]}..."
+                        raise RuntimeError(msg)
                     embeddings.append(list(values))
 
                 logger.info("Embedded %d text(s)", len(embeddings))
@@ -246,4 +253,5 @@ def embed_batch(
 
     except Exception as e:
         logger.error("Failed to batch embed texts: %s", e, exc_info=True)
-        raise RuntimeError(f"Batch embedding failed: {e}") from e
+        msg = f"Batch embedding failed: {e}"
+        raise RuntimeError(msg) from e

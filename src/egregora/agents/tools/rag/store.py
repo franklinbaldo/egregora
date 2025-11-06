@@ -401,6 +401,7 @@ class VectorStore:
 
         Raises:
             ValueError: If embeddings are not 768 dimensions
+
         """
         if not embeddings:
             msg = f"{context}: No embeddings provided"
@@ -416,11 +417,12 @@ class VectorStore:
 
         # All embeddings must be exactly 768 dimensions
         if current_dim != EMBEDDING_DIM:
-            raise ValueError(
+            msg = (
                 f"{context}: Embedding dimension mismatch. "
                 f"Expected {EMBEDDING_DIM} (fixed dimension), got {current_dim}. "
                 f"All embeddings must use 768 dimensions."
             )
+            raise ValueError(msg)
             raise ValueError(msg)
 
         return current_dim
@@ -603,11 +605,12 @@ class VectorStore:
         # All embeddings must be fixed 768 dimensions
         embedding_dimensionality = len(query_vec)
         if embedding_dimensionality != EMBEDDING_DIM:
-            raise ValueError(
+            msg = (
                 f"Query embedding dimension mismatch. "
                 f"Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. "
                 f"All embeddings must use 768 dimensions."
             )
+            raise ValueError(msg)
             raise ValueError(msg)
 
         mode_normalized = mode.lower()

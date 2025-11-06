@@ -46,7 +46,7 @@ class BannerGenerator:
     all generation attempts will return None gracefully.
     """
 
-    def __init__(self, api_key: str | None = None, enabled: bool = True):
+    def __init__(self, api_key: str | None = None, enabled: bool = True) -> None:
         """Initialize the banner generator.
 
         Args:
@@ -55,6 +55,7 @@ class BannerGenerator:
 
         Raises:
             ValueError: If enabled=True but no API key is available
+
         """
         self.enabled = enabled
 
@@ -67,11 +68,12 @@ class BannerGenerator:
 
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if not self.api_key:
-            raise ValueError(
+            msg = (
                 "Banner generation requires GOOGLE_API_KEY. "
                 "Set environment variable or pass api_key parameter, "
                 "or set enabled=False to disable banner generation."
             )
+            raise ValueError(msg)
 
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.5-flash-image"
@@ -84,6 +86,7 @@ class BannerGenerator:
 
         Returns:
             BannerResult with success status and path (if successful)
+
         """
         if not self.enabled:
             logger.info(f"Banner generation disabled, skipping: {request.post_title}")
@@ -213,6 +216,7 @@ def generate_banner_for_post(
 
     Returns:
         Path to generated banner, or None if generation failed or is disabled
+
     """
     try:
         # Check if API key is available
@@ -240,5 +244,6 @@ def is_banner_generation_available() -> bool:
 
     Returns:
         True if GOOGLE_API_KEY environment variable is set
+
     """
     return os.environ.get("GOOGLE_API_KEY") is not None

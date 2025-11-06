@@ -152,6 +152,7 @@ def _register_writer_tools(
         agent: The writer agent to register tools with
         enable_banner: Whether to register banner generation tool (requires GOOGLE_API_KEY)
         enable_rag: Whether to register RAG search tools (requires GOOGLE_API_KEY)
+
     """
 
     @agent.tool

@@ -18,7 +18,6 @@ from egregora.config.site import MEDIA_DIR_NAME
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from google import genai
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
