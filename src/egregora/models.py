@@ -57,6 +57,7 @@ class MergeConfig(BaseModel):
 @dataclass(slots=True)
 class GroupSource:
     """Source for generating posts.
+
     Can be real (single group) or virtual (merge of multiple groups).
     """
 

@@ -35,6 +35,7 @@ def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
 
 def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any]:
     """Merges variables from the post's front-matter into the agent's variables,
+
     respecting the allowlist.
     """
     post = frontmatter.load(post_path)
@@ -63,8 +64,9 @@ class AgentResolver:
     def resolve(
         self, post_path: Path, agent_override: str | None = None
     ) -> tuple[AgentConfig, str, dict[str, Any]]:
-        """Resolves the agent for a given post and returns the agent config, prompt template,
-        and the final merged variables.
+        """Resolves the agent for a given post and returns the agent config, prompt template.
+
+        And the final merged variables.
         """
         agent_name = agent_override or resolve_agent_name(post_path, self.docs_path)
         agent_config, prompt_template = load_agent(agent_name, self.egregora_path)
