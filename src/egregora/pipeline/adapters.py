@@ -337,7 +337,7 @@ class SourceAdapter(ABC):
             # Handle cross-filesystem move (errno 18: EXDEV)
             # rename() only works within same filesystem, fall back to shutil.move()
             if e.errno == 18:  # EXDEV: Cross-device link
-                logger.debug(f"Cross-filesystem move detected, using shutil.move()")
+                logger.debug("Cross-filesystem move detected, using shutil.move()")
                 try:
                     shutil.move(str(source_file), str(standardized_path))
                     logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
