@@ -199,10 +199,11 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
         metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
         metadata["media_path"] = file_match.group(1).strip() if file_match else None
         metadata["original_filename"] = original_filename_from_content or enrichment_path.name
-        return metadata
     except Exception as e:
         logger.exception("Failed to parse media enrichment %s: %s", enrichment_path, e)
         return None
+    else:
+        return metadata
 
 
 def index_media_enrichment(
