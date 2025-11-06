@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import frontmatter
 import ibis
 from google import genai
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,6 +25,7 @@ try:
 except ImportError:  # pragma: no cover - newer SDK uses google module
     from pydantic_ai.models.google import GoogleModel as GeminiModel  # type: ignore
 
+from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig
@@ -72,6 +74,13 @@ class FinishResult(BaseModel):
     success: bool
     decision: str
     notes: str = ""
+
+
+class BannerResult(BaseModel):
+    """Result of a banner generation operation."""
+
+    status: str
+    path: str | None = None
 
 
 class EditorAgentResult(BaseModel):
@@ -312,6 +321,55 @@ def _register_editor_tools(agent: Agent) -> None:
             client=ctx.deps.client,
             model=model,
         )
+
+    @agent.tool
+    def generate_banner_tool(ctx: RunContext[EditorAgentState]) -> BannerResult:
+        """Generate a cover banner image for this post.
+
+        Creates an AI-generated banner image based on the post's title and summary
+        from its front matter. The banner will be saved in the same directory as
+        the post.
+
+        Returns:
+            BannerResult with status and path to the generated banner
+        """
+        try:
+            # Load front matter from the post
+            post = frontmatter.load(ctx.deps.post_path)
+
+            # Extract required metadata
+            title = post.get("title", "")
+            summary = post.get("summary", "")
+            slug = post.get("slug", ctx.deps.post_path.stem)
+
+            if not title:
+                return BannerResult(
+                    status="error",
+                    path=None,
+                )
+
+            # Use post directory as output directory
+            output_dir = ctx.deps.post_path.parent
+
+            # Generate banner
+            ctx.deps.tool_calls_log.append(
+                {"tool": "generate_banner", "args": {"slug": slug, "title": title}}
+            )
+
+            banner_path = generate_banner_for_post(
+                post_title=title,
+                post_summary=summary or title,
+                output_dir=output_dir,
+                slug=slug,
+            )
+
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="failed", path=None)
+
+        except Exception as e:
+            logger.exception("Banner generation failed in editor")
+            return BannerResult(status="error", path=None)
 
 
 async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
