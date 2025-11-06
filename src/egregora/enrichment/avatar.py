@@ -201,6 +201,7 @@ def _check_dimensions(width: int, height: int) -> None:
 
     Raises:
         AvatarProcessingError: If dimensions exceed limits
+
     """
     if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
         msg = f"Image dimensions too large: {width}x{height} pixels. Maximum allowed: {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION} pixels."
