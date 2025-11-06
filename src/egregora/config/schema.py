@@ -245,11 +245,11 @@ class EgregoraConfig(BaseModel):
 
 __all__ = [
     "EgregoraConfig",
+    "EnrichmentConfig",
+    "FeaturesConfig",
     "ModelsConfig",
+    "PipelineConfig",
+    "PrivacyConfig",
     "RAGConfig",
     "WriterConfig",
-    "PrivacyConfig",
-    "EnrichmentConfig",
-    "PipelineConfig",
-    "FeaturesConfig",
 ]

@@ -32,6 +32,7 @@ def find_egregora_config(start_dir: Path) -> Path | None:
 
     Returns:
         Path to .egregora/config.yml if found, else None
+
     """
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
@@ -54,6 +55,7 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
 
     Raises:
         ValidationError: If config file contains invalid data
+
     """
     config_path = site_root / ".egregora" / "config.yml"
 
@@ -84,6 +86,7 @@ def create_default_config(site_root: Path) -> EgregoraConfig:
 
     Returns:
         EgregoraConfig with all defaults
+
     """
     config = EgregoraConfig()  # All defaults from Pydantic
     save_egregora_config(config, site_root)
@@ -102,6 +105,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 
     Returns:
         Path to the saved config file
+
     """
     egregora_dir = site_root / ".egregora"
     egregora_dir.mkdir(exist_ok=True, parents=True)
@@ -126,8 +130,8 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 
 
 __all__ = [
+    "create_default_config",
     "find_egregora_config",
     "load_egregora_config",
-    "create_default_config",
     "save_egregora_config",
 ]

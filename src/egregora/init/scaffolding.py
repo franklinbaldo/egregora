@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import jinja2
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -179,7 +178,6 @@ def _render_egregora_config(site_root: Path, env: Environment, context: dict[str
     Kept temporarily for compatibility during transition.
     """
     # This function is now a no-op - _create_egregora_structure handles it
-    pass
 
 
 __all__ = ["ensure_mkdocs_project"]
