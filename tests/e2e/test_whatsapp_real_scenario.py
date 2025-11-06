@@ -46,6 +46,7 @@ class DummyGenaiClient:
     - File uploads (files.upload)
     - Embeddings (models.embed_content)
     """
+
     def __init__(self, *args, **kwargs):
         # Response for pydantic-ai agents - needs text attribute
         def dummy_generate(*a, **k):
@@ -62,9 +63,7 @@ class DummyGenaiClient:
 
         # Embedding response
         def dummy_embed(*a, **k):
-            return SimpleNamespace(
-                embedding=SimpleNamespace(values=[0.1] * 768)
-            )
+            return SimpleNamespace(embedding=SimpleNamespace(values=[0.1] * 768))
 
         self.models = SimpleNamespace(
             generate_content=dummy_generate,
@@ -78,18 +77,15 @@ class DummyGenaiClient:
                 uri="stub://file",
                 mime_type="image/jpeg",
                 name="stub-file",
-                state=SimpleNamespace(name="ACTIVE")
+                state=SimpleNamespace(name="ACTIVE"),
             )
             return file_obj
 
         self.files = SimpleNamespace(
             upload=dummy_upload,
             get=lambda name: SimpleNamespace(
-                uri="stub://file",
-                mime_type="image/jpeg",
-                name=name,
-                state=SimpleNamespace(name="ACTIVE")
-            )
+                uri="stub://file", mime_type="image/jpeg", name=name, state=SimpleNamespace(name="ACTIVE")
+            ),
         )
 
     def close(self):  # pragma: no cover - compatibility shim
