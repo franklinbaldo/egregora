@@ -8,3 +8,62 @@ CLAUDE.md
 GEMINI.md
 AGENTS.md
 
+# Version control and Git
+.git/
+.github/
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+uv.lock
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Build artifacts and cache
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.so
+*.dylib
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# Large or binary files
+*.pdf
+*.zip
+*.tar.gz
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# Documentation that may be too large
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+README.md
