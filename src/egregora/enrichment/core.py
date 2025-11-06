@@ -61,6 +61,8 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
     try:
         with os.fdopen(fd, "w", encoding=encoding) as f:
             f.write(content)
+
+        # Atomic rename (replaces destination if it exists)
         Path(temp_path).replace(path)
     except OSError as e:
         try:

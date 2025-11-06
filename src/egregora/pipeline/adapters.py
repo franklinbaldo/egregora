@@ -229,6 +229,7 @@ class SourceAdapter(ABC):
         """
         sha256 = hashlib.sha256()
         with file_path.open("rb") as f:
+            # Read in chunks to handle large files efficiently
             for chunk in iter(lambda: f.read(8192), b""):
                 sha256.update(chunk)
         content_hash = sha256.hexdigest()

@@ -110,6 +110,7 @@ class BannerGenerator:
                     file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
                     banner_filename = f"banner-{request.slug}{file_extension}"
                     banner_path = request.output_dir / banner_filename
+
                     with banner_path.open("wb") as f:
                         f.write(data_buffer)
                     logger.info("Banner saved to: %s", banner_path)

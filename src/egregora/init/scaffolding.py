@@ -37,7 +37,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
 def _read_existing_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     """Return the docs directory defined by an existing mkdocs.yml."""
     try:
-        payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+        payload = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506  # _ConfigLoader extends SafeLoader
     except yaml.YAMLError:
         payload = {}
     docs_dir_setting = payload.get("docs_dir")
