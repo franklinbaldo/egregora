@@ -43,7 +43,8 @@ from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.ingestion.parser import parse_export
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file, process_whatsapp_export
+from egregora.pipeline.runner import run_source_pipeline
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.gemini_dispatcher import GeminiDispatcher
@@ -159,7 +160,7 @@ def init(
         )
 
 
-def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
+def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp"):  # noqa: PLR0912, PLR0915
     """Validate process configuration and run the pipeline."""
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -236,15 +237,17 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
     try:
         console.print(
             Panel(
-                f"[cyan]Processing:[/cyan] {config.zip_file}\n"
+                f"[cyan]Source:[/cyan] {source}\n"
+                f"[cyan]Input:[/cyan] {config.zip_file}\n"
                 f"[cyan]Output:[/cyan] {output_dir}\n"
                 f"[cyan]Grouping:[/cyan] {config.period}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
         )
-        process_whatsapp_export(
-            zip_path=config.zip_file,
+        run_source_pipeline(
+            source=source,
+            input_path=config.zip_file,
             output_dir=config.output_dir,
             gemini_api_key=api_key,
             period=config.period,
@@ -267,7 +270,8 @@ def _validate_and_run_process(config: ProcessConfig):  # noqa: PLR0912, PLR0915
 
 @app.command()
 def process(
-    zip_file: Annotated[Path, typer.Argument(help="Path to WhatsApp export ZIP")],
+    input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
+    source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
@@ -305,7 +309,9 @@ def process(
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """
-    Process WhatsApp export and generate blog posts + author profiles.
+    Process chat export and generate blog posts + author profiles.
+
+    Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
     The LLM decides:
     - What's worth writing about (filters noise automatically)
@@ -333,7 +339,7 @@ def process(
             raise typer.Exit(1) from e
 
     config = ProcessConfig(
-        zip_file=zip_file,
+        zip_file=input_file,  # Keep old field name for backward compatibility
         output_dir=output,
         period=period,
         enable_enrichment=enable_enrichment,
@@ -348,7 +354,7 @@ def process(
         debug=debug,
     )
 
-    _validate_and_run_process(config)
+    _validate_and_run_process(config, source=source)
 
 
 @app.command()
