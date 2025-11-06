@@ -137,14 +137,14 @@ def test_enrich_table_persists_results(tmp_path: Path):
         combined = enrich_table(
             messages_table,
             media_mapping={},
-            text_client=text_client,
-            vision_client=vision_client,
+            _text_client=text_client,
+            _vision_client=vision_client,
             cache=cache,
             docs_dir=docs_dir,
             posts_dir=posts_dir,
             enable_media=False,
-            persist_connection=conn,
-            persist_table=table_name,
+            duckdb_connection=conn,
+            target_table=table_name,
         )
     finally:
         cache.close()

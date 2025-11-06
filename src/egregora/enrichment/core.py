@@ -96,8 +96,8 @@ else:  # pragma: no cover - duckdb backend available at runtime when installed
 def enrich_table(
     messages_table: Table,
     media_mapping: dict[str, Path],
-    text_client: genai.Client,  # noqa: ARG001 - kept for backward compatibility
-    vision_client: genai.Client,  # noqa: ARG001 - kept for backward compatibility
+    _text_client: genai.Client,
+    _vision_client: genai.Client,
     cache: EnrichmentCache,
     docs_dir: Path,
     posts_dir: Path,

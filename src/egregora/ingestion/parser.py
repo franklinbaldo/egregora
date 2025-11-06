@@ -533,7 +533,7 @@ def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
         return None
 
 
-def _start_message_builder(  # noqa: PLR0913
+def _start_message_builder(
     *,
     _export: WhatsAppExport,
     msg_date: date,
