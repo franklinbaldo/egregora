@@ -14,7 +14,6 @@ from egregora.enrichment.core import enrich_table
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.ingestion.parser import filter_egregora_messages, parse_export
 from egregora.sources.whatsapp import process_whatsapp_export
-from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
@@ -39,49 +38,59 @@ def _bootstrap_site(tmp_path: Path) -> Path:
     return site_root
 
 
-class DummyBatchClient:
-    def __init__(self, model: str):
-        self.default_model = model
-        self.uploaded: list[Path] = []
-
-    def generate_content(self, requests, **kwargs):
-        """Return canned batch responses for enrichment pipelines."""
-
-        results = [
-            BatchPromptResult(
-                tag=getattr(request, "tag", None),
-                response=SimpleNamespace(text=f"Generated content for {getattr(request, 'tag', 'unknown')}"),
-                error=None,
-            )
-            for request in requests
-        ]
-        return results
-
-    def embed_content(self, requests, **kwargs):  # pragma: no cover - unused in tests
-        return []
-
-    def upload_file(self, *, path: str, display_name: str | None = None):
-        file_path = Path(path)
-        self.uploaded.append(file_path)
-        return SimpleNamespace(uri=f"stub://{file_path.name}", mime_type="image/jpeg")
-
-
 class DummyGenaiClient:
+    """Dummy Google GenAI client for testing.
+
+    Supports:
+    - Pydantic-AI agent calls (models.generate_content)
+    - File uploads (files.upload)
+    - Embeddings (models.embed_content)
+    """
     def __init__(self, *args, **kwargs):
-        response = SimpleNamespace(candidates=[])
-        self.models = SimpleNamespace(generate_content=lambda *a, **k: response)
+        # Response for pydantic-ai agents - needs text attribute
+        def dummy_generate(*a, **k):
+            return SimpleNamespace(
+                text='{"markdown": "Test enrichment content"}',
+                candidates=[
+                    SimpleNamespace(
+                        content=SimpleNamespace(
+                            parts=[SimpleNamespace(text='{"markdown": "Test enrichment content"}')]
+                        )
+                    )
+                ],
+            )
+
+        # Embedding response
+        def dummy_embed(*a, **k):
+            return SimpleNamespace(
+                embedding=SimpleNamespace(values=[0.1] * 768)
+            )
+
+        self.models = SimpleNamespace(
+            generate_content=dummy_generate,
+            embed_content=dummy_embed,
+        )
         self.aio = SimpleNamespace(models=self.models)
+
+        # File upload support
+        def dummy_upload(*a, **k):
+            file_obj = SimpleNamespace(
+                uri="stub://file",
+                mime_type="image/jpeg",
+                name="stub-file",
+                state=SimpleNamespace(name="ACTIVE")
+            )
+            return file_obj
+
         self.files = SimpleNamespace(
-            upload=lambda *a, **k: SimpleNamespace(uri="stub://file", mime_type="image/jpeg")
+            upload=dummy_upload,
+            get=lambda name: SimpleNamespace(
+                uri="stub://file",
+                mime_type="image/jpeg",
+                name=name,
+                state=SimpleNamespace(name="ACTIVE")
+            )
         )
-        dummy_job = SimpleNamespace(
-            name="stub-job",
-            dest=SimpleNamespace(inlined_responses=[]),
-            state=SimpleNamespace(name="JOB_STATE_SUCCEEDED"),
-            done=True,
-            error=None,
-        )
-        self.batches = SimpleNamespace(create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job)
 
     def close(self):  # pragma: no cover - compatibility shim
         return None
@@ -89,28 +98,26 @@ class DummyGenaiClient:
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.sources.whatsapp.pipeline.genai.Client", DummyGenaiClient)
-    monkeypatch.setattr(
-        "egregora.sources.whatsapp.pipeline.GeminiDispatcher",
-        lambda client, model, **kwargs: DummyBatchClient(model),
-    )
+    # Note: GeminiDispatcher has been removed - pipeline now uses genai.Client directly
 
     def _stub_writer(
         table,
         period_key,
         client,
-        batch_client,
-        output_dir,
-        profiles_dir,
-        rag_dir,
-        model_config,
-        enable_rag=True,
-        embedding_output_dimensionality=3072,
-        *,
-        retrieval_mode="exact",
-        retrieval_nprobe=None,
-        retrieval_overfetch=None,
+        config=None,
     ):
+        """Stub writer matching new signature: write_posts_for_period(table, period_date, client, config)."""
         captured_dates.append(period_key)
+
+        # Extract paths from config if provided, otherwise use dummy paths
+        if config:
+            output_dir = config.output_dir
+            profiles_dir = config.profiles_dir
+        else:
+            # Fallback for tests without config
+            output_dir = Path("dummy_output")
+            profiles_dir = Path("dummy_profiles")
+
         output_dir.mkdir(parents=True, exist_ok=True)
         profiles_dir.mkdir(parents=True, exist_ok=True)
 
