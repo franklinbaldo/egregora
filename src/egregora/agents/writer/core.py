@@ -23,16 +23,8 @@ import yaml
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import get_active_authors
 from egregora.agents.tools.rag import VectorStore, index_post
-from egregora.agents.writer.context import (
-    _load_profiles_context,
-    build_rag_context_for_prompt,
-)
-
-# Import split modules
-from egregora.agents.writer.formatting import (
-    _build_conversation_markdown,
-    _load_freeform_memory,
-)
+from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
+from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.agents.writer.handlers import (
     _handle_annotate_conversation_tool,
     _handle_generate_banner_tool,
@@ -50,7 +42,6 @@ if TYPE_CHECKING:
     from google import genai
     from google.genai import types as genai_types
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +62,6 @@ class WriterConfig:
     retrieval_overfetch: int | None = None
 
 
-# Constants
 MAX_CONVERSATION_TURNS = 10
 
 
@@ -79,11 +69,9 @@ def _memes_enabled(site_config: dict[str, Any]) -> bool:
     """Return True when meme helper text should be appended to the prompt."""
     if not isinstance(site_config, dict):
         return False
-
     writer_settings = site_config.get("writer")
     if not isinstance(writer_settings, dict):
         return False
-
     return bool(writer_settings.get("enable_memes", False))
 
 
@@ -104,9 +92,8 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
-
     egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.info(f"Loaded site config from {mkdocs_path}")
+    logger.info("Loaded site config from %s", mkdocs_path)
     return egregora_config
 
 
@@ -127,26 +114,17 @@ def load_markdown_extensions(output_dir: Path) -> str:
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, no custom markdown extensions")
         return ""
-
     try:
         extensions = config.get("markdown_extensions", [])
-
         if not extensions:
             return ""
-
-        # Format as YAML for the LLM
         yaml_section = yaml.dump(
-            {"markdown_extensions": extensions},
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
+            {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
         )
-
-        logger.info(f"Loaded {len(extensions)} markdown extensions from {mkdocs_path}")
+        logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
         return yaml_section
-
     except Exception as e:
-        logger.warning(f"Could not load markdown extensions from {mkdocs_path}: {e}")
+        logger.warning("Could not load markdown extensions from %s: %s", mkdocs_path, e)
         return ""
 
 
@@ -161,7 +139,6 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
         List of author UUIDs (most active first)
 
     """
-    # Filter out system and enrichment entries
     author_counts = (
         table.filter(~table.author.isin(["system", "egregora"]))
         .filter(table.author.notnull())
@@ -171,14 +148,12 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
         .order_by(ibis.desc("count"))
         .limit(limit)
     )
-
     if author_counts.count().execute() == 0:
         return []
-
     return author_counts.author.execute().tolist()
 
 
-def _process_tool_calls(  # noqa: PLR0913
+def _process_tool_calls(
     candidate: genai_types.Candidate,
     output_dir: Path,
     profiles_dir: Path,
@@ -200,19 +175,15 @@ def _process_tool_calls(  # noqa: PLR0913
     has_tool_calls = False
     tool_responses: list[genai_types.Content] = []
     freeform_parts: list[str] = []
-
-    if not candidate or not candidate.content or not candidate.content.parts:
-        return False, [], []
-
+    if not candidate or not candidate.content or (not candidate.content.parts):
+        return (False, [], [])
     for part in candidate.content.parts:
         function_call = getattr(part, "function_call", None)
-
         if function_call:
             has_tool_calls = True
             fn_call = function_call
             fn_name = fn_call.name
             fn_args = fn_call.args or {}
-
             try:
                 if fn_name == "write_post":
                     tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
@@ -243,45 +214,30 @@ def _process_tool_calls(  # noqa: PLR0913
             except Exception as e:
                 tool_responses.append(_handle_tool_error(fn_call, fn_name, e))
             continue
-
         text = getattr(part, "text", "")
         if text:
             freeform_parts.append(text)
+    return (has_tool_calls, tool_responses, freeform_parts)
 
-    return has_tool_calls, tool_responses, freeform_parts
 
-
-def _index_posts_in_rag(
-    saved_posts: list[str],
-    rag_dir: Path,
-    *,
-    embedding_model: str,
-) -> None:
+def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_model: str) -> None:
     """Index newly created posts in RAG system.
 
     All embeddings use fixed 768 dimensions.
     """
     if not saved_posts:
         return
-
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         for post_path in saved_posts:
-            index_post(
-                Path(post_path),
-                store,
-                embedding_model=embedding_model,
-            )
-        logger.info(f"Indexed {len(saved_posts)} new posts in RAG")
+            index_post(Path(post_path), store, embedding_model=embedding_model)
+        logger.info("Indexed %s new posts in RAG", len(saved_posts))
     except Exception as e:
-        logger.exception(f"Failed to index posts in RAG: {e}")
+        logger.exception("Failed to index posts in RAG: %s", e)
 
 
 def _write_posts_for_period_pydantic(
-    table: Table,
-    period_date: str,
-    client: genai.Client,
-    config: WriterConfig | None = None,
+    table: Table, period_date: str, client: genai.Client, config: WriterConfig | None = None
 ) -> dict[str, list[str]]:
     """Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
 
@@ -298,29 +254,16 @@ def _write_posts_for_period_pydantic(
         Dict with 'posts' and 'profiles' lists of saved file paths
 
     """
-    # Use default config if none provided
     if config is None:
         config = WriterConfig()
-
-    # Early return for empty input
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
-
-    # Setup
     model_config = ModelConfig() if config.model_config is None else config.model_config
     model = model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
-
-    # Initialize annotation store
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
-
-    # Convert Ibis table to PyArrow for formatting
     messages_table = table.to_pyarrow()
-
-    # Build conversation markdown
     conversation_md = _build_conversation_markdown(messages_table, annotations_store)
-
-    # Build RAG context
     rag_context = ""
     if config.enable_rag:
         rag_context = build_rag_context_for_prompt(
@@ -331,38 +274,18 @@ def _write_posts_for_period_pydantic(
             retrieval_mode=config.retrieval_mode,
             retrieval_nprobe=config.retrieval_nprobe,
             retrieval_overfetch=config.retrieval_overfetch,
-            use_pydantic_helpers=True,  # Use new async helpers
+            use_pydantic_helpers=True,
         )
-
-    # Build profiles context
     profiles_context = _load_profiles_context(table, config.profiles_dir)
-
-    # Build freeform memory
     freeform_memory = _load_freeform_memory(config.rag_dir)
-
-    # Get active authors
     active_authors = get_active_authors(table)
-
-    # Load site config
     site_config = load_site_config(config.output_dir)
     custom_writer_prompt = site_config.get("writer_prompt", "")
     meme_help_enabled = _memes_enabled(site_config)
     markdown_extensions_yaml = load_markdown_extensions(config.output_dir)
-
     markdown_features_section = ""
     if markdown_extensions_yaml:
-        markdown_features_section = f"""
-## Available Markdown Features
-
-This MkDocs site has the following extensions configured:
-
-```yaml
-{markdown_extensions_yaml}```
-
-Use these features appropriately in your posts. You understand how each extension works.
-"""
-
-    # Build prompt
+        markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
     template = WriterPromptTemplate(
         date=period_date,
         markdown_table=conversation_md,
@@ -375,8 +298,6 @@ Use these features appropriately in your posts. You understand how each extensio
         enable_memes=meme_help_enabled,
     )
     prompt = template.render()
-
-    # Run Pydantic AI agent
     saved_posts, saved_profiles = write_posts_with_pydantic_agent(
         prompt=prompt,
         model_name=model,
@@ -391,23 +312,13 @@ Use these features appropriately in your posts. You understand how each extensio
         retrieval_overfetch=config.retrieval_overfetch,
         annotations_store=annotations_store,
     )
-
-    # Index new posts in RAG (using fixed 768 dimensions)
     if config.enable_rag:
-        _index_posts_in_rag(
-            saved_posts,
-            config.rag_dir,
-            embedding_model=embedding_model,
-        )
-
+        _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
 def write_posts_for_period(
-    table: Table,
-    period_date: str,
-    client: genai.Client,
-    config: WriterConfig | None = None,
+    table: Table, period_date: str, client: genai.Client, config: WriterConfig | None = None
 ) -> dict[str, list[str]]:
     """Let LLM analyze period's messages, write 0-N posts, and update author profiles.
 
@@ -437,14 +348,9 @@ def write_posts_for_period(
         >>> result = write_posts_for_period(table, "2025-01-01", client, writer_config)
 
     """
-    # Use default config if none provided
     if config is None:
         config = WriterConfig()
-
     logger.info("Using Pydantic AI backend for writer")
     return _write_posts_for_period_pydantic(
-        table=table,
-        period_date=period_date,
-        client=client,
-        config=config,
+        table=table, period_date=period_date, client=client, config=config
     )

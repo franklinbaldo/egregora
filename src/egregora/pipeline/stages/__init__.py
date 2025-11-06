@@ -18,14 +18,7 @@ Use STAGE_REGISTRY to discover available stages dynamically:
 from egregora.pipeline.base import PipelineStage, StageConfig
 from egregora.pipeline.stages.filtering import FilteringStage, FilteringStageConfig
 
-# Stage registry for dynamic discovery and instantiation
-STAGE_REGISTRY: dict[str, type[PipelineStage]] = {
-    "filtering": FilteringStage,
-    # Future stages will be registered here:
-    # "enrichment": EnrichmentStage,
-    # "writing": WritingStage,
-    # "rag_indexing": RAGIndexingStage,
-}
+STAGE_REGISTRY: dict[str, type[PipelineStage]] = {"filtering": FilteringStage}
 
 
 def get_stage(stage_identifier: str, config: StageConfig) -> PipelineStage:
@@ -54,7 +47,6 @@ def get_stage(stage_identifier: str, config: StageConfig) -> PipelineStage:
         available = ", ".join(STAGE_REGISTRY.keys())
         msg = f"Unknown stage: '{stage_identifier}'. Available stages: {available}"
         raise ValueError(msg)
-
     stage_class = STAGE_REGISTRY[stage_identifier]
     return stage_class(config)
 
@@ -74,12 +66,4 @@ def list_stages() -> list[str]:
     return list(STAGE_REGISTRY.keys())
 
 
-__all__ = [
-    # Registry
-    "STAGE_REGISTRY",
-    # Stage classes
-    "FilteringStage",
-    "FilteringStageConfig",
-    "get_stage",
-    "list_stages",
-]
+__all__ = ["STAGE_REGISTRY", "FilteringStage", "FilteringStageConfig", "get_stage", "list_stages"]

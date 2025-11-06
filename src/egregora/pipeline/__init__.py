@@ -81,19 +81,13 @@ from egregora.pipeline.orchestrator import (
 )
 
 
-# Import utilities from pipeline.py module for backward compatibility
-# Use __getattr__ to avoid circular import during module initialization
 def __getattr__(name):
     """Lazy import for backward compatibility with pipeline.py module."""
     if name in ("group_by_period", "period_has_posts"):
-        # Import the module-level pipeline.py file (not this package)
         import sys
 
-        # Get the parent module to access pipeline.py sibling
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
-
-        # Import pipeline.py using spec_from_file_location to avoid name collision
         from importlib.util import module_from_spec, spec_from_file_location
         from pathlib import Path
 
@@ -103,28 +97,22 @@ def __getattr__(name):
             module = module_from_spec(spec)
             spec.loader.exec_module(module)
             return getattr(module, name)
-
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 
 
 __all__ = [
-    # IR Schema
     "IR_SCHEMA",
-    # Orchestrator
     "CoreOrchestrator",
     "MediaMapping",
     "PipelineArtifacts",
     "PipelineConfig",
     "PipelineContext",
-    # Stages
     "PipelineStage",
-    # Adapters
     "SourceAdapter",
     "StageConfig",
     "StageResult",
     "create_ir_table",
-    # Utilities (from pipeline.py module)
     "group_by_period",
     "period_has_posts",
     "validate_ir_schema",

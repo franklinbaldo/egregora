@@ -8,8 +8,6 @@ from typing import Annotated, Any
 import pyarrow as pa
 
 logger = logging.getLogger(__name__)
-
-# Constants for alias validation
 MAX_ALIAS_LENGTH = 40
 ASCII_CONTROL_CHARS_THRESHOLD = 32
 
@@ -30,12 +28,10 @@ def read_profile(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
     if not profile_path.exists():
-        logger.info(f"No existing profile for {author_uuid}")
+        logger.info("No existing profile for %s", author_uuid)
         return ""
-
-    logger.info(f"Reading profile for {author_uuid} from {profile_path}")
+    logger.info("Reading profile for %s from %s", author_uuid, profile_path)
     return profile_path.read_text(encoding="utf-8")
 
 
@@ -57,14 +53,10 @@ def write_profile(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
-    # Validation: ensure no PII leakage
     if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
-        logger.warning(f"Profile for {author_uuid} contains suspicious content")
-
+        logger.warning("Profile for %s contains suspicious content", author_uuid)
     profile_path.write_text(content, encoding="utf-8")
-    logger.info(f"Saved profile for {author_uuid} to {profile_path}")
-
+    logger.info("Saved profile for %s to %s", author_uuid, profile_path)
     return str(profile_path)
 
 
@@ -83,19 +75,18 @@ def get_active_authors(
 
     """
     authors: list[str | None] = []
-
     try:
         arrow_table = table.select("author").distinct().to_pyarrow()
-    except AttributeError:  # pragma: no cover - fallback for non-ibis tables
+    except AttributeError:
         result = table.select("author").distinct().execute()
         if hasattr(result, "columns"):
             if "author" in result.columns:
                 authors = result["author"].tolist()
-            else:  # pragma: no cover - defensive path for misnamed columns
+            else:
                 authors = result.iloc[:, 0].tolist()
         elif hasattr(result, "tolist"):
             authors = list(result.tolist())
-        else:  # pragma: no cover - defensive path
+        else:
             authors = list(result)
     else:
         if arrow_table.num_columns == 0:
@@ -103,26 +94,18 @@ def get_active_authors(
         column = arrow_table.column(0)
         if isinstance(column, pa.ChunkedArray):
             authors = column.to_pylist()
-        else:  # pragma: no cover - pyarrow tables always use ChunkedArray
+        else:
             authors = list(column)
-
-    # Filter out system and enrichment entries
     filtered_authors = [
         author for author in authors if author is not None and author not in ("system", "egregora", "")
     ]
-
-    # Apply limit if specified (return most active authors first)
     if limit is not None and limit > 0:
-        # Count messages per author to get most active
         author_counts = {}
         for author in filtered_authors:
             count = table.filter(table.author == author).count().execute()
             author_counts[author] = count
-
-        # Sort by message count descending and take top N
         sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
         return [author for author, _ in sorted_authors[:limit]]
-
     return filtered_authors
 
 
@@ -138,29 +121,18 @@ def _validate_alias(alias: str) -> str | None:
     """
     if not alias:
         return None
-
-    # Strip whitespace and quotes
     alias = alias.strip().strip("\"'")
-
-    # Length check (1-MAX_ALIAS_LENGTH characters)
-    if not (1 <= len(alias) <= MAX_ALIAS_LENGTH):
-        logger.warning(f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})")
+    if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
+        logger.warning("Alias length invalid: %s chars (must be 1-%s)", len(alias), MAX_ALIAS_LENGTH)
         return None
-
-    # Escape dangerous characters (code injection, HTML, markdown)
-    # Remove control characters (ASCII < ASCII_CONTROL_CHARS_THRESHOLD)
     if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
         logger.warning("Alias contains control characters (rejected)")
         return None
-
-    # Escape HTML special characters
     alias = alias.replace("&", "&amp;")
     alias = alias.replace("<", "&lt;")
     alias = alias.replace(">", "&gt;")
     alias = alias.replace('"', "&quot;")
     alias = alias.replace("'", "&#x27;")
-
-    # Escape backticks (prevent markdown code injection)
     return alias.replace("`", "&#96;")
 
 
@@ -187,36 +159,28 @@ def apply_command_to_profile(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
-    # Read existing profile or create new one
     if profile_path.exists():
         content = profile_path.read_text(encoding="utf-8")
     else:
         content = f"# Profile: {author_uuid}\n\n"
-
-    # Apply command
     cmd_type = command["command"]
     target = command["target"]
     value = command.get("value")
-
     if cmd_type == "set" and target == "alias":
-        # Validate and sanitize alias
         if not isinstance(value, str):
-            logger.warning(f"Invalid alias for {author_uuid} (not a string)")
+            logger.warning("Invalid alias for %s (not a string)", author_uuid)
             return str(profile_path)
         validated_value = _validate_alias(value)
         if not validated_value:
-            logger.warning(f"Invalid alias for {author_uuid} (rejected)")
+            logger.warning("Invalid alias for %s (rejected)", author_uuid)
             return str(profile_path)
-
         content = _update_profile_metadata(
             content,
             "Display Preferences",
             "alias",
             f'- Alias: "{validated_value}" (set on {timestamp})\n- Public: true',
         )
-        logger.info(f"Set alias for {author_uuid}")  # No PII in logs
-
+        logger.info("Set alias for %s", author_uuid)
     elif cmd_type == "remove" and target == "alias":
         content = _update_profile_metadata(
             content,
@@ -224,20 +188,16 @@ def apply_command_to_profile(
             "alias",
             f"- Alias: None (removed on {timestamp})\n- Public: false",
         )
-        logger.info(f"Removed alias for {author_uuid}")
-
+        logger.info("Removed alias for %s", author_uuid)
     elif cmd_type == "set" and target == "bio":
         content = _update_profile_metadata(content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})')
-        logger.info(f"Set bio for {author_uuid}")
-
+        logger.info("Set bio for %s", author_uuid)
     elif cmd_type == "set" and target == "twitter":
         content = _update_profile_metadata(content, "Links", "twitter", f"- Twitter: {value}")
-        logger.info(f"Set twitter for {author_uuid}")
-
+        logger.info("Set twitter for %s", author_uuid)
     elif cmd_type == "set" and target == "website":
         content = _update_profile_metadata(content, "Links", "website", f"- Website: {value}")
-        logger.info(f"Set website for {author_uuid}")
-
+        logger.info("Set website for %s", author_uuid)
     elif cmd_type == "opt-out":
         content = _update_profile_metadata(
             content,
@@ -245,8 +205,7 @@ def apply_command_to_profile(
             "opted-out",
             f"- Status: OPTED OUT (on {timestamp})\n- All messages will be excluded from processing",
         )
-        logger.warning(f"⚠️  User {author_uuid} OPTED OUT - all messages will be removed")
-
+        logger.warning("⚠️  User %s OPTED OUT - all messages will be removed", author_uuid)
     elif cmd_type == "opt-in":
         content = _update_profile_metadata(
             content,
@@ -254,9 +213,7 @@ def apply_command_to_profile(
             "opted-out",
             f"- Status: Opted in (on {timestamp})\n- Messages will be included in processing",
         )
-        logger.info(f"User {author_uuid} opted back in")
-
-    # Save updated profile
+        logger.info("User %s opted back in", author_uuid)
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
 
@@ -277,30 +234,21 @@ def _update_profile_metadata(content: str, section_name: str, _key: str, new_val
         Updated profile content
 
     """
-    section_pattern = rf"(## {section_name}\s*\n)(.*?)(?=\n## |\Z)"
-
-    # Check if section exists
+    section_pattern = f"(## {section_name}\\s*\\n)(.*?)(?=\\n## |\\Z)"
     match = re.search(section_pattern, content, re.DOTALL)
-
     if match:
-        # Section exists - replace entire section content
-        # This ensures idempotence (no duplicate accumulation)
         updated_section = f"{match.group(1)}{new_value}\n"
         content = content[: match.start()] + updated_section + content[match.end() :]
     else:
-        # Section doesn't exist, create it
         new_section = f"\n## {section_name}\n{new_value}\n"
-        # Add before any existing sections or at end
         if "##" in content:
-            # Insert before first section
-            first_section = re.search(r"\n## ", content)
+            first_section = re.search("\\n## ", content)
             if first_section:
                 content = content[: first_section.start()] + new_section + content[first_section.start() :]
             else:
                 content += new_section
         else:
             content += new_section
-
     return content
 
 
@@ -325,16 +273,11 @@ def get_author_display_name(
 
     """
     profile = read_profile(author_uuid, profiles_dir)
-
     if not profile:
         return author_uuid
-
-    # Parse alias from Display Preferences section
-    # Alias is already HTML-escaped during storage (_validate_alias)
-    alias_match = re.search(r'Alias: "([^"]+)".*Public: true', profile, re.DOTALL)
+    alias_match = re.search('Alias: "([^"]+)".*Public: true', profile, re.DOTALL)
     if alias_match:
         return alias_match.group(1)
-
     return author_uuid
 
 
@@ -357,23 +300,16 @@ def process_commands(
     """
     if not commands:
         return 0
-
-    logger.info(f"Processing {len(commands)} egregora commands")
-
-    # Sort commands by timestamp for deterministic processing
-    # (multiple commands in same export must be applied in order)
+    logger.info("Processing %s egregora commands", len(commands))
     sorted_commands = sorted(commands, key=lambda c: c["timestamp"])
-
     for cmd_data in sorted_commands:
         author_uuid = cmd_data["author"]
         timestamp = str(cmd_data["timestamp"])
         command = cmd_data["command"]
-
         try:
             apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
         except Exception as e:
-            logger.exception(f"Failed to process command for {author_uuid}: {e}")
-
+            logger.exception("Failed to process command for %s: %s", author_uuid, e)
     return len(commands)
 
 
@@ -392,11 +328,8 @@ def is_opted_out(
 
     """
     profile = read_profile(author_uuid, profiles_dir)
-
     if not profile:
         return False
-
-    # Check for opt-out status in Privacy Preferences
     return "Status: OPTED OUT" in profile
 
 
@@ -416,24 +349,18 @@ def get_opted_out_authors(
     """
     if not profiles_dir.exists():
         return set()
-
     opted_out = set()
-
     for profile_path in profiles_dir.glob("*.md"):
         author_uuid = profile_path.stem
         if is_opted_out(author_uuid, profiles_dir):
             opted_out.add(author_uuid)
-
     return opted_out
 
 
 def filter_opted_out_authors(
     table: Annotated[Any, "The Ibis table with an 'author' column"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-) -> tuple[
-    Annotated[Any, "The filtered table"],
-    Annotated[int, "The number of removed messages"],
-]:
+) -> tuple[Annotated[Any, "The filtered table"], Annotated[int, "The number of removed messages"]]:
     """Remove all messages from opted-out authors.
 
     This should be called EARLY in the pipeline, BEFORE anonymization,
@@ -448,35 +375,24 @@ def filter_opted_out_authors(
 
     """
     if table.count().execute() == 0:
-        return table, 0
-
-    # Get opted-out authors
+        return (table, 0)
     opted_out = get_opted_out_authors(profiles_dir)
-
     if not opted_out:
-        return table, 0
-
-    logger.info(f"Found {len(opted_out)} opted-out authors")
-
-    # Count messages before filtering
+        return (table, 0)
+    logger.info("Found %s opted-out authors", len(opted_out))
     original_count = table.count().execute()
-
-    # Filter out opted-out authors
     filtered_table = table.filter(~table.author.isin(list(opted_out)))
-
     removed_count = original_count - filtered_table.count().execute()
-
     if removed_count > 0:
-        logger.warning(f"⚠️  Removed {removed_count} messages from {len(opted_out)} opted-out users")
+        logger.warning("⚠️  Removed %s messages from %s opted-out users", removed_count, len(opted_out))
         for author in opted_out:
             author_msg_count = table.filter(table.author == author).count().execute()
             if author_msg_count > 0:
-                logger.warning(f"   - {author}: {author_msg_count} messages removed")
+                logger.warning("   - %s: %s messages removed", author, author_msg_count)
+    return (filtered_table, removed_count)
 
-    return filtered_table, removed_count
 
-
-def update_profile_avatar(  # noqa: PLR0913
+def update_profile_avatar(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     avatar_uuid: Annotated[str, "The UUID of the avatar image"],
     avatar_path: Annotated[Path, "The path to the avatar image"],
@@ -505,43 +421,22 @@ def update_profile_avatar(  # noqa: PLR0913
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
-    # Read existing profile or create new one
     if profile_path.exists():
         content = profile_path.read_text(encoding="utf-8")
     else:
         content = f"# Profile: {author_uuid}\n\n"
-
-    # Build avatar section content
     if moderation_status == "approved":
         avatar_content = (
             f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ✅ Approved\n- Set on: {timestamp}"
         )
-        logger.info(f"✅ Avatar approved for {author_uuid}")
+        logger.info("✅ Avatar approved for %s", author_uuid)
     elif moderation_status == "questionable":
-        avatar_content = (
-            f"- UUID: {avatar_uuid}\n"
-            f"- Path: {avatar_path}\n"
-            f"- Status: ⚠️ Pending Review\n"
-            f"- Reason: {moderation_reason}\n"
-            f"- Set on: {timestamp}\n"
-            f"- Note: This avatar requires manual review before it can be used"
-        )
-        logger.warning(f"⚠️ Avatar requires review for {author_uuid}: {moderation_reason}")
-    else:  # blocked
-        avatar_content = (
-            f"- UUID: {avatar_uuid}\n"
-            f"- Status: ❌ Blocked\n"
-            f"- Reason: {moderation_reason}\n"
-            f"- Attempted on: {timestamp}\n"
-            f"- Note: This avatar was rejected and cannot be used"
-        )
-        logger.warning(f"❌ Avatar blocked for {author_uuid}: {moderation_reason}")
-
-    # Update profile
+        avatar_content = f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ⚠️ Pending Review\n- Reason: {moderation_reason}\n- Set on: {timestamp}\n- Note: This avatar requires manual review before it can be used"
+        logger.warning("⚠️ Avatar requires review for %s: %s", author_uuid, moderation_reason)
+    else:
+        avatar_content = f"- UUID: {avatar_uuid}\n- Status: ❌ Blocked\n- Reason: {moderation_reason}\n- Attempted on: {timestamp}\n- Note: This avatar was rejected and cannot be used"
+        logger.warning("❌ Avatar blocked for %s: %s", author_uuid, moderation_reason)
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
-
-    # Save updated profile
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
 
@@ -564,21 +459,14 @@ def remove_profile_avatar(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
-    # Read existing profile or create new one
     if profile_path.exists():
         content = profile_path.read_text(encoding="utf-8")
     else:
         content = f"# Profile: {author_uuid}\n\n"
-
-    # Update avatar section to show it was removed
     avatar_content = f"- Status: None (removed on {timestamp})"
-
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
-
-    # Save updated profile
     profile_path.write_text(content, encoding="utf-8")
-    logger.info(f"Removed avatar for {author_uuid}")
+    logger.info("Removed avatar for %s", author_uuid)
     return str(profile_path)
 
 
@@ -604,35 +492,24 @@ def get_avatar_info(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
-
     if not profile_path.exists():
         return None
-
     content = profile_path.read_text(encoding="utf-8")
-
-    # Look for Avatar section
-    avatar_section_match = re.search(r"## Avatar\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
-
+    avatar_section_match = re.search("## Avatar\\s*\\n(.*?)(?=\\n## |\\Z)", content, re.DOTALL)
     if not avatar_section_match:
         return None
-
     avatar_section = avatar_section_match.group(1)
-
-    # Parse avatar info
-    uuid_match = re.search(r"- UUID:\s*(.+)", avatar_section)
-    path_match = re.search(r"- Path:\s*(.+)", avatar_section)
-    status_match = re.search(r"- Status:\s*(.+)", avatar_section)
-    reason_match = re.search(r"- Reason:\s*(.+)", avatar_section)
-
+    uuid_match = re.search("- UUID:\\s*(.+)", avatar_section)
+    path_match = re.search("- Path:\\s*(.+)", avatar_section)
+    status_match = re.search("- Status:\\s*(.+)", avatar_section)
+    reason_match = re.search("- Reason:\\s*(.+)", avatar_section)
     if not uuid_match:
         return None
-
     info = {
         "uuid": uuid_match.group(1).strip(),
         "path": path_match.group(1).strip() if path_match else None,
         "status": "unknown",
     }
-
     if status_match:
         status_text = status_match.group(1).strip()
         if "Approved" in status_text or "✅" in status_text:
@@ -643,8 +520,6 @@ def get_avatar_info(
             info["status"] = "blocked"
         elif "None" in status_text or "removed" in status_text:
             return None
-
     if reason_match:
         info["reason"] = reason_match.group(1).strip()
-
     return info

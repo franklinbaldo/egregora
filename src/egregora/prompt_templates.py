@@ -9,13 +9,10 @@ from typing import Any, ClassVar
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-# Prompts directory
 PROMPTS_DIR = Path(__file__).parent / "prompts"
-
-# Jinja2 environment with auto-escaping disabled (we're generating prompts, not HTML)
 DEFAULT_ENVIRONMENT = Environment(
     loader=FileSystemLoader(PROMPTS_DIR),
-    autoescape=select_autoescape(enabled_extensions=()),  # Disable autoescaping
+    autoescape=select_autoescape(enabled_extensions=()),
     trim_blocks=True,
     lstrip_blocks=True,
 )
@@ -32,7 +29,7 @@ class PromptTemplate(ABC):
         return template.render(**context)
 
     @abstractmethod
-    def render(self) -> str:  # pragma: no cover - abstract method pattern
+    def render(self) -> str:
         """Render the template with the configured context."""
 
 
@@ -50,7 +47,6 @@ class WriterPromptTemplate(PromptTemplate):
     freeform_memory: str = ""
     enable_memes: bool = False
     env: Environment | None = None
-
     template_name: ClassVar[str] = "system/writer.jinja"
 
     def render(self) -> str:
@@ -74,7 +70,6 @@ class UrlEnrichmentPromptTemplate(PromptTemplate):
 
     url: str
     env: Environment | None = None
-
     template_name: ClassVar[str] = "enrichment/url_simple.jinja"
 
     def render(self) -> str:
@@ -86,7 +81,6 @@ class MediaEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for lightweight media enrichment."""
 
     env: Environment | None = None
-
     template_name: ClassVar[str] = "enrichment/media_simple.jinja"
 
     def render(self) -> str:
@@ -103,7 +97,6 @@ class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
     date: str
     time: str
     env: Environment | None = None
-
     template_name: ClassVar[str] = "enrichment/url_detailed.jinja"
 
     def render(self) -> str:
@@ -129,7 +122,6 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
     date: str
     time: str
     env: Environment | None = None
-
     template_name: ClassVar[str] = "enrichment/media_detailed.jinja"
 
     def render(self) -> str:
@@ -152,15 +144,10 @@ class AvatarEnrichmentPromptTemplate(PromptTemplate):
     media_filename: str
     media_path: str
     env: Environment | None = None
-
     template_name: ClassVar[str] = "enricher_avatar.jinja"
 
     def render(self) -> str:
-        return self._render(
-            env=self.env,
-            media_filename=self.media_filename,
-            media_path=self.media_path,
-        )
+        return self._render(env=self.env, media_filename=self.media_filename, media_path=self.media_path)
 
 
 @dataclass(slots=True)
@@ -173,7 +160,6 @@ class EditorPromptTemplate(PromptTemplate):
     lines: dict[int, str]
     context: dict[str, Any] | None = None
     env: Environment | None = None
-
     template_name: ClassVar[str] = "system/editor.jinja"
 
     def render(self) -> str:

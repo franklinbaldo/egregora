@@ -29,9 +29,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
-
 __all__ = ["SlackAdapter"]
 
 
@@ -63,13 +61,7 @@ class SlackAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "slack"
 
-    def parse(
-        self,
-        input_path: Path,
-        *,
-        timezone: str | None = None,
-        **_kwargs: Any,
-    ) -> Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: Any) -> Table:
         """Parse Slack export into IR-compliant table.
 
         Args:
@@ -87,24 +79,9 @@ class SlackAdapter(SourceAdapter):
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
-
-        # STUB: Minimal implementation that returns an empty table
-        # with the correct schema to demonstrate the contract
-
-        # In a real implementation, you would:
-        # 1. Read the Slack JSON export
-        # 2. Parse messages and map to IR schema
-        # 3. Handle user ID -> display name mapping
-        # 4. Convert Slack timestamps to IR timestamp format
-
-        # Example stub data (replace with actual parsing)
         messages_data = self._parse_slack_json(input_path)
-
         if not messages_data:
-            # Return empty table with correct schema
             return ibis.memtable([], schema=ibis.schema(IR_SCHEMA))
-
-        # Convert parsed data to IR table
         table = ibis.memtable(messages_data)
         return create_ir_table(table, timezone=timezone)
 
@@ -129,9 +106,7 @@ class SlackAdapter(SourceAdapter):
             - Convert Slack markdown to standard format
 
         """
-        # Check if this is a real Slack export with data
         has_data = False
-
         if input_path.is_file() and input_path.suffix == ".json":
             try:
                 with input_path.open() as f:
@@ -141,34 +116,10 @@ class SlackAdapter(SourceAdapter):
                 pass
         elif input_path.is_dir():
             has_data = any(input_path.glob("*.json"))
-
         if has_data:
             logger.warning(
-                "⚠️  SlackAdapter is a STUB and returns empty results. "
-                "To process Slack exports, implement the _parse_slack_json() method."
+                "⚠️  SlackAdapter is a STUB and returns empty results. To process Slack exports, implement the _parse_slack_json() method."
             )
-            # For now, return empty to allow tests to pass
-            # In production, uncomment the line below:
-            # raise NotImplementedError(
-            #     "SlackAdapter is a stub. Implement _parse_slack_json() to parse Slack exports."
-            # )
-
-        # Stub: Return empty list
-        # In a real implementation, read and parse the JSON:
-        #
-        # if input_path.is_file():
-        #     with open(input_path) as f:
-        #         data = json.load(f)
-        #     return self._convert_slack_messages(data["messages"])
-        # elif input_path.is_dir():
-        #     # Handle directory of JSON files (one per channel)
-        #     messages = []
-        #     for json_file in input_path.glob("*.json"):
-        #         with open(json_file) as f:
-        #             data = json.load(f)
-        #         messages.extend(self._convert_slack_messages(data))
-        #     return messages
-
         return []
 
     def _convert_slack_messages(self, slack_messages: list[dict]) -> list[dict]:
@@ -194,37 +145,24 @@ class SlackAdapter(SourceAdapter):
 
         """
         ir_messages = []
-
         for msg in slack_messages:
-            # Skip non-message types
             if msg.get("type") != "message":
                 continue
-
-            # Convert Slack timestamp (seconds.microseconds) to datetime
             ts_str = msg.get("ts", "0")
             timestamp = datetime.fromtimestamp(float(ts_str))
-
-            # Build IR message
             ir_msg = {
                 "timestamp": timestamp,
                 "date": timestamp.date(),
                 "author": msg.get("user", "unknown"),
                 "message": msg.get("text", ""),
-                "original_line": json.dumps(msg),  # Store original for debugging
+                "original_line": json.dumps(msg),
                 "tagged_line": json.dumps(msg),
                 "message_id": ts_str.replace(".", ""),
             }
-
             ir_messages.append(ir_msg)
-
         return ir_messages
 
-    def extract_media(
-        self,
-        _input_path: Path,
-        _output_dir: Path,
-        **_kwargs: Any,
-    ) -> MediaMapping:
+    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from Slack export.
 
         Slack exports may include uploaded files. This would need to:

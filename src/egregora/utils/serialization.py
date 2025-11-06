@@ -14,7 +14,6 @@ import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
-
 SerializationFormat = Literal["csv", "parquet"]
 
 
@@ -37,13 +36,10 @@ def save_table_to_csv(
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Execute table to pandas and save to CSV
     df = table.execute()
     df.to_csv(output_path, index=index)
-
     row_count = len(df)
-    logger.info(f"Saved {row_count} rows to {output_path}")
+    logger.info("Saved %s rows to %s", row_count, output_path)
 
 
 def load_table_from_csv(
@@ -66,24 +62,16 @@ def load_table_from_csv(
 
     """
     input_path = Path(input_path).resolve()
-
     if not input_path.exists():
         msg = f"CSV file not found: {input_path}"
         raise FileNotFoundError(msg)
-
-    # Let DuckDB auto-detect schema from CSV
-    # Note: Passing schema directly to ibis.read_csv doesn't work well with DuckDB backend
     table = ibis.read_csv(str(input_path))
-
     row_count = table.count().execute()
-    logger.info(f"Loaded {row_count} rows from {input_path}")
-
+    logger.info("Loaded %s rows from %s", row_count, input_path)
     return table
 
 
-def load_table_with_auto_schema(
-    input_path: Annotated[Path, "The path to the input CSV file"],
-) -> Table:
+def load_table_with_auto_schema(input_path: Annotated[Path, "The path to the input CSV file"]) -> Table:
     """Load an Ibis Table from CSV with automatic schema detection.
 
     Use this when the CSV might not match MESSAGE_SCHEMA (e.g., enriched tables).
@@ -99,17 +87,12 @@ def load_table_with_auto_schema(
 
     """
     input_path = Path(input_path).resolve()
-
     if not input_path.exists():
         msg = f"CSV file not found: {input_path}"
         raise FileNotFoundError(msg)
-
-    # Let Ibis infer schema automatically
     table = ibis.read_csv(str(input_path))
-
     row_count = table.count().execute()
-    logger.info(f"Loaded {row_count} rows from {input_path} (auto schema)")
-
+    logger.info("Loaded %s rows from %s (auto schema)", row_count, input_path)
     return table
 
 
@@ -132,18 +115,13 @@ def save_table_to_parquet(
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Execute table to pandas and save to Parquet
     df = table.execute()
     df.to_parquet(output_path, engine="pyarrow", index=False)
-
     row_count = len(df)
-    logger.info(f"Saved {row_count} rows to {output_path} (Parquet)")
+    logger.info("Saved %s rows to %s (Parquet)", row_count, output_path)
 
 
-def load_table_from_parquet(
-    input_path: Annotated[Path, "The path to the input Parquet file"],
-) -> Table:
+def load_table_from_parquet(input_path: Annotated[Path, "The path to the input Parquet file"]) -> Table:
     """Load an Ibis Table from Parquet file.
 
     Parquet preserves schema and types automatically.
@@ -159,17 +137,12 @@ def load_table_from_parquet(
 
     """
     input_path = Path(input_path).resolve()
-
     if not input_path.exists():
         msg = f"Parquet file not found: {input_path}"
         raise FileNotFoundError(msg)
-
-    # Read Parquet with preserved schema
     table = ibis.read_parquet(str(input_path))
-
     row_count = table.count().execute()
-    logger.info(f"Loaded {row_count} rows from {input_path} (Parquet)")
-
+    logger.info("Loaded %s rows from %s (Parquet)", row_count, input_path)
     return table
 
 
@@ -194,8 +167,6 @@ def save_table(
 
     """
     output_path = Path(output_path)
-
-    # Auto-detect format from extension if not specified
     if output_path.suffix.lower() == ".parquet":
         save_table_to_parquet(table, output_path)
     elif output_path.suffix.lower() == ".csv":
@@ -205,10 +176,7 @@ def save_table(
     elif format == "csv":
         save_table_to_csv(table, output_path, index=index)
     else:
-        msg = (
-            f"Unsupported format: {format}. Use 'csv' or 'parquet', "
-            f"or ensure file extension is .csv or .parquet"
-        )
+        msg = f"Unsupported format: {format}. Use 'csv' or 'parquet', or ensure file extension is .csv or .parquet"
         raise ValueError(msg)
 
 
@@ -235,12 +203,9 @@ def load_table(
 
     """
     input_path = Path(input_path)
-
     if not input_path.exists():
         msg = f"File not found: {input_path}"
         raise FileNotFoundError(msg)
-
-    # Auto-detect format from extension
     detected_format = format
     if detected_format is None:
         if input_path.suffix.lower() == ".parquet":
@@ -248,12 +213,8 @@ def load_table(
         elif input_path.suffix.lower() == ".csv":
             detected_format = "csv"
         else:
-            msg = (
-                f"Cannot detect format from extension '{input_path.suffix}'. "
-                f"Use .csv or .parquet, or specify format explicitly"
-            )
+            msg = f"Cannot detect format from extension '{input_path.suffix}'. Use .csv or .parquet, or specify format explicitly"
             raise ValueError(msg)
-
     if detected_format == "parquet":
         return load_table_from_parquet(input_path)
     if detected_format == "csv":

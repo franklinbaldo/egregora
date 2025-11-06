@@ -33,17 +33,11 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.sources.whatsapp.models import WhatsAppExport
-
-# Constants
 SET_COMMAND_PARTS = 2
-
 logger = logging.getLogger(__name__)
-
 _IMPORT_ORDER_COLUMN = "_import_order"
 _IMPORT_SOURCE_COLUMN = "_import_source"
-
-# Pattern for egregora commands: /egregora <command> <args>
-EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
+EGREGORA_COMMAND_PATTERN = re.compile("^/egregora\\s+(\\w+)\\s+(.+)$", re.IGNORECASE)
 
 
 def _parse_set_command(args: str) -> dict | None:
@@ -61,13 +55,10 @@ def _parse_remove_command(args: str) -> dict:
     return {"command": "remove", "target": args.lower(), "value": None}
 
 
-COMMAND_REGISTRY = {
-    "set": _parse_set_command,
-    "remove": _parse_remove_command,
-}
+COMMAND_REGISTRY = {"set": _parse_set_command, "remove": _parse_remove_command}
 
 
-def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
+def parse_egregora_command(message: str) -> dict | None:
     """Parse egregora commands from message text.
 
     Supported commands:
@@ -103,12 +94,8 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
         }
 
     """
-    # Normalize curly quotes to straight quotes (English only, as requested)
-    # This handles copy-paste from phones/messaging apps
-    message = message.replace("\u201c", '"').replace("\u201d", '"')  # "" → "
-    message = message.replace("\u2018", "'").replace("\u2019", "'")  # '' → '
-
-    # Check for simple commands first (no args)
+    message = message.replace("“", '"').replace("”", '"')
+    message = message.replace("‘", "'").replace("’", "'")
     simple_cmd = message.strip().lower()
     if simple_cmd == EgregoraCommand.OPT_OUT.value:
         return {"command": "opt-out"}
@@ -116,21 +103,15 @@ def parse_egregora_command(message: str) -> dict | None:  # noqa: PLR0911
         return {"command": "opt-in"}
     if simple_cmd == "/egregora unset avatar":
         return {"command": "unset", "target": "avatar", "value": None}
-
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
         return None
-
     action = match.group(1).lower()
     args = match.group(2).strip()
-
-    # Special handling for "unset" as an alias for "remove"
     if action == "unset":
         return {"command": "unset", "target": args.lower(), "value": None}
-
     if action in COMMAND_REGISTRY:
         return COMMAND_REGISTRY[action](args)
-
     return None
 
 
@@ -155,31 +136,19 @@ def extract_commands(messages: Table) -> list[dict]:
     """
     if int(messages.count().execute()) == 0:
         return []
-
     commands = []
-
-    # Convert to pandas for iteration (most efficient for small result sets)
     rows = messages.execute().to_dict("records")
-
     for row in rows:
         message = row.get("message", "")
         if not message:
             continue
-
         cmd = parse_egregora_command(message)
         if cmd:
             commands.append(
-                {
-                    "author": row["author"],
-                    "timestamp": row["timestamp"],
-                    "command": cmd,
-                    "message": message,  # Include original message for media attachment processing
-                }
+                {"author": row["author"], "timestamp": row["timestamp"], "command": cmd, "message": message}
             )
-
     if commands:
-        logger.info(f"Found {len(commands)} egregora commands")
-
+        logger.info("Found %s egregora commands", len(commands))
     return commands
 
 
@@ -209,23 +178,10 @@ def _add_message_ids(messages: Table) -> Table:
     """
     if int(messages.count().execute()) == 0:
         return messages
-
-    # Calculate milliseconds since first message using relative time deltas
-    # We keep min_timestamp as an Ibis expression (not executed) so the entire
-    # calculation happens in the database query. This ensures consistent timezone
-    # handling and avoids issues with different timezone interpretations.
     min_timestamp = messages.timestamp.min()
-
-    # Calculate the time difference from minimum timestamp to each message timestamp
-    # epoch_seconds() converts both to seconds since epoch, then we subtract to get delta
-    # The delta is timezone-independent because both timestamps use the same timezone
-    # Multiply by 1000 to convert seconds to milliseconds, round to ensure integer
     delta_ms = (
         ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000).round().cast("int64")
     )
-
-    # Add row number for uniqueness (0-indexed)
-    # Explicit ordering ensures deterministic IDs even if the backend reorders rows
     order_columns = [messages.timestamp]
     if _IMPORT_SOURCE_COLUMN in messages.columns:
         order_columns.append(messages[_IMPORT_SOURCE_COLUMN])
@@ -235,10 +191,8 @@ def _add_message_ids(messages: Table) -> Table:
         order_columns.append(messages.author)
     if "message" in messages.columns:
         order_columns.append(messages.message)
-
     row_number = ibis.row_number().over(order_by=order_columns)
-
-    return messages.mutate(message_id=(delta_ms.cast("string") + "_" + row_number.cast("string")))
+    return messages.mutate(message_id=delta_ms.cast("string") + "_" + row_number.cast("string"))
 
 
 def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
@@ -263,26 +217,17 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     """
     total_messages = int(messages.count().execute())
     if total_messages == 0:
-        return messages, 0
-
-    # Filter out messages starting with /egregora (case-insensitive)
+        return (messages, 0)
     filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
-
     removed_count = total_messages - int(filtered_messages.count().execute())
     if int(messages.count().execute()) == 0:
-        return messages, 0
-
+        return (messages, 0)
     original_count = int(messages.count().execute())
-
-    # Filter out messages starting with /egregora (case-insensitive)
     filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
-
     removed_count = original_count - int(filtered_messages.count().execute())
-
     if removed_count > 0:
-        logger.info(f"Removed {removed_count} /egregora messages from table")
-
-    return filtered_messages, removed_count
+        logger.info("Removed %s /egregora messages from table", removed_count)
+    return (filtered_messages, removed_count)
 
 
 def parse_export(export: WhatsAppExport, timezone=None) -> Table:
@@ -299,7 +244,6 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
     with zipfile.ZipFile(export.zip_path) as zf:
         validate_zip_contents(zf)
         ensure_safe_member_size(zf, export.chat_file)
-
         try:
             with zf.open(export.chat_file) as raw:
                 text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
@@ -307,38 +251,30 @@ def parse_export(export: WhatsAppExport, timezone=None) -> Table:
         except UnicodeDecodeError as exc:
             msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
             raise ZipValidationError(msg) from exc
-
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table, timezone=timezone)
-
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
         messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
     else:
         messages = messages.order_by("timestamp")
-
     messages = _add_message_ids(messages)
-
     if _IMPORT_ORDER_COLUMN in messages.columns:
         messages = messages.drop(_IMPORT_ORDER_COLUMN)
-
     messages = ensure_message_schema(messages, timezone=timezone)
     return anonymize_table(messages)
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
+def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp."""
     tables: list[Table] = []
-
     for export in exports:
         try:
-            # Parse without adding message IDs yet - we'll do it globally
             with zipfile.ZipFile(export.zip_path) as zf:
                 validate_zip_contents(zf)
                 ensure_safe_member_size(zf, export.chat_file)
-
                 try:
                     with zf.open(export.chat_file) as raw:
                         text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
@@ -346,32 +282,24 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
                 except UnicodeDecodeError as exc:
                     msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
                     raise ZipValidationError(msg) from exc
-
             if rows:
                 for row in rows:
                     row[_IMPORT_SOURCE_COLUMN] = len(tables)
-
                 messages = ibis.memtable(rows)
                 if _IMPORT_ORDER_COLUMN in messages.columns:
                     messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
                 else:
                     messages = messages.order_by("timestamp")
-
                 tables.append(messages)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
-
     if not tables:
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
         return ensure_message_schema(empty_table)
-
-    # Concatenate all frames using union
     combined = tables[0]
     for table in tables[1:]:
         combined = combined.union(table, distinct=False)
-
-    # Order by timestamp first, then add message IDs globally
     if _IMPORT_ORDER_COLUMN in combined.columns or _IMPORT_SOURCE_COLUMN in combined.columns:
         order_keys = [combined.timestamp]
         if _IMPORT_SOURCE_COLUMN in combined.columns:
@@ -381,9 +309,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
         combined = combined.order_by(order_keys)
     else:
         combined = combined.order_by("timestamp")
-
     combined = _add_message_ids(combined)
-
     drop_columns: list[str] = []
     if _IMPORT_ORDER_COLUMN in combined.columns:
         drop_columns.append(_IMPORT_ORDER_COLUMN)
@@ -391,30 +317,14 @@ def parse_multiple(exports: Sequence[WhatsAppExport]) -> Table:  # noqa: PLR0912
         drop_columns.append(_IMPORT_SOURCE_COLUMN)
     if drop_columns:
         combined = combined.drop(*drop_columns)
-
     combined = ensure_message_schema(combined)
     return anonymize_table(combined)
 
 
-# Pattern captures optional date, mandatory time, separator (dash/en dash),
-# author, and the message content. WhatsApp exports vary the separator and may
-# include date prefixes (DD/MM/YYYY or locale variants) as well as AM/PM markers.
 _LINE_PATTERN = re.compile(
-    r"^("
-    r"(?:(?P<date>\d{1,2}/\d{1,2}/\d{2,4})(?:,\s*|\s+))?"
-    r"(?P<time>\d{1,2}:\d{2})"
-    r"(?:\s*(?P<ampm>[APap][Mm]))?"
-    r"\s*[—\-]\s*"
-    r"(?P<author>[^:]+?):\s*"
-    r"(?P<message>.+)"
-    r")$"
+    "^((?:(?P<date>\\d{1,2}/\\d{1,2}/\\d{2,4})(?:,\\s*|\\s+))?(?P<time>\\d{1,2}:\\d{2})(?:\\s*(?P<ampm>[APap][Mm]))?\\s*[—\\-]\\s*(?P<author>[^:]+?):\\s*(?P<message>.+))$"
 )
-
-
-_DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = (
-    {"dayfirst": True},
-    {"dayfirst": False},
-)
+_DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = ({"dayfirst": True}, {"dayfirst": False})
 
 
 def _parse_message_date(token: str) -> date | None:
@@ -422,7 +332,6 @@ def _parse_message_date(token: str) -> date | None:
     normalized = token.strip()
     if not normalized:
         return None
-
     parsed = _parse_iso_date(normalized) or _parse_with_preferences(normalized)
     if parsed is None:
         return None
@@ -441,31 +350,26 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
     current_date = export.export_date
     builder: _MessageBuilder | None = None
     position = 0
-
     for raw_line in lines:
         prepared = _prepare_line(raw_line)
         if prepared.trimmed == "":
             if builder is not None:
                 builder.append("", "")
             continue
-
         match = _LINE_PATTERN.match(prepared.trimmed)
         if not match:
             if builder is not None:
                 builder.append(_normalize_text(prepared.trimmed), prepared.normalized)
             continue
-
         msg_date, current_date = _resolve_message_date(match.group("date"), current_date)
         msg_time = _parse_message_time(match.group("time"), match.group("ampm"), prepared.trimmed)
         if msg_time is None:
             continue
-
         if builder is not None:
             row = builder.finalize()
             row[_IMPORT_ORDER_COLUMN] = position
             rows.append(row)
             position += 1
-
         builder = _start_message_builder(
             export=export,
             msg_date=msg_date,
@@ -474,16 +378,14 @@ def _parse_messages(lines: Iterable[str], export: WhatsAppExport) -> list[dict]:
             initial_message=_normalize_text(match.group("message").strip()),
             original_line=prepared.normalized,
         )
-
     if builder is not None:
         row = builder.finalize()
         row[_IMPORT_ORDER_COLUMN] = position
         rows.append(row)
-
     return rows
 
 
-_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+_INVISIBLE_MARKS = re.compile("[\\u200e\\u200f\\u202a-\\u202e]")
 
 
 def _parse_iso_date(value: str) -> datetime | None:
@@ -515,12 +417,11 @@ def _prepare_line(raw_line: str) -> _PreparedLine:
 
 def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date, date]:
     if not date_token:
-        return fallback, fallback
-
+        return (fallback, fallback)
     parsed = _parse_message_date(date_token)
     if parsed is None:
-        return fallback, fallback
-    return parsed, parsed
+        return (fallback, fallback)
+    return (parsed, parsed)
 
 
 def _parse_message_time(time_token: str, am_pm: str | None, context_line: str):
@@ -542,11 +443,7 @@ def _start_message_builder(
     initial_message: str,
     original_line: str,
 ) -> _MessageBuilder:
-    builder = _MessageBuilder(
-        timestamp=datetime.combine(msg_date, msg_time),
-        date=msg_date,
-        author=author,
-    )
+    builder = _MessageBuilder(timestamp=datetime.combine(msg_date, msg_time), date=msg_date, author=author)
     builder.append(initial_message, original_line)
     return builder
 
@@ -554,13 +451,7 @@ def _start_message_builder(
 class _MessageBuilder:
     """Incrementally assemble a message entry before committing to ``rows``."""
 
-    def __init__(
-        self,
-        *,
-        timestamp: datetime,
-        date: date,
-        author: str,
-    ) -> None:
+    def __init__(self, *, timestamp: datetime, date: date, author: str) -> None:
         self.timestamp = timestamp
         self.date = date
         self.author = author

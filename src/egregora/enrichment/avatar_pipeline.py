@@ -20,11 +20,10 @@ if TYPE_CHECKING:
 
     from google import genai
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 
-def process_avatar_commands(  # noqa: PLR0913
+def process_avatar_commands(
     messages_table: Table,
     zip_path: Path | None,
     docs_dir: Path,
@@ -58,29 +57,20 @@ def process_avatar_commands(  # noqa: PLR0913
 
     """
     logger.info("Processing avatar commands from messages")
-
-    # Extract all commands from messages
     commands = extract_commands(messages_table)
-
     avatar_commands = [cmd for cmd in commands if cmd.get("command", {}).get("target") == "avatar"]
-
     if not avatar_commands:
         logger.info("No avatar commands found")
         return {}
-
-    logger.info(f"Found {len(avatar_commands)} avatar command(s)")
-
+    logger.info("Found %s avatar command(s)", len(avatar_commands))
     results = {}
-
     for cmd_entry in avatar_commands:
         author_uuid = cmd_entry["author"]
         timestamp = cmd_entry["timestamp"]
         command = cmd_entry["command"]
         message = cmd_entry.get("message", "")
-
         cmd_type = command["command"]
         target = command["target"]
-
         if cmd_type in ("set", "unset") and target == "avatar":
             if cmd_type == "set":
                 result = _process_set_avatar_command(
@@ -96,19 +86,15 @@ def process_avatar_commands(  # noqa: PLR0913
                     value=command.get("value"),
                 )
                 results[author_uuid] = result
-
             elif cmd_type == "unset":
                 result = _process_unset_avatar_command(
-                    author_uuid=author_uuid,
-                    timestamp=timestamp,
-                    profiles_dir=profiles_dir,
+                    author_uuid=author_uuid, timestamp=timestamp, profiles_dir=profiles_dir
                 )
                 results[author_uuid] = result
-
     return results
 
 
-def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
+def _process_set_avatar_command(
     author_uuid: str,
     timestamp: str,
     message: str,
@@ -126,29 +112,21 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
         Result message describing what happened
 
     """
-    logger.info(f"Processing 'set avatar' command for {author_uuid}")
-
+    logger.info("Processing 'set avatar' command for %s", author_uuid)
     try:
-        # Determine avatar source: URL or media attachment
         avatar_uuid = None
         avatar_path = None
-
-        # Check if value is a URL
         if value:
             urls = extract_urls(value)
             if urls:
-                # Download from URL
-                logger.info(f"Downloading avatar from URL for {author_uuid}")
+                logger.info("Downloading avatar from URL for %s", author_uuid)
                 avatar_uuid, avatar_path = download_avatar_from_url(
-                    url=urls[0],
-                    docs_dir=docs_dir,
-                    group_slug=group_slug,
+                    url=urls[0], docs_dir=docs_dir, group_slug=group_slug
                 )
             else:
-                # Value might be a media filename
                 media_refs = find_media_references(message)
                 if media_refs and zip_path:
-                    logger.info(f"Extracting avatar from ZIP for {author_uuid}")
+                    logger.info("Extracting avatar from ZIP for %s", author_uuid)
                     avatar_uuid, avatar_path = extract_avatar_from_zip(
                         zip_path=zip_path,
                         media_filename=media_refs[0],
@@ -159,30 +137,19 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
                     msg = "No valid URL or media attachment found for avatar"
                     raise AvatarProcessingError(msg)
         else:
-            # No value provided, check for media attachment in message
             media_refs = find_media_references(message)
             if media_refs and zip_path:
-                logger.info(f"Extracting avatar from ZIP for {author_uuid}")
+                logger.info("Extracting avatar from ZIP for %s", author_uuid)
                 avatar_uuid, avatar_path = extract_avatar_from_zip(
-                    zip_path=zip_path,
-                    media_filename=media_refs[0],
-                    docs_dir=docs_dir,
-                    group_slug=group_slug,
+                    zip_path=zip_path, media_filename=media_refs[0], docs_dir=docs_dir, group_slug=group_slug
                 )
             else:
                 msg = "No media attachment found for avatar command"
                 raise AvatarProcessingError(msg)
-
-        # Enrich and moderate the avatar
-        logger.info(f"Enriching and moderating avatar for {author_uuid}")
+        logger.info("Enriching and moderating avatar for %s", author_uuid)
         moderation_result = enrich_and_moderate_avatar(
-            avatar_uuid=avatar_uuid,
-            avatar_path=avatar_path,
-            docs_dir=docs_dir,
-            model=model,
+            avatar_uuid=avatar_uuid, avatar_path=avatar_path, docs_dir=docs_dir, model=model
         )
-
-        # Update profile with moderation result
         update_profile_avatar(
             author_uuid=author_uuid,
             avatar_uuid=moderation_result.avatar_uuid,
@@ -192,82 +159,58 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
             timestamp=str(timestamp),
             profiles_dir=profiles_dir,
         )
-
         if moderation_result.status == "approved":
             return f"✅ Avatar approved and set for {author_uuid}"
         if moderation_result.status == "questionable":
             return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
-        # blocked
         return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
-
     except AvatarProcessingError as e:
-        logger.exception(f"Failed to process avatar for {author_uuid}: {e}")
-
-        # Clean up avatar and enrichment files if processing failed
-        # Note: If enrichment succeeded but later steps failed, files may still exist
+        logger.exception("Failed to process avatar for %s: %s", author_uuid, e)
         if avatar_path and avatar_path.exists():
             try:
                 avatar_path.unlink(missing_ok=True)
-                logger.info(f"Cleaned up avatar file after processing failure: {avatar_path}")
+                logger.info("Cleaned up avatar file after processing failure: %s", avatar_path)
             except OSError as cleanup_error:
-                logger.exception(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
-
-            # Also clean up enrichment file if it exists
+                logger.exception("Failed to clean up avatar %s: %s", avatar_path, cleanup_error)
             try:
                 enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
                 if enrichment_path.exists():
                     enrichment_path.unlink(missing_ok=True)
-                    logger.info(f"Cleaned up enrichment file after processing failure: {enrichment_path}")
+                    logger.info("Cleaned up enrichment file after processing failure: %s", enrichment_path)
             except OSError as cleanup_error:
-                logger.exception(f"Failed to clean up enrichment file: {cleanup_error}")
-
+                logger.exception("Failed to clean up enrichment file: %s", cleanup_error)
         return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
-        logger.exception(f"Unexpected error processing avatar for {author_uuid}")
-
-        # Clean up avatar and enrichment files if processing failed
+        logger.exception("Unexpected error processing avatar for %s", author_uuid)
         if avatar_path and avatar_path.exists():
             try:
                 avatar_path.unlink(missing_ok=True)
-                logger.info(f"Cleaned up avatar file after unexpected error: {avatar_path}")
+                logger.info("Cleaned up avatar file after unexpected error: %s", avatar_path)
             except OSError as cleanup_error:
-                logger.exception(f"Failed to clean up avatar {avatar_path}: {cleanup_error}")
-
-            # Also clean up enrichment file if it exists
+                logger.exception("Failed to clean up avatar %s: %s", avatar_path, cleanup_error)
             try:
                 enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
                 if enrichment_path.exists():
                     enrichment_path.unlink(missing_ok=True)
-                    logger.info(f"Cleaned up enrichment file after unexpected error: {enrichment_path}")
+                    logger.info("Cleaned up enrichment file after unexpected error: %s", enrichment_path)
             except OSError as cleanup_error:
-                logger.exception(f"Failed to clean up enrichment file: {cleanup_error}")
-
+                logger.exception("Failed to clean up enrichment file: %s", cleanup_error)
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
 
 
-def _process_unset_avatar_command(
-    author_uuid: str,
-    timestamp: str,
-    profiles_dir: Path,
-) -> str:
+def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir: Path) -> str:
     """Process an 'unset avatar' command.
 
     Returns:
         Result message describing what happened
 
     """
-    logger.info(f"Processing 'unset avatar' command for {author_uuid}")
-
+    logger.info("Processing 'unset avatar' command for %s", author_uuid)
     try:
-        remove_profile_avatar(
-            author_uuid=author_uuid,
-            timestamp=str(timestamp),
-            profiles_dir=profiles_dir,
-        )
+        remove_profile_avatar(author_uuid=author_uuid, timestamp=str(timestamp), profiles_dir=profiles_dir)
         return f"✅ Avatar removed for {author_uuid}"
-
     except Exception as e:
-        logger.exception(f"Failed to remove avatar for {author_uuid}")
+        logger.exception("Failed to remove avatar for %s", author_uuid)
         return f"❌ Failed to remove avatar for {author_uuid}: {e}"
 
 

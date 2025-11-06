@@ -10,11 +10,7 @@ from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
 from egregora.agents.tools.profiler import get_active_authors, read_profile
-from egregora.agents.tools.rag import (
-    VectorStore,
-    build_rag_context_for_writer,
-    query_similar_posts,
-)
+from egregora.agents.tools.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
 from egregora.agents.tools.rag.embedder import embed_query
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
@@ -36,7 +32,7 @@ class RagErrorReason:
     SYSTEM_ERROR = "rag_error"
 
 
-def build_rag_context_for_prompt(  # noqa: PLR0913
+def build_rag_context_for_prompt(
     table_markdown: str,
     rag_dir: Path,
     client: genai.Client,
@@ -71,7 +67,6 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         Formatted RAG context string
 
     """
-    # Use new Pydantic AI helpers if requested
     if use_pydantic_helpers:
         import asyncio
 
@@ -89,12 +84,8 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         )
     if not table_markdown.strip():
         return ""
-
     try:
-        query_vector = embed_query(
-            table_markdown,
-            model=embedding_model,
-        )
+        query_vector = embed_query(table_markdown, model=embedding_model)
         store = VectorStore(rag_dir / "chunks.parquet")
         search_results = store.search(
             query_vec=query_vector,
@@ -104,42 +95,36 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
             nprobe=retrieval_nprobe,
             overfetch=retrieval_overfetch,
         )
-
         df = search_results.execute()
         if getattr(df, "empty", False):
             logger.info("Writer RAG: no similar posts found for query")
             return ""
-
         records = df.to_dict("records")
         if not records:
             return ""
-
         lines = [
             "## Related Previous Posts (for continuity and linking):",
             "You can reference these posts in your writing to maintain conversation continuity.\n",
         ]
-
         for row in records:
             title = row.get("post_title") or "Untitled"
             post_date = row.get("post_date") or ""
             snippet = (row.get("content") or "")[:400]
             tags = row.get("tags") or []
             similarity = row.get("similarity")
-
             lines.append(f"### [{title}] ({post_date})")
             lines.append(f"{snippet}...")
-            lines.append(f"- Tags: {', '.join(tags) if tags else 'none'}")
+            lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
             if similarity is not None:
                 lines.append(f"- Similarity: {float(similarity):.2f}")
             lines.append("")
-
         return "\n".join(lines).strip()
-    except Exception as exc:  # pragma: no cover - defensive logging
+    except Exception as exc:
         logger.warning("Writer RAG context failed: %s", exc, exc_info=True)
         return ""
 
 
-def _query_rag_for_context(  # noqa: PLR0913
+def _query_rag_for_context(
     table: Table,
     _client: genai.Client,
     rag_dir: Path,
@@ -192,32 +177,28 @@ def _query_rag_for_context(  # noqa: PLR0913
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
             )
-
             if similar_posts.count().execute() == 0:
                 logger.info("No similar previous posts found")
                 logfire_info("RAG query completed", results_count=0)
                 if return_records:
                     return ("", [])
                 return Failure(RagErrorReason.NO_HITS)
-
             post_count = similar_posts.count().execute()
-            logger.info(f"Found {post_count} similar previous posts")
+            logger.info("Found %s similar previous posts", post_count)
             logfire_info("RAG query completed", results_count=post_count)
         rag_text = "\n\n## Related Previous Posts (for continuity and linking):\n"
         rag_text += "You can reference these posts in your writing to maintain conversation continuity.\n\n"
-
         records = similar_posts.execute().to_dict("records")
         for row in records:
             rag_text += f"### [{row['post_title']}] ({row['post_date']})\n"
             rag_text += f"{row['content'][:400]}...\n"
-            rag_text += f"- Tags: {', '.join(row['tags']) if row['tags'] else 'none'}\n"
+            rag_text += f"- Tags: {(', '.join(row['tags']) if row['tags'] else 'none')}\n"
             rag_text += f"- Similarity: {row['similarity']:.2f}\n\n"
-
         if return_records:
-            return rag_text, records
+            return (rag_text, records)
         return Success(RagContext(text=rag_text, records=records))
     except Exception as e:
-        logger.error(f"RAG query failed: {e}", exc_info=True)
+        logger.error("RAG query failed: %s", e, exc_info=True)
         if return_records:
             return ("", [])
         return Failure(RagErrorReason.SYSTEM_ERROR)
@@ -228,24 +209,16 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
     top_authors = get_active_authors(table, limit=20)
     if not top_authors:
         return ""
-
-    logger.info(f"Loading profiles for {len(top_authors)} active authors")
+    logger.info("Loading profiles for %s active authors", len(top_authors))
     profiles_context = "\n\n## Active Participants (Profiles):\n"
-    profiles_context += (
-        "Understanding the participants helps you write posts that match "
-        "their style, voice, and interests.\n\n"
-    )
-
+    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
     for author_uuid in top_authors:
         profile_content = read_profile(author_uuid, profiles_dir)
-
         if profile_content:
             profiles_context += f"### Author: {author_uuid}\n"
             profiles_context += f"{profile_content}\n\n"
         else:
-            # No profile yet (first time seeing this author)
             profiles_context += f"### Author: {author_uuid}\n"
             profiles_context += "(No profile yet - first appearance)\n\n"
-
-    logger.info(f"Profiles context: {len(profiles_context)} characters")
+    logger.info("Profiles context: %s characters", len(profiles_context))
     return profiles_context

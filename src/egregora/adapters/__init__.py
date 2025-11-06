@@ -11,11 +11,7 @@ Available Adapters:
 from egregora.adapters.slack import SlackAdapter
 from egregora.adapters.whatsapp import WhatsAppAdapter
 
-# Registry of available adapters
-ADAPTER_REGISTRY: dict[str, type] = {
-    "whatsapp": WhatsAppAdapter,
-    "slack": SlackAdapter,
-}
+ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}
 
 
 def get_adapter(source_identifier: str):
@@ -35,14 +31,8 @@ def get_adapter(source_identifier: str):
         available = ", ".join(ADAPTER_REGISTRY.keys())
         msg = f"Unknown source: '{source_identifier}'. Available sources: {available}"
         raise ValueError(msg)
-
     adapter_class = ADAPTER_REGISTRY[source_identifier]
     return adapter_class()
 
 
-__all__ = [
-    "ADAPTER_REGISTRY",
-    "SlackAdapter",
-    "WhatsAppAdapter",
-    "get_adapter",
-]
+__all__ = ["ADAPTER_REGISTRY", "SlackAdapter", "WhatsAppAdapter", "get_adapter"]

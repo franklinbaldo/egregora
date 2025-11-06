@@ -19,17 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 def _handle_write_post_tool(
-    fn_args: dict[str, Any],
-    fn_call: genai_types.FunctionCall,
-    output_dir: Path,
-    saved_posts: list[str],
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path, saved_posts: list[str]
 ) -> genai_types.Content:
     """Handle write_post tool call."""
     content = fn_args.get("content", "")
     metadata = fn_args.get("metadata", {})
     path = write_post(content, metadata, output_dir)
     saved_posts.append(path)
-
     return genai_types.Content(
         role="user",
         parts=[
@@ -50,7 +46,6 @@ def _handle_read_profile_tool(
     """Handle read_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
     profile_content = read_profile(author_uuid, profiles_dir)
-
     return genai_types.Content(
         role="user",
         parts=[
@@ -66,17 +61,13 @@ def _handle_read_profile_tool(
 
 
 def _handle_write_profile_tool(
-    fn_args: dict[str, Any],
-    fn_call: genai_types.FunctionCall,
-    profiles_dir: Path,
-    saved_profiles: list[str],
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, profiles_dir: Path, saved_profiles: list[str]
 ) -> genai_types.Content:
     """Handle write_profile tool call."""
     author_uuid = fn_args.get("author_uuid", "")
     content = fn_args.get("content", "")
     path = write_profile(author_uuid, content, profiles_dir)
     saved_profiles.append(path)
-
     return genai_types.Content(
         role="user",
         parts=[
@@ -91,7 +82,7 @@ def _handle_write_profile_tool(
     )
 
 
-def _handle_search_media_tool(  # noqa: PLR0913
+def _handle_search_media_tool(
     fn_args: dict[str, Any],
     fn_call: genai_types.FunctionCall,
     _client: genai.Client,
@@ -109,7 +100,6 @@ def _handle_search_media_tool(  # noqa: PLR0913
     query = fn_args.get("query", "")
     media_types = fn_args.get("media_types")
     limit = fn_args.get("limit", 5)
-
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         results = query_media(
@@ -123,8 +113,6 @@ def _handle_search_media_tool(  # noqa: PLR0913
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,
         )
-
-        # Format results for LLM
         result_count = results.count().execute()
         if result_count == 0:
             formatted_results = "No matching media found."
@@ -136,13 +124,11 @@ def _handle_search_media_tool(  # noqa: PLR0913
                     "media_type": row.get("media_type"),
                     "media_path": row.get("media_path"),
                     "original_filename": row.get("original_filename"),
-                    "description": str(row.get("content", ""))[:500],  # Truncate long descriptions
+                    "description": str(row.get("content", ""))[:500],
                     "similarity": round(float(row.get("similarity", 0)), 2),
                 }
                 formatted_list.append(media_info)
-
             formatted_results = json.dumps(formatted_list, indent=2)
-
         return genai_types.Content(
             role="user",
             parts=[
@@ -156,7 +142,7 @@ def _handle_search_media_tool(  # noqa: PLR0913
             ],
         )
     except Exception as e:
-        logger.exception(f"search_media failed: {e}")
+        logger.exception("search_media failed: %s", e)
         return genai_types.Content(
             role="user",
             parts=[
@@ -172,25 +158,16 @@ def _handle_search_media_tool(  # noqa: PLR0913
 
 
 def _handle_annotate_conversation_tool(
-    fn_args: dict[str, Any],
-    fn_call: genai_types.FunctionCall,
-    annotations_store: AnnotationStore | None,
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, annotations_store: AnnotationStore | None
 ) -> genai_types.Content:
     """Persist annotation data using the AnnotationStore."""
     if annotations_store is None:
         msg = "Annotation store is not configured"
         raise RuntimeError(msg)
-
     parent_id = _stringify_value(fn_args.get("parent_id"))
     parent_type = _stringify_value(fn_args.get("parent_type"))
     commentary = _stringify_value(fn_args.get("commentary"))
-
-    annotation = annotations_store.save_annotation(
-        parent_id,
-        parent_type,
-        commentary,
-    )
-
+    annotation = annotations_store.save_annotation(parent_id, parent_type, commentary)
     response_payload = {
         "status": "ok",
         "annotation_id": annotation.id,
@@ -199,15 +176,12 @@ def _handle_annotate_conversation_tool(
         "created_at": annotation.created_at.isoformat(),
         "author": annotation.author,
     }
-
     return genai_types.Content(
         role="user",
         parts=[
             genai_types.Part(
                 function_response=genai_types.FunctionResponse(
-                    id=getattr(fn_call, "id", None),
-                    name="annotate_conversation",
-                    response=response_payload,
+                    id=getattr(fn_call, "id", None), name="annotate_conversation", response=response_payload
                 )
             )
         ],
@@ -215,28 +189,22 @@ def _handle_annotate_conversation_tool(
 
 
 def _handle_generate_banner_tool(
-    fn_args: dict[str, Any],
-    fn_call: genai_types.FunctionCall,
-    output_dir: Path,
+    fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path
 ) -> genai_types.Content:
     """Handle generate_banner tool call."""
     post_slug = fn_args.get("post_slug", "")
     title = fn_args.get("title", "")
     summary = fn_args.get("summary", "")
-
     try:
-        # Generate banner image for the post
         banner_path = generate_banner_for_post(
             post_title=title,
             post_summary=summary,
             output_dir=output_dir / "media" / "banners",
             slug=post_slug,
         )
-
         if banner_path:
-            # Return relative path for use in post frontmatter
             relative_path = f"../media/banners/{banner_path.name}"
-            logger.info(f"Banner generated at: {relative_path}")
+            logger.info("Banner generated at: %s", relative_path)
             return genai_types.Content(
                 role="user",
                 parts=[
@@ -253,7 +221,7 @@ def _handle_generate_banner_tool(
                     )
                 ],
             )
-        logger.warning(f"Banner generation returned None for post: {title}")
+        logger.warning("Banner generation returned None for post: %s", title)
         return genai_types.Content(
             role="user",
             parts=[
@@ -270,7 +238,7 @@ def _handle_generate_banner_tool(
             ],
         )
     except Exception as e:
-        logger.exception(f"Failed to generate banner for {title}: {e}")
+        logger.exception("Failed to generate banner for %s: %s", title, e)
         return genai_types.Content(
             role="user",
             parts=[

@@ -23,7 +23,6 @@ def configure_logfire() -> bool:
     if not token:
         logger.info("LOGFIRE_TOKEN not set, skipping Logfire configuration")
         return False
-
     try:
         import logfire
 
@@ -33,7 +32,7 @@ def configure_logfire() -> bool:
     except ImportError:
         logger.warning("logfire package not installed, skipping configuration")
         return False
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         logger.warning("Failed to configure Logfire: %s", exc)
         return False
 
@@ -67,7 +66,6 @@ def logfire_span(name: str, **kwargs):
     logfire = get_logfire()
     if logfire and configure_logfire():
         return logfire.span(name, **kwargs)
-
     from contextlib import nullcontext
 
     return nullcontext()

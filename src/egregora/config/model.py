@@ -7,23 +7,14 @@ from typing import Any, Literal
 
 from egregora.config.site import load_mkdocs_config
 
-# Fixed embedding dimensionality for all operations
-# Using 768 as the standard dimension (Gemini text-embedding-004 default)
-# This simplifies the codebase and enables HNSW index optimization
 EMBEDDING_DIM = 768
-
 logger = logging.getLogger(__name__)
-
-# Default models for different tasks (using pydantic-ai notation)
-# This is our standard format - pydantic-ai agents use this directly.
-# For direct Google SDK calls (embeddings), use from_pydantic_ai_model().
 DEFAULT_WRITER_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_ENRICHER_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_ENRICHER_VISION_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_RANKING_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_EDITOR_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_EMBEDDING_MODEL = "google-gla:gemini-embedding-001"
-
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
 
 
@@ -44,25 +35,17 @@ def from_pydantic_ai_model(model_name: str) -> str:
         Model name in Google API format (models/model-name)
 
     """
-    # Remove pydantic-ai provider prefix if present
     if ":" in model_name:
         _, model_name = model_name.split(":", 1)
-
-    # Add Google API prefix if not already present
     if not model_name.startswith("models/"):
         model_name = f"models/{model_name}"
-
     return model_name
 
 
 class ModelConfig:
     """Centralized model configuration with fallback hierarchy."""
 
-    def __init__(
-        self,
-        cli_model: str | None = None,
-        site_config: dict[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, cli_model: str | None = None, site_config: dict[str, Any] | None = None) -> None:
         """Initialize model config with CLI override and site config.
 
         Args:
@@ -89,25 +72,18 @@ class ModelConfig:
             Model name to use
 
         """
-        # 1. CLI flag (highest priority)
         if self.cli_model:
-            logger.debug(f"Using CLI model for {model_type}: {self.cli_model}")
+            logger.debug("Using CLI model for %s: %s", model_type, self.cli_model)
             return self.cli_model
-
-        # 2. Specific model for this task in site config
         models_config = self.site_config.get("models", {})
         if model_type in models_config:
             model = models_config[model_type]
-            logger.debug(f"Using site config model for {model_type}: {model}")
+            logger.debug("Using site config model for %s: %s", model_type, model)
             return model
-
-        # 3. Global model override in site config
         if "model" in self.site_config:
             model = self.site_config["model"]
-            logger.debug(f"Using global site config model for {model_type}: {model}")
+            logger.debug("Using global site config model for %s: %s", model_type, model)
             return model
-
-        # 4. Default for task type
         defaults = {
             "writer": DEFAULT_WRITER_MODEL,
             "enricher": DEFAULT_ENRICHER_MODEL,
@@ -117,7 +93,7 @@ class ModelConfig:
             "embedding": DEFAULT_EMBEDDING_MODEL,
         }
         model = defaults[model_type]
-        logger.debug(f"Using default model for {model_type}: {model}")
+        logger.debug("Using default model for %s: %s", model_type, model)
         return model
 
 
@@ -132,11 +108,9 @@ def load_site_config(output_dir: Path) -> dict[str, Any]:
 
     """
     config, mkdocs_path = load_mkdocs_config(output_dir)
-
     if not mkdocs_path:
         logger.debug("No mkdocs.yml found, using default config")
         return {}
-
     egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.debug(f"Loaded site config from {mkdocs_path}")
+    logger.debug("Loaded site config from %s", mkdocs_path)
     return egregora_config

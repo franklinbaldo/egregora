@@ -7,10 +7,7 @@ import zipfile
 from typing import TYPE_CHECKING, Any
 
 from egregora.enrichment.batch import _iter_table_record_batches
-from egregora.enrichment.media import (
-    extract_media_from_zip,
-    find_media_references,
-)
+from egregora.enrichment.media import extract_media_from_zip, find_media_references
 from egregora.ingestion.base import InputMetadata, InputSource
 from egregora.ingestion.parser import parse_export
 from egregora.schema import group_slug
@@ -21,7 +18,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 
@@ -53,26 +49,22 @@ class WhatsAppInputSource(InputSource):
         """
         if not source_path.exists():
             return False
-
         if not source_path.is_file():
             return False
-
         if source_path.suffix.lower() != ".zip":
             return False
-
-        # Check if ZIP contains a .txt file (chat export)
         try:
             with zipfile.ZipFile(source_path) as zf:
                 txt_files = [f for f in zf.namelist() if f.endswith(".txt")]
                 return len(txt_files) > 0
         except zipfile.BadZipFile:
-            logger.debug(f"File {source_path} is not a valid ZIP file (corrupted)")
+            logger.debug("File %s is not a valid ZIP file (corrupted)", source_path)
             return False
         except PermissionError:
-            logger.debug(f"Permission denied reading {source_path}")
+            logger.debug("Permission denied reading %s", source_path)
             return False
         except OSError as e:
-            logger.debug(f"OS error reading {source_path}: {e}")
+            logger.debug("OS error reading %s: %s", source_path, e)
             return False
 
     def parse(
@@ -103,21 +95,13 @@ class WhatsAppInputSource(InputSource):
         if not self.supports_format(source_path):
             msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
             raise ValueError(msg)
-
-        # Detect chat file and media files in ZIP
         chat_file, media_files = self._detect_zip_contents(source_path)
-
-        # Infer group name from filename if not provided
         if group_name is None:
             group_name = self._infer_group_name(source_path)
-
-        # Use today's date if export_date not provided
         if export_date is None:
             from datetime import date as date_type
 
             export_date = date_type.today()
-
-        # Create WhatsAppExport metadata
         slug = group_slug(group_name)
         export = WhatsAppExport(
             zip_path=source_path,
@@ -127,15 +111,11 @@ class WhatsAppInputSource(InputSource):
             chat_file=chat_file,
             media_files=media_files,
         )
-
-        # Parse using existing parser
         try:
             table = parse_export(export, timezone=timezone)
         except Exception as e:
             msg = f"Failed to parse WhatsApp export: {e}"
             raise RuntimeError(msg) from e
-
-        # Create metadata
         metadata = InputMetadata(
             source_type=self.source_type,
             group_name=group_name,
@@ -148,8 +128,7 @@ class WhatsAppInputSource(InputSource):
                 "zip_path": str(source_path),
             },
         )
-
-        return table, metadata
+        return (table, metadata)
 
     def extract_media(
         self,
@@ -176,19 +155,13 @@ class WhatsAppInputSource(InputSource):
         if not self.supports_format(source_path):
             msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
             raise ValueError(msg)
-
         if group_slug is None:
-            # Infer from filename
             from egregora.schema import group_slug as create_slug
 
             group_name = self._infer_group_name(source_path)
             group_slug = create_slug(group_name)
-
-        # Find media references in messages
         media_filenames = set()
-
         if table is not None:
-            # Scan table for media references using streaming (Ibis-first policy)
             try:
                 batch_size = 1000
                 for batch_records in _iter_table_record_batches(table.select("message"), batch_size):
@@ -197,40 +170,28 @@ class WhatsAppInputSource(InputSource):
                         refs = find_media_references(message)
                         media_filenames.update(refs)
             except Exception as e:
-                logger.warning(f"Failed to scan table for media references: {e}")
-
-        # If no table provided or scan failed, extract all media
+                logger.warning("Failed to scan table for media references: %s", e)
         if not media_filenames:
             _, media_files = self._detect_zip_contents(source_path)
             media_filenames = set(media_files)
-
         if not media_filenames:
             return {}
-
-        # Extract media files
         extracted = extract_media_from_zip(
-            zip_path=source_path,
-            filenames=media_filenames,
-            docs_dir=output_dir,
-            group_slug=group_slug,
+            zip_path=source_path, filenames=media_filenames, docs_dir=output_dir, group_slug=group_slug
         )
-
-        # Convert absolute paths to relative paths from output_dir
-        # Security: Never return absolute paths as they could leak system info
         result = {}
         for original, absolute_path in extracted.items():
             try:
                 relative = absolute_path.relative_to(output_dir)
                 result[original] = str(relative)
             except ValueError as e:
-                # This should never happen if extract_media_from_zip works correctly
-                # Log error and skip this file rather than exposing absolute paths
                 logger.exception(
-                    f"Media file {original} at {absolute_path} is not relative to "
-                    f"output_dir {output_dir}. This is a bug. Skipping file. Error: {e}"
+                    "Media file %s at %s is not relative to output_dir %s. This is a bug. Skipping file. Error: %s",
+                    original,
+                    absolute_path,
+                    output_dir,
+                    e,
                 )
-                # Skip this file - don't add to result
-
         return result
 
     def _detect_zip_contents(self, zip_path: Path) -> tuple[str, list[str]]:
@@ -248,20 +209,13 @@ class WhatsAppInputSource(InputSource):
         try:
             with zipfile.ZipFile(zip_path) as zf:
                 all_files = [f for f in zf.namelist() if not f.endswith("/")]
-
-                # Find .txt chat file
                 txt_files = [f for f in all_files if f.endswith(".txt")]
                 if not txt_files:
                     msg = f"No .txt chat file found in {zip_path}"
                     raise ValueError(msg)
-
-                # Use the first .txt file as chat file
                 chat_file = txt_files[0]
-
-                # Other files are media
                 media_files = [f for f in all_files if f != chat_file]
-
-                return chat_file, media_files
+                return (chat_file, media_files)
         except zipfile.BadZipFile as e:
             msg = f"Corrupted ZIP file: {zip_path}"
             raise ValueError(msg) from e
@@ -279,15 +233,9 @@ class WhatsAppInputSource(InputSource):
             Inferred group name
 
         """
-        # Remove .zip extension and use filename
         name = zip_path.stem
-
-        # Remove common prefixes like "WhatsApp Chat - "
         prefixes = ["WhatsApp Chat - ", "WhatsApp-Chat-", "Chat-"]
         for prefix in prefixes:
             name = name.removeprefix(prefix)
-
-        # Clean up underscores and dashes
         name = name.replace("_", " ").replace("-", " ")
-
         return name.strip() or "WhatsApp Export"

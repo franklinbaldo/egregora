@@ -14,12 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
-__all__ = [
-    "PipelineStage",
-    "StageConfig",
-    "StageResult",
-]
+__all__ = ["PipelineStage", "StageConfig", "StageResult"]
 
 
 @dataclass
@@ -30,22 +25,13 @@ class StageConfig:
     Individual stages may extend this with stage-specific options.
     """
 
-    # Stage enabling/disabling
     enabled: bool = True
-
-    # Caching configuration
     cache_enabled: bool = False
     cache_dir: Path = Path(".egregora-cache")
-
-    # Checkpointing configuration (for resumable stages)
     checkpoint_enabled: bool = False
     checkpoint_dir: Path = Path(".egregora/checkpoints")
-
-    # Error handling
     max_retries: int = 3
     timeout_seconds: int | None = None
-
-    # Stage-specific parameters (override in subclasses)
     params: dict[str, Any] = field(default_factory=dict)
 
 
@@ -56,19 +42,10 @@ class StageResult:
     Contains the transformed data plus metadata about the execution.
     """
 
-    # Transformed data (primary output)
     data: Table
-
-    # Metadata about the execution
     metadata: dict[str, Any] = field(default_factory=dict)
-
-    # Any artifacts produced by the stage (e.g., media mappings, file paths)
     artifacts: dict[str, Any] = field(default_factory=dict)
-
-    # Whether this stage modified the data
     modified: bool = True
-
-    # Stage-specific metrics (e.g., rows processed, items enriched)
     metrics: dict[str, int | float] = field(default_factory=dict)
 
 
@@ -114,11 +91,7 @@ class PipelineStage(ABC):
         """
 
     @abstractmethod
-    def process(
-        self,
-        data: Table,
-        context: dict[str, Any],
-    ) -> StageResult:
+    def process(self, data: Table, context: dict[str, Any]) -> StageResult:
         """Execute the stage transformation.
 
         This is the core method that performs the stage's work.
@@ -166,7 +139,7 @@ class PipelineStage(ABC):
             Override to add custom validation logic.
 
         """
-        return True, []
+        return (True, [])
 
     def __repr__(self) -> str:
         """String representation of the stage."""

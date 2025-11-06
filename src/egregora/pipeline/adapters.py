@@ -17,21 +17,9 @@ from uuid import UUID, uuid5
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
-
-__all__ = [
-    "MEDIA_UUID_NAMESPACE",
-    "MediaMapping",
-    "SourceAdapter",
-]
-
-
-# Type alias for media mapping: {reference_in_message: actual_file_path}
+__all__ = ["MEDIA_UUID_NAMESPACE", "MediaMapping", "SourceAdapter"]
 MediaMapping = dict[str, Path]
-
-# Namespace for content-hash based UUIDs (shared across all adapters)
-# Using URL namespace as recommended for content-addressable identifiers
 MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
 
@@ -74,13 +62,7 @@ class SourceAdapter(ABC):
         """
 
     @abstractmethod
-    def parse(
-        self,
-        input_path: Path,
-        *,
-        timezone: str | None = None,
-        **kwargs: Any,
-    ) -> Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Table:
         """Parse the raw export and return an IR-compliant Ibis Table.
 
         This is the primary method that converts source-specific data into
@@ -124,12 +106,7 @@ class SourceAdapter(ABC):
 
         """
 
-    def extract_media(
-        self,
-        _input_path: Path,
-        _output_dir: Path,
-        **_kwargs: Any,
-    ) -> MediaMapping:
+    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from the export (OPTIONAL).
 
         Some sources bundle media with the export (e.g., WhatsApp ZIP).
@@ -158,12 +135,7 @@ class SourceAdapter(ABC):
         """
         return {}
 
-    def deliver_media(
-        self,
-        _media_reference: str,
-        _temp_dir: Path,
-        **_kwargs: Any,
-    ) -> Path | None:
+    def deliver_media(self, _media_reference: str, _temp_dir: Path, **_kwargs: Any) -> Path | None:
         """Deliver media file to temporary directory (OPTIONAL).
 
         This method is called lazily by the runner for each media reference
@@ -231,10 +203,6 @@ class SourceAdapter(ABC):
         """
         return {}
 
-    # =========================================================================
-    # Concrete Helper Methods (provided by base class)
-    # =========================================================================
-
     @staticmethod
     def generate_media_uuid(file_path: Path) -> str:
         """Generate content-hash based UUID for media file (HELPER METHOD).
@@ -260,26 +228,17 @@ class SourceAdapter(ABC):
             >>> uuid1 == uuid2  # True if content is identical
 
         """
-        # Compute SHA-256 hash of file content
         sha256 = hashlib.sha256()
         with file_path.open("rb") as f:
             # Read in chunks to handle large files efficiently
             for chunk in iter(lambda: f.read(8192), b""):
                 sha256.update(chunk)
-
         content_hash = sha256.hexdigest()
-
-        # Generate UUIDv5 from content hash using shared namespace
         media_uuid = uuid5(MEDIA_UUID_NAMESPACE, content_hash)
-
         return str(media_uuid)
 
     def standardize_media_file(
-        self,
-        source_file: Path,
-        media_dir: Path,
-        *,
-        get_subfolder: callable | None = None,
+        self, source_file: Path, media_dir: Path, *, get_subfolder: callable | None = None
     ) -> Path:
         """Standardize a media file with content-hash UUID (HELPER METHOD).
 
@@ -311,49 +270,34 @@ class SourceAdapter(ABC):
             /abs/path/docs/media/images/abc123-uuid.jpg
 
         """
-        # Generate content-based UUID
         media_uuid = self.generate_media_uuid(source_file)
         file_extension = source_file.suffix
-
-        # Determine subfolder
         if get_subfolder:
             subfolder = get_subfolder(file_extension)
             target_dir = media_dir / subfolder
         else:
             target_dir = media_dir
-
         target_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create standardized path
         standardized_name = f"{media_uuid}{file_extension}"
         standardized_path = target_dir / standardized_name
-
-        # Move file (with atomic deduplication and cross-filesystem support)
-        # Try atomic rename first (fastest, works on same filesystem)
         try:
             source_file.rename(standardized_path)
-            logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
+            logger.debug("Standardized media: %s → %s", source_file.name, standardized_name)
         except FileExistsError:
-            # File already exists (deduplication working!)
-            logger.debug(f"Media file already exists (duplicate): {standardized_name}")
-            source_file.unlink()  # Remove temp file
+            logger.debug("Media file already exists (duplicate): %s", standardized_name)
+            source_file.unlink()
         except OSError as e:
-            # Handle cross-filesystem move (errno 18: EXDEV)
-            # rename() only works within same filesystem, fall back to shutil.move()
-            if e.errno == 18:  # EXDEV: Cross-device link
+            if e.errno == 18:
                 logger.debug("Cross-filesystem move detected, using shutil.move()")
                 try:
                     shutil.move(str(source_file), str(standardized_path))
-                    logger.debug(f"Standardized media: {source_file.name} → {standardized_name}")
+                    logger.debug("Standardized media: %s → %s", source_file.name, standardized_name)
                 except FileExistsError:
-                    # Deduplication after shutil.move()
-                    logger.debug(f"Media file already exists (duplicate): {standardized_name}")
+                    logger.debug("Media file already exists (duplicate): %s", standardized_name)
                     if source_file.exists():
                         source_file.unlink()
             else:
-                # Re-raise other OSErrors (permissions, disk full, etc.)
                 raise
-
         return standardized_path.resolve()
 
     def __repr__(self) -> str:

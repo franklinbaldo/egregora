@@ -10,18 +10,12 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 if TYPE_CHECKING:
     from pathlib import Path
-
 logger = logging.getLogger(__name__)
-
 DEFAULT_STEP_ORDER = ("enrichment", "writing", "profiles", "rag")
 
 
 def _default_checkpoint(period: str) -> dict[str, Any]:
-    return {
-        "period": period,
-        "steps": dict.fromkeys(DEFAULT_STEP_ORDER, "pending"),
-        "timestamp": None,
-    }
+    return {"period": period, "steps": dict.fromkeys(DEFAULT_STEP_ORDER, "pending"), "timestamp": None}
 
 
 @dataclass(slots=True)
@@ -49,19 +43,15 @@ class CheckpointStore:
         path = self.path_for_period(period)
         if not path.exists():
             return _default_checkpoint(period)
-
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             logger.warning("Checkpoint file corrupted, resetting: %s", path)
             return _default_checkpoint(period)
-
-        # Ensure required keys exist
         data.setdefault("period", period)
         steps = data.setdefault("steps", {})
         for step in self.step_order:
             steps.setdefault(step, "pending")
-
         return data
 
     def save(
@@ -71,11 +61,10 @@ class CheckpointStore:
     ) -> None:
         """Persist checkpoint to disk."""
         path = self.path_for_period(period)
-        data = dict(data)  # shallow copy
+        data = dict(data)
         data["period"] = period
         data.setdefault("steps", {})
         data["timestamp"] = datetime.now(UTC).isoformat()
-
         tmp_path = path.with_suffix(".json.tmp")
         tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_path.replace(path)

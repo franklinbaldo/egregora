@@ -30,11 +30,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from google import genai
-
 logger = logging.getLogger(__name__)
-
-
-# Pydantic Models for Tool Results and Final Output
 
 
 class EditLineResult(BaseModel):
@@ -88,23 +84,16 @@ class EditorAgentResult(BaseModel):
     notes: str = Field(default="", description="Editor notes or explanation")
 
 
-# Agent State
-
-
 class EditorAgentState(BaseModel):
     """State passed to editor agent tools."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
     editor: Editor
     rag_dir: Path
-    client: Any  # genai.Client, but use Any to allow test mocks
-    model_config_obj: ModelConfig  # Renamed to avoid conflict with pydantic's model_config
+    client: Any
+    model_config_obj: ModelConfig
     post_path: Path
     tool_calls_log: list[dict[str, Any]] = Field(default_factory=list)
-
-
-# Helper Functions
 
 
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
@@ -120,33 +109,20 @@ def snapshot_to_markdown(snapshot: DocumentSnapshot) -> str:
 
 
 async def query_rag_impl(
-    query: str,
-    max_results: int,
-    rag_dir: Path,
-    _client: genai.Client,
-    model_config: ModelConfig,
+    query: str, max_results: int, rag_dir: Path, _client: genai.Client, model_config: ModelConfig
 ) -> QueryRAGResult:
     """RAG search implementation."""
     if not rag_dir.exists():
         return QueryRAGResult(results=[], summary="RAG system not available (no posts indexed yet)")
-
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         embedding_model = model_config.get_model("embedding")
-        # Create a dummy table for query_similar_posts
         dummy_table = ibis.memtable({"query_text": [query]})
-
         results = await query_similar_posts(
-            table=dummy_table,
-            store=store,
-            embedding_model=embedding_model,
-            top_k=max_results,
+            table=dummy_table, store=store, embedding_model=embedding_model, top_k=max_results
         )
-
         if not results:
             return QueryRAGResult(results=[], summary=f"No relevant results found for: {query}")
-
-        # Format results
         result_dicts = [
             {
                 "post_id": result.get("post_id", "unknown"),
@@ -155,20 +131,14 @@ async def query_rag_impl(
             }
             for result in results
         ]
-
         summary = f"Found {len(result_dicts)} relevant results for: {query}"
         return QueryRAGResult(results=result_dicts, summary=summary)
-
     except Exception as e:
         logger.exception("RAG query failed")
         return QueryRAGResult(results=[], summary=f"RAG query failed: {e!s}")
 
 
-async def ask_llm_impl(
-    question: str,
-    client: genai.Client,
-    model: str,
-) -> AskLLMResult:
+async def ask_llm_impl(question: str, client: genai.Client, model: str) -> AskLLMResult:
     """Simple Q&A with fresh LLM instance."""
     from google.genai import types as genai_types
 
@@ -176,24 +146,14 @@ async def ask_llm_impl(
         response = await call_with_retries(
             client.aio.models.generate_content,
             model=model,
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=[genai_types.Part(text=question)],
-                )
-            ],
+            contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=question)])],
             config=genai_types.GenerateContentConfig(temperature=0.7),
         )
-
         answer = (response.text or "No response").strip()
         return AskLLMResult(answer=answer)
-
     except Exception as e:
         logger.exception("ask_llm failed")
         return AskLLMResult(answer=f"[LLM query failed: {e!s}]")
-
-
-# Tool Registration
 
 
 def _register_editor_tools(agent: Agent) -> None:
@@ -201,10 +161,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
     @agent.tool
     def edit_line_tool(
-        ctx: RunContext[EditorAgentState],
-        expect_version: int,
-        index: int,
-        new_text: str,
+        ctx: RunContext[EditorAgentState], expect_version: int, index: int, new_text: str
     ) -> EditLineResult:
         """Replace a single line in the document.
 
@@ -214,16 +171,10 @@ def _register_editor_tools(agent: Agent) -> None:
             new_text: New content for this line
 
         """
-        result_dict = ctx.deps.editor.edit_line(
-            expect_version=expect_version,
-            index=index,
-            new=new_text,
-        )
-
+        result_dict = ctx.deps.editor.edit_line(expect_version=expect_version, index=index, new=new_text)
         ctx.deps.tool_calls_log.append(
             {"tool": "edit_line", "args": {"expect_version": expect_version, "index": index}}
         )
-
         if result_dict.get("ok"):
             return EditLineResult(
                 success=True,
@@ -236,9 +187,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
     @agent.tool
     def full_rewrite_tool(
-        ctx: RunContext[EditorAgentState],
-        expect_version: int,
-        content: str,
+        ctx: RunContext[EditorAgentState], expect_version: int, content: str
     ) -> FullRewriteResult:
         """Replace the entire document content.
 
@@ -247,13 +196,8 @@ def _register_editor_tools(agent: Agent) -> None:
             content: New complete document content
 
         """
-        result_dict = ctx.deps.editor.full_rewrite(
-            expect_version=expect_version,
-            content=content,
-        )
-
+        result_dict = ctx.deps.editor.full_rewrite(expect_version=expect_version, content=content)
         ctx.deps.tool_calls_log.append({"tool": "full_rewrite", "args": {"expect_version": expect_version}})
-
         if result_dict.get("ok"):
             return FullRewriteResult(
                 success=True,
@@ -261,16 +205,12 @@ def _register_editor_tools(agent: Agent) -> None:
                 new_version=result_dict.get("version"),
             )
         return FullRewriteResult(
-            success=False,
-            message=result_dict.get("error", "Rewrite failed"),
-            new_version=None,
+            success=False, message=result_dict.get("error", "Rewrite failed"), new_version=None
         )
 
     @agent.tool
     async def query_rag_tool(
-        ctx: RunContext[EditorAgentState],
-        query: str,
-        max_results: int = 5,
+        ctx: RunContext[EditorAgentState], query: str, max_results: int = 5
     ) -> QueryRAGResult:
         """Search past Egregora posts and enrichments for relevant context.
 
@@ -284,7 +224,6 @@ def _register_editor_tools(agent: Agent) -> None:
         ctx.deps.tool_calls_log.append(
             {"tool": "query_rag", "args": {"query": query, "max_results": max_results}}
         )
-
         return await query_rag_impl(
             query=query,
             max_results=max_results,
@@ -294,10 +233,7 @@ def _register_editor_tools(agent: Agent) -> None:
         )
 
     @agent.tool
-    async def ask_llm_tool(
-        ctx: RunContext[EditorAgentState],
-        question: str,
-    ) -> AskLLMResult:
+    async def ask_llm_tool(ctx: RunContext[EditorAgentState], question: str) -> AskLLMResult:
         """Ask a separate LLM for ideas, clarification, or creative input.
 
         Use cases:
@@ -313,13 +249,8 @@ def _register_editor_tools(agent: Agent) -> None:
 
         """
         ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
-
         model = ctx.deps.model_config_obj.get_model("editor")
-        return await ask_llm_impl(
-            question=question,
-            client=ctx.deps.client,
-            model=model,
-        )
+        return await ask_llm_impl(question=question, client=ctx.deps.client, model=model)
 
     @agent.tool
     def generate_banner_tool(ctx: RunContext[EditorAgentState]) -> BannerResult:
@@ -334,45 +265,28 @@ def _register_editor_tools(agent: Agent) -> None:
 
         """
         try:
-            # Load front matter from the post
             post = frontmatter.load(ctx.deps.post_path)
-
-            # Extract required metadata
             title = post.get("title", "")
             summary = post.get("summary", "")
             slug = post.get("slug", ctx.deps.post_path.stem)
-
             if not title:
-                return BannerResult(
-                    status="error",
-                    path=None,
-                )
-
-            # Use post directory as output directory
+                return BannerResult(status="error", path=None)
             output_dir = ctx.deps.post_path.parent
-
-            # Generate banner
             ctx.deps.tool_calls_log.append(
                 {"tool": "generate_banner", "args": {"slug": slug, "title": title}}
             )
-
             banner_path = generate_banner_for_post(
-                post_title=title,
-                post_summary=summary or title,
-                output_dir=output_dir,
-                slug=slug,
+                post_title=title, post_summary=summary or title, output_dir=output_dir, slug=slug
             )
-
             if banner_path:
                 return BannerResult(status="success", path=str(banner_path))
             return BannerResult(status="failed", path=None)
-
         except Exception:
             logger.exception("Banner generation failed in editor")
             return BannerResult(status="error", path=None)
 
 
-async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
+async def run_editor_session_with_pydantic_agent(
     post_path: Path,
     client: genai.Client,
     model_config: ModelConfig,
@@ -401,16 +315,12 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         - tool_calls: list - Log of tool calls
 
     """
-    # Load post content
     if not post_path.exists():
         msg = f"Post not found: {post_path}"
         raise FileNotFoundError(msg)
-
     original_content = post_path.read_text(encoding="utf-8")
     snapshot = markdown_to_snapshot(original_content, doc_id=str(post_path))
     editor = Editor(snapshot)
-
-    # Prepare initial prompt
     context = context or {}
     prompt = EditorPromptTemplate(
         post_content=original_content,
@@ -419,8 +329,6 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         lines=snapshot.lines,
         context=context,
     ).render()
-
-    # Create agent state
     state = EditorAgentState(
         editor=editor,
         rag_dir=rag_dir,
@@ -429,23 +337,15 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         post_path=post_path,
         tool_calls_log=[],
     )
-
-    # Create agent using our shared infrastructure
     model_name = model_config.get_model("editor")
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
-
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
-        # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
         if agent_model is None:
             model = model_name
         else:
             model = agent_model
-
-        # Create the agent
         agent = Agent[EditorAgentState, EditorAgentResult](
-            model=model,
-            deps_type=EditorAgentState,
-            output_type=EditorAgentResult,
+            model=model, deps_type=EditorAgentState, output_type=EditorAgentResult
         )
 
         @agent.system_prompt
@@ -459,16 +359,10 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
             )
             return template.render()
 
-        # Register tools
         _register_editor_tools(agent)
-
         try:
-            # Run the agent
             result = await agent.run(prompt, deps=state)
-
-            # Get final result
             final_result = result.output
-
             return {
                 "final_content": snapshot_to_markdown(editor.snapshot),
                 "decision": final_result.decision,
@@ -476,7 +370,6 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
                 "edits_made": editor.snapshot.version > 1,
                 "tool_calls": state.tool_calls_log,
             }
-
         except Exception as e:
             logger.exception("Editor agent failed")
             msg = "Editor agent execution failed"

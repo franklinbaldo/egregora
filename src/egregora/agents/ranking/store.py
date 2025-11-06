@@ -31,74 +31,33 @@ class RankingStore:
         """
         self.rankings_dir = rankings_dir
         rankings_dir.mkdir(parents=True, exist_ok=True)
-
         self.db_path = rankings_dir / "rankings.duckdb"
         self.conn = duckdb.connect(str(self.db_path))
         self._init_schema()
-
-        logger.info(f"Ranking store initialized: {self.db_path}")
+        logger.info("Ranking store initialized: %s", self.db_path)
 
     def _init_schema(self) -> None:
         """Create tables and indexes if they don't exist."""
-        # Note: Ranking store schema has extra fields beyond database_schema definitions
-        # (profile_id, post_a/b, comment_a/b, stars_a/b, games_played)
-        # Keeping existing SQL for now - can migrate to Ibis later
-
-        # ELO ratings table
         self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_ratings (
-                post_id VARCHAR PRIMARY KEY,
-                elo_global DOUBLE NOT NULL DEFAULT 1500,
-                games_played INTEGER NOT NULL DEFAULT 0,
-                last_updated TIMESTAMP NOT NULL
-            )
-        """
-        )
-
-        # Comparison history table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS elo_history (
-                comparison_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                profile_id VARCHAR NOT NULL,
-                post_a VARCHAR NOT NULL,
-                post_b VARCHAR NOT NULL,
-                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-                comment_a VARCHAR NOT NULL,
-                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-                comment_b VARCHAR NOT NULL,
-                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)
-            )
-        """
-        )
-
-        # Create indexes for efficient queries
-        self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)
-        """
+            "\n            CREATE TABLE IF NOT EXISTS elo_ratings (\n                post_id VARCHAR PRIMARY KEY,\n                elo_global DOUBLE NOT NULL DEFAULT 1500,\n                games_played INTEGER NOT NULL DEFAULT 0,\n                last_updated TIMESTAMP NOT NULL\n            )\n        "
         )
         self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)
-        """
+            "\n            CREATE TABLE IF NOT EXISTS elo_history (\n                comparison_id VARCHAR PRIMARY KEY,\n                timestamp TIMESTAMP NOT NULL,\n                profile_id VARCHAR NOT NULL,\n                post_a VARCHAR NOT NULL,\n                post_b VARCHAR NOT NULL,\n                winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),\n                comment_a VARCHAR NOT NULL,\n                stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),\n                comment_b VARCHAR NOT NULL,\n                stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5)\n            )\n        "
         )
         self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)
-        """
+            "\n            CREATE INDEX IF NOT EXISTS idx_history_post_a ON elo_history(post_a)\n        "
         )
         self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)
-        """
+            "\n            CREATE INDEX IF NOT EXISTS idx_history_post_b ON elo_history(post_b)\n        "
         )
         self.conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)
-        """
+            "\n            CREATE INDEX IF NOT EXISTS idx_history_timestamp ON elo_history(timestamp)\n        "
+        )
+        self.conn.execute(
+            "\n            CREATE INDEX IF NOT EXISTS idx_ratings_games ON elo_ratings(games_played)\n        "
+        )
+        self.conn.execute(
+            "\n            CREATE INDEX IF NOT EXISTS idx_ratings_elo ON elo_ratings(elo_global)\n        "
         )
 
     def initialize_ratings(self, post_ids: list[str]) -> int:
@@ -115,31 +74,14 @@ class RankingStore:
         """
         if not post_ids:
             return 0
-
         now = datetime.now(UTC)
-
-        # Use DuckDB's unnest function to create table from list
-        # This is more efficient than VALUES for large lists
         result = self.conn.execute(
-            """
-            INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)
-            SELECT np.post_id, 1500, 0, ?
-            FROM (
-                SELECT DISTINCT unnest(?::VARCHAR[]) as post_id
-            ) AS np
-            WHERE NOT EXISTS (
-                SELECT 1 FROM elo_ratings er
-                WHERE er.post_id = np.post_id
-            )
-            RETURNING post_id
-        """,
+            "\n            INSERT INTO elo_ratings (post_id, elo_global, games_played, last_updated)\n            SELECT np.post_id, 1500, 0, ?\n            FROM (\n                SELECT DISTINCT unnest(?::VARCHAR[]) as post_id\n            ) AS np\n            WHERE NOT EXISTS (\n                SELECT 1 FROM elo_ratings er\n                WHERE er.post_id = np.post_id\n            )\n            RETURNING post_id\n        ",
             [now, post_ids],
         )
         inserted = len(result.fetchall())
-
         if inserted > 0:
-            logger.info(f"Initialized {inserted} new posts with default ELO 1500")
-
+            logger.info("Initialized %s new posts with default ELO 1500", inserted)
         return inserted
 
     def get_rating(self, post_id: str) -> dict[str, Any] | None:
@@ -153,12 +95,9 @@ class RankingStore:
 
         """
         result = self.conn.execute(
-            """
-            SELECT elo_global, games_played FROM elo_ratings WHERE post_id = ?
-        """,
+            "\n            SELECT elo_global, games_played FROM elo_ratings WHERE post_id = ?\n        ",
             [post_id],
         ).fetchone()
-
         if result is not None:
             return {"elo_global": result[0], "games_played": result[1]}
         return None
@@ -179,44 +118,12 @@ class RankingStore:
 
         """
         now = datetime.now(UTC)
-
         self.conn.execute(
-            """
-            UPDATE elo_ratings
-            SET
-                elo_global = CASE
-                    WHEN post_id = ? THEN ?
-                    WHEN post_id = ? THEN ?
-                    ELSE elo_global
-                END,
-                games_played = games_played + CASE
-                    WHEN post_id IN (?, ?) THEN 1
-                    ELSE 0
-                END,
-                last_updated = CASE
-                    WHEN post_id IN (?, ?) THEN ?
-                    ELSE last_updated
-                END
-            WHERE post_id IN (?, ?)
-        """,
-            [
-                post_a,
-                new_elo_a,
-                post_b,
-                new_elo_b,
-                post_a,
-                post_b,
-                post_a,
-                post_b,
-                now,
-                post_a,
-                post_b,
-            ],
+            "\n            UPDATE elo_ratings\n            SET\n                elo_global = CASE\n                    WHEN post_id = ? THEN ?\n                    WHEN post_id = ? THEN ?\n                    ELSE elo_global\n                END,\n                games_played = games_played + CASE\n                    WHEN post_id IN (?, ?) THEN 1\n                    ELSE 0\n                END,\n                last_updated = CASE\n                    WHEN post_id IN (?, ?) THEN ?\n                    ELSE last_updated\n                END\n            WHERE post_id IN (?, ?)\n        ",
+            [post_a, new_elo_a, post_b, new_elo_b, post_a, post_b, post_a, post_b, now, post_a, post_b],
         )
-
-        logger.debug(f"Updated ratings: {post_a}={new_elo_a:.0f}, {post_b}={new_elo_b:.0f}")
-
-        return new_elo_a, new_elo_b
+        logger.debug("Updated ratings: %s=%s, %s=%s", post_a, new_elo_a, post_b, new_elo_b)
+        return (new_elo_a, new_elo_b)
 
     def save_comparison(self, comparison_data: dict[str, Any]) -> None:
         """Save comparison to history.
@@ -236,9 +143,7 @@ class RankingStore:
 
         """
         self.conn.execute(
-            """
-            INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+            "\n            INSERT INTO elo_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n        ",
             [
                 comparison_data["comparison_id"],
                 comparison_data["timestamp"],
@@ -252,8 +157,7 @@ class RankingStore:
                 comparison_data["stars_b"],
             ],
         )
-
-        logger.debug(f"Saved comparison {comparison_data['comparison_id']}")
+        logger.debug("Saved comparison %s", comparison_data["comparison_id"])
 
     def get_posts_to_compare(self, strategy: str = "fewest_games", n: int = 2) -> list[str]:
         """Select posts to compare based on strategy.
@@ -268,11 +172,7 @@ class RankingStore:
         """
         if strategy == "fewest_games":
             result = self.conn.execute(
-                """
-                SELECT post_id FROM elo_ratings
-                ORDER BY games_played ASC, RANDOM()
-                LIMIT ?
-            """,
+                "\n                SELECT post_id FROM elo_ratings\n                ORDER BY games_played ASC, RANDOM()\n                LIMIT ?\n            ",
                 [n],
             ).fetchall()
             return [row[0] for row in result]
@@ -290,20 +190,9 @@ class RankingStore:
 
         """
         result = self.conn.execute(
-            """
-            SELECT
-                profile_id,
-                timestamp,
-                CASE WHEN post_a = ? THEN comment_a ELSE comment_b END as comment,
-                CASE WHEN post_a = ? THEN stars_a ELSE stars_b END as stars
-            FROM elo_history
-            WHERE post_a = ? OR post_b = ?
-            ORDER BY timestamp
-        """,
+            "\n            SELECT\n                profile_id,\n                timestamp,\n                CASE WHEN post_a = ? THEN comment_a ELSE comment_b END as comment,\n                CASE WHEN post_a = ? THEN stars_a ELSE stars_b END as stars\n            FROM elo_history\n            WHERE post_a = ? OR post_b = ?\n            ORDER BY timestamp\n        ",
             [post_id, post_id, post_id, post_id],
         ).fetchall()
-
-        # Convert to Ibis Table, handling empty results
         if not result:
             return ibis.memtable(
                 [],
@@ -316,8 +205,6 @@ class RankingStore:
                     }
                 ),
             )
-
-        # Convert to list of dicts for Ibis
         rows = [{"profile_id": r[0], "timestamp": r[1], "comment": r[2], "stars": r[3]} for r in result]
         return ibis.memtable(rows)
 
@@ -333,15 +220,9 @@ class RankingStore:
 
         """
         cursor = self.conn.execute(
-            """
-            SELECT * FROM elo_ratings
-            WHERE games_played >= ?
-            ORDER BY elo_global DESC
-            LIMIT ?
-        """,
+            "\n            SELECT * FROM elo_ratings\n            WHERE games_played >= ?\n            ORDER BY elo_global DESC\n            LIMIT ?\n        ",
             [min_games, n],
         )
-
         return self._rows_to_memtable(cursor)
 
     def get_all_ratings(self) -> Table:
@@ -369,10 +250,8 @@ class RankingStore:
         description = cursor.description or []
         columns = [column[0] for column in description]
         rows = cursor.fetchall()
-
         if not columns:
             return ibis.memtable([])
-
         records = [dict(zip(columns, row, strict=False)) for row in rows]
         return ibis.memtable(records)
 
@@ -385,19 +264,9 @@ class RankingStore:
         """
         ratings_path = self.rankings_dir / "elo_ratings.parquet"
         history_path = self.rankings_dir / "elo_history.parquet"
-
-        self.conn.execute(
-            f"""
-            COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)
-        """
-        )
-        self.conn.execute(
-            f"""
-            COPY elo_history TO '{history_path}' (FORMAT PARQUET)
-        """
-        )
-
-        logger.info(f"Exported rankings to Parquet: {self.rankings_dir}")
+        self.conn.execute(f"\n            COPY elo_ratings TO '{ratings_path}' (FORMAT PARQUET)\n        ")
+        self.conn.execute(f"\n            COPY elo_history TO '{history_path}' (FORMAT PARQUET)\n        ")
+        logger.info("Exported rankings to Parquet: %s", self.rankings_dir)
 
     def stats(self) -> dict[str, Any]:
         """Get ranking store statistics.
@@ -408,31 +277,20 @@ class RankingStore:
         """
         ratings_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_ratings").fetchone()
         ratings_count = ratings_count_result[0] if ratings_count_result is not None else 0
-
         comparisons_count_result = self.conn.execute("SELECT COUNT(*) FROM elo_history").fetchone()
         comparisons_count = comparisons_count_result[0] if comparisons_count_result is not None else 0
-
         avg_games_result = self.conn.execute(
-            """
-            SELECT AVG(games_played) FROM elo_ratings
-        """
+            "\n            SELECT AVG(games_played) FROM elo_ratings\n        "
         ).fetchone()
         avg_games = (avg_games_result[0] if avg_games_result is not None else 0) or 0
-
         top_elo_result = self.conn.execute(
-            """
-            SELECT MAX(elo_global) FROM elo_ratings
-        """
+            "\n            SELECT MAX(elo_global) FROM elo_ratings\n        "
         ).fetchone()
         top_elo = (top_elo_result[0] if top_elo_result is not None else 1500) or 1500
-
         bottom_elo_result = self.conn.execute(
-            """
-            SELECT MIN(elo_global) FROM elo_ratings
-        """
+            "\n            SELECT MIN(elo_global) FROM elo_ratings\n        "
         ).fetchone()
         bottom_elo = (bottom_elo_result[0] if bottom_elo_result is not None else 1500) or 1500
-
         return {
             "total_posts": ratings_count,
             "total_comparisons": comparisons_count,

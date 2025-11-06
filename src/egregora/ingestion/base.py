@@ -13,12 +13,12 @@ from ibis.expr.types import Table
 class InputMetadata:
     """Metadata about the input source."""
 
-    source_type: str  # "whatsapp", "slack", "discord", etc.
-    group_name: str  # Display name of the group/channel
-    group_slug: str  # URL-safe identifier
-    export_date: date  # Date when the export was created
-    timezone: str | None = None  # Timezone of the source data
-    additional_metadata: dict[str, Any] | None = None  # Source-specific metadata
+    source_type: str
+    group_name: str
+    group_slug: str
+    export_date: date
+    timezone: str | None = None
+    additional_metadata: dict[str, Any] | None = None
 
 
 class InputSource(ABC):
@@ -147,5 +147,4 @@ class InputSourceRegistry:
         return list(self._sources.keys())
 
 
-# Global registry instance
 input_registry = InputSourceRegistry()
