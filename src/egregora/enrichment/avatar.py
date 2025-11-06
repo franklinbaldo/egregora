@@ -15,13 +15,13 @@ from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from google import genai
 from google.genai import types as genai_types
 from PIL import Image
 
 from ..config import MEDIA_DIR_NAME
 from ..prompt_templates import AvatarEnrichmentPromptTemplate
-from ..utils.batch import BatchPromptRequest
-from ..utils.gemini_dispatcher import GeminiDispatcher
+from ..utils.genai import call_with_retries_sync
 
 logger = logging.getLogger(__name__)
 
@@ -567,7 +567,7 @@ def enrich_and_moderate_avatar(
     avatar_uuid: uuid.UUID,
     avatar_path: Path,
     docs_dir: Path,
-    vision_client: GeminiDispatcher,
+    vision_client: genai.Client,
     model: str = "gemini-2.0-flash-exp",
 ) -> AvatarModerationResult:
     """
@@ -577,7 +577,7 @@ def enrich_and_moderate_avatar(
         avatar_uuid: UUID of the avatar
         avatar_path: Path to avatar image
         docs_dir: MkDocs docs directory
-        vision_client: Gemini vision client
+        vision_client: Gemini client
         model: Model name for vision processing
 
     Returns:
@@ -589,8 +589,8 @@ def enrich_and_moderate_avatar(
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
     try:
-        # Upload image to Gemini using the dispatcher's upload_file method
-        uploaded_file = vision_client.upload_file(path=str(avatar_path))
+        # Upload image to Gemini
+        uploaded_file = vision_client.files.upload(path=str(avatar_path))
 
         # Generate enrichment prompt
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
@@ -600,35 +600,34 @@ def enrich_and_moderate_avatar(
         )
         prompt = prompt_template.render()
 
-        # Build BatchPromptRequest with text prompt and uploaded file
-        request = BatchPromptRequest(
-            contents=[
-                genai_types.Content(
-                    parts=[
-                        genai_types.Part(text=prompt),
-                        genai_types.Part(
-                            file_data=genai_types.FileData(
-                                file_uri=uploaded_file.uri,
-                                mime_type=uploaded_file.mime_type,
-                            )
-                        ),
-                    ],
-                    role="user",
-                )
-            ],
+        # Build contents with text prompt and uploaded file
+        contents = [
+            genai_types.Content(
+                parts=[
+                    genai_types.Part(text=prompt),
+                    genai_types.Part(
+                        file_data=genai_types.FileData(
+                            file_uri=uploaded_file.uri,
+                            mime_type=uploaded_file.mime_type,
+                        )
+                    ),
+                ],
+                role="user",
+            )
+        ]
+
+        # Call vision model with retries
+        response = call_with_retries_sync(
+            vision_client.models.generate_content,
             model=model,
-            tag=f"avatar-{avatar_uuid}",
+            contents=contents,
         )
 
-        # Call vision model via dispatcher
-        results = vision_client.generate_content([request])
+        # Extract response text
+        if not response or not response.text:
+            raise AvatarProcessingError("Vision model failed to generate response")
 
-        # Extract response from batch result
-        if not results or not results[0].response:
-            error = results[0].error if results else None
-            raise AvatarProcessingError(f"Vision model failed to generate response: {error}")
-
-        enrichment_text = results[0].response.text
+        enrichment_text = response.text
 
         # Parse moderation result
         status, reason, has_pii = _parse_moderation_result(enrichment_text)

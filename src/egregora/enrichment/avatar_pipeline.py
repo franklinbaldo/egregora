@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 
 from ibis.expr.types import Table
+from google import genai
 
 from ..agents.tools.profiler import remove_profile_avatar, update_profile_avatar
 from ..enrichment.media import extract_urls, find_media_references
 from ..ingestion.parser import extract_commands
-from ..utils.gemini_dispatcher import GeminiDispatcher
 from .avatar import (
     AvatarProcessingError,
     download_avatar_from_url,
@@ -27,7 +27,7 @@ def process_avatar_commands(  # noqa: PLR0913
     docs_dir: Path,
     profiles_dir: Path,
     group_slug: str,
-    vision_client: GeminiDispatcher,
+    vision_client: genai.Client,
     model: str = "gemini-2.0-flash-exp",
 ) -> dict[str, str]:
     """
@@ -48,7 +48,7 @@ def process_avatar_commands(  # noqa: PLR0913
         docs_dir: MkDocs docs directory
         profiles_dir: Directory where profiles are stored
         group_slug: Group slug for UUID namespace
-        vision_client: Gemini vision client for enrichment
+        vision_client: Gemini client for enrichment
         model: Model name for vision processing
 
     Returns:
@@ -113,7 +113,7 @@ def _process_set_avatar_command(  # noqa: PLR0913, PLR0912
     docs_dir: Path,
     profiles_dir: Path,
     group_slug: str,
-    vision_client: GeminiDispatcher,
+    vision_client: genai.Client,
     model: str,
     value: str | None = None,
 ) -> str:

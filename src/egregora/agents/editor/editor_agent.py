@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import ibis
+from google import genai
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
@@ -28,7 +29,6 @@ from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig
 from egregora.prompt_templates import EditorPromptTemplate
-from egregora.utils.batch import GeminiBatchClient
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span
 
@@ -91,7 +91,7 @@ class EditorAgentState:
 
     editor: Editor
     rag_dir: Path
-    client: Any  # genai.Client
+    client: genai.Client
     model_config: ModelConfig
     post_path: Path
     tool_calls_log: list[dict[str, Any]] = field(default_factory=list)
@@ -116,7 +116,7 @@ async def query_rag_impl(
     query: str,
     max_results: int,
     rag_dir: Path,
-    client: Any,
+    client: genai.Client,
     model_config: ModelConfig,
 ) -> QueryRAGResult:
     """RAG search implementation."""
@@ -131,7 +131,7 @@ async def query_rag_impl(
 
         results = await query_similar_posts(
             table=dummy_table,
-            batch_client=GeminiBatchClient(client, default_model=embedding_model),
+            batch_client=client,
             store=store,
             embedding_model=embedding_model,
             top_k=max_results,
@@ -160,7 +160,7 @@ async def query_rag_impl(
 
 async def ask_llm_impl(
     question: str,
-    client: Any,
+    client: genai.Client,
     model: str,
 ) -> AskLLMResult:
     """Simple Q&A with fresh LLM instance."""
@@ -316,7 +316,7 @@ def _register_editor_tools(agent: Agent) -> None:
 
 async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     post_path: Path,
-    client: Any,
+    client: genai.Client,
     model_config: ModelConfig,
     rag_dir: Path,
     context: dict[str, Any] | None = None,
@@ -327,7 +327,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
 
     Args:
         post_path: Path to the post markdown file
-        client: Gemini client
+        client: genai.Client instance
         model_config: Model configuration
         rag_dir: Path to RAG database
         context: Optional context (ELO score, ranking comments, etc.)

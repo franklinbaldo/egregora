@@ -41,8 +41,11 @@ from egregora.prompt_templates import (
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
 )
-from egregora.utils import EnrichmentCache, GeminiBatchClient, make_enrichment_cache_key
+from google import genai
+
+from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.batch import BatchPromptResult
+from egregora.utils.genai_helpers import generate_content_batch, upload_file
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +98,8 @@ else:  # pragma: no cover - duckdb backend available at runtime when installed
 def enrich_table(
     messages_table: Table,
     media_mapping: dict[str, Path],
-    text_batch_client: GeminiBatchClient,
-    vision_batch_client: GeminiBatchClient,
+    text_client: genai.Client,
+    vision_client: genai.Client,
     cache: EnrichmentCache,
     docs_dir: Path,
     posts_dir: Path,
@@ -256,9 +259,10 @@ def enrich_table(
         url_table = ibis.memtable(url_records)
         requests = build_batch_requests(_table_to_pylist(url_table), url_model)
 
-        responses = text_batch_client.generate_content(
+        responses = generate_content_batch(
+            text_client,
             requests,
-            display_name="Egregora URL Enrichment",
+            default_model=url_model,
         )
 
         result_map = map_batch_results(responses)
@@ -284,9 +288,9 @@ def enrich_table(
     if pending_media_jobs:
         media_records = []
         for media_job in pending_media_jobs:
-            uploaded_file = vision_batch_client.upload_file(
+            uploaded_file = upload_file(
+                vision_client,
                 path=str(media_job.file_path),
-                display_name=media_job.file_path.name,
             )
             media_job.upload_uri = getattr(uploaded_file, "uri", None)
             media_job.mime_type = getattr(uploaded_file, "mime_type", None)
@@ -322,9 +326,10 @@ def enrich_table(
             requests = build_batch_requests(records, vision_model, include_file=True)
 
             if requests:
-                media_responses = vision_batch_client.generate_content(
+                media_responses = generate_content_batch(
+                    vision_client,
                     requests,
-                    display_name="Egregora Media Enrichment",
+                    default_model=vision_model,
                 )
 
         result_map = map_batch_results(media_responses)

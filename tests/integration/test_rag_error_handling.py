@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import ibis
 import pytest
+from google import genai
 from returns.result import Failure, Success
 
 from egregora.agents.writer.context import (
@@ -11,7 +12,6 @@ from egregora.agents.writer.context import (
     RagErrorReason,
     _query_rag_for_context,
 )
-from egregora.utils import GeminiBatchClient
 
 
 @pytest.fixture
@@ -22,8 +22,8 @@ def mock_table():
 
 @pytest.fixture
 def mock_batch_client():
-    """Create a mock GeminiBatchClient."""
-    return Mock(spec=GeminiBatchClient)
+    """Create a mock genai.Client."""
+    return Mock(spec=genai.Client)
 
 
 @pytest.fixture

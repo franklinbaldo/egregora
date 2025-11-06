@@ -47,7 +47,6 @@ from egregora.pipeline.runner import run_source_pipeline
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.gemini_dispatcher import GeminiDispatcher
 from egregora.utils.logging_setup import configure_logging, console
 from egregora.utils.serialization import load_table, save_table
 
@@ -985,10 +984,7 @@ def enrich(  # noqa: PLR0915
 
             console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
 
-            # Setup smart clients and cache
-            text_batch_client = GeminiDispatcher(client, model_config.get_model("enricher"))
-            vision_batch_client = GeminiDispatcher(client, model_config.get_model("enricher_vision"))
-
+            # Setup cache
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
             enrichment_cache = EnrichmentCache(cache_dir)
 
@@ -1000,8 +996,8 @@ def enrich(  # noqa: PLR0915
             enriched_table = enrich_table(
                 messages_table,
                 media_mapping,
-                text_batch_client,
-                vision_batch_client,
+                client,
+                client,
                 enrichment_cache,
                 site_paths.docs_dir,
                 posts_dir,
@@ -1114,11 +1110,10 @@ def gather_context(  # noqa: PLR0915
                 else:
                     console.print("[yellow]Querying RAG for similar posts...[/yellow]")
                     client = genai.Client(api_key=api_key)
-                    embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
 
                     rag_context_markdown, rag_similar_posts = _query_rag_for_context(
                         enriched_table,
-                        embedding_batch_client,
+                        client,
                         site_paths.rag_dir,
                         embedding_model=model_config.get_model("embedding"),
                         embedding_output_dimensionality=model_config.embedding_output_dimensionality,
@@ -1244,30 +1239,35 @@ def write_posts(  # noqa: PLR0915
             else:
                 console.print("[yellow]No context file provided, will gather context inline[/yellow]")
 
-            # Setup embedding client for RAG
-            embedding_batch_client = GeminiDispatcher(client, model_config.get_model("embedding"))
+            # Setup configuration for writer
             embedding_dimensionality = model_config.embedding_output_dimensionality
 
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {'enabled' if enable_rag else 'disabled'}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
 
-            # Write posts (this uses the existing write_posts_for_period function)
-            posts_output_dir = site_paths.posts_dir
-            result = write_posts_for_period(
-                enriched_table,
-                period_key,
-                client,
-                embedding_batch_client,
-                posts_output_dir,
-                site_paths.profiles_dir,
-                site_paths.rag_dir,
-                model_config,
+            # Import WriterConfig
+            from egregora.agents.writer import WriterConfig
+
+            # Create writer configuration
+            writer_config = WriterConfig(
+                output_dir=site_paths.posts_dir,
+                profiles_dir=site_paths.profiles_dir,
+                rag_dir=site_paths.rag_dir,
+                model_config=model_config,
                 enable_rag=enable_rag,
                 embedding_output_dimensionality=embedding_dimensionality,
                 retrieval_mode=retrieval_mode,
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
+            )
+
+            # Write posts
+            result = write_posts_for_period(
+                enriched_table,
+                period_key,
+                client,
+                writer_config,
             )
 
             posts_count = len(result.get("posts", []))
