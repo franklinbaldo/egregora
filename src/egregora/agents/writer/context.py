@@ -94,7 +94,6 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     try:
         query_vector = embed_query(
             table_markdown,
-            client,
             model=embedding_model,
             output_dimensionality=embedding_output_dimensionality,
         )
@@ -187,7 +186,6 @@ def _query_rag_for_context(  # noqa: PLR0913
             store = VectorStore(rag_dir / "chunks.parquet")
             similar_posts = query_similar_posts(
                 table,
-                client,
                 store,
                 embedding_model=embedding_model,
                 top_k=5,

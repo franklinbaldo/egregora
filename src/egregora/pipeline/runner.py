@@ -384,7 +384,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0915
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    client,
                     store,
                     embedding_model=embedding_model,
                     output_dimensionality=embedding_dimensionality,

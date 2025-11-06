@@ -252,7 +252,6 @@ def _process_tool_calls(  # noqa: PLR0913
 
 def _index_posts_in_rag(
     saved_posts: list[str],
-    client: genai.Client,
     rag_dir: Path,
     *,
     embedding_model: str,
@@ -267,7 +266,6 @@ def _index_posts_in_rag(
         for post_path in saved_posts:
             index_post(
                 Path(post_path),
-                client,
                 store,
                 embedding_model=embedding_model,
                 output_dimensionality=embedding_output_dimensionality,
@@ -402,7 +400,6 @@ Use these features appropriately in your posts. You understand how each extensio
     if config.enable_rag:
         _index_posts_in_rag(
             saved_posts,
-            client,
             config.rag_dir,
             embedding_model=embedding_model,
             embedding_output_dimensionality=config.embedding_output_dimensionality,

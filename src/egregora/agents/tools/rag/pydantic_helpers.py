@@ -72,7 +72,6 @@ async def find_relevant_docs(
             # Embed query
             query_vector = embed_query(
                 query,
-                client,
                 model=embedding_model,
                 output_dimensionality=output_dimensionality,
             )

@@ -112,7 +112,6 @@ def _handle_search_media_tool(  # noqa: PLR0913
         store = VectorStore(rag_dir / "chunks.parquet")
         results = query_media(
             query=query,
-            client=client,
             store=store,
             media_types=media_types,
             top_k=limit,

@@ -365,7 +365,6 @@ def _process_whatsapp_export(  # noqa: PLR0912, PLR0913, PLR0915
                 store = VectorStore(rag_dir / "chunks.parquet")
                 media_chunks = index_all_media(
                     site_paths.docs_dir,
-                    embedding_client,
                     store,
                     embedding_model=embedding_model_name,
                     output_dimensionality=embedding_dimensionality,

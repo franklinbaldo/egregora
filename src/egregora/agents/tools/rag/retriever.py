@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TypedDict
 
 import ibis
-from google import genai
 from ibis.expr.types import Table
 
 from egregora.agents.tools.rag.chunker import chunk_document
@@ -33,7 +32,6 @@ DEDUP_MAX_RANK = 2
 
 def index_post(
     post_path: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -44,8 +42,9 @@ def index_post(
 
     Args:
         post_path: Path to markdown file with YAML frontmatter
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
+        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Number of chunks indexed
@@ -65,7 +64,6 @@ def index_post(
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
     embeddings = embed_chunks(
         chunk_texts,
-        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
         output_dimensionality=output_dimensionality,
@@ -119,7 +117,6 @@ def index_post(
 
 def query_similar_posts(
     table: Table,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -141,8 +138,8 @@ def query_similar_posts(
 
     Args:
         table: Period's table (messages)
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
         top_k: Number of results to return
         deduplicate: Keep only 1 chunk per post (highest similarity)
         retrieval_mode: "ann" (default) or "exact" for brute-force search
@@ -163,7 +160,6 @@ def query_similar_posts(
     # Embed query (use RETRIEVAL_QUERY task type)
     query_vec = embed_query(
         query_text,
-        client,
         model=embedding_model,
         output_dimensionality=output_dimensionality,
     )
@@ -266,7 +262,6 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
 def index_media_enrichment(
     enrichment_path: Path,
     docs_dir: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -278,8 +273,9 @@ def index_media_enrichment(
     Args:
         enrichment_path: Path to enrichment .md file
         docs_dir: Docs directory (for resolving relative paths)
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
+        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Number of chunks indexed
@@ -308,7 +304,6 @@ def index_media_enrichment(
     # Embed chunks (RETRIEVAL_DOCUMENT task type)
     embeddings = embed_chunks(
         chunk_texts,
-        client,
         model=embedding_model,
         task_type="RETRIEVAL_DOCUMENT",
         output_dimensionality=output_dimensionality,
@@ -354,7 +349,6 @@ def index_media_enrichment(
 
 def index_all_media(
     docs_dir: Path,
-    client: genai.Client,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -368,8 +362,9 @@ def index_all_media(
 
     Args:
         docs_dir: Docs directory
-        client: Gemini client
         store: Vector store
+        embedding_model: Embedding model name
+        output_dimensionality: Output dimensionality for embeddings
 
     Returns:
         Total number of chunks indexed
@@ -398,7 +393,6 @@ def index_all_media(
         chunks_count = index_media_enrichment(
             enrichment_path,
             docs_dir,
-            client,
             store,
             embedding_model=embedding_model,
             output_dimensionality=output_dimensionality,
@@ -476,7 +470,6 @@ def _coerce_message_datetime(value: object) -> datetime | None:
 
 def query_media(
     query: str,
-    client: genai.Client,
     store: VectorStore,
     media_types: list[str] | None = None,
     top_k: int = 5,
@@ -494,12 +487,13 @@ def query_media(
 
     Args:
         query: Natural language search query (e.g., "funny meme about AI")
-        client: Gemini client
         store: Vector store
         media_types: Optional filter by media type (e.g., ["image", "video"])
         top_k: Number of results to return
         min_similarity: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
+        embedding_model: Embedding model name
+        output_dimensionality: Output dimensionality for embeddings
         retrieval_mode: "ann" (default) or "exact" for brute-force search
         retrieval_nprobe: Override ANN ``nprobe`` when ``retrieval_mode='ann'``
         retrieval_overfetch: Candidate multiplier for ANN mode before filtering
@@ -512,7 +506,6 @@ def query_media(
     # Embed query (use RETRIEVAL_QUERY task type)
     query_vec = embed_query(
         query,
-        client,
         model=embedding_model,
         output_dimensionality=output_dimensionality,
     )
