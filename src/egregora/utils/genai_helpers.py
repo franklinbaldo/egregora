@@ -116,10 +116,7 @@ def embed_batch(
         response = call_with_retries_sync(
             client.models.batch_embed_contents,
             model=model,
-            requests=[
-                genai_types.EmbedContentRequest(content=text, config=config)
-                for text in texts
-            ],
+            requests=[genai_types.EmbedContentRequest(content=text, config=config) for text in texts],
         )
 
         # Extract embeddings from batch response

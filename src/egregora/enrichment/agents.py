@@ -184,8 +184,7 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     if file_size > max_size_bytes:
         size_mb = file_size / (1024 * 1024)
         raise ValueError(
-            f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. "
-            f"File: {file_path.name}"
+            f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. File: {file_path.name}"
         )
 
     media_type, _ = mimetypes.guess_type(str(file_path))
