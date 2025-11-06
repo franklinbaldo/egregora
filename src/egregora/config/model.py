@@ -11,7 +11,7 @@ from egregora.config.site import load_mkdocs_config
 DEFAULT_EMBEDDING_DIMENSIONALITY = 3072
 
 # Known output dimensionalities for supported embedding models.
-# Keys use pydantic-ai notation (google-gla:model-name)
+# Keys use pydantic-ai notation since this is now our standard format.
 KNOWN_EMBEDDING_DIMENSIONS = {
     "google-gla:text-embedding-004": 3072,
     "google-gla:gemini-embedding-001": 3072,
@@ -20,6 +20,8 @@ KNOWN_EMBEDDING_DIMENSIONS = {
 logger = logging.getLogger(__name__)
 
 # Default models for different tasks (using pydantic-ai notation)
+# This is our standard format - pydantic-ai agents use this directly.
+# For direct Google SDK calls (embeddings), use from_pydantic_ai_model().
 DEFAULT_WRITER_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_ENRICHER_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_ENRICHER_VISION_MODEL = "google-gla:gemini-flash-latest"
@@ -28,6 +30,34 @@ DEFAULT_EDITOR_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_EMBEDDING_MODEL = "google-gla:gemini-embedding-001"
 
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
+
+
+def from_pydantic_ai_model(model_name: str) -> str:
+    """
+    Convert pydantic-ai string notation to Google API model format.
+
+    Use this ONLY for direct Google GenAI SDK calls (e.g., embeddings).
+    Pydantic-AI agents should use the pydantic-ai format directly.
+
+    Examples:
+        "google-gla:gemini-flash-latest" -> "models/gemini-flash-latest"
+        "google-gla:gemini-2.0-flash-exp" -> "models/gemini-2.0-flash-exp"
+
+    Args:
+        model_name: Model name in pydantic-ai format (provider:model)
+
+    Returns:
+        Model name in Google API format (models/model-name)
+    """
+    # Remove pydantic-ai provider prefix if present
+    if ":" in model_name:
+        _, model_name = model_name.split(":", 1)
+
+    # Add Google API prefix if not already present
+    if not model_name.startswith("models/"):
+        model_name = f"models/{model_name}"
+
+    return model_name
 
 
 class ModelConfig:

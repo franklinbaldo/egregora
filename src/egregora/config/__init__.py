@@ -11,6 +11,7 @@ from egregora.config.model import (
     KNOWN_EMBEDDING_DIMENSIONS,
     ModelConfig,
     ModelType,
+    from_pydantic_ai_model,
     load_site_config,
 )
 from egregora.config.pipeline import (
@@ -73,6 +74,7 @@ __all__ = [
     "WriterConfig",
     "WriterPromptContext",
     "find_mkdocs_file",
+    "from_pydantic_ai_model",
     "load_mkdocs_config",
     "load_site_config",
     "resolve_site_paths",

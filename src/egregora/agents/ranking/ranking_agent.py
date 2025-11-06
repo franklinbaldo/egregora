@@ -404,7 +404,7 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
             # Set API key in environment for pydantic-ai to use
             if api_key:
                 os.environ["GOOGLE_API_KEY"] = api_key
-            # Model name is already in pydantic-ai notation
+            # Model from config is already in pydantic-ai format
             model_instance = model
         else:
             model_instance = agent_model

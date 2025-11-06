@@ -15,6 +15,7 @@ from typing import Annotated
 from google import genai
 from google.genai import types as genai_types
 
+from egregora.config import from_pydantic_ai_model
 from egregora.utils.genai import call_with_retries_sync
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def embed_text(
     client: Annotated[genai.Client, "The Gemini API client"],
     text: Annotated[str, "The text to embed"],
     *,
-    model: Annotated[str, "The embedding model to use"],
+    model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
     output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
 ) -> Annotated[list[float], "The embedding vector"]:
@@ -33,7 +34,7 @@ def embed_text(
     Args:
         client: Gemini API client
         text: Text to embed
-        model: Embedding model name (e.g., "models/text-embedding-004")
+        model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
         task_type: Optional task type (e.g., "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
         output_dimensionality: Optional output dimensionality (e.g., 768, 3072)
 
@@ -43,6 +44,9 @@ def embed_text(
     Raises:
         RuntimeError: If embedding fails
     """
+    # Convert from pydantic-ai format to Google API format
+    google_model = from_pydantic_ai_model(model)
+
     # Build config if needed
     config = None
     if task_type or output_dimensionality:
@@ -54,7 +58,7 @@ def embed_text(
     try:
         response = call_with_retries_sync(
             client.models.embed_content,
-            model=model,
+            model=google_model,
             contents=text,
             config=config,
         )
@@ -77,7 +81,7 @@ def embed_batch(
     client: Annotated[genai.Client, "The Gemini API client"],
     texts: Annotated[list[str], "List of texts to embed"],
     *,
-    model: Annotated[str, "The embedding model to use"],
+    model: Annotated[str, "The embedding model to use (pydantic-ai format)"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
     output_dimensionality: Annotated[int | None, "The output dimensionality"] = None,
 ) -> Annotated[list[list[float]], "List of embedding vectors"]:
@@ -88,7 +92,7 @@ def embed_batch(
     Args:
         client: Gemini API client
         texts: List of texts to embed
-        model: Embedding model name
+        model: Embedding model name in pydantic-ai format (e.g., "google-gla:text-embedding-004")
         task_type: Optional task type
         output_dimensionality: Optional output dimensionality
 
@@ -103,6 +107,9 @@ def embed_batch(
 
     logger.info("[blue]📚 Embedding model:[/] %s — %d text(s)", model, len(texts))
 
+    # Convert from pydantic-ai format to Google API format
+    google_model = from_pydantic_ai_model(model)
+
     # Build config if needed
     config = None
     if task_type or output_dimensionality:
@@ -115,8 +122,11 @@ def embed_batch(
         # Use batch_embed_contents for efficient parallel processing
         response = call_with_retries_sync(
             client.models.batch_embed_contents,
-            model=model,
-            requests=[genai_types.EmbedContentRequest(content=text, config=config) for text in texts],
+            model=google_model,
+            requests=[
+                genai_types.EmbedContentRequest(content=text, config=config)
+                for text in texts
+            ],
         )
 
         # Extract embeddings from batch response

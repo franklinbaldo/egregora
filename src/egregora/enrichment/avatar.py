@@ -536,7 +536,7 @@ def enrich_and_moderate_avatar(
     """
     logger.info(f"Enriching and moderating avatar: {avatar_uuid}")
 
-    # Create agent with configured model (already in pydantic-ai notation)
+    # Create agent with configured model (already in pydantic-ai format)
     avatar_enrichment_agent = create_avatar_enrichment_agent(model)
 
     try:

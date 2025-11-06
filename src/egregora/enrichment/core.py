@@ -118,7 +118,7 @@ def enrich_table(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    # Create pydantic-ai agents with configured models (already in pydantic-ai notation)
+    # Create pydantic-ai agents with configured models (already in pydantic-ai format)
     url_enrichment_agent = create_url_enrichment_agent(url_model)
     media_enrichment_agent = create_media_enrichment_agent(vision_model)
 

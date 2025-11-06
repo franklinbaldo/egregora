@@ -428,7 +428,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
 
     with logfire_span("editor_agent", post_path=str(post_path), model=model_name):
-        # Model name is already in pydantic-ai notation (e.g., 'google-gla:gemini-flash-latest')
+        # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
         if agent_model is None:
             model = model_name
         else:
