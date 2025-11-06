@@ -19,11 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
 
-from egregora.config import to_pydantic_ai_model
-
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
-from egregora.config import resolve_site_paths
+from egregora.config import resolve_site_paths, to_pydantic_ai_model
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()

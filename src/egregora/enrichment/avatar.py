@@ -15,7 +15,6 @@ from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from google import genai
 from PIL import Image
 
 from ..config import MEDIA_DIR_NAME, to_pydantic_ai_model

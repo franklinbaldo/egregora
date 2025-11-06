@@ -20,12 +20,10 @@ from google import genai
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 
-from egregora.config import to_pydantic_ai_model
-
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig
+from egregora.config import ModelConfig, to_pydantic_ai_model
 from egregora.prompt_templates import EditorPromptTemplate
 from egregora.utils.genai import call_with_retries
 from egregora.utils.logfire_config import logfire_span

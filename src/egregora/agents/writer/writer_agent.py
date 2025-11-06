@@ -40,12 +40,11 @@ except ImportError:  # pragma: no cover - backwards compatibility for older rele
             return json.dumps(messages, indent=2, default=str)
 
 
-from egregora.config import to_pydantic_ai_model
-
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, query_media
+from egregora.config import to_pydantic_ai_model
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
