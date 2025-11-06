@@ -88,9 +88,7 @@ def build_time_grammar() -> ParserElement:
     am_pm = CaselessLiteral("AM") | CaselessLiteral("PM")
 
     # Complete time with optional AM/PM
-    time_field = time_base("time") + Optional(am_pm)("ampm")
-
-    return time_field
+    return time_base("time") + Optional(am_pm)("ampm")
 
 
 def build_separator_grammar() -> ParserElement:
@@ -119,8 +117,7 @@ def build_author_grammar() -> ParserElement:
     """
     # Match everything except colon
     # Use negative lookahead to stop before ':'
-    author = Regex(r"[^:]+")("author")
-    return author
+    return Regex(r"[^:]+")("author")
 
 
 def build_message_grammar() -> ParserElement:
@@ -159,7 +156,7 @@ def build_whatsapp_message_grammar() -> ParserElement:
     date_sep = Optional(Suppress(Literal(",")) | Suppress(Literal(" ")))
 
     # Complete grammar
-    grammar = (
+    return (
         Optional(date + date_sep)  # Date is optional (continuation lines)
         + time  # Time is required
         + Optional(Suppress(" "))  # Optional space before separator
@@ -170,8 +167,6 @@ def build_whatsapp_message_grammar() -> ParserElement:
         + Optional(Suppress(" "))  # Optional space after colon
         + message  # Message text
     )
-
-    return grammar
 
 
 # Create the main grammar instance

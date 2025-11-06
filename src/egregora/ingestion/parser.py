@@ -3,6 +3,8 @@
 This module handles parsing of WhatsApp export files into structured data.
 It automatically anonymizes all author names before returning data.
 
+MODERN (Phase 5): Uses pyparsing grammar instead of regex patterns.
+
 Documentation:
 - Architecture: docs/guides/architecture.md
 - Core Concepts: docs/getting-started/concepts.md
@@ -24,6 +26,7 @@ import ibis
 from dateutil import parser as date_parser
 
 from egregora.constants import EgregoraCommand
+from egregora.ingestion.grammar import parse_whatsapp_line
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.schema import MESSAGE_SCHEMA, ensure_message_schema
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -34,6 +37,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.sources.whatsapp.models import WhatsAppExport
+
 SET_COMMAND_PARTS = 2
 logger = logging.getLogger(__name__)
 _IMPORT_ORDER_COLUMN = "_import_order"
@@ -95,8 +99,8 @@ def parse_egregora_command(message: str) -> dict | None:
         }
 
     """
-    message = message.replace("“", '"').replace("”", '"')
-    message = message.replace("‘", "'").replace("’", "'")
+    message = message.replace(""", '"').replace(""", '"')
+    message = message.replace("'", "'").replace("'", "'")
     simple_cmd = message.strip().lower()
     if simple_cmd == EgregoraCommand.OPT_OUT.value:
         return {"command": "opt-out"}
@@ -216,11 +220,6 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
         (filtered_table, num_removed)
 
     """
-    total_messages = int(messages.count().execute())
-    if total_messages == 0:
-        return (messages, 0)
-    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
-    removed_count = total_messages - int(filtered_messages.count().execute())
     if int(messages.count().execute()) == 0:
         return (messages, 0)
     original_count = int(messages.count().execute())
@@ -328,9 +327,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
     return anonymize_table(combined)
 
 
-_LINE_PATTERN = re.compile(
-    "^((?:(?P<date>\\d{1,2}/\\d{1,2}/\\d{2,4})(?:,\\s*|\\s+))?(?P<time>\\d{1,2}:\\d{2})(?:\\s*(?P<ampm>[APap][Mm]))?\\s*[—\\-]\\s*(?P<author>[^:]+?):\\s*(?P<message>.+))$"
-)
+# Date parsing utilities (used by grammar parser)
 _DATE_PARSE_PREFERENCES: tuple[dict[str, bool], ...] = ({"dayfirst": True}, {"dayfirst": False})
 
 
@@ -343,66 +340,6 @@ def _parse_message_date(token: str) -> date | None:
     if parsed is None:
         return None
     return _normalise_parsed_date(parsed)
-
-
-def _normalize_text(value: str) -> str:
-    normalized = unicodedata.normalize("NFKC", value)
-    normalized = normalized.replace("\u202f", " ")
-    return _INVISIBLE_MARKS.sub("", normalized)
-
-
-def _parse_messages(
-    lines: Iterable[str], export: WhatsAppExport, timezone: str | ZoneInfo | None = None
-) -> list[dict]:
-    """Parse messages from an iterable of strings.
-
-    Args:
-        lines: Iterable of message lines
-        export: WhatsApp export metadata
-        timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
-
-    """
-    rows: list[dict] = []
-    current_date = export.export_date
-    builder: _MessageBuilder | None = None
-    position = 0
-    for raw_line in lines:
-        prepared = _prepare_line(raw_line)
-        if prepared.trimmed == "":
-            if builder is not None:
-                builder.append("", "")
-            continue
-        match = _LINE_PATTERN.match(prepared.trimmed)
-        if not match:
-            if builder is not None:
-                builder.append(_normalize_text(prepared.trimmed), prepared.normalized)
-            continue
-        msg_date, current_date = _resolve_message_date(match.group("date"), current_date)
-        msg_time = _parse_message_time(match.group("time"), match.group("ampm"), prepared.trimmed)
-        if msg_time is None:
-            continue
-        if builder is not None:
-            row = builder.finalize()
-            row[_IMPORT_ORDER_COLUMN] = position
-            rows.append(row)
-            position += 1
-        builder = _start_message_builder(
-            _export=export,
-            msg_date=msg_date,
-            msg_time=msg_time,
-            author=_normalize_text(match.group("author").strip()),
-            initial_message=_normalize_text(match.group("message").strip()),
-            original_line=prepared.normalized,
-            timezone=timezone,
-        )
-    if builder is not None:
-        row = builder.finalize()
-        row[_IMPORT_ORDER_COLUMN] = position
-        rows.append(row)
-    return rows
-
-
-_INVISIBLE_MARKS = re.compile("[\\u200e\\u200f\\u202a-\\u202e]")
 
 
 def _parse_iso_date(value: str) -> datetime | None:
@@ -426,6 +363,32 @@ def _normalise_parsed_date(parsed: datetime) -> date:
     return parsed.date()
 
 
+def _parse_message_time(time_token: str, am_pm: str | None, context_line: str) -> datetime.time | None:
+    """Parse time from WhatsApp message line.
+
+    Returns naive time objects intentionally - downstream code (ensure_message_schema)
+    expects naive times to properly localize them to the phone's actual timezone.
+    Adding tzinfo here would cause incorrect double-conversion.
+    """
+    try:
+        if am_pm:
+            return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
+        return datetime.strptime(time_token, "%H:%M").time()
+    except ValueError:
+        logger.debug("Failed to parse time '%s' in line: %s", time_token, context_line)
+        return None
+
+
+# Text normalization
+_INVISIBLE_MARKS = re.compile("[\\u200e\\u200f\\u202a-\\u202e]")
+
+
+def _normalize_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    normalized = normalized.replace("\u202f", " ")
+    return _INVISIBLE_MARKS.sub("", normalized)
+
+
 def _prepare_line(raw_line: str) -> _PreparedLine:
     stripped = raw_line.rstrip("\n")
     normalized = _normalize_text(stripped)
@@ -441,20 +404,74 @@ def _resolve_message_date(date_token: str | None, fallback: date) -> tuple[date,
     return (parsed, parsed)
 
 
-def _parse_message_time(time_token: str, am_pm: str | None, context_line: str) -> datetime.time | None:
-    """Parse time from WhatsApp message line.
+def _parse_messages(
+    lines: Iterable[str], export: WhatsAppExport, timezone: str | ZoneInfo | None = None
+) -> list[dict]:
+    """Parse messages from an iterable of strings.
 
-    Returns naive time objects intentionally - downstream code (ensure_message_schema)
-    expects naive times to properly localize them to the phone's actual timezone.
-    Adding tzinfo here would cause incorrect double-conversion.
+    Uses pyparsing grammar for declarative message line parsing.
+
+    Args:
+        lines: Iterable of message lines
+        export: WhatsApp export metadata
+        timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
+
     """
-    try:
-        if am_pm:
-            return datetime.strptime(f"{time_token} {am_pm.upper()}", "%I:%M %p").time()
-        return datetime.strptime(time_token, "%H:%M").time()
-    except ValueError:
-        logger.debug("Failed to parse time '%s' in line: %s", time_token, context_line)
-        return None
+    rows: list[dict] = []
+    current_date = export.export_date
+    builder: _MessageBuilder | None = None
+    position = 0
+
+    for raw_line in lines:
+        prepared = _prepare_line(raw_line)
+
+        # Empty lines are added to current message
+        if prepared.trimmed == "":
+            if builder is not None:
+                builder.append("", "")
+            continue
+
+        # Try parsing as new message using pyparsing grammar
+        parsed = parse_whatsapp_line(prepared.trimmed)
+
+        # Not a message line - append to current message
+        if not parsed:
+            if builder is not None:
+                builder.append(_normalize_text(prepared.trimmed), prepared.normalized)
+            continue
+
+        # Extract parsed components
+        msg_date, current_date = _resolve_message_date(parsed.get("date"), current_date)
+        msg_time = _parse_message_time(parsed["time"], parsed.get("ampm"), prepared.trimmed)
+
+        if msg_time is None:
+            continue
+
+        # Finalize previous message
+        if builder is not None:
+            row = builder.finalize()
+            row[_IMPORT_ORDER_COLUMN] = position
+            rows.append(row)
+            position += 1
+
+        # Start new message
+        builder = _start_message_builder(
+            _export=export,
+            msg_date=msg_date,
+            msg_time=msg_time,
+            author=_normalize_text(parsed["author"].strip()),
+            initial_message=_normalize_text(parsed["message"].strip()),
+            original_line=prepared.normalized,
+            timezone=timezone,
+        )
+
+    # Finalize last message
+    if builder is not None:
+        row = builder.finalize()
+        row[_IMPORT_ORDER_COLUMN] = position
+        rows.append(row)
+
+    return rows
 
 
 def _start_message_builder(
