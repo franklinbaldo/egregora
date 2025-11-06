@@ -552,7 +552,7 @@ def enrich_and_moderate_avatar(
         )
 
         # Create and run avatar enrichment agent with multimodal content
-        avatar_agent = create_avatar_enrichment_agent(model, vision_client)
+        avatar_agent = create_avatar_enrichment_agent(model)
 
         # Build multimodal message content with file
         message_content = [

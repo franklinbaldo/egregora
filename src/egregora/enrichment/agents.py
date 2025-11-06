@@ -10,12 +10,6 @@ from google import genai
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
-try:
-    from pydantic_ai.models.google import GoogleModel, GoogleProvider
-except ImportError:  # pragma: no cover - legacy SDKs
-    from pydantic_ai.models.gemini import GeminiModel as GoogleModel  # type: ignore
-    from pydantic_ai.models.gemini import GeminiModelSettings as GoogleProvider  # type: ignore
-
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
     DetailedMediaEnrichmentPromptTemplate,
@@ -75,24 +69,17 @@ class AvatarEnrichmentContext:
     file_uri: str  # Uploaded file URI
 
 
-def create_url_enrichment_agent(
-    model: str, client: genai.Client
-) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
+def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
     """Create an agent for URL enrichment.
 
     Args:
         model: Model name to use (e.g., "models/gemini-2.0-flash-exp")
-        client: Google GenAI client to use for API calls
 
     Returns:
         Configured pydantic-ai Agent
     """
-    # Create provider with custom client
-    provider = GoogleProvider(client=client)
-    model_instance = GoogleModel(model, provider=provider)
-
     agent = Agent[UrlEnrichmentContext, EnrichmentOutput](
-        model_instance,
+        model,
         result_type=EnrichmentOutput,
         system_prompt=(
             "You are a helpful assistant that enriches URLs by providing detailed markdown descriptions. "
@@ -115,24 +102,17 @@ def create_url_enrichment_agent(
     return agent
 
 
-def create_media_enrichment_agent(
-    model: str, client: genai.Client
-) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
+def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
     """Create an agent for media enrichment.
 
     Args:
         model: Model name to use (e.g., "models/gemini-2.0-flash-thinking-exp")
-        client: Google GenAI client to use for API calls
 
     Returns:
         Configured pydantic-ai Agent
     """
-    # Create provider with custom client
-    provider = GoogleProvider(client=client)
-    model_instance = GoogleModel(model, provider=provider)
-
     agent = Agent[MediaEnrichmentContext, EnrichmentOutput](
-        model_instance,
+        model,
         result_type=EnrichmentOutput,
         system_prompt=(
             "You are a helpful assistant that enriches media files by providing detailed markdown descriptions. "
@@ -157,24 +137,17 @@ def create_media_enrichment_agent(
     return agent
 
 
-def create_avatar_enrichment_agent(
-    model: str, client: genai.Client
-) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
+def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext, AvatarModerationOutput]:
     """Create an agent for avatar enrichment and moderation.
 
     Args:
         model: Model name to use (e.g., "models/gemini-2.0-flash-thinking-exp")
-        client: Google GenAI client to use for API calls
 
     Returns:
         Configured pydantic-ai Agent
     """
-    # Create provider with custom client
-    provider = GoogleProvider(client=client)
-    model_instance = GoogleModel(model, provider=provider)
-
     agent = Agent[AvatarEnrichmentContext, AvatarModerationOutput](
-        model_instance,
+        model,
         result_type=AvatarModerationOutput,
         system_prompt=(
             "You are a content moderation assistant. Analyze avatar images and determine if they are appropriate. "
