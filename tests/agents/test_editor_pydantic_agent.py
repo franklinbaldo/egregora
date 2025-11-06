@@ -46,14 +46,20 @@ More content here.
 @pytest.fixture
 def model_config() -> ModelConfig:
     """Create a test model configuration."""
-    # ModelConfig uses site_config dict for model overrides
-    site_config = {
-        "writer_model": "models/gemini-flash-latest",
-        "editor_model": "models/gemini-flash-latest",
-        "embedding_model": "models/gemini-embedding-001",
-        "embedding_output_dimensionality": 3072,
-    }
-    return ModelConfig(site_config=site_config)
+    from egregora.config.schema import EgregoraConfig, ModelsConfig
+
+    # Create EgregoraConfig with test models
+    egregora_config = EgregoraConfig(
+        models=ModelsConfig(
+            writer="google-gla:gemini-flash-latest",
+            enricher="google-gla:gemini-flash-latest",
+            enricher_vision="google-gla:gemini-flash-latest",
+            embedding="google-gla:gemini-embedding-001",
+            ranking="google-gla:gemini-flash-latest",
+            editor="google-gla:gemini-flash-latest",
+        )
+    )
+    return ModelConfig(config=egregora_config)
 
 
 @pytest.mark.anyio
@@ -94,7 +100,6 @@ async def test_editor_agent_with_test_model(test_post: Path, model_config: Model
     assert "decision" in result
     assert "notes" in result
     assert "edits_made" in result
-    assert "tool_calls" in result
 
     # Verify decision
     assert result["decision"] == "publish"

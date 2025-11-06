@@ -5,10 +5,14 @@ maintaining the same three-turn protocol:
 1. Choose winner (A or B)
 2. Comment on Post A (stars + comment)
 3. Comment on Post B (stars + comment)
+
+MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import uuid
 from datetime import UTC, datetime
@@ -25,6 +29,7 @@ from egregora.config import resolve_site_paths
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()
+logger = logging.getLogger(__name__)
 FRONTMATTER_PARTS = 3
 MAX_COMMENT_LENGTH = 250
 COMMENT_TRUNCATE_SUFFIX = "..."
@@ -56,9 +61,14 @@ class RankingResult(BaseModel):
 
 
 class RankingAgentState(BaseModel):
-    """State passed to ranking agent tools."""
+    """Immutable dependencies passed to ranking agent tools.
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    MODERN (Phase 1): This is now frozen to prevent mutation in tools.
+    Results are extracted from the agent's message history instead of being
+    tracked via mutation.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     post_a_id: str
     post_b_id: str
     content_a: str
@@ -68,11 +78,89 @@ class RankingAgentState(BaseModel):
     existing_comments_b: str | None
     store: RankingStore
     site_dir: Path
+
+
+def _extract_ranking_results(messages: Any) -> RankingResult:
+    """Extract ranking results from agent message history.
+
+    Parses the agent's tool call results to find WinnerChoice and PostComment returns.
+
+    Args:
+        messages: Agent message history
+
+    Returns:
+        RankingResult with all three tool results
+
+    Raises:
+        ValueError: If any required tool result is missing
+
+    """
     winner: str | None = None
     comment_a: str | None = None
     stars_a: int | None = None
     comment_b: str | None = None
     stars_b: int | None = None
+
+    # Try to iterate through messages
+    try:
+        for message in messages:
+            # Check if this is a tool return message
+            if hasattr(message, "kind") and message.kind == "tool-return":
+                # Parse the content - it might be JSON or a Pydantic model
+                content = message.content
+                if isinstance(content, str):
+                    try:
+                        data = json.loads(content)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                elif hasattr(content, "model_dump"):
+                    data = content.model_dump()
+                elif hasattr(content, "__dict__"):
+                    data = vars(content)
+                else:
+                    data = content
+
+                # Extract results based on tool name
+                if isinstance(data, dict):
+                    # WinnerChoice has just 'winner' field
+                    if "winner" in data and "comment" not in data and "stars" not in data:
+                        winner = data["winner"]
+                    # PostComment has 'comment' and 'stars' fields
+                    elif "comment" in data and "stars" in data:
+                        # Need to determine if this is comment_a or comment_b
+                        # Look at tool name in message
+                        tool_name = getattr(message, "tool_name", None) or ""
+                        if "post_a" in tool_name.lower() and comment_a is None:
+                            comment_a = data["comment"]
+                            stars_a = data["stars"]
+                        elif "post_b" in tool_name.lower() and comment_b is None:
+                            comment_b = data["comment"]
+                            stars_b = data["stars"]
+                        elif comment_a is None:
+                            # First comment seen, assume it's A
+                            comment_a = data["comment"]
+                            stars_a = data["stars"]
+                        elif comment_b is None:
+                            # Second comment seen, assume it's B
+                            comment_b = data["comment"]
+                            stars_b = data["stars"]
+    except (AttributeError, TypeError) as e:
+        logger.debug("Could not parse tool results: %s", e)
+
+    # Validate all results were found
+    if winner is None:
+        msg = "Agent did not choose a winner"
+        raise ValueError(msg)
+    if comment_a is None or stars_a is None:
+        msg = "Agent did not comment on Post A"
+        raise ValueError(msg)
+    if comment_b is None or stars_b is None:
+        msg = "Agent did not comment on Post B"
+        raise ValueError(msg)
+
+    return RankingResult(
+        winner=winner, comment_a=comment_a, stars_a=stars_a, comment_b=comment_b, stars_b=stars_b
+    )
 
 
 def load_post_content(post_path: Path) -> str:
@@ -98,61 +186,76 @@ def load_profile(profile_path: Path) -> dict[str, Any]:
                         alias = lines[j].split("- Alias:", 1)[1].strip()
                         profile["alias"] = alias
                         break
+                break
     if "## Bio" in content:
         lines = content.split("\n")
         for i, line in enumerate(lines):
             if line.strip() == "## Bio":
-                for j in range(i + 1, min(i + 10, len(lines))):
-                    if lines[j].strip() and (not lines[j].startswith("#")):
-                        profile["bio"] = lines[j].strip()
+                bio_lines = []
+                for j in range(i + 2, len(lines)):
+                    if lines[j].strip().startswith("##"):
                         break
+                    bio_lines.append(lines[j])
+                profile["bio"] = "\n".join(bio_lines).strip()
+                break
     return profile
 
 
 def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
-    """Load all existing comments for a post from DuckDB.
+    """Load existing comments for a post.
 
-    Format as markdown for agent context.
+    Args:
+        post_id: Post ID
+        store: Ranking store
+
+    Returns:
+        Formatted comment summary or None
+
     """
-    comments_table = store.get_comments_for_post(post_id)
-    if comments_table.count().execute() == 0:
+    comparisons = store.get_comments_for_post(post_id)
+    # Check if empty (comparisons is an Ibis table, can't use "if not")
+    if comparisons is None or int(comparisons.count().execute()) == 0:
         return None
-    lines = []
-    for row in comments_table.iter_rows(named=True):
-        profile_name = row["profile_id"][:8]
-        stars = "⭐" * row["stars"]
-        timestamp = row["timestamp"].strftime("%Y-%m-%d")
-        lines.append(f"**@{profile_name}** {stars} ({timestamp})")
-        lines.append(f"> {row['comment']}")
-        lines.append("")
-    return "\n".join(lines)
+    comment_list = []
+    for comp in comparisons[-5:]:
+        comp_id = comp["comparison_id"]
+        timestamp = comp["timestamp"]
+        profile_id = comp["profile_id"]
+        if comp["post_a"] == post_id:
+            comment = comp["comment_a"]
+            stars = comp["stars_a"]
+        else:
+            comment = comp["comment_b"]
+            stars = comp["stars_b"]
+        stars_str = "⭐" * stars
+        comment_list.append(f"**{profile_id}** ({timestamp}): {stars_str}\n> {comment}")
+    return "\n\n".join(comment_list)
 
 
 def _find_post_path(posts_dir: Path, post_id: str) -> Path:
-    """Locate a post file within the MkDocs posts directory."""
-    candidates: list[Path] = []
-    search_dirs: list[Path] = []
-    if posts_dir.name == ".posts":
-        search_dirs.append(posts_dir)
-        search_dirs.append(posts_dir.parent)
-    else:
-        search_dirs.append(posts_dir / ".posts")
-        search_dirs.append(posts_dir)
-    for directory in search_dirs:
-        if not directory.exists():
-            continue
-        direct_candidate = directory / f"{post_id}.md"
-        candidates.append(direct_candidate)
-        if direct_candidate.exists():
-            return direct_candidate
-        matches = list(directory.rglob(f"{post_id}.md"))
-        candidates.extend(matches)
-        if matches:
-            if len(matches) > 1:
-                matches_str = ", ".join(str(match) for match in matches)
-                msg = f"Multiple posts found for {post_id}: {matches_str}"
-                raise ValueError(msg)
+    """Find full path to post file given its ID (stem).
+
+    Args:
+        posts_dir: Directory containing posts
+        post_id: Post ID (filename without extension)
+
+    Returns:
+        Full path to post file
+
+    Raises:
+        ValueError: If post not found or ambiguous
+
+    """
+    candidates = list(posts_dir.rglob("*.md"))
+    matches = [candidate for candidate in candidates if candidate.stem == post_id]
+    if matches:
+        if len(matches) == 1:
             return matches[0]
+        if len(matches) > 1:
+            matches_str = ", ".join(str(match) for match in matches)
+            msg = f"Multiple posts found for {post_id}: {matches_str}"
+            raise ValueError(msg)
+        return matches[0]
     searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
     msg = f"Post not found for id '{post_id}'. Looked in: {searched}"
     raise ValueError(msg)
@@ -169,7 +272,7 @@ def save_comparison(
     comment_b: str,
     stars_b: int,
 ) -> None:
-    """Save comparison result to DuckDB."""
+    """Save comparison results to store."""
     comparison_data = {
         "comparison_id": str(uuid.uuid4()),
         "timestamp": datetime.now(UTC),
@@ -191,27 +294,6 @@ def _truncate_comment(comment: str) -> str:
         truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
         return comment[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
     return comment
-
-
-def _validate_agent_state(state: RankingAgentState) -> None:
-    """Validate that agent completed all required tasks.
-
-    Args:
-        state: Agent state to validate
-
-    Raises:
-        ValueError: If any required task was not completed
-
-    """
-    if state.winner is None:
-        msg = "Agent did not choose a winner"
-        raise ValueError(msg)
-    if state.comment_a is None or state.stars_a is None:
-        msg = "Agent did not comment on Post A"
-        raise ValueError(msg)
-    if state.comment_b is None or state.stars_b is None:
-        msg = "Agent did not comment on Post B"
-        raise ValueError(msg)
 
 
 def _validate_ratings_exist(rating_a: dict[str, Any] | None, rating_b: dict[str, Any] | None) -> None:
@@ -244,7 +326,6 @@ def _register_ranking_tools(agent: Agent) -> None:
         if winner not in ("A", "B"):
             msg = f"Winner must be 'A' or 'B', got: {winner}"
             raise ValueError(msg)
-        ctx.deps.winner = winner
         console.print(f"[green]Winner: Post {winner}[/green]")
         return WinnerChoice(winner=winner)
 
@@ -261,8 +342,6 @@ def _register_ranking_tools(agent: Agent) -> None:
             msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
             raise ValueError(msg)
         comment = _truncate_comment(comment)
-        ctx.deps.comment_a = comment
-        ctx.deps.stars_a = stars
         console.print(f"[yellow]Comment A: {comment}[/yellow]")
         console.print(f"[yellow]Stars A: {'⭐' * stars}[/yellow]")
         return PostComment(comment=comment, stars=stars)
@@ -280,8 +359,6 @@ def _register_ranking_tools(agent: Agent) -> None:
             msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
             raise ValueError(msg)
         comment = _truncate_comment(comment)
-        ctx.deps.comment_b = comment
-        ctx.deps.stars_b = stars
         console.print(f"[yellow]Comment B: {comment}[/yellow]")
         console.print(f"[yellow]Stars B: {'⭐' * stars}[/yellow]")
         return PostComment(comment=comment, stars=stars)
@@ -351,24 +428,27 @@ async def run_comparison_with_pydantic_agent(
         )
         _register_ranking_tools(agent)
         try:
-            await agent.run(prompt, deps=state)
-            _validate_agent_state(state)
+            result = await agent.run(prompt, deps=state)
+
+            # Extract results from message history
+            ranking_result = _extract_ranking_results(result.all_messages())
+
             save_comparison(
                 store=store,
                 profile_id=profile["uuid"],
                 post_a=post_a_id,
                 post_b=post_b_id,
-                winner=state.winner,
-                comment_a=state.comment_a,
-                stars_a=state.stars_a,
-                comment_b=state.comment_b,
-                stars_b=state.stars_b,
+                winner=ranking_result.winner,
+                comment_a=ranking_result.comment_a,
+                stars_a=ranking_result.stars_a,
+                comment_b=ranking_result.comment_b,
+                stars_b=ranking_result.stars_b,
             )
             rating_a = store.get_rating(post_a_id)
             rating_b = store.get_rating(post_b_id)
             _validate_ratings_exist(rating_a, rating_b)
             new_elo_a, new_elo_b = calculate_elo_update(
-                rating_a["elo_global"], rating_b["elo_global"], state.winner
+                rating_a["elo_global"], rating_b["elo_global"], ranking_result.winner
             )
             store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
         except Exception as e:
@@ -377,9 +457,9 @@ async def run_comparison_with_pydantic_agent(
             raise RuntimeError(msg) from e
         else:
             return {
-                "winner": state.winner,
-                "comment_a": state.comment_a,
-                "stars_a": state.stars_a,
-                "comment_b": state.comment_b,
-                "stars_b": state.stars_b,
+                "winner": ranking_result.winner,
+                "comment_a": ranking_result.comment_a,
+                "stars_a": ranking_result.stars_a,
+                "comment_b": ranking_result.comment_b,
+                "stars_b": ranking_result.stars_b,
             }

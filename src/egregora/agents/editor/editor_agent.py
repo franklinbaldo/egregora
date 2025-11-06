@@ -84,15 +84,18 @@ class EditorAgentResult(BaseModel):
 
 
 class EditorAgentState(BaseModel):
-    """State passed to editor agent tools."""
+    """Immutable dependencies passed to editor agent tools.
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    MODERN (Phase 1): This is now frozen to prevent mutation in tools.
+    Tool call logging is handled by Pydantic-AI message history.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     editor: Editor
     rag_dir: Path
     client: Any
     model_config_obj: ModelConfig
     post_path: Path
-    tool_calls_log: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def markdown_to_snapshot(content: str, doc_id: str) -> DocumentSnapshot:
@@ -171,9 +174,6 @@ def _register_editor_tools(agent: Agent) -> None:
 
         """
         result_dict = ctx.deps.editor.edit_line(expect_version=expect_version, index=index, new=new_text)
-        ctx.deps.tool_calls_log.append(
-            {"tool": "edit_line", "args": {"expect_version": expect_version, "index": index}}
-        )
         if result_dict.get("ok"):
             return EditLineResult(
                 success=True,
@@ -196,7 +196,6 @@ def _register_editor_tools(agent: Agent) -> None:
 
         """
         result_dict = ctx.deps.editor.full_rewrite(expect_version=expect_version, content=content)
-        ctx.deps.tool_calls_log.append({"tool": "full_rewrite", "args": {"expect_version": expect_version}})
         if result_dict.get("ok"):
             return FullRewriteResult(
                 success=True,
@@ -220,9 +219,6 @@ def _register_editor_tools(agent: Agent) -> None:
             max_results: Maximum results to return (default 5)
 
         """
-        ctx.deps.tool_calls_log.append(
-            {"tool": "query_rag", "args": {"query": query, "max_results": max_results}}
-        )
         return await query_rag_impl(
             query=query,
             max_results=max_results,
@@ -247,7 +243,6 @@ def _register_editor_tools(agent: Agent) -> None:
             question: Question to ask the LLM
 
         """
-        ctx.deps.tool_calls_log.append({"tool": "ask_llm", "args": {"question": question}})
         model = ctx.deps.model_config_obj.get_model("editor")
         return await ask_llm_impl(question=question, client=ctx.deps.client, model=model)
 
@@ -271,9 +266,6 @@ def _register_editor_tools(agent: Agent) -> None:
             if not title:
                 return BannerResult(status="error", path=None)
             output_dir = ctx.deps.post_path.parent
-            ctx.deps.tool_calls_log.append(
-                {"tool": "generate_banner", "args": {"slug": slug, "title": title}}
-            )
             banner_path = generate_banner_for_post(
                 post_title=title, post_summary=summary or title, output_dir=output_dir, slug=slug
             )
@@ -311,7 +303,6 @@ async def run_editor_session_with_pydantic_agent(
         - decision: str - "publish" or "hold"
         - notes: str - Editor notes
         - edits_made: bool - Whether any edits were made
-        - tool_calls: list - Log of tool calls
 
     """
     if not post_path.exists():
@@ -334,7 +325,6 @@ async def run_editor_session_with_pydantic_agent(
         client=client,
         model_config_obj=model_config,
         post_path=post_path,
-        tool_calls_log=[],
     )
     model_name = model_config.get_model("editor")
     logger.info("[blue]✏️  Editor model:[/] %s", model_name)
@@ -367,7 +357,6 @@ async def run_editor_session_with_pydantic_agent(
                 "decision": final_result.decision,
                 "notes": final_result.notes,
                 "edits_made": editor.snapshot.version > 1,
-                "tool_calls": state.tool_calls_log,
             }
         except Exception as e:
             logger.exception("Editor agent failed")
