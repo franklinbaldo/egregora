@@ -10,14 +10,14 @@ from typing import Any
 class SiteConfiguration:
     """Configuration for a documentation/blog site."""
 
-    site_root: Path  # Root directory of the site
-    site_name: str  # Display name
-    docs_dir: Path  # Where content lives
-    posts_dir: Path  # Where blog posts go
-    profiles_dir: Path  # Where author profiles go
-    media_dir: Path  # Where media files go
-    config_file: Path | None  # Path to config file (if exists)
-    additional_paths: dict[str, Path] | None = None  # Format-specific paths
+    site_root: Path
+    site_name: str
+    docs_dir: Path
+    posts_dir: Path
+    profiles_dir: Path
+    media_dir: Path
+    config_file: Path | None
+    additional_paths: dict[str, Path] | None = None
 
 
 class OutputFormat(ABC):
@@ -67,13 +67,7 @@ class OutputFormat(ABC):
         """
 
     @abstractmethod
-    def write_post(
-        self,
-        content: str,
-        metadata: dict[str, Any],
-        output_dir: Path,
-        **kwargs,
-    ) -> str:
+    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs) -> str:
         """Write a blog post in the appropriate format.
 
         Args:
@@ -95,11 +89,7 @@ class OutputFormat(ABC):
 
     @abstractmethod
     def write_profile(
-        self,
-        author_id: str,
-        profile_data: dict[str, Any],
-        profiles_dir: Path,
-        **kwargs,
+        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs
     ) -> str:
         """Write an author profile page.
 
@@ -218,5 +208,4 @@ class OutputFormatRegistry:
         return list(self._formats.keys())
 
 
-# Global registry instance
 output_registry = OutputFormatRegistry()

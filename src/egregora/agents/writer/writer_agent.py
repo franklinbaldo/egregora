@@ -11,22 +11,20 @@ At the moment this backend is opt-in via the ``EGREGORA_LLM_BACKEND`` flag.
 """
 
 from __future__ import annotations
-
 import json
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
-try:  # Prefer the richer adapter API when available.
+try:
     from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
-except ImportError:  # pragma: no cover - backwards compatibility for older releases
-    from pydantic_ai import Agent, RunContext  # type: ignore
+except ImportError:
+    from pydantic_ai import Agent, RunContext
 
-    class ModelMessagesTypeAdapter:  # type: ignore[override]
+    class ModelMessagesTypeAdapter:
         """Lightweight shim mirroring the adapter interface used in tests."""
 
         @staticmethod
@@ -44,15 +42,12 @@ from egregora.agents.banner import generate_banner_for_post, is_banner_generatio
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
-
-# Models from config are already in pydantic-ai format
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
 if TYPE_CHECKING:
     from egregora.agents.tools.annotations import AnnotationStore
-
 logger = logging.getLogger(__name__)
 
 
@@ -117,7 +112,6 @@ class WriterAgentState(BaseModel):
     """Mutable state shared with tool functions during a run."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
     period_date: str
     output_dir: Path
     profiles_dir: Path
@@ -128,7 +122,6 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
-
     saved_posts: list[str] = Field(default_factory=list)
     saved_profiles: list[str] = Field(default_factory=list)
 
@@ -142,9 +135,7 @@ class WriterAgentState(BaseModel):
 
 
 def _register_writer_tools(
-    agent: Agent[WriterAgentState, WriterAgentReturn],
-    enable_banner: bool = False,
-    enable_rag: bool = False,
+    agent: Agent[WriterAgentState, WriterAgentReturn], enable_banner: bool = False, enable_rag: bool = False
 ) -> None:
     """Attach tool implementations to the agent.
 
@@ -157,23 +148,16 @@ def _register_writer_tools(
 
     @agent.tool
     def write_post_tool(
-        ctx: RunContext[WriterAgentState],
-        metadata: PostMetadata,
-        content: str,
+        ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
     ) -> WritePostResult:
         path = write_post(
-            content=content,
-            metadata=metadata.model_dump(exclude_none=True),
-            output_dir=ctx.deps.output_dir,
+            content=content, metadata=metadata.model_dump(exclude_none=True), output_dir=ctx.deps.output_dir
         )
         ctx.deps.record_post(path)
         return WritePostResult(status="success", path=path)
 
     @agent.tool
-    def read_profile_tool(
-        ctx: RunContext[WriterAgentState],
-        author_uuid: str,
-    ) -> ReadProfileResult:
+    def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
         content = read_profile(author_uuid, ctx.deps.profiles_dir)
         if not content:
             content = "No profile exists yet."
@@ -181,15 +165,12 @@ def _register_writer_tools(
 
     @agent.tool
     def write_profile_tool(
-        ctx: RunContext[WriterAgentState],
-        author_uuid: str,
-        content: str,
+        ctx: RunContext[WriterAgentState], author_uuid: str, content: str
     ) -> WriteProfileResult:
         path = write_profile(author_uuid, content, ctx.deps.profiles_dir)
         ctx.deps.record_profile(path)
         return WriteProfileResult(status="success", path=path)
 
-    # RAG search is optional (requires GOOGLE_API_KEY)
     if enable_rag:
 
         @agent.tool
@@ -211,24 +192,22 @@ def _register_writer_tools(
                 retrieval_nprobe=ctx.deps.retrieval_nprobe,
                 retrieval_overfetch=ctx.deps.retrieval_overfetch,
             )
-
-            # Use Ibis streaming instead of pandas .execute().iterrows()
-            # This avoids materializing the full result set and complies with Ibis-first policy
             items: list[MediaItem] = []
             for batch in stream_ibis(results, store._client, batch_size=100):
                 items.extend(
-                    MediaItem(
-                        media_type=row.get("media_type"),
-                        media_path=row.get("media_path"),
-                        original_filename=row.get("original_filename"),
-                        description=(str(row.get("content", "")) or "")[:500],
-                        similarity=(
-                            float(row.get("similarity")) if row.get("similarity") is not None else None
-                        ),
+                    (
+                        MediaItem(
+                            media_type=row.get("media_type"),
+                            media_path=row.get("media_path"),
+                            original_filename=row.get("original_filename"),
+                            description=(str(row.get("content", "")) or "")[:500],
+                            similarity=float(row.get("similarity"))
+                            if row.get("similarity") is not None
+                            else None,
+                        )
+                        for row in batch
                     )
-                    for row in batch
                 )
-
             if not items:
                 logger.info("Writer agent search_media returned no matches for query %s", query)
             return SearchMediaResult(results=items)
@@ -239,18 +218,13 @@ def _register_writer_tools(
 
     @agent.tool
     def annotate_conversation_tool(
-        ctx: RunContext[WriterAgentState],
-        parent_id: str,
-        parent_type: str,
-        commentary: str,
+        ctx: RunContext[WriterAgentState], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
         if ctx.deps.annotations_store is None:
             msg = "Annotation store is not configured"
             raise RuntimeError(msg)
         annotation = ctx.deps.annotations_store.save_annotation(
-            parent_id=parent_id,
-            parent_type=parent_type,
-            commentary=commentary,
+            parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )
         return AnnotationResult(
             status="ok",
@@ -259,21 +233,14 @@ def _register_writer_tools(
             parent_type=annotation.parent_type,
         )
 
-    # Banner generation is optional (requires GOOGLE_API_KEY)
     if enable_banner:
 
         @agent.tool
         def generate_banner_tool(
-            ctx: RunContext[WriterAgentState],
-            post_slug: str,
-            title: str,
-            summary: str,
+            ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
         ) -> BannerResult:
             banner_path = generate_banner_for_post(
-                post_title=title,
-                post_summary=summary,
-                output_dir=ctx.deps.output_dir,
-                slug=post_slug,
+                post_title=title, post_summary=summary, output_dir=ctx.deps.output_dir, slug=post_slug
             )
             if banner_path:
                 return BannerResult(status="success", path=str(banner_path))
@@ -284,7 +251,7 @@ def _register_writer_tools(
         logger.info("Banner generation tool disabled (no GOOGLE_API_KEY)")
 
 
-def write_posts_with_pydantic_agent(  # noqa: PLR0913
+def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     model_name: str,
@@ -308,30 +275,19 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
 
     """
     logger.info("Running writer via Pydantic-AI backend")
-
-    # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
         model = model_name
     else:
         model = agent_model
-
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=model,
-            deps_type=WriterAgentState,
-            output_type=WriterAgentReturn,
+            model=model, deps_type=WriterAgentState, output_type=WriterAgentReturn
         )
         _register_writer_tools(
-            agent,
-            enable_banner=is_banner_generation_available(),
-            enable_rag=is_rag_available(),
+            agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
         )
     else:
-        agent = Agent[WriterAgentState, str](
-            model=model,
-            deps_type=WriterAgentState,
-        )
-
+        agent = Agent[WriterAgentState, str](model=model, deps_type=WriterAgentState)
     state = WriterAgentState(
         period_date=period_date,
         output_dir=output_dir,
@@ -344,13 +300,10 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=annotations_store,
     )
-
     try:
         with logfire_span("writer_agent", period=period_date, model=model_name):
             result = agent.run_sync(prompt, deps=state)
             result_payload = getattr(result, "data", result)
-
-            # Log completion metrics
             usage = result.usage()
             logfire_info(
                 "Writer agent completed",
@@ -361,9 +314,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
                 tokens_input=usage.input_tokens if usage else 0,
                 tokens_output=usage.output_tokens if usage else 0,
             )
-
             logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
-
             record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
             if record_dir:
                 output_path = Path(record_dir).expanduser()
@@ -374,14 +325,13 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0913
                     payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
                     filename.write_bytes(payload)
                     logger.info("Recorded writer agent conversation to %s", filename)
-                except Exception as record_exc:  # pragma: no cover - best effort recording
+                except Exception as record_exc:
                     logger.warning("Failed to persist writer agent messages: %s", record_exc)
-    except Exception as exc:  # pragma: no cover - Pydantic-AI wraps HTTP errors
+    except Exception as exc:
         logger.exception("Pydantic writer agent failed: %s", exc)
         msg = "Writer agent execution failed"
         raise RuntimeError(msg) from exc
-
-    return state.saved_posts, state.saved_profiles
+    return (state.saved_posts, state.saved_profiles)
 
 
 class WriterStreamResult:
@@ -398,12 +348,7 @@ class WriterStreamResult:
     """
 
     def __init__(
-        self,
-        agent: Any,
-        prompt: str,
-        state: WriterAgentState,
-        period_date: str,
-        model_name: str,
+        self, agent: Any, prompt: str, state: WriterAgentState, period_date: str, model_name: str
     ) -> None:
         self.agent = agent
         self.prompt = prompt
@@ -416,11 +361,8 @@ class WriterStreamResult:
 
     async def __aenter__(self):
         """Enter async context - start logfire span and pydantic-ai stream."""
-        # Start logfire span
         self._span = logfire_span("writer_agent_stream", period=self.period_date, model=self.model_name)
         self._span.__enter__()
-
-        # Start pydantic-ai stream (must use async with)
         self._stream_context = self.agent.run_stream(self.prompt, deps=self.state)
         self._response = await self._stream_context.__aenter__()
         return self
@@ -438,10 +380,7 @@ class WriterStreamResult:
     async def stream_text(self):
         """Stream text chunks from the agent."""
         if not self._response:
-            msg = (
-                "WriterStreamResult must be used as async context manager "
-                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
-            )
+            msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             raise RuntimeError(msg)
         async for chunk in self._response.stream_text():
             yield chunk
@@ -453,15 +392,12 @@ class WriterStreamResult:
         so we can return it directly without waiting for additional data.
         """
         if not self._response:
-            msg = (
-                "WriterStreamResult must be used as async context manager "
-                "(use: async with write_posts_with_pydantic_agent_stream(...) as result)"
-            )
+            msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             raise RuntimeError(msg)
-        return self.state.saved_posts, self.state.saved_profiles
+        return (self.state.saved_posts, self.state.saved_profiles)
 
 
-async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
+async def write_posts_with_pydantic_agent_stream(
     *,
     prompt: str,
     model_name: str,
@@ -499,30 +435,19 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
 
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
-
-    # Model from config is already in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
     if agent_model is None:
         model = model_name
     else:
         model = agent_model
-
     if register_tools:
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=model,
-            deps_type=WriterAgentState,
-            output_type=WriterAgentReturn,
+            model=model, deps_type=WriterAgentState, output_type=WriterAgentReturn
         )
         _register_writer_tools(
-            agent,
-            enable_banner=is_banner_generation_available(),
-            enable_rag=is_rag_available(),
+            agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
         )
     else:
-        agent = Agent[WriterAgentState, str](
-            model=model,
-            deps_type=WriterAgentState,
-        )
-
+        agent = Agent[WriterAgentState, str](model=model, deps_type=WriterAgentState)
     state = WriterAgentState(
         period_date=period_date,
         output_dir=output_dir,
@@ -535,6 +460,4 @@ async def write_posts_with_pydantic_agent_stream(  # noqa: PLR0913
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=annotations_store,
     )
-
-    # Return the context manager - caller must use `async with`
     return WriterStreamResult(agent, prompt, state, period_date, model_name)

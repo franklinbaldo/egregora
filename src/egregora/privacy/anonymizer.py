@@ -11,14 +11,12 @@ Documentation:
 
 import re
 import uuid
-
 import ibis
 from ibis.expr.types import Table
 
 NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 SYSTEM_AUTHOR = "system"
-
-MENTION_PATTERN = re.compile(r"\u2068(?P<name>.*?)\u2069")
+MENTION_PATTERN = re.compile("\\u2068(?P<name>.*?)\\u2069")
 
 
 def anonymize_author(author: str) -> str:
@@ -42,34 +40,18 @@ def anonymize_mentions(text: str) -> str:
 
 def anonymize_table(table: Table) -> Table:
     """Anonymize author column and mentions in message column using vectorized operations."""
-    # 1. Anonymize Authors
-    # Get unique author names, create a mapping, and then replace using CASE statements
     unique_authors_result = table.select("author").distinct().execute()
-
-    # ibis executes to a pandas DataFrame; get the author column
     unique_authors = unique_authors_result["author"].dropna().tolist()
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
-
-    # Build a CASE expression for author replacement
-    # Start with the author column
     author_expr = table.author
-
-    # Chain .substitute() calls for each mapping
-    # Ibis has a .substitute() method that's perfect for this
     anonymized_author = author_expr.substitute(author_mapping, else_=SYSTEM_AUTHOR)
-
-    # Apply the anonymized author column
     anonymized_table = table.mutate(author=anonymized_author)
-
-    # 2. Anonymize Mentions in Messages
     if "message" in anonymized_table.columns:
-        # Register the anonymize_mentions function as a UDF
-        # Note: For DuckDB backend, we can use Python UDFs
+
         @ibis.udf.scalar.python
         def anonymize_mentions_udf(text: str) -> str:
             """UDF wrapper for anonymize_mentions."""
             return anonymize_mentions(text) if text else text
 
         anonymized_table = anonymized_table.mutate(message=anonymize_mentions_udf(anonymized_table.message))
-
     return anonymized_table

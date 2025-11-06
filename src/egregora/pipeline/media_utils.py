@@ -17,31 +17,19 @@ Media files are renamed using UUIDv5 based on content hash, enabling:
 """
 
 from __future__ import annotations
-
 import logging
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
-
 from egregora.enrichment.media import get_media_subfolder
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
     from egregora.pipeline.adapters import SourceAdapter
-
 logger = logging.getLogger(__name__)
-
-# Regex patterns for markdown media references
-# Matches: ![alt text](reference.jpg) or [link text](reference.mp4)
-MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
-
-__all__ = [
-    "extract_markdown_media_refs",
-    "process_media_for_period",
-    "replace_markdown_media_refs",
-]
+MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")
+MARKDOWN_LINK_PATTERN = re.compile("(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
+__all__ = ["extract_markdown_media_refs", "process_media_for_period", "replace_markdown_media_refs"]
 
 
 def extract_markdown_media_refs(table: Table) -> set[str]:
@@ -66,42 +54,28 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 
     """
     references = set()
-
-    # Execute table and iterate over message column
     try:
         messages = table.select("message").execute()
         for row in messages.itertuples(index=False):
             message = row.message
             if not message:
                 continue
-
-            # Extract image references: ![alt](ref)
             for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
                 reference = match.group(2)
                 references.add(reference)
-
-            # Extract link references: [text](ref)
-            # This might include non-media links, but the adapter's deliver_media()
-            # will return None for those, which we handle gracefully
             for match in MARKDOWN_LINK_PATTERN.finditer(message):
                 reference = match.group(2)
-                # Skip obvious URLs (http://, https://)
                 if not reference.startswith(("http://", "https://")):
                     references.add(reference)
-
     except Exception as e:
-        logger.warning(f"Failed to extract media references: {e}")
+        logger.warning("Failed to extract media references: %s", e)
         return set()
-
-    logger.debug(f"Extracted {len(references)} unique media references")
+    logger.debug("Extracted %s unique media references", len(references))
     return references
 
 
 def replace_markdown_media_refs(
-    table: Table,
-    media_mapping: dict[str, Path],
-    docs_dir: Path,
-    posts_dir: Path,
+    table: Table, media_mapping: dict[str, Path], docs_dir: Path, posts_dir: Path
 ) -> Table:
     """Replace markdown media references with standardized paths.
 
@@ -132,40 +106,22 @@ def replace_markdown_media_refs(
     """
     if not media_mapping:
         return table
-
-    # Execute table to pandas for efficient string replacement
     df = table.execute()
-
-    # Replace references in message column
     for original_ref, absolute_path in media_mapping.items():
-        # Compute relative path from posts_dir to media file
-        # This matches the behavior of the old replace_media_mentions() function
         try:
             import os
 
             relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
         except ValueError:
-            # Fallback: use docs_dir-relative path with leading slash
             try:
                 relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
             except ValueError:
-                # Last resort: use absolute path
                 relative_link = absolute_path.as_posix()
-
-        # Replace in both image and link markdown formats
-        # Image: ![alt](original) → ![alt](relative_link)
-        df["message"] = df["message"].str.replace(
-            f"]({original_ref})",
-            f"]({relative_link})",
-            regex=False,
-        )
-
-    # Convert back to Ibis table
+        df["message"] = df["message"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
     import ibis
 
     updated_table = ibis.memtable(df)
-
-    logger.debug(f"Replaced {len(media_mapping)} media references in messages")
+    logger.debug("Replaced %s media references in messages", len(media_mapping))
     return updated_table
 
 
@@ -218,68 +174,41 @@ def process_media_for_period(
     """
     media_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)
-
-    # Step 1: Extract all markdown media references
     media_refs = extract_markdown_media_refs(period_table)
     if not media_refs:
         logger.debug("No media references found in period")
-        return period_table, {}
-
-    logger.info(f"Found {len(media_refs)} media references to process")
-
-    # Step 2: Process each media reference
+        return (period_table, {})
+    logger.info("Found %s media references to process", len(media_refs))
     media_mapping: dict[str, Path] = {}
     processed_count = 0
     failed_refs = []
-
     for media_ref in media_refs:
         try:
-            # Step 3: Call adapter to deliver media file
             delivered_file = adapter.deliver_media(
-                media_reference=media_ref,
-                temp_dir=temp_dir,
-                **adapter_kwargs,
+                media_reference=media_ref, temp_dir=temp_dir, **adapter_kwargs
             )
-
             if delivered_file is None:
-                logger.debug(f"Adapter could not deliver media: {media_ref}")
+                logger.debug("Adapter could not deliver media: %s", media_ref)
                 continue
-
             if not delivered_file.exists():
-                logger.warning(f"Adapter returned non-existent file: {delivered_file}")
+                logger.warning("Adapter returned non-existent file: %s", delivered_file)
                 continue
-
-            # Step 4: Standardize media file using base class helper method
-            # This handles: UUID generation, subfolder placement, deduplication
             standardized_path = adapter.standardize_media_file(
-                source_file=delivered_file,
-                media_dir=media_dir,
-                get_subfolder=get_media_subfolder,
+                source_file=delivered_file, media_dir=media_dir, get_subfolder=get_media_subfolder
             )
-
-            # Step 5: Store mapping with ABSOLUTE path for enrichment stage
-            # The enrichment stage needs absolute paths to access files
             media_mapping[media_ref] = standardized_path
             processed_count += 1
-
         except Exception as e:
-            logger.warning(f"Failed to process media '{media_ref}': {e}")
+            logger.warning("Failed to process media '%s': %s", media_ref, e)
             failed_refs.append(media_ref)
             continue
-
-    logger.info(f"Successfully processed {processed_count}/{len(media_refs)} media files")
+    logger.info("Successfully processed %s/%s media files", processed_count, len(media_refs))
     if failed_refs:
-        logger.warning(f"Failed to process {len(failed_refs)} media files: {failed_refs}")
-
-    # Step 9: Replace media references in messages with relative paths
+        logger.warning("Failed to process %s media files: %s", len(failed_refs), failed_refs)
     if media_mapping:
         updated_table = replace_markdown_media_refs(
-            period_table,
-            media_mapping,
-            docs_dir=docs_dir,
-            posts_dir=posts_dir,
+            period_table, media_mapping, docs_dir=docs_dir, posts_dir=posts_dir
         )
     else:
         updated_table = period_table
-
-    return updated_table, media_mapping
+    return (updated_table, media_mapping)

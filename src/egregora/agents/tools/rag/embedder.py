@@ -4,10 +4,8 @@ All embeddings use fixed 768-dimension output for consistency and HNSW optimizat
 """
 
 from __future__ import annotations
-
 import logging
 from typing import Annotated
-
 from egregora.config import EMBEDDING_DIM
 from egregora.utils.genai_helpers import embed_batch, embed_text
 
@@ -26,19 +24,8 @@ def embed_chunks(
     """
     if not chunks:
         return []
-
-    embeddings = embed_batch(
-        chunks,
-        model=model,
-        task_type=task_type,
-    )
-
-    logger.info(
-        "Embedded %d chunks (%d dimensions)",
-        len(embeddings),
-        EMBEDDING_DIM,
-    )
-
+    embeddings = embed_batch(chunks, model=model, task_type=task_type)
+    logger.info("Embedded %d chunks (%d dimensions)", len(embeddings), EMBEDDING_DIM)
     return embeddings
 
 
@@ -51,8 +38,4 @@ def embed_query(
 
     All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
     """
-    return embed_text(
-        query_text,
-        model=model,
-        task_type="RETRIEVAL_QUERY",
-    )
+    return embed_text(query_text, model=model, task_type="RETRIEVAL_QUERY")

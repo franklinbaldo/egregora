@@ -1,17 +1,14 @@
 """Persistent caches for enrichment and other pipeline artifacts."""
 
 from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Any
-
 import diskcache
 
 logger = logging.getLogger(__name__)
-
 ENRICHMENT_CACHE_VERSION = "v1"
 
 
@@ -46,7 +43,6 @@ class EnrichmentCache:
         base_dir = self.directory or Path(".egregora-cache") / "enrichments"
         base_dir = base_dir.expanduser().resolve()
         base_dir.mkdir(parents=True, exist_ok=True)
-
         logger.debug("Initializing enrichment cache at %s", base_dir)
         self._cache = diskcache.Cache(str(base_dir))
         self.directory = base_dir

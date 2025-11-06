@@ -5,7 +5,6 @@ configuration objects to reduce parameter counts in pipeline functions.
 """
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

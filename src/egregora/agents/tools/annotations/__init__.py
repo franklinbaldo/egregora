@@ -1,22 +1,17 @@
 """Persistence layer for writer conversation annotations."""
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
 import ibis
-
 from egregora.database import schema as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-
     import duckdb
-
 ANNOTATION_AUTHOR = "egregora"
 ANNOTATIONS_TABLE = "annotations"
 
@@ -51,25 +46,11 @@ class AnnotationStore:
         sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._connection.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
         self._connection.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (
-                id INTEGER PRIMARY KEY DEFAULT nextval('{sequence_name}'),
-                parent_id VARCHAR NOT NULL,
-                parent_type VARCHAR NOT NULL,
-                author VARCHAR,
-                commentary VARCHAR,
-                created_at TIMESTAMP
-            )
-            """
+            f"\n            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (\n                id INTEGER PRIMARY KEY DEFAULT nextval('{sequence_name}'),\n                parent_id VARCHAR NOT NULL,\n                parent_type VARCHAR NOT NULL,\n                author VARCHAR,\n                commentary VARCHAR,\n                created_at TIMESTAMP\n            )\n            "
         )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         column_default_row = self._connection.execute(
-            """
-            SELECT column_default
-            FROM information_schema.columns
-            WHERE lower(table_name) = lower(?) AND lower(column_name) = 'id'
-            LIMIT 1
-            """,
+            "\n            SELECT column_default\n            FROM information_schema.columns\n            WHERE lower(table_name) = lower(?) AND lower(column_name) = 'id'\n            LIMIT 1\n            ",
             [ANNOTATIONS_TABLE],
         ).fetchone()
         if not column_default_row or column_default_row[0] != f"nextval('{sequence_name}')":
@@ -77,36 +58,25 @@ class AnnotationStore:
                 f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
             )
         self._backend.raw_sql(
-            f"""
-            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created
-            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)
-            """
+            f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
         )
-
         max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()
         if max_id_row and max_id_row[0] is not None:
             max_id = int(max_id_row[0])
             sequence_state = self._connection.execute(
-                """
-                SELECT start_value, increment_by, last_value
-                FROM duckdb_sequences()
-                WHERE schema_name = current_schema() AND sequence_name = ?
-                LIMIT 1
-                """,
+                "\n                SELECT start_value, increment_by, last_value\n                FROM duckdb_sequences()\n                WHERE schema_name = current_schema() AND sequence_name = ?\n                LIMIT 1\n                ",
                 [sequence_name],
             ).fetchone()
             if sequence_state is None:
                 msg = f"Could not find sequence metadata for {sequence_name}"
                 raise RuntimeError(msg)
-
             start_value, increment_by, last_value = sequence_state
             current_next = int(start_value) if last_value is None else int(last_value) + int(increment_by)
             desired_next = max(current_next, max_id + 1)
             steps_needed = desired_next - current_next
             if steps_needed > 0:
                 cursor = self._connection.execute(
-                    "SELECT nextval(?) FROM range(?)",
-                    [sequence_name, steps_needed],
+                    "SELECT nextval(?) FROM range(?)", [sequence_name, steps_needed]
                 )
                 cursor.fetchall()
 
@@ -115,17 +85,11 @@ class AnnotationStore:
         column_names = [description[0] for description in cursor.description]
         return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
-    def save_annotation(
-        self,
-        parent_id: str,
-        parent_type: str,
-        commentary: str,
-    ) -> Annotation:
+    def save_annotation(self, parent_id: str, parent_type: str, commentary: str) -> Annotation:
         """Persist an annotation and return the saved record."""
         sanitized_parent_id = (parent_id or "").strip()
         sanitized_parent_type = (parent_type or "").strip().lower()
         sanitized_commentary = (commentary or "").strip()
-
         if not sanitized_parent_id:
             msg = "parent_id is required"
             raise ValueError(msg)
@@ -135,14 +99,11 @@ class AnnotationStore:
         if not sanitized_commentary:
             msg = "commentary must not be empty"
             raise ValueError(msg)
-
         try:
             validate_newsletter_privacy(sanitized_commentary)
-        except PrivacyViolationError as exc:  # pragma: no cover - defensive path
+        except PrivacyViolationError as exc:
             raise ValueError(str(exc)) from exc
-
         created_at = datetime.now(UTC)
-
         if sanitized_parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)
             parent_exists = int(
@@ -154,27 +115,15 @@ class AnnotationStore:
             if parent_exists == 0:
                 msg = f"parent annotation with id {sanitized_parent_id} does not exist"
                 raise ValueError(msg)
-
         cursor = self._connection.execute(
-            f"""
-            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            RETURNING id
-            """,
-            [
-                sanitized_parent_id,
-                sanitized_parent_type,
-                ANNOTATION_AUTHOR,
-                sanitized_commentary,
-                created_at,
-            ],
+            f"\n            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)\n            VALUES (?, ?, ?, ?, ?)\n            RETURNING id\n            ",
+            [sanitized_parent_id, sanitized_parent_type, ANNOTATION_AUTHOR, sanitized_commentary, created_at],
         )
         row = cursor.fetchone()
         if row is None:
             msg = "Could not insert annotation"
             raise RuntimeError(msg)
         annotation_id = int(row[0])
-
         return Annotation(
             id=annotation_id,
             parent_id=sanitized_parent_id,
@@ -189,17 +138,10 @@ class AnnotationStore:
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return []
-
         records = self._fetch_records(
-            f"""
-            SELECT id, parent_id, parent_type, author, commentary, created_at
-            FROM {ANNOTATIONS_TABLE}
-            WHERE parent_id = ? AND parent_type = 'message'
-            ORDER BY created_at ASC, id ASC
-            """,
+            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",
             [sanitized_msg_id],
         )
-
         return [self._row_to_annotation(row) for row in records]
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
@@ -207,14 +149,8 @@ class AnnotationStore:
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return None
-
         cursor = self._connection.execute(
-            f"""
-            SELECT id FROM {ANNOTATIONS_TABLE}
-            WHERE parent_id = ? AND parent_type = 'message'
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """,
+            f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",
             [sanitized_msg_id],
         )
         row = cursor.fetchone()
@@ -223,13 +159,8 @@ class AnnotationStore:
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"""
-            SELECT id, parent_id, parent_type, author, commentary, created_at
-            FROM {ANNOTATIONS_TABLE}
-            ORDER BY created_at ASC, id ASC
-            """
+            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "
         )
-
         for row in records:
             yield self._row_to_annotation(row)
 
@@ -252,14 +183,8 @@ class AnnotationStore:
             >>> annotated_messages = joined.filter(joined.commentary.notnull())
 
         """
-        # Get annotations as an Ibis table
         annotations_table = self._backend.table(ANNOTATIONS_TABLE)
-
-        # Filter for annotations that are direct replies to messages
         message_annotations = annotations_table[annotations_table.parent_type == "message"]
-
-        # Perform left join: messages with their annotations (if any)
-        # This preserves all messages even if they don't have annotations
         return messages_table.left_join(
             message_annotations, messages_table.message_id == message_annotations.parent_id
         )
@@ -272,16 +197,12 @@ class AnnotationStore:
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
         else:
-            # Handle string with potential 'Z' suffix
             dt_str = str(created_at_obj).replace("Z", "+00:00")
             created_at = datetime.fromisoformat(dt_str)
-
-        # Normalize timezone to UTC
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
         else:
             created_at = created_at.astimezone(UTC)
-
         return Annotation(
             id=int(row["id"]),
             parent_id=str(row["parent_id"]),

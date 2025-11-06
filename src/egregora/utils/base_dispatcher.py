@@ -78,17 +78,17 @@ class BaseDispatcher[TRequest, TResult](ABC):
 
         # Manual override
         if force_batch:
-            logger.info(f"Forcing batch API for {len(requests)} items")
+            logger.info("Forcing batch API for %s items", len(requests))
             return self._execute_batch(requests, **kwargs)
         if force_individual:
-            logger.info(f"Forcing individual calls for {len(requests)} items")
+            logger.info("Forcing individual calls for %s items", len(requests))
             return self._execute_individual(requests)
 
         # Automatic decision based on threshold
         if len(requests) < self._batch_threshold:
-            logger.info(f"Using individual calls for {len(requests)} items")
+            logger.info("Using individual calls for %s items", len(requests))
             return self._execute_individual(requests)
-        logger.info(f"Using batch API for {len(requests)} items")
+        logger.info("Using batch API for %s items", len(requests))
         return self._execute_batch(requests, **kwargs)
 
     def _execute_individual(self, requests: Sequence[TRequest]) -> list[TResult]:

@@ -296,4 +296,4 @@ def create_index(conn, table_name: str, index_name: str, column_name: str, index
             conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
     except Exception as e:
         # Index may already exist or column may not support this index type
-        logging.getLogger(__name__).debug(f"Could not create index {index_name}: {e}")
+        logging.getLogger(__name__).debug("Could not create index %s: %s", index_name, e)

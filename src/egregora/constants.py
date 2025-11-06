@@ -6,10 +6,6 @@ and numbers scattered throughout the codebase.
 
 from enum import Enum
 
-# ============================================================================
-# Commands
-# ============================================================================
-
 
 class EgregoraCommand(str, Enum):
     """User commands recognized by the system."""
@@ -20,22 +16,12 @@ class EgregoraCommand(str, Enum):
     STATUS = "/egregora status"
 
 
-# ============================================================================
-# Plugins
-# ============================================================================
-
-
 class PluginType(str, Enum):
     """Available plugin types."""
 
     BLOG = "blog"
     FORUM = "forum"
     WIKI = "wiki"
-
-
-# ============================================================================
-# Pipeline Steps & Status
-# ============================================================================
 
 
 class PipelineStep(str, Enum):
@@ -56,11 +42,6 @@ class StepStatus(str, Enum):
     FAILED = "failed"
 
 
-# ============================================================================
-# File Formats
-# ============================================================================
-
-
 class FileFormat(str, Enum):
     """Supported file formats and extensions."""
 
@@ -71,28 +52,18 @@ class FileFormat(str, Enum):
     MARKDOWN = ".md"
 
 
-# ============================================================================
-# Database
-# ============================================================================
-
-
 class IndexType(str, Enum):
     """Vector index types for database."""
 
-    HNSW = "HNSW"  # Hierarchical Navigable Small World
-    FLAT = "FLAT"  # Exhaustive search
+    HNSW = "HNSW"
+    FLAT = "FLAT"
 
 
 class RetrievalMode(str, Enum):
     """RAG retrieval modes."""
 
-    ANN = "ann"  # Approximate Nearest Neighbor
-    FLAT = "flat"  # Exhaustive search
-
-
-# ============================================================================
-# Time Periods
-# ============================================================================
+    ANN = "ann"
+    FLAT = "flat"
 
 
 class TimePeriod(str, Enum):
@@ -104,11 +75,6 @@ class TimePeriod(str, Enum):
     YEAR = "year"
 
 
-# ============================================================================
-# Media Types
-# ============================================================================
-
-
 class MediaType(str, Enum):
     """Media content types."""
 
@@ -118,11 +84,6 @@ class MediaType(str, Enum):
     DOCUMENT = "document"
 
 
-# ============================================================================
-# Numeric Limits & Thresholds
-# ============================================================================
-
-
 class Limits:
     """Numeric limits and thresholds used throughout the system.
 
@@ -130,39 +91,22 @@ class Limits:
     overridden by configuration or environment variables.
     """
 
-    # Enrichment limits
     MAX_ENRICHMENTS_DEFAULT = 500
     BATCH_THRESHOLD_DEFAULT = 10
     MAX_URLS_PER_MESSAGE = 3
     MAX_MEDIA_PER_MESSAGE = 5
-
-    # RAG limits
     RAG_DEFAULT_TOP_K = 10
     RAG_DEFAULT_OVERFETCH = 5
-
-    # Display thresholds
-    SINGLE_DIGIT_THRESHOLD = 10  # When to pad numbers with leading zeros
-
-    # Timeout values (seconds)
+    SINGLE_DIGIT_THRESHOLD = 10
     DEFAULT_REQUEST_TIMEOUT = 30
     LONG_REQUEST_TIMEOUT = 120
-
-
-# ============================================================================
-# System Identifiers
-# ============================================================================
 
 
 class SystemIdentifier(str, Enum):
     """Special system identifiers used for generated content."""
 
-    EGREGORA_AUTHOR = "egregora"  # Author name for enrichment messages
-    ANONYMOUS_USER = "anonymous"  # Placeholder for anonymized users
-
-
-# ============================================================================
-# Export Formats
-# ============================================================================
+    EGREGORA_AUTHOR = "egregora"
+    ANONYMOUS_USER = "anonymous"
 
 
 class OutputFormat(str, Enum):

@@ -7,9 +7,7 @@ and prompt templates for AI agents in the Egregora system.
 
 import re
 from pathlib import Path
-
 import yaml
-
 from egregora.agents.models import AgentConfig
 
 
@@ -43,35 +41,24 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
 
     """
     agent_path = egregora_path / "agents" / f"{agent_name}.jinja"
-
     if not agent_path.exists():
         msg = f"Agent template not found: {agent_path}"
         raise FileNotFoundError(msg)
-
     raw_content = agent_path.read_text(encoding="utf-8")
-
-    # Extract front-matter from within Jinja comment
-    match = re.search(r"{#---(.*?)#---#}", raw_content, re.DOTALL)
+    match = re.search("{#---(.*?)#---#}", raw_content, re.DOTALL)
     if not match:
         msg = f"Front-matter not found in {agent_path}"
         raise ValueError(msg)
-
     front_matter_str = match.group(1)
-
-    # The rest of the file is the prompt template
     prompt_template = raw_content[match.end() :].strip()
-
-    # Parse the YAML front-matter and validate with Pydantic
     try:
         config_dict = yaml.safe_load(front_matter_str)
     except yaml.YAMLError as e:
         msg = f"Invalid YAML in {agent_path}: {e}"
         raise ValueError(msg) from e
-
     try:
         agent_config = AgentConfig(**config_dict)
     except Exception as e:
         msg = f"Invalid agent config in {agent_path}: {e}"
         raise ValueError(msg) from e
-
-    return agent_config, prompt_template
+    return (agent_config, prompt_template)

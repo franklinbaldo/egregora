@@ -23,25 +23,9 @@ def register_all() -> None:
 
     To enable templates, complete their implementation and add them here.
     """
-    # Register production input sources
     input_registry.register(WhatsAppInputSource)
-
-    # Register production output formats
     output_registry.register(MkDocsOutputFormat)
 
-    # Templates (commented out - complete implementation first):
-    # from egregora.ingestion.slack_input import SlackInputSource
-    # input_registry.register(SlackInputSource)
-    # from egregora.rendering.hugo import HugoOutputFormat
-    # output_registry.register(HugoOutputFormat)
 
-
-# Auto-register on import
 register_all()
-
-
-__all__ = [
-    "input_registry",
-    "output_registry",
-    "register_all",
-]
+__all__ = ["input_registry", "output_registry", "register_all"]

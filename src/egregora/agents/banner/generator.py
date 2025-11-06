@@ -8,12 +8,10 @@ Requires GOOGLE_API_KEY environment variable or explicit api_key parameter.
 """
 
 from __future__ import annotations
-
 import logging
 import mimetypes
 import os
 from pathlib import Path
-
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -58,23 +56,16 @@ class BannerGenerator:
 
         """
         self.enabled = enabled
-
         if not enabled:
             logger.info("Banner generation disabled")
             self.client = None
             self.model = None
             self.api_key = None
             return
-
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if not self.api_key:
-            msg = (
-                "Banner generation requires GOOGLE_API_KEY. "
-                "Set environment variable or pass api_key parameter, "
-                "or set enabled=False to disable banner generation."
-            )
+            msg = "Banner generation requires GOOGLE_API_KEY. Set environment variable or pass api_key parameter, or set enabled=False to disable banner generation."
             raise ValueError(msg)
-
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.5-flash-image"
 
@@ -89,81 +80,46 @@ class BannerGenerator:
 
         """
         if not self.enabled:
-            logger.info(f"Banner generation disabled, skipping: {request.post_title}")
+            logger.info("Banner generation disabled, skipping: %s", request.post_title)
             return BannerResult(success=False, error="Banner generation disabled (no GOOGLE_API_KEY)")
-
         request.output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Construct the prompt for image generation
         prompt = self._build_prompt(request.post_title, request.post_summary)
-
         try:
-            logger.info(f"Generating banner for post: {request.post_title}")
-
-            contents = [
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=prompt)],
-                )
-            ]
-
+            logger.info("Generating banner for post: %s", request.post_title)
+            contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
             generate_content_config = types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],
-                image_config=types.ImageConfig(
-                    aspect_ratio="1:1",  # Square format for blog banners
-                ),
+                image_config=types.ImageConfig(aspect_ratio="1:1"),
                 system_instruction=[
                     types.Part.from_text(
-                        text=(
-                            "You are a senior editorial illustrator for a modern blog. "
-                            "Your job is to translate an article into a striking, concept-driven "
-                            "cover/banner image that is legible at small sizes, brand-consistent, "
-                            "and accessible. Create minimalist, abstract representations that "
-                            "capture the essence of the article without literal depictions. "
-                            "Use bold colors, clear composition, and modern design principles."
-                        )
+                        text="You are a senior editorial illustrator for a modern blog. Your job is to translate an article into a striking, concept-driven cover/banner image that is legible at small sizes, brand-consistent, and accessible. Create minimalist, abstract representations that capture the essence of the article without literal depictions. Use bold colors, clear composition, and modern design principles."
                     )
                 ],
             )
-
-            # Generate the image using streaming API
             for chunk in self.client.models.generate_content_stream(
-                model=self.model,
-                contents=contents,
-                config=generate_content_config,
+                model=self.model, contents=contents, config=generate_content_config
             ):
                 if not (
                     chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
                 ):
                     continue
-
                 part = chunk.candidates[0].content.parts[0]
-
-                # Check for image data
                 if part.inline_data and part.inline_data.data:
                     inline_data = part.inline_data
                     data_buffer = inline_data.data
                     file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
-
-                    # Save the banner
                     banner_filename = f"banner-{request.slug}{file_extension}"
                     banner_path = request.output_dir / banner_filename
-
                     with banner_path.open("wb") as f:
                         f.write(data_buffer)
-
-                    logger.info(f"Banner saved to: {banner_path}")
+                    logger.info("Banner saved to: %s", banner_path)
                     return BannerResult(success=True, banner_path=banner_path)
-
-                # Log any text responses
                 if hasattr(chunk, "text") and chunk.text:
-                    logger.debug(f"Gemini response: {chunk.text}")
-
-            logger.warning(f"No image generated for post: {request.post_title}")
+                    logger.debug("Gemini response: %s", chunk.text)
+            logger.warning("No image generated for post: %s", request.post_title)
             return BannerResult(success=False, error="No image data received from API")
-
         except Exception as e:
-            logger.error(f"Failed to generate banner for {request.post_title}: {e}", exc_info=True)
+            logger.error("Failed to generate banner for %s: %s", request.post_title, e, exc_info=True)
             return BannerResult(success=False, error=str(e))
 
     def _build_prompt(self, title: str, summary: str) -> str:
@@ -177,30 +133,11 @@ class BannerGenerator:
             Prompt string for image generation
 
         """
-        return f"""Create a cover image for this blog post:
-
-Title: {title}
-
-Summary: {summary}
-
-Requirements:
-- Modern, minimalist design
-- Abstract/conceptual (not literal)
-- Bold, striking visual
-- Suitable for blog banner/header
-- Legible when scaled down
-- Professional and engaging
-
-The image should capture the essence and mood of the article while being visually
-distinct and memorable."""
+        return f"Create a cover image for this blog post:\n\nTitle: {title}\n\nSummary: {summary}\n\nRequirements:\n- Modern, minimalist design\n- Abstract/conceptual (not literal)\n- Bold, striking visual\n- Suitable for blog banner/header\n- Legible when scaled down\n- Professional and engaging\n\nThe image should capture the essence and mood of the article while being visually\ndistinct and memorable."
 
 
 def generate_banner_for_post(
-    post_title: str,
-    post_summary: str,
-    output_dir: Path,
-    slug: str,
-    api_key: str | None = None,
+    post_title: str, post_summary: str, output_dir: Path, slug: str, api_key: str | None = None
 ) -> Path | None:
     """Convenience function to generate a banner for a post.
 
@@ -219,23 +156,16 @@ def generate_banner_for_post(
 
     """
     try:
-        # Check if API key is available
         effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
         enabled = effective_key is not None
-
         generator = BannerGenerator(api_key=api_key, enabled=enabled)
         request = BannerRequest(
-            post_title=post_title,
-            post_summary=post_summary,
-            output_dir=output_dir,
-            slug=slug,
+            post_title=post_title, post_summary=post_summary, output_dir=output_dir, slug=slug
         )
         result = generator.generate_banner(request)
-
         return result.banner_path if result.success else None
-
     except Exception as e:
-        logger.error(f"Banner generation failed: {e}", exc_info=True)
+        logger.error("Banner generation failed: %s", e, exc_info=True)
         return None
 
 

@@ -1,7 +1,6 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
-
 from slugify import slugify as _slugify
 from werkzeug.exceptions import NotFound as _WerkzeugNotFound
 from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError
@@ -43,7 +42,7 @@ def slugify(text: str, max_len: int = 60) -> str:
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
-    r"""Safely join path parts and ensure result stays within base_dir.
+    """Safely join path parts and ensure result stays within base_dir.
 
     Uses werkzeug.utils.safe_join, the industry-standard path security
     function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
@@ -67,45 +66,33 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         Traceback (most recent call last):
         ...
         PathTraversalError: Path escaped output directory
-        >>> safe_path_join(base, "..\\\\..\\\\windows\\\\system32")  # doctest: +SKIP
+        >>> safe_path_join(base, "..\\\\\\\\..\\\\\\\\windows\\\\\\\\system32")  # doctest: +SKIP
         Traceback (most recent call last):
         ...
         PathTraversalError: Path escaped output directory
 
     Security:
         Uses werkzeug.utils.safe_join (industry standard since 2007).
-        Protects against Unix (/) and Windows (\\) path traversal on all platforms.
+        Protects against Unix (/) and Windows (\\\\) path traversal on all platforms.
         Werkzeug normalizes path separators and validates containment automatically.
 
     References:
         https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.utils.safe_join
 
     """
-    # Additional security: reject paths with backslashes to prevent
-    # cross-platform path traversal attacks. On POSIX, backslashes are
-    # valid filename chars, but we normalize them to forward slashes for consistency.
     normalized_parts = []
     for part in parts:
-        # Check for Windows-style absolute paths (C:\, D:\, etc.)
-        if len(part) >= 3 and part[1:3] == ":\\":  # noqa: PLR2004
+        if len(part) >= 3 and part[1:3] == ":\\":
             msg = f"Absolute Windows paths not allowed: {part}"
             raise PathTraversalError(msg)
-        # Normalize backslashes to forward slashes
         normalized_parts.append(part.replace("\\", "/"))
-
-    # Convert Path to string for werkzeug compatibility
     base_str = str(base_dir.resolve())
-
     try:
-        # werkzeug.utils.safe_join returns None on older versions and raises on >=3.0
         result_str = _werkzeug_safe_join(base_str, *normalized_parts)
     except (_WerkzeugNotFound, _WerkzeugSecurityError) as exc:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg) from exc
-
     if result_str is None:
-        # Path traversal attempt detected (Werkzeug < 3.0)
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg)
-
     return Path(result_str)

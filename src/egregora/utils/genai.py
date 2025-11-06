@@ -185,8 +185,12 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
                 delay = base_delay * (2 ** (attempt - 1))
 
             logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
+                "[yellow]⏳ Retry[/] %s — attempt %s/%s. Waiting %.2fs before retry.\n[dim]%s[/]",
+                fn_name,
+                attempt,
+                max_attempts,
+                delay,
+                exc,
             )
 
             await _sleep_with_progress(delay, f"Rate limit cooldown ({delay:.0f}s)")
@@ -219,8 +223,12 @@ def call_with_retries_sync(
                 delay = base_delay * (2 ** (attempt - 1))
 
             logger.info(
-                f"[yellow]⏳ Retry[/] {fn_name} — attempt {attempt}/{max_attempts}. "
-                f"Waiting {delay:.2f}s before retry.\n[dim]{exc}[/]"
+                "[yellow]⏳ Retry[/] %s — attempt %s/%s. Waiting %.2fs before retry.\n[dim]%s[/]",
+                fn_name,
+                attempt,
+                max_attempts,
+                delay,
+                exc,
             )
 
             _sleep_with_progress_sync(delay, f"Rate limit cooldown ({delay:.0f}s)")

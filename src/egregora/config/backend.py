@@ -27,8 +27,6 @@ import os
 from typing import Literal
 
 Backend = Literal["pydantic-ai", "legacy"]
-
-# Default backend (after full migration, this will be "pydantic-ai")
 DEFAULT_BACKEND: Backend = "pydantic-ai"
 
 
@@ -49,18 +47,13 @@ def get_backend(agent: Literal["writer", "editor", "ranking"]) -> Backend:
         'legacy'
 
     """
-    # Check agent-specific override
     agent_env = f"EGREGORA_{agent.upper()}_BACKEND"
     agent_backend = os.environ.get(agent_env)
     if agent_backend in ("pydantic-ai", "legacy"):
-        return agent_backend  # type: ignore
-
-    # Check global override
+        return agent_backend
     global_backend = os.environ.get("EGREGORA_LLM_BACKEND")
     if global_backend in ("pydantic-ai", "legacy"):
-        return global_backend  # type: ignore
-
-    # Use default
+        return global_backend
     return DEFAULT_BACKEND
 
 

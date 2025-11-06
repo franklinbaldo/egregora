@@ -16,7 +16,6 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ class Tool:
     kind: str
     inputs: dict[str, Any]
     contracts: dict[str, Any]
-    content: str  # The raw YAML content for hashing
+    content: str
 
 
 @dataclass
@@ -39,7 +38,6 @@ class Skill:
 
 def _normalize_and_hash(content: str) -> str:
     """Normalize YAML content and return its SHA256 hash."""
-    # A more robust implementation would deeply sort keys
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
@@ -125,17 +123,12 @@ class ToolRegistry:
 
         """
         toolset = set()
-
-        # Apply profiles first
         for profile_name in agent_tools_config.use_profiles:
             profile = self._profiles.get(profile_name, {})
             toolset.update(profile.get("allow", []))
             toolset.difference_update(profile.get("deny", []))
-
-        # Apply agent-specific allow/deny
         toolset.update(agent_tools_config.allow)
         toolset.difference_update(agent_tools_config.deny)
-
         return toolset
 
     def get_toolset_hash(self, tool_ids: set[str]) -> str:
@@ -154,12 +147,9 @@ class ToolRegistry:
         """
         if not tool_ids:
             return ""
-
-        # Validate that all requested tools exist
         missing_tools = tool_ids - set(self._tools.keys())
         if missing_tools:
-            logger.warning(f"Tools not found in registry: {missing_tools}")
-
+            logger.warning("Tools not found in registry: %s", missing_tools)
         hashes = sorted(
             [
                 _normalize_and_hash(self._tools[tool_id].content)
@@ -184,11 +174,7 @@ class ToolRegistry:
             SHA256 hash of the agent configuration and template
 
         """
-        # A more robust implementation would deeply sort keys
-        front_matter_str = yaml.dump(
-            agent_config.dict(),
-            sort_keys=True,
-        )
+        front_matter_str = yaml.dump(agent_config.dict(), sort_keys=True)
         return hashlib.sha256((front_matter_str + prompt_template).encode("utf-8")).hexdigest()
 
 
@@ -249,12 +235,9 @@ class SkillRegistry:
         """
         if not skill_ids:
             return ""
-
-        # Validate that all requested skills exist
         missing_skills = set(skill_ids) - set(self._skills.keys())
         if missing_skills:
-            logger.warning(f"Skills not found in registry: {missing_skills}")
-
+            logger.warning("Skills not found in registry: %s", missing_skills)
         hashes = sorted(
             [
                 _normalize_and_hash(self._skills[skill_id].content)

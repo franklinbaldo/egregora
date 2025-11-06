@@ -6,7 +6,6 @@ Provides context managers and helpers for working with DuckDB/Ibis backends.
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
-
 import duckdb
 import ibis
 
@@ -32,7 +31,6 @@ def duckdb_backend() -> Generator[ibis.BaseBackend, None, None]:
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
     old_backend = getattr(ibis.options, "default_backend", None)
-
     try:
         ibis.options.default_backend = backend
         logger.debug("DuckDB backend initialized")

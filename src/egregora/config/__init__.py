@@ -13,9 +13,7 @@ from egregora.config.model import (
     from_pydantic_ai_model,
     load_site_config,
 )
-from egregora.config.pipeline import (
-    PipelineEnrichmentConfig,
-)
+from egregora.config.pipeline import PipelineEnrichmentConfig
 from egregora.config.site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
@@ -57,16 +55,12 @@ __all__ = [
     "EditorContext",
     "EnrichmentConfig",
     "MediaEnrichmentContext",
-    # Model configuration
     "ModelConfig",
     "ModelType",
-    # Pipeline configuration
     "PipelineEnrichmentConfig",
     "PostGenerationContext",
-    # Configuration types
     "ProcessConfig",
     "RankingCliConfig",
-    # Site configuration
     "SitePaths",
     "URLEnrichmentContext",
     "WriterConfig",

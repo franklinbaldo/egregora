@@ -23,13 +23,11 @@ Usage:
 """
 
 from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
-
     import ibis
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
@@ -47,20 +45,14 @@ def _get_duckdb_connection(con: DuckDBBackend) -> Any:
         AttributeError: If connection doesn't expose DuckDB API
 
     """
-    # Ibis DuckDB backend exposes the connection as .con
     if not hasattr(con, "con"):
-        msg = (
-            f"Backend {type(con).__name__} doesn't expose DuckDB connection. "
-            "stream_ibis requires ibis.duckdb backend."
-        )
+        msg = f"Backend {type(con).__name__} doesn't expose DuckDB connection. stream_ibis requires ibis.duckdb backend."
         raise AttributeError(msg)
     return con.con
 
 
 def stream_ibis(
-    expr: ibis.Expr,
-    con: DuckDBBackend,
-    batch_size: int = 1000,
+    expr: ibis.Expr, con: DuckDBBackend, batch_size: int = 1000
 ) -> Iterable[list[dict[str, Any]]]:
     """Stream Ibis expression rows in batches without full materialization.
 
@@ -90,34 +82,19 @@ def stream_ibis(
         >>>     ...
 
     """
-    # Get the underlying DuckDB connection from Ibis
     duckdb_con = _get_duckdb_connection(con)
-
-    # Compile the Ibis expression to SQL using the same connection context
     sql = con.compile(expr)
-
-    # Execute in the same DuckDB context (no "table not found" errors)
     rel = duckdb_con.sql(sql)
-
-    # Get column names for building dictionaries
     cols = rel.columns
-
-    # Stream batches using fetchmany()
     while True:
-        rows = rel.fetchmany(batch_size)  # Returns list of tuples
+        rows = rel.fetchmany(batch_size)
         if not rows:
             break
-
-        # Convert tuples to dictionaries
         batch = [dict(zip(cols, row, strict=False)) for row in rows]
         yield batch
 
 
-def copy_expr_to_parquet(
-    expr: ibis.Expr,
-    con: DuckDBBackend,
-    path: str | Path,
-) -> None:
+def copy_expr_to_parquet(expr: ibis.Expr, con: DuckDBBackend, path: str | Path) -> None:
     """Write Ibis expression directly to Parquet file using DuckDB COPY.
 
     This is the most efficient way to export Ibis expressions - zero Python
@@ -138,20 +115,12 @@ def copy_expr_to_parquet(
     """
     duckdb_con = _get_duckdb_connection(con)
     sql = con.compile(expr)
-
-    # Escape the path for SQL (handle spaces, special chars)
     safe_path = str(path).replace("'", "''")
-
-    # Use DuckDB's COPY ... TO for zero-copy write
     copy_sql = f"COPY ({sql}) TO '{safe_path}' (FORMAT parquet)"
     duckdb_con.execute(copy_sql)
 
 
-def copy_expr_to_ndjson(
-    expr: ibis.Expr,
-    con: DuckDBBackend,
-    path: str | Path,
-) -> None:
+def copy_expr_to_ndjson(expr: ibis.Expr, con: DuckDBBackend, path: str | Path) -> None:
     """Write Ibis expression directly to newline-delimited JSON file.
 
     Uses DuckDB COPY for efficient writing without materialization.
@@ -171,11 +140,7 @@ def copy_expr_to_ndjson(
     """
     duckdb_con = _get_duckdb_connection(con)
     sql = con.compile(expr)
-
-    # Escape the path for SQL
     safe_path = str(path).replace("'", "''")
-
-    # Use DuckDB's COPY ... TO with JSON format
     copy_sql = f"COPY ({sql}) TO '{safe_path}' (FORMAT json)"
     duckdb_con.execute(copy_sql)
 
@@ -211,9 +176,6 @@ def ensure_deterministic_order(expr: ibis.Expr) -> ibis.Expr:
     """
     schema = expr.schema()
     sortable_columns = [col for col in ["published_at", "timestamp", "id"] if col in schema.names]
-
     if sortable_columns:
         return expr.order_by(sortable_columns)
-
-    # No standard columns found - return unsorted
     return expr

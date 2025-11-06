@@ -5,19 +5,15 @@ and Pydantic AI's rag_context() helper for standardized retrieval prompts.
 """
 
 from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any
-
 from egregora.agents.tools.rag.embedder import embed_query
 from egregora.agents.tools.rag.store import VectorStore
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
     from pathlib import Path
-
     from google import genai
-
 logger = logging.getLogger(__name__)
 
 
@@ -72,13 +68,7 @@ async def find_relevant_docs(
     """
     with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
         try:
-            # Embed query (fixed 768 dimensions)
-            query_vector = embed_query(
-                query,
-                model=embedding_model,
-            )
-
-            # Query vector store
+            query_vector = embed_query(query, model=embedding_model)
             store = VectorStore(rag_dir / "chunks.parquet")
             results = store.search(
                 query_vec=query_vector,
@@ -88,18 +78,12 @@ async def find_relevant_docs(
                 nprobe=retrieval_nprobe,
                 overfetch=retrieval_overfetch,
             )
-
-            # Execute and convert to list of dicts
             df = results.execute()
-
             if getattr(df, "empty", False):
                 logfire_info("No relevant docs found", query=query)
                 return []
-
             records = df.to_dict("records")
             logfire_info("Found relevant docs", count=len(records), query=query)
-
-            # Format for Pydantic AI
             return [
                 {
                     "content": record.get("content", ""),
@@ -111,7 +95,6 @@ async def find_relevant_docs(
                 }
                 for record in records
             ]
-
         except Exception as exc:
             logger.error("Failed to find relevant docs: %s", exc, exc_info=True)
             logfire_info("RAG retrieval failed", error=str(exc))
@@ -133,26 +116,22 @@ def format_rag_context(docs: list[dict[str, Any]]) -> str:
     """
     if not docs:
         return ""
-
     lines = [
         "## Related Previous Posts (for continuity and linking):",
         "You can reference these posts in your writing to maintain conversation continuity.\n",
     ]
-
     for doc in docs:
         title = doc.get("post_title", "Untitled")
         post_date = doc.get("post_date", "")
-        content = doc.get("content", "")[:400]  # First 400 chars
+        content = doc.get("content", "")[:400]
         tags = doc.get("tags", [])
         similarity = doc.get("similarity")
-
         lines.append(f"### [{title}] ({post_date})")
         lines.append(f"{content}...")
-        lines.append(f"- Tags: {', '.join(tags) if tags else 'none'}")
+        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
         if similarity is not None:
             lines.append(f"- Similarity: {similarity:.2f}")
         lines.append("")
-
     return "\n".join(lines).strip()
 
 
@@ -167,7 +146,7 @@ async def build_rag_context_for_writer(
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> str:
-    r"""Build RAG context string for writer agent.
+    """Build RAG context string for writer agent.
 
     High-level helper that combines find_relevant_docs() and format_rag_context().
 
@@ -193,7 +172,7 @@ async def build_rag_context_for_writer(
         ...     rag_dir=Path("./rag"),
         ...     embedding_model="models/gemini-embedding-001"
         ... )
-        >>> prompt = f"{conversation}\n\n{context}"
+        >>> prompt = f"{conversation}\\n\\n{context}"
 
     """
     docs = await find_relevant_docs(
@@ -206,5 +185,4 @@ async def build_rag_context_for_writer(
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
     )
-
     return format_rag_context(docs)

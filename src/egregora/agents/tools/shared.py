@@ -1,8 +1,6 @@
 from pathlib import Path
-
 import ibis
 from google import genai
-
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig, from_pydantic_ai_model
 from egregora.utils.genai import call_with_retries
@@ -19,69 +17,43 @@ def full_rewrite(expect_version: int, content: str, editor) -> None:
 
 
 async def query_rag(
-    query: str,
-    max_results: int,
-    rag_dir: Path,
-    client: genai.Client,
-    model_config: ModelConfig,
+    query: str, max_results: int, rag_dir: Path, client: genai.Client, model_config: ModelConfig
 ) -> str:
     """RAG search returning formatted context string."""
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
-
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         embedding_model = model_config.get_model("embedding")
         dummy_table = ibis.memtable({"query_text": [query]})
-
         results = await query_similar_posts(
-            table=dummy_table,
-            store=store,
-            embedding_model=embedding_model,
-            top_k=max_results,
+            table=dummy_table, store=store, embedding_model=embedding_model, top_k=max_results
         )
-
         if not results:
             return f"No relevant results found for: {query}"
-
         formatted = [f"RAG Results for '{query}':\n"]
         for i, result in enumerate(results, 1):
             formatted.append(f"[{i}] Post: {result.get('post_id', 'unknown')}")
             formatted.append(f"    Similarity: {result.get('similarity', 0):.2f}")
             formatted.append(f"    Excerpt: {result.get('text', '')[:400]}...")
             formatted.append("")
-
         return "\n".join(formatted)
-
     except Exception as e:
         return f"RAG query failed: {e!s}"
 
 
-async def ask_llm(
-    question: str,
-    client: genai.Client,
-    model_config: ModelConfig,
-) -> str:
+async def ask_llm(question: str, client: genai.Client, model_config: ModelConfig) -> str:
     """Simple Q&A with fresh LLM instance."""
     try:
-        # Get model in pydantic-ai format and convert to Google SDK format
         model_pydantic = model_config.get_model("editor")
         model_google = from_pydantic_ai_model(model_pydantic)
-
         response = await call_with_retries(
             client.aio.models.generate_content,
-            model=model_google,  # Use Google SDK format
-            contents=[
-                genai.types.Content(
-                    role="user",
-                    parts=[genai.types.Part(text=question)],
-                )
-            ],
+            model=model_google,
+            contents=[genai.types.Content(role="user", parts=[genai.types.Part(text=question)])],
             config=genai.types.GenerateContentConfig(temperature=0.7),
         )
-
         return (response.text or "No response").strip()
-
     except Exception as e:
         return f"[LLM query failed: {e!s}]"
 

@@ -1,22 +1,16 @@
 """MkDocs output format implementation."""
 
 from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any
-
 from egregora.agents.tools.profiler import write_profile as write_profile_content
-from egregora.config.site import (
-    load_mkdocs_config,
-    resolve_site_paths,
-)
+from egregora.config.site import load_mkdocs_config, resolve_site_paths
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.utils.write_post import write_post as write_mkdocs_post
 
 if TYPE_CHECKING:
     from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,13 +41,9 @@ class MkDocsOutputFormat(OutputFormat):
         """
         if not site_root.exists():
             return False
-
-        # Check if mkdocs.yml exists
         mkdocs_path = site_root / "mkdocs.yml"
         if mkdocs_path.exists():
             return True
-
-        # Check parent directories
         _config, mkdocs_path_found = load_mkdocs_config(site_root)
         return mkdocs_path_found is not None
 
@@ -73,15 +63,13 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         site_root = site_root.expanduser().resolve()
-
         try:
             _docs_dir, created = ensure_mkdocs_project(site_root)
         except Exception as e:
             msg = f"Failed to scaffold MkDocs site: {e}"
             raise RuntimeError(msg) from e
-
         mkdocs_path = site_root / "mkdocs.yml"
-        return mkdocs_path, created
+        return (mkdocs_path, created)
 
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing MkDocs site.
@@ -100,16 +88,12 @@ class MkDocsOutputFormat(OutputFormat):
         if not self.supports_site(site_root):
             msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
             raise ValueError(msg)
-
         try:
             site_paths = resolve_site_paths(site_root)
         except Exception as e:
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
-
-        # Convert SitePaths to SiteConfiguration
         config_file = site_paths.mkdocs_path
-
         return SiteConfiguration(
             site_root=site_paths.site_root,
             site_name=site_paths.config.get("site_name", "Egregora Site"),
@@ -125,13 +109,7 @@ class MkDocsOutputFormat(OutputFormat):
             },
         )
 
-    def write_post(
-        self,
-        content: str,
-        metadata: dict[str, Any],
-        output_dir: Path,
-        **kwargs,
-    ) -> str:
+    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs) -> str:
         """Write a blog post in MkDocs format.
 
         Args:
@@ -155,11 +133,7 @@ class MkDocsOutputFormat(OutputFormat):
             raise RuntimeError(msg) from e
 
     def write_profile(
-        self,
-        author_id: str,
-        profile_data: dict[str, Any],
-        profiles_dir: Path,
-        **kwargs,
+        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs
     ) -> str:
         """Write an author profile page in MkDocs format.
 
@@ -182,19 +156,14 @@ class MkDocsOutputFormat(OutputFormat):
         if not author_id:
             msg = "author_id cannot be empty"
             raise ValueError(msg)
-
-        # Extract content from profile_data
         if isinstance(profile_data, str):
-            # If profile_data is a string, use it as content directly
             content = profile_data
         elif "content" in profile_data:
             content = profile_data["content"]
         else:
-            # Build simple profile from metadata
             name = profile_data.get("name", author_id)
             bio = profile_data.get("bio", "")
             content = f"# {name}\n\n{bio}"
-
         try:
             return write_profile_content(author_id, content, profiles_dir)
         except Exception as e:
@@ -216,11 +185,9 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         config, mkdocs_path = load_mkdocs_config(site_root)
-
         if mkdocs_path is None:
             msg = f"No mkdocs.yml found in {site_root} or parent directories"
             raise FileNotFoundError(msg)
-
         return config
 
     def get_markdown_extensions(self) -> list[str]:
@@ -231,7 +198,6 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         return [
-            # Standard extensions
             "tables",
             "fenced_code",
             "footnotes",
@@ -239,7 +205,6 @@ class MkDocsOutputFormat(OutputFormat):
             "md_in_html",
             "def_list",
             "toc",
-            # PyMdown Extensions (Material theme)
             "pymdownx.arithmatex",
             "pymdownx.betterem",
             "pymdownx.caret",
@@ -256,6 +221,5 @@ class MkDocsOutputFormat(OutputFormat):
             "pymdownx.superfences",
             "pymdownx.tabbed",
             "pymdownx.tasklist",
-            # Admonitions
             "admonition",
         ]

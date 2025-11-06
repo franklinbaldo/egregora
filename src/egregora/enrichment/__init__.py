@@ -26,14 +26,11 @@ from egregora.enrichment.media import (
 )
 
 __all__ = [
-    # Batch utilities
     "MediaEnrichmentJob",
     "UrlEnrichmentJob",
     "build_batch_requests",
     "detect_media_type",
-    # Core enrichment
     "enrich_table",
-    # Media utilities
     "extract_and_replace_media",
     "extract_media_from_zip",
     "extract_urls",

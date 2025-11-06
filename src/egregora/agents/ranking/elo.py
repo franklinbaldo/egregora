@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Annotated
-
 from egregora.agents.ranking.store import RankingStore
 
 DEFAULT_ELO = 1500
@@ -11,8 +10,7 @@ MIN_POSTS_TO_COMPARE = 2
 
 
 def calculate_expected_score(
-    rating_a: Annotated[float, "ELO rating of player A"],
-    rating_b: Annotated[float, "ELO rating of player B"],
+    rating_a: Annotated[float, "ELO rating of player A"], rating_b: Annotated[float, "ELO rating of player B"]
 ) -> Annotated[tuple[float, float], "A tuple of expected scores for A and B"]:
     """Calculate expected scores for two players.
 
@@ -22,7 +20,7 @@ def calculate_expected_score(
     """
     expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
     expected_b = 1 / (1 + 10 ** ((rating_a - rating_b) / 400))
-    return expected_a, expected_b
+    return (expected_a, expected_b)
 
 
 def calculate_elo_update(
@@ -44,16 +42,11 @@ def calculate_elo_update(
 
     """
     expected_a, expected_b = calculate_expected_score(rating_a, rating_b)
-
-    # Actual scores (1 for winner, 0 for loser)
     actual_a = 1.0 if winner == "A" else 0.0
     actual_b = 1.0 if winner == "B" else 0.0
-
-    # Update ratings
     new_rating_a = rating_a + k_factor * (actual_a - expected_a)
     new_rating_b = rating_b + k_factor * (actual_b - expected_b)
-
-    return new_rating_a, new_rating_b
+    return (new_rating_a, new_rating_b)
 
 
 def initialize_ratings(
@@ -72,37 +65,27 @@ def initialize_ratings(
         RankingStore instance
 
     """
-    # Find all markdown posts (including nested directories like .posts)
-    post_files = sorted(p for p in posts_dir.rglob("*.md") if p.is_file())
-    # Find all markdown posts, preferring the hidden .posts directory when present
+    post_files = sorted((p for p in posts_dir.rglob("*.md") if p.is_file()))
     search_dirs = []
     hidden_posts_dir = posts_dir / ".posts"
     if hidden_posts_dir.exists():
         search_dirs.append(hidden_posts_dir)
     search_dirs.append(posts_dir)
-
     seen: set[Path] = set()
     post_files: list[Path] = []
     for directory in search_dirs:
         if not directory.exists():
             continue
-
         for path in directory.glob("**/*.md"):
             if path.is_file() and path not in seen:
                 seen.add(path)
                 post_files.append(path)
-
     if not post_files:
         msg = f"No posts found in {posts_dir}"
         raise ValueError(msg)
-
-    # Create store
     store = RankingStore(rankings_dir)
-
-    # Initialize ratings for all posts
     post_ids = [p.stem for p in post_files]
     store.initialize_ratings(post_ids)
-
     return store
 
 
@@ -125,28 +108,19 @@ def update_ratings(
 
     """
     store = RankingStore(rankings_dir)
-
-    # Get current ratings
     rating_a_data = store.get_rating(post_a)
     rating_b_data = store.get_rating(post_b)
-
     if not rating_a_data:
         msg = f"Post not found in ratings: {post_a}"
         raise ValueError(msg)
     if not rating_b_data:
         msg = f"Post not found in ratings: {post_b}"
         raise ValueError(msg)
-
     current_a = rating_a_data["elo_global"]
     current_b = rating_b_data["elo_global"]
-
-    # Calculate new ratings
     new_rating_a, new_rating_b = calculate_elo_update(current_a, current_b, winner)
-
-    # Update in store
     store.update_ratings(post_a, post_b, new_rating_a, new_rating_b)
-
-    return new_rating_a, new_rating_b
+    return (new_rating_a, new_rating_b)
 
 
 def get_posts_to_compare(
@@ -165,9 +139,7 @@ def get_posts_to_compare(
     """
     store = RankingStore(rankings_dir)
     posts = store.get_posts_to_compare(strategy=strategy, n=MIN_POSTS_TO_COMPARE)
-
     if len(posts) < MIN_POSTS_TO_COMPARE:
         msg = f"Need at least {MIN_POSTS_TO_COMPARE} posts to compare"
         raise ValueError(msg)
-
-    return posts[0], posts[1]
+    return (posts[0], posts[1])

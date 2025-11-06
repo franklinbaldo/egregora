@@ -8,16 +8,13 @@ maintaining the same three-turn protocol:
 """
 
 from __future__ import annotations
-
 import os
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from rich.console import Console
-
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
@@ -25,18 +22,12 @@ from egregora.utils.logfire_config import logfire_span
 
 if TYPE_CHECKING:
     from pathlib import Path
-
 console = Console()
-
-# Constants
 FRONTMATTER_PARTS = 3
 MAX_COMMENT_LENGTH = 250
 COMMENT_TRUNCATE_SUFFIX = "..."
 MIN_STARS = 1
 MAX_STARS = 5
-
-
-# Pydantic Models for Tool Results and Final Output
 
 
 class WinnerChoice(BaseModel):
@@ -62,14 +53,10 @@ class RankingResult(BaseModel):
     stars_b: int = Field(ge=MIN_STARS, le=MAX_STARS)
 
 
-# Agent State
-
-
 class RankingAgentState(BaseModel):
     """State passed to ranking agent tools."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
     post_a_id: str
     post_b_id: str
     content_a: str
@@ -79,7 +66,6 @@ class RankingAgentState(BaseModel):
     existing_comments_b: str | None
     store: RankingStore
     site_dir: Path
-    # Results collected across turns
     winner: str | None = None
     comment_a: str | None = None
     stars_a: int | None = None
@@ -87,55 +73,37 @@ class RankingAgentState(BaseModel):
     stars_b: int | None = None
 
 
-# Helper Functions (same as legacy agent)
-
-
 def load_post_content(post_path: Path) -> str:
     """Load markdown content from a blog post, excluding front matter."""
     content = post_path.read_text()
-
-    # Skip front matter if present
     if content.startswith("---"):
         parts = content.split("---", 2)
         if len(parts) >= FRONTMATTER_PARTS:
             return parts[2].strip()
-
     return content.strip()
 
 
 def load_profile(profile_path: Path) -> dict[str, Any]:
     """Load author profile metadata."""
     content = profile_path.read_text()
-
-    profile = {
-        "uuid": profile_path.stem,
-        "alias": None,
-        "bio": None,
-    }
-
-    # Extract alias
+    profile = {"uuid": profile_path.stem, "alias": None, "bio": None}
     if "## Display Preferences" in content:
         lines = content.split("\n")
         for i, line in enumerate(lines):
             if line.strip() == "## Display Preferences":
-                # Look for alias in next few lines
                 for j in range(i + 1, min(i + 5, len(lines))):
                     if lines[j].strip().startswith("- Alias:"):
                         alias = lines[j].split("- Alias:", 1)[1].strip()
                         profile["alias"] = alias
                         break
-
-    # Extract bio
     if "## Bio" in content:
         lines = content.split("\n")
         for i, line in enumerate(lines):
             if line.strip() == "## Bio":
-                # Look for bio in next few lines
                 for j in range(i + 1, min(i + 10, len(lines))):
-                    if lines[j].strip() and not lines[j].startswith("#"):
+                    if lines[j].strip() and (not lines[j].startswith("#")):
                         profile["bio"] = lines[j].strip()
                         break
-
     return profile
 
 
@@ -145,30 +113,22 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
     Format as markdown for agent context.
     """
     comments_table = store.get_comments_for_post(post_id)
-
-    # Use Ibis-first: .count().execute() instead of len()
     if comments_table.count().execute() == 0:
         return None
-
-    # Format as markdown
     lines = []
     for row in comments_table.iter_rows(named=True):
-        # Get profile alias (use short UUID for now)
         profile_name = row["profile_id"][:8]
         stars = "⭐" * row["stars"]
         timestamp = row["timestamp"].strftime("%Y-%m-%d")
-
         lines.append(f"**@{profile_name}** {stars} ({timestamp})")
         lines.append(f"> {row['comment']}")
         lines.append("")
-
     return "\n".join(lines)
 
 
 def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     """Locate a post file within the MkDocs posts directory."""
     candidates: list[Path] = []
-
     search_dirs: list[Path] = []
     if posts_dir.name == ".posts":
         search_dirs.append(posts_dir)
@@ -176,31 +136,27 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     else:
         search_dirs.append(posts_dir / ".posts")
         search_dirs.append(posts_dir)
-
     for directory in search_dirs:
         if not directory.exists():
             continue
-
         direct_candidate = directory / f"{post_id}.md"
         candidates.append(direct_candidate)
         if direct_candidate.exists():
             return direct_candidate
-
         matches = list(directory.rglob(f"{post_id}.md"))
         candidates.extend(matches)
         if matches:
             if len(matches) > 1:
-                matches_str = ", ".join(str(match) for match in matches)
+                matches_str = ", ".join((str(match) for match in matches))
                 msg = f"Multiple posts found for {post_id}: {matches_str}"
                 raise ValueError(msg)
             return matches[0]
-
-    searched = ", ".join(str(candidate.parent) for candidate in candidates if candidate.parent)
+    searched = ", ".join((str(candidate.parent) for candidate in candidates if candidate.parent))
     msg = f"Post not found for id '{post_id}'. Looked in: {searched}"
     raise ValueError(msg)
 
 
-def save_comparison(  # noqa: PLR0913
+def save_comparison(
     store: RankingStore,
     profile_id: str,
     post_a: str,
@@ -224,7 +180,6 @@ def save_comparison(  # noqa: PLR0913
         "comment_b": comment_b,
         "stars_b": stars_b,
     }
-
     store.save_comparison(comparison_data)
 
 
@@ -234,9 +189,6 @@ def _truncate_comment(comment: str) -> str:
         truncate_at = MAX_COMMENT_LENGTH - len(COMMENT_TRUNCATE_SUFFIX)
         return comment[:truncate_at] + COMMENT_TRUNCATE_SUFFIX
     return comment
-
-
-# Tool Registration
 
 
 def _register_ranking_tools(agent: Agent) -> None:
@@ -253,7 +205,6 @@ def _register_ranking_tools(agent: Agent) -> None:
         if winner not in ("A", "B"):
             msg = f"Winner must be 'A' or 'B', got: {winner}"
             raise ValueError(msg)
-
         ctx.deps.winner = winner
         console.print(f"[green]Winner: Post {winner}[/green]")
         return WinnerChoice(winner=winner)
@@ -270,14 +221,11 @@ def _register_ranking_tools(agent: Agent) -> None:
         if not MIN_STARS <= stars <= MAX_STARS:
             msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
             raise ValueError(msg)
-
         comment = _truncate_comment(comment)
         ctx.deps.comment_a = comment
         ctx.deps.stars_a = stars
-
         console.print(f"[yellow]Comment A: {comment}[/yellow]")
         console.print(f"[yellow]Stars A: {'⭐' * stars}[/yellow]")
-
         return PostComment(comment=comment, stars=stars)
 
     @agent.tool
@@ -292,18 +240,15 @@ def _register_ranking_tools(agent: Agent) -> None:
         if not MIN_STARS <= stars <= MAX_STARS:
             msg = f"Stars must be {MIN_STARS}-{MAX_STARS}, got: {stars}"
             raise ValueError(msg)
-
         comment = _truncate_comment(comment)
         ctx.deps.comment_b = comment
         ctx.deps.stars_b = stars
-
         console.print(f"[yellow]Comment B: {comment}[/yellow]")
         console.print(f"[yellow]Stars B: {'⭐' * stars}[/yellow]")
-
         return PostComment(comment=comment, stars=stars)
 
 
-async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
+async def run_comparison_with_pydantic_agent(
     site_dir: Path,
     post_a_id: str,
     post_b_id: str,
@@ -327,26 +272,17 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
         dict with comparison results (winner, comments, stars, ratings)
 
     """
-    # Setup
     rankings_dir = site_dir / "rankings"
     store = RankingStore(rankings_dir)
-
-    # Load posts
     site_paths = resolve_site_paths(site_dir)
     posts_dir = site_paths.posts_dir
-
     post_a_path = _find_post_path(posts_dir, post_a_id)
     post_b_path = _find_post_path(posts_dir, post_b_id)
-
     content_a = load_post_content(post_a_path)
     content_b = load_post_content(post_b_path)
-
-    # Load profile and existing comments
     profile = load_profile(profile_path)
     existing_comments_a = load_comments_for_post(post_a_id, store)
     existing_comments_b = load_comments_for_post(post_b_id, store)
-
-    # Create agent state
     state = RankingAgentState(
         post_a_id=post_a_id,
         post_b_id=post_b_id,
@@ -358,80 +294,25 @@ async def run_comparison_with_pydantic_agent(  # noqa: PLR0913
         store=store,
         site_dir=site_dir,
     )
-
-    # Build prompt for all three turns
     comments_a_display = existing_comments_a or "No comments yet. Be the first!"
     comments_b_display = existing_comments_b or "No comments yet. Be the first!"
     alias_or_uuid = profile.get("alias") or profile["uuid"]
-
-    prompt = f"""You are {alias_or_uuid}, impersonating their reading style and preferences.
-
-Profile bio: {profile.get("bio") or "No bio available"}
-
-You will complete a three-turn comparison:
-
-# Turn 1: Choose Winner
-Read these two blog posts and decide which one is better overall.
-
-## Post A: {post_a_id}
-{content_a}
-
-## Post B: {post_b_id}
-{content_b}
-
-Use the choose_winner tool to declare the winner.
-
-# Turn 2: Comment on Post A
-Provide detailed feedback on Post A.
-
-## What others have said about Post A:
-{comments_a_display}
-
-Use the comment_post_a tool to:
-- Rate it (1-5 stars)
-- Write a comment (max 250 chars, markdown supported)
-- Reference existing comments if relevant
-
-# Turn 3: Comment on Post B
-Provide detailed feedback on Post B.
-
-## What others have said about Post B:
-{comments_b_display}
-
-Use the comment_post_b tool to:
-- Rate it (1-5 stars)
-- Write a comment (max 250 chars, markdown supported)
-- Reference existing comments if relevant
-
-Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
-
+    prompt = f"You are {alias_or_uuid}, impersonating their reading style and preferences.\n\nProfile bio: {profile.get('bio') or 'No bio available'}\n\nYou will complete a three-turn comparison:\n\n# Turn 1: Choose Winner\nRead these two blog posts and decide which one is better overall.\n\n## Post A: {post_a_id}\n{content_a}\n\n## Post B: {post_b_id}\n{content_b}\n\nUse the choose_winner tool to declare the winner.\n\n# Turn 2: Comment on Post A\nProvide detailed feedback on Post A.\n\n## What others have said about Post A:\n{comments_a_display}\n\nUse the comment_post_a tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\n# Turn 3: Comment on Post B\nProvide detailed feedback on Post B.\n\n## What others have said about Post B:\n{comments_b_display}\n\nUse the comment_post_b tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\nComplete all three turns: choose_winner, comment_post_a, comment_post_b."
     with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
-        # Create agent - text output since we collect results in state
-        # Create model with pydantic-ai string notation
-        # Note: Pydantic-AI reads GOOGLE_API_KEY from environment automatically
         if agent_model is None:
-            # Set API key in environment for pydantic-ai to use
             if api_key:
                 os.environ["GOOGLE_API_KEY"] = api_key
-            # Model from config is already in pydantic-ai format
             model_instance = model
         else:
             model_instance = agent_model
-
         agent = Agent[RankingAgentState, str](
             model=model_instance,
             deps_type=RankingAgentState,
             system_prompt="You are a blog post critic providing detailed comparisons.",
         )
-
-        # Register tools
         _register_ranking_tools(agent)
-
         try:
-            # Run the agent (single conversation with all three turns)
             await agent.run(prompt, deps=state)
-
-            # Verify all turns completed
             if state.winner is None:
                 msg = "Agent did not choose a winner"
                 raise ValueError(msg)
@@ -441,8 +322,6 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
             if state.comment_b is None or state.stars_b is None:
                 msg = "Agent did not comment on Post B"
                 raise ValueError(msg)
-
-            # Save comparison
             save_comparison(
                 store=store,
                 profile_id=profile["uuid"],
@@ -454,20 +333,15 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
                 comment_b=state.comment_b,
                 stars_b=state.stars_b,
             )
-
-            # Update ELO ratings
             rating_a = store.get_rating(post_a_id)
             rating_b = store.get_rating(post_b_id)
-
             if rating_a is None or rating_b is None:
                 msg = "Missing ratings for posts despite initialization"
                 raise ValueError(msg)
-
             new_elo_a, new_elo_b = calculate_elo_update(
                 rating_a["elo_global"], rating_b["elo_global"], state.winner
             )
             store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
-
             return {
                 "winner": state.winner,
                 "comment_a": state.comment_a,
@@ -475,7 +349,6 @@ Complete all three turns: choose_winner, comment_post_a, comment_post_b."""
                 "comment_b": state.comment_b,
                 "stars_b": state.stars_b,
             }
-
         except Exception as e:
             console.print(f"[red]Ranking agent failed: {e}[/red]")
             msg = "Ranking agent execution failed"
