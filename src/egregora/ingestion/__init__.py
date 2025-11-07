@@ -28,6 +28,6 @@ __all__ = [
     "extract_commands",
     "filter_egregora_messages",
     "parse_egregora_command",
-    "parse_source",
     "parse_multiple",
+    "parse_source",
 ]
