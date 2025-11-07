@@ -595,7 +595,6 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
         return
 
     def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:  # noqa: C901, PLR0915 - Complex ranking loop with error handling
-
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
         site_path = config.site_dir.resolve()
@@ -1058,7 +1057,9 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
                 "rag_context_markdown": rag_context_markdown,
                 "site_config": {
                     "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
-                    "custom_writer_prompt": mkdocs_config.get("extra", {}).get("egregora", {}).get("custom_writer_prompt"),
+                    "custom_writer_prompt": mkdocs_config.get("extra", {})
+                    .get("egregora", {})
+                    .get("custom_writer_prompt"),
                 },
                 "message_count": message_count,
             }
