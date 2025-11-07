@@ -111,10 +111,6 @@ def test_annotation_store_uses_identity_column(tmp_path: Path):
 
 
 def test_enrich_table_persists_results(tmp_path: Path):
-    # FIXME(test): This test fails with "Expression depends on no backends"
-    # Issue: ibis.memtable() creates in-memory table without backend attachment
-    # Solution: Create DuckDB backend first, then use backend.memtable() instead
-    # or pass backend explicitly to operations that need it
     now = datetime.now(UTC)
     base_row = {
         "timestamp": now,
@@ -126,7 +122,6 @@ def test_enrich_table_persists_results(tmp_path: Path):
         "message_id": "1",
     }
 
-    messages_table = ibis.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
     docs_dir.mkdir(parents=True)
@@ -137,6 +132,10 @@ def test_enrich_table_persists_results(tmp_path: Path):
     cache = EnrichmentCache(tmp_path / "cache")
 
     conn, table_name = _create_conversation_table(tmp_path)
+    backend = ibis.duckdb.from_connection(conn)
+
+    # Create table with backend attachment to avoid "no backends" error
+    messages_table = backend.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
