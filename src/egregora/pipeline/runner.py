@@ -60,6 +60,7 @@ def _perform_enrichment(
 
     Returns:
         Enriched table
+
     """
     enrichment_context = EnrichmentRuntimeContext(
         cache=enrichment_cache,
