@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
 
-from egregora.ingestion import parse_export  # Phase 6: Re-exported from sources/whatsapp
+from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import create_ir_table
 from egregora.sources.whatsapp.models import WhatsAppExport
@@ -171,7 +171,7 @@ class WhatsAppAdapter(SourceAdapter):
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_export(export, timezone=timezone)
+        messages_table = parse_source(export, timezone=timezone)  # Phase 6: parse_source renamed
 
         @ibis.udf.scalar.python
         def convert_media_to_markdown(message: str | None) -> str | None:

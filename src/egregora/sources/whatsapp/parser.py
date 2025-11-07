@@ -230,8 +230,10 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     return (filtered_messages, removed_count)
 
 
-def parse_export(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
-    """Parse an individual export into an Ibis ``Table``.
+def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
+    """Parse an individual WhatsApp export into an Ibis Table.
+
+    Phase 6: Renamed from parse_export to parse_source (more generic).
 
     Args:
         export: WhatsApp export metadata

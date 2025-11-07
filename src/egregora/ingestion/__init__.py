@@ -10,15 +10,15 @@ Backward compatibility maintained via re-exports.
 from egregora.ingestion.base import InputSource
 from egregora.ingestion.slack_input import SlackInputSource
 
-# Phase 6: Re-export WhatsApp parser for backward compatibility
+# Phase 6: Re-export WhatsApp parser from sources/whatsapp
 # Actual implementation moved to sources/whatsapp/parser.py
 from egregora.sources.whatsapp.input import WhatsAppInputSource
 from egregora.sources.whatsapp.parser import (
     extract_commands,
     filter_egregora_messages,
     parse_egregora_command,
-    parse_export,
     parse_multiple,
+    parse_source,  # Phase 6: Renamed from parse_export (alpha - no backward compat)
 )
 
 __all__ = [
@@ -28,6 +28,6 @@ __all__ = [
     "extract_commands",
     "filter_egregora_messages",
     "parse_egregora_command",
-    "parse_export",
+    "parse_source",
     "parse_multiple",
 ]

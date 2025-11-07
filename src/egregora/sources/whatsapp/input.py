@@ -12,7 +12,7 @@ from egregora.enrichment.media import extract_media_from_zip, find_media_referen
 from egregora.ingestion.base import InputMetadata, InputSource
 from egregora.schema import group_slug
 from egregora.sources.whatsapp.models import WhatsAppExport
-from egregora.sources.whatsapp.parser import parse_export
+from egregora.sources.whatsapp.parser import parse_source  # Phase 6: Renamed from parse_export
 
 if TYPE_CHECKING:
     from datetime import date
@@ -111,7 +111,7 @@ class WhatsAppInputSource(InputSource):
             media_files=media_files,
         )
         try:
-            table = parse_export(export, timezone=timezone)
+            table = parse_source(export, timezone=timezone)  # Phase 6: parse_source renamed
         except Exception as e:
             msg = f"Failed to parse WhatsApp export: {e}"
             raise RuntimeError(msg) from e

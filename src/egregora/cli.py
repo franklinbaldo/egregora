@@ -35,7 +35,7 @@ from egregora.config import (
 from egregora.database import duckdb_backend
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion import parse_export  # Phase 6: Now re-exported from sources/whatsapp
+from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
 from egregora.pipeline.runner import run_source_pipeline
@@ -745,7 +745,7 @@ def parse(
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_export(export, timezone=timezone_obj)
+        messages_table = parse_source(export, timezone=timezone_obj)  # Phase 6: parse_source renamed
         total_messages = messages_table.count().execute()
         console.print(f"[green]✅ Parsed {total_messages} messages[/green]")
         save_table(messages_table, output_path)
