@@ -418,10 +418,10 @@ def _window_by_bytes(
         # Calculate overlap in messages (approximate from bytes)
         if overlap_bytes > 0 and chunk_size > 1:
             # Find how many messages from end fit in overlap_bytes
-            tail_chunk = window_table.limit(chunk_size).tail(chunk_size)
-            tail_with_bytes = tail_chunk.mutate(msg_bytes_col=tail_chunk.message.length())
+            # window_table is already the correct chunk, no need for tail()
+            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.message.length())
 
-            # Cumulative bytes from end (reverse)
+            # Cumulative bytes from end (reverse order using DESC)
             tail_cumsum = tail_with_bytes.mutate(
                 reverse_cum=tail_with_bytes.msg_bytes_col.sum().over(
                     ibis.window(order_by=[tail_with_bytes.timestamp.desc()], rows=(None, 0))
