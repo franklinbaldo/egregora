@@ -274,7 +274,9 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
         update={
             "pipeline": base_config.pipeline.model_copy(
                 update={
-                    "period": config.period,
+                    "step_size": config.step_size,
+                    "step_unit": config.step_unit,
+                    "min_window_size": config.min_window_size,
                     "timezone": config.timezone,
                     "from_date": config.from_date.isoformat() if config.from_date else None,
                     "to_date": config.to_date.isoformat() if config.to_date else None,
@@ -298,7 +300,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.zip_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Grouping:[/cyan] {config.period}",
+                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.zip_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )

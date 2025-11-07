@@ -30,7 +30,8 @@ def _writer_tools() -> Sequence[genai_types.Tool]:
                 type=genai_types.Type.STRING, description="URL-friendly slug (lowercase, hyphenated)"
             ),
             "date": genai_types.Schema(
-                type=genai_types.Type.STRING, description="Publication date YYYY-MM-DD"
+                type=genai_types.Type.STRING,
+                description="Publication date YYYY-MM-DD. Set this to the date of the LAST message you used to write this post. This represents when the conversation actually happened.",
             ),
             "tags": genai_types.Schema(
                 type=genai_types.Type.ARRAY,

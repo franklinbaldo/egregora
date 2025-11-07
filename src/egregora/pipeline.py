@@ -4,8 +4,14 @@ MODERN (Phase 6): Replaced period-based grouping with flexible windowing.
 - Supports message count, time-based, and byte-based windowing
 - Sequential window indices for simple resume logic
 - No calendar edge cases (ISO weeks, timezone conversions, etc.)
+
+MODERN (Phase 7): Checkpoint-based resume logic.
+- Resume uses sentinel file tracking last processed timestamp
+- Post dates are LLM-decided based on message content
+- Windows are ephemeral processing batches (not tied to resume state)
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -15,6 +21,62 @@ import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Checkpoint / Sentinel File Utilities
+# ============================================================================
+
+
+def load_checkpoint(checkpoint_path: Path) -> dict | None:
+    """Load processing checkpoint from sentinel file.
+
+    Args:
+        checkpoint_path: Path to .egregora/checkpoint.json
+
+    Returns:
+        Checkpoint dict with 'last_processed_timestamp' or None if not found
+
+    """
+    if not checkpoint_path.exists():
+        return None
+
+    try:
+        with checkpoint_path.open() as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load checkpoint from %s: %s", checkpoint_path, e)
+        return None
+
+
+def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
+    """Save processing checkpoint to sentinel file.
+
+    Args:
+        checkpoint_path: Path to .egregora/checkpoint.json
+        last_timestamp: Timestamp of last processed message
+        messages_processed: Total count of messages processed
+
+    """
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
+    checkpoint = {
+        "last_processed_timestamp": last_timestamp.isoformat(),
+        "messages_processed": messages_processed,
+        "schema_version": "1.0",
+    }
+
+    try:
+        with checkpoint_path.open("w") as f:
+            json.dump(checkpoint, f, indent=2)
+        logger.info("Checkpoint saved: %s", checkpoint_path)
+    except OSError as e:
+        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
+
+
+# ============================================================================
+# Window Dataclass
+# ============================================================================
 
 
 @dataclass(frozen=True)
@@ -35,66 +97,6 @@ class Window:
     end_time: datetime
     table: Table  # Filtered view of CONVERSATION_SCHEMA (not a separate DB schema)
     size: int  # Number of messages
-
-
-def window_has_posts(window_index: int, posts_dir: Path) -> bool:
-    """Check if posts already exist for this window.
-
-    Simplified resume logic: check by sequential window index.
-
-    Args:
-        window_index: Sequential index (0, 1, 2, ...)
-        posts_dir: Directory containing post files
-
-    Returns:
-        True if posts exist for this window
-
-    """
-    if not posts_dir.exists():
-        return False
-
-    # Look for posts matching "chunk_{index:03d}-*.md" or "window_{index}-*.md"
-    patterns = [
-        f"chunk_{window_index:03d}-*.md",
-        f"window_{window_index}-*.md",
-    ]
-
-    return any(list(posts_dir.glob(pattern)) for pattern in patterns)
-
-
-def get_last_processed_window(posts_dir: Path) -> int:
-    """Get the last processed window index for resume logic.
-
-    Args:
-        posts_dir: Directory containing post files
-
-    Returns:
-        -1 if no windows processed yet, otherwise max window index
-
-    """
-    if not posts_dir.exists():
-        return -1
-
-    existing_posts = list(posts_dir.glob("chunk_*.md")) + list(posts_dir.glob("window_*.md"))
-
-    if not existing_posts:
-        return -1
-
-    # Extract indices from filenames
-    indices = []
-    for post in existing_posts:
-        stem = post.stem
-        if stem.startswith(("chunk_", "window_")):
-            idx_str = stem.split("_")[1].split("-")[0]
-        else:
-            continue
-
-        try:
-            indices.append(int(idx_str))
-        except ValueError:
-            continue
-
-    return max(indices) if indices else -1
 
 
 def create_windows(

@@ -25,7 +25,8 @@ What's Exported:
   - `create_ir_table`, `validate_ir_schema`: IR table utilities
 
 **Windowing Utilities** (pipeline.py):
-  - `create_windows`, `window_has_posts`, `get_last_processed_window`: Message windowing (lazy-loaded)
+  - `create_windows`, `Window`: Message windowing (lazy-loaded)
+  - `load_checkpoint`, `save_checkpoint`: Resume logic via sentinel files (lazy-loaded)
 
 Architecture: Staged Pipeline
 ------------------------------
@@ -39,8 +40,8 @@ Egregora follows a **staged pipeline** with six phases (see CLAUDE.md for full d
 5. **Generation**: Pydantic-AI writer agent with tool calling
 6. **Publication**: MkDocs site rendering
 
-**Phase 3 Resume Logic**: Simple file existence checks (not complex checkpoints).
-Stages can skip work if artifacts already exist (e.g., skip enrichment if cache hit).
+**Phase 7 Resume Logic**: Checkpoint-based resume using sentinel files.
+Tracks last processed timestamp (not window indices). Post dates are LLM-decided.
 
 Pipeline Flow Diagram:
 ----------------------
@@ -98,17 +99,17 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
-# Windowing Utilities Layer
+# Windowing & Checkpoint Utilities Layer
 # ============================================================================
-# Lazy-loaded imports from pipeline.py module (windowing utilities).
-# This __getattr__ hook provides transparent access to create_windows,
-# window_has_posts, and get_last_processed_window without requiring full module import.
+# Lazy-loaded imports from pipeline.py module (windowing and checkpoint utilities).
+# This __getattr__ hook provides transparent access to create_windows, Window,
+# load_checkpoint, and save_checkpoint without requiring full module import.
 
 
 def __getattr__(name: str) -> object:
     """Lazy import for windowing utilities from pipeline.py module.
 
-    Dynamically loads windowing utilities (create_windows, window_has_posts, etc.)
+    Dynamically loads windowing utilities (create_windows, checkpoints, etc.)
     from the egregora/pipeline.py module when accessed. This avoids circular
     imports and maintains a clean namespace.
 
@@ -122,7 +123,7 @@ def __getattr__(name: str) -> object:
         AttributeError: If attribute doesn't exist in the module
 
     """
-    if name in ("create_windows", "window_has_posts", "get_last_processed_window", "Window"):
+    if name in ("create_windows", "Window", "load_checkpoint", "save_checkpoint"):
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
         pipeline_py = Path(module_path) / "pipeline.py"
@@ -142,7 +143,8 @@ def __getattr__(name: str) -> object:
 #   - IR primitives (IR_SCHEMA, create_ir_table, validate_ir_schema)
 #   - Stage abstractions (PipelineStage, StageConfig, StageResult)
 #   - Source adapters (SourceAdapter, MediaMapping)
-#   - Windowing utilities (create_windows, window_has_posts, etc. - lazy-loaded via __getattr__)
+#   - Windowing utilities (create_windows, Window - lazy-loaded via __getattr__)
+#   - Checkpoint utilities (load_checkpoint, save_checkpoint - lazy-loaded via __getattr__)
 __all__ = [
     "IR_SCHEMA",
     "MediaMapping",
@@ -153,7 +155,7 @@ __all__ = [
     "Window",
     "create_ir_table",
     "create_windows",
-    "get_last_processed_window",
+    "load_checkpoint",
+    "save_checkpoint",
     "validate_ir_schema",
-    "window_has_posts",
 ]

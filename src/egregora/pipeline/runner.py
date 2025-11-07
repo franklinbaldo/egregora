@@ -9,8 +9,10 @@ from __future__ import annotations
 import logging
 import tempfile
 from datetime import date as date_type
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import duckdb
 import ibis
@@ -26,7 +28,7 @@ from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
-from egregora.pipeline import create_windows
+from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_window
 from egregora.types import GroupSlug
@@ -232,6 +234,32 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.info(
                     "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
                 )
+
+        # Phase 7: Checkpoint-based resume logic
+        checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint and "last_processed_timestamp" in checkpoint:
+            last_timestamp_str = checkpoint["last_processed_timestamp"]
+            last_timestamp = datetime.fromisoformat(last_timestamp_str)
+
+            # Ensure timezone-aware comparison
+            if last_timestamp.tzinfo is None:
+                last_timestamp = last_timestamp.replace(tzinfo=ZoneInfo("UTC"))
+
+            original_count = messages_table.count().execute()
+            messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+            filtered_count = messages_table.count().execute()
+            resumed_count = original_count - filtered_count
+
+            if resumed_count > 0:
+                logger.info(
+                    "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+                    resumed_count,
+                    last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
+        else:
+            logger.info("🆕 [cyan]Starting fresh[/] (no checkpoint found)")
+
         logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
         windows = create_windows(
             messages_table,
@@ -251,13 +279,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             window_count = window_table.count().execute()
             logger.info("➡️  [bold]%s[/] — %s messages", window_id, window_count)
 
-            # Phase 3: Simple skip logic - check if posts already exist for this window
-            existing_posts = sorted(posts_dir.glob(f"{window_id}-*.md"))
-            if existing_posts:
-                logger.info("⏭️  Skipping %s — %s existing posts found", window_id, len(existing_posts))
-                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
-                results[window_id] = result
-                continue
+            # Phase 7: No skip logic needed - checkpoint handles resume
             with tempfile.TemporaryDirectory(prefix=f"egregora-media-{window_id}-") as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
                 window_table, media_mapping = process_media_for_window(
@@ -308,6 +330,17 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     logger.info("[yellow]No media enrichments to index[/]")
             except Exception:
                 logger.exception("[red]Failed to index media into RAG[/]")
+
+        # Phase 7: Save checkpoint after successful processing
+        if results and messages_table.count().execute() > 0:
+            max_timestamp = messages_table.timestamp.max().execute()
+            total_processed = messages_table.count().execute()
+            save_checkpoint(checkpoint_path, max_timestamp, total_processed)
+            logger.info(
+                "💾 [cyan]Checkpoint saved:[/] processed up to %s",
+                max_timestamp.strftime("%Y-%m-%d %H:%M:%S") if max_timestamp else "N/A",
+            )
+
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
     finally:
