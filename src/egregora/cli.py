@@ -826,7 +826,7 @@ def _filter_messages_by_date(
 
 
 @app.command()
-def group(
+def group(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
     step_unit: Annotated[

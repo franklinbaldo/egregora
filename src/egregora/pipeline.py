@@ -59,11 +59,7 @@ def window_has_posts(window_index: int, posts_dir: Path) -> bool:
         f"window_{window_index}-*.md",
     ]
 
-    for pattern in patterns:
-        if list(posts_dir.glob(pattern)):
-            return True
-
-    return False
+    return any(list(posts_dir.glob(pattern)) for pattern in patterns)
 
 
 def get_last_processed_window(posts_dir: Path) -> int:
@@ -88,7 +84,7 @@ def get_last_processed_window(posts_dir: Path) -> int:
     indices = []
     for post in existing_posts:
         stem = post.stem
-        if stem.startswith("chunk_") or stem.startswith("window_"):
+        if stem.startswith(("chunk_", "window_")):
             idx_str = stem.split("_")[1].split("-")[0]
         else:
             continue
