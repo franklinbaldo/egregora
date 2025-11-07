@@ -40,6 +40,7 @@ def window_has_posts(window_index: int, posts_dir: Path) -> bool:
 
     Returns:
         True if posts exist for this window
+
     """
     if not posts_dir.exists():
         return False
@@ -65,6 +66,7 @@ def get_last_processed_window(posts_dir: Path) -> int:
 
     Returns:
         -1 if no windows processed yet, otherwise max window index
+
     """
     if not posts_dir.exists():
         return -1
@@ -78,9 +80,7 @@ def get_last_processed_window(posts_dir: Path) -> int:
     indices = []
     for post in existing_posts:
         stem = post.stem
-        if stem.startswith("chunk_"):
-            idx_str = stem.split("_")[1].split("-")[0]
-        elif stem.startswith("window_"):
+        if stem.startswith("chunk_") or stem.startswith("window_"):
             idx_str = stem.split("_")[1].split("-")[0]
         else:
             continue

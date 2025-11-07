@@ -232,9 +232,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.info(
                     "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
                 )
-        logger.info(
-            "🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit
-        )
+        logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
         windows = create_windows(
             messages_table,
             step_size=step_size,
