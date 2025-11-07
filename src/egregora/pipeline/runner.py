@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import tempfile
 from datetime import date as date_type
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -142,7 +142,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         step_size = config.pipeline.step_size
         step_unit = config.pipeline.step_unit
         min_window_size = config.pipeline.min_window_size
-        max_window_time = config.pipeline.max_window_time
+        max_window_time_hours = config.pipeline.max_window_time
+        # Convert hours to timedelta if specified (schema stores as int, pipeline expects timedelta)
+        max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
         batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
