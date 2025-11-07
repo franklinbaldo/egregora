@@ -172,23 +172,15 @@ from egregora.config.site import (
 # - RankingCliConfig: Ranking CLI parameters
 # - ComparisonConfig: Elo ranking comparison parameters
 # - ComparisonData: Comparison result data
-# - EditorContext: Editor agent runtime context
-# - PostGenerationContext: Writer agent context for post generation
 # - MediaEnrichmentContext: Media enrichment runtime context
-# - URLEnrichmentContext: URL enrichment runtime context
-# - WriterPromptContext: Writer agent prompt construction context
 from egregora.config.types import (
     ComparisonConfig,
     ComparisonData,
-    EditorContext,
     EnrichmentConfig,
     MediaEnrichmentContext,
-    PostGenerationContext,
     ProcessConfig,
     RankingCliConfig,
-    URLEnrichmentContext,
     WriterConfig,
-    WriterPromptContext,
 )
 
 __all__ = [
@@ -205,7 +197,6 @@ __all__ = [
     "PROFILES_DIR_NAME",  # Profiles subdirectory name
     "ComparisonConfig",  # Elo ranking comparison parameters
     "ComparisonData",  # Comparison result data
-    "EditorContext",  # Editor agent runtime context
     # ==========================================================================
     # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
     # ==========================================================================
@@ -227,7 +218,6 @@ __all__ = [
     # Pipeline-Specific Configs
     # ==========================================================================
     "PipelineEnrichmentConfig",  # Enrichment batch processing config
-    "PostGenerationContext",  # Writer agent context for post generation
     "PrivacyConfig",  # Anonymization settings
     # ==========================================================================
     # Runtime Context Dataclasses (TRANSITIONAL - Phase 2 migration in progress)
@@ -241,9 +231,7 @@ __all__ = [
     # Site Paths & MkDocs Utilities
     # ==========================================================================
     "SitePaths",  # Dataclass with all site paths
-    "URLEnrichmentContext",  # URL enrichment runtime context
     "WriterConfig",  # Writer agent runtime context
-    "WriterPromptContext",  # Writer agent prompt construction context
     "create_default_config",  # Create default config
     "find_egregora_config",  # Find config file in directory tree
     "find_mkdocs_file",  # Locate mkdocs.yml

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
@@ -10,7 +9,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from egregora.types import GroupSlug
 
 if TYPE_CHECKING:
-    from egregora.sources.base import Export
+    pass
 
 
 class MergeConfig(BaseModel):
@@ -45,17 +44,3 @@ class MergeConfig(BaseModel):
             msg = "group_emojis must be a mapping of group slug to emoji"
             raise TypeError(msg)
         return {GroupSlug(str(key)): str(val) for key, val in value.items()}
-
-
-@dataclass(slots=True)
-class GroupSource:
-    """Source for generating posts.
-
-    Can be real (single group) or virtual (merge of multiple groups).
-    """
-
-    slug: GroupSlug
-    name: str
-    exports: list[Export]
-    is_virtual: bool = False
-    merge_config: MergeConfig | None = None

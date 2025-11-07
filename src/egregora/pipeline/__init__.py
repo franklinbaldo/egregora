@@ -13,9 +13,7 @@ themes, and structure.
 What's Exported:
 ----------------
 
-**Pipeline Orchestration**:
-  - `CoreOrchestrator`: Main pipeline execution engine
-  - `PipelineConfig`, `PipelineContext`, `PipelineArtifacts`: Configuration and state
+**Pipeline Stage Abstraction**:
   - `PipelineStage`, `StageConfig`, `StageResult`: Stage abstraction layer
 
 **Source Adapters**:
@@ -43,35 +41,6 @@ Egregora follows a **staged pipeline** with six phases (see CLAUDE.md for full d
 
 **Phase 3 Resume Logic**: Simple file existence checks (not complex checkpoints).
 Stages can skip work if artifacts already exist (e.g., skip enrichment if cache hit).
-
-Usage Example:
---------------
-
-Basic pipeline execution flow::
-
-    from egregora.pipeline import CoreOrchestrator, PipelineConfig
-    from egregora.adapters.whatsapp import WhatsAppAdapter
-    from egregora.pipeline.stages import PrivacyStage, EnrichmentStage, WritingStage
-
-    # Configure pipeline with temporal grouping
-    config = PipelineConfig(
-        input_path=Path("export.zip"),
-        output_dir=Path("output"),
-        period="week",  # Group conversations by week
-        enable_enrichment=True,
-    )
-
-    # Assemble staged pipeline
-    adapter = WhatsAppAdapter()
-    stages = [
-        PrivacyStage(config),      # Anonymize BEFORE LLM processing
-        EnrichmentStage(config),   # LLM-powered context (cached)
-        WritingStage(config),      # Pydantic-AI agent with tools
-    ]
-
-    # Execute with feedback loops
-    orchestrator = CoreOrchestrator(adapter, stages)
-    result = orchestrator.run(config)  # Returns PipelineArtifacts
 
 Pipeline Flow Diagram:
 ----------------------
@@ -129,18 +98,6 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
-# Core Orchestrator
-# ============================================================================
-# Main pipeline execution engine that coordinates source adapters, stages, and
-# state management. Handles configuration, context propagation, and artifact collection.
-from egregora.pipeline.orchestrator import (
-    CoreOrchestrator,
-    PipelineArtifacts,
-    PipelineConfig,
-    PipelineContext,
-)
-
-# ============================================================================
 # Backward Compatibility Layer
 # ============================================================================
 # Lazy-loaded imports from legacy pipeline.py module (temporal grouping utilities).
@@ -185,17 +142,12 @@ def __getattr__(name: str) -> object:
 # ============================================================================
 # Explicit export list for clean namespace. Groups exports by category:
 #   - IR primitives (IR_SCHEMA, create_ir_table, validate_ir_schema)
-#   - Orchestration (CoreOrchestrator, PipelineConfig, PipelineContext, PipelineArtifacts)
 #   - Stage abstractions (PipelineStage, StageConfig, StageResult)
 #   - Source adapters (SourceAdapter, MediaMapping)
 #   - Backward compat (group_by_period, period_has_posts - lazy-loaded via __getattr__)
 __all__ = [
     "IR_SCHEMA",
-    "CoreOrchestrator",
     "MediaMapping",
-    "PipelineArtifacts",
-    "PipelineConfig",
-    "PipelineContext",
     "PipelineStage",
     "SourceAdapter",
     "StageConfig",
