@@ -175,8 +175,12 @@ def create_windows(  # noqa: PLR0913
             else:  # days
                 requested_delta = timedelta(days=step_size)
 
-            # If requested window exceeds max, reduce to max
-            if requested_delta > max_window_time:
+            # Calculate actual window duration accounting for overlap
+            # Actual window span = step_size * (1 + overlap_ratio)
+            actual_window_duration = requested_delta * (1 + overlap_ratio)
+
+            # If actual window duration exceeds max, reduce to max
+            if actual_window_duration > max_window_time:
                 # Account for overlap: window_duration = step_size * (1 + overlap_ratio)
                 # So: effective_step_size = max_window_time / (1 + overlap_ratio)
                 max_with_overlap = max_window_time / (1 + overlap_ratio)
