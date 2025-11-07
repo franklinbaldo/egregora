@@ -23,7 +23,7 @@ def create_writer_dataset() -> Dataset:
             name="empty_conversation",
             inputs={
                 "prompt": "You reviewed an empty conversation. No messages to analyze.",
-                "period_date": "2025-01-01",
+                "window_id": "2025-01-01",
             },
             expected_output={"posts_created": 0, "summary": "No content to write about"},
             metadata={"category": "edge_case", "difficulty": "easy"},
@@ -34,7 +34,7 @@ def create_writer_dataset() -> Dataset:
                 "prompt": (
                     "Conversation (2025-01-01):\n- user_abc: hi\n\nThis is too brief to warrant a blog post."
                 ),
-                "period_date": "2025-01-01",
+                "window_id": "2025-01-01",
             },
             expected_output={"posts_created": 0, "summary": "Insufficient content"},
             metadata={"category": "edge_case", "difficulty": "easy"},
@@ -49,7 +49,7 @@ def create_writer_dataset() -> Dataset:
                     "Rich technical discussion with examples.\n\n"
                     "Write 0-N blog posts based on this conversation."
                 ),
-                "period_date": "2025-01-15",
+                "window_id": "2025-01-15",
             },
             expected_output={
                 "posts_created": 1,
@@ -69,7 +69,7 @@ def create_writer_dataset() -> Dataset:
                     "3. Book recommendations for sci-fi (8 messages)\n\n"
                     "Each topic has substantial content. Write 0-N posts."
                 ),
-                "period_date": "2025-02-01",
+                "window_id": "2025-02-01",
             },
             expected_output={
                 "posts_created": 3,
@@ -89,7 +89,7 @@ def create_writer_dataset() -> Dataset:
                     "Basic overview of neural network architecture...\n\n"
                     "Write posts that reference relevant previous content."
                 ),
-                "period_date": "2025-03-01",
+                "window_id": "2025-03-01",
             },
             expected_output={
                 "posts_created": 1,

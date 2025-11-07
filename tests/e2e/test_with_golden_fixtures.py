@@ -46,8 +46,8 @@ def test_pipeline_with_golden_fixtures(
     class GoldenTestModel(TestModel):
         """TestModel variant with scripted tool arguments for deterministic output."""
 
-        def __init__(self, *, period_date: str):
-            self._period_date = period_date
+        def __init__(self, *, window_id: str):
+            self._window_id = window_id
             super().__init__(
                 call_tools=["write_post_tool", "write_profile_tool"],
                 custom_output_args={
@@ -63,7 +63,7 @@ def test_pipeline_with_golden_fixtures(
                     "metadata": {
                         "title": "Deterministic Insights",
                         "slug": "deterministic-insights",
-                        "date": self._period_date,
+                        "date": self._window_id,
                         "tags": ["deterministic", "test"],
                         "authors": ["ca71a986"],
                         "summary": "Synthetic summary generated for golden fixture validation.",
@@ -85,7 +85,7 @@ def test_pipeline_with_golden_fixtures(
 
     def _make_test_model(model_name: str) -> TestModel:
         # Period date is derived from the WhatsApp export metadata.
-        return GoldenTestModel(period_date=whatsapp_fixture.export_date.isoformat())
+        return GoldenTestModel(window_id=whatsapp_fixture.export_date.isoformat())
 
     monkeypatch.setattr(
         "egregora.agents.writer.writer_agent.GeminiModel",

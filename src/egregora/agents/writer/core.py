@@ -227,17 +227,17 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
         logger.exception("Failed to index posts in RAG")
 
 
-def _write_posts_for_period_pydantic(
-    table: Table, period_date: str, client: genai.Client, config: WriterConfig | None = None
+def _write_posts_for_window_pydantic(
+    table: Table, window_id: str, client: genai.Client, config: WriterConfig | None = None
 ) -> dict[str, list[str]]:
-    """Pydantic AI backend: Let LLM analyze period's messages using Pydantic AI.
+    """Pydantic AI backend: Let LLM analyze window's messages using Pydantic AI.
 
     This is the new implementation using Pydantic AI for type safety and observability.
     Automatically traces to Logfire if LOGFIRE_TOKEN is set.
 
     Args:
         table: Table with messages for the period (already enriched)
-        period_date: Period identifier (e.g., "2025-01-01")
+        window_id: Period identifier (e.g., "2025-01-01")
         client: Gemini client for embeddings
         config: Writer configuration object
 
@@ -278,7 +278,7 @@ def _write_posts_for_period_pydantic(
     if markdown_extensions_yaml:
         markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
     template = WriterPromptTemplate(
-        date=period_date,
+        date=window_id,
         markdown_table=conversation_md,
         active_authors=", ".join(active_authors),
         custom_instructions=custom_writer_prompt or "",
@@ -298,7 +298,7 @@ def _write_posts_for_period_pydantic(
 
     # Create runtime context for writer agent
     runtime_context = WriterRuntimeContext(
-        period_date=period_date,
+        window_id=window_id,
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
@@ -316,10 +316,10 @@ def _write_posts_for_period_pydantic(
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
-def write_posts_for_period(
-    table: Table, period_date: str, client: genai.Client, config: WriterConfig | None = None
+def write_posts_for_window(
+    table: Table, window_id: str, client: genai.Client, config: WriterConfig | None = None
 ) -> dict[str, list[str]]:
-    """Let LLM analyze period's messages, write 0-N posts, and update author profiles.
+    """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     Uses Pydantic AI for type safety and Logfire observability.
 
@@ -332,7 +332,7 @@ def write_posts_for_period(
 
     Args:
         table: Table with messages for the period (already enriched)
-        period_date: Period identifier (e.g., "2025-01-01")
+        window_id: Period identifier (e.g., "2025-01-01")
         client: Gemini client for embeddings
         config: Writer configuration object
 
@@ -344,12 +344,10 @@ def write_posts_for_period(
 
     Examples:
         >>> writer_config = WriterConfig()
-        >>> result = write_posts_for_period(table, "2025-01-01", client, writer_config)
+        >>> result = write_posts_for_window(table, "2025-01-01", client, writer_config)
 
     """
     if config is None:
         config = WriterConfig()
     logger.info("Using Pydantic AI backend for writer")
-    return _write_posts_for_period_pydantic(
-        table=table, period_date=period_date, client=client, config=config
-    )
+    return _write_posts_for_window_pydantic(table=table, window_id=window_id, client=client, config=config)

@@ -42,7 +42,7 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
     )
 
     context = WriterRuntimeContext(
-        period_date="2025-01-01",
+        window_id="2025-01-01",
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,

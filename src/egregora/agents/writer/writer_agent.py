@@ -68,7 +68,7 @@ class WriterRuntimeContext:
     Separates runtime data (paths, clients) from configuration (EgregoraConfig).
     """
 
-    period_date: str
+    window_id: str
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
@@ -142,7 +142,7 @@ class WriterAgentState(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-    period_date: str
+    window_id: str
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
@@ -348,7 +348,7 @@ def write_posts_with_pydantic_agent(
     else:
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
     state = WriterAgentState(
-        period_date=context.period_date,
+        window_id=context.window_id,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
@@ -359,7 +359,7 @@ def write_posts_with_pydantic_agent(
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=context.annotations_store,
     )
-    with logfire_span("writer_agent", period=context.period_date, model=model_name):
+    with logfire_span("writer_agent", period=context.window_id, model=model_name):
         result = agent.run_sync(prompt, deps=state)
         result_payload = getattr(result, "data", result)
 
@@ -369,7 +369,7 @@ def write_posts_with_pydantic_agent(
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
-            period=context.period_date,
+            period=context.window_id,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
             tokens_total=usage.total_tokens if usage else 0,
@@ -382,7 +382,7 @@ def write_posts_with_pydantic_agent(
             output_path = Path(record_dir).expanduser()
             output_path.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{context.period_date}-{timestamp}.json"
+            filename = output_path / f"writer-{context.window_id}-{timestamp}.json"
             try:
                 payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
                 filename.write_bytes(payload)
@@ -493,7 +493,7 @@ async def write_posts_with_pydantic_agent_stream(
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
 
     state = WriterAgentState(
-        period_date=context.period_date,
+        window_id=context.window_id,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,

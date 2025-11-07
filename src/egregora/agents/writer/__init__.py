@@ -14,7 +14,7 @@ from egregora.agents.writer.core import (
     get_top_authors,
     load_markdown_extensions,
     load_site_config,
-    write_posts_for_period,
+    write_posts_for_window,
 )
 from egregora.agents.writer.tools import PostMetadata
 
@@ -24,5 +24,5 @@ __all__ = [
     "get_top_authors",
     "load_markdown_extensions",
     "load_site_config",
-    "write_posts_for_period",
+    "write_posts_for_window",
 ]

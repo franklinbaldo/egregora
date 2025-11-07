@@ -35,7 +35,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     """Run writer agent and return structured output.
 
     Args:
-        inputs: Case inputs with 'prompt' and 'period_date'
+        inputs: Case inputs with 'prompt' and 'window_id'
         writer_dirs: Tuple of (posts_dir, profiles_dir, rag_dir)
 
     Returns:
@@ -60,7 +60,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     )
 
     context = WriterRuntimeContext(
-        period_date=inputs["period_date"],
+        window_id=inputs["window_id"],
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
@@ -118,7 +118,7 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
     )
 
     context = WriterRuntimeContext(
-        period_date=case.inputs["period_date"],
+        window_id=case.inputs["window_id"],
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
@@ -164,7 +164,7 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     )
 
     context = WriterRuntimeContext(
-        period_date=case.inputs["period_date"],
+        window_id=case.inputs["window_id"],
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,

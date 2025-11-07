@@ -101,12 +101,12 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
     def _stub_writer(
         table,
-        period_key,
+        window_id,
         client,
         config=None,
     ):
-        """Stub writer matching new signature: write_posts_for_period(table, period_date, client, config)."""
-        captured_dates.append(period_key)
+        """Stub writer matching new signature: write_posts_for_window(table, period_date, client, config)."""
+        captured_dates.append(window_id)
 
         # Extract paths from config if provided, otherwise use dummy paths
         if config:
@@ -120,11 +120,11 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         output_dir.mkdir(parents=True, exist_ok=True)
         profiles_dir.mkdir(parents=True, exist_ok=True)
 
-        post_path = output_dir / f"{period_key}-stub.md"
+        post_path = output_dir / f"{window_id}-stub.md"
         post_path.write_text(
             "---\n"
-            f"title: Stub Post for {period_key}\n"
-            f"date: {period_key}\n"
+            f"title: Stub Post for {window_id}\n"
+            f"date: {window_id}\n"
             "tags: []\n"
             "---\n"
             "This is a placeholder post used during testing.\n",
@@ -136,7 +136,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.write_posts_for_period", _stub_writer)
+    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.write_posts_for_window", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):

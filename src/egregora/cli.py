@@ -22,7 +22,7 @@ from egregora.agents.loader import load_agent
 from egregora.agents.registry import ToolRegistry
 from egregora.agents.resolver import AgentResolver
 from egregora.agents.tools.profiler import get_active_authors
-from egregora.agents.writer import WriterConfig, write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.config import (
@@ -39,7 +39,7 @@ from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
-from egregora.pipeline import group_by_period
+from egregora.pipeline import create_windows
 from egregora.pipeline.runner import run_source_pipeline
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
@@ -325,7 +325,11 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
-    period: Annotated[str, typer.Option(help="Grouping period: 'day' or 'week'")] = "day",
+    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
+    step_unit: Annotated[
+        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'tokens'")
+    ] = "messages",
+    min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
         str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
@@ -357,9 +361,19 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
 
     Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
+    Windowing:
+        Control how messages are grouped into posts using --step-size and --step-unit:
+
+        By message count (default):
+            egregora process export.zip --step-size=100 --step-unit=messages
+
+        By time:
+            egregora process export.zip --step-size=7 --step-unit=days
+            egregora process export.zip --step-size=24 --step-unit=hours
+
     The LLM decides:
     - What's worth writing about (filters noise automatically)
-    - How many posts per period (0-N)
+    - How many posts per window (0-N)
     - All metadata (title, slug, tags, summary, etc)
     - Which author profiles to update based on contributions
     """
@@ -382,7 +396,9 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     config = ProcessConfig(
         zip_file=input_file,
         output_dir=output,
-        period=period,
+        step_size=step_size,
+        step_unit=step_unit,
+        min_window_size=min_window_size,
         enable_enrichment=enable_enrichment,
         from_date=from_date_obj,
         to_date=to_date_obj,
@@ -812,8 +828,12 @@ def _filter_messages_by_date(
 @app.command()
 def group(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
-    period: Annotated[str, typer.Option(help="Grouping period: 'day', 'week', or 'month'")] = "day",
-    output_dir: Annotated[Path, typer.Option(help="Output directory for period CSV files")] = Path("periods"),
+    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
+    step_unit: Annotated[
+        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
+    ] = "messages",
+    min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
+    output_dir: Annotated[Path, typer.Option(help="Output directory for window CSV files")] = Path("windows"),
     from_date: Annotated[
         str | None, typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)")
     ] = None,
@@ -821,22 +841,26 @@ def group(
         str | None, typer.Option(help="Only include messages up to this date (YYYY-MM-DD)")
     ] = None,
 ) -> None:
-    """Group messages by time period (day/week/month).
+    """Group messages into processing windows.
 
     This is the second stage of the pipeline. It:
     - Loads messages from CSV
     - Optionally filters by date range
-    - Groups messages by the specified period
-    - Saves each period to a separate CSV file
+    - Groups messages into windows based on step_size and step_unit
+    - Saves each window to a separate CSV file
 
-    Output files are named: {period_key}.csv (e.g., 2025-01-15.csv, 2025-W03.csv)
+    Output files are named: {window_id}.csv (e.g., chunk_001.csv, window_20250107_120000.csv)
+
+    Examples:
+        egregora group messages.csv --step-size=100 --step-unit=messages
+        egregora group messages.csv --step-size=7 --step-unit=days
     """
     input_path = input_csv.resolve()
     if not input_path.exists():
         console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
-    if period not in {"day", "week", "month"}:
-        console.print(f"[red]Invalid period '{period}'. Choose: day, week, or month[/red]")
+    if step_unit not in {"messages", "hours", "days", "tokens"}:
+        console.print(f"[red]Invalid step_unit '{step_unit}'. Choose: messages, hours, days, or tokens[/red]")
         raise typer.Exit(1)
     output_path = output_dir.resolve()
     output_path.mkdir(parents=True, exist_ok=True)
@@ -845,18 +869,23 @@ def group(
         console.print(f"[cyan]Loading:[/cyan] {input_path}")
         messages_table = load_table(input_path)
         messages_table = _filter_messages_by_date(messages_table, from_date_obj, to_date_obj)
-        console.print(f"[cyan]Grouping by:[/cyan] {period}")
-        periods = group_by_period(messages_table, period)
-        if not periods:
-            console.print("[yellow]No periods found after grouping[/yellow]")
+        console.print(f"[cyan]Creating windows:[/cyan] step_size={step_size}, unit={step_unit}")
+        windows = create_windows(
+            messages_table,
+            step_size=step_size,
+            step_unit=step_unit,
+            min_window_size=min_window_size,
+        )
+        if not windows:
+            console.print("[yellow]No windows found after grouping[/yellow]")
             raise typer.Exit(0)
-        console.print(f"[green]Found {len(periods)} periods[/green]")
-        for period_key, period_table in periods.items():
-            period_output = output_path / f"{period_key}.csv"
-            period_count = period_table.count().execute()
-            console.print(f"  [cyan]{period_key}:[/cyan] {period_count} messages → {period_output}")
-            save_table(period_table, period_output)
-        console.print(f"[green]✅ Saved {len(periods)} period files to {output_path}[/green]")
+        console.print(f"[green]Found {len(windows)} windows[/green]")
+        for window_id, window_table in windows.items():
+            window_output = output_path / f"{window_id}.csv"
+            window_count = window_table.count().execute()
+            console.print(f"  [cyan]{window_id}:[/cyan] {window_count} messages → {window_output}")
+            save_table(window_table, window_output)
+        console.print(f"[green]✅ Saved {len(windows)} window files to {output_path}[/green]")
 
 
 @app.command()
@@ -969,7 +998,7 @@ def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and sta
 def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
-    period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
+    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., chunk_001)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     output: Annotated[Path, typer.Option(help="Output context JSON file")],
     gemini_key: Annotated[
@@ -1048,7 +1077,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
             if rag_similar_posts:
                 rag_similar_posts = [_make_json_safe(record) for record in rag_similar_posts]
             context = {
-                "period_key": period_key,
+                "window_id": window_id,
                 "conversation_markdown": conversation_md,
                 "active_authors": list(active_authors),
                 "profiles": profiles,
@@ -1080,7 +1109,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
 def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
-    period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
+    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., chunk_001)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     context: Annotated[
         Path | None, typer.Option(help="Context JSON file (from gather-context command)")
@@ -1144,7 +1173,7 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
                 console.print("[yellow]No context file provided, will gather context inline[/yellow]")
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {('enabled' if enable_rag else 'disabled')}")
-            console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
+            console.print(f"[yellow]Invoking LLM writer for window {window_id}...[/yellow]")
             writer_config = WriterConfig(
                 output_dir=site_paths.posts_dir,
                 profiles_dir=site_paths.profiles_dir,
@@ -1155,7 +1184,7 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
             )
-            result = write_posts_for_period(enriched_table, period_key, client, writer_config)
+            result = write_posts_for_window(enriched_table, window_id, client, writer_config)
             posts_count = len(result.get("posts", []))
             profiles_count = len(result.get("profiles", []))
             console.print(f"[green]✅ Generated {posts_count} posts[/green]")
