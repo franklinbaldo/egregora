@@ -142,6 +142,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         step_size = config.pipeline.step_size
         step_unit = config.pipeline.step_unit
         min_window_size = config.pipeline.min_window_size
+        overlap_ratio = config.pipeline.overlap_ratio
         max_window_time_hours = config.pipeline.max_window_time
         # Convert hours to timedelta if specified (schema stores as int, pipeline expects timedelta)
         max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
@@ -263,22 +264,24 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             logger.info("🆕 [cyan]Starting fresh[/] (no checkpoint found)")
 
         logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-        windows = create_windows(
+        windows_iterator = create_windows(
             messages_table,
             step_size=step_size,
             step_unit=step_unit,
             min_window_size=min_window_size,
+            overlap_ratio=overlap_ratio,
             max_window_time=max_window_time,
         )
-        if not windows:
-            logger.info("[yellow]No windows found after grouping[/]")
-            return {}
+
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
-        for window_id in sorted(windows.keys()):
-            window_table = windows[window_id]
-            window_count = window_table.count().execute()
+
+        # Process windows lazily from generator
+        for window in windows_iterator:
+            window_id = window.window_id
+            window_table = window.table
+            window_count = window.size
             logger.info("➡️  [bold]%s[/] — %s messages", window_id, window_count)
 
             # Phase 7: No skip logic needed - checkpoint handles resume

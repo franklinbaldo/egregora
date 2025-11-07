@@ -277,6 +277,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                     "step_size": config.step_size,
                     "step_unit": config.step_unit,
                     "min_window_size": config.min_window_size,
+                    "overlap_ratio": config.overlap_ratio,
                     "timezone": config.timezone,
                     "from_date": config.from_date.isoformat() if config.from_date else None,
                     "to_date": config.to_date.isoformat() if config.to_date else None,
@@ -332,6 +333,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'bytes'")
     ] = "messages",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
+    overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")] = 0.2,
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
         str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
@@ -401,6 +403,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         step_size=step_size,
         step_unit=step_unit,
         min_window_size=min_window_size,
+        overlap_ratio=overlap,
         enable_enrichment=enable_enrichment,
         from_date=from_date_obj,
         to_date=to_date_obj,

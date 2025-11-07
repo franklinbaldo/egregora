@@ -167,6 +167,12 @@ class PipelineConfig(BaseModel):
         ge=1,
         description="Minimum messages per window (smaller windows merged or skipped)",
     )
+    overlap_ratio: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=0.5,
+        description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
+    )
     max_window_time: int | None = Field(
         default=None,
         ge=1,

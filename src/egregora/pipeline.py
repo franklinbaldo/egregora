@@ -13,11 +13,11 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 
 import json
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -99,50 +99,61 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(
+def create_windows(  # noqa: PLR0913
     table: Table,
     *,
     step_size: int = 100,
     step_unit: str = "messages",
     min_window_size: int = 10,
+    overlap_ratio: float = 0.2,
     max_window_time: timedelta | None = None,
-) -> dict[str, Table]:
-    """Create processing windows from messages.
+) -> Iterator[Window]:
+    """Create processing windows from messages with overlap for context continuity.
 
     Replaces period-based grouping with flexible windowing:
     - By message count: step_size=100, step_unit="messages"
     - By time: step_size=2, step_unit="days"
     - By byte count: step_size=50000, step_unit="bytes" (not yet implemented)
 
+    Overlap provides conversation context across window boundaries, improving
+    LLM understanding and blog post quality at the cost of ~20% more tokens.
+
     Args:
         table: Table with timestamp column
         step_size: Size of each window
         step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
         min_window_size: Minimum messages per window (skip smaller windows)
+        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
         max_window_time: Optional maximum time span per window
 
-    Returns:
-        Dict mapping window_id to Table
+    Yields:
+        Window objects with overlapping message sets
 
     Examples:
-        >>> # 100 messages per window
-        >>> windows = create_windows(table, step_size=100, step_unit="messages")
-        >>> # 2 days per window
-        >>> windows = create_windows(table, step_size=2, step_unit="days")
+        >>> # 100 messages per window with 20% overlap
+        >>> for window in create_windows(table, step_size=100, step_unit="messages"):
+        ...     print(f"Processing {window.window_id}: {window.size} messages")
+        >>>
+        >>> # No overlap (old behavior)
+        >>> for window in create_windows(table, step_size=100, overlap_ratio=0.0):
+        ...     pass
 
     """
     if table.count().execute() == 0:
-        return {}
+        return
 
     # Sort by timestamp
     sorted_table = table.order_by(table.timestamp)
 
+    # Calculate overlap in messages
+    overlap = int(step_size * overlap_ratio)
+
     if step_unit == "messages":
-        windows = _window_by_count(sorted_table, step_size, min_window_size)
+        windows = _window_by_count(sorted_table, step_size, min_window_size, overlap)
     elif step_unit in ("hours", "days"):
-        windows = _window_by_time(sorted_table, step_size, step_unit, min_window_size)
+        windows = _window_by_time(sorted_table, step_size, step_unit, min_window_size, overlap_ratio)
     elif step_unit == "bytes":
-        windows = _window_by_bytes(sorted_table, step_size, min_window_size)
+        windows = _window_by_bytes(sorted_table, step_size, min_window_size, overlap)
     else:
         msg = f"Unknown step_unit: {step_unit}"
         raise ValueError(msg)
@@ -151,37 +162,44 @@ def create_windows(
     if max_window_time:
         windows = _apply_time_limit(windows, max_window_time)
 
-    return {w.window_id: w.table for w in windows}
+    yield from windows
 
 
 def _window_by_count(
     table: Table,
     step_size: int,
     min_window_size: int,
-) -> list[Window]:
-    """Create windows of fixed message count."""
-    windows = []
+    overlap: int = 0,
+) -> Iterator[Window]:
+    """Generate windows of fixed message count with optional overlap.
+
+    Overlap provides conversation context across window boundaries:
+    - Window 1: messages [0-119] (100 + 20 overlap)
+    - Window 2: messages [100-219] (100 + 20 overlap)
+    - Messages 100-119 appear in both windows for context
+
+    Args:
+        table: Sorted table of messages
+        step_size: Number of messages per window (before overlap)
+        min_window_size: Minimum messages (skip smaller windows)
+        overlap: Number of messages to overlap with previous window
+
+    Yields:
+        Windows with overlapping message sets
+
+    """
     total_count = table.count().execute()
-
     window_index = 0
-    for offset in range(0, total_count, step_size):
-        chunk_size = min(step_size, total_count - offset)
+    offset = 0
 
-        # Skip if below minimum
-        if chunk_size < min_window_size and offset > 0:
-            # Merge into previous window
-            if windows:
-                prev = windows[-1]
-                merged_table = ibis.union(prev.table, table.limit(chunk_size, offset=offset))
-                windows[-1] = Window(
-                    window_id=prev.window_id,
-                    window_index=prev.window_index,
-                    start_time=prev.start_time,
-                    end_time=_get_max_timestamp(merged_table),
-                    table=merged_table,
-                    size=prev.size + chunk_size,
-                )
-            continue
+    while offset < total_count:
+        # Window size = step_size + overlap (or remaining messages)
+        chunk_size = min(step_size + overlap, total_count - offset)
+
+        # Skip tiny trailing windows
+        if chunk_size < min_window_size:
+            logger.debug("Skipping tiny trailing window: %d messages (min=%d)", chunk_size, min_window_size)
+            break
 
         window_table = table.limit(chunk_size, offset=offset)
         window_id = f"chunk_{window_index:03d}"
@@ -190,19 +208,17 @@ def _window_by_count(
         start_time = _get_min_timestamp(window_table)
         end_time = _get_max_timestamp(window_table)
 
-        windows.append(
-            Window(
-                window_id=window_id,
-                window_index=window_index,
-                start_time=start_time,
-                end_time=end_time,
-                table=window_table,
-                size=chunk_size,
-            )
+        yield Window(
+            window_id=window_id,
+            window_index=window_index,
+            start_time=start_time,
+            end_time=end_time,
+            table=window_table,
+            size=chunk_size,
         )
-        window_index += 1
 
-    return windows
+        window_index += 1
+        offset += step_size  # Advance by step_size (not chunk_size), creating overlap
 
 
 def _window_by_time(
@@ -210,10 +226,24 @@ def _window_by_time(
     step_size: int,
     step_unit: str,
     min_window_size: int,
-) -> list[Window]:
-    """Create windows of fixed time duration."""
-    windows = []
+    overlap_ratio: float = 0.0,
+) -> Iterator[Window]:
+    """Generate windows of fixed time duration with optional overlap.
 
+    Time overlap ensures conversation threads spanning window boundaries
+    maintain context for the LLM.
+
+    Args:
+        table: Sorted table of messages
+        step_size: Duration of each window
+        step_unit: "hours" or "days"
+        min_window_size: Minimum messages per window
+        overlap_ratio: Fraction of time window to overlap (0.0-0.5)
+
+    Yields:
+        Windows with overlapping time ranges
+
+    """
     # Get overall time range
     min_ts = _get_min_timestamp(table)
     max_ts = _get_max_timestamp(table)
@@ -224,12 +254,15 @@ def _window_by_time(
     else:  # days
         delta = timedelta(days=step_size)
 
+    # Calculate overlap duration
+    overlap_delta = delta * overlap_ratio
+
     # Create windows
     window_index = 0
     current_start = min_ts
 
     while current_start < max_ts:
-        current_end = current_start + delta
+        current_end = current_start + delta + overlap_delta
 
         # Filter messages in this window
         window_table = table.filter((table.timestamp >= current_start) & (table.timestamp < current_end))
@@ -238,32 +271,31 @@ def _window_by_time(
 
         # Skip if below minimum
         if window_size < min_window_size:
-            current_start = current_end
+            logger.debug("Skipping window with %d messages (min=%d)", window_size, min_window_size)
+            current_start += delta  # Advance without overlap
             continue
 
         window_id = f"window_{current_start.strftime('%Y%m%d_%H%M%S')}"
 
-        windows.append(
-            Window(
-                window_id=window_id,
-                window_index=window_index,
-                start_time=current_start,
-                end_time=current_end,
-                table=window_table,
-                size=window_size,
-            )
+        yield Window(
+            window_id=window_id,
+            window_index=window_index,
+            start_time=current_start,
+            end_time=current_end,
+            table=window_table,
+            size=window_size,
         )
-        window_index += 1
-        current_start = current_end
 
-    return windows
+        window_index += 1
+        current_start += delta  # Advance by delta, creating overlap
 
 
 def _window_by_bytes(
     table: Table,
     step_size: int,
     min_window_size: int,
-) -> list[Window]:
+    overlap: int = 0,
+) -> Iterator[Window]:
     """Create windows based on byte count (text size).
 
     Groups messages until cumulative byte count reaches step_size.
@@ -288,15 +320,22 @@ def _window_by_bytes(
     raise NotImplementedError(msg)
 
 
-def _apply_time_limit(windows: list[Window], max_time: timedelta) -> list[Window]:
-    """Split windows that exceed max_time duration."""
-    result = []
+def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterator[Window]:
+    """Split windows that exceed max_time duration.
 
+    Args:
+        windows: Generator of windows to process
+        max_time: Maximum allowed duration per window
+
+    Yields:
+        Windows split to respect max_time constraint
+
+    """
     for window in windows:
         duration = window.end_time - window.start_time
 
         if duration <= max_time:
-            result.append(window)
+            yield window
             continue
 
         # Split window into smaller time chunks
@@ -310,30 +349,24 @@ def _apply_time_limit(windows: list[Window], max_time: timedelta) -> list[Window
         second_size = second_half.count().execute()
 
         if first_size > 0:
-            result.append(
-                Window(
-                    window_id=f"{window.window_id}_a",
-                    window_index=window.window_index,
-                    start_time=window.start_time,
-                    end_time=mid_time,
-                    table=first_half,
-                    size=first_size,
-                )
+            yield Window(
+                window_id=f"{window.window_id}_a",
+                window_index=window.window_index,
+                start_time=window.start_time,
+                end_time=mid_time,
+                table=first_half,
+                size=first_size,
             )
 
         if second_size > 0:
-            result.append(
-                Window(
-                    window_id=f"{window.window_id}_b",
-                    window_index=window.window_index + 1,
-                    start_time=mid_time,
-                    end_time=window.end_time,
-                    table=second_half,
-                    size=second_size,
-                )
+            yield Window(
+                window_id=f"{window.window_id}_b",
+                window_index=window.window_index + 1,
+                start_time=mid_time,
+                end_time=window.end_time,
+                table=second_half,
+                size=second_size,
             )
-
-    return result
 
 
 def _get_min_timestamp(table: Table) -> datetime:
