@@ -24,7 +24,9 @@ class ProcessConfig:
     zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
     step_size: Annotated[int, "Size of each processing window"] = 100
-    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days', 'bytes' (~4 bytes/token)"] = "messages"
+    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days', 'bytes' (~4 bytes/token)"] = (
+        "messages"
+    )
     min_window_size: Annotated[int, "Minimum messages per window (skip smaller windows)"] = 10
     max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
