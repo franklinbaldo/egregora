@@ -373,16 +373,37 @@ def write_posts_with_pydantic_agent(
         use_full_context_window=use_full_context_window,
     )
     if not fits:
-        logger.error(
-            "Prompt exceeds model context window: %d tokens > %d limit for %s (window: %s)",
-            estimated_tokens,
-            effective_limit,
-            model_name,
-            context.window_id,
-        )
-        # TODO: Implement dynamic window splitting or context trimming
-        # For now, we'll attempt anyway and let the API reject it with a clear error
-        logger.warning("Attempting generation anyway - expect API failure or truncation")
+        # Check if we're under the model's hard limit (may exceed 100k cap but still valid)
+        from egregora.agents.model_limits import get_model_context_limit  # noqa: PLC0415
+
+        model_limit = get_model_context_limit(model_name)
+        model_effective_limit = int(model_limit * 0.9)  # 10% safety margin
+
+        if estimated_tokens <= model_effective_limit:
+            # Single large message exception: Exceeds 100k cap but fits in model
+            logger.warning(
+                "Prompt exceeds %dk cap (%d tokens) but fits in model limit (%d tokens) for %s (window: %s) - allowing as exception (likely single large message)",
+                max_prompt_tokens // 1000,
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                context.window_id,
+            )
+        else:
+            # Hard limit exceeded
+            logger.error(
+                "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s)",
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                context.window_id,
+            )
+            # TODO(Phase 8): Implement dynamic window splitting
+            # - Split window in half by time or message count
+            # - Rebuild prompts for each half and retry
+            # - Recurse until prompts fit or minimum window size reached
+            # For now, attempt generation and let API reject with clear error
+            logger.warning("Attempting generation anyway - expect API failure or truncation")
     else:
         logger.info(
             "Prompt fits: %d tokens / %d limit (%.1f%% usage) for %s",
