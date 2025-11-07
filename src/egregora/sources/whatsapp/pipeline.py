@@ -334,7 +334,14 @@ def process_whatsapp_export(
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """Public entry point that manages DuckDB/Ibis backend state for processing.
+    """Public entry point for WhatsApp exports (backward compatibility wrapper).
+
+    MODERN (Phase 2): This is now a thin wrapper around run_source_pipeline.
+    The CLI uses run_source_pipeline directly. This function exists for:
+    - Backward compatibility with existing code/tests
+    - Convenient WhatsApp-specific interface
+
+    For new code, prefer using run_source_pipeline(source="whatsapp", ...) directly.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -346,46 +353,58 @@ def process_whatsapp_export(
         timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
         gemini_api_key: Google Gemini API key
         model: Gemini model to use (overrides mkdocs.yml config)
-        resume: Whether to resume from a previous run.
-        batch_threshold: The threshold for switching to batch processing.
-        retrieval_mode: The retrieval mode to use.
-        retrieval_nprobe: The number of probes to use for retrieval.
-        retrieval_overfetch: The overfetch factor to use for retrieval.
+        resume: Whether to resume from a previous run
+        batch_threshold: The threshold for switching to batch processing
+        retrieval_mode: The retrieval mode to use
+        retrieval_nprobe: The number of probes to use for retrieval
+        retrieval_overfetch: The overfetch factor to use for retrieval
+        client: Optional Gemini client (will be created if not provided)
 
     Returns:
         Dict mapping period to {'posts': [...], 'profiles': [...]}
 
     """
+    from egregora.config.loader import load_egregora_config
+    from egregora.config import resolve_site_paths
+    from egregora.pipeline.runner import run_source_pipeline
+
+    # MODERN (Phase 2): Delegate to run_source_pipeline with config
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
-    runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
-    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = duckdb.connect(str(runtime_db_path))
-    backend = ibis.duckdb.from_connection(connection)
-    options = getattr(ibis, "options", None)
-    old_backend = getattr(options, "default_backend", None) if options else None
-    try:
-        if options is not None:
-            options.default_backend = backend
-        return _process_whatsapp_export(
-            zip_path=zip_path,
-            output_dir=output_dir,
-            site_paths=site_paths,
-            period=period,
-            enable_enrichment=enable_enrichment,
-            from_date=from_date,
-            to_date=to_date,
-            timezone=timezone,
-            gemini_api_key=gemini_api_key,
-            model=model,
-            resume=resume,
-            batch_threshold=batch_threshold,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-            client=client,
-        )
-    finally:
-        if options is not None:
-            options.default_backend = old_backend
-        connection.close()
+
+    # Load config and override with CLI parameters
+    base_config = load_egregora_config(site_paths.site_root)
+
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "period": period,
+                    "timezone": str(timezone) if timezone else None,
+                    "from_date": from_date.isoformat() if from_date else None,
+                    "to_date": to_date.isoformat() if to_date else None,
+                    "resume": resume,
+                    "batch_threshold": batch_threshold,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": retrieval_mode,
+                    "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
+                    "overfetch": retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch,
+                }
+            ),
+        },
+    )
+
+    return run_source_pipeline(
+        source="whatsapp",
+        input_path=zip_path,
+        output_dir=output_dir,
+        config=egregora_config,
+        api_key=gemini_api_key,
+        model_override=model,
+        client=client,
+    )
