@@ -1,11 +1,18 @@
-"""Centralized Gemini model configuration for all agents."""
+"""Centralized Gemini model configuration for all agents.
+
+MODERN (Phase 0): Uses EgregoraConfig from schema.py
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
-from egregora.config.site import load_mkdocs_config
+from egregora.config.loader import load_egregora_config
+
+if TYPE_CHECKING:
+    from egregora.config.schema import EgregoraConfig
 
 EMBEDDING_DIM = 768
 logger = logging.getLogger(__name__)
@@ -43,27 +50,29 @@ def from_pydantic_ai_model(model_name: str) -> str:
 
 
 class ModelConfig:
-    """Centralized model configuration with fallback hierarchy."""
+    """Centralized model configuration with CLI override support.
 
-    def __init__(self, cli_model: str | None = None, site_config: dict[str, Any] | None = None) -> None:
-        """Initialize model config with CLI override and site config.
+    Uses EgregoraConfig from schema.py as the source of truth.
+    """
+
+    def __init__(self, config: EgregoraConfig, cli_model: str | None = None) -> None:
+        """Initialize model config.
 
         Args:
-            cli_model: Model specified via CLI flag (highest priority)
-            site_config: Configuration from mkdocs.yml extra.egregora section
+            config: EgregoraConfig instance from .egregora/config.yml
+            cli_model: Optional model override from CLI flag (highest priority)
 
         """
+        self.config = config
         self.cli_model = cli_model
-        self.site_config = site_config or {}
 
     def get_model(self, model_type: ModelType) -> str:
-        """Get model name for a specific task with fallback hierarchy.
+        """Get model name for a specific task.
 
         Priority:
-        1. CLI flag (--model)
-        2. mkdocs.yml extra.egregora.models.{type}
-        3. mkdocs.yml extra.egregora.model (global override)
-        4. Default for task type
+        1. CLI flag (--model) if provided
+        2. Config file (.egregora/config.yml models.{type})
+        3. Default for task type
 
         Args:
             model_type: Type of model to retrieve
@@ -72,18 +81,18 @@ class ModelConfig:
             Model name to use
 
         """
+        # CLI override takes precedence
         if self.cli_model:
             logger.debug("Using CLI model for %s: %s", model_type, self.cli_model)
             return self.cli_model
-        models_config = self.site_config.get("models", {})
-        if model_type in models_config:
-            model = models_config[model_type]
-            logger.debug("Using site config model for %s: %s", model_type, model)
+
+        # Get from config
+        model = getattr(self.config.models, model_type, None)
+        if model:
+            logger.debug("Using config model for %s: %s", model_type, model)
             return model
-        if "model" in self.site_config:
-            model = self.site_config["model"]
-            logger.debug("Using global site config model for %s: %s", model_type, model)
-            return model
+
+        # Fall back to defaults
         defaults = {
             "writer": DEFAULT_WRITER_MODEL,
             "enricher": DEFAULT_ENRICHER_MODEL,
@@ -92,25 +101,23 @@ class ModelConfig:
             "editor": DEFAULT_EDITOR_MODEL,
             "embedding": DEFAULT_EMBEDDING_MODEL,
         }
-        model = defaults[model_type]
-        logger.debug("Using default model for %s: %s", model_type, model)
-        return model
+        default_model = defaults[model_type]
+        logger.debug("Using default model for %s: %s", model_type, default_model)
+        return default_model
 
 
-def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """Load egregora configuration from mkdocs.yml if it exists.
+def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConfig:
+    """Load EgregoraConfig and create ModelConfig.
+
+    Convenience function that combines config loading with ModelConfig creation.
 
     Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
+        site_root: Root directory containing .egregora/config.yml
+        cli_model: Optional CLI model override
 
     Returns:
-        Dict with egregora config from extra.egregora section
+        ModelConfig instance
 
     """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, using default config")
-        return {}
-    egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.debug("Loaded site config from %s", mkdocs_path)
-    return egregora_config
+    egregora_config = load_egregora_config(site_root)
+    return ModelConfig(config=egregora_config, cli_model=cli_model)

@@ -185,7 +185,6 @@ class TestReplaceMarkdownMediaRefs:
 
     def test_replace_link_reference(self):
         """Test replacing link markdown reference."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             docs_dir = Path(tmpdir) / "docs"
             posts_dir = docs_dir / "posts"

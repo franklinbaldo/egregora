@@ -1,5 +1,6 @@
 """Tests for source adapters (WhatsApp, Slack, etc.)."""
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -53,18 +54,17 @@ class TestWhatsAppAdapter:
         assert adapter.source_identifier == "whatsapp"
 
     def test_parse_with_nonexistent_file_raises(self):
-        """parse should raise FileNotFoundError for missing file."""
+        """Parse should raise FileNotFoundError for missing file."""
         adapter = WhatsAppAdapter()
 
         with pytest.raises(FileNotFoundError):
             adapter.parse(Path("/nonexistent/file.zip"))
 
     def test_parse_with_non_zip_file_raises(self):
-        """parse should raise ValueError for non-ZIP files."""
+        """Parse should raise ValueError for non-ZIP files."""
         adapter = WhatsAppAdapter()
 
         # Create a temporary non-ZIP file
-        import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
             tmp_path = Path(tmp.name)
@@ -116,18 +116,17 @@ class TestSlackAdapter:
         assert adapter.source_identifier == "slack"
 
     def test_parse_with_nonexistent_file_raises(self):
-        """parse should raise FileNotFoundError for missing file."""
+        """Parse should raise FileNotFoundError for missing file."""
         adapter = SlackAdapter()
 
         with pytest.raises(FileNotFoundError):
             adapter.parse(Path("/nonexistent/export.json"))
 
     def test_parse_returns_valid_ir_schema(self):
-        """parse should return a table conforming to IR schema (even if empty)."""
+        """Parse should return a table conforming to IR schema (even if empty)."""
         adapter = SlackAdapter()
 
         # Create a temporary empty JSON file
-        import tempfile
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
             tmp.write("{}")

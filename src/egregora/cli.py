@@ -13,14 +13,16 @@ from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
+from jinja2 import Environment, FileSystemLoader
 from rich.markup import escape
 from rich.panel import Panel
 
 from egregora.agents.editor import run_editor_session
 from egregora.agents.loader import load_agent
 from egregora.agents.registry import ToolRegistry
+from egregora.agents.resolver import AgentResolver
 from egregora.agents.tools.profiler import get_active_authors
-from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.config import (
@@ -28,13 +30,14 @@ from egregora.config import (
     ProcessConfig,
     RankingCliConfig,
     find_mkdocs_file,
+    load_egregora_config,
     load_mkdocs_config,
-    load_site_config,
     resolve_site_paths,
 )
 from egregora.database import duckdb_backend
 from egregora.enrichment import enrich_table, extract_and_replace_media
-from egregora.ingestion.parser import parse_export
+from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
 from egregora.pipeline.runner import run_source_pipeline
@@ -50,6 +53,9 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+# Constants
+MAX_POSTS_TO_DISPLAY = 5
 
 # Type alias for JSON-serializable values
 JsonValue = (
@@ -122,6 +128,78 @@ def _resolve_gemini_key(cli_override: str | None) -> str | None:
     return os.getenv("GOOGLE_API_KEY")
 
 
+def _validate_retrieval_config(config: ProcessConfig) -> None:
+    """Validate and normalize retrieval mode configuration.
+
+    Phase 4: Extracted from _validate_and_run_process to reduce complexity.
+
+    Args:
+        config: ProcessConfig to validate (modified in place)
+
+    Raises:
+        typer.Exit: If validation fails
+
+    """
+    retrieval_mode = (config.retrieval_mode or "ann").lower()
+    if retrieval_mode not in {"ann", "exact"}:
+        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
+        raise typer.Exit(1)
+
+    if retrieval_mode == "exact" and config.retrieval_nprobe:
+        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
+        config.retrieval_nprobe = None
+
+    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
+        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
+        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    config.retrieval_mode = retrieval_mode
+
+
+def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
+    """Ensure MkDocs scaffold exists, creating if needed with user confirmation.
+
+    Phase 4: Extracted from _validate_and_run_process to reduce complexity.
+
+    Args:
+        output_dir: Output directory to check/initialize
+
+    Raises:
+        typer.Exit: If user declines to initialize or initialization fails
+
+    """
+    mkdocs_path = find_mkdocs_file(output_dir)
+    if mkdocs_path:
+        return  # MkDocs scaffold already exists
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    warning_message = (
+        f"[yellow]Warning:[/yellow] MkDocs configuration not found in {output_dir}. "
+        "Egregora can initialize a new scaffold before processing."
+    )
+    console.print(warning_message)
+
+    proceed = True
+    if any(output_dir.iterdir()):
+        proceed = typer.confirm(
+            "The output directory is not empty and lacks mkdocs.yml. "
+            "Initialize a fresh MkDocs scaffold here?",
+            default=False,
+        )
+
+    if not proceed:
+        console.print("[red]Aborting processing at user's request.[/red]")
+        raise typer.Exit(1)
+
+    logger.info("Initializing MkDocs scaffold in %s", output_dir)
+    ensure_mkdocs_project(output_dir)
+    console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+
+
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
@@ -156,57 +234,67 @@ def init(
 
 
 def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -> None:
-    """Validate process configuration and run the pipeline."""
+    """Validate process configuration and run the pipeline.
+
+    Phase 4: Simplified by extracting validation logic to helper functions.
+    """
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    timezone_obj = None
+
+    # Validate timezone
     if config.timezone:
         try:
-            timezone_obj = ZoneInfo(config.timezone)
+            ZoneInfo(config.timezone)
             console.print(f"[green]Using timezone: {config.timezone}[/green]")
         except Exception as e:
             console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
             raise typer.Exit(1) from e
-    retrieval_mode = (config.retrieval_mode or "ann").lower()
-    if retrieval_mode not in {"ann", "exact"}:
-        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
-        raise typer.Exit(1)
-    if retrieval_mode == "exact" and config.retrieval_nprobe:
-        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
-        config.retrieval_nprobe = None
-    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
-        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
-        raise typer.Exit(1)
-    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
-        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
-        raise typer.Exit(1)
-    config.retrieval_mode = retrieval_mode
-    from_date_obj = config.from_date
-    to_date_obj = config.to_date
+
+    # Phase 4: Extracted validation logic
+    _validate_retrieval_config(config)
+
+    # Resolve and ensure output directory
     output_dir = config.output_dir.expanduser().resolve()
     config.output_dir = output_dir
-    mkdocs_path = find_mkdocs_file(output_dir)
-    if not mkdocs_path:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        warning_message = f"[yellow]Warning:[/yellow] MkDocs configuration not found in {output_dir}. Egregora can initialize a new scaffold before processing."
-        console.print(warning_message)
-        proceed = True
-        if any(output_dir.iterdir()):
-            proceed = typer.confirm(
-                "The output directory is not empty and lacks mkdocs.yml. Initialize a fresh MkDocs scaffold here?",
-                default=False,
-            )
-        if not proceed:
-            console.print("[red]Aborting processing at user's request.[/red]")
-            raise typer.Exit(1)
-        logger.info("Initializing MkDocs scaffold in %s", output_dir)
-        ensure_mkdocs_project(output_dir)
-        console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+
+    # Phase 4: Extracted scaffold initialization logic
+    _ensure_mkdocs_scaffold(output_dir)
     api_key = _resolve_gemini_key(config.gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
+
+    # Load or create EgregoraConfig (Phase 2: reduces parameters)
+    base_config = load_egregora_config(output_dir)
+
+    # Override config values from CLI flags using model_copy
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "period": config.period,
+                    "timezone": config.timezone,
+                    "from_date": config.from_date.isoformat() if config.from_date else None,
+                    "to_date": config.to_date.isoformat() if config.to_date else None,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": config.retrieval_mode or base_config.rag.mode,
+                    "nprobe": config.retrieval_nprobe
+                    if config.retrieval_nprobe is not None
+                    else base_config.rag.nprobe,
+                    "overfetch": config.retrieval_overfetch
+                    if config.retrieval_overfetch is not None
+                    else base_config.rag.overfetch,
+                }
+            ),
+        },
+    )
+
     try:
         console.print(
             Panel(
@@ -219,16 +307,9 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
             source=source,
             input_path=config.zip_file,
             output_dir=config.output_dir,
-            gemini_api_key=api_key,
-            period=config.period,
-            enable_enrichment=config.enable_enrichment,
-            from_date=from_date_obj,
-            to_date=to_date_obj,
-            timezone=timezone_obj,
-            model=config.model,
-            retrieval_mode=config.retrieval_mode,
-            retrieval_nprobe=config.retrieval_nprobe,
-            retrieval_overfetch=config.retrieval_overfetch,
+            config=egregora_config,
+            api_key=api_key,
+            model_override=config.model,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
@@ -239,7 +320,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def process(
+def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -317,7 +398,7 @@ def process(
 
 
 @app.command()
-def edit(
+def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
     post_path: Annotated[Path, typer.Argument(help="Path to the post markdown file")],
     *,
     site_dir: Annotated[
@@ -366,13 +447,9 @@ def edit(
     if not rag_dir.exists():
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
     if prompt_dry_run:
-        from jinja2 import Environment, FileSystemLoader
-
-        from egregora.agents.resolver import AgentResolver
-
         resolver = AgentResolver(egregora_path, docs_path)
         agent_config, prompt_template, final_vars = resolver.resolve(post_file, agent)
-        jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
+        jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)), autoescape=True)
         template = jinja_env.from_string(prompt_template)
         prompt = template.render(final_vars)
         console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
@@ -382,8 +459,8 @@ def edit(
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(cli_model=model, site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config, cli_model=model)
     genai.Client(api_key=api_key)
     try:
         result = asyncio.run(
@@ -480,15 +557,15 @@ def agents_lint(site_dir: Annotated[Path, typer.Option(help="Site directory")] =
         raise typer.Exit(1)
 
 
-def _register_ranking_cli(app: typer.Typer) -> None:
+def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Complex due to nested command registration
     """Register ranking commands when the optional extra is installed."""
     try:
-        ranking_agent = importlib.import_module("egregora.ranking.agent")
-        ranking_elo = importlib.import_module("egregora.ranking.elo")
-        ranking_store_module = importlib.import_module("egregora.ranking.store")
+        ranking_agent = importlib.import_module("egregora.agents.ranking")
+        ranking_elo = importlib.import_module("egregora.agents.ranking.elo")
+        ranking_store_module = importlib.import_module("egregora.agents.ranking.store")
         run_comparison = ranking_agent.run_comparison
         get_posts_to_compare = ranking_elo.get_posts_to_compare
-        RankingStore = ranking_store_module.RankingStore
+        ranking_store_class = ranking_store_module.RankingStore
     except ModuleNotFoundError as exc:
         missing = exc.name or "egregora.ranking"
 
@@ -517,7 +594,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:
+    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:  # noqa: C901, PLR0915 - Complex ranking loop with error handling
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
         site_path = config.site_dir.resolve()
@@ -532,7 +609,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
             console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
             console.print("Run 'egregora process' first to generate posts")
             raise typer.Exit(1)
-        store = RankingStore(rankings_dir)
+        store = ranking_store_class(rankings_dir)
         post_files = sorted(posts_dir.glob("**/*.md"))
         post_ids = [p.stem for p in post_files]
         if not post_ids:
@@ -546,8 +623,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:
             console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
             console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
             raise typer.Exit(1)
-        site_config = load_site_config(site_path)
-        model_config = ModelConfig(cli_model=config.model, site_config=site_config)
+        egregora_config = load_egregora_config(site_path)
+        model_config = ModelConfig(config=egregora_config, cli_model=config.model)
         ranking_model = model_config.get_model("ranking")
         logger.info("[blue]⚖️  Ranking model:[/] %s", ranking_model)
         for i in range(config.comparisons):
@@ -569,9 +646,10 @@ def _register_ranking_cli(app: typer.Typer) -> None:
                 default_profile.parent.mkdir(parents=True, exist_ok=True)
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
-            profile_path = random.choice(profile_files)
+            profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
             try:
-                run_comparison(
+                # Import ComparisonConfig dynamically
+                comparison_config = ranking_agent.ComparisonConfig(
                     site_dir=site_path,
                     post_a_id=post_a_id,
                     post_b_id=post_b_id,
@@ -579,6 +657,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
                     api_key=api_key,
                     model=ranking_model,
                 )
+                asyncio.run(run_comparison(comparison_config))
             except Exception as e:
                 console.print(f"[red]Comparison failed: {e}[/red]")
                 if config.debug:
@@ -597,7 +676,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
         )
 
     @app.command()
-    def rank(
+    def rank(  # noqa: PLR0913 - CLI commands naturally have many parameters
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
         *,
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
@@ -669,11 +748,65 @@ def parse(
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_export(export, timezone=timezone_obj)
+        messages_table = parse_source(export, timezone=timezone_obj)  # Phase 6: parse_source renamed
         total_messages = messages_table.count().execute()
         console.print(f"[green]✅ Parsed {total_messages} messages[/green]")
         save_table(messages_table, output_path)
         console.print(f"[green]💾 Saved to {output_path}[/green]")
+
+
+def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[date | None, date | None]:
+    """Parse and validate date range strings.
+
+    Returns:
+        Tuple of (from_date_obj, to_date_obj) or (None, None)
+
+    Raises:
+        typer.Exit: If date parsing fails
+
+    """
+    from_date_obj = None
+    to_date_obj = None
+    if from_date:
+        try:
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+        except ValueError as e:
+            console.print(f"[red]Invalid from_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+    if to_date:
+        try:
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+        except ValueError as e:
+            console.print(f"[red]Invalid to_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+    return from_date_obj, to_date_obj
+
+
+def _filter_messages_by_date(
+    messages_table: Any, from_date_obj: date | None, to_date_obj: date | None
+) -> Any:
+    """Filter messages table by date range."""
+    if not (from_date_obj or to_date_obj):
+        return messages_table
+
+    original_count = messages_table.count().execute()
+    if from_date_obj and to_date_obj:
+        messages_table = messages_table.filter(
+            (messages_table.timestamp.date() >= from_date_obj)
+            & (messages_table.timestamp.date() <= to_date_obj)
+        )
+        console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
+    elif from_date_obj:
+        messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date_obj)
+        console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
+    elif to_date_obj:
+        messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
+        console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
+
+    filtered_count = messages_table.count().execute()
+    removed = original_count - filtered_count
+    console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+    return messages_table
 
 
 @app.command()
@@ -707,40 +840,11 @@ def group(
         raise typer.Exit(1)
     output_path = output_dir.resolve()
     output_path.mkdir(parents=True, exist_ok=True)
-    from_date_obj = None
-    to_date_obj = None
-    if from_date:
-        try:
-            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
-        except ValueError as e:
-            console.print(f"[red]Invalid from_date format: {e}[/red]")
-            raise typer.Exit(1) from e
-    if to_date:
-        try:
-            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
-        except ValueError as e:
-            console.print(f"[red]Invalid to_date format: {e}[/red]")
-            raise typer.Exit(1) from e
+    from_date_obj, to_date_obj = _parse_date_range(from_date, to_date)
     with duckdb_backend():
         console.print(f"[cyan]Loading:[/cyan] {input_path}")
         messages_table = load_table(input_path)
-        if from_date_obj or to_date_obj:
-            original_count = messages_table.count().execute()
-            if from_date_obj and to_date_obj:
-                messages_table = messages_table.filter(
-                    (messages_table.timestamp.date() >= from_date_obj)
-                    & (messages_table.timestamp.date() <= to_date_obj)
-                )
-                console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
-            elif from_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date_obj)
-                console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
-            elif to_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
-                console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
-            filtered_count = messages_table.count().execute()
-            removed = original_count - filtered_count
-            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+        messages_table = _filter_messages_by_date(messages_table, from_date_obj, to_date_obj)
         console.print(f"[cyan]Grouping by:[/cyan] {period}")
         periods = group_by_period(messages_table, period)
         if not periods:
@@ -756,7 +860,7 @@ def group(
 
 
 @app.command()
-def enrich(
+def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     *,
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
@@ -802,8 +906,8 @@ def enrich(
         raise typer.Exit(1)
     site_paths = resolve_site_paths(site_path)
     posts_dir = site_paths.posts_dir
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    ModelConfig(config=egregora_config)
     client: genai.Client | None = None
     enrichment_cache: EnrichmentCache | None = None
     try:
@@ -823,18 +927,31 @@ def enrich(
             console.print(
                 f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}"
             )
+
+            # Phase 4: Use modern signature (4 params: table, media_mapping, config, context)
+            # Override enrichment settings from CLI flags
+            cli_config = egregora_config.model_copy(
+                deep=True,
+                update={
+                    "enrichment": egregora_config.enrichment.model_copy(
+                        update={
+                            "enable_url": enable_url,
+                            "enable_media": enable_media,
+                            "max_enrichments": max_enrichments,
+                        }
+                    )
+                },
+            )
+            enrichment_context = EnrichmentRuntimeContext(
+                cache=enrichment_cache,
+                docs_dir=site_paths.docs_dir,
+                posts_dir=posts_dir,
+            )
             enriched_table = enrich_table(
                 messages_table,
                 media_mapping,
-                client,
-                client,
-                enrichment_cache,
-                site_paths.docs_dir,
-                posts_dir,
-                model_config,
-                enable_url=enable_url,
-                enable_media=enable_media,
-                max_enrichments=max_enrichments,
+                cli_config,
+                enrichment_context,
             )
             enriched_count = enriched_table.count().execute()
             added_rows = enriched_count - original_count
@@ -849,7 +966,7 @@ def enrich(
 
 
 @app.command()
-def gather_context(
+def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
@@ -887,8 +1004,8 @@ def gather_context(
     output_path = output.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     site_paths = resolve_site_paths(site_path)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config)
     mkdocs_config = load_mkdocs_config(site_path)
     client: genai.Client | None = None
     try:
@@ -940,7 +1057,9 @@ def gather_context(
                 "rag_context_markdown": rag_context_markdown,
                 "site_config": {
                     "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
-                    "custom_writer_prompt": site_config.get("custom_writer_prompt"),
+                    "custom_writer_prompt": mkdocs_config.get("extra", {})
+                    .get("egregora", {})
+                    .get("custom_writer_prompt"),
                 },
                 "message_count": message_count,
             }
@@ -958,7 +1077,7 @@ def gather_context(
 
 
 @app.command()
-def write_posts(
+def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
@@ -1005,8 +1124,8 @@ def write_posts(
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
     site_paths = resolve_site_paths(site_path)
-    site_config = load_site_config(site_path)
-    model_config = ModelConfig(cli_model=model, site_config=site_config)
+    egregora_config = load_egregora_config(site_path)
+    model_config = ModelConfig(config=egregora_config, cli_model=model)
     client: genai.Client | None = None
     try:
         with duckdb_backend():
@@ -1026,8 +1145,6 @@ def write_posts(
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {('enabled' if enable_rag else 'disabled')}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
-            from egregora.agents.writer import WriterConfig
-
             writer_config = WriterConfig(
                 output_dir=site_paths.posts_dir,
                 profiles_dir=site_paths.profiles_dir,
@@ -1045,10 +1162,10 @@ def write_posts(
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
             if posts_count > 0:
                 console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
-                for post_path in result.get("posts", [])[:5]:
+                for post_path in result.get("posts", [])[:MAX_POSTS_TO_DISPLAY]:
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > MAX_POSTS_TO_DISPLAY:
+                    console.print(f"  ... and {posts_count - MAX_POSTS_TO_DISPLAY} more")
     finally:
         if client:
             client.close()

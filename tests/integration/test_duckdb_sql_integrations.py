@@ -9,8 +9,9 @@ import ibis
 
 from egregora.agents.ranking.store import RankingStore
 from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.config.loader import create_default_config
 from egregora.database import schema as database_schema
-from egregora.enrichment.core import enrich_table
+from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 
@@ -121,30 +122,44 @@ def test_enrich_table_persists_results(tmp_path: Path):
         "message_id": "1",
     }
 
-    messages_table = ibis.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
     docs_dir.mkdir(parents=True)
     posts_dir.mkdir(parents=True)
 
-    text_client = DummyBatchClient("text-model")
-    vision_client = DummyBatchClient("vision-model")
+    DummyBatchClient("text-model")
+    DummyBatchClient("vision-model")
     cache = EnrichmentCache(tmp_path / "cache")
 
     conn, table_name = _create_conversation_table(tmp_path)
+    backend = ibis.duckdb.from_connection(conn)
+
+    # Create table with backend attachment to avoid "no backends" error
+    messages_table = backend.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
+
+    # MODERN (Phase 2): Create config and context
+    config = create_default_config(tmp_path)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "enrichment": config.enrichment.model_copy(update={"enable_media": False}),
+        },
+    )
+
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=cache,
+        docs_dir=docs_dir,
+        posts_dir=posts_dir,
+        duckdb_connection=conn,
+        target_table=table_name,
+    )
 
     try:
         combined = enrich_table(
             messages_table,
             media_mapping={},
-            _text_client=text_client,
-            _vision_client=vision_client,
-            cache=cache,
-            docs_dir=docs_dir,
-            posts_dir=posts_dir,
-            enable_media=False,
-            duckdb_connection=conn,
-            target_table=table_name,
+            config=config,
+            context=enrichment_context,
         )
     finally:
         cache.close()

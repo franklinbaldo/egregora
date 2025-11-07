@@ -1,5 +1,6 @@
 """Tests for input/output abstraction layer."""
 
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -71,7 +72,6 @@ class TestWhatsAppInputSource:
     def test_detect_whatsapp_zip(self, tmp_path):
         """Test auto-detection of WhatsApp ZIP."""
         # Create a mock WhatsApp ZIP
-        import zipfile
 
         zip_path = tmp_path / "test.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:
@@ -219,7 +219,6 @@ class TestIntegration:
     def test_auto_detection(self, tmp_path):
         """Test automatic detection of input sources and output formats."""
         # Create WhatsApp ZIP
-        import zipfile
 
         zip_path = tmp_path / "test.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:

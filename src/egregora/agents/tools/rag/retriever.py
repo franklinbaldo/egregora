@@ -92,7 +92,7 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
     return len(chunks)
 
 
-def query_similar_posts(
+def query_similar_posts(  # noqa: PLR0913
     table: Table,
     store: VectorStore,
     *,
@@ -200,8 +200,8 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
         metadata["media_type"] = media_type_match.group(1).strip() if media_type_match else None
         metadata["media_path"] = file_match.group(1).strip() if file_match else None
         metadata["original_filename"] = original_filename_from_content or enrichment_path.name
-    except Exception as e:
-        logger.exception("Failed to parse media enrichment %s: %s", enrichment_path, e)
+    except Exception:
+        logger.exception("Failed to parse media enrichment %s", enrichment_path)
         return None
     else:
         return metadata
@@ -350,7 +350,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
-def query_media(
+def query_media(  # noqa: PLR0913
     query: str,
     store: VectorStore,
     media_types: list[str] | None = None,

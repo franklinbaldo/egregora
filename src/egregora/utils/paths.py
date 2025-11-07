@@ -43,7 +43,7 @@ def slugify(text: str, max_len: int = 60) -> str:
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
-    """Safely join path parts and ensure result stays within base_dir.
+    r"""Safely join path parts and ensure result stays within base_dir.
 
     Uses werkzeug.utils.safe_join, the industry-standard path security
     function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
@@ -83,7 +83,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     """
     normalized_parts = []
     for part in parts:
-        if len(part) >= 3 and part[1:3] == ":\\":
+        if len(part) >= 3 and part[1:3] == ":\\":  # noqa: PLR2004 - Windows drive letter check (C:\)
             msg = f"Absolute Windows paths not allowed: {part}"
             raise PathTraversalError(msg)
         normalized_parts.append(part.replace("\\", "/"))

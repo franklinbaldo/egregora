@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
 
-from egregora.ingestion.parser import parse_export
+from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import create_ir_table
 from egregora.sources.whatsapp.models import WhatsAppExport
@@ -171,7 +171,7 @@ class WhatsAppAdapter(SourceAdapter):
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_export(export, timezone=timezone)
+        messages_table = parse_source(export, timezone=timezone)  # Phase 6: parse_source renamed
 
         @ibis.udf.scalar.python
         def convert_media_to_markdown(message: str | None) -> str | None:
@@ -211,9 +211,25 @@ class WhatsAppAdapter(SourceAdapter):
             >>> # Returns: Path("/tmp/IMG-20250101-WA0001.jpg")
 
         """
+        # Validation guards
+        if not self._validate_media_reference(media_reference):
+            return None
+        zip_path = self._get_validated_zip_path(kwargs)
+        if not zip_path:
+            return None
+
+        # Extract and deliver media
+        return self._extract_media_from_zip(zip_path, media_reference, temp_dir)
+
+    def _validate_media_reference(self, media_reference: str) -> bool:
+        """Validate media reference for path traversal attempts."""
         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
             logger.warning("Suspicious media reference (path traversal attempt): %s", media_reference)
-            return None
+            return False
+        return True
+
+    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path | None:
+        """Extract and validate zip_path from kwargs."""
         zip_path = kwargs.get("zip_path")
         if not zip_path:
             logger.warning("deliver_media() called without zip_path kwarg")
@@ -223,29 +239,37 @@ class WhatsAppAdapter(SourceAdapter):
         if not zip_path.exists():
             logger.warning("ZIP file does not exist: %s", zip_path)
             return None
+        return zip_path
+
+    def _extract_media_from_zip(self, zip_path: Path, media_reference: str, temp_dir: Path) -> Path | None:
+        """Extract media file from ZIP archive."""
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
-                found_path = None
-                for info in zf.infolist():
-                    if info.is_dir():
-                        continue
-                    if Path(info.filename).name.lower() == media_reference.lower():
-                        found_path = info.filename
-                        break
+                found_path = self._find_media_in_zip(zf, media_reference)
                 if not found_path:
                     logger.debug("Media file not found in ZIP: %s", media_reference)
                     return None
+
                 file_content = zf.read(found_path)
                 output_file = temp_dir / media_reference
                 output_file.write_bytes(file_content)
                 logger.debug("Delivered media: %s → %s", media_reference, output_file)
                 return output_file
-        except zipfile.BadZipFile as e:
-            logger.exception("Invalid ZIP file: %s: %s", zip_path, e)
+        except zipfile.BadZipFile:
+            logger.exception("Invalid ZIP file: %s", zip_path)
             return None
-        except (KeyError, OSError, PermissionError) as e:
-            logger.exception("Failed to extract %s from %s: %s", media_reference, zip_path, e)
+        except (KeyError, OSError, PermissionError):
+            logger.exception("Failed to extract %s from %s", media_reference, zip_path)
             return None
+
+    def _find_media_in_zip(self, zf: zipfile.ZipFile, media_reference: str) -> str | None:
+        """Find media file in ZIP archive by case-insensitive name match."""
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            if Path(info.filename).name.lower() == media_reference.lower():
+                return info.filename
+        return None
 
     def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: _EmptyKwargs) -> MediaMapping:
         """Extract media files from WhatsApp ZIP (DEPRECATED).

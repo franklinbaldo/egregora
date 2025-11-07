@@ -1,5 +1,6 @@
 """Tests for RAG error handling and observability."""
 
+import logging
 from unittest.mock import Mock, patch
 
 import ibis
@@ -198,12 +199,10 @@ class TestRagErrorHandling:
 
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
-    def test_rag_error_logging(  # noqa: PLR0913
+    def test_rag_error_logging(  # noqa: PLR0913 - test fixtures
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""
-        import logging
-
         caplog.set_level(logging.ERROR)
 
         # Simulate error

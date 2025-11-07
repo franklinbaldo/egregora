@@ -33,8 +33,9 @@ from egregora.agents.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.agents.writer.writer_agent import write_posts_with_pydantic_agent
+from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config import ModelConfig, load_mkdocs_config
+from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
 
 if TYPE_CHECKING:
@@ -148,7 +149,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-def _process_tool_calls(
+def _process_tool_calls(  # noqa: C901, PLR0913
     candidate: genai_types.Candidate,
     output_dir: Path,
     profiles_dir: Path,
@@ -222,8 +223,8 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
         for post_path in saved_posts:
             index_post(Path(post_path), store, embedding_model=embedding_model)
         logger.info("Indexed %s new posts in RAG", len(saved_posts))
-    except Exception as e:
-        logger.exception("Failed to index posts in RAG: %s", e)
+    except Exception:
+        logger.exception("Failed to index posts in RAG")
 
 
 def _write_posts_for_period_pydantic(
@@ -249,7 +250,7 @@ def _write_posts_for_period_pydantic(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
     model_config = ModelConfig() if config.model_config is None else config.model_config
-    model = model_config.get_model("writer")
+    model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
     messages_table = table.to_pyarrow()
@@ -288,19 +289,27 @@ def _write_posts_for_period_pydantic(
         enable_memes=meme_help_enabled,
     )
     prompt = template.render()
-    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
-        prompt=prompt,
-        model_name=model,
+
+    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
+    if config.model_config is None:
+        egregora_config = create_default_config()
+    else:
+        egregora_config = config.model_config.config
+
+    # Create runtime context for writer agent
+    runtime_context = WriterRuntimeContext(
         period_date=period_date,
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
         client=client,
-        embedding_model=embedding_model,
-        retrieval_mode=config.retrieval_mode,
-        retrieval_nprobe=config.retrieval_nprobe,
-        retrieval_overfetch=config.retrieval_overfetch,
         annotations_store=annotations_store,
+    )
+
+    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+        prompt=prompt,
+        config=egregora_config,
+        context=runtime_context,
     )
     if config.enable_rag:
         _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)

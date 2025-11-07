@@ -76,7 +76,6 @@ class TestStreamIbis:
 
     def test_stream_basic(self, duckdb_con, sample_table):
         """Test basic streaming of a small table."""
-
         all_rows = []
         for batch in stream_ibis(sample_table, duckdb_con, batch_size=2):
             all_rows.extend(batch)
@@ -87,7 +86,6 @@ class TestStreamIbis:
 
     def test_stream_with_filter(self, duckdb_con, sample_table):
         """Test streaming with filtered expression (uses Ibis context)."""
-
         # This tests that SQL compilation uses the correct DuckDB context
         expr = sample_table.filter(sample_table.score > HIGH_SCORE_THRESHOLD)
 
@@ -101,7 +99,6 @@ class TestStreamIbis:
 
     def test_stream_batch_size(self, duckdb_con, sample_table):
         """Test that batch_size is respected."""
-
         batches = list(stream_ibis(sample_table, duckdb_con, batch_size=2))
 
         # EXPECTED_ROW_COUNT rows with batch_size=2 should yield EXPECTED_BATCH_COUNT batches:
@@ -113,7 +110,6 @@ class TestStreamIbis:
 
     def test_stream_empty_table(self, duckdb_con):
         """Test streaming an empty table."""
-
         empty_table = duckdb_con.create_table("empty", {"id": [], "name": []})
 
         batches = list(stream_ibis(empty_table, duckdb_con, batch_size=10))
@@ -127,7 +123,6 @@ class TestStreamIbis:
         If we materialized the full table, this would allocate significant memory.
         With streaming, we only hold one batch (MAX_BATCH_SIZE rows) at a time.
         """
-
         row_count = 0
         max_batch_size = 0
 
@@ -140,7 +135,6 @@ class TestStreamIbis:
 
     def test_stream_with_select(self, duckdb_con, sample_table):
         """Test streaming with column selection."""
-
         expr = sample_table.select("id", "name")
 
         all_rows = []
@@ -157,7 +151,6 @@ class TestCopyExprToParquet:
 
     def test_write_parquet(self, duckdb_con, sample_table):
         """Test writing Ibis expression to Parquet file."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.parquet"
 
@@ -174,7 +167,6 @@ class TestCopyExprToParquet:
 
     def test_write_filtered_expression(self, duckdb_con, sample_table):
         """Test writing a filtered expression to Parquet."""
-
         expr = sample_table.filter(sample_table.score > HIGH_SCORE_THRESHOLD)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -193,7 +185,6 @@ class TestCopyExprToNdjson:
 
     def test_write_ndjson(self, duckdb_con, sample_table):
         """Test writing Ibis expression to NDJSON file."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.ndjson"
 
@@ -213,7 +204,6 @@ class TestCopyExprToNdjson:
 
     def test_write_ndjson_with_selection(self, duckdb_con, sample_table):
         """Test writing selected columns to NDJSON."""
-
         expr = sample_table.select("id", "name")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -233,7 +223,6 @@ class TestEnsureDeterministicOrder:
 
     def test_sorts_by_published_at(self, duckdb_con):
         """Test that tables with published_at column are sorted correctly."""
-
         # Create table with unsorted data
         data = {
             "id": [3, 1, 2],
@@ -257,7 +246,6 @@ class TestEnsureDeterministicOrder:
 
     def test_sorts_by_id_fallback(self, duckdb_con):
         """Test that tables without published_at use id for sorting."""
-
         data = {
             "id": [3, 1, 2],
             "name": ["third", "first", "second"],
@@ -277,7 +265,6 @@ class TestEnsureDeterministicOrder:
 
     def test_no_sortable_columns(self, duckdb_con):
         """Test that tables without sortable columns return unchanged."""
-
         data = {"name": ["Alice", "Bob"], "score": [95, 87]}
         table = duckdb_con.create_table("no_keys", data)
 
@@ -288,7 +275,6 @@ class TestEnsureDeterministicOrder:
 
     def test_deterministic_across_runs(self, duckdb_con, sample_table):
         """Test that ordering is reproducible across multiple runs."""
-
         ordered = ensure_deterministic_order(sample_table)
 
         # Run twice and compare
@@ -310,7 +296,6 @@ class TestIntegration:
 
     def test_stream_order_and_write(self, duckdb_con):
         """Test full workflow: create -> order -> stream -> write."""
-
         # Create unsorted data
         data = {
             "id": [3, 1, 4, 2],

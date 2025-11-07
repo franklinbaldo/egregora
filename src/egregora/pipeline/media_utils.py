@@ -19,9 +19,12 @@ Media files are renamed using UUIDv5 based on content hash, enabling:
 from __future__ import annotations
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import ibis
 
 from egregora.enrichment.media import get_media_subfolder
 
@@ -108,8 +111,6 @@ def replace_markdown_media_refs(
     df = table.execute()
     for original_ref, absolute_path in media_mapping.items():
         try:
-            import os
-
             relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
         except ValueError:
             try:
@@ -117,14 +118,12 @@ def replace_markdown_media_refs(
             except ValueError:
                 relative_link = absolute_path.as_posix()
         df["message"] = df["message"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
-    import ibis
-
     updated_table = ibis.memtable(df)
     logger.debug("Replaced %s media references in messages", len(media_mapping))
     return updated_table
 
 
-def process_media_for_period(
+def process_media_for_period(  # noqa: PLR0913
     period_table: Table,
     adapter: SourceAdapter,
     media_dir: Path,

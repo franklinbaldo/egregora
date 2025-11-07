@@ -43,7 +43,7 @@ class MergeConfig(BaseModel):
             return {}
         if not isinstance(value, dict):
             msg = "group_emojis must be a mapping of group slug to emoji"
-            raise ValueError(msg)
+            raise TypeError(msg)
         return {GroupSlug(str(key)): str(val) for key, val in value.items()}
 
 

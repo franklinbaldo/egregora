@@ -82,7 +82,7 @@ def _handle_write_profile_tool(
     )
 
 
-def _handle_search_media_tool(
+def _handle_search_media_tool(  # noqa: PLR0913
     fn_args: dict[str, Any],
     fn_call: genai_types.FunctionCall,
     _client: genai.Client,
@@ -142,7 +142,7 @@ def _handle_search_media_tool(
             ],
         )
     except Exception as e:
-        logger.exception("search_media failed: %s", e)
+        logger.exception("search_media failed")
         return genai_types.Content(
             role="user",
             parts=[
@@ -238,7 +238,7 @@ def _handle_generate_banner_tool(
             ],
         )
     except Exception as e:
-        logger.exception("Failed to generate banner for %s: %s", title, e)
+        logger.exception("Failed to generate banner for %s", title)
         return genai_types.Content(
             role="user",
             parts=[

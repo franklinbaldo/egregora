@@ -287,7 +287,7 @@ class SourceAdapter(ABC):
             logger.debug("Media file already exists (duplicate): %s", standardized_name)
             source_file.unlink()
         except OSError as e:
-            if e.errno == 18:
+            if e.errno == 18:  # noqa: PLR2004 - errno.EXDEV (cross-device link)
                 logger.debug("Cross-filesystem move detected, using shutil.move()")
                 try:
                     shutil.move(str(source_file), str(standardized_path))

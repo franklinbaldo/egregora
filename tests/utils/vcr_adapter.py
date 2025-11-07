@@ -136,6 +136,7 @@ class VCRCompatibleClient:
         >>>
         >>> # Use in pipeline just like genai.Client
         >>> process_whatsapp_export(..., client=client)
+
     """
 
     def __init__(self, api_key: str):

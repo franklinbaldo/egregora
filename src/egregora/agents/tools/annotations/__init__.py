@@ -1,4 +1,73 @@
-"""Persistence layer for writer conversation annotations."""
+"""Conversation annotation system for threading, metadata, and conversation units.
+
+This module provides a DuckDB-backed annotation storage layer that enables the writer
+agent to attach metadata and commentary to messages and other annotations, creating
+threaded conversation structures.
+
+Architecture:
+    - DuckDB storage with Ibis query interface for type-safe operations
+    - Auto-incrementing sequences for annotation IDs
+    - Parent-child relationships via parent_id/parent_type foreign keys
+    - Privacy validation: all commentary is checked for PII before persistence
+    - Supports annotation threading: annotations can reference messages or other annotations
+
+Key Components:
+    - AnnotationStore: Main storage class with DuckDB persistence
+    - Annotation: Dataclass representing a stored annotation record
+    - ANNOTATIONS_TABLE: Table name constant for the annotations storage
+    - ANNOTATION_AUTHOR: Default author identifier ("egregora")
+
+Schema:
+    The annotations table follows this structure:
+    - id: INTEGER (auto-increment primary key)
+    - parent_id: VARCHAR (message_id or annotation_id)
+    - parent_type: VARCHAR ("message" or "annotation")
+    - author: VARCHAR (typically "egregora")
+    - commentary: VARCHAR (the annotation content, PII-checked)
+    - created_at: TIMESTAMP (UTC)
+
+Use Cases:
+    1. Conversation threading: Link related messages and annotations
+    2. Metadata tagging: Attach context, themes, or editorial notes to messages
+    3. RAG context enrichment: Provide additional context for retrieval operations
+    4. Post generation: Guide the writer agent with conversation structure insights
+
+Example:
+    >>> from pathlib import Path
+    >>> from egregora.agents.tools.annotations import AnnotationStore
+    >>>
+    >>> # Initialize annotation storage
+    >>> store = AnnotationStore(Path(".egregora-cache/annotations.duckdb"))
+    >>>
+    >>> # Annotate a message
+    >>> annotation = store.save_annotation(
+    ...     parent_id="msg_abc123",
+    ...     parent_type="message",
+    ...     commentary="This message introduces the main topic of discussion"
+    ... )
+    >>>
+    >>> # Retrieve annotations for a message
+    >>> msg_annotations = store.list_annotations_for_message("msg_abc123")
+    >>> for ann in msg_annotations:
+    ...     print(f"{ann.created_at}: {ann.commentary}")
+    >>>
+    >>> # Join annotations with messages for vectorized operations
+    >>> import ibis
+    >>> messages = ibis.table(...)  # Your messages table
+    >>> joined = store.join_with_messages(messages)
+    >>> annotated = joined.filter(joined.commentary.notnull())
+
+Privacy & Security:
+    All commentary is validated against PII patterns before persistence using
+    validate_newsletter_privacy() to ensure no personal information leaks into
+    the annotation storage.
+
+Note:
+    This module does NOT use the centralized schemas from database.schema.ANNOTATIONS_SCHEMA.
+    The schema is defined inline via CREATE TABLE statements for tighter control over
+    sequences and auto-increment behavior.
+
+"""
 
 from __future__ import annotations
 
@@ -16,13 +85,39 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     import duckdb
+
+# ============================================================================
+# Constants
+# ============================================================================
+# Default author identifier for all annotations created by the writer agent
 ANNOTATION_AUTHOR = "egregora"
+
+# DuckDB table name where annotations are persisted
 ANNOTATIONS_TABLE = "annotations"
+
+
+# ============================================================================
+# Data Models
+# ============================================================================
 
 
 @dataclass(slots=True)
 class Annotation:
-    """Representation of a stored conversation annotation."""
+    """Representation of a stored conversation annotation.
+
+    This is the in-memory representation of an annotation record retrieved
+    from the DuckDB storage. Annotations form a tree structure where each
+    annotation can reference either a message or another annotation as its parent.
+
+    Attributes:
+        id: Unique annotation identifier (auto-generated)
+        parent_id: ID of the parent entity (message_id or annotation_id)
+        parent_type: Type of parent entity ("message" or "annotation")
+        author: Author identifier (typically "egregora")
+        commentary: The annotation content (validated for PII)
+        created_at: UTC timestamp of annotation creation
+
+    """
 
     id: int
     parent_id: str
@@ -32,8 +127,30 @@ class Annotation:
     created_at: datetime
 
 
+# ============================================================================
+# Storage Layer
+# ============================================================================
+
+
 class AnnotationStore:
-    """DuckDB-backed storage for writer annotations accessed via Ibis."""
+    """DuckDB-backed storage for writer annotations accessed via Ibis.
+
+    This class manages the lifecycle of annotations including schema initialization,
+    sequence management, and CRUD operations. It uses DuckDB for persistence with
+    an Ibis interface for type-safe queries.
+
+    The store handles:
+    - Auto-incrementing sequence management for annotation IDs
+    - Privacy validation via PII detection before persistence
+    - Parent-child relationship validation (annotations can only reference existing parents)
+    - Efficient joins with message tables for vectorized operations
+
+    Storage Format:
+        - Database: DuckDB (single file)
+        - Table: annotations
+        - Indexes: (parent_id, parent_type, created_at) for efficient lookups
+        - Sequences: annotations_id_seq for auto-increment
+    """
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = Path(db_path)
@@ -46,7 +163,24 @@ class AnnotationStore:
         """Return the underlying DuckDB connection."""
         return self._backend.con
 
+    # ========================================================================
+    # Schema Initialization
+    # ========================================================================
+
     def _initialize(self) -> None:
+        """Initialize database schema, sequences, and indexes.
+
+        This method is called during __init__ and performs:
+        1. Create auto-increment sequence for annotation IDs
+        2. Create annotations table with proper schema
+        3. Add primary key constraint
+        4. Set default value for id column to use sequence
+        5. Create composite index on (parent_id, parent_type, created_at)
+        6. Sync sequence state with existing data (handles database restarts)
+
+        The sequence synchronization ensures that if the database already contains
+        annotations, the sequence starts at max(id) + 1 to avoid conflicts.
+        """
         sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._connection.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
         self._connection.execute(
@@ -84,10 +218,19 @@ class AnnotationStore:
                 )
                 cursor.fetchall()
 
+    # ========================================================================
+    # Internal Utilities
+    # ========================================================================
+
     def _fetch_records(self, query: str, params: Sequence[object] | None = None) -> list[dict[str, object]]:
+        """Execute a query and return results as a list of dictionaries."""
         cursor = self._connection.execute(query, params or [])
         column_names = [description[0] for description in cursor.description]
         return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
+
+    # ========================================================================
+    # CRUD Operations
+    # ========================================================================
 
     def save_annotation(self, parent_id: str, parent_type: str, commentary: str) -> Annotation:
         """Persist an annotation and return the saved record."""
@@ -137,6 +280,10 @@ class AnnotationStore:
             created_at=created_at,
         )
 
+    # ========================================================================
+    # Query Operations
+    # ========================================================================
+
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
         sanitized_msg_id = (msg_id or "").strip()
@@ -168,6 +315,10 @@ class AnnotationStore:
         for row in records:
             yield self._row_to_annotation(row)
 
+    # ========================================================================
+    # Vectorized Operations
+    # ========================================================================
+
     def join_with_messages(self, messages_table: ibis.expr.types.Table) -> ibis.expr.types.Table:
         """Join annotations with messages using message_id as foreign key.
 
@@ -193,8 +344,24 @@ class AnnotationStore:
             message_annotations, messages_table.message_id == message_annotations.parent_id
         )
 
+    # ========================================================================
+    # Data Conversion
+    # ========================================================================
+
     @staticmethod
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
+        """Convert a database row dictionary to an Annotation instance.
+
+        Handles various datetime formats from DuckDB (pandas Timestamp, datetime, ISO strings)
+        and ensures all timestamps are in UTC timezone.
+
+        Args:
+            row: Dictionary with keys matching Annotation fields
+
+        Returns:
+            Annotation instance with properly typed and timezone-aware created_at
+
+        """
         created_at_obj = row["created_at"]
         if hasattr(created_at_obj, "to_pydatetime"):
             created_at = created_at_obj.to_pydatetime()
@@ -217,4 +384,12 @@ class AnnotationStore:
         )
 
 
+# ============================================================================
+# Public API
+# ============================================================================
+# Export the core components for external use:
+# - ANNOTATIONS_TABLE: Table name constant
+# - ANNOTATION_AUTHOR: Default author identifier
+# - Annotation: Dataclass for annotation records
+# - AnnotationStore: Main storage class for CRUD operations
 __all__ = ["ANNOTATIONS_TABLE", "ANNOTATION_AUTHOR", "Annotation", "AnnotationStore"]

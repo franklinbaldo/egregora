@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from datetime import date as date_type
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,46 +19,75 @@ from google import genai
 from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import write_posts_for_period
-from egregora.config import ModelConfig, load_site_config, resolve_site_paths
-from egregora.constants import StepStatus
+from egregora.agents.writer import WriterConfig, write_posts_for_period
+from egregora.config import ModelConfig, resolve_site_paths
+from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
-from egregora.ingestion.parser import extract_commands, filter_egregora_messages
+from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
+from egregora.pipeline import group_by_period
 from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.checkpoints import CheckpointStore
 
 if TYPE_CHECKING:
-    from datetime import date
-
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
 __all__ = ["run_source_pipeline"]
 
 
-def run_source_pipeline(
+def _perform_enrichment(  # noqa: PLR0913
+    period_table: ir.Table,
+    media_mapping: dict[str, Path],
+    config: EgregoraConfig,
+    enrichment_cache: EnrichmentCache,
+    site_paths: any,
+    posts_dir: Path,
+) -> ir.Table:
+    """Execute enrichment for a period's table.
+
+    Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
+
+    Args:
+        period_table: Table to enrich
+        media_mapping: Media file mapping
+        config: Egregora configuration
+        enrichment_cache: Enrichment cache instance
+        site_paths: Site path configuration
+        posts_dir: Posts output directory
+
+    Returns:
+        Enriched table
+
+    """
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=enrichment_cache,
+        docs_dir=site_paths.docs_dir,
+        posts_dir=posts_dir,
+    )
+    return enrich_table(
+        period_table,
+        media_mapping,
+        config,
+        enrichment_context,
+    )
+
+
+def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     source: str,
     input_path: Path,
     output_dir: Path,
+    config: EgregoraConfig,
     *,
-    period: str = "day",
-    enable_enrichment: bool = True,
-    from_date: date | None = None,
-    to_date: date | None = None,
-    timezone: str | None = None,
-    gemini_api_key: str | None = None,
-    model: str | None = None,
-    resume: bool = True,
-    batch_threshold: int = 10,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
+    api_key: str | None = None,
+    model_override: str | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete source-agnostic pipeline.
+
+    MODERN (Phase 2): Uses EgregoraConfig instead of 16 individual parameters.
 
     This is the main entry point for processing chat exports from any source.
     It handles:
@@ -73,18 +103,9 @@ def run_source_pipeline(
         source: Source identifier ("whatsapp", "slack", etc.)
         input_path: Path to input file (ZIP, JSON, etc.)
         output_dir: Output directory for generated content
-        period: Grouping period ("day", "week", "month")
-        enable_enrichment: Whether to enrich with URL/media context
-        from_date: Optional start date filter
-        to_date: Optional end date filter
-        timezone: Timezone for timestamp normalization
-        gemini_api_key: Google Gemini API key
-        model: Model override
-        resume: Whether to resume from checkpoints
-        batch_threshold: Threshold for batch processing
-        retrieval_mode: RAG retrieval mode ("ann" or "exact")
-        retrieval_nprobe: Number of probes for ANN retrieval
-        retrieval_overfetch: Overfetch factor for retrieval
+        config: Egregora configuration (models, RAG, pipeline, enrichment, etc.)
+        api_key: Google Gemini API key (optional override)
+        model_override: Model override for CLI --model flag
         client: Optional pre-configured genai.Client
 
     Returns:
@@ -95,13 +116,6 @@ def run_source_pipeline(
         RuntimeError: If pipeline execution fails
 
     """
-    from egregora.pipeline import group_by_period
-
-    def _load_enriched_table(path: Path, schema: ir.Schema) -> ir.Table:
-        if not path.exists():
-            raise FileNotFoundError(path)
-        return ibis.read_csv(str(path), table_schema=schema)
-
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
     output_dir = output_dir.expanduser().resolve()
@@ -121,16 +135,31 @@ def run_source_pipeline(
     try:
         if options is not None:
             options.default_backend = backend
-        site_config = load_site_config(site_paths.site_root)
-        model_config = ModelConfig(cli_model=model, site_config=site_config)
+        # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
+        timezone = config.pipeline.timezone
+        period = config.pipeline.period
+        batch_threshold = config.pipeline.batch_threshold
+        enable_enrichment = config.enrichment.enabled
+        retrieval_mode = config.rag.mode
+        retrieval_nprobe = config.rag.nprobe
+        retrieval_overfetch = config.rag.overfetch
+
+        # Parse date strings if provided
+        from_date: date_type | None = None
+        to_date: date_type | None = None
+        if config.pipeline.from_date:
+            from_date = date_type.fromisoformat(config.pipeline.from_date)
+        if config.pipeline.to_date:
+            to_date = date_type.fromisoformat(config.pipeline.to_date)
+
+        model_config = ModelConfig(config=config, cli_model=model_override)
         if client is None:
-            client = genai.Client(api_key=gemini_api_key)
+            client = genai.Client(api_key=api_key)
         text_model = model_config.get_model("enricher")
         vision_model = model_config.get_model("enricher_vision")
         embedding_model = model_config.get_model("embedding")
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
-        checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
         logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
         messages_table = adapter.parse(input_path, timezone=timezone)
         is_valid, errors = validate_ir_schema(messages_table)
@@ -208,13 +237,18 @@ def run_source_pipeline(
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
-        site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
         for period_key in sorted(periods.keys()):
             period_table = periods[period_key]
             period_count = period_table.count().execute()
             logger.info("➡️  [bold]%s[/] — %s messages", period_key, period_count)
-            checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
-            steps_state = checkpoint_data.get("steps", {})
+
+            # Phase 3: Simple skip logic - check if posts already exist for this period
+            existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
+            if existing_posts:
+                logger.info("⏭️  Skipping %s — %s existing posts found", period_key, len(existing_posts))
+                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
+                results[period_key] = result
+                continue
             with tempfile.TemporaryDirectory(prefix=f"egregora-media-{period_key}-") as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
                 period_table, media_mapping = process_media_for_period(
@@ -226,80 +260,27 @@ def run_source_pipeline(
                     posts_dir=posts_dir,
                     zip_path=input_path,
                 )
-            logger.info("Processing %s...", period_key)
-            enriched_path = site_paths.enriched_dir / f"{period_key}-enriched.csv"
+            # Phase 3: Simplified enrichment - no complex checkpointing
             if enable_enrichment:
                 logger.info("✨ [cyan]Enriching[/] period %s", period_key)
-                if resume and steps_state.get("enrichment") == StepStatus.COMPLETED.value:
-                    try:
-                        enriched_table = _load_enriched_table(enriched_path, period_table.schema())
-                        logger.info("Loaded cached enrichment for %s", period_key)
-                    except FileNotFoundError:
-                        logger.info("Cached enrichment missing; regenerating %s", period_key)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "in_progress"
-                            )["steps"]
-                        enriched_table = enrich_table(
-                            period_table,
-                            media_mapping,
-                            client,
-                            client,
-                            enrichment_cache,
-                            site_paths.docs_dir,
-                            posts_dir,
-                            model_config,
-                        )
-                        enriched_table.execute().to_csv(enriched_path, index=False)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
-                                "steps"
-                            ]
-                else:
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
-                            "steps"
-                        ]
-                    enriched_table = enrich_table(
-                        period_table,
-                        media_mapping,
-                        client,
-                        client,
-                        enrichment_cache,
-                        site_paths.docs_dir,
-                        posts_dir,
-                        model_config,
-                    )
-                    enriched_table.execute().to_csv(enriched_path, index=False)
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
-                            "steps"
-                        ]
+                enriched_table = _perform_enrichment(
+                    period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                )
             else:
                 enriched_table = period_table
-                enriched_table.execute().to_csv(enriched_path, index=False)
-            if resume and steps_state.get("writing") == StepStatus.COMPLETED.value:
-                logger.info("Resuming posts for %s from existing files", period_key)
-                existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
-                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
-            else:
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
-                from egregora.agents.writer import WriterConfig
 
-                writer_config = WriterConfig(
-                    output_dir=posts_dir,
-                    profiles_dir=profiles_dir,
-                    rag_dir=site_paths.rag_dir,
-                    model_config=model_config,
-                    enable_rag=True,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
-                )
-                result = write_posts_for_period(enriched_table, period_key, client, writer_config)
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
+            # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
+            writer_config = WriterConfig(
+                output_dir=posts_dir,
+                profiles_dir=profiles_dir,
+                rag_dir=site_paths.rag_dir,
+                model_config=model_config,
+                enable_rag=True,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
+            result = write_posts_for_period(enriched_table, period_key, client, writer_config)
             results[period_key] = result
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
@@ -316,8 +297,8 @@ def run_source_pipeline(
                     logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
                 else:
                     logger.info("[yellow]No media enrichments to index[/]")
-            except Exception as e:
-                logger.exception("[red]Failed to index media into RAG:[/] %s", e)
+            except Exception:
+                logger.exception("[red]Failed to index media into RAG[/]")
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
     finally:

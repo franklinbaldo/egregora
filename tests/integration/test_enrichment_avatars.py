@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from egregora.ingestion.parser import parse_egregora_command
 from PIL import Image
 
 from egregora.agents.tools.profiler import (
@@ -22,7 +23,6 @@ from egregora.enrichment.avatar import (
     _validate_image_format,
     _validate_url_for_ssrf,
 )
-from egregora.ingestion.parser import parse_egregora_command
 
 
 class TestCommandParsing:

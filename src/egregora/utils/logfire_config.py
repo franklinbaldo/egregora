@@ -6,7 +6,7 @@ Logfire is only configured when LOGFIRE_TOKEN is set in the environment.
 
 import logging
 import os
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 from functools import lru_cache
 from types import ModuleType
 from typing import Any
@@ -27,14 +27,14 @@ def configure_logfire() -> bool:
         logger.info("LOGFIRE_TOKEN not set, skipping Logfire configuration")
         return False
     try:
-        import logfire
-
-        logfire.configure(token=token)
-        logger.info("Logfire configured successfully")
-        return True
+        import logfire  # noqa: PLC0415
     except ImportError:
         logger.warning("logfire package not installed, skipping configuration")
         return False
+    else:
+        logfire.configure(token=token)
+        logger.info("Logfire configured successfully")
+        return True
 
 
 def get_logfire() -> ModuleType | None:
@@ -45,7 +45,7 @@ def get_logfire() -> ModuleType | None:
 
     """
     try:
-        import logfire
+        import logfire  # noqa: PLC0415
     except ImportError:
         return None
     else:
@@ -66,8 +66,6 @@ def logfire_span(name: str, **kwargs: object) -> AbstractContextManager[Any]:
     logfire = get_logfire()
     if logfire and configure_logfire():
         return logfire.span(name, **kwargs)
-    from contextlib import nullcontext
-
     return nullcontext()
 
 

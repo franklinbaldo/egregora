@@ -9,6 +9,9 @@ from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import duckdb
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
 SRC_PATH = PROJECT_ROOT / "src"
@@ -21,9 +24,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
-
-import duckdb
-import pytest
 
 try:
     import ibis
@@ -46,7 +46,6 @@ except (ImportError, AttributeError):  # pragma: no cover - runtime safety for o
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
-
     if _real_sdk_available:
         # Some historical versions lacked the newer helper classes we rely on.
         if hasattr(genai_types, "FunctionCall"):
@@ -128,10 +127,11 @@ def _install_google_stubs() -> None:
 
 _install_google_stubs()
 
-
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.types import GroupSlug
-from egregora.utils.zip import validate_zip_contents
+# Imports below require sys.path setup above
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file  # noqa: E402
+from egregora.types import GroupSlug  # noqa: E402
+from egregora.utils.zip import validate_zip_contents  # noqa: E402
+from tests.utils.mock_batch_client import MockGeminiClient  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -179,7 +179,6 @@ class WhatsAppFixture:
 @pytest.fixture(scope="session")
 def whatsapp_fixture() -> WhatsAppFixture:
     """Load WhatsApp archive metadata once for the entire test session."""
-
     zip_path = Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
     with zipfile.ZipFile(zip_path) as archive:
         validate_zip_contents(archive)
@@ -216,8 +215,6 @@ def mock_batch_client(monkeypatch):
             # All API calls are now mocked
             process_whatsapp_export(...)
     """
-    from tests.utils.mock_batch_client import MockGeminiClient
-
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(
         "google.genai.Client",
@@ -236,53 +233,56 @@ def mock_batch_client(monkeypatch):
     return MockGeminiClient
 
 
+def _serialize_request_body(request):
+    """Serialize request body, encoding binary data as base64."""
+    if hasattr(request, "body") and request.body:
+        try:
+            # Try to decode as UTF-8 (for JSON/text requests)
+            request.body.decode("utf-8")
+        except (UnicodeDecodeError, AttributeError):
+            # Binary data - encode as base64 for YAML serialization
+            if isinstance(request.body, bytes):
+                request.body = base64.b64encode(request.body).decode("ascii")
+                request.headers["X-VCR-Binary-Body"] = ["true"]
+        else:
+            return request
+    return request
+
+
+def _deserialize_request_body(request):
+    """Deserialize request body, decoding base64 back to binary if needed."""
+    if request.headers.get("X-VCR-Binary-Body") == ["true"]:
+        request.body = base64.b64decode(request.body.encode("ascii"))
+        del request.headers["X-VCR-Binary-Body"]
+    return request
+
+
+def _serialize_response_body(response):
+    """Serialize response body, encoding binary data as base64."""
+    if response.get("body"):
+        try:
+            # Try to decode as UTF-8
+            if isinstance(response["body"], bytes):
+                response["body"].decode("utf-8")
+            elif isinstance(response["body"], str):
+                response["body"].encode("utf-8")
+        except (UnicodeDecodeError, AttributeError):
+            # Binary data - encode as base64
+            if isinstance(response["body"], bytes):
+                response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
+                response["headers"]["X-VCR-Binary-Body"] = ["true"]
+        else:
+            return response
+    return response
+
+
 @pytest.fixture(scope="module")
 def vcr_config():
-    """
-    VCR configuration for recording and replaying HTTP interactions.
+    """VCR configuration for recording and replaying HTTP interactions.
 
     This configuration filters out sensitive data like API keys from cassettes
     and properly handles binary file uploads (images, etc.).
     """
-
-    def _serialize_request_body(request):
-        """Serialize request body, encoding binary data as base64."""
-        if hasattr(request, "body") and request.body:
-            try:
-                # Try to decode as UTF-8 (for JSON/text requests)
-                request.body.decode("utf-8")
-                return request
-            except (UnicodeDecodeError, AttributeError):
-                # Binary data - encode as base64 for YAML serialization
-                if isinstance(request.body, bytes):
-                    request.body = base64.b64encode(request.body).decode("ascii")
-                    request.headers["X-VCR-Binary-Body"] = ["true"]
-        return request
-
-    def _deserialize_request_body(request):
-        """Deserialize request body, decoding base64 back to binary if needed."""
-        if request.headers.get("X-VCR-Binary-Body") == ["true"]:
-            request.body = base64.b64decode(request.body.encode("ascii"))
-            del request.headers["X-VCR-Binary-Body"]
-        return request
-
-    def _serialize_response_body(response):
-        """Serialize response body, encoding binary data as base64."""
-        if response.get("body"):
-            try:
-                # Try to decode as UTF-8
-                if isinstance(response["body"], bytes):
-                    response["body"].decode("utf-8")
-                elif isinstance(response["body"], str):
-                    response["body"].encode("utf-8")
-                return response
-            except (UnicodeDecodeError, AttributeError):
-                # Binary data - encode as base64
-                if isinstance(response["body"], bytes):
-                    response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
-                    response["headers"]["X-VCR-Binary-Body"] = ["true"]
-        return response
-
     return {
         # Record mode: 'once' means record the first time, then replay
         "record_mode": "once",

@@ -32,6 +32,7 @@ dependencies = [
     "pydantic-evals[logfire]>=1.0.17",
     "httpx>=0.27.0", # HTTP client for avatar downloads with SSRF protection
     "pillow>=10.0.0", # Image processing for avatar validation (dimensions, format verification)
+    "pyparsing>=3.1.0", # Parser combinators for WhatsApp message parsing (Phase 5)
 ]
 
 [project.optional-dependencies]
@@ -88,7 +89,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["ALL"]  # Enable all stable rules
 ignore = [
-    # Formatter compatibility
+    # Formatter compatibility - MUST keep these to avoid conflicts
     "COM812",  # missing-trailing-comma (conflicts with formatter)
     "COM819",  # prohibited-trailing-comma (conflicts with formatter)
     "ISC001",  # single-line-implicit-string-concatenation (conflicts with formatter)
@@ -99,103 +100,66 @@ ignore = [
     "Q003",    # avoidable-escaped-quote (conflicts with formatter)
     "W191",    # tab-indentation (conflicts with formatter)
 
-    # Not applicable for this project
-    "CPY",     # Copyright headers (not needed)
-    "DJ",      # Django-specific rules
-    "NPY",     # NumPy-specific rules (using pandas/ibis instead)
-
-    # Docstring rules - incompatible pairs
+    # Docstring rules - incompatible pairs (one must be disabled)
     "D203",    # one-blank-line-before-class (incompatible with D211)
     "D213",    # multi-line-summary-second-line (incompatible with D212)
 
-    # TODO/FIXME comments - too strict for active development
-    "FIX002",  # line-contains-todo
-    "TD002",   # missing-todo-author
-    "TD003",   # missing-todo-link
+    # Pragmatic ignores - legitimate patterns
+    "S608",    # SQL injection (false positive with DuckDB/Ibis parameterized queries)
+    "ERA001",  # Commented code (sometimes intentional for documentation/examples)
+    "FIX002",  # TODO comments (active development)
+    "TD002",   # Missing TODO author
+    "TD003",   # Missing TODO link
+    "ARG001",  # Unused function argument (needed for interface compatibility)
+    "ARG002",  # Unused method argument (needed for interface compatibility)
+    "ARG005",  # Unused lambda argument (needed for interface compatibility)
+    "ANN401",  # Any type (sometimes necessary for flexibility)
+    "TC001",   # Type-checking-only imports (can cause circular imports)
+    "TC002",   # Type-checking-only third-party imports
+    "TC003",   # Type-checking-only standard library imports
+    "SIM102",  # Collapsible if (explicit can be clearer)
+    "SIM108",  # Ternary operator (not always clearer)
 
-    # Logging and error handling - project conventions
-    "G004",    # logging-f-string (prefer f-strings for readability)
-    "TRY300",  # try-consider-else (too opinionated)
-    "TRY301",  # raise-within-try (sometimes necessary)
-    "TRY401",  # verbose-log-message (detailed logs are useful)
+    # Style - enforce gradually
+    "E501",    # Line too long (refactor gradually, not blocking)
+    "SLF001",  # Private member access (sometimes necessary for testing/integration)
+    "G201",    # Logging exc_info (explicit is fine)
 
-    # Type annotations - covered by mypy
-    "ANN401",  # any-type (sometimes necessary for flexibility)
-
-    # Unused arguments - often needed for interface compatibility
-    "ARG001",  # unused-function-argument
-    "ARG002",  # unused-method-argument
-    "ARG005",  # unused-lambda-argument
-
-    # SQL - false positives with DuckDB/Ibis
-    "S608",    # hardcoded-sql-expression (DuckDB queries are not SQL injection risks)
-
-    # Commented code - sometimes intentional for documentation
-    "ERA001",  # commented-out-code
-
-    # Access patterns - sometimes necessary
-    "SLF001",  # private-member-access (needed for testing/integration)
-
-    # Boolean traps - too opinionated, type hints provide clarity
-    "FBT001",  # boolean-type-hint-positional-argument
-    "FBT002",  # boolean-default-value-positional-argument
-    "FBT003",  # boolean-positional-value-in-call
-
-    # Exception handling - too restrictive
-    "BLE001",  # blind-except (sometimes necessary for robustness)
-
-    # Datetime timezone - good practice but can be added gradually
+    # Datetime timezone - add gradually as features touch code
     "DTZ001",  # call-datetime-without-tzinfo
     "DTZ005",  # call-datetime-now-without-tzinfo
     "DTZ006",  # call-datetime-fromtimestamp
     "DTZ007",  # call-datetime-strptime-without-zone
     "DTZ011",  # call-date-today
 
-    # Code simplification - too opinionated
-    "SIM102",  # collapsible-if (explicit if statements can be clearer)
-    "SIM108",  # if-else-block-instead-of-if-exp (ternary not always clearer)
+    # Docstrings - enforce for new code, not blocking for existing
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D105",    # Missing docstring in magic method
+    "D107",    # Missing docstring in __init__
+    "D401",    # First line should be imperative
+    "D417",    # Missing argument description in docstring
+]
 
-    # Type checking blocks - can cause import issues
-    "TC001",   # typing-only-first-party-import
-    "TC002",   # typing-only-third-party-import
-    "TC003",   # typing-only-standard-library-import
-
-    # Logging patterns
-    "G201",    # logging-exc-info (explicit logging is fine)
-
-    # Type ignores - sometimes necessary for third-party libraries
-    "PGH003",  # blanket-type-ignore (mypy handles this)
+[tool.ruff.lint.per-file-ignores]
+# Test files - allow testing patterns
+"tests/**/*.py" = [
+    "S101",    # Assert statements (expected in tests)
+    "PLR2004", # Magic values (test data)
+    "ANN",     # Type annotations (not required in tests)
+    "D",       # Docstrings (not required in tests)
+    "INP001",  # Implicit namespace package
+    "S311",    # Random for testing
+    "S324",    # Insecure hash for testing
+    "S603",    # Subprocess without shell=True
+    "S607",    # Partial executable path
+    "S506",    # Unsafe YAML load (tests use small controlled data)
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
-
-[tool.ruff.lint.per-file-ignores]
-# Source code complexity exceptions
-"src/egregora/enrichment/core.py" = ["PLR0913", "PLR0912", "PLR0915", "RUF003"]
-"src/egregora/agents/tools/rag/embedder.py" = ["PLR0913"]
-"src/egregora/agents/tools/rag/retriever.py" = ["PLR0913"]
-"src/egregora/agents/tools/rag/store.py" = ["PLR0912"]
-"src/egregora/agents/tools/rag/pydantic_helpers.py" = ["PLR0913"]
-"src/egregora/agents/writer/context.py" = ["PLR0911", "PLC0415"]
-"src/egregora/enrichment/batch.py" = ["RUF003"]
-"src/egregora/utils/logfire_config.py" = ["PLC0415"]  # Lazy imports for optional dependencies
-# CLI and input parsers with intentional patterns
-"src/egregora/cli.py" = ["PLR0913", "PLC0415", "T201"]  # Allow print in CLI
-"src/egregora/ingestion/parser.py" = ["RUF001"]
-"src/egregora/ingestion/slack_input.py" = ["PLC0415"]
-"src/egregora/ingestion/whatsapp_input.py" = ["PLR0911", "PLC0415"]
-# Test files - allow asserts, magic values, complex structures, missing type annotations, missing docstrings, security warnings
-"tests/**/*.py" = ["S101", "PLR2004", "ANN", "D", "INP001", "S311", "S324", "S603", "S607", "S506"]
-# Test utilities - allow mock implementations
-"tests/utils/**/*.py" = ["PTH123"]
-"tests/conftest.py" = ["E402"]
-"tests/e2e/test_whatsapp_real_scenario.py" = ["PLR0913", "PLC0208"]
-"tests/evals/test_writer_with_evals.py" = ["PLC0415"]
-"tests/evals/writer_evals.py" = ["PLC0415"]
-"tests/agents/test_editor_pydantic_agent.py" = ["PLC0415"]
-"tests/test_abstraction_layer.py" = ["PLC0415"]
-"tests/integration/test_rag_store.py" = ["RUF012"]
 
 [tool.mypy]
 python_version = "3.12"

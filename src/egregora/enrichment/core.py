@@ -6,6 +6,8 @@ The LLM sees enrichment context inline with original messages.
 Documentation:
 - Architecture (Enricher): docs/guides/architecture.md#4-enricher-enricherpy
 - Core Concepts: docs/getting-started/concepts.md#4-enrich-optional
+
+MODERN (Phase 2): Uses EnrichmentRuntimeContext to reduce parameters.
 """
 
 import logging
@@ -13,14 +15,14 @@ import os
 import re
 import tempfile
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
-from google import genai
 from ibis.expr.types import Table
 
-from egregora.config import ModelConfig
+from egregora.config.schema import EgregoraConfig
 from egregora.database import schema as database_schema
 from egregora.database.schema import CONVERSATION_SCHEMA
 from egregora.enrichment.agents import (
@@ -82,27 +84,52 @@ else:
     DuckDBBackend = Any
 
 
-def enrich_table(
+@dataclass(frozen=True, slots=True)
+class EnrichmentRuntimeContext:
+    """Runtime context for enrichment execution.
+
+    MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
+    Separates runtime data (paths, cache, DB) from configuration (EgregoraConfig).
+    """
+
+    cache: EnrichmentCache
+    docs_dir: Path
+    posts_dir: Path
+    duckdb_connection: "DuckDBBackend | None" = None
+    target_table: str | None = None
+
+
+def enrich_table(  # noqa: C901, PLR0912, PLR0915
     messages_table: Table,
     media_mapping: dict[str, Path],
-    _text_client: genai.Client,
-    _vision_client: genai.Client,
-    cache: EnrichmentCache,
-    docs_dir: Path,
-    posts_dir: Path,
-    model_config: ModelConfig | None = None,
-    max_enrichments: int = 50,
-    *,
-    enable_url: bool = True,
-    enable_media: bool = True,
-    duckdb_connection: "DuckDBBackend | None" = None,
-    target_table: str | None = None,
+    config: EgregoraConfig,
+    context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Add LLM-generated enrichment rows to Table for URLs and media."""
-    if model_config is None:
-        model_config = ModelConfig()
-    url_model = model_config.get_model("enricher")
-    vision_model = model_config.get_model("enricher_vision")
+    """Add LLM-generated enrichment rows to Table for URLs and media.
+
+    MODERN (Phase 2): Reduced from 13 parameters to 4 (table, media_mapping, config, context).
+
+    Args:
+        messages_table: Table with messages to enrich
+        media_mapping: Mapping of media filenames to file paths
+        config: Egregora configuration (models, enrichment settings)
+        context: Runtime context (cache, paths, DB connection)
+
+    Returns:
+        Table with enrichment rows added
+
+    """
+    # Extract values from config and context (Phase 2)
+    url_model = config.models.enricher
+    vision_model = config.models.enricher_vision
+    max_enrichments = config.enrichment.max_enrichments
+    enable_url = config.enrichment.enable_url
+    enable_media = config.enrichment.enable_media
+    cache = context.cache
+    docs_dir = context.docs_dir
+    posts_dir = context.posts_dir
+    duckdb_connection = context.duckdb_connection
+    target_table = context.target_table
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
     url_enrichment_agent = create_url_enrichment_agent(url_model)
@@ -248,10 +275,10 @@ def enrich_table(
                     logger.info("Deleted media file containing PII: %s", media_job.file_path)
                     pii_media_deleted = True
                     pii_detected_count += 1
-                except (FileNotFoundError, PermissionError) as delete_error:
-                    logger.exception("Failed to delete %s: %s", media_job.file_path, delete_error)
-                except OSError as delete_error:
-                    logger.exception("Unexpected OS error deleting %s: %s", media_job.file_path, delete_error)
+                except (FileNotFoundError, PermissionError):
+                    logger.exception("Failed to delete %s", media_job.file_path)
+                except OSError:
+                    logger.exception("Unexpected OS error deleting %s", media_job.file_path)
             media_job.markdown = markdown_content
             cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
     for url_job in url_jobs:

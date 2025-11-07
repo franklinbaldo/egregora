@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -107,7 +108,9 @@ class SlackInputSource(InputSource):
             all_messages.extend(messages)
         if not all_messages:
             logger.warning("No messages found in Slack export")
-            from egregora.schema import MESSAGE_SCHEMA
+            from egregora.database.message_schema import (  # noqa: PLC0415 - avoid circular import
+                MESSAGE_SCHEMA,
+            )
 
             empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
             metadata = InputMetadata(
@@ -242,8 +245,6 @@ class SlackInputSource(InputSource):
 
     def _slugify(self, text: str) -> str:
         """Convert text to URL-safe slug."""
-        import re
-
         slug = text.lower()
         slug = re.sub("[^a-z0-9]+", "-", slug)
         return slug.strip("-")

@@ -9,9 +9,11 @@ import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.writer.writer_agent import (
+    WriterRuntimeContext,
     write_posts_with_pydantic_agent,
     write_posts_with_pydantic_agent_stream,
 )
+from egregora.config.loader import create_default_config
 from tests.evals.writer_evals import create_writer_dataset
 from tests.utils.mock_batch_client import create_mock_batch_client
 
@@ -42,9 +44,29 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
         - summary: str
         - has_title: bool (if posts created)
         - has_tags: bool (if posts created)
+
     """
     posts_dir, profiles_dir, rag_dir = writer_dirs
     batch_client = create_mock_batch_client()
+
+    # MODERN (Phase 2): Create config and context
+    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    config = create_default_config(site_root)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "rag": config.rag.model_copy(update={"mode": "exact"}),
+        },
+    )
+
+    context = WriterRuntimeContext(
+        period_date=inputs["period_date"],
+        output_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        client=batch_client,
+        annotations_store=None,
+    )
 
     # Use TestModel for deterministic tests
     test_model = TestModel(
@@ -54,20 +76,9 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
 
     saved_posts, _saved_profiles = write_posts_with_pydantic_agent(
         prompt=inputs["prompt"],
-        model_name="models/gemini-flash-latest",
-        period_date=inputs["period_date"],
-        output_dir=posts_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
-        client=batch_client,
-        embedding_model="models/gemini-embedding-001",
-        embedding_output_dimensionality=3072,
-        retrieval_mode="exact",
-        retrieval_nprobe=None,
-        retrieval_overfetch=None,
-        annotations_store=None,
-        agent_model=test_model,
-        register_tools=False,
+        config=config,
+        context=context,
+        test_model=test_model,
     )
 
     # Analyze created posts
@@ -96,6 +107,25 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
     dataset = create_writer_dataset()
     case = next(c for c in dataset.cases if c.name == "empty_conversation")
 
+    # MODERN (Phase 2): Create config and context
+    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    config = create_default_config(site_root)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "rag": config.rag.model_copy(update={"mode": "exact"}),
+        },
+    )
+
+    context = WriterRuntimeContext(
+        period_date=case.inputs["period_date"],
+        output_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        client=batch_client,
+        annotations_store=None,
+    )
+
     # Use TestModel for deterministic tests
     test_model = TestModel(
         call_tools=[],
@@ -104,20 +134,9 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
 
     saved_posts, _saved_profiles = write_posts_with_pydantic_agent(
         prompt=case.inputs["prompt"],
-        model_name="models/gemini-flash-latest",
-        period_date=case.inputs["period_date"],
-        output_dir=posts_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
-        client=batch_client,
-        embedding_model="models/gemini-embedding-001",
-        embedding_output_dimensionality=3072,
-        retrieval_mode="exact",
-        retrieval_nprobe=None,
-        retrieval_overfetch=None,
-        annotations_store=None,
-        agent_model=test_model,
-        register_tools=False,
+        config=config,
+        context=context,
+        test_model=test_model,
     )
 
     # Should create no posts
@@ -134,6 +153,25 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     dataset = create_writer_dataset()
     case = next(c for c in dataset.cases if c.name == "empty_conversation")
 
+    # MODERN (Phase 2): Create config and context
+    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    config = create_default_config(site_root)
+    config = config.model_copy(
+        deep=True,
+        update={
+            "rag": config.rag.model_copy(update={"mode": "exact"}),
+        },
+    )
+
+    context = WriterRuntimeContext(
+        period_date=case.inputs["period_date"],
+        output_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        rag_dir=rag_dir,
+        client=batch_client,
+        annotations_store=None,
+    )
+
     # Use TestModel for deterministic tests
     test_model = TestModel(
         call_tools=[],
@@ -143,29 +181,18 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     # Get the stream result wrapper
     stream_result = await write_posts_with_pydantic_agent_stream(
         prompt=case.inputs["prompt"],
-        model_name="models/gemini-flash-latest",
-        period_date=case.inputs["period_date"],
-        output_dir=posts_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
-        client=batch_client,
-        embedding_model="models/gemini-embedding-001",
-        embedding_output_dimensionality=3072,
-        retrieval_mode="exact",
-        retrieval_nprobe=None,
-        retrieval_overfetch=None,
-        annotations_store=None,
-        agent_model=test_model,
-        register_tools=False,
+        config=config,
+        context=context,
+        test_model=test_model,
     )
 
     # Use async context manager for streaming
     async with stream_result as result:
         # Stream and collect chunks
-        chunks = [chunk async for chunk in result.stream_text()]
+        chunks = [chunk async for chunk in result.stream()]
 
         # Get final results
-        saved_posts, _saved_profiles = await result.get_posts()
+        saved_posts, _saved_profiles = result.get_output_paths()
 
     # Should create no posts
     assert len(saved_posts) == 0
@@ -207,7 +234,7 @@ def test_writer_live_evaluation(writer_dirs):
     This test is skipped by default. Run with:
         RUN_LIVE_EVALS=1 pytest tests/evals/test_writer_with_evals.py::test_writer_live_evaluation
     """
-    import asyncio
+    import asyncio  # noqa: PLC0415 - only needed for this async test
 
     dataset = create_writer_dataset()
 

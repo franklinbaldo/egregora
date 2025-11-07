@@ -8,6 +8,9 @@ surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.
 
 At the moment this backend is opt-in via the ``EGREGORA_LLM_BACKEND`` flag.
+
+MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
+MODERN (Phase 2): Uses WriterRuntimeContext to reduce parameters.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -46,6 +50,7 @@ from egregora.agents.banner import generate_banner_for_post, is_banner_generatio
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
+from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
@@ -53,6 +58,22 @@ from egregora.utils.write_post import write_post
 if TYPE_CHECKING:
     from egregora.agents.tools.annotations import AnnotationStore
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class WriterRuntimeContext:
+    """Runtime context for writer agent execution.
+
+    MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
+    Separates runtime data (paths, clients) from configuration (EgregoraConfig).
+    """
+
+    period_date: str
+    output_dir: Path
+    profiles_dir: Path
+    rag_dir: Path
+    client: Any
+    annotations_store: AnnotationStore | None = None
 
 
 class PostMetadata(BaseModel):
@@ -113,9 +134,14 @@ class WriterAgentReturn(BaseModel):
 
 
 class WriterAgentState(BaseModel):
-    """Mutable state shared with tool functions during a run."""
+    """Immutable dependencies passed to agent tools.
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    MODERN (Phase 1): This is now frozen to prevent mutation in tools.
+    Results are extracted from the agent's message history instead of being
+    tracked via mutation.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     period_date: str
     output_dir: Path
     profiles_dir: Path
@@ -126,19 +152,59 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
-    saved_posts: list[str] = Field(default_factory=list)
-    saved_profiles: list[str] = Field(default_factory=list)
-
-    def record_post(self, path: str) -> None:
-        logger.info("Writer agent saved post %s", path)
-        self.saved_posts.append(path)
-
-    def record_profile(self, path: str) -> None:
-        logger.info("Writer agent saved profile %s", path)
-        self.saved_profiles.append(path)
 
 
-def _register_writer_tools(
+def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
+    """Extract saved post and profile paths from agent message history.
+
+    Parses the agent's tool call results to find WritePostResult and
+    WriteProfileResult returns.
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        Tuple of (saved_posts, saved_profiles) as lists of file paths
+
+    """
+    saved_posts: list[str] = []
+    saved_profiles: list[str] = []
+
+    # Try to iterate through messages
+    try:
+        for message in messages:
+            # Check if this is a tool return message
+            if hasattr(message, "kind") and message.kind == "tool-return":
+                # Parse the content - it might be JSON or a Pydantic model
+                content = message.content
+                if isinstance(content, str):
+                    try:
+                        data = json.loads(content)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                elif hasattr(content, "model_dump"):
+                    data = content.model_dump()
+                elif hasattr(content, "__dict__"):
+                    data = vars(content)
+                else:
+                    data = content
+
+                # Extract path from WritePostResult or WriteProfileResult
+                if isinstance(data, dict):
+                    if data.get("status") == "success" and "path" in data:
+                        path = data["path"]
+                        # Determine if it's a post or profile based on path
+                        if "/posts/" in path or path.endswith(".md"):
+                            saved_posts.append(path)
+                        elif "/profiles/" in path:
+                            saved_profiles.append(path)
+    except (AttributeError, TypeError) as e:
+        logger.debug("Could not parse tool results: %s", e)
+
+    return (saved_posts, saved_profiles)
+
+
+def _register_writer_tools(  # noqa: C901
     agent: Agent[WriterAgentState, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -160,7 +226,7 @@ def _register_writer_tools(
         path = write_post(
             content=content, metadata=metadata.model_dump(exclude_none=True), output_dir=ctx.deps.output_dir
         )
-        ctx.deps.record_post(path)
+        logger.info("Writer agent saved post %s", path)
         return WritePostResult(status="success", path=path)
 
     @agent.tool
@@ -175,7 +241,7 @@ def _register_writer_tools(
         ctx: RunContext[WriterAgentState], author_uuid: str, content: str
     ) -> WriteProfileResult:
         path = write_profile(author_uuid, content, ctx.deps.profiles_dir)
-        ctx.deps.record_profile(path)
+        logger.info("Writer agent saved profile %s", path)
         return WriteProfileResult(status="success", path=path)
 
     if enable_rag:
@@ -206,20 +272,12 @@ def _register_writer_tools(
                         media_type=row.get("media_type"),
                         media_path=row.get("media_path"),
                         original_filename=row.get("original_filename"),
-                        description=(str(row.get("content", "")) or "")[:500],
-                        similarity=float(row.get("similarity"))
-                        if row.get("similarity") is not None
-                        else None,
+                        description=row.get("description"),
+                        similarity=row.get("similarity"),
                     )
-                    for row in batch
+                    for row in batch.iter_rows(named=True)
                 )
-            if not items:
-                logger.info("Writer agent search_media returned no matches for query %s", query)
             return SearchMediaResult(results=items)
-
-        logger.info("RAG search tool registered")
-    else:
-        logger.info("RAG search tool disabled (no GOOGLE_API_KEY)")
 
     @agent.tool
     def annotate_conversation_tool(
@@ -232,10 +290,10 @@ def _register_writer_tools(
             parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )
         return AnnotationResult(
-            status="ok",
-            annotation_id=annotation.id,
-            parent_id=annotation.parent_id,
-            parent_type=annotation.parent_type,
+            status="success",
+            annotation_id=annotation.get("annotation_id"),
+            parent_id=annotation.get("parent_id"),
+            parent_type=annotation.get("parent_type"),
         )
 
     if enable_banner:
@@ -249,71 +307,71 @@ def _register_writer_tools(
             )
             if banner_path:
                 return BannerResult(status="success", path=str(banner_path))
-            return BannerResult(status="skipped", path=None)
-
-        logger.info("Banner generation tool registered")
-    else:
-        logger.info("Banner generation tool disabled (no GOOGLE_API_KEY)")
+            return BannerResult(status="failed", path=None)
 
 
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
-    model_name: str,
-    period_date: str,
-    output_dir: Path,
-    profiles_dir: Path,
-    rag_dir: Path,
-    client: object,
-    embedding_model: str,
-    retrieval_mode: str,
-    retrieval_nprobe: int | None,
-    retrieval_overfetch: int | None,
-    annotations_store: AnnotationStore | None,
-    agent_model: object | None = None,
-    register_tools: bool = True,
+    config: EgregoraConfig,
+    context: WriterRuntimeContext,
+    test_model: Any | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling.
 
+    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
+
+    Args:
+        prompt: System prompt for the writer agent
+        config: Egregora configuration (models, RAG, writer settings)
+        context: Runtime context (paths, client, period info)
+        test_model: Optional test model for unit tests (bypasses config.models.writer)
+
     Returns:
-        Tuple (saved_posts, saved_profiles, freeform_content_path)
+        Tuple (saved_posts, saved_profiles)
 
     """
     logger.info("Running writer via Pydantic-AI backend")
-    if agent_model is None:
-        model = model_name
-    else:
-        model = agent_model
-    if register_tools:
-        agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=model, deps_type=WriterAgentState, output_type=WriterAgentReturn
-        )
+
+    # Extract values from config and context (Phase 2)
+    model_name = test_model if test_model is not None else config.models.writer
+    embedding_model = config.models.embedding
+    retrieval_mode = config.rag.mode
+    retrieval_nprobe = config.rag.nprobe
+    retrieval_overfetch = config.rag.overfetch
+
+    agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
+    if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
         _register_writer_tools(
             agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
         )
     else:
-        agent = Agent[WriterAgentState, str](model=model, deps_type=WriterAgentState)
+        agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
     state = WriterAgentState(
-        period_date=period_date,
-        output_dir=output_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
-        batch_client=client,
+        period_date=context.period_date,
+        output_dir=context.output_dir,
+        profiles_dir=context.profiles_dir,
+        rag_dir=context.rag_dir,
+        batch_client=context.client,
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        annotations_store=annotations_store,
+        annotations_store=context.annotations_store,
     )
-    with logfire_span("writer_agent", period=period_date, model=model_name):
+    with logfire_span("writer_agent", period=context.period_date, model=model_name):
         result = agent.run_sync(prompt, deps=state)
         result_payload = getattr(result, "data", result)
+
+        # Extract tool results from message history
+        saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
+
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
-            period=period_date,
-            posts_created=len(state.saved_posts),
-            profiles_updated=len(state.saved_profiles),
+            period=context.period_date,
+            posts_created=len(saved_posts),
+            profiles_updated=len(saved_profiles),
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,
             tokens_output=usage.output_tokens if usage else 0,
@@ -324,14 +382,14 @@ def write_posts_with_pydantic_agent(
             output_path = Path(record_dir).expanduser()
             output_path.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{period_date}-{timestamp}.json"
+            filename = output_path / f"writer-{context.period_date}-{timestamp}.json"
             try:
                 payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
                 filename.write_bytes(payload)
                 logger.info("Recorded writer agent conversation to %s", filename)
             except (OSError, TypeError, ValueError, AttributeError) as record_exc:
                 logger.warning("Failed to persist writer agent messages: %s", record_exc)
-    return (state.saved_posts, state.saved_profiles)
+    return (saved_posts, saved_profiles)
 
 
 class WriterStreamResult:
@@ -342,29 +400,30 @@ class WriterStreamResult:
 
     Usage:
         >>> async with write_posts_with_pydantic_agent_stream(...) as result:
-        ...     async for chunk in result.stream_text():
-        ...         print(chunk, end='', flush=True)
-        ...     posts, profiles = await result.get_posts()
+        ...     async for chunk in result.stream():
+        ...         print(chunk)
+        ...     posts, profiles = result.get_output_paths()
+
     """
 
     def __init__(
-        self, agent: object, prompt: str, state: WriterAgentState, period_date: str, model_name: str
+        self,
+        agent: Agent,
+        state: WriterAgentState,
+        prompt: str,
+        context: WriterRuntimeContext,
+        model_name: str,
     ) -> None:
         self.agent = agent
-        self.prompt = prompt
         self.state = state
-        self.period_date = period_date
+        self.prompt = prompt
+        self.context = context
         self.model_name = model_name
-        self._stream_context = None
         self._response = None
-        self._span = None
 
     async def __aenter__(self) -> Self:
-        """Enter async context - start logfire span and pydantic-ai stream."""
-        self._span = logfire_span("writer_agent_stream", period=self.period_date, model=self.model_name)
-        self._span.__enter__()
-        self._stream_context = self.agent.run_stream(self.prompt, deps=self.state)
-        self._response = await self._stream_context.__aenter__()
+        self._stream_manager = self.agent.run_stream(self.prompt, deps=self.state)
+        self._response = await self._stream_manager.__aenter__()
         return self
 
     async def __aexit__(
@@ -372,97 +431,77 @@ class WriterStreamResult:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
-        """Exit async context - close stream and span."""
-        try:
-            if self._stream_context:
-                await self._stream_context.__aexit__(exc_type, exc_val, exc_tb)
-        finally:
-            if self._span:
-                self._span.__exit__(exc_type, exc_val, exc_tb)
-        return False
+    ) -> None:
+        if hasattr(self, "_stream_manager") and self._stream_manager:
+            await self._stream_manager.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def stream_text(self) -> AsyncGenerator[str, None]:
-        """Stream text chunks from the agent."""
+    async def stream(self) -> AsyncGenerator[str, None]:
         if not self._response:
-            msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
+            msg = "WriterStreamResult must be used as async context manager"
             raise RuntimeError(msg)
         async for chunk in self._response.stream_text():
             yield chunk
 
-    async def get_posts(self) -> tuple[list[str], list[str]]:
-        """Get final posts and profiles after streaming completes.
-
-        Note: The state is populated during tool execution while streaming,
-        so we can return it directly without waiting for additional data.
-        """
+    def get_output_paths(self) -> tuple[list[str], list[str]]:
+        """Return (saved_posts, saved_profiles) after agent completes."""
         if not self._response:
             msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
             raise RuntimeError(msg)
-        return (self.state.saved_posts, self.state.saved_profiles)
+
+        # Extract from message history
+        all_messages = getattr(self._response, "all_messages", list)()
+        saved_posts, saved_profiles = _extract_tool_results(all_messages)
+        return (saved_posts, saved_profiles)
 
 
 async def write_posts_with_pydantic_agent_stream(
     *,
     prompt: str,
-    model_name: str,
-    period_date: str,
-    output_dir: Path,
-    profiles_dir: Path,
-    rag_dir: Path,
-    client: object,
-    embedding_model: str,
-    retrieval_mode: str,
-    retrieval_nprobe: int | None,
-    retrieval_overfetch: int | None,
-    annotations_store: AnnotationStore | None,
-    agent_model: object | None = None,
-    register_tools: bool = True,
+    config: EgregoraConfig,
+    context: WriterRuntimeContext,
+    test_model: Any | None = None,
 ) -> WriterStreamResult:
-    """Execute the writer flow using Pydantic-AI agent with streaming.
+    """Execute writer with streaming output.
 
-    This is an async version that streams agent responses token-by-token.
-    Useful for interactive CLI tools and real-time progress updates.
-
-    IMPORTANT: The returned WriterStreamResult is an async context manager
-    and MUST be used with `async with`:
-
-        async with write_posts_with_pydantic_agent_stream(...) as result:
-            async for chunk in result.stream_text():
-                print(chunk, end='', flush=True)
-            posts, profiles = await result.get_posts()
+    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
 
     Args:
-        (same as write_posts_with_pydantic_agent)
+        prompt: System prompt for the writer agent
+        config: Egregora configuration (models, RAG, writer settings)
+        context: Runtime context (paths, client, period info)
+        test_model: Optional test model for unit tests (bypasses config.models.writer)
 
     Returns:
-        WriterStreamResult async context manager for streaming and results
+        WriterStreamResult async context manager for streaming
 
     """
     logger.info("Running writer via Pydantic-AI backend (streaming)")
-    if agent_model is None:
-        model = model_name
-    else:
-        model = agent_model
-    if register_tools:
-        agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=model, deps_type=WriterAgentState, output_type=WriterAgentReturn
-        )
+
+    # Extract values from config and context (Phase 2)
+    model_name = test_model if test_model is not None else config.models.writer
+    embedding_model = config.models.embedding
+    retrieval_mode = config.rag.mode
+    retrieval_nprobe = config.rag.nprobe
+    retrieval_overfetch = config.rag.overfetch
+
+    agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
+    if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
         _register_writer_tools(
             agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
         )
     else:
-        agent = Agent[WriterAgentState, str](model=model, deps_type=WriterAgentState)
+        agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
+
     state = WriterAgentState(
-        period_date=period_date,
-        output_dir=output_dir,
-        profiles_dir=profiles_dir,
-        rag_dir=rag_dir,
-        batch_client=client,
+        period_date=context.period_date,
+        output_dir=context.output_dir,
+        profiles_dir=context.profiles_dir,
+        rag_dir=context.rag_dir,
+        batch_client=context.client,
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        annotations_store=annotations_store,
+        annotations_store=context.annotations_store,
     )
-    return WriterStreamResult(agent, prompt, state, period_date, model_name)
+    return WriterStreamResult(agent, state, prompt, context, model_name)
