@@ -139,7 +139,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.write_posts_for_window", _stub_writer)
+    monkeypatch.setattr("egregora.pipeline.runner.write_posts_for_window", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):
