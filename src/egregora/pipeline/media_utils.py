@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")
 MARKDOWN_LINK_PATTERN = re.compile("(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
-__all__ = ["extract_markdown_media_refs", "process_media_for_period", "replace_markdown_media_refs"]
+__all__ = ["extract_markdown_media_refs", "process_media_for_window", "replace_markdown_media_refs"]
 
 
 def extract_markdown_media_refs(table: Table) -> set[str]:
@@ -123,8 +123,8 @@ def replace_markdown_media_refs(
     return updated_table
 
 
-def process_media_for_period(  # noqa: PLR0913
-    period_table: Table,
+def process_media_for_window(  # noqa: PLR0913
+    window_table: Table,
     adapter: SourceAdapter,
     media_dir: Path,
     temp_dir: Path,
@@ -132,7 +132,7 @@ def process_media_for_period(  # noqa: PLR0913
     posts_dir: Path,
     **adapter_kwargs: object,
 ) -> tuple[Table, dict[str, Path]]:
-    """Process media files for a period: extract, standardize, and update references.
+    """Process media files for a window: extract, standardize, and update references.
 
     This is the main media processing pipeline that:
     1. Extracts markdown media references from messages
@@ -142,7 +142,7 @@ def process_media_for_period(  # noqa: PLR0913
     5. Updates message references to point to standardized paths
 
     Args:
-        period_table: Ibis table for this period (with 'message' column)
+        window_table: Ibis table for this window (with 'message' column)
         adapter: Source adapter that implements deliver_media()
         media_dir: Directory where standardized media files should be stored
         temp_dir: Temporary directory for intermediate files
@@ -157,8 +157,8 @@ def process_media_for_period(  # noqa: PLR0913
 
     Example:
         >>> adapter = WhatsAppAdapter()
-        >>> table, mapping = process_media_for_period(
-        ...     period_table=day_table,
+        >>> table, mapping = process_media_for_window(
+        ...     window_table=day_table,
         ...     adapter=adapter,
         ...     media_dir=Path("output/media"),
         ...     temp_dir=Path("/tmp"),
@@ -172,10 +172,10 @@ def process_media_for_period(  # noqa: PLR0913
     """
     media_dir.mkdir(parents=True, exist_ok=True)
     temp_dir.mkdir(parents=True, exist_ok=True)
-    media_refs = extract_markdown_media_refs(period_table)
+    media_refs = extract_markdown_media_refs(window_table)
     if not media_refs:
-        logger.debug("No media references found in period")
-        return (period_table, {})
+        logger.debug("No media references found in window")
+        return (window_table, {})
     logger.info("Found %s media references to process", len(media_refs))
     media_mapping: dict[str, Path] = {}
     processed_count = 0
@@ -205,8 +205,8 @@ def process_media_for_period(  # noqa: PLR0913
         logger.warning("Failed to process %s media files: %s", len(failed_refs), failed_refs)
     if media_mapping:
         updated_table = replace_markdown_media_refs(
-            period_table, media_mapping, docs_dir=docs_dir, posts_dir=posts_dir
+            window_table, media_mapping, docs_dir=docs_dir, posts_dir=posts_dir
         )
     else:
-        updated_table = period_table
+        updated_table = window_table
     return (updated_table, media_mapping)

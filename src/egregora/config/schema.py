@@ -153,13 +153,28 @@ class EnrichmentConfig(BaseModel):
 class PipelineConfig(BaseModel):
     """Pipeline execution settings."""
 
-    period: Literal["day", "week", "month"] = Field(
-        default="day",
-        description="Grouping period for posts",
+    step_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of each processing window (number of messages, hours, days, etc.)",
+    )
+    step_unit: Literal["messages", "hours", "days", "tokens"] = Field(
+        default="messages",
+        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'tokens' (future)",
+    )
+    min_window_size: int = Field(
+        default=10,
+        ge=1,
+        description="Minimum messages per window (smaller windows merged or skipped)",
+    )
+    max_window_time: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum time span per window in hours (optional constraint)",
     )
     timezone: str | None = Field(
         default=None,
-        description="Timezone for date parsing (e.g., 'America/New_York')",
+        description="Timezone for timestamp parsing (e.g., 'America/New_York')",
     )
     batch_threshold: int = Field(
         default=10,
@@ -212,6 +227,11 @@ class EgregoraConfig(BaseModel):
     privacy:
       anonymization_enabled: true
       pii_detection_enabled: true
+
+    pipeline:
+      step_size: 100
+      step_unit: messages
+      min_window_size: 10
     ```
     """
 

@@ -1,7 +1,7 @@
 """Configuration dataclasses to reduce function parameter counts."""
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -23,7 +23,10 @@ class ProcessConfig:
 
     zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
-    period: Annotated[str, "Grouping period: 'day' or 'week'"] = "day"
+    step_size: Annotated[int, "Size of each processing window"] = 100
+    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days', 'tokens'"] = "messages"
+    min_window_size: Annotated[int, "Minimum messages per window (skip smaller windows)"] = 10
+    max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
     from_date: Annotated[date | None, "Only process messages from this date onwards"] = None
     to_date: Annotated[date | None, "Only process messages up to this date"] = None

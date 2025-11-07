@@ -19,16 +19,16 @@ from google import genai
 from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import WriterConfig, write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
-from egregora.pipeline import group_by_period
+from egregora.pipeline import create_windows
 from egregora.pipeline.ir import validate_ir_schema
-from egregora.pipeline.media_utils import process_media_for_period
+from egregora.pipeline.media_utils import process_media_for_window
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 
@@ -39,19 +39,19 @@ __all__ = ["run_source_pipeline"]
 
 
 def _perform_enrichment(  # noqa: PLR0913
-    period_table: ir.Table,
+    window_table: ir.Table,
     media_mapping: dict[str, Path],
     config: EgregoraConfig,
     enrichment_cache: EnrichmentCache,
     site_paths: any,
     posts_dir: Path,
 ) -> ir.Table:
-    """Execute enrichment for a period's table.
+    """Execute enrichment for a window's table.
 
     Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
 
     Args:
-        period_table: Table to enrich
+        window_table: Table to enrich
         media_mapping: Media file mapping
         config: Egregora configuration
         enrichment_cache: Enrichment cache instance
@@ -68,7 +68,7 @@ def _perform_enrichment(  # noqa: PLR0913
         posts_dir=posts_dir,
     )
     return enrich_table(
-        period_table,
+        window_table,
         media_mapping,
         config,
         enrichment_context,
@@ -94,7 +94,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     1. Source adapter selection and IR parsing
     2. Command and avatar processing
     3. Filtering (egregora messages, opted-out users, date range)
-    4. Period grouping
+    4. Window creation (flexible grouping by message count, time, or tokens)
     5. Media extraction and enrichment (optional)
     6. Post writing with LLM
     7. RAG indexing
@@ -109,7 +109,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         client: Optional pre-configured genai.Client
 
     Returns:
-        Dict mapping period keys to {'posts': [...], 'profiles': [...]}
+        Dict mapping window IDs to {'posts': [...], 'profiles': [...]}
 
     Raises:
         ValueError: If source is unknown or configuration is invalid
@@ -137,7 +137,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             options.default_backend = backend
         # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
         timezone = config.pipeline.timezone
-        period = config.pipeline.period
+        step_size = config.pipeline.step_size
+        step_unit = config.pipeline.step_unit
+        min_window_size = config.pipeline.min_window_size
+        max_window_time = config.pipeline.max_window_time
         batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
@@ -229,30 +232,38 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.info(
                     "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
                 )
-        logger.info("🎯 [bold cyan]Grouping by period:[/] %s", period)
-        periods = group_by_period(messages_table, period)
-        if not periods:
-            logger.info("[yellow]No periods found after grouping[/]")
+        logger.info(
+            "🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit
+        )
+        windows = create_windows(
+            messages_table,
+            step_size=step_size,
+            step_unit=step_unit,
+            min_window_size=min_window_size,
+            max_window_time=max_window_time,
+        )
+        if not windows:
+            logger.info("[yellow]No windows found after grouping[/]")
             return {}
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
-        for period_key in sorted(periods.keys()):
-            period_table = periods[period_key]
-            period_count = period_table.count().execute()
-            logger.info("➡️  [bold]%s[/] — %s messages", period_key, period_count)
+        for window_id in sorted(windows.keys()):
+            window_table = windows[window_id]
+            window_count = window_table.count().execute()
+            logger.info("➡️  [bold]%s[/] — %s messages", window_id, window_count)
 
-            # Phase 3: Simple skip logic - check if posts already exist for this period
-            existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
+            # Phase 3: Simple skip logic - check if posts already exist for this window
+            existing_posts = sorted(posts_dir.glob(f"{window_id}-*.md"))
             if existing_posts:
-                logger.info("⏭️  Skipping %s — %s existing posts found", period_key, len(existing_posts))
+                logger.info("⏭️  Skipping %s — %s existing posts found", window_id, len(existing_posts))
                 result = {"posts": [str(p) for p in existing_posts], "profiles": []}
-                results[period_key] = result
+                results[window_id] = result
                 continue
-            with tempfile.TemporaryDirectory(prefix=f"egregora-media-{period_key}-") as temp_dir_str:
+            with tempfile.TemporaryDirectory(prefix=f"egregora-media-{window_id}-") as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
-                period_table, media_mapping = process_media_for_period(
-                    period_table=period_table,
+                window_table, media_mapping = process_media_for_window(
+                    window_table=window_table,
                     adapter=adapter,
                     media_dir=site_paths.media_dir,
                     temp_dir=temp_dir,
@@ -262,12 +273,12 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 )
             # Phase 3: Simplified enrichment - no complex checkpointing
             if enable_enrichment:
-                logger.info("✨ [cyan]Enriching[/] period %s", period_key)
+                logger.info("✨ [cyan]Enriching[/] window %s", window_id)
                 enriched_table = _perform_enrichment(
-                    period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                    window_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
                 )
             else:
-                enriched_table = period_table
+                enriched_table = window_table
 
             # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
             writer_config = WriterConfig(
@@ -280,12 +291,12 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
             )
-            result = write_posts_for_period(enriched_table, period_key, client, writer_config)
-            results[period_key] = result
+            result = write_posts_for_window(enriched_table, window_id, client, writer_config)
+            results[window_id] = result
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
             logger.info(
-                "[green]✔ Generated[/] %s posts / %s profiles for %s", post_count, profile_count, period_key
+                "[green]✔ Generated[/] %s posts / %s profiles for %s", post_count, profile_count, window_id
             )
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media into RAG...[/]")

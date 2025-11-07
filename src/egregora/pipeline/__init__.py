@@ -24,8 +24,8 @@ What's Exported:
   - `IR_SCHEMA`: Standardized schema all sources must produce (timestamp, author, message, etc.)
   - `create_ir_table`, `validate_ir_schema`: IR table utilities
 
-**Backward Compatibility** (legacy pipeline.py):
-  - `group_by_period`, `period_has_posts`: Temporal grouping utilities (lazy-loaded)
+**Windowing Utilities** (pipeline.py):
+  - `create_windows`, `window_has_posts`, `get_last_processed_window`: Message windowing (lazy-loaded)
 
 Architecture: Staged Pipeline
 ------------------------------
@@ -98,33 +98,31 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
-# Backward Compatibility Layer
+# Windowing Utilities Layer
 # ============================================================================
-# Lazy-loaded imports from legacy pipeline.py module (temporal grouping utilities).
-# This __getattr__ hook provides transparent access to group_by_period and
-# period_has_posts without requiring full module import. Enables gradual migration
-# from monolithic pipeline.py to modular pipeline/ package structure.
+# Lazy-loaded imports from pipeline.py module (windowing utilities).
+# This __getattr__ hook provides transparent access to create_windows,
+# window_has_posts, and get_last_processed_window without requiring full module import.
 
 
 def __getattr__(name: str) -> object:
-    """Lazy import for backward compatibility with pipeline.py module.
+    """Lazy import for windowing utilities from pipeline.py module.
 
-    Dynamically loads temporal grouping utilities (group_by_period, period_has_posts)
-    from the legacy egregora/pipeline.py module when accessed. This avoids circular
-    imports and maintains API compatibility during the transition to the new
-    pipeline package architecture.
+    Dynamically loads windowing utilities (create_windows, window_has_posts, etc.)
+    from the egregora/pipeline.py module when accessed. This avoids circular
+    imports and maintains a clean namespace.
 
     Args:
-        name: Attribute name being accessed (e.g., 'group_by_period')
+        name: Attribute name being accessed (e.g., 'create_windows')
 
     Returns:
         Requested attribute from pipeline.py module
 
     Raises:
-        AttributeError: If attribute doesn't exist in backward compat layer
+        AttributeError: If attribute doesn't exist in the module
 
     """
-    if name in ("group_by_period", "period_has_posts"):
+    if name in ("create_windows", "window_has_posts", "get_last_processed_window", "Window"):
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
         pipeline_py = Path(module_path) / "pipeline.py"
@@ -144,7 +142,7 @@ def __getattr__(name: str) -> object:
 #   - IR primitives (IR_SCHEMA, create_ir_table, validate_ir_schema)
 #   - Stage abstractions (PipelineStage, StageConfig, StageResult)
 #   - Source adapters (SourceAdapter, MediaMapping)
-#   - Backward compat (group_by_period, period_has_posts - lazy-loaded via __getattr__)
+#   - Windowing utilities (create_windows, window_has_posts, etc. - lazy-loaded via __getattr__)
 __all__ = [
     "IR_SCHEMA",
     "MediaMapping",
@@ -152,8 +150,10 @@ __all__ = [
     "SourceAdapter",
     "StageConfig",
     "StageResult",
+    "Window",
     "create_ir_table",
-    "group_by_period",
-    "period_has_posts",
+    "create_windows",
+    "get_last_processed_window",
     "validate_ir_schema",
+    "window_has_posts",
 ]
