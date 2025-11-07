@@ -401,8 +401,8 @@ def test_enrichment_adds_egregora_messages(
     )
 
     cache = EnrichmentCache(tmp_path / "cache")
-    text_client = DummyBatchClient("text-model")
-    vision_client = DummyBatchClient("vision-model")
+    DummyBatchClient("text-model")
+    DummyBatchClient("vision-model")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
@@ -526,8 +526,8 @@ def test_enrichment_handles_schema_mismatch(
     )
 
     cache = EnrichmentCache(tmp_path / "cache")
-    text_client = DummyBatchClient("text-model")
-    vision_client = DummyBatchClient("vision-model")
+    DummyBatchClient("text-model")
+    DummyBatchClient("vision-model")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)

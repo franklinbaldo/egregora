@@ -103,6 +103,37 @@ ignore = [
     # Docstring rules - incompatible pairs (one must be disabled)
     "D203",    # one-blank-line-before-class (incompatible with D211)
     "D213",    # multi-line-summary-second-line (incompatible with D212)
+
+    # Pragmatic ignores - legitimate patterns
+    "S608",    # SQL injection (false positive with DuckDB/Ibis parameterized queries)
+    "ERA001",  # Commented code (sometimes intentional for documentation/examples)
+    "FIX002",  # TODO comments (active development)
+    "TD002",   # Missing TODO author
+    "TD003",   # Missing TODO link
+    "ARG001",  # Unused function argument (needed for interface compatibility)
+    "ARG002",  # Unused method argument (needed for interface compatibility)
+    "ARG005",  # Unused lambda argument (needed for interface compatibility)
+    "ANN401",  # Any type (sometimes necessary for flexibility)
+    "TC001",   # Type-checking-only imports (can cause circular imports)
+    "TC002",   # Type-checking-only third-party imports
+    "TC003",   # Type-checking-only standard library imports
+    "SIM102",  # Collapsible if (explicit can be clearer)
+    "SIM108",  # Ternary operator (not always clearer)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files - allow testing patterns
+"tests/**/*.py" = [
+    "S101",    # Assert statements (expected in tests)
+    "PLR2004", # Magic values (test data)
+    "ANN",     # Type annotations (not required in tests)
+    "D",       # Docstrings (not required in tests)
+    "INP001",  # Implicit namespace package
+    "S311",    # Random for testing
+    "S324",    # Insecure hash for testing
+    "S603",    # Subprocess without shell=True
+    "S607",    # Partial executable path
+    "S506",    # Unsafe YAML load (tests use small controlled data)
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

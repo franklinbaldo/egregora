@@ -91,7 +91,7 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
     cache = EnrichmentCache(directory=tmp_path / "cache")
 
     table = _make_base_table()
-    text_client = StubBatchClient("url")
+    StubBatchClient("url")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
@@ -137,7 +137,7 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
     cache = EnrichmentCache(directory=tmp_path / "cache")
 
     table = _make_base_table()
-    text_client = StubBatchClient("url")
+    StubBatchClient("url")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)

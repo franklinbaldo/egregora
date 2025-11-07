@@ -192,68 +192,68 @@ from egregora.config.types import (
 )
 
 __all__ = [
+    "DEFAULT_BLOG_DIR",  # Default blog directory name
+    "DEFAULT_DOCS_DIR",  # Default docs directory name
+    "DEFAULT_EDITOR_MODEL",  # Default model for post editing
+    "DEFAULT_EMBEDDING_MODEL",  # Default model for embeddings
+    "DEFAULT_ENRICHER_MODEL",  # Default model for text enrichment
+    "DEFAULT_ENRICHER_VISION_MODEL",  # Default model for media enrichment
+    "DEFAULT_RANKING_MODEL",  # Default model for Elo ranking
+    "DEFAULT_WRITER_MODEL",  # Default model for blog post generation
+    "EMBEDDING_DIM",  # Embedding vector dimensions
+    "MEDIA_DIR_NAME",  # Media subdirectory name
+    "PROFILES_DIR_NAME",  # Profiles subdirectory name
+    "ComparisonConfig",  # Elo ranking comparison parameters
+    "ComparisonData",  # Comparison result data
+    "EditorContext",  # Editor agent runtime context
     # ==========================================================================
     # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
     # ==========================================================================
     # Root config and sub-configs loaded from .egregora/config.yml
     "EgregoraConfig",  # Root config (contains all sub-configs)
-    "ModelsConfig",  # LLM model names
-    "RAGConfig",  # Retrieval settings
-    "EgregoraWriterConfig",  # Writer agent settings
-    "PrivacyConfig",  # Anonymization settings
     "EgregoraEnrichmentConfig",  # Enrichment settings
     "EgregoraPipelineConfig",  # Pipeline settings
+    "EgregoraWriterConfig",  # Writer agent settings
+    "EnrichmentConfig",  # Enrichment stage parameters
     "FeaturesConfig",  # Feature flags
-    # ==========================================================================
-    # Config Loading & Persistence
-    # ==========================================================================
-    "load_egregora_config",  # Load config from .egregora/config.yml
-    "create_default_config",  # Create default config
-    "find_egregora_config",  # Find config file in directory tree
-    "save_egregora_config",  # Save config to disk
+    "MediaEnrichmentContext",  # Media enrichment runtime context
     # ==========================================================================
     # Model Configuration Utilities
     # ==========================================================================
     "ModelConfig",  # Backend-agnostic model config
     "ModelType",  # Enum of model roles
-    "get_model_config",  # Get config from EgregoraConfig or env
-    "from_pydantic_ai_model",  # Convert pydantic-ai Model
-    "EMBEDDING_DIM",  # Embedding vector dimensions
-    "DEFAULT_WRITER_MODEL",  # Default model for blog post generation
-    "DEFAULT_ENRICHER_MODEL",  # Default model for text enrichment
-    "DEFAULT_ENRICHER_VISION_MODEL",  # Default model for media enrichment
-    "DEFAULT_EMBEDDING_MODEL",  # Default model for embeddings
-    "DEFAULT_RANKING_MODEL",  # Default model for Elo ranking
-    "DEFAULT_EDITOR_MODEL",  # Default model for post editing
-    # ==========================================================================
-    # Site Paths & MkDocs Utilities
-    # ==========================================================================
-    "SitePaths",  # Dataclass with all site paths
-    "resolve_site_paths",  # Resolve paths from site_dir or mkdocs.yml
-    "find_mkdocs_file",  # Locate mkdocs.yml
-    "load_mkdocs_config",  # Load and parse mkdocs.yml
-    "DEFAULT_BLOG_DIR",  # Default blog directory name
-    "DEFAULT_DOCS_DIR",  # Default docs directory name
-    "MEDIA_DIR_NAME",  # Media subdirectory name
-    "PROFILES_DIR_NAME",  # Profiles subdirectory name
+    "ModelsConfig",  # LLM model names
     # ==========================================================================
     # Pipeline-Specific Configs
     # ==========================================================================
     "PipelineEnrichmentConfig",  # Enrichment batch processing config
+    "PostGenerationContext",  # Writer agent context for post generation
+    "PrivacyConfig",  # Anonymization settings
     # ==========================================================================
     # Runtime Context Dataclasses (TRANSITIONAL - Phase 2 migration in progress)
     # ==========================================================================
     # These replace parameter soup (12-16 params → 3-6 params) in function signatures.
     # Will eventually use EgregoraConfig internally.
     "ProcessConfig",  # CLI process command parameters
-    "WriterConfig",  # Writer agent runtime context
-    "EnrichmentConfig",  # Enrichment stage parameters
+    "RAGConfig",  # Retrieval settings
     "RankingCliConfig",  # Ranking CLI parameters
-    "ComparisonConfig",  # Elo ranking comparison parameters
-    "ComparisonData",  # Comparison result data
-    "EditorContext",  # Editor agent runtime context
-    "PostGenerationContext",  # Writer agent context for post generation
-    "MediaEnrichmentContext",  # Media enrichment runtime context
+    # ==========================================================================
+    # Site Paths & MkDocs Utilities
+    # ==========================================================================
+    "SitePaths",  # Dataclass with all site paths
     "URLEnrichmentContext",  # URL enrichment runtime context
+    "WriterConfig",  # Writer agent runtime context
     "WriterPromptContext",  # Writer agent prompt construction context
+    "create_default_config",  # Create default config
+    "find_egregora_config",  # Find config file in directory tree
+    "find_mkdocs_file",  # Locate mkdocs.yml
+    "from_pydantic_ai_model",  # Convert pydantic-ai Model
+    "get_model_config",  # Get config from EgregoraConfig or env
+    # ==========================================================================
+    # Config Loading & Persistence
+    # ==========================================================================
+    "load_egregora_config",  # Load config from .egregora/config.yml
+    "load_mkdocs_config",  # Load and parse mkdocs.yml
+    "resolve_site_paths",  # Resolve paths from site_dir or mkdocs.yml
+    "save_egregora_config",  # Save config to disk
 ]

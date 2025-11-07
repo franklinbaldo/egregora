@@ -127,8 +127,8 @@ def test_enrich_table_persists_results(tmp_path: Path):
     docs_dir.mkdir(parents=True)
     posts_dir.mkdir(parents=True)
 
-    text_client = DummyBatchClient("text-model")
-    vision_client = DummyBatchClient("vision-model")
+    DummyBatchClient("text-model")
+    DummyBatchClient("vision-model")
     cache = EnrichmentCache(tmp_path / "cache")
 
     conn, table_name = _create_conversation_table(tmp_path)

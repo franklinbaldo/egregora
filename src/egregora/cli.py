@@ -879,7 +879,7 @@ def enrich(
     site_paths = resolve_site_paths(site_path)
     posts_dir = site_paths.posts_dir
     egregora_config = load_egregora_config(site_path)
-    model_config = ModelConfig(config=egregora_config)
+    ModelConfig(config=egregora_config)
     client: genai.Client | None = None
     enrichment_cache: EnrichmentCache | None = None
     try:

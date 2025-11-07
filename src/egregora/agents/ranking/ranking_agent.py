@@ -218,7 +218,7 @@ def load_comments_for_post(post_id: str, store: RankingStore) -> str | None:
         return None
     comment_list = []
     for comp in comparisons[-5:]:
-        comp_id = comp["comparison_id"]
+        comp["comparison_id"]
         timestamp = comp["timestamp"]
         profile_id = comp["profile_id"]
         if comp["post_a"] == post_id:

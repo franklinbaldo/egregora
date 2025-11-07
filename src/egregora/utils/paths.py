@@ -43,7 +43,7 @@ def slugify(text: str, max_len: int = 60) -> str:
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
-    """Safely join path parts and ensure result stays within base_dir.
+    r"""Safely join path parts and ensure result stays within base_dir.
 
     Uses werkzeug.utils.safe_join, the industry-standard path security
     function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects

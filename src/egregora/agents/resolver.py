@@ -29,7 +29,7 @@ def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
 
 
 def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any]:
-    """Merges variables from the post's front-matter into the agent's variables,
+    """Merges variables from the post's front-matter into the agent's variables,.
 
     respecting the allowlist.
     """

@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
     from google import genai
 
-_T = TypeVar("_T")
 
 logger = logging.getLogger(__name__)
 

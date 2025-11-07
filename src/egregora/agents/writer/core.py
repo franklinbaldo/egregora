@@ -250,7 +250,7 @@ def _write_posts_for_period_pydantic(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
     model_config = ModelConfig() if config.model_config is None else config.model_config
-    model = model_config.get_model("writer")
+    model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
     messages_table = table.to_pyarrow()

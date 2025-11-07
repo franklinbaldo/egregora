@@ -149,7 +149,7 @@ async def build_rag_context_for_writer(
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
 ) -> str:
-    """Build RAG context string for writer agent.
+    r"""Build RAG context string for writer agent.
 
     High-level helper that combines find_relevant_docs() and format_rag_context().
 

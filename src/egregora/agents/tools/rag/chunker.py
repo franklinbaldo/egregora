@@ -20,7 +20,7 @@ def estimate_tokens(text: str) -> int:
 
 
 def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 150) -> list[str]:
-    """Chunk markdown content respecting token limits.
+    r"""Chunk markdown content respecting token limits.
 
     Strategy:
     - Split on paragraph boundaries (\\\\n\\\\n)
