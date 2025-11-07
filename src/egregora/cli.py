@@ -866,7 +866,7 @@ def group(  # noqa: PLR0913
     - Groups messages into windows based on step_size and step_unit
     - Saves each window to a separate CSV file
 
-    Output files are named: {window_id}.csv (e.g., chunk_001.csv, window_20250107_120000.csv)
+    Output files are named by window start time: window_YYYYMMDD_HHMMSS.csv
 
     Examples:
         egregora group messages.csv --step-size=100 --step-unit=messages
@@ -888,21 +888,26 @@ def group(  # noqa: PLR0913
         messages_table = load_table(input_path)
         messages_table = _filter_messages_by_date(messages_table, from_date_obj, to_date_obj)
         console.print(f"[cyan]Creating windows:[/cyan] step_size={step_size}, unit={step_unit}")
-        windows = create_windows(
+        windows_generator = create_windows(
             messages_table,
             step_size=step_size,
             step_unit=step_unit,
             min_window_size=min_window_size,
         )
+        # Collect generator into list (create_windows returns generator, not dict)
+        windows = list(windows_generator)
         if not windows:
             console.print("[yellow]No windows found after grouping[/yellow]")
             raise typer.Exit(0)
         console.print(f"[green]Found {len(windows)} windows[/green]")
-        for window_id, window_table in windows.items():
-            window_output = output_path / f"{window_id}.csv"
-            window_count = window_table.count().execute()
-            console.print(f"  [cyan]{window_id}:[/cyan] {window_count} messages → {window_output}")
-            save_table(window_table, window_output)
+        for window in windows:
+            # Generate filename from timestamps (window has no string ID)
+            window_filename = f"window_{window.start_time:%Y%m%d_%H%M%S}"
+            window_output = output_path / f"{window_filename}.csv"
+            window_count = window.size
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            console.print(f"  [cyan]{window_label}:[/cyan] {window_count} messages → {window_output}")
+            save_table(window.table, window_output)
         console.print(f"[green]✅ Saved {len(windows)} window files to {output_path}[/green]")
 
 

@@ -123,7 +123,13 @@ def __getattr__(name: str) -> object:
         AttributeError: If attribute doesn't exist in the module
 
     """
-    if name in ("create_windows", "Window", "load_checkpoint", "save_checkpoint"):
+    if name in (
+        "create_windows",
+        "Window",
+        "load_checkpoint",
+        "save_checkpoint",
+        "split_window_into_n_parts",
+    ):
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
         pipeline_py = Path(module_path) / "pipeline.py"
@@ -157,5 +163,6 @@ __all__ = [
     "create_windows",
     "load_checkpoint",
     "save_checkpoint",
+    "split_window_into_n_parts",
     "validate_ir_schema",
 ]
