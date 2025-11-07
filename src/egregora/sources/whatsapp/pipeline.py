@@ -71,7 +71,7 @@ def process_whatsapp_export(  # noqa: PLR0913
         zip_path: WhatsApp export ZIP file
         output_dir: Where to save posts and profiles
         step_size: Size of each processing window
-        step_unit: Unit for windowing ('messages', 'hours', 'days', 'bytes')
+        step_unit: Unit for windowing ('messages', 'hours', 'days')
         min_window_size: Minimum messages per window (skip smaller)
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2)
         enable_enrichment: Add URL/media context

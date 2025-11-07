@@ -7,8 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from egregora.ingestion.parser import parse_egregora_command
 from PIL import Image
+
+from egregora.ingestion import parse_egregora_command
 
 from egregora.agents.tools.profiler import (
     get_avatar_info,

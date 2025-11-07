@@ -78,9 +78,6 @@ uv run egregora process export.zip --step-size=100 --step-unit=messages
 # Time-based windowing (2 days per window)
 uv run egregora process export.zip --step-size=2 --step-unit=days
 
-# Byte-based windowing (100KB per window, ~25k tokens)
-uv run egregora process export.zip --step-size=100000 --step-unit=bytes
-
 # Serve generated blog locally
 cd output
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve

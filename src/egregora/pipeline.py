@@ -114,7 +114,6 @@ def create_windows(  # noqa: PLR0913
     Replaces period-based grouping with flexible windowing:
     - By message count: step_size=100, step_unit="messages"
     - By time: step_size=2, step_unit="days"
-    - By byte count: step_size=50000, step_unit="bytes" (not yet implemented)
 
     Overlap provides conversation context across window boundaries, improving
     LLM understanding and blog post quality at the cost of ~20% more tokens.
@@ -122,7 +121,7 @@ def create_windows(  # noqa: PLR0913
     Args:
         table: Table with timestamp column
         step_size: Size of each window
-        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
+        step_unit: Unit for windowing ("messages", "hours", "days")
         min_window_size: Minimum messages per window (skip smaller windows)
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
         max_window_time: Optional maximum time span per window
@@ -133,7 +132,7 @@ def create_windows(  # noqa: PLR0913
     Examples:
         >>> # 100 messages per window with 20% overlap
         >>> for window in create_windows(table, step_size=100, step_unit="messages"):
-        ...     print(f"Processing {window.window_id}: {window.size} messages")
+        ...     print(f"Processing window {window.window_index}: {window.size} messages")
         >>>
         >>> # No overlap (old behavior)
         >>> for window in create_windows(table, step_size=100, overlap_ratio=0.0):
@@ -153,10 +152,8 @@ def create_windows(  # noqa: PLR0913
         windows = _window_by_count(sorted_table, step_size, min_window_size, overlap)
     elif step_unit in ("hours", "days"):
         windows = _window_by_time(sorted_table, step_size, step_unit, min_window_size, overlap_ratio)
-    elif step_unit == "bytes":
-        windows = _window_by_bytes(sorted_table, step_size, min_window_size, overlap)
     else:
-        msg = f"Unknown step_unit: {step_unit}"
+        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', or 'days'."
         raise ValueError(msg)
 
     # Apply max_window_time constraint if specified
@@ -284,40 +281,6 @@ def _window_by_time(
 
         window_index += 1
         current_start += delta  # Advance by delta, creating overlap
-
-
-def _window_by_bytes(
-    table: Table,
-    step_size: int,
-    min_window_size: int,
-    overlap: int = 0,
-) -> Iterator[Window]:
-    """Create windows based on byte count (text size).
-
-    Groups messages until cumulative byte count reaches step_size.
-    Uses SUM(LENGTH(message)) in SQL for accurate counting.
-
-    Byte counts serve as token proxies (~4 bytes per token for English),
-    useful for respecting LLM context limits without tokenizer dependencies.
-
-    Args:
-        table: Input table
-        step_size: Target bytes per window
-        min_window_size: Minimum messages per window
-
-    Returns:
-        List of windows
-
-    Raises:
-        NotImplementedError: Byte-based windowing not yet implemented
-
-    """
-    msg = (
-        "Byte-based windowing not yet implemented. "
-        "Use 'messages', 'hours', or 'days' as step_unit instead. "
-        "For token-aware windowing, use --max-prompt-tokens flag which triggers automatic window splitting."
-    )
-    raise NotImplementedError(msg)
 
 
 def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterator[Window]:

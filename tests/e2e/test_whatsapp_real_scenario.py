@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 
 import ibis
 import pytest
-from egregora.ingestion.parser import filter_egregora_messages, parse_export
 
 from egregora.config.loader import create_default_config
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.enrichment.media import extract_and_replace_media
+from egregora.ingestion import filter_egregora_messages, parse_source
 from egregora.sources.whatsapp import process_whatsapp_export
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
@@ -154,7 +154,7 @@ def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixtur
 
 def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     assert {"timestamp", "author", "message"}.issubset(table.columns)
     assert table.count().execute() == 10
@@ -165,7 +165,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
     dates = [value.date() for value in table["date"].execute().tolist()]
 
     assert date(2025, 10, 28) in dates
@@ -173,7 +173,7 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     participant_rows = table.filter(~table.author.isin(["system", "egregora"]))
     assert participant_rows.count().execute() == 10
@@ -181,7 +181,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     combined = " ".join(table["message"].execute().tolist())
     assert "IMG-20251028-WA0035.jpg" in combined
@@ -190,7 +190,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
 
 def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     authors = table["author"].execute().tolist()
     for forbidden in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
@@ -202,8 +202,8 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
 
 def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table_one = parse_export(export, timezone=whatsapp_fixture.timezone)
-    table_two = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
+    table_two = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     authors_one = sorted(table_one.select("author").distinct().execute()["author"].tolist())
     authors_two = sorted(table_two.select("author").distinct().execute()["author"].tolist())
@@ -213,7 +213,7 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
 
 def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     distinct_authors = table.select("author").distinct().execute()["author"].tolist()
     authors = [value for value in distinct_authors if value not in {"system", "egregora"}]
@@ -225,7 +225,7 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
 
 def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -247,7 +247,7 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
 
 def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -268,7 +268,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 
 def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir_one = tmp_path / "docs1"
     docs_dir_two = tmp_path / "docs2"
@@ -369,7 +369,7 @@ def test_pipeline_respects_date_range_filters(
 
 def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     original_records = table.execute().to_dict("records")
     sample_record = original_records[0]
@@ -391,7 +391,7 @@ def test_enrichment_adds_egregora_messages(
     tmp_path: Path,
 ):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -484,7 +484,7 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     """Test that parser strictly enforces MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     # Verify table only has MESSAGE_SCHEMA columns (including message_id)
     expected_columns = {
@@ -510,7 +510,7 @@ def test_enrichment_handles_schema_mismatch(
 ):
     """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     # Add extra columns to simulate the schema mismatch
     table = table.mutate(

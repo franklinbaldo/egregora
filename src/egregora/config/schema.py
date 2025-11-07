@@ -158,9 +158,9 @@ class PipelineConfig(BaseModel):
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
-    step_unit: Literal["messages", "hours", "days", "bytes"] = Field(
+    step_unit: Literal["messages", "hours", "days"] = Field(
         default="messages",
-        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (text size, ~4 bytes/token)",
+        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time)",
     )
     min_window_size: int = Field(
         default=10,
