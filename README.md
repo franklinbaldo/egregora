@@ -162,11 +162,14 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 ### Basic Processing
 
 ```bash
-# Process with default settings (100 messages per window)
+# Process with default settings (1 day per window)
 egregora process export.zip --output=./blog
 
 # Group by week (7 days per window)
 egregora process export.zip --step-size=7 --step-unit=days
+
+# Group by message count (100 messages per window)
+egregora process export.zip --step-size=100 --step-unit=messages
 
 # Filter date range
 egregora process export.zip \

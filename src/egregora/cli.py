@@ -330,10 +330,10 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
-    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
+    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
         str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
-    ] = "messages",
+    ] = "days",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     overlap: Annotated[
         float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
@@ -378,12 +378,13 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     Windowing:
         Control how messages are grouped into posts using --step-size and --step-unit:
 
-        By message count (default):
-            egregora process export.zip --step-size=100 --step-unit=messages
-
-        By time:
+        By time (default):
+            egregora process export.zip --step-size=1 --step-unit=days
             egregora process export.zip --step-size=7 --step-unit=days
             egregora process export.zip --step-size=24 --step-unit=hours
+
+        By message count:
+            egregora process export.zip --step-size=100 --step-unit=messages
 
     The LLM decides:
     - What's worth writing about (filters noise automatically)
@@ -845,10 +846,10 @@ def _filter_messages_by_date(
 @app.command()
 def group(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
-    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
+    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
         str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
-    ] = "messages",
+    ] = "days",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     output_dir: Annotated[Path, typer.Option(help="Output directory for window CSV files")] = Path("windows"),
     from_date: Annotated[
@@ -869,8 +870,9 @@ def group(  # noqa: PLR0913
     Output files are named by window start time: window_YYYYMMDD_HHMMSS.csv
 
     Examples:
-        egregora group messages.csv --step-size=100 --step-unit=messages
+        egregora group messages.csv --step-size=1 --step-unit=days
         egregora group messages.csv --step-size=7 --step-unit=days
+        egregora group messages.csv --step-size=100 --step-unit=messages
 
     """
     input_path = input_csv.resolve()

@@ -154,12 +154,12 @@ class PipelineConfig(BaseModel):
     """Pipeline execution settings."""
 
     step_size: int = Field(
-        default=100,
+        default=1,
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
     step_unit: Literal["messages", "hours", "days"] = Field(
-        default="messages",
+        default="days",
         description="Unit for windowing: 'messages' (count), 'hours'/'days' (time)",
     )
     min_window_size: int = Field(
@@ -244,8 +244,8 @@ class EgregoraConfig(BaseModel):
       pii_detection_enabled: true
 
     pipeline:
-      step_size: 100
-      step_unit: messages
+      step_size: 1
+      step_unit: days
       min_window_size: 10
     ```
     """

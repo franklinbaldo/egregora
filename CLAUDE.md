@@ -69,14 +69,15 @@ uv run mypy src/                    # Type check
 # Set API key
 export GOOGLE_API_KEY="your-api-key"
 
-# Process WhatsApp export (creates blog in ./output)
+# Process WhatsApp export (creates blog in ./output, default: 1 day windows)
 uv run egregora process whatsapp-export.zip --output=./output
 
-# With custom windowing (100 messages per window)
-uv run egregora process export.zip --step-size=100 --step-unit=messages
+# Time-based windowing (default)
+uv run egregora process export.zip --step-size=1 --step-unit=days  # 1 day (default)
+uv run egregora process export.zip --step-size=7 --step-unit=days  # 1 week
 
-# Time-based windowing (2 days per window)
-uv run egregora process export.zip --step-size=2 --step-unit=days
+# Message count windowing
+uv run egregora process export.zip --step-size=100 --step-unit=messages
 
 # Serve generated blog locally
 cd output

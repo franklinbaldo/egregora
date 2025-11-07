@@ -16,8 +16,8 @@ egregora process [OPTIONS] EXPORT_PATH
 |--------|-------------|---------|
 | `--output` | Output directory for blog | `.` |
 | `--timezone` | Timezone for message timestamps | System timezone |
-| `--step-size` | Size of each processing window | `100` |
-| `--step-unit` | Unit: `messages`, `hours`, `days` | `messages` |
+| `--step-size` | Size of each processing window | `1` |
+| `--step-unit` | Unit: `messages`, `hours`, `days` | `days` |
 | `--min-window-size` | Minimum messages per window | `10` |
 | `--from-date` | Start date (YYYY-MM-DD) | First message |
 | `--to-date` | End date (YYYY-MM-DD) | Last message |
