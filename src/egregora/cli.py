@@ -13,14 +13,16 @@ from zoneinfo import ZoneInfo
 
 import typer
 from google import genai
+from jinja2 import Environment, FileSystemLoader
 from rich.markup import escape
 from rich.panel import Panel
 
 from egregora.agents.editor import run_editor_session
 from egregora.agents.loader import load_agent
 from egregora.agents.registry import ToolRegistry
+from egregora.agents.resolver import AgentResolver
 from egregora.agents.tools.profiler import get_active_authors
-from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.config import (
@@ -51,6 +53,9 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
+
+# Constants
+MAX_POSTS_TO_DISPLAY = 5
 
 # Type alias for JSON-serializable values
 JsonValue = (
@@ -315,7 +320,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def process(
+def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -393,7 +398,7 @@ def process(
 
 
 @app.command()
-def edit(
+def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
     post_path: Annotated[Path, typer.Argument(help="Path to the post markdown file")],
     *,
     site_dir: Annotated[
@@ -442,13 +447,9 @@ def edit(
     if not rag_dir.exists():
         console.print("[yellow]RAG directory not found. Editor will work without RAG.[/yellow]")
     if prompt_dry_run:
-        from jinja2 import Environment, FileSystemLoader
-
-        from egregora.agents.resolver import AgentResolver
-
         resolver = AgentResolver(egregora_path, docs_path)
         agent_config, prompt_template, final_vars = resolver.resolve(post_file, agent)
-        jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)))
+        jinja_env = Environment(loader=FileSystemLoader(str(egregora_path)), autoescape=True)
         template = jinja_env.from_string(prompt_template)
         prompt = template.render(final_vars)
         console.print(Panel(prompt, title=f"Prompt for {agent_config.agent_id}", border_style="blue"))
@@ -556,15 +557,15 @@ def agents_lint(site_dir: Annotated[Path, typer.Option(help="Site directory")] =
         raise typer.Exit(1)
 
 
-def _register_ranking_cli(app: typer.Typer) -> None:
+def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Complex due to nested command registration
     """Register ranking commands when the optional extra is installed."""
     try:
-        ranking_agent = importlib.import_module("egregora.ranking.agent")
-        ranking_elo = importlib.import_module("egregora.ranking.elo")
-        ranking_store_module = importlib.import_module("egregora.ranking.store")
+        ranking_agent = importlib.import_module("egregora.agents.ranking")
+        ranking_elo = importlib.import_module("egregora.agents.ranking.elo")
+        ranking_store_module = importlib.import_module("egregora.agents.ranking.store")
         run_comparison = ranking_agent.run_comparison
         get_posts_to_compare = ranking_elo.get_posts_to_compare
-        RankingStore = ranking_store_module.RankingStore
+        ranking_store_class = ranking_store_module.RankingStore
     except ModuleNotFoundError as exc:
         missing = exc.name or "egregora.ranking"
 
@@ -593,7 +594,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:
+    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:  # noqa: C901, PLR0915 - Complex ranking loop with error handling
+
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
         site_path = config.site_dir.resolve()
@@ -608,7 +610,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
             console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
             console.print("Run 'egregora process' first to generate posts")
             raise typer.Exit(1)
-        store = RankingStore(rankings_dir)
+        store = ranking_store_class(rankings_dir)
         post_files = sorted(posts_dir.glob("**/*.md"))
         post_ids = [p.stem for p in post_files]
         if not post_ids:
@@ -645,9 +647,10 @@ def _register_ranking_cli(app: typer.Typer) -> None:
                 default_profile.parent.mkdir(parents=True, exist_ok=True)
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
-            profile_path = random.choice(profile_files)
+            profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
             try:
-                run_comparison(
+                # Import ComparisonConfig dynamically
+                comparison_config = ranking_agent.ComparisonConfig(
                     site_dir=site_path,
                     post_a_id=post_a_id,
                     post_b_id=post_b_id,
@@ -655,6 +658,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
                     api_key=api_key,
                     model=ranking_model,
                 )
+                asyncio.run(run_comparison(comparison_config))
             except Exception as e:
                 console.print(f"[red]Comparison failed: {e}[/red]")
                 if config.debug:
@@ -673,7 +677,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:
         )
 
     @app.command()
-    def rank(
+    def rank(  # noqa: PLR0913 - CLI commands naturally have many parameters
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
         *,
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
@@ -752,6 +756,60 @@ def parse(
         console.print(f"[green]💾 Saved to {output_path}[/green]")
 
 
+def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[date | None, date | None]:
+    """Parse and validate date range strings.
+
+    Returns:
+        Tuple of (from_date_obj, to_date_obj) or (None, None)
+
+    Raises:
+        typer.Exit: If date parsing fails
+
+    """
+    from_date_obj = None
+    to_date_obj = None
+    if from_date:
+        try:
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+        except ValueError as e:
+            console.print(f"[red]Invalid from_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+    if to_date:
+        try:
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+        except ValueError as e:
+            console.print(f"[red]Invalid to_date format: {e}[/red]")
+            raise typer.Exit(1) from e
+    return from_date_obj, to_date_obj
+
+
+def _filter_messages_by_date(
+    messages_table: Any, from_date_obj: date | None, to_date_obj: date | None
+) -> Any:
+    """Filter messages table by date range."""
+    if not (from_date_obj or to_date_obj):
+        return messages_table
+
+    original_count = messages_table.count().execute()
+    if from_date_obj and to_date_obj:
+        messages_table = messages_table.filter(
+            (messages_table.timestamp.date() >= from_date_obj)
+            & (messages_table.timestamp.date() <= to_date_obj)
+        )
+        console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
+    elif from_date_obj:
+        messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date_obj)
+        console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
+    elif to_date_obj:
+        messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
+        console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
+
+    filtered_count = messages_table.count().execute()
+    removed = original_count - filtered_count
+    console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+    return messages_table
+
+
 @app.command()
 def group(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
@@ -783,40 +841,11 @@ def group(
         raise typer.Exit(1)
     output_path = output_dir.resolve()
     output_path.mkdir(parents=True, exist_ok=True)
-    from_date_obj = None
-    to_date_obj = None
-    if from_date:
-        try:
-            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
-        except ValueError as e:
-            console.print(f"[red]Invalid from_date format: {e}[/red]")
-            raise typer.Exit(1) from e
-    if to_date:
-        try:
-            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
-        except ValueError as e:
-            console.print(f"[red]Invalid to_date format: {e}[/red]")
-            raise typer.Exit(1) from e
+    from_date_obj, to_date_obj = _parse_date_range(from_date, to_date)
     with duckdb_backend():
         console.print(f"[cyan]Loading:[/cyan] {input_path}")
         messages_table = load_table(input_path)
-        if from_date_obj or to_date_obj:
-            original_count = messages_table.count().execute()
-            if from_date_obj and to_date_obj:
-                messages_table = messages_table.filter(
-                    (messages_table.timestamp.date() >= from_date_obj)
-                    & (messages_table.timestamp.date() <= to_date_obj)
-                )
-                console.print(f"[cyan]Filtering:[/cyan] {from_date_obj} to {to_date_obj}")
-            elif from_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date_obj)
-                console.print(f"[cyan]Filtering:[/cyan] from {from_date_obj}")
-            elif to_date_obj:
-                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date_obj)
-                console.print(f"[cyan]Filtering:[/cyan] up to {to_date_obj}")
-            filtered_count = messages_table.count().execute()
-            removed = original_count - filtered_count
-            console.print(f"[yellow]Filtered out {removed} messages (kept {filtered_count})[/yellow]")
+        messages_table = _filter_messages_by_date(messages_table, from_date_obj, to_date_obj)
         console.print(f"[cyan]Grouping by:[/cyan] {period}")
         periods = group_by_period(messages_table, period)
         if not periods:
@@ -832,7 +861,7 @@ def group(
 
 
 @app.command()
-def enrich(
+def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     *,
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
@@ -938,7 +967,7 @@ def enrich(
 
 
 @app.command()
-def gather_context(
+def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
@@ -1029,7 +1058,7 @@ def gather_context(
                 "rag_context_markdown": rag_context_markdown,
                 "site_config": {
                     "markdown_extensions": mkdocs_config.get("markdown_extensions", []),
-                    "custom_writer_prompt": site_config.get("custom_writer_prompt"),
+                    "custom_writer_prompt": mkdocs_config.get("extra", {}).get("egregora", {}).get("custom_writer_prompt"),
                 },
                 "message_count": message_count,
             }
@@ -1047,7 +1076,7 @@ def gather_context(
 
 
 @app.command()
-def write_posts(
+def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     period_key: Annotated[str, typer.Option(help="Period identifier (e.g., 2025-W03)")],
@@ -1115,8 +1144,6 @@ def write_posts(
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {('enabled' if enable_rag else 'disabled')}")
             console.print(f"[yellow]Invoking LLM writer for period {period_key}...[/yellow]")
-            from egregora.agents.writer import WriterConfig
-
             writer_config = WriterConfig(
                 output_dir=site_paths.posts_dir,
                 profiles_dir=site_paths.profiles_dir,
@@ -1134,10 +1161,10 @@ def write_posts(
             console.print(f"[green]✅ Updated {profiles_count} profiles[/green]")
             if posts_count > 0:
                 console.print(f"[cyan]Posts saved to:[/cyan] {site_paths.posts_dir}")
-                for post_path in result.get("posts", [])[:5]:
+                for post_path in result.get("posts", [])[:MAX_POSTS_TO_DISPLAY]:
                     console.print(f"  • {Path(post_path).name}")
-                if posts_count > 5:
-                    console.print(f"  ... and {posts_count - 5} more")
+                if posts_count > MAX_POSTS_TO_DISPLAY:
+                    console.print(f"  ... and {posts_count - MAX_POSTS_TO_DISPLAY} more")
     finally:
         if client:
             client.close()

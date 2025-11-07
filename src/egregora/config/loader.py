@@ -68,12 +68,12 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     try:
         data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         return EgregoraConfig(**data)
-    except yaml.YAMLError as e:
-        logger.exception("Failed to parse %s: %s", config_path, e)
+    except yaml.YAMLError:
+        logger.exception("Failed to parse %s", config_path)
         logger.warning("Creating default config due to YAML error")
         return create_default_config(site_root)
-    except Exception as e:
-        logger.exception("Invalid config in %s: %s", config_path, e)
+    except Exception:
+        logger.exception("Invalid config in %s", config_path)
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 

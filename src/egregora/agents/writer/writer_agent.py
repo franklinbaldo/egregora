@@ -154,7 +154,7 @@ class WriterAgentState(BaseModel):
     annotations_store: AnnotationStore | None
 
 
-def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:
+def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
     """Extract saved post and profile paths from agent message history.
 
     Parses the agent's tool call results to find WritePostResult and
@@ -204,7 +204,7 @@ def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:
     return (saved_posts, saved_profiles)
 
 
-def _register_writer_tools(
+def _register_writer_tools(  # noqa: C901
     agent: Agent[WriterAgentState, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -267,16 +267,16 @@ def _register_writer_tools(
             )
             items: list[MediaItem] = []
             for batch in stream_ibis(results, store._client, batch_size=100):
-                for row in batch.iter_rows(named=True):
-                    items.append(
-                        MediaItem(
-                            media_type=row.get("media_type"),
-                            media_path=row.get("media_path"),
-                            original_filename=row.get("original_filename"),
-                            description=row.get("description"),
-                            similarity=row.get("similarity"),
-                        )
+                items.extend(
+                    MediaItem(
+                        media_type=row.get("media_type"),
+                        media_path=row.get("media_path"),
+                        original_filename=row.get("original_filename"),
+                        description=row.get("description"),
+                        similarity=row.get("similarity"),
                     )
+                    for row in batch.iter_rows(named=True)
+                )
             return SearchMediaResult(results=items)
 
     @agent.tool

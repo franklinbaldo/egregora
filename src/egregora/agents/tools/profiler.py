@@ -137,7 +137,7 @@ def _validate_alias(alias: str) -> str | None:
     return alias.replace("`", "&#96;")
 
 
-def apply_command_to_profile(
+def apply_command_to_profile(  # noqa: C901
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
@@ -309,8 +309,8 @@ def process_commands(
         command = cmd_data["command"]
         try:
             apply_command_to_profile(author_uuid, command, timestamp, profiles_dir)
-        except Exception as e:
-            logger.exception("Failed to process command for %s: %s", author_uuid, e)
+        except Exception:
+            logger.exception("Failed to process command for %s", author_uuid)
     return len(commands)
 
 
@@ -393,7 +393,7 @@ def filter_opted_out_authors(
     return (filtered_table, removed_count)
 
 
-def update_profile_avatar(
+def update_profile_avatar(  # noqa: PLR0913
     author_uuid: Annotated[str, "The anonymized author UUID"],
     avatar_uuid: Annotated[str, "The UUID of the avatar image"],
     avatar_path: Annotated[Path, "The path to the avatar image"],

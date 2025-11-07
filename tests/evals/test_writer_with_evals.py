@@ -234,7 +234,7 @@ def test_writer_live_evaluation(writer_dirs):
     This test is skipped by default. Run with:
         RUN_LIVE_EVALS=1 pytest tests/evals/test_writer_with_evals.py::test_writer_live_evaluation
     """
-    import asyncio
+    import asyncio  # noqa: PLC0415 - only needed for this async test
 
     dataset = create_writer_dataset()
 

@@ -22,6 +22,7 @@ from pyparsing import (
     Combine,
     Literal,
     Optional,
+    ParseBaseException,
     ParserElement,
     Regex,
     Suppress,
@@ -193,7 +194,7 @@ def parse_whatsapp_line(line: str) -> dict[str, str] | None:
     try:
         result = WHATSAPP_MESSAGE_GRAMMAR.parseString(line, parseAll=True)
         return result.asDict()
-    except Exception:
+    except ParseBaseException:
         # Not a message line (continuation or empty)
         return None
 

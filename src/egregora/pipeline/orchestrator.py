@@ -133,7 +133,7 @@ class CoreOrchestrator:
         self.source_adapter = source_adapter
         self.stages = stages
 
-    def run(self, config: PipelineConfig) -> dict[str, Any]:
+    def run(self, config: PipelineConfig) -> dict[str, Any]:  # noqa: C901, PLR0915
         """Execute the complete pipeline.
 
         Args:
@@ -209,7 +209,6 @@ class CoreOrchestrator:
                     logger.info("[green]✔ Completed:[/] %s", stage.stage_name)
             except Exception as e:
                 logger.exception("[red]❌ Stage failed:[/] %s", stage.stage_name)
-                logger.exception("[red]Error:[/] %s", e)
                 msg = f"Stage '{stage.stage_name}' failed: {e}"
                 raise RuntimeError(msg) from e
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")

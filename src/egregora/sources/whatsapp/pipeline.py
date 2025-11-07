@@ -38,7 +38,7 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
         return (group_name, member)
 
 
-def process_whatsapp_export(
+def process_whatsapp_export(  # noqa: PLR0913
     zip_path: Path,
     output_dir: Path = Path("output"),
     period: str = "day",
@@ -86,8 +86,8 @@ def process_whatsapp_export(
         Dict mapping period to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.config.loader import load_egregora_config
-    from egregora.pipeline.runner import run_source_pipeline
+    from egregora.config.loader import load_egregora_config  # noqa: PLC0415
+    from egregora.pipeline.runner import run_source_pipeline  # noqa: PLC0415
 
     # MODERN (Phase 2): Delegate to run_source_pipeline with config
     output_dir = output_dir.expanduser().resolve()

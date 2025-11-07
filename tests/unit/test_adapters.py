@@ -1,5 +1,6 @@
 """Tests for source adapters (WhatsApp, Slack, etc.)."""
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -64,7 +65,6 @@ class TestWhatsAppAdapter:
         adapter = WhatsAppAdapter()
 
         # Create a temporary non-ZIP file
-        import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
             tmp_path = Path(tmp.name)
@@ -127,7 +127,6 @@ class TestSlackAdapter:
         adapter = SlackAdapter()
 
         # Create a temporary empty JSON file
-        import tempfile
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
             tmp.write("{}")

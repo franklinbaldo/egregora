@@ -142,7 +142,7 @@ async def query_rag_impl(
 
 async def ask_llm_impl(question: str, client: genai.Client, model: str) -> AskLLMResult:
     """Simple Q&A with fresh LLM instance."""
-    from google.genai import types as genai_types
+    from google.genai import types as genai_types  # noqa: PLC0415
 
     try:
         response = await call_with_retries(
@@ -158,7 +158,7 @@ async def ask_llm_impl(question: str, client: genai.Client, model: str) -> AskLL
         return AskLLMResult(answer=f"[LLM query failed: {e!s}]")
 
 
-def _register_editor_tools(agent: Agent) -> None:
+def _register_editor_tools(agent: Agent) -> None:  # noqa: C901
     """Register all editor tools on the agent."""
 
     @agent.tool
@@ -277,7 +277,7 @@ def _register_editor_tools(agent: Agent) -> None:
             return BannerResult(status="error", path=None)
 
 
-async def run_editor_session_with_pydantic_agent(
+async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     post_path: Path,
     client: genai.Client,
     model_config: ModelConfig,

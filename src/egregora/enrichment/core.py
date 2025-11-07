@@ -99,7 +99,7 @@ class EnrichmentRuntimeContext:
     target_table: str | None = None
 
 
-def enrich_table(
+def enrich_table(  # noqa: C901, PLR0912, PLR0915
     messages_table: Table,
     media_mapping: dict[str, Path],
     config: EgregoraConfig,
@@ -275,10 +275,10 @@ def enrich_table(
                     logger.info("Deleted media file containing PII: %s", media_job.file_path)
                     pii_media_deleted = True
                     pii_detected_count += 1
-                except (FileNotFoundError, PermissionError) as delete_error:
-                    logger.exception("Failed to delete %s: %s", media_job.file_path, delete_error)
-                except OSError as delete_error:
-                    logger.exception("Unexpected OS error deleting %s: %s", media_job.file_path, delete_error)
+                except (FileNotFoundError, PermissionError):
+                    logger.exception("Failed to delete %s", media_job.file_path)
+                except OSError:
+                    logger.exception("Unexpected OS error deleting %s", media_job.file_path)
             media_job.markdown = markdown_content
             cache.store(media_job.key, {"markdown": markdown_content, "type": "media"})
     for url_job in url_jobs:

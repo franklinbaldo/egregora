@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from egregora.utils import PathTraversalError, safe_path_join, slugify
 from egregora.utils.write_post import write_post
@@ -255,7 +256,6 @@ class TestWritePostSecurity:
         The slug in front matter MUST match the slug used in the filename to
         maintain consistency and prevent security issues.
         """
-        import yaml
 
         output_dir = tmp_path / "posts"
         output_dir.mkdir()

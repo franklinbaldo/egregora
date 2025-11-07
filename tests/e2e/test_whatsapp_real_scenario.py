@@ -401,8 +401,6 @@ def test_enrichment_adds_egregora_messages(
     )
 
     cache = EnrichmentCache(tmp_path / "cache")
-    DummyBatchClient("text-model")
-    DummyBatchClient("vision-model")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
@@ -469,9 +467,11 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
     with zipfile.ZipFile(malicious_zip, "w") as archive:
         archive.writestr("../etc/passwd", "malicious content")
 
-    with pytest.raises(ZipValidationError, match="path traversal"):
-        with zipfile.ZipFile(malicious_zip) as archive:
-            validate_zip_contents(archive)
+    with (
+        pytest.raises(ZipValidationError, match="path traversal"),
+        zipfile.ZipFile(malicious_zip) as archive,
+    ):
+        validate_zip_contents(archive)
 
 
 def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
@@ -526,8 +526,6 @@ def test_enrichment_handles_schema_mismatch(
     )
 
     cache = EnrichmentCache(tmp_path / "cache")
-    DummyBatchClient("text-model")
-    DummyBatchClient("vision-model")
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)

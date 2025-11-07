@@ -9,6 +9,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from egregora.config.loader import load_egregora_config
+
 if TYPE_CHECKING:
     from egregora.config.schema import EgregoraConfig
 
@@ -117,7 +119,5 @@ def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConf
         ModelConfig instance
 
     """
-    from egregora.config.loader import load_egregora_config
-
     egregora_config = load_egregora_config(site_root)
     return ModelConfig(config=egregora_config, cli_model=cli_model)

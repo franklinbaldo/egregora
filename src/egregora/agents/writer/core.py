@@ -149,7 +149,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-def _process_tool_calls(
+def _process_tool_calls(  # noqa: C901, PLR0913
     candidate: genai_types.Candidate,
     output_dir: Path,
     profiles_dir: Path,
@@ -223,8 +223,8 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
         for post_path in saved_posts:
             index_post(Path(post_path), store, embedding_model=embedding_model)
         logger.info("Indexed %s new posts in RAG", len(saved_posts))
-    except Exception as e:
-        logger.exception("Failed to index posts in RAG: %s", e)
+    except Exception:
+        logger.exception("Failed to index posts in RAG")
 
 
 def _write_posts_for_period_pydantic(

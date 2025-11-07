@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from datetime import date as date_type
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,13 +19,14 @@ from google import genai
 from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_period
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
+from egregora.pipeline import group_by_period
 from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
@@ -36,7 +38,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["run_source_pipeline"]
 
 
-def _perform_enrichment(
+def _perform_enrichment(  # noqa: PLR0913
     period_table: ir.Table,
     media_mapping: dict[str, Path],
     config: EgregoraConfig,
@@ -73,7 +75,7 @@ def _perform_enrichment(
     )
 
 
-def run_source_pipeline(
+def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     source: str,
     input_path: Path,
     output_dir: Path,
@@ -114,8 +116,6 @@ def run_source_pipeline(
         RuntimeError: If pipeline execution fails
 
     """
-    from egregora.pipeline import group_by_period
-
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
     output_dir = output_dir.expanduser().resolve()
@@ -145,8 +145,6 @@ def run_source_pipeline(
         retrieval_overfetch = config.rag.overfetch
 
         # Parse date strings if provided
-        from datetime import date as date_type
-
         from_date: date_type | None = None
         to_date: date_type | None = None
         if config.pipeline.from_date:
@@ -272,8 +270,6 @@ def run_source_pipeline(
                 enriched_table = period_table
 
             # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
-            from egregora.agents.writer import WriterConfig
-
             writer_config = WriterConfig(
                 output_dir=posts_dir,
                 profiles_dir=profiles_dir,
@@ -301,8 +297,8 @@ def run_source_pipeline(
                     logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
                 else:
                     logger.info("[yellow]No media enrichments to index[/]")
-            except Exception as e:
-                logger.exception("[red]Failed to index media into RAG:[/] %s", e)
+            except Exception:
+                logger.exception("[red]Failed to index media into RAG[/]")
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
     finally:

@@ -102,12 +102,16 @@ def parse_egregora_command(message: str) -> dict | None:
     message = message.replace(""", '"').replace(""", '"')
     message = message.replace("'", "'").replace("'", "'")
     simple_cmd = message.strip().lower()
-    if simple_cmd == EgregoraCommand.OPT_OUT.value:
-        return {"command": "opt-out"}
-    if simple_cmd == EgregoraCommand.OPT_IN.value:
-        return {"command": "opt-in"}
-    if simple_cmd == "/egregora unset avatar":
-        return {"command": "unset", "target": "avatar", "value": None}
+
+    # Handle simple commands with dictionary lookup
+    simple_commands = {
+        EgregoraCommand.OPT_OUT.value: {"command": "opt-out"},
+        EgregoraCommand.OPT_IN.value: {"command": "opt-in"},
+        "/egregora unset avatar": {"command": "unset", "target": "avatar", "value": None},
+    }
+    if simple_cmd in simple_commands:
+        return simple_commands[simple_cmd]
+
     match = EGREGORA_COMMAND_PATTERN.match(message.strip())
     if not match:
         return None
@@ -115,9 +119,8 @@ def parse_egregora_command(message: str) -> dict | None:
     args = match.group(2).strip()
     if action == "unset":
         return {"command": "unset", "target": args.lower(), "value": None}
-    if action in COMMAND_REGISTRY:
-        return COMMAND_REGISTRY[action](args)
-    return None
+    # Use get() with lambda to handle missing keys without additional return
+    return COMMAND_REGISTRY.get(action, lambda _: None)(args)
 
 
 def extract_commands(messages: Table) -> list[dict]:
@@ -277,34 +280,58 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
         timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
 
     """
+    tables = _parse_all_exports(exports, timezone)
+    if not tables:
+        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ensure_message_schema(empty_table, timezone=timezone)
+    combined = _combine_tables(tables)
+    combined = _add_message_ids(combined)
+    combined = _cleanup_import_columns(combined)
+    combined = ensure_message_schema(combined, timezone=timezone)
+    return anonymize_table(combined)
+
+
+def _parse_all_exports(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None) -> list[Table]:
+    """Parse all exports and return list of tables."""
     tables: list[Table] = []
     for export in exports:
         try:
-            with zipfile.ZipFile(export.zip_path) as zf:
-                validate_zip_contents(zf)
-                ensure_safe_member_size(zf, export.chat_file)
-                try:
-                    with zf.open(export.chat_file) as raw:
-                        text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                        rows = _parse_messages(text_stream, export, timezone)
-                except UnicodeDecodeError as exc:
-                    msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
-                    raise ZipValidationError(msg) from exc
+            rows = _parse_single_export(export, timezone)
             if rows:
                 for row in rows:
                     row[_IMPORT_SOURCE_COLUMN] = len(tables)
                 messages = ibis.memtable(rows)
-                if _IMPORT_ORDER_COLUMN in messages.columns:
-                    messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
-                else:
-                    messages = messages.order_by("timestamp")
+                messages = _sort_messages(messages)
                 tables.append(messages)
         except ZipValidationError as exc:
             logger.warning("Skipping %s due to unsafe ZIP: %s", export.zip_path.name, exc)
             continue
-    if not tables:
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return ensure_message_schema(empty_table, timezone=timezone)
+    return tables
+
+
+def _parse_single_export(export: WhatsAppExport, timezone: str | ZoneInfo | None) -> list[dict]:
+    """Parse a single export and return rows."""
+    with zipfile.ZipFile(export.zip_path) as zf:
+        validate_zip_contents(zf)
+        ensure_safe_member_size(zf, export.chat_file)
+        try:
+            with zf.open(export.chat_file) as raw:
+                text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+                return _parse_messages(text_stream, export, timezone)
+        except UnicodeDecodeError as exc:
+            msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
+            raise ZipValidationError(msg) from exc
+
+
+def _sort_messages(messages: Table) -> Table:
+    """Sort messages by timestamp and import order if present."""
+    if _IMPORT_ORDER_COLUMN in messages.columns:
+        return messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
+    return messages.order_by("timestamp")
+
+
+def _combine_tables(tables: list[Table]) -> Table:
+    """Combine multiple tables and sort by timestamp."""
     combined = tables[0]
     for table in tables[1:]:
         combined = combined.union(table, distinct=False)
@@ -314,19 +341,20 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
             order_keys.append(combined[_IMPORT_SOURCE_COLUMN])
         if _IMPORT_ORDER_COLUMN in combined.columns:
             order_keys.append(combined[_IMPORT_ORDER_COLUMN])
-        combined = combined.order_by(order_keys)
-    else:
-        combined = combined.order_by("timestamp")
-    combined = _add_message_ids(combined)
+        return combined.order_by(order_keys)
+    return combined.order_by("timestamp")
+
+
+def _cleanup_import_columns(combined: Table) -> Table:
+    """Remove temporary import tracking columns."""
     drop_columns: list[str] = []
     if _IMPORT_ORDER_COLUMN in combined.columns:
         drop_columns.append(_IMPORT_ORDER_COLUMN)
     if _IMPORT_SOURCE_COLUMN in combined.columns:
         drop_columns.append(_IMPORT_SOURCE_COLUMN)
     if drop_columns:
-        combined = combined.drop(*drop_columns)
-    combined = ensure_message_schema(combined, timezone=timezone)
-    return anonymize_table(combined)
+        return combined.drop(*drop_columns)
+    return combined
 
 
 # Date parsing utilities (used by grammar parser)
@@ -456,15 +484,17 @@ def _parse_messages(
             rows.append(row)
             position += 1
 
+        # Create timestamp with proper timezone
+        tz = _resolve_timezone(timezone)
+        timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz)
+
         # Start new message
         builder = _start_message_builder(
-            _export=export,
+            timestamp=timestamp,
             msg_date=msg_date,
-            msg_time=msg_time,
             author=_normalize_text(parsed["author"].strip()),
             initial_message=_normalize_text(parsed["message"].strip()),
             original_line=prepared.normalized,
-            timezone=timezone,
         )
 
     # Finalize last message
@@ -476,23 +506,23 @@ def _parse_messages(
     return rows
 
 
+def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
+    """Resolve timezone string or object to ZoneInfo."""
+    if timezone is None:
+        return UTC
+    if isinstance(timezone, ZoneInfo):
+        return timezone
+    return ZoneInfo(timezone)
+
+
 def _start_message_builder(
     *,
-    _export: WhatsAppExport,
+    timestamp: datetime,
     msg_date: date,
-    msg_time: datetime.time | None,
     author: str,
     initial_message: str,
     original_line: str,
-    timezone: str | ZoneInfo | None = None,
 ) -> _MessageBuilder:
-    if timezone is None:
-        tz = UTC
-    elif isinstance(timezone, ZoneInfo):
-        tz = timezone
-    else:
-        tz = ZoneInfo(timezone)
-    timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz)
     builder = _MessageBuilder(timestamp=timestamp, date=msg_date, author=author)
     builder.append(initial_message, original_line)
     return builder

@@ -98,7 +98,7 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
     if hasattr(frame, "to_pylist"):
         try:
             return [dict(row) for row in frame.to_pylist()]
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             msg = f"Failed to convert frame to records. This indicates the stream_ibis fast path was not used. Original error: {e}"
             raise RuntimeError(msg) from e
     if isinstance(frame, list):

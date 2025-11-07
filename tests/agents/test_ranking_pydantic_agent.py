@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.ranking.ranking_agent import run_comparison_with_pydantic_agent
+from egregora.agents.ranking.ranking_agent import ComparisonConfig, run_comparison_with_pydantic_agent
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -100,16 +100,17 @@ async def test_ranking_agent_full_comparison(site_dir: Path, test_profile: Path)
     # In practice, tools would be called, but TestModel makes this difficult
     # The agent will fail validation since tools weren't called
     # So we expect a RuntimeError
+    config = ComparisonConfig(
+        site_dir=site_dir,
+        post_a_id="post-a",
+        post_b_id="post-b",
+        profile_path=test_profile,
+        api_key="test-key",  # Won't be used with TestModel
+        model="models/gemini-flash-latest",
+        agent_model=test_model,
+    )
     with pytest.raises(RuntimeError, match="Ranking agent execution failed"):
-        await run_comparison_with_pydantic_agent(
-            site_dir=site_dir,
-            post_a_id="post-a",
-            post_b_id="post-b",
-            profile_path=test_profile,
-            api_key="test-key",  # Won't be used with TestModel
-            model="models/gemini-flash-latest",
-            agent_model=test_model,
-        )
+        await run_comparison_with_pydantic_agent(config)
 
 
 @pytest.mark.anyio
@@ -122,15 +123,16 @@ async def test_ranking_agent_missing_winner(site_dir: Path, test_profile: Path):
         custom_output_text="Missing winner",
     )
 
+    config = ComparisonConfig(
+        site_dir=site_dir,
+        post_a_id="post-a",
+        post_b_id="post-b",
+        profile_path=test_profile,
+        api_key="test-key",
+        agent_model=test_model,
+    )
     with pytest.raises(RuntimeError, match="Ranking agent execution failed"):
-        await run_comparison_with_pydantic_agent(
-            site_dir=site_dir,
-            post_a_id="post-a",
-            post_b_id="post-b",
-            profile_path=test_profile,
-            api_key="test-key",
-            agent_model=test_model,
-        )
+        await run_comparison_with_pydantic_agent(config)
 
 
 @pytest.mark.anyio
@@ -143,15 +145,16 @@ async def test_ranking_agent_missing_post_a_comment(site_dir: Path, test_profile
         custom_output_text="Missing comment A",
     )
 
+    config = ComparisonConfig(
+        site_dir=site_dir,
+        post_a_id="post-a",
+        post_b_id="post-b",
+        profile_path=test_profile,
+        api_key="test-key",
+        agent_model=test_model,
+    )
     with pytest.raises(RuntimeError, match="Ranking agent execution failed"):
-        await run_comparison_with_pydantic_agent(
-            site_dir=site_dir,
-            post_a_id="post-a",
-            post_b_id="post-b",
-            profile_path=test_profile,
-            api_key="test-key",
-            agent_model=test_model,
-        )
+        await run_comparison_with_pydantic_agent(config)
 
 
 @pytest.mark.anyio
@@ -164,15 +167,16 @@ async def test_ranking_agent_missing_post_b_comment(site_dir: Path, test_profile
         custom_output_text="Missing comment B",
     )
 
+    config = ComparisonConfig(
+        site_dir=site_dir,
+        post_a_id="post-a",
+        post_b_id="post-b",
+        profile_path=test_profile,
+        api_key="test-key",
+        agent_model=test_model,
+    )
     with pytest.raises(RuntimeError, match="Ranking agent execution failed"):
-        await run_comparison_with_pydantic_agent(
-            site_dir=site_dir,
-            post_a_id="post-a",
-            post_b_id="post-b",
-            profile_path=test_profile,
-            api_key="test-key",
-            agent_model=test_model,
-        )
+        await run_comparison_with_pydantic_agent(config)
 
 
 @pytest.mark.anyio
@@ -181,12 +185,13 @@ async def test_ranking_agent_nonexistent_post(site_dir: Path, test_profile: Path
     """Test ranking agent with nonexistent post file."""
     test_model = TestModel()
 
+    config = ComparisonConfig(
+        site_dir=site_dir,
+        post_a_id="nonexistent-post",
+        post_b_id="post-b",
+        profile_path=test_profile,
+        api_key="test-key",
+        agent_model=test_model,
+    )
     with pytest.raises(ValueError, match="Post not found"):
-        await run_comparison_with_pydantic_agent(
-            site_dir=site_dir,
-            post_a_id="nonexistent-post",
-            post_b_id="post-b",
-            profile_path=test_profile,
-            api_key="test-key",
-            agent_model=test_model,
-        )
+        await run_comparison_with_pydantic_agent(config)

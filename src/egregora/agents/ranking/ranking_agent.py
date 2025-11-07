@@ -80,6 +80,101 @@ class RankingAgentState(BaseModel):
     site_dir: Path
 
 
+class ComparisonData(BaseModel):
+    """Data for a single comparison between two posts."""
+
+    profile_id: str
+    post_a: str
+    post_b: str
+    winner: str
+    comment_a: str
+    stars_a: int
+    comment_b: str
+    stars_b: int
+
+
+class ComparisonConfig(BaseModel):
+    """Configuration for running a comparison."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    site_dir: Path
+    post_a_id: str
+    post_b_id: str
+    profile_path: Path
+    api_key: str
+    model: str = "models/gemini-flash-latest"
+    agent_model: object | None = None
+
+
+def _parse_message_content(content: Any) -> dict[str, Any] | None:
+    """Parse message content into a dictionary.
+
+    Args:
+        content: Message content (string, Pydantic model, or dict)
+
+    Returns:
+        Parsed dictionary or None if parsing fails
+
+    """
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    if hasattr(content, "model_dump"):
+        return content.model_dump()
+    if hasattr(content, "__dict__"):
+        return vars(content)
+    if isinstance(content, dict):
+        return content
+    return None
+
+
+def _is_winner_data(data: dict[str, Any]) -> bool:
+    """Check if data contains winner choice."""
+    return "winner" in data and "comment" not in data and "stars" not in data
+
+
+def _is_comment_data(data: dict[str, Any]) -> bool:
+    """Check if data contains post comment."""
+    return "comment" in data and "stars" in data
+
+
+class _CommentState:
+    """Mutable state for tracking comments during parsing."""
+
+    def __init__(self) -> None:
+        """Initialize empty comment state."""
+        self.comment_a: str | None = None
+        self.stars_a: int | None = None
+        self.comment_b: str | None = None
+        self.stars_b: int | None = None
+
+    def assign_comment(self, data: dict[str, Any], tool_name: str) -> None:
+        """Assign comment data to the appropriate post (A or B).
+
+        Args:
+            data: Parsed comment data
+            tool_name: Name of the tool that produced the data
+
+        """
+        comment = data["comment"]
+        stars = data["stars"]
+
+        if "post_a" in tool_name.lower() and self.comment_a is None:
+            self.comment_a = comment
+            self.stars_a = stars
+        elif "post_b" in tool_name.lower() and self.comment_b is None:
+            self.comment_b = comment
+            self.stars_b = stars
+        elif self.comment_a is None:
+            self.comment_a = comment
+            self.stars_a = stars
+        elif self.comment_b is None:
+            self.comment_b = comment
+            self.stars_b = stars
+
+
 def _extract_ranking_results(messages: Any) -> RankingResult:
     """Extract ranking results from agent message history.
 
@@ -96,54 +191,22 @@ def _extract_ranking_results(messages: Any) -> RankingResult:
 
     """
     winner: str | None = None
-    comment_a: str | None = None
-    stars_a: int | None = None
-    comment_b: str | None = None
-    stars_b: int | None = None
+    state = _CommentState()
 
-    # Try to iterate through messages
     try:
         for message in messages:
-            # Check if this is a tool return message
-            if hasattr(message, "kind") and message.kind == "tool-return":
-                # Parse the content - it might be JSON or a Pydantic model
-                content = message.content
-                if isinstance(content, str):
-                    try:
-                        data = json.loads(content)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-                elif hasattr(content, "model_dump"):
-                    data = content.model_dump()
-                elif hasattr(content, "__dict__"):
-                    data = vars(content)
-                else:
-                    data = content
+            if not (hasattr(message, "kind") and message.kind == "tool-return"):
+                continue
 
-                # Extract results based on tool name
-                if isinstance(data, dict):
-                    # WinnerChoice has just 'winner' field
-                    if "winner" in data and "comment" not in data and "stars" not in data:
-                        winner = data["winner"]
-                    # PostComment has 'comment' and 'stars' fields
-                    elif "comment" in data and "stars" in data:
-                        # Need to determine if this is comment_a or comment_b
-                        # Look at tool name in message
-                        tool_name = getattr(message, "tool_name", None) or ""
-                        if "post_a" in tool_name.lower() and comment_a is None:
-                            comment_a = data["comment"]
-                            stars_a = data["stars"]
-                        elif "post_b" in tool_name.lower() and comment_b is None:
-                            comment_b = data["comment"]
-                            stars_b = data["stars"]
-                        elif comment_a is None:
-                            # First comment seen, assume it's A
-                            comment_a = data["comment"]
-                            stars_a = data["stars"]
-                        elif comment_b is None:
-                            # Second comment seen, assume it's B
-                            comment_b = data["comment"]
-                            stars_b = data["stars"]
+            data = _parse_message_content(message.content)
+            if not isinstance(data, dict):
+                continue
+
+            if _is_winner_data(data):
+                winner = data["winner"]
+            elif _is_comment_data(data):
+                tool_name = getattr(message, "tool_name", None) or ""
+                state.assign_comment(data, tool_name)
     except (AttributeError, TypeError) as e:
         logger.debug("Could not parse tool results: %s", e)
 
@@ -151,15 +214,19 @@ def _extract_ranking_results(messages: Any) -> RankingResult:
     if winner is None:
         msg = "Agent did not choose a winner"
         raise ValueError(msg)
-    if comment_a is None or stars_a is None:
+    if state.comment_a is None or state.stars_a is None:
         msg = "Agent did not comment on Post A"
         raise ValueError(msg)
-    if comment_b is None or stars_b is None:
+    if state.comment_b is None or state.stars_b is None:
         msg = "Agent did not comment on Post B"
         raise ValueError(msg)
 
     return RankingResult(
-        winner=winner, comment_a=comment_a, stars_a=stars_a, comment_b=comment_b, stars_b=stars_b
+        winner=winner,
+        comment_a=state.comment_a,
+        stars_a=state.stars_a,
+        comment_b=state.comment_b,
+        stars_b=state.stars_b,
     )
 
 
@@ -173,31 +240,55 @@ def load_post_content(post_path: Path) -> str:
     return content.strip()
 
 
+def _extract_alias_from_lines(lines: list[str], start_idx: int) -> str | None:
+    """Extract alias from Display Preferences section.
+
+    Args:
+        lines: Content lines
+        start_idx: Index of "## Display Preferences" line
+
+    Returns:
+        Alias string or None
+
+    """
+    for j in range(start_idx + 1, min(start_idx + 5, len(lines))):
+        if lines[j].strip().startswith("- Alias:"):
+            return lines[j].split("- Alias:", 1)[1].strip()
+    return None
+
+
+def _extract_bio_from_lines(lines: list[str], start_idx: int) -> str | None:
+    """Extract bio from Bio section.
+
+    Args:
+        lines: Content lines
+        start_idx: Index of "## Bio" line
+
+    Returns:
+        Bio string or None
+
+    """
+    bio_lines = []
+    for j in range(start_idx + 2, len(lines)):
+        if lines[j].strip().startswith("##"):
+            break
+        bio_lines.append(lines[j])
+    bio_text = "\n".join(bio_lines).strip()
+    return bio_text if bio_text else None
+
+
 def load_profile(profile_path: Path) -> dict[str, Any]:
     """Load author profile metadata."""
     content = profile_path.read_text()
-    profile = {"uuid": profile_path.stem, "alias": None, "bio": None}
-    if "## Display Preferences" in content:
-        lines = content.split("\n")
-        for i, line in enumerate(lines):
-            if line.strip() == "## Display Preferences":
-                for j in range(i + 1, min(i + 5, len(lines))):
-                    if lines[j].strip().startswith("- Alias:"):
-                        alias = lines[j].split("- Alias:", 1)[1].strip()
-                        profile["alias"] = alias
-                        break
-                break
-    if "## Bio" in content:
-        lines = content.split("\n")
-        for i, line in enumerate(lines):
-            if line.strip() == "## Bio":
-                bio_lines = []
-                for j in range(i + 2, len(lines)):
-                    if lines[j].strip().startswith("##"):
-                        break
-                    bio_lines.append(lines[j])
-                profile["bio"] = "\n".join(bio_lines).strip()
-                break
+    lines = content.split("\n")
+    profile: dict[str, Any] = {"uuid": profile_path.stem, "alias": None, "bio": None}
+
+    for i, line in enumerate(lines):
+        if line.strip() == "## Display Preferences":
+            profile["alias"] = _extract_alias_from_lines(lines, i)
+        elif line.strip() == "## Bio":
+            profile["bio"] = _extract_bio_from_lines(lines, i)
+
     return profile
 
 
@@ -261,29 +352,19 @@ def _find_post_path(posts_dir: Path, post_id: str) -> Path:
     raise ValueError(msg)
 
 
-def save_comparison(
-    store: RankingStore,
-    profile_id: str,
-    post_a: str,
-    post_b: str,
-    winner: str,
-    comment_a: str,
-    stars_a: int,
-    comment_b: str,
-    stars_b: int,
-) -> None:
+def save_comparison(store: RankingStore, comparison: ComparisonData) -> None:
     """Save comparison results to store."""
     comparison_data = {
         "comparison_id": str(uuid.uuid4()),
         "timestamp": datetime.now(UTC),
-        "profile_id": profile_id,
-        "post_a": post_a,
-        "post_b": post_b,
-        "winner": winner,
-        "comment_a": comment_a,
-        "stars_a": stars_a,
-        "comment_b": comment_b,
-        "stars_b": stars_b,
+        "profile_id": comparison.profile_id,
+        "post_a": comparison.post_a,
+        "post_b": comparison.post_b,
+        "winner": comparison.winner,
+        "comment_a": comparison.comment_a,
+        "stars_a": comparison.stars_a,
+        "comment_b": comparison.comment_b,
+        "stars_b": comparison.stars_b,
     }
     store.save_comparison(comparison_data)
 
@@ -364,63 +445,49 @@ def _register_ranking_tools(agent: Agent) -> None:
         return PostComment(comment=comment, stars=stars)
 
 
-async def run_comparison_with_pydantic_agent(
-    site_dir: Path,
-    post_a_id: str,
-    post_b_id: str,
-    profile_path: Path,
-    api_key: str,
-    model: str = "models/gemini-flash-latest",
-    agent_model: object | None = None,  # Test model injection - accepts any Pydantic AI compatible model
-) -> dict[str, Any]:
+async def run_comparison_with_pydantic_agent(config: ComparisonConfig) -> dict[str, Any]:
     """Run a three-turn comparison between two posts using Pydantic AI agent.
 
     Args:
-        site_dir: Root directory of MkDocs site
-        post_a_id: Post ID (filename stem) for post A
-        post_b_id: Post ID (filename stem) for post B
-        profile_path: Path to profile to impersonate
-        api_key: Gemini API key
-        model: Model name to use (default: models/gemini-flash-latest)
-        agent_model: Optional test model for deterministic tests
+        config: Configuration for running the comparison
 
     Returns:
         dict with comparison results (winner, comments, stars, ratings)
 
     """
-    rankings_dir = site_dir / "rankings"
+    rankings_dir = config.site_dir / "rankings"
     store = RankingStore(rankings_dir)
-    site_paths = resolve_site_paths(site_dir)
+    site_paths = resolve_site_paths(config.site_dir)
     posts_dir = site_paths.posts_dir
-    post_a_path = _find_post_path(posts_dir, post_a_id)
-    post_b_path = _find_post_path(posts_dir, post_b_id)
+    post_a_path = _find_post_path(posts_dir, config.post_a_id)
+    post_b_path = _find_post_path(posts_dir, config.post_b_id)
     content_a = load_post_content(post_a_path)
     content_b = load_post_content(post_b_path)
-    profile = load_profile(profile_path)
-    existing_comments_a = load_comments_for_post(post_a_id, store)
-    existing_comments_b = load_comments_for_post(post_b_id, store)
+    profile = load_profile(config.profile_path)
+    existing_comments_a = load_comments_for_post(config.post_a_id, store)
+    existing_comments_b = load_comments_for_post(config.post_b_id, store)
     state = RankingAgentState(
-        post_a_id=post_a_id,
-        post_b_id=post_b_id,
+        post_a_id=config.post_a_id,
+        post_b_id=config.post_b_id,
         content_a=content_a,
         content_b=content_b,
         profile=profile,
         existing_comments_a=existing_comments_a,
         existing_comments_b=existing_comments_b,
         store=store,
-        site_dir=site_dir,
+        site_dir=config.site_dir,
     )
     comments_a_display = existing_comments_a or "No comments yet. Be the first!"
     comments_b_display = existing_comments_b or "No comments yet. Be the first!"
     alias_or_uuid = profile.get("alias") or profile["uuid"]
-    prompt = f"You are {alias_or_uuid}, impersonating their reading style and preferences.\n\nProfile bio: {profile.get('bio') or 'No bio available'}\n\nYou will complete a three-turn comparison:\n\n# Turn 1: Choose Winner\nRead these two blog posts and decide which one is better overall.\n\n## Post A: {post_a_id}\n{content_a}\n\n## Post B: {post_b_id}\n{content_b}\n\nUse the choose_winner tool to declare the winner.\n\n# Turn 2: Comment on Post A\nProvide detailed feedback on Post A.\n\n## What others have said about Post A:\n{comments_a_display}\n\nUse the comment_post_a tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\n# Turn 3: Comment on Post B\nProvide detailed feedback on Post B.\n\n## What others have said about Post B:\n{comments_b_display}\n\nUse the comment_post_b tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\nComplete all three turns: choose_winner, comment_post_a, comment_post_b."
-    with logfire_span("ranking_agent", post_a=post_a_id, post_b=post_b_id, model=model):
-        if agent_model is None:
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-            model_instance = model
+    prompt = f"You are {alias_or_uuid}, impersonating their reading style and preferences.\n\nProfile bio: {profile.get('bio') or 'No bio available'}\n\nYou will complete a three-turn comparison:\n\n# Turn 1: Choose Winner\nRead these two blog posts and decide which one is better overall.\n\n## Post A: {config.post_a_id}\n{content_a}\n\n## Post B: {config.post_b_id}\n{content_b}\n\nUse the choose_winner tool to declare the winner.\n\n# Turn 2: Comment on Post A\nProvide detailed feedback on Post A.\n\n## What others have said about Post A:\n{comments_a_display}\n\nUse the comment_post_a tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\n# Turn 3: Comment on Post B\nProvide detailed feedback on Post B.\n\n## What others have said about Post B:\n{comments_b_display}\n\nUse the comment_post_b tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\nComplete all three turns: choose_winner, comment_post_a, comment_post_b."
+    with logfire_span("ranking_agent", post_a=config.post_a_id, post_b=config.post_b_id, model=config.model):
+        if config.agent_model is None:
+            if config.api_key:
+                os.environ["GOOGLE_API_KEY"] = config.api_key
+            model_instance = config.model
         else:
-            model_instance = agent_model
+            model_instance = config.agent_model
         agent = Agent[RankingAgentState, str](
             model=model_instance,
             deps_type=RankingAgentState,
@@ -433,24 +500,24 @@ async def run_comparison_with_pydantic_agent(
             # Extract results from message history
             ranking_result = _extract_ranking_results(result.all_messages())
 
-            save_comparison(
-                store=store,
+            comparison = ComparisonData(
                 profile_id=profile["uuid"],
-                post_a=post_a_id,
-                post_b=post_b_id,
+                post_a=config.post_a_id,
+                post_b=config.post_b_id,
                 winner=ranking_result.winner,
                 comment_a=ranking_result.comment_a,
                 stars_a=ranking_result.stars_a,
                 comment_b=ranking_result.comment_b,
                 stars_b=ranking_result.stars_b,
             )
-            rating_a = store.get_rating(post_a_id)
-            rating_b = store.get_rating(post_b_id)
+            save_comparison(store=store, comparison=comparison)
+            rating_a = store.get_rating(config.post_a_id)
+            rating_b = store.get_rating(config.post_b_id)
             _validate_ratings_exist(rating_a, rating_b)
             new_elo_a, new_elo_b = calculate_elo_update(
                 rating_a["elo_global"], rating_b["elo_global"], ranking_result.winner
             )
-            store.update_ratings(post_a_id, post_b_id, new_elo_a, new_elo_b)
+            store.update_ratings(config.post_a_id, config.post_b_id, new_elo_a, new_elo_b)
         except Exception as e:
             console.print(f"[red]Ranking agent failed: {e}[/red]")
             msg = "Ranking agent execution failed"

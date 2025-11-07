@@ -61,7 +61,7 @@ def validate_ir_schema(table: Table) -> tuple[bool, list[str]]:
 
 def _is_dtype_compatible(actual: dt.DataType, expected: dt.DataType) -> bool:
     """Check if two dtypes are compatible (accounting for nullability)."""
-    if type(actual) != type(expected):
+    if type(actual) is not type(expected):
         return False
     if isinstance(actual, dt.Timestamp) and isinstance(expected, dt.Timestamp):
         actual_has_tz = actual.timezone is not None

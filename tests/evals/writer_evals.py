@@ -117,7 +117,7 @@ def create_writer_quality_dataset_with_judges() -> Dataset:
         Dataset with test cases and LLM judges
 
     """
-    from pydantic_evals.evaluators import LLMJudge
+    from pydantic_evals.evaluators import LLMJudge  # noqa: PLC0415 - optional eval dependency
 
     cases = create_writer_dataset().cases
 

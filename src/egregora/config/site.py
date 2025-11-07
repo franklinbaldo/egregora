@@ -112,7 +112,7 @@ def load_mkdocs_config(
         logger.debug("mkdocs.yml not found when starting from %s", start)
         return ({}, None)
     try:
-        config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+        config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506 - trusted config file
     except yaml.YAMLError as exc:
         logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
         config = {}

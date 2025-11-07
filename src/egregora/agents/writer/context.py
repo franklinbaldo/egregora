@@ -1,5 +1,6 @@
 """Context building utilities for writer - RAG and profile loading."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,7 +33,7 @@ class RagErrorReason:
     SYSTEM_ERROR = "rag_error"
 
 
-def build_rag_context_for_prompt(
+def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
     rag_dir: Path,
     client: genai.Client,
@@ -68,8 +69,6 @@ def build_rag_context_for_prompt(
 
     """
     if use_pydantic_helpers:
-        import asyncio
-
         return asyncio.run(
             build_rag_context_for_writer(
                 query=table_markdown,
@@ -120,7 +119,7 @@ def build_rag_context_for_prompt(
     return "\n".join(lines).strip()
 
 
-def _query_rag_for_context(
+def _query_rag_for_context(  # noqa: PLR0913
     table: Table,
     _client: genai.Client,
     rag_dir: Path,

@@ -150,7 +150,7 @@ def save_table(
     table: Annotated[Table, "The Ibis table to save"],
     output_path: Annotated[Path, "The path to the output file, extension determines format if not specified"],
     *,
-    format: Annotated[SerializationFormat, "The output format ('csv' or 'parquet')"] = "csv",
+    file_format: Annotated[SerializationFormat, "The output format ('csv' or 'parquet')"] = "csv",
     index: Annotated[bool, "Whether to include the row index (only for CSV, ignored for Parquet)"] = False,
 ) -> None:
     """Save an Ibis Table to file with automatic format detection or explicit format.
@@ -158,7 +158,7 @@ def save_table(
     Args:
         table: Ibis Table to save
         output_path: Path to output file (extension determines format if format not specified)
-        format: Output format ('csv' or 'parquet'). Auto-detected from extension if not provided.
+        file_format: Output format ('csv' or 'parquet'). Auto-detected from extension if not provided.
         index: Whether to include row index (only for CSV, ignored for Parquet)
 
     Raises:
@@ -171,19 +171,19 @@ def save_table(
         save_table_to_parquet(table, output_path)
     elif output_path.suffix.lower() == ".csv":
         save_table_to_csv(table, output_path, index=index)
-    elif format == "parquet":
+    elif file_format == "parquet":
         save_table_to_parquet(table, output_path)
-    elif format == "csv":
+    elif file_format == "csv":
         save_table_to_csv(table, output_path, index=index)
     else:
-        msg = f"Unsupported format: {format}. Use 'csv' or 'parquet', or ensure file extension is .csv or .parquet"
+        msg = f"Unsupported format: {file_format}. Use 'csv' or 'parquet', or ensure file extension is .csv or .parquet"
         raise ValueError(msg)
 
 
 def load_table(
     input_path: Annotated[Path, "The path to the input file"],
     *,
-    format: Annotated[
+    file_format: Annotated[
         SerializationFormat | None,
         "The input format ('csv' or 'parquet'), auto-detected from extension if not provided",
     ] = None,
@@ -192,7 +192,7 @@ def load_table(
 
     Args:
         input_path: Path to input file
-        format: Input format ('csv' or 'parquet'). Auto-detected from extension if not provided.
+        file_format: Input format ('csv' or 'parquet'). Auto-detected from extension if not provided.
 
     Returns:
         Ibis Table loaded from file
@@ -206,7 +206,7 @@ def load_table(
     if not input_path.exists():
         msg = f"File not found: {input_path}"
         raise FileNotFoundError(msg)
-    detected_format = format
+    detected_format = file_format
     if detected_format is None:
         if input_path.suffix.lower() == ".parquet":
             detected_format = "parquet"

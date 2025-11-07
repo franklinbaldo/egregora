@@ -33,6 +33,9 @@ MAX_IMAGE_DIMENSION = 4096
 DEFAULT_DOWNLOAD_TIMEOUT = 30.0
 MAX_REDIRECT_HOPS = 10
 DOWNLOAD_CHUNK_SIZE = 8192
+IP_VERSION_IPV6 = 6
+IP_VERSION_IPV4 = 4
+WEBP_HEADER_SIZE = 12
 MAGIC_BYTES = {
     b"\xff\xd8\xff": "image/jpeg",
     b"\x89PNG\r\n\x1a\n": "image/png",
@@ -75,6 +78,52 @@ def _get_avatar_directory(docs_dir: Path) -> Path:
     return avatar_dir
 
 
+def _validate_ip_address(ip_str: str, url: str) -> None:
+    """Validate a single IP address against blocked ranges.
+
+    Args:
+        ip_str: IP address string to validate
+        url: Original URL (for error messages)
+
+    Raises:
+        AvatarProcessingError: If IP is in a blocked range
+
+    """
+    try:
+        ip_addr = ipaddress.ip_address(ip_str)
+    except ValueError as e:
+        msg = f"Invalid IP address '{ip_str}': {e}"
+        raise AvatarProcessingError(msg) from e
+
+    # Check for IPv4-mapped IPv6 addresses
+    if ip_addr.version == IP_VERSION_IPV6 and ip_addr.ipv4_mapped:
+        ipv4_addr = ip_addr.ipv4_mapped
+        logger.debug("Detected IPv4-mapped address: %s -> %s", ip_addr, ipv4_addr)
+        for blocked_range in BLOCKED_IP_RANGES:
+            if blocked_range.version == IP_VERSION_IPV4 and ipv4_addr in blocked_range:
+                logger.warning(
+                    "⚠️  SSRF attempt blocked (IPv4-mapped): %s resolves to %s (maps to %s in blocked range %s)",
+                    url,
+                    ip_str,
+                    ipv4_addr,
+                    blocked_range,
+                )
+                msg = f"URL resolves to blocked IPv4-mapped address: {ip_str} (maps to {ipv4_addr} in range {blocked_range}). Access to private/internal networks is not allowed."
+                raise AvatarProcessingError(msg)
+
+    # Check against blocked ranges
+    for blocked_range in BLOCKED_IP_RANGES:
+        if ip_addr in blocked_range:
+            logger.warning(
+                "⚠️  SSRF attempt blocked: %s resolves to %s in blocked range %s",
+                url,
+                ip_str,
+                blocked_range,
+            )
+            msg = f"URL resolves to blocked IP address: {ip_str} (in range {blocked_range}). Access to private/internal networks is not allowed."
+            raise AvatarProcessingError(msg)
+
+
 def _validate_url_for_ssrf(url: str) -> None:
     """Validate URL to prevent SSRF attacks.
 
@@ -108,36 +157,10 @@ def _validate_url_for_ssrf(url: str) -> None:
     except socket.gaierror as e:
         msg = f"Could not resolve hostname '{hostname}': {e}"
         raise AvatarProcessingError(msg) from e
+
     for ip_str in ip_addresses:
-        try:
-            ip_addr = ipaddress.ip_address(ip_str)
-            if ip_addr.version == 6 and ip_addr.ipv4_mapped:
-                ipv4_addr = ip_addr.ipv4_mapped
-                logger.debug("Detected IPv4-mapped address: %s -> %s", ip_addr, ipv4_addr)
-                for blocked_range in BLOCKED_IP_RANGES:
-                    if blocked_range.version == 4 and ipv4_addr in blocked_range:
-                        logger.warning(
-                            "⚠️  SSRF attempt blocked (IPv4-mapped): %s resolves to %s (maps to %s in blocked range %s)",
-                            url,
-                            ip_str,
-                            ipv4_addr,
-                            blocked_range,
-                        )
-                        msg = f"URL resolves to blocked IPv4-mapped address: {ip_str} (maps to {ipv4_addr} in range {blocked_range}). Access to private/internal networks is not allowed."
-                        raise AvatarProcessingError(msg)
-            for blocked_range in BLOCKED_IP_RANGES:
-                if ip_addr in blocked_range:
-                    logger.warning(
-                        "⚠️  SSRF attempt blocked: %s resolves to %s in blocked range %s",
-                        url,
-                        ip_str,
-                        blocked_range,
-                    )
-                    msg = f"URL resolves to blocked IP address: {ip_str} (in range {blocked_range}). Access to private/internal networks is not allowed."
-                    raise AvatarProcessingError(msg)
-        except ValueError as e:
-            msg = f"Invalid IP address '{ip_str}': {e}"
-            raise AvatarProcessingError(msg) from e
+        _validate_ip_address(ip_str, url)
+
     logger.info("URL validation passed for: %s (resolves to: %s)", url, ", ".join(ip_addresses))
 
 
@@ -176,7 +199,7 @@ def _validate_image_content(content: bytes, expected_mime: str) -> None:
     """
     for magic, mime_type in MAGIC_BYTES.items():
         if content.startswith(magic):
-            if magic == b"RIFF" and len(content) >= 12:
+            if magic == b"RIFF" and len(content) >= WEBP_HEADER_SIZE:
                 if content[8:12] == b"WEBP":
                     if expected_mime != "image/webp":
                         msg = f"Image content is WEBP but declared as {expected_mime}"
@@ -233,6 +256,134 @@ def _validate_image_dimensions(content: bytes) -> None:
         raise AvatarProcessingError(msg) from e
 
 
+def _get_extension_from_mime_type(content_type: str, url: str) -> str:
+    """Get file extension from MIME type.
+
+    Args:
+        content_type: MIME type string
+        url: Original URL (fallback for extension detection)
+
+    Returns:
+        File extension with leading dot
+
+    """
+    if content_type.startswith("image/jpeg"):
+        return ".jpg"
+    if content_type.startswith("image/png"):
+        return ".png"
+    if content_type.startswith("image/gif"):
+        return ".gif"
+    if content_type.startswith("image/webp"):
+        return ".webp"
+    return _validate_image_format(url or ".jpg")
+
+
+def _download_image_content(response: httpx.Response) -> tuple[bytes, str]:
+    """Download and validate image content from HTTP response.
+
+    Args:
+        response: HTTP response object
+
+    Returns:
+        Tuple of (content bytes, mime type)
+
+    Raises:
+        AvatarProcessingError: If content is invalid or too large
+
+    """
+    content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
+    if content_type not in ALLOWED_MIME_TYPES:
+        msg = f"Invalid image MIME type: {content_type}. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+        raise AvatarProcessingError(msg)
+
+    content_length_str = response.headers.get("content-length")
+    if content_length_str:
+        try:
+            content_length = int(content_length_str)
+            if content_length > MAX_AVATAR_SIZE_BYTES:
+                msg = f"Avatar image too large: {content_length} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                raise AvatarProcessingError(msg)
+        except ValueError:
+            logger.warning("Invalid Content-Length header: %s", content_length_str)
+
+    content = bytearray()
+    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
+        content.extend(chunk)
+        if len(content) > MAX_AVATAR_SIZE_BYTES:
+            msg = f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
+            raise AvatarProcessingError(msg)
+
+    return bytes(content), content_type
+
+
+def _follow_redirects(client: httpx.Client, url: str) -> tuple[bytes, str]:
+    """Follow HTTP redirects and download content.
+
+    Args:
+        client: HTTP client
+        url: Starting URL
+
+    Returns:
+        Tuple of (content bytes, mime type)
+
+    Raises:
+        AvatarProcessingError: If too many redirects or download fails
+
+    """
+    current_url = url
+    redirect_count = 0
+
+    while redirect_count < MAX_REDIRECT_HOPS:
+        with client.stream("GET", current_url) as response:
+            if response.status_code in (301, 302, 303, 307, 308):
+                redirect_count += 1
+                location = response.headers.get("location")
+                if not location:
+                    msg = "Redirect response missing Location header"
+                    raise AvatarProcessingError(msg)
+                next_url = urljoin(current_url, location)
+                logger.info("Following redirect %s/%s: %s", redirect_count, MAX_REDIRECT_HOPS, next_url)
+                _validate_url_for_ssrf(next_url)
+                current_url = next_url
+                continue
+
+            response.raise_for_status()
+            return _download_image_content(response)
+
+    msg = f"Too many redirects (>{MAX_REDIRECT_HOPS})"
+    raise AvatarProcessingError(msg)
+
+
+def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, docs_dir: Path) -> Path:
+    """Save avatar content to file.
+
+    Args:
+        content: Avatar image content
+        avatar_uuid: UUID for the avatar
+        ext: File extension
+        docs_dir: MkDocs docs directory
+
+    Returns:
+        Path to saved avatar file
+
+    """
+    avatar_dir = _get_avatar_directory(docs_dir)
+    avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
+
+    if avatar_path.exists():
+        logger.info("Avatar already exists (deduplication): %s", avatar_path)
+        return avatar_path
+
+    try:
+        with avatar_path.open("xb") as f:
+            f.write(content)
+        logger.info("Saved avatar to: %s", avatar_path)
+    except FileExistsError:
+        logger.info("Avatar created concurrently: %s", avatar_path)
+
+    return avatar_path
+
+
 def download_avatar_from_url(
     url: str, docs_dir: Path, group_slug: str, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
 ) -> tuple[uuid.UUID, Path]:
@@ -255,73 +406,14 @@ def download_avatar_from_url(
     _validate_url_for_ssrf(url)
     try:
         with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-            current_url = url
-            redirect_count = 0
-            while redirect_count < MAX_REDIRECT_HOPS:
-                with client.stream("GET", current_url) as response:
-                    if response.status_code in (301, 302, 303, 307, 308):
-                        redirect_count += 1
-                        location = response.headers.get("location")
-                        if not location:
-                            msg = "Redirect response missing Location header"
-                            raise AvatarProcessingError(msg)
-                        next_url = urljoin(current_url, location)
-                        logger.info(
-                            "Following redirect %s/%s: %s", redirect_count, MAX_REDIRECT_HOPS, next_url
-                        )
-                        _validate_url_for_ssrf(next_url)
-                        current_url = next_url
-                        continue
-                    response.raise_for_status()
-                    content_type = response.headers.get("content-type", "").lower().split(";")[0].strip()
-                    if content_type not in ALLOWED_MIME_TYPES:
-                        msg = f"Invalid image MIME type: {content_type}. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
-                        raise AvatarProcessingError(msg)
-                    content_length_str = response.headers.get("content-length")
-                    if content_length_str:
-                        try:
-                            content_length = int(content_length_str)
-                            if content_length > MAX_AVATAR_SIZE_BYTES:
-                                msg = f"Avatar image too large: {content_length} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
-                                raise AvatarProcessingError(msg)
-                        except ValueError:
-                            logger.warning("Invalid Content-Length header: %s", content_length_str)
-                    content = bytearray()
-                    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
-                        content.extend(chunk)
-                        if len(content) > MAX_AVATAR_SIZE_BYTES:
-                            msg = f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
-                            raise AvatarProcessingError(msg)
-                    content = bytes(content)
-                    break
-            else:
-                msg = f"Too many redirects (>{MAX_REDIRECT_HOPS})"
-                raise AvatarProcessingError(msg)
-            _validate_image_content(content, content_type)
-            _validate_image_dimensions(content)
-            if content_type.startswith("image/jpeg"):
-                ext = ".jpg"
-            elif content_type.startswith("image/png"):
-                ext = ".png"
-            elif content_type.startswith("image/gif"):
-                ext = ".gif"
-            elif content_type.startswith("image/webp"):
-                ext = ".webp"
-            else:
-                ext = _validate_image_format(url or ".jpg")
-            avatar_uuid = _generate_avatar_uuid(content, group_slug)
-            avatar_dir = _get_avatar_directory(docs_dir)
-            avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
-            if avatar_path.exists():
-                logger.info("Avatar already exists (deduplication): %s", avatar_path)
-                return (avatar_uuid, avatar_path)
-            try:
-                with avatar_path.open("xb") as f:
-                    f.write(content)
-                logger.info("Saved avatar to: %s", avatar_path)
-            except FileExistsError:
-                logger.info("Avatar created concurrently: %s", avatar_path)
-            return (avatar_uuid, avatar_path)
+            content, content_type = _follow_redirects(client, url)
+
+        _validate_image_content(content, content_type)
+        _validate_image_dimensions(content)
+
+        ext = _get_extension_from_mime_type(content_type, url)
+        avatar_uuid = _generate_avatar_uuid(content, group_slug)
+        avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
     except httpx.HTTPError as e:
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
@@ -330,6 +422,67 @@ def download_avatar_from_url(
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."
         raise AvatarProcessingError(msg) from e
+    else:
+        return (avatar_uuid, avatar_path)
+
+
+def _get_mime_type_from_extension(ext: str) -> str:
+    """Get MIME type from file extension.
+
+    Args:
+        ext: File extension (e.g., '.jpg')
+
+    Returns:
+        MIME type string
+
+    Raises:
+        AvatarProcessingError: If extension is not supported
+
+    """
+    if ext in (".jpg", ".jpeg"):
+        return "image/jpeg"
+    if ext == ".png":
+        return "image/png"
+    if ext == ".gif":
+        return "image/gif"
+    if ext == ".webp":
+        return "image/webp"
+    msg = f"Unsupported extension: {ext}"
+    raise AvatarProcessingError(msg)
+
+
+def _find_file_in_zip(zf: zipfile.ZipFile, media_filename: str) -> bytes:
+    """Find and extract file from ZIP archive.
+
+    Args:
+        zf: Open ZIP file object
+        media_filename: Name of file to find
+
+    Returns:
+        File content as bytes
+
+    Raises:
+        AvatarProcessingError: If file not found or too large
+
+    """
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+
+        # Security check for path traversal
+        if ".." in info.filename or info.filename.startswith("/"):
+            logger.warning("Skipping suspicious ZIP entry with path traversal: %s", info.filename)
+            continue
+
+        filename = Path(info.filename).name
+        if filename == media_filename:
+            if info.file_size > MAX_AVATAR_SIZE_BYTES:
+                msg = f"Avatar image too large: {info.file_size} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
+                raise AvatarProcessingError(msg)
+            return zf.read(info)
+
+    msg = f"Media file not found in ZIP: {media_filename}"
+    raise AvatarProcessingError(msg)
 
 
 def extract_avatar_from_zip(
@@ -354,54 +507,22 @@ def extract_avatar_from_zip(
     try:
         ext = _validate_image_format(media_filename)
         with zipfile.ZipFile(zip_path, "r") as zf:
-            found = False
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
-                if ".." in info.filename or info.filename.startswith("/"):
-                    logger.warning("Skipping suspicious ZIP entry with path traversal: %s", info.filename)
-                    continue
-                filename = Path(info.filename).name
-                if filename == media_filename:
-                    found = True
-                    if info.file_size > MAX_AVATAR_SIZE_BYTES:
-                        msg = f"Avatar image too large: {info.file_size} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
-                        raise AvatarProcessingError(msg)
-                    content = zf.read(info)
-                    if ext in (".jpg", ".jpeg"):
-                        mime_type = "image/jpeg"
-                    elif ext == ".png":
-                        mime_type = "image/png"
-                    elif ext == ".gif":
-                        mime_type = "image/gif"
-                    elif ext == ".webp":
-                        mime_type = "image/webp"
-                    else:
-                        msg = f"Unsupported extension: {ext}"
-                        raise AvatarProcessingError(msg)
-                    _validate_image_content(content, mime_type)
-                    _validate_image_dimensions(content)
-                    avatar_uuid = _generate_avatar_uuid(content, group_slug)
-                    avatar_dir = _get_avatar_directory(docs_dir)
-                    avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
-                    try:
-                        with avatar_path.open("xb") as f:
-                            f.write(content)
-                        logger.info("Saved avatar to: %s", avatar_path)
-                    except FileExistsError:
-                        logger.info("Avatar already exists: %s", avatar_path)
-                    return (avatar_uuid, avatar_path)
-            if not found:
-                msg = f"Media file not found in ZIP: {media_filename}"
-                raise AvatarProcessingError(msg)
+            content = _find_file_in_zip(zf, media_filename)
+
+        mime_type = _get_mime_type_from_extension(ext)
+        _validate_image_content(content, mime_type)
+        _validate_image_dimensions(content)
+
+        avatar_uuid = _generate_avatar_uuid(content, group_slug)
+        avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
     except zipfile.BadZipFile as e:
         msg = f"Invalid ZIP file: {e}"
         raise AvatarProcessingError(msg) from e
     except OSError as e:
         msg = f"Failed to extract avatar: {e}"
         raise AvatarProcessingError(msg) from e
-    msg = f"Failed to extract avatar: {media_filename}"
-    raise AvatarProcessingError(msg)
+    else:
+        return (avatar_uuid, avatar_path)
 
 
 def enrich_and_moderate_avatar(
@@ -449,13 +570,13 @@ def enrich_and_moderate_avatar(
             try:
                 avatar_path.unlink(missing_ok=True)
                 logger.info("Deleted blocked avatar: %s", avatar_path)
-            except OSError as e:
-                logger.exception("Failed to delete avatar %s: %s", avatar_path, e)
+            except OSError:
+                logger.exception("Failed to delete avatar %s", avatar_path)
             try:
                 enrichment_path.unlink(missing_ok=True)
                 logger.info("Deleted enrichment file: %s", enrichment_path)
-            except OSError as e:
-                logger.exception("Failed to delete enrichment %s: %s", enrichment_path, e)
+            except OSError:
+                logger.exception("Failed to delete enrichment %s", enrichment_path)
         return AvatarModerationResult(
             status=status,
             reason=reason,
@@ -470,15 +591,15 @@ def enrich_and_moderate_avatar(
             if avatar_path and avatar_path.exists():
                 avatar_path.unlink(missing_ok=True)
                 logger.info("Cleaned up avatar file after failure: %s", avatar_path)
-        except OSError as cleanup_error:
-            logger.exception("Failed to clean up avatar %s: %s", avatar_path, cleanup_error)
+        except OSError:
+            logger.exception("Failed to clean up avatar %s", avatar_path)
         try:
             enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
             if enrichment_path.exists():
                 enrichment_path.unlink(missing_ok=True)
                 logger.info("Cleaned up enrichment file after failure: %s", enrichment_path)
-        except (OSError, AttributeError) as cleanup_error:
-            logger.exception("Failed to clean up enrichment file: %s", cleanup_error)
+        except (OSError, AttributeError):
+            logger.exception("Failed to clean up enrichment file")
         msg = f"Failed to enrich avatar {avatar_uuid}: {e}"
         raise AvatarProcessingError(msg) from e
 

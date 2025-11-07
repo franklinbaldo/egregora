@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from egregora.database.message_schema import group_slug
+from egregora.database.message_schema import group_slug as create_slug
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
 from egregora.ingestion.base import InputMetadata, InputSource
@@ -38,7 +39,7 @@ class WhatsAppInputSource(InputSource):
         """Return 'whatsapp' as the source type identifier."""
         return "whatsapp"
 
-    def supports_format(self, source_path: Path) -> bool:
+    def supports_format(self, source_path: Path) -> bool:  # noqa: PLR0911
         """Check if the path is a valid WhatsApp export ZIP.
 
         Args:
@@ -155,8 +156,6 @@ class WhatsAppInputSource(InputSource):
             msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
             raise ValueError(msg)
         if group_slug is None:
-            from egregora.database.message_schema import group_slug as create_slug
-
             group_name = self._infer_group_name(source_path)
             group_slug = create_slug(group_name)
         media_filenames = set()
@@ -180,13 +179,12 @@ class WhatsAppInputSource(InputSource):
             try:
                 relative = absolute_path.relative_to(output_dir)
                 result[original] = str(relative)
-            except ValueError as e:
+            except ValueError:
                 logger.exception(
-                    "Media file %s at %s is not relative to output_dir %s. This is a bug. Skipping file. Error: %s",
+                    "Media file %s at %s is not relative to output_dir %s. This is a bug. Skipping file.",
                     original,
                     absolute_path,
                     output_dir,
-                    e,
                 )
         return result
 

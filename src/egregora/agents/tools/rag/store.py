@@ -326,7 +326,6 @@ class VectorStore:
         if current_dim != EMBEDDING_DIM:
             msg = f"{context}: Embedding dimension mismatch. Expected {EMBEDDING_DIM} (fixed dimension), got {current_dim}. All embeddings must use 768 dimensions."
             raise ValueError(msg)
-            raise ValueError(msg)
         return current_dim
 
     def add(self, chunks_table: Table) -> None:
@@ -433,7 +432,7 @@ class VectorStore:
             table = table.mutate(**casts)
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-    def search(
+    def search(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         self,
         query_vec: list[float],
         top_k: int = 5,
@@ -479,7 +478,6 @@ class VectorStore:
         if embedding_dimensionality != EMBEDDING_DIM:
             msg = f"Query embedding dimension mismatch. Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. All embeddings must use 768 dimensions."
             raise ValueError(msg)
-            raise ValueError(msg)
         mode_normalized = mode.lower()
         if mode_normalized not in {"ann", "exact"}:
             msg = "mode must be either 'ann' or 'exact'"
@@ -517,8 +515,8 @@ class VectorStore:
             query = exact_base_query + where_clause + order_clause
             try:
                 return self._execute_search_query(query, params, min_similarity)
-            except Exception as exc:
-                logger.exception("Search failed: %s", exc)
+            except Exception:
+                logger.exception("Search failed")
                 return self._empty_table(SEARCH_RESULT_SCHEMA)
         fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
         ann_limit = max(top_k * fetch_factor, top_k + 10)
@@ -540,7 +538,7 @@ class VectorStore:
                 continue
             except Exception as exc:
                 last_error = exc
-                logger.exception("ANN search aborted: %s", exc)
+                logger.exception("ANN search aborted")
                 break
             else:
                 self._vss_function = function_name
@@ -551,8 +549,8 @@ class VectorStore:
                 return self._execute_search_query(
                     exact_base_query + where_clause + order_clause, params, min_similarity
                 )
-            except Exception as exc:
-                logger.exception("Exact fallback search failed: %s", exc)
+            except Exception:
+                logger.exception("Exact fallback search failed")
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
         else:

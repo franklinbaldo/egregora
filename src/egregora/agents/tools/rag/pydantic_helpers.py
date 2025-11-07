@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def find_relevant_docs(
+async def find_relevant_docs(  # noqa: PLR0913
     query: str,
     *,
     _client: genai.Client,
@@ -138,7 +138,7 @@ def format_rag_context(docs: list[dict[str, Any]]) -> str:
     return "\n".join(lines).strip()
 
 
-async def build_rag_context_for_writer(
+async def build_rag_context_for_writer(  # noqa: PLR0913
     query: str,
     *,
     client: genai.Client,

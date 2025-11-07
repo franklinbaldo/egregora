@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import Mock
 
 import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.editor.editor_agent import run_editor_session_with_pydantic_agent
 from egregora.config import ModelConfig
+from egregora.config.schema import EgregoraConfig, ModelsConfig
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,8 +48,6 @@ More content here.
 @pytest.fixture
 def model_config() -> ModelConfig:
     """Create a test model configuration."""
-    from egregora.config.schema import EgregoraConfig, ModelsConfig
-
     # Create EgregoraConfig with test models
     egregora_config = EgregoraConfig(
         models=ModelsConfig(
@@ -80,8 +80,6 @@ async def test_editor_agent_with_test_model(test_post: Path, model_config: Model
     )
 
     # Mock client (won't be used with TestModel)
-    from unittest.mock import Mock
-
     mock_client = Mock()
 
     # Run editor session
@@ -123,8 +121,6 @@ async def test_editor_agent_with_edit_tool(test_post: Path, model_config: ModelC
         },
     )
 
-    from unittest.mock import Mock
-
     mock_client = Mock()
 
     # Run editor session
@@ -160,8 +156,6 @@ async def test_editor_agent_hold_decision(test_post: Path, model_config: ModelCo
         },
     )
 
-    from unittest.mock import Mock
-
     mock_client = Mock()
 
     result = await run_editor_session_with_pydantic_agent(
@@ -188,8 +182,6 @@ async def test_editor_agent_nonexistent_post(model_config: ModelConfig, tmp_path
     nonexistent_post = tmp_path / "nonexistent.md"
 
     test_model = TestModel()
-    from unittest.mock import Mock
-
     mock_client = Mock()
 
     # Should raise FileNotFoundError

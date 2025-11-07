@@ -103,6 +103,10 @@ Notes
 
 """
 
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
 # ============================================================================
 # Source Adapter Primitives
 # ============================================================================
@@ -164,13 +168,8 @@ def __getattr__(name: str) -> object:
 
     """
     if name in ("group_by_period", "period_has_posts"):
-        import sys
-
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
-        from importlib.util import module_from_spec, spec_from_file_location
-        from pathlib import Path
-
         pipeline_py = Path(module_path) / "pipeline.py"
         spec = spec_from_file_location("egregora._pipeline_utils", pipeline_py)
         if spec and spec.loader:

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import ClassVar
 
 import duckdb
 import ibis
 import pytest
+
+from egregora.agents.tools.rag import store as store_module
 
 ROW_COUNT = 42
 THRESHOLD = 10
@@ -178,9 +181,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
 def _load_vector_store():
     """Load the vector store module."""
-    from egregora.agents.tools.rag import store
-
-    return store
+    return store_module
 
 
 def _table_columns(connection, table_name: str) -> list[tuple[str, bool]]:
@@ -308,9 +309,9 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
                     columns = [*list(empty.keys()), "similarity"]
 
                     class _Result:
-                        description = [(name,) for name in columns]
+                        description: ClassVar = [(name,) for name in columns]
 
-                        def fetchall(self_inner):
+                        def fetchall(self):
                             return []
 
                     return _Result()
