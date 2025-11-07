@@ -312,7 +312,11 @@ def _window_by_bytes(
         NotImplementedError: Byte-based windowing not yet implemented
 
     """
-    msg = "Byte-based windowing not yet implemented"
+    msg = (
+        "Byte-based windowing not yet implemented. "
+        "Use 'messages', 'hours', or 'days' as step_unit instead. "
+        "For token-aware windowing, use --max-prompt-tokens flag which triggers automatic window splitting."
+    )
     raise NotImplementedError(msg)
 
 
