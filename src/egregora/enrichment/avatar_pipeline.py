@@ -13,7 +13,7 @@ from egregora.enrichment.avatar import (
     extract_avatar_from_zip,
 )
 from egregora.enrichment.media import extract_urls, find_media_references
-from egregora.ingestion.parser import extract_commands
+from egregora.ingestion import extract_commands  # Phase 6: Re-exported from sources/whatsapp
 
 if TYPE_CHECKING:
     from pathlib import Path

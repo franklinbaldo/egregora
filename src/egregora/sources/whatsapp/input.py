@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Any
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
 from egregora.ingestion.base import InputMetadata, InputSource
-from egregora.ingestion.parser import parse_export
 from egregora.schema import group_slug
 from egregora.sources.whatsapp.models import WhatsAppExport
+from egregora.sources.whatsapp.parser import parse_export
 
 if TYPE_CHECKING:
     from datetime import date

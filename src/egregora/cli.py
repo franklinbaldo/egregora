@@ -35,7 +35,7 @@ from egregora.config import (
 from egregora.database import duckdb_backend
 from egregora.enrichment import enrich_table, extract_and_replace_media
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion.parser import parse_export
+from egregora.ingestion import parse_export  # Phase 6: Now re-exported from sources/whatsapp
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
 from egregora.pipeline.runner import run_source_pipeline

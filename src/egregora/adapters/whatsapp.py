@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
 
-from egregora.ingestion.parser import parse_export
+from egregora.ingestion import parse_export  # Phase 6: Re-exported from sources/whatsapp
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
 from egregora.pipeline.ir import create_ir_table
 from egregora.sources.whatsapp.models import WhatsAppExport

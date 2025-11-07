@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.agents.tools.profiler import filter_opted_out_authors
-from egregora.ingestion.parser import filter_egregora_messages
+from egregora.ingestion import filter_egregora_messages  # Phase 6: Re-exported from sources/whatsapp
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 
 if TYPE_CHECKING:

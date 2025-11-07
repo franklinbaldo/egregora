@@ -24,7 +24,7 @@ from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion.parser import extract_commands, filter_egregora_messages
+from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
 from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
