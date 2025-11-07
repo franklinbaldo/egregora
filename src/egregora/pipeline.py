@@ -178,14 +178,12 @@ def create_windows(  # noqa: PLR0913
                 if max_hours < 24:
                     # Use hours if < 1 day (floor to avoid exceeding)
                     effective_step_size = int(math.floor(max_hours))
-                    if effective_step_size < 1:
-                        effective_step_size = 1  # Minimum 1 hour
+                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 hour
                     effective_step_unit = "hours"
                 else:
                     # Use days if >= 1 day (floor to avoid exceeding)
                     effective_step_size = int(math.floor(max_with_overlap.days))
-                    if effective_step_size < 1:
-                        effective_step_size = 1  # Minimum 1 day
+                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 day
                     effective_step_unit = "days"
 
                 logger.info(
