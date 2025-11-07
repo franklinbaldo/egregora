@@ -12,7 +12,8 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 
 DESIGN PHILOSOPHY: Calculate, Don't Iterate
 - When max_window_time constraint would be exceeded, calculate exact reduction upfront
-- Formula: effective_step_size = max_time / (1 + overlap_ratio)
+- max_window_time constrains the **step** (advancement), not the overlap-adjusted span
+- Formula: effective_step_size = max_window_time (actual span will be × (1 + overlap_ratio))
 - Creates correctly-sized windows from the start (no post-hoc splitting)
 - Only applies to time-based windowing (hours/days); message-based windowing
   cannot enforce time limits without knowing message density beforehand
@@ -132,7 +133,10 @@ def create_windows(  # noqa: PLR0913
         step_unit: Unit for windowing ("messages", "hours", "days")
         min_window_size: Minimum messages per window (skip smaller windows)
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
-        max_window_time: Optional maximum time span per window
+        max_window_time: Optional maximum time span per window **step** (not
+            including overlap). Actual window duration will be
+            max_window_time × (1 + overlap_ratio). To strictly bound total
+            duration, set max_window_time = desired_max / (1 + overlap_ratio)
 
     Yields:
         Window objects with overlapping message sets
