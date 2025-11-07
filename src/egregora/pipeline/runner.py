@@ -392,7 +392,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 combined_results = {}
                 if first_half:
                     logger.info("%s↳ [dim]Processing first half[/]", indent)
-                    first_results = process_window_with_auto_split(first_half, depth=depth + 1, max_depth=max_depth)
+                    first_results = process_window_with_auto_split(
+                        first_half, depth=depth + 1, max_depth=max_depth
+                    )
                     combined_results.update(first_results)
 
                 if second_half:

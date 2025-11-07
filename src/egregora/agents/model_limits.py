@@ -36,6 +36,7 @@ class PromptTooLargeError(Exception):
             f"Prompt exceeds hard limit: {estimated_tokens} tokens > {effective_limit} for {model_name} (window: {window_id})"
         )
 
+
 # Gemini model context limits (input tokens)
 # Source: https://ai.google.dev/gemini-api/docs/models/gemini
 KNOWN_MODEL_LIMITS = {
