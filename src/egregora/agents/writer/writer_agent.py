@@ -359,6 +359,30 @@ def write_posts_with_pydantic_agent(
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=context.annotations_store,
     )
+    # Validate prompt fits in model's context window
+    from egregora.agents.model_limits import validate_prompt_fits  # noqa: PLC0415
+
+    fits, estimated_tokens, effective_limit = validate_prompt_fits(prompt, model_name)
+    if not fits:
+        logger.error(
+            "Prompt exceeds model context window: %d tokens > %d limit for %s (window: %s)",
+            estimated_tokens,
+            effective_limit,
+            model_name,
+            context.window_id,
+        )
+        # TODO: Implement dynamic window splitting or context trimming
+        # For now, we'll attempt anyway and let the API reject it with a clear error
+        logger.warning("Attempting generation anyway - expect API failure or truncation")
+    else:
+        logger.info(
+            "Prompt fits: %d tokens / %d limit (%.1f%% usage) for %s",
+            estimated_tokens,
+            effective_limit,
+            (estimated_tokens / effective_limit) * 100,
+            model_name,
+        )
+
     with logfire_span("writer_agent", period=context.window_id, model=model_name):
         result = agent.run_sync(prompt, deps=state)
         result_payload = getattr(result, "data", result)
