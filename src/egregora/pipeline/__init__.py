@@ -93,13 +93,14 @@ Pipeline Flow Diagram:
        Annotations      Tool Calling         Templates
        Rankings
 
-Notes:
-------
+Notes
+-----
 - All pipeline stages operate on Ibis tables conforming to IR_SCHEMA
 - Privacy stage MUST run before any LLM API calls (PII protection invariant)
 - Stages are functional transformations: Table → Table
 - Resume logic uses simple file existence checks, not complex state machines
 - See CLAUDE.md for full architecture details and TENET-BREAK philosophy
+
 """
 
 # ============================================================================
@@ -135,7 +136,6 @@ from egregora.pipeline.orchestrator import (
     PipelineContext,
 )
 
-
 # ============================================================================
 # Backward Compatibility Layer
 # ============================================================================
@@ -161,6 +161,7 @@ def __getattr__(name: str) -> object:
 
     Raises:
         AttributeError: If attribute doesn't exist in backward compat layer
+
     """
     if name in ("group_by_period", "period_has_posts"):
         import sys
