@@ -439,21 +439,29 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.exception("[red]Failed to index media into RAG[/]")
 
         # Phase 7: Save checkpoint after successful processing
-        # Checkpoint based on messages processed, not posts written (LLM may legitimately write 0 posts)
-        # Use single aggregate query for efficiency (avoid multiple .execute() calls)
-        checkpoint_stats = messages_table.aggregate(
-            max_timestamp=messages_table.timestamp.max(),
-            total_processed=messages_table.count(),
-        ).execute()
+        # Only save checkpoint if at least one window was actually processed
+        # (prevents data loss when all windows are skipped due to min_window_size)
+        if results:
+            # Checkpoint based on messages in the filtered table
+            checkpoint_stats = messages_table.aggregate(
+                max_timestamp=messages_table.timestamp.max(),
+                total_processed=messages_table.count(),
+            ).execute()
 
-        total_processed = checkpoint_stats["total_processed"][0]
-        if total_processed > 0:
+            total_processed = checkpoint_stats["total_processed"][0]
             max_timestamp = checkpoint_stats["max_timestamp"][0]
             save_checkpoint(checkpoint_path, max_timestamp, total_processed)
             logger.info(
                 "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
                 max_timestamp.strftime("%Y-%m-%d %H:%M:%S") if max_timestamp else "N/A",
-                len(results) if results else 0,
+                len(results),
+            )
+        else:
+            logger.warning(
+                "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+                "This can happen if all windows were below min_window_size (%d messages). "
+                "Consider lowering min_window_size or accumulating more data.",
+                min_window_size,
             )
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
