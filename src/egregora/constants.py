@@ -72,7 +72,7 @@ class WindowUnit(str, Enum):
     MESSAGES = "messages"
     HOURS = "hours"
     DAYS = "days"
-    TOKENS = "tokens"
+    BYTES = "bytes"
 
 
 class MediaType(str, Enum):

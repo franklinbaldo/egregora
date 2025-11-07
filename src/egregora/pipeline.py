@@ -1,7 +1,7 @@
 """Generic pipeline utilities for windowing and organizing messages.
 
 MODERN (Phase 6): Replaced period-based grouping with flexible windowing.
-- Supports message count, time-based, and token-based windowing
+- Supports message count, time-based, and byte-based windowing
 - Sequential window indices for simple resume logic
 - No calendar edge cases (ISO weeks, timezone conversions, etc.)
 """
@@ -19,13 +19,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Window:
-    """Represents a processing window of messages."""
+    """Represents a processing window of messages (runtime-only construct).
+
+    Windows are transient views of the conversation data, computed dynamically
+    based on runtime config (step_size, step_unit). They are NOT persisted to
+    the database since changing windowing params would invalidate any stored
+    window metadata.
+
+    The `table` field contains a filtered view of CONVERSATION_SCHEMA data.
+    """
 
     window_id: str
     window_index: int
     start_time: datetime
     end_time: datetime
-    table: Table
+    table: Table  # Filtered view of CONVERSATION_SCHEMA (not a separate DB schema)
     size: int  # Number of messages
 
 
@@ -106,12 +114,12 @@ def create_windows(
     Replaces period-based grouping with flexible windowing:
     - By message count: step_size=100, step_unit="messages"
     - By time: step_size=2, step_unit="days"
-    - By tokens: step_size=8000, step_unit="tokens" (future)
+    - By byte count: step_size=50000, step_unit="bytes" (not yet implemented)
 
     Args:
         table: Table with timestamp column
         step_size: Size of each window
-        step_unit: Unit for windowing ("messages", "hours", "days", "tokens")
+        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
         min_window_size: Minimum messages per window (skip smaller windows)
         max_window_time: Optional maximum time span per window
 
@@ -135,8 +143,8 @@ def create_windows(
         windows = _window_by_count(sorted_table, step_size, min_window_size)
     elif step_unit in ("hours", "days"):
         windows = _window_by_time(sorted_table, step_size, step_unit, min_window_size)
-    elif step_unit == "tokens":
-        windows = _window_by_tokens(sorted_table, step_size, min_window_size)
+    elif step_unit == "bytes":
+        windows = _window_by_bytes(sorted_table, step_size, min_window_size)
     else:
         msg = f"Unknown step_unit: {step_unit}"
         raise ValueError(msg)
@@ -253,29 +261,32 @@ def _window_by_time(
     return windows
 
 
-def _window_by_tokens(
+def _window_by_bytes(
     table: Table,
     step_size: int,
     min_window_size: int,
 ) -> list[Window]:
-    """Create windows that fit in LLM context window.
+    """Create windows based on byte count (text size).
 
-    Estimates tokens per message and groups until limit.
-    Uses rough heuristic: 1 token ≈ 4 characters.
+    Groups messages until cumulative byte count reaches step_size.
+    Uses SUM(LENGTH(message)) in SQL for accurate counting.
+
+    Byte counts serve as token proxies (~4 bytes per token for English),
+    useful for respecting LLM context limits without tokenizer dependencies.
 
     Args:
         table: Input table
-        step_size: Target tokens per window
+        step_size: Target bytes per window
         min_window_size: Minimum messages per window
 
     Returns:
         List of windows
 
     Raises:
-        NotImplementedError: Token-based windowing not yet implemented
+        NotImplementedError: Byte-based windowing not yet implemented
 
     """
-    msg = "Token-based windowing not yet implemented"
+    msg = "Byte-based windowing not yet implemented"
     raise NotImplementedError(msg)
 
 

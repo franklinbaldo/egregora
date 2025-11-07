@@ -327,7 +327,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
     step_unit: Annotated[
-        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'tokens'")
+        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'bytes'")
     ] = "messages",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
@@ -830,7 +830,7 @@ def group(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 100,
     step_unit: Annotated[
-        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
+        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'bytes'")
     ] = "messages",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     output_dir: Annotated[Path, typer.Option(help="Output directory for window CSV files")] = Path("windows"),
@@ -860,8 +860,8 @@ def group(
     if not input_path.exists():
         console.print(f"[red]Input file not found: {input_path}[/red]")
         raise typer.Exit(1)
-    if step_unit not in {"messages", "hours", "days", "tokens"}:
-        console.print(f"[red]Invalid step_unit '{step_unit}'. Choose: messages, hours, days, or tokens[/red]")
+    if step_unit not in {"messages", "hours", "days", "bytes"}:
+        console.print(f"[red]Invalid step_unit '{step_unit}'. Choose: messages, hours, days, or bytes[/red]")
         raise typer.Exit(1)
     output_path = output_dir.resolve()
     output_path.mkdir(parents=True, exist_ok=True)

@@ -48,22 +48,13 @@ CONVERSATION_SCHEMA = ibis.schema(
 # Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
 WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
 
-# Windowed schema: CONVERSATION_SCHEMA with window metadata
-# Used for grouping messages into processing windows (replaces period-based grouping)
-WINDOWED_SCHEMA = ibis.schema(
-    {
-        **CONVERSATION_SCHEMA,  # Inherit all conversation columns
-        "window_id": dt.string,  # "chunk_001", "window_20250107_120000"
-        "window_start": dt.Timestamp(timezone="UTC"),
-        "window_end": dt.Timestamp(timezone="UTC"),
-        "window_size": dt.int64,  # Number of messages in window
-        "window_index": dt.int64,  # Sequential: 0, 1, 2, ...
-    }
-)
-
 # ============================================================================
 # RAG Vector Store Schemas
 # ============================================================================
+# NOTE: Windows are runtime-only constructs (see pipeline.py Window dataclass).
+# They are NOT persisted as database schemas because they depend on dynamic
+# runtime config (step_size, step_unit). Changing windowing params would
+# invalidate any persisted window data.
 
 RAG_CHUNKS_SCHEMA = ibis.schema(
     {
