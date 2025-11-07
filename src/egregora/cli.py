@@ -123,6 +123,76 @@ def _resolve_gemini_key(cli_override: str | None) -> str | None:
     return os.getenv("GOOGLE_API_KEY")
 
 
+def _validate_retrieval_config(config: ProcessConfig) -> None:
+    """Validate and normalize retrieval mode configuration.
+
+    Phase 4: Extracted from _validate_and_run_process to reduce complexity.
+
+    Args:
+        config: ProcessConfig to validate (modified in place)
+
+    Raises:
+        typer.Exit: If validation fails
+    """
+    retrieval_mode = (config.retrieval_mode or "ann").lower()
+    if retrieval_mode not in {"ann", "exact"}:
+        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
+        raise typer.Exit(1)
+
+    if retrieval_mode == "exact" and config.retrieval_nprobe:
+        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
+        config.retrieval_nprobe = None
+
+    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
+        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
+        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
+        raise typer.Exit(1)
+
+    config.retrieval_mode = retrieval_mode
+
+
+def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
+    """Ensure MkDocs scaffold exists, creating if needed with user confirmation.
+
+    Phase 4: Extracted from _validate_and_run_process to reduce complexity.
+
+    Args:
+        output_dir: Output directory to check/initialize
+
+    Raises:
+        typer.Exit: If user declines to initialize or initialization fails
+    """
+    mkdocs_path = find_mkdocs_file(output_dir)
+    if mkdocs_path:
+        return  # MkDocs scaffold already exists
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    warning_message = (
+        f"[yellow]Warning:[/yellow] MkDocs configuration not found in {output_dir}. "
+        "Egregora can initialize a new scaffold before processing."
+    )
+    console.print(warning_message)
+
+    proceed = True
+    if any(output_dir.iterdir()):
+        proceed = typer.confirm(
+            "The output directory is not empty and lacks mkdocs.yml. "
+            "Initialize a fresh MkDocs scaffold here?",
+            default=False,
+        )
+
+    if not proceed:
+        console.print("[red]Aborting processing at user's request.[/red]")
+        raise typer.Exit(1)
+
+    logger.info("Initializing MkDocs scaffold in %s", output_dir)
+    ensure_mkdocs_project(output_dir)
+    console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+
+
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
@@ -157,52 +227,31 @@ def init(
 
 
 def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -> None:
-    """Validate process configuration and run the pipeline."""
+    """Validate process configuration and run the pipeline.
+
+    Phase 4: Simplified by extracting validation logic to helper functions.
+    """
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    timezone_obj = None
+
+    # Validate timezone
     if config.timezone:
         try:
-            timezone_obj = ZoneInfo(config.timezone)
+            ZoneInfo(config.timezone)
             console.print(f"[green]Using timezone: {config.timezone}[/green]")
         except Exception as e:
             console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
             raise typer.Exit(1) from e
-    retrieval_mode = (config.retrieval_mode or "ann").lower()
-    if retrieval_mode not in {"ann", "exact"}:
-        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
-        raise typer.Exit(1)
-    if retrieval_mode == "exact" and config.retrieval_nprobe:
-        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
-        config.retrieval_nprobe = None
-    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
-        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
-        raise typer.Exit(1)
-    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
-        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
-        raise typer.Exit(1)
-    config.retrieval_mode = retrieval_mode
-    from_date_obj = config.from_date
-    to_date_obj = config.to_date
+
+    # Phase 4: Extracted validation logic
+    _validate_retrieval_config(config)
+
+    # Resolve and ensure output directory
     output_dir = config.output_dir.expanduser().resolve()
     config.output_dir = output_dir
-    mkdocs_path = find_mkdocs_file(output_dir)
-    if not mkdocs_path:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        warning_message = f"[yellow]Warning:[/yellow] MkDocs configuration not found in {output_dir}. Egregora can initialize a new scaffold before processing."
-        console.print(warning_message)
-        proceed = True
-        if any(output_dir.iterdir()):
-            proceed = typer.confirm(
-                "The output directory is not empty and lacks mkdocs.yml. Initialize a fresh MkDocs scaffold here?",
-                default=False,
-            )
-        if not proceed:
-            console.print("[red]Aborting processing at user's request.[/red]")
-            raise typer.Exit(1)
-        logger.info("Initializing MkDocs scaffold in %s", output_dir)
-        ensure_mkdocs_project(output_dir)
-        console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+
+    # Phase 4: Extracted scaffold initialization logic
+    _ensure_mkdocs_scaffold(output_dir)
     api_key = _resolve_gemini_key(config.gemini_key)
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
@@ -220,8 +269,8 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                 update={
                     "period": config.period,
                     "timezone": config.timezone,
-                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
-                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "from_date": config.from_date.isoformat() if config.from_date else None,
+                    "to_date": config.to_date.isoformat() if config.to_date else None,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
