@@ -7,7 +7,6 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-import duckdb
 import ibis
 from google import genai
 
@@ -365,7 +364,6 @@ def process_whatsapp_export(
 
     """
     from egregora.config.loader import load_egregora_config
-    from egregora.config import resolve_site_paths
     from egregora.pipeline.runner import run_source_pipeline
 
     # MODERN (Phase 2): Delegate to run_source_pipeline with config
@@ -393,7 +391,9 @@ def process_whatsapp_export(
                 update={
                     "mode": retrieval_mode,
                     "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
-                    "overfetch": retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch,
+                    "overfetch": retrieval_overfetch
+                    if retrieval_overfetch is not None
+                    else base_config.rag.overfetch,
                 }
             ),
         },
