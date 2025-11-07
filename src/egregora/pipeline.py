@@ -202,11 +202,13 @@ def _window_by_count(
             break
 
         window_table = table.limit(chunk_size, offset=offset)
-        window_id = f"chunk_{window_index:03d}"
 
         # Get time bounds
         start_time = _get_min_timestamp(window_table)
         end_time = _get_max_timestamp(window_table)
+
+        # Timestamp-based window_id for stability across config changes
+        window_id = f"window_{start_time.strftime('%Y%m%d_%H%M%S')}"
 
         yield Window(
             window_id=window_id,

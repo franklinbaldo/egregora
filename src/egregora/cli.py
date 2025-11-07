@@ -281,6 +281,8 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                     "timezone": config.timezone,
                     "from_date": config.from_date.isoformat() if config.from_date else None,
                     "to_date": config.to_date.isoformat() if config.to_date else None,
+                    "max_prompt_tokens": config.max_prompt_tokens,
+                    "use_full_context_window": config.use_full_context_window,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
@@ -361,6 +363,12 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     retrieval_overfetch: Annotated[
         int | None, typer.Option(help="Advanced: multiply ANN candidate pool before filtering")
     ] = None,
+    max_prompt_tokens: Annotated[
+        int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
+    ] = 100_000,
+    use_full_context_window: Annotated[
+        bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
+    ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Process chat export and generate blog posts + author profiles.
@@ -415,6 +423,8 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
         debug=debug,
     )
     _validate_and_run_process(config, source=source)

@@ -362,7 +362,16 @@ def write_posts_with_pydantic_agent(
     # Validate prompt fits in model's context window
     from egregora.agents.model_limits import validate_prompt_fits  # noqa: PLC0415
 
-    fits, estimated_tokens, effective_limit = validate_prompt_fits(prompt, model_name)
+    # Extract token cap settings from pipeline config
+    max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
+    use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
+
+    fits, estimated_tokens, effective_limit = validate_prompt_fits(
+        prompt,
+        model_name,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
+    )
     if not fits:
         logger.error(
             "Prompt exceeds model context window: %d tokens > %d limit for %s (window: %s)",

@@ -113,6 +113,8 @@ def validate_prompt_fits(
     model_name: str,
     *,
     safety_margin: float = 0.1,
+    max_prompt_tokens: int | None = 100_000,
+    use_full_context_window: bool = False,
 ) -> tuple[bool, int, int]:
     """Validate that a prompt fits within model's context window.
 
@@ -120,6 +122,8 @@ def validate_prompt_fits(
         prompt: Full prompt to send to model
         model_name: Model name to check limits for
         safety_margin: Safety margin as fraction of limit (default 0.1 = 10%)
+        max_prompt_tokens: Maximum tokens allowed (default 100k cap, even if model supports more)
+        use_full_context_window: If True, ignore max_prompt_tokens and use full model limit
 
     Returns:
         Tuple of (fits, estimated_tokens, effective_limit)
@@ -131,11 +135,15 @@ def validate_prompt_fits(
         >>> tokens
         1250  # ~5000 chars / 4
         >>> limit
-        943718  # 1M - 10% margin
+        90000  # min(100k default cap, 1M model limit) - 10% margin
 
     """
     estimated_tokens = estimate_tokens(prompt)
     context_limit = get_model_context_limit(model_name)
+
+    # Apply max_prompt_tokens cap unless use_full_context_window is True
+    if not use_full_context_window and max_prompt_tokens is not None:
+        context_limit = min(context_limit, max_prompt_tokens)
 
     # Apply safety margin (reserve space for tool calls, continuations, etc.)
     effective_limit = int(context_limit * (1 - safety_margin))

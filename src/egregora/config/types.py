@@ -43,6 +43,8 @@ class ProcessConfig:
         None
     )
     batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
+    max_prompt_tokens: Annotated[int, "Maximum tokens per prompt (default 100k cap)"] = 100_000
+    use_full_context_window: Annotated[bool, "Override max_prompt_tokens and use full model context window"] = False
 
     @property
     def input_path(self) -> Path:

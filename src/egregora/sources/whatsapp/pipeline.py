@@ -56,6 +56,8 @@ def process_whatsapp_export(  # noqa: PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
+    max_prompt_tokens: int = 100_000,
+    use_full_context_window: bool = False,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Public entry point for WhatsApp exports.
@@ -82,6 +84,8 @@ def process_whatsapp_export(  # noqa: PLR0913
         retrieval_mode: The retrieval mode to use
         retrieval_nprobe: The number of probes to use for retrieval
         retrieval_overfetch: The overfetch factor to use for retrieval
+        max_prompt_tokens: Maximum tokens per prompt (default 100k cap)
+        use_full_context_window: Use full model context window (overrides max_prompt_tokens)
         client: Optional Gemini client (will be created if not provided)
 
     Returns:
@@ -111,6 +115,8 @@ def process_whatsapp_export(  # noqa: PLR0913
                     "from_date": from_date.isoformat() if from_date else None,
                     "to_date": to_date.isoformat() if to_date else None,
                     "batch_threshold": batch_threshold,
+                    "max_prompt_tokens": max_prompt_tokens,
+                    "use_full_context_window": use_full_context_window,
                 },
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
