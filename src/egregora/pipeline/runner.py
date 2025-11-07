@@ -421,6 +421,16 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
 
         # Phase 8: Process windows with automatic splitting for oversized prompts
         for window in windows_iterator:
+            # Skip empty windows (common in sparse conversations with time-based windowing)
+            if window.size == 0:
+                logger.debug(
+                    "Skipping empty window %d (%s to %s)",
+                    window.window_index,
+                    window.start_time.strftime("%Y-%m-%d %H:%M"),
+                    window.end_time.strftime("%Y-%m-%d %H:%M"),
+                )
+                continue
+
             window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
             results.update(window_results)
         if enable_enrichment and results:
