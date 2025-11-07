@@ -41,41 +41,43 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
 def process_whatsapp_export(  # noqa: PLR0913
     zip_path: Path,
     output_dir: Path = Path("output"),
-    period: str = "day",
     *,
+    step_size: int = 100,
+    step_unit: str = "messages",
+    min_window_size: int = 10,
+    overlap_ratio: float = 0.2,
     enable_enrichment: bool = True,
     from_date: date | None = None,
     to_date: date | None = None,
     timezone: str | ZoneInfo | None = None,
     gemini_api_key: str | None = None,
     model: str | None = None,
-    resume: bool = True,
     batch_threshold: int = 10,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """Public entry point for WhatsApp exports (backward compatibility wrapper).
+    """Public entry point for WhatsApp exports.
 
-    MODERN (Phase 2): This is now a thin wrapper around run_source_pipeline.
-    The CLI uses run_source_pipeline directly. This function exists for:
-    - Backward compatibility with existing code/tests
-    - Convenient WhatsApp-specific interface
+    MODERN (Phase 7): Uses flexible windowing with overlap for context continuity.
+    This is a thin wrapper around run_source_pipeline for WhatsApp-specific convenience.
 
-    For new code, prefer using run_source_pipeline(source="whatsapp", ...) directly.
+    For general-purpose use, prefer run_source_pipeline(source="whatsapp", ...) directly.
 
     Args:
         zip_path: WhatsApp export ZIP file
         output_dir: Where to save posts and profiles
-        period: "day", "week", or "month"
+        step_size: Size of each processing window
+        step_unit: Unit for windowing ('messages', 'hours', 'days', 'bytes')
+        min_window_size: Minimum messages per window (skip smaller)
+        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2)
         enable_enrichment: Add URL/media context
         from_date: Only process messages from this date onwards (date object)
         to_date: Only process messages up to this date (date object)
         timezone: ZoneInfo timezone object (WhatsApp export phone timezone)
         gemini_api_key: Google Gemini API key
         model: Gemini model to use (overrides mkdocs.yml config)
-        resume: Whether to resume from a previous run
         batch_threshold: The threshold for switching to batch processing
         retrieval_mode: The retrieval mode to use
         retrieval_nprobe: The number of probes to use for retrieval
@@ -83,17 +85,17 @@ def process_whatsapp_export(  # noqa: PLR0913
         client: Optional Gemini client (will be created if not provided)
 
     Returns:
-        Dict mapping period to {'posts': [...], 'profiles': [...]}
+        Dict mapping window_id to {'posts': [...], 'profiles': [...]}
 
     """
     from egregora.config.loader import load_egregora_config  # noqa: PLC0415
     from egregora.pipeline.runner import run_source_pipeline  # noqa: PLC0415
 
-    # MODERN (Phase 2): Delegate to run_source_pipeline with config
+    # MODERN (Phase 7): Delegate to run_source_pipeline with windowing config
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 
-    # Load config and override with CLI parameters
+    # Load config and override with function parameters
     base_config = load_egregora_config(site_paths.site_root)
 
     egregora_config = base_config.model_copy(
@@ -101,13 +103,15 @@ def process_whatsapp_export(  # noqa: PLR0913
         update={
             "pipeline": base_config.pipeline.model_copy(
                 update={
-                    "period": period,
+                    "step_size": step_size,
+                    "step_unit": step_unit,
+                    "min_window_size": min_window_size,
+                    "overlap_ratio": overlap_ratio,
                     "timezone": str(timezone) if timezone else None,
                     "from_date": from_date.isoformat() if from_date else None,
                     "to_date": to_date.isoformat() if to_date else None,
-                    "resume": resume,
                     "batch_threshold": batch_threshold,
-                }
+                },
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
             "rag": base_config.rag.model_copy(
@@ -117,7 +121,7 @@ def process_whatsapp_export(  # noqa: PLR0913
                     "overfetch": retrieval_overfetch
                     if retrieval_overfetch is not None
                     else base_config.rag.overfetch,
-                }
+                },
             ),
         },
     )

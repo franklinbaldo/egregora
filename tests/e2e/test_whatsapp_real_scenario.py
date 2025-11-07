@@ -301,7 +301,8 @@ def test_full_pipeline_completes_without_crash(
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,
@@ -323,7 +324,8 @@ def test_pipeline_creates_expected_directory_structure(
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,
@@ -349,7 +351,8 @@ def test_pipeline_respects_date_range_filters(
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         from_date=date(2025, 10, 29),
         to_date=date(2025, 10, 29),
@@ -453,7 +456,8 @@ def test_pipeline_handles_missing_media_gracefully(
     results = process_whatsapp_export(
         zip_path=corrupted_zip,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,

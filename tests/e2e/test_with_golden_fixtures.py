@@ -98,7 +98,10 @@ def test_pipeline_with_golden_fixtures(
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=output_dir,
-        period="day",
+        step_size=100,
+        step_unit="messages",
+        min_window_size=10,
+        overlap_ratio=0.2,
         enable_enrichment=False,  # Binary uploads remain hard to stub in this test harness
         retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see docstring)
         client=client,
