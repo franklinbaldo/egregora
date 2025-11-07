@@ -9,8 +9,6 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from egregora.ingestion import parse_egregora_command
-
 from egregora.agents.tools.profiler import (
     get_avatar_info,
     remove_profile_avatar,
@@ -24,6 +22,7 @@ from egregora.enrichment.avatar import (
     _validate_image_format,
     _validate_url_for_ssrf,
 )
+from egregora.ingestion import parse_egregora_command
 
 
 class TestCommandParsing:
