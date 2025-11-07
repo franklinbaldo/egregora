@@ -13,6 +13,7 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 
 import json
 import logging
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -150,15 +151,58 @@ def create_windows(  # noqa: PLR0913
 
     if step_unit == "messages":
         windows = _window_by_count(sorted_table, step_size, min_window_size, overlap)
+        # For message-based windowing, we still need time limit check
+        # (can't predict time span of N messages upfront)
+        if max_window_time:
+            windows = _apply_time_limit(windows, max_window_time)
     elif step_unit in ("hours", "days"):
-        windows = _window_by_time(sorted_table, step_size, step_unit, min_window_size, overlap_ratio)
+        # Dynamically reduce step_size if max_window_time constraint would be exceeded
+        effective_step_size = step_size
+        effective_step_unit = step_unit
+
+        if max_window_time:
+            # Convert step_size to timedelta
+            if step_unit == "hours":
+                requested_delta = timedelta(hours=step_size)
+            else:  # days
+                requested_delta = timedelta(days=step_size)
+
+            # If requested window exceeds max, reduce to max
+            if requested_delta > max_window_time:
+                # Account for overlap: window_duration = step_size * (1 + overlap_ratio)
+                # So: effective_step_size = max_window_time / (1 + overlap_ratio)
+                max_with_overlap = max_window_time / (1 + overlap_ratio)
+
+                # Convert to appropriate unit
+                max_hours = max_with_overlap.total_seconds() / 3600
+                if max_hours < 24:
+                    # Use hours if < 1 day (floor to avoid exceeding)
+                    effective_step_size = int(math.floor(max_hours))
+                    if effective_step_size < 1:
+                        effective_step_size = 1  # Minimum 1 hour
+                    effective_step_unit = "hours"
+                else:
+                    # Use days if >= 1 day (floor to avoid exceeding)
+                    effective_step_size = int(math.floor(max_with_overlap.days))
+                    if effective_step_size < 1:
+                        effective_step_size = 1  # Minimum 1 day
+                    effective_step_unit = "days"
+
+                logger.info(
+                    "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
+                    step_size,
+                    step_unit,
+                    effective_step_size,
+                    effective_step_unit,
+                    max_window_time,
+                )
+
+        windows = _window_by_time(
+            sorted_table, effective_step_size, effective_step_unit, min_window_size, overlap_ratio
+        )
     else:
         msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', or 'days'."
         raise ValueError(msg)
-
-    # Apply max_window_time constraint if specified
-    if max_window_time:
-        windows = _apply_time_limit(windows, max_window_time)
 
     yield from windows
 
@@ -284,14 +328,17 @@ def _window_by_time(
 
 
 def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterator[Window]:
-    """Split windows that exceed max_time duration.
+    """Safety check: split any windows that still exceed max_time duration.
+
+    NOTE: With dynamic step_size reduction (Phase 7+), this should rarely
+    trigger. Kept as defensive programming for edge cases.
 
     Args:
         windows: Generator of windows to process
         max_time: Maximum allowed duration per window
 
     Yields:
-        Windows split to respect max_time constraint
+        Windows, split if they exceed the constraint
 
     """
     for window in windows:
@@ -301,33 +348,18 @@ def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterato
             yield window
             continue
 
-        # Split window into smaller time chunks
-        # Simplified: just split in half for now
-        mid_time = window.start_time + (duration / 2)
+        # Edge case: window still exceeds limit (shouldn't happen with dynamic reduction)
+        logger.warning(
+            "⚠️  Window exceeded max_window_time despite dynamic reduction (edge case). "
+            "Duration: %s, Max: %s. Splitting...",
+            duration,
+            max_time,
+        )
 
-        first_half = window.table.filter(window.table.timestamp < mid_time)
-        second_half = window.table.filter(window.table.timestamp >= mid_time)
-
-        first_size = first_half.count().execute()
-        second_size = second_half.count().execute()
-
-        if first_size > 0:
-            yield Window(
-                window_index=window.window_index,
-                start_time=window.start_time,
-                end_time=mid_time,
-                table=first_half,
-                size=first_size,
-            )
-
-        if second_size > 0:
-            yield Window(
-                window_index=window.window_index + 1,
-                start_time=mid_time,
-                end_time=window.end_time,
-                table=second_half,
-                size=second_size,
-            )
+        # Calculate splits needed and recursively split
+        num_splits = math.ceil(duration / max_time)
+        split_windows = split_window_into_n_parts(window, num_splits)
+        yield from _apply_time_limit(iter(split_windows), max_time)
 
 
 def _get_min_timestamp(table: Table) -> datetime:
