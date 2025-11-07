@@ -1,8 +1,8 @@
 """Pydantic-AI powered writer agent.
 
-This module experiments with migrating the writer workflow to Pydantic-AI.
+This module implements the writer workflow using Pydantic-AI.
 It exposes ``write_posts_with_pydantic_agent`` which mirrors the signature of
-``write_posts_for_period`` but routes the LLM conversation through a
+``write_posts_for_window`` but routes the LLM conversation through a
 ``pydantic_ai.Agent`` instance. The implementation keeps the existing tool
 surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.

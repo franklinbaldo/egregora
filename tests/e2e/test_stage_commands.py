@@ -317,7 +317,7 @@ class TestGatherContextCommand:
             [
                 "gather-context",
                 str(enriched_csv),
-                "--period-key",
+                "--window-id",
                 "2025-10-28",
                 "--site-dir",
                 str(site_dir),
@@ -366,7 +366,7 @@ class TestWritePostsCommand:
             [
                 "write-posts",
                 str(enriched_csv),
-                "--period-key",
+                "--window-id",
                 "2025-10-28",
                 "--site-dir",
                 str(site_dir),
@@ -385,7 +385,7 @@ class TestWritePostsCommand:
             [
                 "write-posts",
                 str(enriched_csv),
-                "--period-key",
+                "--window-id",
                 "2025-10-28",
                 "--site-dir",
                 str(site_dir),

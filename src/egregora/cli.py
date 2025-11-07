@@ -1021,7 +1021,7 @@ def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and sta
 def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
-    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., chunk_001)")],
+    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     output: Annotated[Path, typer.Option(help="Output context JSON file")],
     gemini_key: Annotated[
@@ -1039,7 +1039,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
     - Formats conversation as markdown table
     - Queries RAG for similar posts (if enabled)
     - Loads author profiles
-    - Loads freeform memory from previous period
+    - Loads freeform memory from previous windows
     - Loads site configuration
     - Saves all context to JSON file
 
@@ -1132,7 +1132,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
 def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
-    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., chunk_001)")],
+    window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
     site_dir: Annotated[Path, typer.Option(help="Site directory")],
     context: Annotated[
         Path | None, typer.Option(help="Context JSON file (from gather-context command)")

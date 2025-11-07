@@ -241,10 +241,14 @@ The codebase has undergone comprehensive modernization (2025-01). Follow these p
 @dataclass(frozen=True, slots=True)
 class WriterRuntimeContext:
     """Runtime context for writer agent execution."""
-    window_id: str  # Sequential: "chunk_001", "window_002", etc.
+    start_time: datetime  # Window start timestamp
+    end_time: datetime    # Window end timestamp
     output_dir: Path
     profiles_dir: Path
-    # ... use model_copy() for updates
+    rag_dir: Path
+    client: Any
+    annotations_store: AnnotationStore | None = None
+    # Frozen dataclass - immutable after creation
 ```
 
 **Simple Resume Logic (Phase 3)**:
