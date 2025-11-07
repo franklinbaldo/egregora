@@ -119,6 +119,28 @@ ignore = [
     "TC003",   # Type-checking-only standard library imports
     "SIM102",  # Collapsible if (explicit can be clearer)
     "SIM108",  # Ternary operator (not always clearer)
+
+    # Style - enforce gradually
+    "E501",    # Line too long (refactor gradually, not blocking)
+    "SLF001",  # Private member access (sometimes necessary for testing/integration)
+    "G201",    # Logging exc_info (explicit is fine)
+
+    # Datetime timezone - add gradually as features touch code
+    "DTZ001",  # call-datetime-without-tzinfo
+    "DTZ005",  # call-datetime-now-without-tzinfo
+    "DTZ006",  # call-datetime-fromtimestamp
+    "DTZ007",  # call-datetime-strptime-without-zone
+    "DTZ011",  # call-date-today
+
+    # Docstrings - enforce for new code, not blocking for existing
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D105",    # Missing docstring in magic method
+    "D107",    # Missing docstring in __init__
+    "D401",    # First line should be imperative
+    "D417",    # Missing argument description in docstring
 ]
 
 [tool.ruff.lint.per-file-ignores]
