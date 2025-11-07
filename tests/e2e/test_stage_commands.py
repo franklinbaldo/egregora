@@ -21,7 +21,7 @@ runner = CliRunner()
 @pytest.fixture
 def test_zip_file():
     """Path to the test WhatsApp export ZIP file."""
-    return Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
+    return Path(__file__).parent.parent / "fixtures" / "Conversa do WhatsApp com Teste.zip"
 
 
 @pytest.fixture
