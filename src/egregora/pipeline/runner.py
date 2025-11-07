@@ -277,52 +277,139 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
 
-        # Process windows lazily from generator
-        for window in windows_iterator:
+        def process_window_with_auto_split(
+            window: Window,  # noqa: F821
+            *,
+            depth: int = 0,
+            max_depth: int = 5,
+        ) -> dict[str, dict[str, list[str]]]:
+            """Process a window with automatic splitting if prompt exceeds model limit.
+
+            Args:
+                window: Window to process
+                depth: Current recursion depth (for logging)
+                max_depth: Maximum recursion depth to prevent infinite splitting
+
+            Returns:
+                Dict mapping window_id to {'posts': [...], 'profiles': [...]}
+
+            Raises:
+                RuntimeError: If max recursion depth reached
+
+            """
+            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+            from egregora.pipeline import split_window_in_half  # noqa: PLC0415
+
+            # Constants
+            min_window_size = 5  # Minimum messages before we stop splitting
+
+            indent = "  " * depth
             window_id = window.window_id
             window_table = window.table
             window_count = window.size
-            logger.info("➡️  [bold]%s[/] — %s messages", window_id, window_count)
 
-            # Phase 7: No skip logic needed - checkpoint handles resume
-            with tempfile.TemporaryDirectory(prefix=f"egregora-media-{window_id}-") as temp_dir_str:
-                temp_dir = Path(temp_dir_str)
-                window_table, media_mapping = process_media_for_window(
-                    window_table=window_table,
-                    adapter=adapter,
-                    media_dir=site_paths.media_dir,
-                    temp_dir=temp_dir,
-                    docs_dir=site_paths.docs_dir,
-                    posts_dir=posts_dir,
-                    zip_path=input_path,
+            logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_id, window_count, depth)
+
+            # Stop splitting if window too small or max depth reached
+            if window_count < min_window_size:
+                logger.warning(
+                    "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
+                    indent,
+                    window_id,
+                    window_count,
                 )
-            # Phase 3: Simplified enrichment - no complex checkpointing
-            if enable_enrichment:
-                logger.info("✨ [cyan]Enriching[/] window %s", window_id)
-                enriched_table = _perform_enrichment(
-                    window_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
+            if depth >= max_depth:
+                error_msg = (
+                    f"Max recursion depth {max_depth} reached for window {window_id}. "
+                    "Window cannot be split small enough to fit in model context. "
+                    "Try increasing --max-prompt-tokens or using --use-full-context-window."
                 )
+                logger.error("%s❌ %s", indent, error_msg)
+                raise RuntimeError(error_msg)
+
+            try:
+                # Try to process the window normally
+                with tempfile.TemporaryDirectory(prefix=f"egregora-media-{window_id}-") as temp_dir_str:
+                    temp_dir = Path(temp_dir_str)
+                    window_table_processed, media_mapping = process_media_for_window(
+                        window_table=window_table,
+                        adapter=adapter,
+                        media_dir=site_paths.media_dir,
+                        temp_dir=temp_dir,
+                        docs_dir=site_paths.docs_dir,
+                        posts_dir=posts_dir,
+                        zip_path=input_path,
+                    )
+
+                if enable_enrichment:
+                    logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_id)
+                    enriched_table = _perform_enrichment(
+                        window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                    )
+                else:
+                    enriched_table = window_table_processed
+
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
+                    model_config=model_config,
+                    enable_rag=True,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_window(enriched_table, window_id, client, writer_config)
+                post_count = len(result.get("posts", []))
+                profile_count = len(result.get("profiles", []))
+                logger.info(
+                    "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
+                    indent,
+                    post_count,
+                    profile_count,
+                    window_id,
+                )
+
+            except PromptTooLargeError as e:
+                # Prompt too large - split window and retry
+                logger.warning(
+                    "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
+                    indent,
+                    window_id,
+                    e.estimated_tokens // 1000,
+                    e.effective_limit // 1000,
+                )
+
+                first_half, second_half = split_window_in_half(window)
+
+                if first_half is None and second_half is None:
+                    error_msg = f"Cannot split window {window_id} - both halves would be empty"
+                    logger.exception("%s❌ %s", indent, error_msg)
+                    raise RuntimeError(error_msg) from e
+
+                # Recursively process each half
+                combined_results = {}
+                if first_half:
+                    logger.info("%s↳ [dim]Processing first half[/]", indent)
+                    first_results = process_window_with_auto_split(first_half, depth=depth + 1, max_depth=max_depth)
+                    combined_results.update(first_results)
+
+                if second_half:
+                    logger.info("%s↳ [dim]Processing second half[/]", indent)
+                    second_results = process_window_with_auto_split(
+                        second_half, depth=depth + 1, max_depth=max_depth
+                    )
+                    combined_results.update(second_results)
+
+                return combined_results
             else:
-                enriched_table = window_table
+                return {window_id: result}
 
-            # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
-            writer_config = WriterConfig(
-                output_dir=posts_dir,
-                profiles_dir=profiles_dir,
-                rag_dir=site_paths.rag_dir,
-                model_config=model_config,
-                enable_rag=True,
-                retrieval_mode=retrieval_mode,
-                retrieval_nprobe=retrieval_nprobe,
-                retrieval_overfetch=retrieval_overfetch,
-            )
-            result = write_posts_for_window(enriched_table, window_id, client, writer_config)
-            results[window_id] = result
-            post_count = len(result.get("posts", []))
-            profile_count = len(result.get("profiles", []))
-            logger.info(
-                "[green]✔ Generated[/] %s posts / %s profiles for %s", post_count, profile_count, window_id
-            )
+        # Phase 8: Process windows with automatic splitting for oversized prompts
+        for window in windows_iterator:
+            window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
+            results.update(window_results)
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
             try:

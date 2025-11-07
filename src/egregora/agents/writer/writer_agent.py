@@ -390,20 +390,22 @@ def write_posts_with_pydantic_agent(
                 context.window_id,
             )
         else:
-            # Hard limit exceeded
+            # Hard limit exceeded - raise exception to trigger window splitting
+            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+
             logger.error(
-                "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s)",
+                "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s) - will split window",
                 estimated_tokens,
                 model_effective_limit,
                 model_name,
                 context.window_id,
             )
-            # TODO(Phase 8): Implement dynamic window splitting
-            # - Split window in half by time or message count
-            # - Rebuild prompts for each half and retry
-            # - Recurse until prompts fit or minimum window size reached
-            # For now, attempt generation and let API reject with clear error
-            logger.warning("Attempting generation anyway - expect API failure or truncation")
+            raise PromptTooLargeError(
+                estimated_tokens=estimated_tokens,
+                effective_limit=model_effective_limit,
+                model_name=model_name,
+                window_id=context.window_id,
+            )
     else:
         logger.info(
             "Prompt fits: %d tokens / %d limit (%.1f%% usage) for %s",

@@ -381,3 +381,47 @@ def _get_max_timestamp(table: Table) -> datetime:
     """Get maximum timestamp from table."""
     result = table.aggregate(table.timestamp.max().name("max_ts")).execute()
     return result["max_ts"][0]
+
+
+def split_window_in_half(window: Window) -> tuple[Window | None, Window | None]:
+    """Split a window in half by time.
+
+    Args:
+        window: Window to split
+
+    Returns:
+        Tuple of (first_half, second_half) windows. Either can be None if empty.
+
+    """
+    duration = window.end_time - window.start_time
+    mid_time = window.start_time + (duration / 2)
+
+    first_half = window.table.filter(window.table.timestamp < mid_time)
+    second_half = window.table.filter(window.table.timestamp >= mid_time)
+
+    first_size = first_half.count().execute()
+    second_size = second_half.count().execute()
+
+    first_window = None
+    if first_size > 0:
+        first_window = Window(
+            window_id=f"{window.window_id}_a",
+            window_index=window.window_index,
+            start_time=window.start_time,
+            end_time=mid_time,
+            table=first_half,
+            size=first_size,
+        )
+
+    second_window = None
+    if second_size > 0:
+        second_window = Window(
+            window_id=f"{window.window_id}_b",
+            window_index=window.window_index + 1,
+            start_time=mid_time,
+            end_time=window.end_time,
+            table=second_half,
+            size=second_size,
+        )
+
+    return first_window, second_window

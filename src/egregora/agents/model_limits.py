@@ -13,6 +13,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class PromptTooLargeError(Exception):
+    """Raised when a prompt exceeds the model's hard context limit.
+
+    This exception signals that the window should be split and retried.
+
+    Attributes:
+        estimated_tokens: Estimated token count of the prompt
+        effective_limit: Effective token limit after safety margin
+        model_name: Name of the model being used
+        window_id: ID of the window being processed
+
+    """
+
+    def __init__(self, estimated_tokens: int, effective_limit: int, model_name: str, window_id: str) -> None:
+        self.estimated_tokens = estimated_tokens
+        self.effective_limit = effective_limit
+        self.model_name = model_name
+        self.window_id = window_id
+        super().__init__(
+            f"Prompt exceeds hard limit: {estimated_tokens} tokens > {effective_limit} for {model_name} (window: {window_id})"
+        )
+
 # Gemini model context limits (input tokens)
 # Source: https://ai.google.dev/gemini-api/docs/models/gemini
 KNOWN_MODEL_LIMITS = {
@@ -165,6 +188,7 @@ def validate_prompt_fits(
 
 __all__ = [
     "KNOWN_MODEL_LIMITS",
+    "PromptTooLargeError",
     "estimate_tokens",
     "get_model_context_limit",
     "validate_prompt_fits",
