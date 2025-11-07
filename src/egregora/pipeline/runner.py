@@ -285,43 +285,48 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         ) -> dict[str, dict[str, list[str]]]:
             """Process a window with automatic splitting if prompt exceeds model limit.
 
+            Uses calculated upfront splitting (not recursive trial-and-error).
+            Depth tracking is a safety mechanism for rare edge cases.
+
             Args:
                 window: Window to process
-                depth: Current recursion depth (for logging)
-                max_depth: Maximum recursion depth to prevent infinite splitting
+                depth: Current split depth (for logging and safety checks)
+                max_depth: Maximum split depth to prevent pathological cases
 
             Returns:
-                Dict mapping window_id to {'posts': [...], 'profiles': [...]}
+                Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
             Raises:
-                RuntimeError: If max recursion depth reached
+                RuntimeError: If max split depth reached (indicates miscalculation)
 
             """
             from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
-            from egregora.pipeline import split_window_in_half  # noqa: PLC0415
+            from egregora.pipeline import split_window_into_n_parts  # noqa: PLC0415
 
             # Constants
             min_window_size = 5  # Minimum messages before we stop splitting
 
             indent = "  " * depth
-            window_id = window.window_id
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
             window_table = window.table
             window_count = window.size
 
-            logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_id, window_count, depth)
+            logger.info(
+                "%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth
+            )
 
             # Stop splitting if window too small or max depth reached
             if window_count < min_window_size:
                 logger.warning(
                     "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
                     indent,
-                    window_id,
+                    window_label,
                     window_count,
                 )
             if depth >= max_depth:
                 error_msg = (
-                    f"Max recursion depth {max_depth} reached for window {window_id}. "
-                    "Window cannot be split small enough to fit in model context. "
+                    f"Max split depth {max_depth} reached for window {window_label}. "
+                    "Window cannot be split enough to fit in model context (possible miscalculation). "
                     "Try increasing --max-prompt-tokens or using --use-full-context-window."
                 )
                 logger.error("%s❌ %s", indent, error_msg)
@@ -329,7 +334,8 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
 
             try:
                 # Try to process the window normally
-                with tempfile.TemporaryDirectory(prefix=f"egregora-media-{window_id}-") as temp_dir_str:
+                temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
+                with tempfile.TemporaryDirectory(prefix=temp_prefix) as temp_dir_str:
                     temp_dir = Path(temp_dir_str)
                     window_table_processed, media_mapping = process_media_for_window(
                         window_table=window_table,
@@ -342,7 +348,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     )
 
                 if enable_enrichment:
-                    logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_id)
+                    logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
                     enriched_table = _perform_enrichment(
                         window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
                     )
@@ -360,7 +366,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     retrieval_overfetch=retrieval_overfetch,
                 )
 
-                result = write_posts_for_window(enriched_table, window_id, client, writer_config)
+                result = write_posts_for_window(
+                    enriched_table, window.start_time, window.end_time, client, writer_config
+                )
                 post_count = len(result.get("posts", []))
                 profile_count = len(result.get("profiles", []))
                 logger.info(
@@ -368,7 +376,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     indent,
                     post_count,
                     profile_count,
-                    window_id,
+                    window_label,
                 )
 
             except PromptTooLargeError as e:
@@ -376,37 +384,39 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.warning(
                     "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
                     indent,
-                    window_id,
+                    window_label,
                     e.estimated_tokens // 1000,
                     e.effective_limit // 1000,
                 )
 
-                first_half, second_half = split_window_in_half(window)
+                # Calculate how many splits we need upfront
+                import math  # noqa: PLC0415
 
-                if first_half is None and second_half is None:
-                    error_msg = f"Cannot split window {window_id} - both halves would be empty"
+                num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
+                logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
+
+                split_windows = split_window_into_n_parts(window, num_splits)
+
+                if not split_windows:
+                    error_msg = f"Cannot split window {window_label} - all splits would be empty"
                     logger.exception("%s❌ %s", indent, error_msg)
                     raise RuntimeError(error_msg) from e
 
-                # Recursively process each half
+                # Process each split window
                 combined_results = {}
-                if first_half:
-                    logger.info("%s↳ [dim]Processing first half[/]", indent)
-                    first_results = process_window_with_auto_split(
-                        first_half, depth=depth + 1, max_depth=max_depth
+                for i, split_window in enumerate(split_windows, 1):
+                    split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
+                    logger.info(
+                        "%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label
                     )
-                    combined_results.update(first_results)
-
-                if second_half:
-                    logger.info("%s↳ [dim]Processing second half[/]", indent)
-                    second_results = process_window_with_auto_split(
-                        second_half, depth=depth + 1, max_depth=max_depth
+                    split_results = process_window_with_auto_split(
+                        split_window, depth=depth + 1, max_depth=max_depth
                     )
-                    combined_results.update(second_results)
+                    combined_results.update(split_results)
 
                 return combined_results
             else:
-                return {window_id: result}
+                return {window_label: result}
 
         # Phase 8: Process windows with automatic splitting for oversized prompts
         for window in windows_iterator:

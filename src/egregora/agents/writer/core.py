@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -228,7 +229,11 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
 
 
 def _write_posts_for_window_pydantic(
-    table: Table, window_id: str, client: genai.Client, config: WriterConfig | None = None
+    table: Table,
+    start_time: datetime,
+    end_time: datetime,
+    client: genai.Client,
+    config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """Pydantic AI backend: Let LLM analyze window's messages using Pydantic AI.
 
@@ -237,7 +242,8 @@ def _write_posts_for_window_pydantic(
 
     Args:
         table: Table with messages for the period (already enriched)
-        window_id: Period identifier (e.g., "2025-01-01")
+        start_time: Start timestamp of the window
+        end_time: End timestamp of the window
         client: Gemini client for embeddings
         config: Writer configuration object
 
@@ -277,8 +283,12 @@ def _write_posts_for_window_pydantic(
     markdown_features_section = ""
     if markdown_extensions_yaml:
         markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
+
+    # Format timestamps for LLM prompt (human-readable)
+    date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+
     template = WriterPromptTemplate(
-        date=window_id,
+        date=date_range,
         markdown_table=conversation_md,
         active_authors=", ".join(active_authors),
         custom_instructions=custom_writer_prompt or "",
@@ -298,7 +308,8 @@ def _write_posts_for_window_pydantic(
 
     # Create runtime context for writer agent
     runtime_context = WriterRuntimeContext(
-        window_id=window_id,
+        start_time=start_time,
+        end_time=end_time,
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
@@ -317,7 +328,11 @@ def _write_posts_for_window_pydantic(
 
 
 def write_posts_for_window(
-    table: Table, window_id: str, client: genai.Client, config: WriterConfig | None = None
+    table: Table,
+    start_time: datetime,
+    end_time: datetime,
+    client: genai.Client,
+    config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -332,7 +347,8 @@ def write_posts_for_window(
 
     Args:
         table: Table with messages for the period (already enriched)
-        window_id: Period identifier (e.g., "2025-01-01")
+        start_time: Start timestamp of the window
+        end_time: End timestamp of the window
         client: Gemini client for embeddings
         config: Writer configuration object
 
@@ -344,10 +360,14 @@ def write_posts_for_window(
 
     Examples:
         >>> writer_config = WriterConfig()
-        >>> result = write_posts_for_window(table, "2025-01-01", client, writer_config)
+        >>> start = datetime(2025, 1, 1, 0, 0)
+        >>> end = datetime(2025, 1, 1, 23, 59)
+        >>> result = write_posts_for_window(table, start, end, client, writer_config)
 
     """
     if config is None:
         config = WriterConfig()
     logger.info("Using Pydantic AI backend for writer")
-    return _write_posts_for_window_pydantic(table=table, window_id=window_id, client=client, config=config)
+    return _write_posts_for_window_pydantic(
+        table=table, start_time=start_time, end_time=end_time, client=client, config=config
+    )

@@ -1191,7 +1191,12 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
                 console.print("[yellow]No context file provided, will gather context inline[/yellow]")
             console.print(f"[cyan]Writer model:[/cyan] {model_config.get_model('writer')}")
             console.print(f"[cyan]RAG retrieval:[/cyan] {('enabled' if enable_rag else 'disabled')}")
-            console.print(f"[yellow]Invoking LLM writer for window {window_id}...[/yellow]")
+            # Extract time range from data for writer context
+            start_time = enriched_table.timestamp.min().execute()
+            end_time = enriched_table.timestamp.max().execute()
+            window_label = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+
+            console.print(f"[yellow]Invoking LLM writer for window {window_label}...[/yellow]")
             writer_config = WriterConfig(
                 output_dir=site_paths.posts_dir,
                 profiles_dir=site_paths.profiles_dir,
@@ -1202,7 +1207,7 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
                 retrieval_nprobe=retrieval_nprobe,
                 retrieval_overfetch=retrieval_overfetch,
             )
-            result = write_posts_for_window(enriched_table, window_id, client, writer_config)
+            result = write_posts_for_window(enriched_table, start_time, end_time, client, writer_config)
             posts_count = len(result.get("posts", []))
             profiles_count = len(result.get("profiles", []))
             console.print(f"[green]✅ Generated {posts_count} posts[/green]")

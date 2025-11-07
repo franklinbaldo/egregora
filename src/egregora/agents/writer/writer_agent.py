@@ -66,9 +66,13 @@ class WriterRuntimeContext:
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
     Separates runtime data (paths, clients) from configuration (EgregoraConfig).
+
+    Windows are identified by (start_time, end_time) tuple, not artificial IDs.
+    This makes them stable across config changes and more meaningful for logging.
     """
 
-    window_id: str
+    start_time: datetime
+    end_time: datetime
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
@@ -347,8 +351,12 @@ def write_posts_with_pydantic_agent(
         )
     else:
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
+
+    # Generate window identifier for logging
+    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
+
     state = WriterAgentState(
-        window_id=context.window_id,
+        window_id=window_label,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
@@ -387,7 +395,7 @@ def write_posts_with_pydantic_agent(
                 estimated_tokens,
                 model_effective_limit,
                 model_name,
-                context.window_id,
+                window_label,
             )
         else:
             # Hard limit exceeded - raise exception to trigger window splitting
@@ -398,13 +406,13 @@ def write_posts_with_pydantic_agent(
                 estimated_tokens,
                 model_effective_limit,
                 model_name,
-                context.window_id,
+                window_label,
             )
             raise PromptTooLargeError(
                 estimated_tokens=estimated_tokens,
                 effective_limit=model_effective_limit,
                 model_name=model_name,
-                window_id=context.window_id,
+                window_id=window_label,
             )
     else:
         logger.info(
@@ -415,7 +423,7 @@ def write_posts_with_pydantic_agent(
             model_name,
         )
 
-    with logfire_span("writer_agent", period=context.window_id, model=model_name):
+    with logfire_span("writer_agent", period=window_label, model=model_name):
         result = agent.run_sync(prompt, deps=state)
         result_payload = getattr(result, "data", result)
 
@@ -425,7 +433,7 @@ def write_posts_with_pydantic_agent(
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
-            period=context.window_id,
+            period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
             tokens_total=usage.total_tokens if usage else 0,
@@ -438,7 +446,8 @@ def write_posts_with_pydantic_agent(
             output_path = Path(record_dir).expanduser()
             output_path.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{context.window_id}-{timestamp}.json"
+            # Use start time for filename
+            filename = output_path / f"writer-{context.start_time:%Y%m%d_%H%M%S}-{timestamp}.json"
             try:
                 payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
                 filename.write_bytes(payload)

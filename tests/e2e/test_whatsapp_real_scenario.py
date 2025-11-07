@@ -101,12 +101,14 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
     def _stub_writer(
         table,
-        window_id,
+        start_time,
+        end_time,
         client,
         config=None,
     ):
-        """Stub writer matching new signature: write_posts_for_window(table, period_date, client, config)."""
-        captured_dates.append(window_id)
+        """Stub writer matching new signature: write_posts_for_window(table, start_time, end_time, client, config)."""
+        window_label = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+        captured_dates.append(window_label)
 
         # Extract paths from config if provided, otherwise use dummy paths
         if config:
@@ -120,11 +122,12 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         output_dir.mkdir(parents=True, exist_ok=True)
         profiles_dir.mkdir(parents=True, exist_ok=True)
 
-        post_path = output_dir / f"{window_id}-stub.md"
+        post_filename = f"{start_time:%Y%m%d_%H%M%S}-stub.md"
+        post_path = output_dir / post_filename
         post_path.write_text(
             "---\n"
-            f"title: Stub Post for {window_id}\n"
-            f"date: {window_id}\n"
+            f"title: Stub Post for {window_label}\n"
+            f"date: {start_time:%Y-%m-%d}\n"
             "tags: []\n"
             "---\n"
             "This is a placeholder post used during testing.\n",
