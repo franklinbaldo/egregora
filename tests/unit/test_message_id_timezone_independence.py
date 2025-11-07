@@ -10,7 +10,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from egregora.ingestion import parse_source
-
 from egregora.sources.whatsapp.models import WhatsAppExport
 
 
