@@ -25,6 +25,7 @@ class RawGeminiClient:
         >>> client = RawGeminiClient(api_key="your-key")
         >>> embedding = client.embed_content("hello world", "gemini-embedding-001")
         >>> print(len(embedding))  # 768 or 3072 depending on model
+
     """
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -35,6 +36,7 @@ class RawGeminiClient:
         Args:
             api_key: Gemini API key
             timeout: Request timeout in seconds
+
         """
         self.api_key = api_key
         self.timeout = timeout
@@ -66,6 +68,7 @@ class RawGeminiClient:
 
         Raises:
             httpx.HTTPError: If request fails
+
         """
         # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
         while model.startswith("models/"):
@@ -110,6 +113,7 @@ class RawGeminiClient:
 
         Returns:
             List of embedding vectors (one per input text)
+
         """
         # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
         while model.startswith("models/"):
@@ -154,6 +158,7 @@ class RawGeminiClient:
 
         Returns:
             Generated text content
+
         """
         # Strip any leading "models/" prefix to avoid double-prefixing in the URL.
         while model.startswith("models/"):
@@ -200,6 +205,7 @@ def create_raw_client_from_genai(genai_client: Any) -> RawGeminiClient:
 
     Returns:
         RawGeminiClient configured with same API key
+
     """
     # Extract API key from genai client
     api_key = getattr(genai_client, "api_key", None)

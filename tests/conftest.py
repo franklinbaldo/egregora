@@ -46,7 +46,6 @@ except (ImportError, AttributeError):  # pragma: no cover - runtime safety for o
 
 def _install_google_stubs() -> None:
     """Ensure google genai modules exist so imports succeed during tests."""
-
     if _real_sdk_available:
         # Some historical versions lacked the newer helper classes we rely on.
         if hasattr(genai_types, "FunctionCall"):
@@ -179,7 +178,6 @@ class WhatsAppFixture:
 @pytest.fixture(scope="session")
 def whatsapp_fixture() -> WhatsAppFixture:
     """Load WhatsApp archive metadata once for the entire test session."""
-
     zip_path = Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
     with zipfile.ZipFile(zip_path) as archive:
         validate_zip_contents(archive)
@@ -238,8 +236,7 @@ def mock_batch_client(monkeypatch):
 
 @pytest.fixture(scope="module")
 def vcr_config():
-    """
-    VCR configuration for recording and replaying HTTP interactions.
+    """VCR configuration for recording and replaying HTTP interactions.
 
     This configuration filters out sensitive data like API keys from cassettes
     and properly handles binary file uploads (images, etc.).
