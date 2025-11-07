@@ -477,9 +477,16 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
         part_start = window.start_time + (part_duration * i)
         part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
 
-        part_table = window.table.filter(
-            (window.table.timestamp >= part_start) & (window.table.timestamp < part_end)
-        )
+        # For the LAST partition, use <= to include messages at window.end_time
+        # (critical for message/byte-based windows where end_time == last message timestamp)
+        if i == n - 1:
+            part_table = window.table.filter(
+                (window.table.timestamp >= part_start) & (window.table.timestamp <= part_end)
+            )
+        else:
+            part_table = window.table.filter(
+                (window.table.timestamp >= part_start) & (window.table.timestamp < part_end)
+            )
 
         part_size = part_table.count().execute()
         if part_size > 0:
