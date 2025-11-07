@@ -854,6 +854,7 @@ def group(
     Examples:
         egregora group messages.csv --step-size=100 --step-unit=messages
         egregora group messages.csv --step-size=7 --step-unit=days
+
     """
     input_path = input_csv.resolve()
     if not input_path.exists():
