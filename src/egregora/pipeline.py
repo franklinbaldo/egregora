@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -116,34 +117,34 @@ def create_windows(  # noqa: PLR0913
     step_unit: str = "messages",
     overlap_ratio: float = 0.2,
     max_window_time: timedelta | None = None,
-    max_tokens_per_window: int = 80_000,
+    max_bytes_per_window: int = 320_000,
 ) -> Iterator[Window]:
     """Create processing windows from messages with overlap for context continuity.
 
     Replaces period-based grouping with flexible windowing:
     - By message count: step_size=100, step_unit="messages"
     - By time: step_size=2, step_unit="days"
-    - By context packing: step_unit="context" (maximizes messages per window)
+    - By byte packing: step_unit="bytes" (maximizes context per window)
 
     Overlap provides conversation context across window boundaries, improving
     LLM understanding and blog post quality at the cost of ~20% more tokens.
 
-    Context packing mode (step_unit="context") ignores time boundaries and packs
-    as many messages as possible per window (up to token limit). This minimizes
+    Byte packing mode (step_unit="bytes") ignores time boundaries and packs
+    messages to maximize context usage (~4 bytes/token). This minimizes
     API calls but may produce less time-coherent posts.
 
     All windows are processed - the LLM decides if content warrants a post.
 
     Args:
         table: Table with timestamp column
-        step_size: Size of each window (ignored for context mode)
-        step_unit: Unit for windowing ("messages", "hours", "days", "context")
+        step_size: Size of each window (ignored for bytes mode)
+        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
         max_window_time: Optional maximum time span per window **step** (not
             including overlap). Actual window duration will be
             max_window_time × (1 + overlap_ratio). To strictly bound total
             duration, set max_window_time = desired_max / (1 + overlap_ratio)
-        max_tokens_per_window: Max estimated tokens per window (for context mode)
+        max_bytes_per_window: Max bytes per window (for bytes mode, ~4 bytes/token)
 
     Yields:
         Window objects with overlapping message sets
@@ -214,13 +215,15 @@ def create_windows(  # noqa: PLR0913
                     max_window_time,
                 )
 
-        windows = _window_by_time(sorted_table, effective_step_size, effective_step_unit, overlap_ratio)
-    elif step_unit == "context":
-        # Context-packing mode: maximize messages per window up to token limit
-        overlap_messages = int(max_tokens_per_window * overlap_ratio / 4)  # Rough token estimate
-        windows = _window_by_context(sorted_table, max_tokens_per_window, overlap_messages)
+        windows = _window_by_time(
+            sorted_table, effective_step_size, effective_step_unit, overlap_ratio
+        )
+    elif step_unit == "bytes":
+        # Byte-packing mode: maximize messages per window up to byte limit
+        overlap_bytes = int(max_bytes_per_window * overlap_ratio)
+        windows = _window_by_bytes(sorted_table, max_bytes_per_window, overlap_bytes)
     else:
-        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'context'."
+        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
         raise ValueError(msg)
 
     yield from windows
@@ -335,65 +338,70 @@ def _window_by_time(
         current_start += delta  # Advance by delta, creating overlap
 
 
-def _window_by_context(
+def _window_by_bytes(
     table: Table,
-    max_tokens: int,
-    overlap_messages: int = 0,
+    max_bytes: int,
+    overlap_bytes: int = 0,
 ) -> Iterator[Window]:
-    """Generate windows by packing messages up to a token limit.
+    """Generate windows by packing messages up to a byte limit.
 
+    Uses DuckDB window functions for efficient cumulative byte calculation.
     This mode ignores time boundaries and maximizes context per window,
     trading time-coherence for fewer API calls.
 
-    Token estimation: ~4 characters per token (rough heuristic).
+    Byte-to-token ratio: ~4 bytes per token (industry standard).
 
     Args:
         table: Sorted table of messages
-        max_tokens: Maximum estimated tokens per window
-        overlap_messages: Number of messages to overlap between windows
+        max_bytes: Maximum bytes per window
+        overlap_bytes: Bytes to overlap between windows
 
     Yields:
-        Windows packed to maximum token capacity
+        Windows packed to maximum byte capacity
 
     """
-    total_count = table.count().execute()
+    # Add row number and byte length columns
+    enriched = table.mutate(
+        row_num=ibis.row_number().over(ibis.window(order_by=[table.timestamp])),
+        msg_bytes=table.message.length().cast("int64"),
+    )
+
+    # Calculate cumulative bytes
+    windowed = enriched.mutate(
+        cumulative_bytes=enriched.msg_bytes.sum().over(
+            ibis.window(order_by=[enriched.timestamp], rows=(None, 0))
+        )
+    )
+
+    # Materialize to avoid recomputation
+    materialized = windowed.cache()
+    total_count = materialized.count().execute()
+
+    if total_count == 0:
+        return
+
     window_index = 0
     offset = 0
 
     while offset < total_count:
-        # Start with step estimate, then refine
-        estimated_messages_per_window = max_tokens // 20  # Conservative: ~20 tokens/message
-        chunk_size = min(estimated_messages_per_window + overlap_messages, total_count - offset)
+        # Get chunk starting from offset
+        chunk = materialized.limit(total_count - offset, offset=offset)
 
-        # Get actual messages and calculate token estimate
-        window_table = table.limit(chunk_size, offset=offset)
-        messages_df = window_table.select(["message"]).execute()
+        # Reset cumulative bytes relative to chunk start
+        chunk_with_relative = chunk.mutate(
+            relative_bytes=chunk.cumulative_bytes - chunk.cumulative_bytes.min()
+        )
 
-        # Refine: calculate actual token estimate
-        total_chars = sum(len(str(msg)) for msg in messages_df["message"])
-        estimated_tokens = total_chars // 4  # ~4 chars per token
+        # Find messages that fit within max_bytes
+        fitting = chunk_with_relative.filter(chunk_with_relative.relative_bytes <= max_bytes)
+        chunk_size = fitting.count().execute()
 
-        # If we exceeded limit, binary search for the right size
-        if estimated_tokens > max_tokens and chunk_size > 1:
-            # Binary search to find maximum messages that fit
-            low, high = 1, chunk_size
-            best_size = 1
+        if chunk_size == 0:
+            # Edge case: single message exceeds limit, take it anyway
+            chunk_size = 1
 
-            while low <= high:
-                mid = (low + high) // 2
-                test_table = table.limit(mid, offset=offset)
-                test_df = test_table.select(["message"]).execute()
-                test_chars = sum(len(str(msg)) for msg in test_df["message"])
-                test_tokens = test_chars // 4
-
-                if test_tokens <= max_tokens:
-                    best_size = mid
-                    low = mid + 1
-                else:
-                    high = mid - 1
-
-            chunk_size = best_size
-            window_table = table.limit(chunk_size, offset=offset)
+        # Create window from these messages
+        window_table = materialized.limit(chunk_size, offset=offset)
 
         # Get time bounds
         start_time = _get_min_timestamp(window_table)
@@ -403,13 +411,32 @@ def _window_by_context(
             window_index=window_index,
             start_time=start_time,
             end_time=end_time,
-            table=window_table,
+            table=window_table.drop(["row_num", "msg_bytes", "cumulative_bytes"]),  # Clean up temp columns
             size=chunk_size,
         )
 
         window_index += 1
-        # Advance by chunk_size minus overlap, but ensure we don't go backwards
-        advance = max(1, chunk_size - overlap_messages)
+
+        # Calculate overlap in messages (approximate from bytes)
+        if overlap_bytes > 0 and chunk_size > 1:
+            # Find how many messages from end fit in overlap_bytes
+            tail_chunk = window_table.limit(chunk_size).tail(chunk_size)
+            tail_with_bytes = tail_chunk.mutate(msg_bytes_col=tail_chunk.message.length())
+
+            # Cumulative bytes from end (reverse)
+            tail_cumsum = tail_with_bytes.mutate(
+                reverse_cum=tail_with_bytes.msg_bytes_col.sum().over(
+                    ibis.window(order_by=[tail_with_bytes.timestamp.desc()], rows=(None, 0))
+                )
+            )
+
+            overlap_rows_table = tail_cumsum.filter(tail_cumsum.reverse_cum <= overlap_bytes)
+            overlap_rows = overlap_rows_table.count().execute()
+
+            advance = max(1, chunk_size - overlap_rows)
+        else:
+            advance = chunk_size
+
         offset += advance
 
 
