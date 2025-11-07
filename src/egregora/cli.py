@@ -333,7 +333,9 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days', 'bytes'")
     ] = "messages",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
-    overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")] = 0.2,
+    overlap: Annotated[
+        float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
+    ] = 0.2,
     enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
         str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
