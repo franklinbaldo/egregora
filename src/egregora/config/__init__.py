@@ -54,6 +54,7 @@ See Also:
     - `egregora.config.schema`: Pydantic V2 models and validation
     - `egregora.config.types`: Runtime context dataclasses
     - CLAUDE.md: Configuration section for environment variables and MkDocs config
+
 """
 
 # ==============================================================================
@@ -66,39 +67,6 @@ from egregora.config.loader import (
     find_egregora_config,
     load_egregora_config,
     save_egregora_config,
-)
-
-# ==============================================================================
-# Core Pydantic V2 Models (from .schema)
-# ==============================================================================
-# Validated, strongly-typed configuration models loaded from .egregora/config.yml.
-# These are the PRIMARY config objects in the Phase 2 modernization.
-#
-# - EgregoraConfig: Root config (contains models, RAG, writer, privacy, pipeline, features)
-# - ModelsConfig: LLM model names (writer, enricher, embedding, ranking, editor)
-# - RAGConfig: Retrieval settings (mode, nprobe, embedding_dimensions)
-# - EgregoraWriterConfig: Writer agent settings (max_posts_per_period, post_length_words)
-# - PrivacyConfig: Anonymization settings (anonymize_authors)
-# - EgregoraEnrichmentConfig: Enrichment settings (enrich_urls, enrich_media, use_batch_api)
-# - EgregoraPipelineConfig: Pipeline settings (period)
-# - FeaturesConfig: Feature flags (not yet implemented)
-#
-# Note: Aliased as Egregora* to avoid name collisions with legacy dataclasses.
-from egregora.config.schema import (
-    EgregoraConfig,
-    FeaturesConfig,
-    ModelsConfig,
-    PrivacyConfig,
-    RAGConfig,
-)
-from egregora.config.schema import (
-    EnrichmentConfig as EgregoraEnrichmentConfig,
-)
-from egregora.config.schema import (
-    PipelineConfig as EgregoraPipelineConfig,
-)
-from egregora.config.schema import (
-    WriterConfig as EgregoraWriterConfig,
 )
 
 # ==============================================================================
@@ -132,6 +100,39 @@ from egregora.config.model import (
 # ==============================================================================
 # Configuration classes specific to pipeline stages (e.g., enrichment batch processing).
 from egregora.config.pipeline import PipelineEnrichmentConfig
+
+# ==============================================================================
+# Core Pydantic V2 Models (from .schema)
+# ==============================================================================
+# Validated, strongly-typed configuration models loaded from .egregora/config.yml.
+# These are the PRIMARY config objects in the Phase 2 modernization.
+#
+# - EgregoraConfig: Root config (contains models, RAG, writer, privacy, pipeline, features)
+# - ModelsConfig: LLM model names (writer, enricher, embedding, ranking, editor)
+# - RAGConfig: Retrieval settings (mode, nprobe, embedding_dimensions)
+# - EgregoraWriterConfig: Writer agent settings (max_posts_per_period, post_length_words)
+# - PrivacyConfig: Anonymization settings (anonymize_authors)
+# - EgregoraEnrichmentConfig: Enrichment settings (enrich_urls, enrich_media, use_batch_api)
+# - EgregoraPipelineConfig: Pipeline settings (period)
+# - FeaturesConfig: Feature flags (not yet implemented)
+#
+# Note: Aliased as Egregora* to avoid name collisions with legacy dataclasses.
+from egregora.config.schema import (
+    EgregoraConfig,
+    FeaturesConfig,
+    ModelsConfig,
+    PrivacyConfig,
+    RAGConfig,
+)
+from egregora.config.schema import (
+    EnrichmentConfig as EgregoraEnrichmentConfig,
+)
+from egregora.config.schema import (
+    PipelineConfig as EgregoraPipelineConfig,
+)
+from egregora.config.schema import (
+    WriterConfig as EgregoraWriterConfig,
+)
 
 # ==============================================================================
 # Site Paths & MkDocs Utilities (from .site)

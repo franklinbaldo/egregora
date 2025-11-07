@@ -66,6 +66,7 @@ Note:
     This module does NOT use the centralized schemas from database.schema.ANNOTATIONS_SCHEMA.
     The schema is defined inline via CREATE TABLE statements for tighter control over
     sequences and auto-increment behavior.
+
 """
 
 from __future__ import annotations
@@ -115,6 +116,7 @@ class Annotation:
         author: Author identifier (typically "egregora")
         commentary: The annotation content (validated for PII)
         created_at: UTC timestamp of annotation creation
+
     """
 
     id: int
@@ -358,6 +360,7 @@ class AnnotationStore:
 
         Returns:
             Annotation instance with properly typed and timezone-aware created_at
+
         """
         created_at_obj = row["created_at"]
         if hasattr(created_at_obj, "to_pydatetime"):

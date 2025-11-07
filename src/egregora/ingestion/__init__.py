@@ -67,6 +67,7 @@ See Also:
     - `sources/` - Platform-specific implementations
     - `database/schema.py` - MESSAGE_SCHEMA definition
     - `ingestion/base.py` - InputSource interface details
+
 """
 
 from egregora.ingestion.base import InputSource

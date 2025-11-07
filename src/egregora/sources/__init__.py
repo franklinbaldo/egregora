@@ -129,6 +129,7 @@ See Also:
     - `ingestion/base.py` - InputSource interface definition
     - `database/schema.py` - MESSAGE_SCHEMA that all sources must conform to
     - `sources/whatsapp/` - Reference implementation
+
 """
 
 from egregora.sources.base import Export
