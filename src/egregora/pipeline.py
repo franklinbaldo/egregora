@@ -116,27 +116,34 @@ def create_windows(  # noqa: PLR0913
     step_unit: str = "messages",
     overlap_ratio: float = 0.2,
     max_window_time: timedelta | None = None,
+    max_tokens_per_window: int = 80_000,
 ) -> Iterator[Window]:
     """Create processing windows from messages with overlap for context continuity.
 
     Replaces period-based grouping with flexible windowing:
     - By message count: step_size=100, step_unit="messages"
     - By time: step_size=2, step_unit="days"
+    - By context packing: step_unit="context" (maximizes messages per window)
 
     Overlap provides conversation context across window boundaries, improving
     LLM understanding and blog post quality at the cost of ~20% more tokens.
+
+    Context packing mode (step_unit="context") ignores time boundaries and packs
+    as many messages as possible per window (up to token limit). This minimizes
+    API calls but may produce less time-coherent posts.
 
     All windows are processed - the LLM decides if content warrants a post.
 
     Args:
         table: Table with timestamp column
-        step_size: Size of each window
-        step_unit: Unit for windowing ("messages", "hours", "days")
+        step_size: Size of each window (ignored for context mode)
+        step_unit: Unit for windowing ("messages", "hours", "days", "context")
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
         max_window_time: Optional maximum time span per window **step** (not
             including overlap). Actual window duration will be
             max_window_time × (1 + overlap_ratio). To strictly bound total
             duration, set max_window_time = desired_max / (1 + overlap_ratio)
+        max_tokens_per_window: Max estimated tokens per window (for context mode)
 
     Yields:
         Window objects with overlapping message sets
@@ -210,8 +217,12 @@ def create_windows(  # noqa: PLR0913
         windows = _window_by_time(
             sorted_table, effective_step_size, effective_step_unit, overlap_ratio
         )
+    elif step_unit == "context":
+        # Context-packing mode: maximize messages per window up to token limit
+        overlap_messages = int(max_tokens_per_window * overlap_ratio / 4)  # Rough token estimate
+        windows = _window_by_context(sorted_table, max_tokens_per_window, overlap_messages)
     else:
-        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', or 'days'."
+        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'context'."
         raise ValueError(msg)
 
     yield from windows
@@ -324,6 +335,84 @@ def _window_by_time(
 
         window_index += 1
         current_start += delta  # Advance by delta, creating overlap
+
+
+def _window_by_context(
+    table: Table,
+    max_tokens: int,
+    overlap_messages: int = 0,
+) -> Iterator[Window]:
+    """Generate windows by packing messages up to a token limit.
+
+    This mode ignores time boundaries and maximizes context per window,
+    trading time-coherence for fewer API calls.
+
+    Token estimation: ~4 characters per token (rough heuristic).
+
+    Args:
+        table: Sorted table of messages
+        max_tokens: Maximum estimated tokens per window
+        overlap_messages: Number of messages to overlap between windows
+
+    Yields:
+        Windows packed to maximum token capacity
+
+    """
+    total_count = table.count().execute()
+    window_index = 0
+    offset = 0
+
+    while offset < total_count:
+        # Start with step estimate, then refine
+        estimated_messages_per_window = max_tokens // 20  # Conservative: ~20 tokens/message
+        chunk_size = min(estimated_messages_per_window + overlap_messages, total_count - offset)
+
+        # Get actual messages and calculate token estimate
+        window_table = table.limit(chunk_size, offset=offset)
+        messages_df = window_table.select(["message"]).execute()
+
+        # Refine: calculate actual token estimate
+        total_chars = sum(len(str(msg)) for msg in messages_df["message"])
+        estimated_tokens = total_chars // 4  # ~4 chars per token
+
+        # If we exceeded limit, binary search for the right size
+        if estimated_tokens > max_tokens and chunk_size > 1:
+            # Binary search to find maximum messages that fit
+            low, high = 1, chunk_size
+            best_size = 1
+
+            while low <= high:
+                mid = (low + high) // 2
+                test_table = table.limit(mid, offset=offset)
+                test_df = test_table.select(["message"]).execute()
+                test_chars = sum(len(str(msg)) for msg in test_df["message"])
+                test_tokens = test_chars // 4
+
+                if test_tokens <= max_tokens:
+                    best_size = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+
+            chunk_size = best_size
+            window_table = table.limit(chunk_size, offset=offset)
+
+        # Get time bounds
+        start_time = _get_min_timestamp(window_table)
+        end_time = _get_max_timestamp(window_table)
+
+        yield Window(
+            window_index=window_index,
+            start_time=start_time,
+            end_time=end_time,
+            table=window_table,
+            size=chunk_size,
+        )
+
+        window_index += 1
+        # Advance by chunk_size minus overlap, but ensure we don't go backwards
+        advance = max(1, chunk_size - overlap_messages)
+        offset += advance
 
 
 def _get_min_timestamp(table: Table) -> datetime:

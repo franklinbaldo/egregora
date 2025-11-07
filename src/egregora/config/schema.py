@@ -158,9 +158,9 @@ class PipelineConfig(BaseModel):
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
-    step_unit: Literal["messages", "hours", "days"] = Field(
+    step_unit: Literal["messages", "hours", "days", "context"] = Field(
         default="days",
-        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time)",
+        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'context' (max packing)",
     )
     overlap_ratio: float = Field(
         default=0.2,
