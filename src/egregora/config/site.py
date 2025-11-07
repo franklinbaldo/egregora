@@ -84,9 +84,6 @@ class SitePaths:
     rankings_dir: Path
     enriched_dir: Path
 
-    # Legacy config dict (will be removed)
-    config: dict[str, Any]
-
 
 def find_mkdocs_file(
     start: Annotated[Path, "The starting directory for the upward search"],
@@ -191,8 +188,6 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
         media_dir=media_dir,
         rankings_dir=rankings_dir,
         enriched_dir=enriched_dir,
-        # Legacy (will remove later)
-        config=config,
     )
 
 

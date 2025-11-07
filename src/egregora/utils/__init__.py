@@ -8,7 +8,6 @@ from egregora.utils.batch import (
     chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.checkpoints import DEFAULT_STEP_ORDER, CheckpointStore
 from egregora.utils.genai import (
     call_with_retries,
     call_with_retries_sync,
@@ -26,11 +25,9 @@ from egregora.utils.zip import (
 )
 
 __all__ = [
-    "DEFAULT_STEP_ORDER",
     "ENRICHMENT_CACHE_VERSION",
     "BatchPromptRequest",
     "BatchPromptResult",
-    "CheckpointStore",
     "EmbeddingBatchRequest",
     "EmbeddingBatchResult",
     "EnrichmentCache",

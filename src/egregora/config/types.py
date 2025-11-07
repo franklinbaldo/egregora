@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Annotated
 
 from egregora.config.model import ModelConfig
-from egregora.types import GroupSlug
 
 
 @dataclass
@@ -100,19 +99,6 @@ class WriterConfig:
 
 
 @dataclass
-class WriterPromptContext:
-    """Context for rendering writer prompts."""
-
-    date: Annotated[str, "The date of the period being processed"]
-    markdown_table: Annotated[str, "The conversation formatted as a markdown table"]
-    active_authors: Annotated[str, "A list of active authors in the period"]
-    group_name: Annotated[str, "The name of the WhatsApp group"]
-    custom_instructions: Annotated[str, "Custom instructions for the writer from the site config"]
-    enable_rag: Annotated[bool, "Whether RAG is enabled"]
-    rag_context: Annotated[str, "The context retrieved from the RAG system"]
-
-
-@dataclass
 class MediaEnrichmentContext:
     """Context for media enrichment prompts."""
 
@@ -126,45 +112,9 @@ class MediaEnrichmentContext:
 
 
 @dataclass
-class URLEnrichmentContext:
-    """Context for URL enrichment prompts."""
-
-    url: Annotated[str, "The URL to enrich"]
-    date: Annotated[str, "The date of the message containing the URL"]
-    time: Annotated[str, "The time of the message containing the URL"]
-    author: Annotated[str, "The author of the message"]
-    nearby_messages: Annotated[str, "Messages sent immediately before and after the URL"]
-
-
-@dataclass
 class EnrichmentConfig:
     """Configuration for enrichment operations."""
 
     client: Annotated[object, "The Gemini client"]
     output_dir: Annotated[Path, "The directory to save enriched data"]
     model: Annotated[str, "The Gemini model to use for enrichment"] = "models/gemini-flash-latest"
-
-
-@dataclass
-class EditorContext:
-    """Context for editor session setup."""
-
-    post_path: Annotated[Path, "The path to the post being edited"]
-    site_dir: Annotated[Path, "The path to the site directory"]
-    rag_dir: Annotated[Path, "The path to the RAG directory"]
-    model_config: Annotated[ModelConfig, "The model configuration"]
-    additional_context: Annotated[str, "Additional context for the editor"] = ""
-
-
-@dataclass
-class PostGenerationContext:
-    """Context for generating a single post."""
-
-    date: Annotated[str, "The date of the period being processed"]
-    group_slug: Annotated[GroupSlug, "The slug of the WhatsApp group"]
-    markdown_table: Annotated[str, "The conversation formatted as a markdown table"]
-    active_authors: Annotated[list[str], "A list of active authors in the period"]
-    custom_writer_prompt: Annotated[str | None, "Custom instructions for the writer from the site config"]
-    config: Annotated[WriterConfig, "The writer configuration"]
-    enable_rag: Annotated[bool, "Whether RAG is enabled"] = True
-    rag_context: Annotated[str, "The context retrieved from the RAG system"] = ""
