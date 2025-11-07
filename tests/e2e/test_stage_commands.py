@@ -119,8 +119,10 @@ class TestGroupCommand:
             [
                 "group",
                 str(parsed_csv),
-                "--period",
-                "day",
+                "--step-size",
+                "1",
+                "--step-unit",
+                "days",
                 "--output-dir",
                 str(periods_dir),
             ],
@@ -129,9 +131,9 @@ class TestGroupCommand:
         assert result.exit_code == 0, f"Command failed: {result.stdout}"
         assert periods_dir.exists()
 
-        # Check that period files were created
+        # Check that window files were created
         period_files = list(periods_dir.glob("*.csv"))
-        assert len(period_files) > 0, "No period files created"
+        assert len(period_files) > 0, "No window files created"
 
     def test_group_by_week(self, parsed_csv, test_output_dir):
         """Test grouping messages by week."""
@@ -142,8 +144,10 @@ class TestGroupCommand:
             [
                 "group",
                 str(parsed_csv),
-                "--period",
-                "week",
+                "--step-size",
+                "7",
+                "--step-unit",
+                "days",
                 "--output-dir",
                 str(periods_dir),
             ],
@@ -155,7 +159,7 @@ class TestGroupCommand:
         assert len(period_files) > 0
 
     def test_group_by_month(self, parsed_csv, test_output_dir):
-        """Test grouping messages by month."""
+        """Test grouping messages by month (approx. 30 days)."""
         periods_dir = test_output_dir / "periods_month"
 
         result = runner.invoke(
@@ -163,8 +167,10 @@ class TestGroupCommand:
             [
                 "group",
                 str(parsed_csv),
-                "--period",
-                "month",
+                "--step-size",
+                "30",
+                "--step-unit",
+                "days",
                 "--output-dir",
                 str(periods_dir),
             ],
@@ -182,8 +188,10 @@ class TestGroupCommand:
             [
                 "group",
                 str(parsed_csv),
-                "--period",
-                "day",
+                "--step-size",
+                "1",
+                "--step-unit",
+                "days",
                 "--output-dir",
                 str(periods_dir),
                 "--from-date",
@@ -196,13 +204,13 @@ class TestGroupCommand:
         assert result.exit_code == 0
 
     def test_group_invalid_period(self, parsed_csv, test_output_dir):
-        """Test group command with invalid period."""
+        """Test group command with invalid step_unit."""
         result = runner.invoke(
             app,
             [
                 "group",
                 str(parsed_csv),
-                "--period",
+                "--step-unit",
                 "invalid",
                 "--output-dir",
                 str(test_output_dir / "periods"),
