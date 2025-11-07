@@ -133,6 +133,7 @@ def _validate_retrieval_config(config: ProcessConfig) -> None:
 
     Raises:
         typer.Exit: If validation fails
+
     """
     retrieval_mode = (config.retrieval_mode or "ann").lower()
     if retrieval_mode not in {"ann", "exact"}:
@@ -164,6 +165,7 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
 
     Raises:
         typer.Exit: If user declines to initialize or initialization fails
+
     """
     mkdocs_path = find_mkdocs_file(output_dir)
     if mkdocs_path:
