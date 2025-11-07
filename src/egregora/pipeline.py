@@ -89,9 +89,10 @@ class Window:
     window metadata.
 
     The `table` field contains a filtered view of CONVERSATION_SCHEMA data.
+
+    Note: No window_id needed - use (start_time, end_time) for identification.
     """
 
-    window_id: str
     window_index: int
     start_time: datetime
     end_time: datetime
@@ -207,11 +208,7 @@ def _window_by_count(
         start_time = _get_min_timestamp(window_table)
         end_time = _get_max_timestamp(window_table)
 
-        # Timestamp-based window_id for stability across config changes
-        window_id = f"window_{start_time.strftime('%Y%m%d_%H%M%S')}"
-
         yield Window(
-            window_id=window_id,
             window_index=window_index,
             start_time=start_time,
             end_time=end_time,
@@ -277,10 +274,7 @@ def _window_by_time(
             current_start += delta  # Advance without overlap
             continue
 
-        window_id = f"window_{current_start.strftime('%Y%m%d_%H%M%S')}"
-
         yield Window(
-            window_id=window_id,
             window_index=window_index,
             start_time=current_start,
             end_time=current_end,
@@ -352,7 +346,6 @@ def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterato
 
         if first_size > 0:
             yield Window(
-                window_id=f"{window.window_id}_a",
                 window_index=window.window_index,
                 start_time=window.start_time,
                 end_time=mid_time,
@@ -362,7 +355,6 @@ def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterato
 
         if second_size > 0:
             yield Window(
-                window_id=f"{window.window_id}_b",
                 window_index=window.window_index + 1,
                 start_time=mid_time,
                 end_time=window.end_time,
@@ -383,45 +375,46 @@ def _get_max_timestamp(table: Table) -> datetime:
     return result["max_ts"][0]
 
 
-def split_window_in_half(window: Window) -> tuple[Window | None, Window | None]:
-    """Split a window in half by time.
+def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
+    """Split a window into N equal parts by time.
 
     Args:
         window: Window to split
+        n: Number of parts to split into (must be >= 2)
 
     Returns:
-        Tuple of (first_half, second_half) windows. Either can be None if empty.
+        List of windows (may be shorter than n if some time ranges are empty)
+
+    Raises:
+        ValueError: If n < 2
 
     """
+    min_splits = 2
+    if n < min_splits:
+        msg = f"Cannot split into {n} parts (must be >= {min_splits})"
+        raise ValueError(msg)
+
     duration = window.end_time - window.start_time
-    mid_time = window.start_time + (duration / 2)
+    part_duration = duration / n
 
-    first_half = window.table.filter(window.table.timestamp < mid_time)
-    second_half = window.table.filter(window.table.timestamp >= mid_time)
+    windows = []
+    for i in range(n):
+        part_start = window.start_time + (part_duration * i)
+        part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
 
-    first_size = first_half.count().execute()
-    second_size = second_half.count().execute()
-
-    first_window = None
-    if first_size > 0:
-        first_window = Window(
-            window_id=f"{window.window_id}_a",
-            window_index=window.window_index,
-            start_time=window.start_time,
-            end_time=mid_time,
-            table=first_half,
-            size=first_size,
+        part_table = window.table.filter(
+            (window.table.timestamp >= part_start) & (window.table.timestamp < part_end)
         )
 
-    second_window = None
-    if second_size > 0:
-        second_window = Window(
-            window_id=f"{window.window_id}_b",
-            window_index=window.window_index + 1,
-            start_time=mid_time,
-            end_time=window.end_time,
-            table=second_half,
-            size=second_size,
-        )
+        part_size = part_table.count().execute()
+        if part_size > 0:
+            part_window = Window(
+                window_index=window.window_index,
+                start_time=part_start,
+                end_time=part_end,
+                table=part_table,
+                size=part_size,
+            )
+            windows.append(part_window)
 
-    return first_window, second_window
+    return windows
