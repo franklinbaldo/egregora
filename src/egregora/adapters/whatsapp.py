@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 import ibis
 
 from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
-from egregora.pipeline.adapters import MediaMapping, SourceAdapter
+from egregora.pipeline.adapters import SourceAdapter
 from egregora.pipeline.ir import create_ir_table
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.pipeline import discover_chat_file
@@ -270,29 +269,6 @@ class WhatsAppAdapter(SourceAdapter):
             if Path(info.filename).name.lower() == media_reference.lower():
                 return info.filename
         return None
-
-    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: _EmptyKwargs) -> MediaMapping:
-        """Extract media files from WhatsApp ZIP (DEPRECATED).
-
-        This method is deprecated in favor of deliver_media(). Media extraction
-        is now handled lazily by the runner calling deliver_media() for each
-        markdown reference found in messages.
-
-        Args:
-            input_path: Path to WhatsApp ZIP export
-            output_dir: Directory where media should be extracted
-            **kwargs: Additional parameters
-
-        Returns:
-            Empty dict (media extraction handled by deliver_media())
-
-        """
-        warnings.warn(
-            "extract_media() is deprecated and will be removed in a future version. Use deliver_media() for lazy media extraction instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return {}
 
     def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
         """Extract metadata from WhatsApp export.

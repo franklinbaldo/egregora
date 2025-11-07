@@ -96,9 +96,11 @@ class MkDocsOutputFormat(OutputFormat):
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
         config_file = site_paths.mkdocs_path
+        # Load mkdocs.yml to get site_name
+        mkdocs_config, _ = load_mkdocs_config(site_root)
         return SiteConfiguration(
             site_root=site_paths.site_root,
-            site_name=site_paths.config.get("site_name", "Egregora Site"),
+            site_name=mkdocs_config.get("site_name", "Egregora Site"),
             docs_dir=site_paths.docs_dir,
             posts_dir=site_paths.posts_dir,
             profiles_dir=site_paths.profiles_dir,
