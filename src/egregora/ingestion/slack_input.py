@@ -107,7 +107,7 @@ class SlackInputSource(InputSource):
             all_messages.extend(messages)
         if not all_messages:
             logger.warning("No messages found in Slack export")
-            from egregora.schema import MESSAGE_SCHEMA
+            from egregora.database.message_schema import MESSAGE_SCHEMA
 
             empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
             metadata = InputMetadata(

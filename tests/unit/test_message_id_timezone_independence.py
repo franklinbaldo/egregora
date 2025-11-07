@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from egregora.ingestion.parser import parse_export
+from egregora.ingestion import parse_source
 
 from egregora.sources.whatsapp.models import WhatsAppExport
 
@@ -37,11 +37,11 @@ def test_message_id_is_timezone_independent(tmp_path: Path):
 
     # Create export from UTC phone
     export_utc = _create_test_export(tmp_path, "utc_export.zip", chat_content_utc)
-    messages_utc = parse_export(export_utc, timezone=ZoneInfo("UTC"))
+    messages_utc = parse_source(export_utc, timezone=ZoneInfo("UTC"))
 
     # Create export from UTC+5 phone
     export_utc5 = _create_test_export(tmp_path, "utc5_export.zip", chat_content_utc5)
-    messages_utc5 = parse_export(export_utc5, timezone=ZoneInfo("Asia/Karachi"))  # UTC+5
+    messages_utc5 = parse_source(export_utc5, timezone=ZoneInfo("Asia/Karachi"))  # UTC+5
 
     # Convert to pandas for easier comparison
     df_utc = messages_utc.execute()
@@ -94,7 +94,7 @@ def test_message_id_handles_same_minute_messages(tmp_path: Path):
 01/01/2025, 12:01 - Alice: Message in next minute"""
 
     export = _create_test_export(tmp_path, "same_minute.zip", chat_content)
-    messages = parse_export(export, timezone=ZoneInfo("UTC"))
+    messages = parse_source(export, timezone=ZoneInfo("UTC"))
 
     df = messages.execute()
     ids = df["message_id"].tolist()

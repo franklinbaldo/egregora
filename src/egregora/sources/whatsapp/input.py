@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
 from egregora.ingestion.base import InputMetadata, InputSource
-from egregora.schema import group_slug
+from egregora.database.message_schema import group_slug
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import parse_source  # Phase 6: Renamed from parse_export
 
@@ -155,7 +155,7 @@ class WhatsAppInputSource(InputSource):
             msg = f"Source path {source_path} is not a valid WhatsApp export ZIP"
             raise ValueError(msg)
         if group_slug is None:
-            from egregora.schema import group_slug as create_slug
+            from egregora.database.message_schema import group_slug as create_slug
 
             group_name = self._infer_group_name(source_path)
             group_slug = create_slug(group_name)
