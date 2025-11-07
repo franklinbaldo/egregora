@@ -180,7 +180,7 @@ async def build_rag_context_for_writer(  # noqa: PLR0913
     """
     docs = await find_relevant_docs(
         query,
-        client=client,
+        _client=client,
         rag_dir=rag_dir,
         embedding_model=embedding_model,
         top_k=top_k,
