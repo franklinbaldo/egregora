@@ -331,9 +331,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
-    step_unit: Annotated[
-        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
-    ] = "days",
+    step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     overlap: Annotated[
         float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
@@ -847,9 +845,7 @@ def _filter_messages_by_date(
 def group(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
-    step_unit: Annotated[
-        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
-    ] = "days",
+    step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
     min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     output_dir: Annotated[Path, typer.Option(help="Output directory for window CSV files")] = Path("windows"),
     from_date: Annotated[
