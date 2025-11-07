@@ -214,9 +214,7 @@ def create_windows(  # noqa: PLR0913
                     max_window_time,
                 )
 
-        windows = _window_by_time(
-            sorted_table, effective_step_size, effective_step_unit, overlap_ratio
-        )
+        windows = _window_by_time(sorted_table, effective_step_size, effective_step_unit, overlap_ratio)
     elif step_unit == "context":
         # Context-packing mode: maximize messages per window up to token limit
         overlap_messages = int(max_tokens_per_window * overlap_ratio / 4)  # Rough token estimate
