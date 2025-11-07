@@ -38,6 +38,42 @@ logger = logging.getLogger(__name__)
 __all__ = ["run_source_pipeline"]
 
 
+def _perform_enrichment(
+    period_table: ir.Table,
+    media_mapping: dict[str, Path],
+    config: EgregoraConfig,
+    enrichment_cache: EnrichmentCache,
+    site_paths: any,
+    posts_dir: Path,
+) -> ir.Table:
+    """Execute enrichment for a period's table.
+
+    Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
+
+    Args:
+        period_table: Table to enrich
+        media_mapping: Media file mapping
+        config: Egregora configuration
+        enrichment_cache: Enrichment cache instance
+        site_paths: Site path configuration
+        posts_dir: Posts output directory
+
+    Returns:
+        Enriched table
+    """
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=enrichment_cache,
+        docs_dir=site_paths.docs_dir,
+        posts_dir=posts_dir,
+    )
+    return enrich_table(
+        period_table,
+        media_mapping,
+        config,
+        enrichment_context,
+    )
+
+
 def run_source_pipeline(
     source: str,
     input_path: Path,
@@ -243,17 +279,9 @@ def run_source_pipeline(
                             steps_state = checkpoint_store.update_step(
                                 period_key, "enrichment", "in_progress"
                             )["steps"]
-                        # MODERN (Phase 2): Create enrichment context
-                        enrichment_context = EnrichmentRuntimeContext(
-                            cache=enrichment_cache,
-                            docs_dir=site_paths.docs_dir,
-                            posts_dir=posts_dir,
-                        )
-                        enriched_table = enrich_table(
-                            period_table,
-                            media_mapping,
-                            config,
-                            enrichment_context,
+                        # Phase 3: Use extracted helper to eliminate duplication
+                        enriched_table = _perform_enrichment(
+                            period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
                         )
                         enriched_table.execute().to_csv(enriched_path, index=False)
                         if resume:
@@ -265,17 +293,9 @@ def run_source_pipeline(
                         steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
                             "steps"
                         ]
-                    # MODERN (Phase 2): Create enrichment context
-                    enrichment_context = EnrichmentRuntimeContext(
-                        cache=enrichment_cache,
-                        docs_dir=site_paths.docs_dir,
-                        posts_dir=posts_dir,
-                    )
-                    enriched_table = enrich_table(
-                        period_table,
-                        media_mapping,
-                        config,
-                        enrichment_context,
+                    # Phase 3: Use extracted helper to eliminate duplication
+                    enriched_table = _perform_enrichment(
+                        period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
                     )
                     enriched_table.execute().to_csv(enriched_path, index=False)
                     if resume:
