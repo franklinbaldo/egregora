@@ -51,6 +51,13 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
         return (group_name, member)
 
 
+# FIXME(Phase 3): DEAD CODE - Remove entire _process_whatsapp_export function (~250 lines)
+# This function is no longer called after Phase 2b refactoring.
+# process_whatsapp_export() now delegates directly to run_source_pipeline().
+# All pipeline logic is in pipeline/runner.py (single source of truth).
+# Additionally, this function has WhatsApp-specific naming but was meant to be
+# source-agnostic. Should have been named _run_pipeline_internal or similar.
+# Can be safely deleted after verifying no external dependencies.
 def _process_whatsapp_export(
     zip_path: Path,
     output_dir: Path,

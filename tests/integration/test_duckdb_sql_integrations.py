@@ -111,6 +111,10 @@ def test_annotation_store_uses_identity_column(tmp_path: Path):
 
 
 def test_enrich_table_persists_results(tmp_path: Path):
+    # FIXME(test): This test fails with "Expression depends on no backends"
+    # Issue: ibis.memtable() creates in-memory table without backend attachment
+    # Solution: Create DuckDB backend first, then use backend.memtable() instead
+    # or pass backend explicitly to operations that need it
     now = datetime.now(UTC)
     base_row = {
         "timestamp": now,
