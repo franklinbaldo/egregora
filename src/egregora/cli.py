@@ -405,7 +405,8 @@ def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
         Path | None, typer.Option(help="Site directory (for finding RAG database). Defaults to post parent.")
     ] = None,
     model: Annotated[
-        str | None, typer.Option(help="Gemini model to use (default: models/gemini-flash-latest)")
+        str | None,
+        typer.Option(help="Gemini model to use (pydantic-ai format, default: google-gla:gemini-flash-latest)"),
     ] = None,
     gemini_key: Annotated[
         str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")

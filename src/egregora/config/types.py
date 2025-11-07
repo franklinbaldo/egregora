@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 from egregora.config.model import ModelConfig
+from egregora.config.schema import DEFAULT_MODEL
 
 
 @dataclass
@@ -117,4 +118,4 @@ class EnrichmentConfig:
 
     client: Annotated[object, "The Gemini client"]
     output_dir: Annotated[Path, "The directory to save enriched data"]
-    model: Annotated[str, "The Gemini model to use for enrichment"] = "models/gemini-flash-latest"
+    model: Annotated[str, "The Gemini model to use for enrichment"] = DEFAULT_MODEL

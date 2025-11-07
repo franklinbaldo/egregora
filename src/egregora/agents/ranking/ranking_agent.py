@@ -26,6 +26,7 @@ from rich.console import Console
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
+from egregora.config.schema import DEFAULT_MODEL
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()
@@ -102,7 +103,7 @@ class ComparisonConfig(BaseModel):
     post_b_id: str
     profile_path: Path
     api_key: str
-    model: str = "models/gemini-flash-latest"
+    model: str = DEFAULT_MODEL
     agent_model: object | None = None
 
 
