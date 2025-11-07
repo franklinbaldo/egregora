@@ -175,9 +175,11 @@ Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops an
 
 ### Pipeline Stages
 
-1. **Ingestion** (`src/egregora/ingestion/`)
-   - Parses WhatsApp `.zip` exports → Ibis tables
-   - Entry point: `parse_export()` in `ingestion/parser.py`
+1. **Ingestion** (`src/egregora/ingestion/`, `src/egregora/sources/`)
+   - **MODERN (Phase 6)**: WhatsApp parsing moved to `sources/whatsapp/parser.py`
+   - Entry point: `parse_source()` (renamed from `parse_export` in Phase 6)
+   - Generic interfaces in `ingestion/base.py` (InputSource, InputMetadata)
+   - Source-specific implementations in `sources/{whatsapp,slack}/`
    - Schema: `CONVERSATION_SCHEMA` (timestamp, author, message, original_line, tagged_line, message_id)
 
 2. **Privacy** (`src/egregora/privacy/`)
@@ -213,6 +215,43 @@ Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops an
 3. **Privacy-first architecture** - Anonymize before LLM processing (no PII in API calls)
 4. **Schemas as contracts** - All tables conform to centralized schemas (`database/schema.py`)
 5. **Functional transformations** - Pipeline stages are pure functions: `Table → Table`
+6. **Alpha mindset (Phases 2-6)** - No backward compatibility; clean breaks for better architecture
+
+### Modern Patterns (Phases 2-6 Refactoring)
+
+The codebase has undergone comprehensive modernization (2025-01). Follow these patterns:
+
+**Configuration Objects (Phase 2)**:
+- ✅ Use `EgregoraConfig` instead of 10+ individual parameters
+- ✅ Use `RuntimeContext` dataclasses for execution-specific values
+- ✅ Example: `write_posts_with_pydantic_agent(prompt, config, context)` instead of 12 params
+- ❌ Don't add new functions with >5 parameters
+
+**Frozen Dataclasses (Phase 2)**:
+```python
+@dataclass(frozen=True, slots=True)
+class WriterRuntimeContext:
+    """Runtime context for writer agent execution."""
+    period_date: str
+    output_dir: Path
+    profiles_dir: Path
+    # ... use model_copy() for updates
+```
+
+**Simple Resume Logic (Phase 3)**:
+- ✅ Check if output files exist → skip if yes, process if no
+- ❌ Don't use complex checkpoint systems with JSON metadata
+- Example: `if sorted(posts_dir.glob(f"{period_key}-*.md")): continue`
+
+**Source Organization (Phase 6)**:
+- ✅ Source-specific code in `sources/{whatsapp,slack}/`
+- ✅ Generic interfaces in `ingestion/base.py`
+- ✅ Re-export from `ingestion/__init__.py` for convenience
+- Example: WhatsApp parser in `sources/whatsapp/parser.py`, re-exported from `ingestion/`
+
+**Function Naming (Phase 6)**:
+- ✅ Use generic names: `parse_source()` not `parse_export()`
+- ✅ Alpha mindset: rename without backward compatibility if it improves clarity
 
 ## Code Structure
 
@@ -228,9 +267,16 @@ src/egregora/
 │   ├── pipeline.py          # Pipeline-specific configs
 │   └── site.py              # Site/MkDocs config loading
 ├── ingestion/
-│   ├── parser.py            # WhatsApp export parsing (regex patterns)
-│   ├── whatsapp_input.py    # WhatsApp-specific logic
-│   └── base.py              # Abstract base classes
+│   ├── base.py              # Abstract base classes (InputSource, InputMetadata)
+│   ├── slack_input.py       # Slack source (future)
+│   └── __init__.py          # Re-exports from sources/ for convenience
+├── sources/
+│   └── whatsapp/            # Phase 6: WhatsApp-specific code moved here
+│       ├── grammar.py       # pyparsing grammar for message format
+│       ├── parser.py        # parse_source() - WhatsApp export parsing
+│       ├── input.py         # WhatsAppInputSource implementation
+│       ├── models.py        # WhatsAppExport dataclass
+│       └── pipeline.py      # discover_chat_file() helper
 ├── privacy/
 │   ├── anonymizer.py        # UUID generation (deterministic hashing)
 │   └── detector.py          # PII regex patterns
