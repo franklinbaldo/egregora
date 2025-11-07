@@ -9,6 +9,12 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 - Resume uses sentinel file tracking last processed timestamp
 - Post dates are LLM-decided based on message content
 - Windows are ephemeral processing batches (not tied to resume state)
+
+DESIGN PHILOSOPHY: Calculate, Don't Iterate
+- When constraints would be exceeded, calculate the exact reduction factor needed
+- max_window_time: Calculate effective_step_size = max_time / (1 + overlap_ratio)
+- Context limits: Calculate num_splits = ceil(estimated_tokens / effective_limit)
+- This avoids trial-and-error iteration and ensures deterministic behavior
 """
 
 import json

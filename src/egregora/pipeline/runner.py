@@ -389,7 +389,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     e.effective_limit // 1000,
                 )
 
-                # Calculate how many splits we need upfront
+                # Calculate how many splits we need upfront (deterministic, not iterative)
+                # Same philosophy as max_window_time reduction: calculate the factor
+                # reduction_factor = effective_limit / estimated_tokens
+                # num_splits = 1 / reduction_factor = estimated_tokens / effective_limit
                 import math  # noqa: PLC0415
 
                 num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
