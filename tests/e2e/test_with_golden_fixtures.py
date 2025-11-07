@@ -100,7 +100,6 @@ def test_pipeline_with_golden_fixtures(
         output_dir=output_dir,
         step_size=100,
         step_unit="messages",
-        min_window_size=10,
         overlap_ratio=0.2,
         enable_enrichment=False,  # Binary uploads remain hard to stub in this test harness
         retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see docstring)

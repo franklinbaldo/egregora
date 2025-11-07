@@ -162,11 +162,6 @@ class PipelineConfig(BaseModel):
         default="days",
         description="Unit for windowing: 'messages' (count), 'hours'/'days' (time)",
     )
-    min_window_size: int = Field(
-        default=10,
-        ge=1,
-        description="Minimum messages per window (smaller windows merged or skipped)",
-    )
     overlap_ratio: float = Field(
         default=0.2,
         ge=0.0,
@@ -246,7 +241,6 @@ class EgregoraConfig(BaseModel):
     pipeline:
       step_size: 1
       step_unit: days
-      min_window_size: 10
     ```
     """
 

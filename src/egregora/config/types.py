@@ -25,7 +25,6 @@ class ProcessConfig:
     output_dir: Annotated[Path, "Directory for the generated site"]
     step_size: Annotated[int, "Size of each processing window"] = 1
     step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
-    min_window_size: Annotated[int, "Minimum messages per window (skip smaller windows)"] = 10
     overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)"] = 0.2
     max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True

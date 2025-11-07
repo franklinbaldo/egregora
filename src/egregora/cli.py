@@ -276,7 +276,6 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                 update={
                     "step_size": config.step_size,
                     "step_unit": config.step_unit,
-                    "min_window_size": config.min_window_size,
                     "overlap_ratio": config.overlap_ratio,
                     "timezone": config.timezone,
                     "from_date": config.from_date.isoformat() if config.from_date else None,
@@ -332,7 +331,6 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
-    min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     overlap: Annotated[
         float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
     ] = 0.2,
@@ -411,7 +409,6 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         output_dir=output,
         step_size=step_size,
         step_unit=step_unit,
-        min_window_size=min_window_size,
         overlap_ratio=overlap,
         enable_enrichment=enable_enrichment,
         from_date=from_date_obj,
@@ -846,7 +843,6 @@ def group(  # noqa: PLR0913
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
-    min_window_size: Annotated[int, typer.Option(help="Minimum messages per window")] = 10,
     output_dir: Annotated[Path, typer.Option(help="Output directory for window CSV files")] = Path("windows"),
     from_date: Annotated[
         str | None, typer.Option(help="Only include messages from this date onwards (YYYY-MM-DD)")
@@ -890,7 +886,6 @@ def group(  # noqa: PLR0913
             messages_table,
             step_size=step_size,
             step_unit=step_unit,
-            min_window_size=min_window_size,
         )
         # Collect generator into list (create_windows returns generator, not dict)
         windows = list(windows_generator)

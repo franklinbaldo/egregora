@@ -44,7 +44,6 @@ def process_whatsapp_export(  # noqa: PLR0913
     *,
     step_size: int = 100,
     step_unit: str = "messages",
-    min_window_size: int = 10,
     overlap_ratio: float = 0.2,
     enable_enrichment: bool = True,
     from_date: date | None = None,
@@ -72,7 +71,6 @@ def process_whatsapp_export(  # noqa: PLR0913
         output_dir: Where to save posts and profiles
         step_size: Size of each processing window
         step_unit: Unit for windowing ('messages', 'hours', 'days')
-        min_window_size: Minimum messages per window (skip smaller)
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2)
         enable_enrichment: Add URL/media context
         from_date: Only process messages from this date onwards (date object)
@@ -109,7 +107,6 @@ def process_whatsapp_export(  # noqa: PLR0913
                 update={
                     "step_size": step_size,
                     "step_unit": step_unit,
-                    "min_window_size": min_window_size,
                     "overlap_ratio": overlap_ratio,
                     "timezone": str(timezone) if timezone else None,
                     "from_date": from_date.isoformat() if from_date else None,

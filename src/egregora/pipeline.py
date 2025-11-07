@@ -114,7 +114,6 @@ def create_windows(  # noqa: PLR0913
     *,
     step_size: int = 100,
     step_unit: str = "messages",
-    min_window_size: int = 10,
     overlap_ratio: float = 0.2,
     max_window_time: timedelta | None = None,
 ) -> Iterator[Window]:
@@ -127,11 +126,12 @@ def create_windows(  # noqa: PLR0913
     Overlap provides conversation context across window boundaries, improving
     LLM understanding and blog post quality at the cost of ~20% more tokens.
 
+    All windows are processed - the LLM decides if content warrants a post.
+
     Args:
         table: Table with timestamp column
         step_size: Size of each window
         step_unit: Unit for windowing ("messages", "hours", "days")
-        min_window_size: Minimum messages per window (skip smaller windows)
         overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
         max_window_time: Optional maximum time span per window **step** (not
             including overlap). Actual window duration will be
@@ -161,7 +161,7 @@ def create_windows(  # noqa: PLR0913
     overlap = int(step_size * overlap_ratio)
 
     if step_unit == "messages":
-        windows = _window_by_count(sorted_table, step_size, min_window_size, overlap)
+        windows = _window_by_count(sorted_table, step_size, overlap)
         if max_window_time:
             logger.warning(
                 "⚠️  max_window_time constraint not enforced for message-based windowing. "
@@ -208,7 +208,7 @@ def create_windows(  # noqa: PLR0913
                 )
 
         windows = _window_by_time(
-            sorted_table, effective_step_size, effective_step_unit, min_window_size, overlap_ratio
+            sorted_table, effective_step_size, effective_step_unit, overlap_ratio
         )
     else:
         msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', or 'days'."
@@ -220,7 +220,6 @@ def create_windows(  # noqa: PLR0913
 def _window_by_count(
     table: Table,
     step_size: int,
-    min_window_size: int,
     overlap: int = 0,
 ) -> Iterator[Window]:
     """Generate windows of fixed message count with optional overlap.
@@ -230,10 +229,11 @@ def _window_by_count(
     - Window 2: messages [100-219] (100 + 20 overlap)
     - Messages 100-119 appear in both windows for context
 
+    All windows are processed - the LLM decides if content warrants a post.
+
     Args:
         table: Sorted table of messages
         step_size: Number of messages per window (before overlap)
-        min_window_size: Minimum messages (skip smaller windows)
         overlap: Number of messages to overlap with previous window
 
     Yields:
@@ -247,11 +247,6 @@ def _window_by_count(
     while offset < total_count:
         # Window size = step_size + overlap (or remaining messages)
         chunk_size = min(step_size + overlap, total_count - offset)
-
-        # Skip tiny trailing windows
-        if chunk_size < min_window_size:
-            logger.debug("Skipping tiny trailing window: %d messages (min=%d)", chunk_size, min_window_size)
-            break
 
         window_table = table.limit(chunk_size, offset=offset)
 
@@ -275,7 +270,6 @@ def _window_by_time(
     table: Table,
     step_size: int,
     step_unit: str,
-    min_window_size: int,
     overlap_ratio: float = 0.0,
 ) -> Iterator[Window]:
     """Generate windows of fixed time duration with optional overlap.
@@ -283,11 +277,12 @@ def _window_by_time(
     Time overlap ensures conversation threads spanning window boundaries
     maintain context for the LLM.
 
+    All windows are processed - the LLM decides if content warrants a post.
+
     Args:
         table: Sorted table of messages
         step_size: Duration of each window
         step_unit: "hours" or "days"
-        min_window_size: Minimum messages per window
         overlap_ratio: Fraction of time window to overlap (0.0-0.5)
 
     Yields:
@@ -318,12 +313,6 @@ def _window_by_time(
         window_table = table.filter((table.timestamp >= current_start) & (table.timestamp < current_end))
 
         window_size = window_table.count().execute()
-
-        # Skip if below minimum
-        if window_size < min_window_size:
-            logger.debug("Skipping window with %d messages (min=%d)", window_size, min_window_size)
-            current_start += delta  # Advance without overlap
-            continue
 
         yield Window(
             window_index=window_index,

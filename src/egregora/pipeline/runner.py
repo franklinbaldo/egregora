@@ -141,7 +141,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         timezone = config.pipeline.timezone
         step_size = config.pipeline.step_size
         step_unit = config.pipeline.step_unit
-        min_window_size = config.pipeline.min_window_size
         overlap_ratio = config.pipeline.overlap_ratio
         max_window_time_hours = config.pipeline.max_window_time
         # Convert hours to timedelta if specified (schema stores as int, pipeline expects timedelta)
@@ -268,7 +267,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             messages_table,
             step_size=step_size,
             step_unit=step_unit,
-            min_window_size=min_window_size,
             overlap_ratio=overlap_ratio,
             max_window_time=max_window_time,
         )
@@ -459,9 +457,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         else:
             logger.warning(
                 "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
-                "This can happen if all windows were below min_window_size (%d messages). "
-                "Consider lowering min_window_size or accumulating more data.",
-                min_window_size,
+                "All windows may have been empty or filtered out."
             )
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
