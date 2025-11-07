@@ -34,6 +34,7 @@ from egregora.config import (
 )
 from egregora.database import duckdb_backend
 from egregora.enrichment import enrich_table, extract_and_replace_media
+from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion.parser import parse_export
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import group_by_period
@@ -847,18 +848,31 @@ def enrich(
             console.print(
                 f"[cyan]Enriching with:[/cyan] URLs={enable_url}, Media={enable_media}, Max={max_enrichments}"
             )
+
+            # Phase 4: Use modern signature (4 params: table, media_mapping, config, context)
+            # Override enrichment settings from CLI flags
+            cli_config = egregora_config.model_copy(
+                deep=True,
+                update={
+                    "enrichment": egregora_config.enrichment.model_copy(
+                        update={
+                            "enable_url": enable_url,
+                            "enable_media": enable_media,
+                            "max_enrichments": max_enrichments,
+                        }
+                    )
+                },
+            )
+            enrichment_context = EnrichmentRuntimeContext(
+                cache=enrichment_cache,
+                docs_dir=site_paths.docs_dir,
+                posts_dir=posts_dir,
+            )
             enriched_table = enrich_table(
                 messages_table,
                 media_mapping,
-                client,
-                client,
-                enrichment_cache,
-                site_paths.docs_dir,
-                posts_dir,
-                model_config,
-                enable_url=enable_url,
-                enable_media=enable_media,
-                max_enrichments=max_enrichments,
+                cli_config,
+                enrichment_context,
             )
             enriched_count = enriched_table.count().execute()
             added_rows = enriched_count - original_count
