@@ -37,7 +37,6 @@ class ProcessConfig:
     retrieval_overfetch: Annotated[int | None, "Advanced: multiply ANN candidate pool before filtering"] = (
         None
     )
-    resume: Annotated[bool, "Resume from checkpoints if available"] = True
     batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
 
     @property

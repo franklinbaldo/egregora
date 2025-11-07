@@ -21,7 +21,6 @@ from egregora.agents.tools.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_period
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
-from egregora.constants import StepStatus
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
@@ -30,7 +29,6 @@ from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_period
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.checkpoints import CheckpointStore
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -118,11 +116,6 @@ def run_source_pipeline(
     """
     from egregora.pipeline import group_by_period
 
-    def _load_enriched_table(path: Path, schema: ir.Schema) -> ir.Table:
-        if not path.exists():
-            raise FileNotFoundError(path)
-        return ibis.read_csv(str(path), table_schema=schema)
-
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
     output_dir = output_dir.expanduser().resolve()
@@ -145,7 +138,6 @@ def run_source_pipeline(
         # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
         timezone = config.pipeline.timezone
         period = config.pipeline.period
-        resume = config.pipeline.resume
         batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
@@ -170,7 +162,6 @@ def run_source_pipeline(
         embedding_model = model_config.get_model("embedding")
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
-        checkpoint_store = CheckpointStore(site_paths.site_root / ".egregora" / "checkpoints")
         logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
         messages_table = adapter.parse(input_path, timezone=timezone)
         is_valid, errors = validate_ir_schema(messages_table)
@@ -248,13 +239,18 @@ def run_source_pipeline(
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
-        site_paths.enriched_dir.mkdir(parents=True, exist_ok=True)
         for period_key in sorted(periods.keys()):
             period_table = periods[period_key]
             period_count = period_table.count().execute()
             logger.info("➡️  [bold]%s[/] — %s messages", period_key, period_count)
-            checkpoint_data = checkpoint_store.load(period_key) if resume else {"steps": {}}
-            steps_state = checkpoint_data.get("steps", {})
+
+            # Phase 3: Simple skip logic - check if posts already exist for this period
+            existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
+            if existing_posts:
+                logger.info("⏭️  Skipping %s — %s existing posts found", period_key, len(existing_posts))
+                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
+                results[period_key] = result
+                continue
             with tempfile.TemporaryDirectory(prefix=f"egregora-media-{period_key}-") as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
                 period_table, media_mapping = process_media_for_period(
@@ -266,68 +262,29 @@ def run_source_pipeline(
                     posts_dir=posts_dir,
                     zip_path=input_path,
                 )
-            logger.info("Processing %s...", period_key)
-            enriched_path = site_paths.enriched_dir / f"{period_key}-enriched.csv"
+            # Phase 3: Simplified enrichment - no complex checkpointing
             if enable_enrichment:
                 logger.info("✨ [cyan]Enriching[/] period %s", period_key)
-                if resume and steps_state.get("enrichment") == StepStatus.COMPLETED.value:
-                    try:
-                        enriched_table = _load_enriched_table(enriched_path, period_table.schema())
-                        logger.info("Loaded cached enrichment for %s", period_key)
-                    except FileNotFoundError:
-                        logger.info("Cached enrichment missing; regenerating %s", period_key)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(
-                                period_key, "enrichment", "in_progress"
-                            )["steps"]
-                        # Phase 3: Use extracted helper to eliminate duplication
-                        enriched_table = _perform_enrichment(
-                            period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
-                        )
-                        enriched_table.execute().to_csv(enriched_path, index=False)
-                        if resume:
-                            steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
-                                "steps"
-                            ]
-                else:
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "in_progress")[
-                            "steps"
-                        ]
-                    # Phase 3: Use extracted helper to eliminate duplication
-                    enriched_table = _perform_enrichment(
-                        period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
-                    )
-                    enriched_table.execute().to_csv(enriched_path, index=False)
-                    if resume:
-                        steps_state = checkpoint_store.update_step(period_key, "enrichment", "completed")[
-                            "steps"
-                        ]
+                enriched_table = _perform_enrichment(
+                    period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                )
             else:
                 enriched_table = period_table
-                enriched_table.execute().to_csv(enriched_path, index=False)
-            if resume and steps_state.get("writing") == StepStatus.COMPLETED.value:
-                logger.info("Resuming posts for %s from existing files", period_key)
-                existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
-                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
-            else:
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "in_progress")["steps"]
-                from egregora.agents.writer import WriterConfig
 
-                writer_config = WriterConfig(
-                    output_dir=posts_dir,
-                    profiles_dir=profiles_dir,
-                    rag_dir=site_paths.rag_dir,
-                    model_config=model_config,
-                    enable_rag=True,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
-                )
-                result = write_posts_for_period(enriched_table, period_key, client, writer_config)
-                if resume:
-                    steps_state = checkpoint_store.update_step(period_key, "writing", "completed")["steps"]
+            # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
+            from egregora.agents.writer import WriterConfig
+
+            writer_config = WriterConfig(
+                output_dir=posts_dir,
+                profiles_dir=profiles_dir,
+                rag_dir=site_paths.rag_dir,
+                model_config=model_config,
+                enable_rag=True,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
+            result = write_posts_for_period(enriched_table, period_key, client, writer_config)
             results[period_key] = result
             post_count = len(result.get("posts", []))
             profile_count = len(result.get("profiles", []))
