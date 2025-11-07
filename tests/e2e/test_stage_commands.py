@@ -1,5 +1,4 @@
-"""
-Tests for independent pipeline stage CLI commands.
+"""Tests for independent pipeline stage CLI commands.
 
 These tests verify that each stage command works correctly in isolation,
 using pytest-vcr to replay API interactions where needed.

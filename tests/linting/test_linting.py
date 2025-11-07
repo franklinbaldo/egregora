@@ -14,7 +14,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def _run_ruff(*paths: str) -> subprocess.CompletedProcess[str]:
     """Execute ``ruff check`` for the given paths and capture output."""
-
     return subprocess.run(
         ["uv", "run", "ruff", "check", *paths],
         cwd=PROJECT_ROOT,
@@ -26,7 +25,6 @@ def _run_ruff(*paths: str) -> subprocess.CompletedProcess[str]:
 
 def test_repository_is_ruff_clean() -> None:
     """Fail the test suite when Ruff linting finds violations."""
-
     result = _run_ruff("src", "tests")
     if result.returncode != 0:
         pytest.fail(f"Ruff linting failures detected:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")

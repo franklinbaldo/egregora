@@ -61,6 +61,7 @@ def check_file_for_banned_imports(file_path: Path) -> list[str]:
 
     Returns:
         List of error messages (empty if no issues found)
+
     """
     # Skip whitelisted paths
     if WHITELIST_PATHS.search(str(file_path)):
@@ -130,7 +131,6 @@ def test_whitelisted_paths_work():
 
 def test_streaming_utilities_available():
     """Verify that the Ibis-first streaming utilities are available."""
-
     # Verify functions are callable
     assert callable(stream_ibis)
     assert callable(copy_expr_to_parquet)

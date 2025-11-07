@@ -44,6 +44,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
         - summary: str
         - has_title: bool (if posts created)
         - has_tags: bool (if posts created)
+
     """
     posts_dir, profiles_dir, rag_dir = writer_dirs
     batch_client = create_mock_batch_client()

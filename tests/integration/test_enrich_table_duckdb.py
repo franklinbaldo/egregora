@@ -34,7 +34,6 @@ class StubBatchClient:
 
     def generate_content(self, requests, **kwargs):
         """Return canned responses matching the provided tags."""
-
         results: list[BatchPromptResult] = []
         for request in requests:
             tag = getattr(request, "tag", None)
