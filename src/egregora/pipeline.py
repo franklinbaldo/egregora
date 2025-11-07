@@ -11,10 +11,11 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 - Windows are ephemeral processing batches (not tied to resume state)
 
 DESIGN PHILOSOPHY: Calculate, Don't Iterate
-- When constraints would be exceeded, calculate the exact reduction factor needed
-- max_window_time: Calculate effective_step_size = max_time / (1 + overlap_ratio)
-- Context limits: Calculate num_splits = ceil(estimated_tokens / effective_limit)
-- This avoids trial-and-error iteration and ensures deterministic behavior
+- When max_window_time constraint would be exceeded, calculate exact reduction upfront
+- Formula: effective_step_size = max_time / (1 + overlap_ratio)
+- Creates correctly-sized windows from the start (no post-hoc splitting)
+- Only applies to time-based windowing (hours/days); message-based windowing
+  cannot enforce time limits without knowing message density beforehand
 """
 
 import json
@@ -157,10 +158,11 @@ def create_windows(  # noqa: PLR0913
 
     if step_unit == "messages":
         windows = _window_by_count(sorted_table, step_size, min_window_size, overlap)
-        # For message-based windowing, we still need time limit check
-        # (can't predict time span of N messages upfront)
         if max_window_time:
-            windows = _apply_time_limit(windows, max_window_time)
+            logger.warning(
+                "⚠️  max_window_time constraint not enforced for message-based windowing. "
+                "Use time-based windowing (--step-unit=hours/days) for strict time limits."
+            )
     elif step_unit in ("hours", "days"):
         # Dynamically reduce step_size if max_window_time constraint would be exceeded
         effective_step_size = step_size
@@ -329,41 +331,6 @@ def _window_by_time(
 
         window_index += 1
         current_start += delta  # Advance by delta, creating overlap
-
-
-def _apply_time_limit(windows: Iterator[Window], max_time: timedelta) -> Iterator[Window]:
-    """Safety check: split any windows that still exceed max_time duration.
-
-    NOTE: With dynamic step_size reduction (Phase 7+), this should rarely
-    trigger. Kept as defensive programming for edge cases.
-
-    Args:
-        windows: Generator of windows to process
-        max_time: Maximum allowed duration per window
-
-    Yields:
-        Windows, split if they exceed the constraint
-
-    """
-    for window in windows:
-        duration = window.end_time - window.start_time
-
-        if duration <= max_time:
-            yield window
-            continue
-
-        # Edge case: window still exceeds limit (shouldn't happen with dynamic reduction)
-        logger.warning(
-            "⚠️  Window exceeded max_window_time despite dynamic reduction (edge case). "
-            "Duration: %s, Max: %s. Splitting...",
-            duration,
-            max_time,
-        )
-
-        # Calculate splits needed and recursively split
-        num_splits = math.ceil(duration / max_time)
-        split_windows = split_window_into_n_parts(window, num_splits)
-        yield from _apply_time_limit(iter(split_windows), max_time)
 
 
 def _get_min_timestamp(table: Table) -> datetime:
