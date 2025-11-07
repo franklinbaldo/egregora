@@ -257,7 +257,7 @@ def _window_by_time(
     window_index = 0
     current_start = min_ts
 
-    while current_start < max_ts:
+    while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
         current_end = current_start + delta + overlap_delta
 
         # Filter messages in this window
