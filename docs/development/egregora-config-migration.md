@@ -1,7 +1,7 @@
 # Egregora Configuration Migration: `.egregora/` Folder Structure
 
-**Status**: Planning
-**Date**: 2025-11-06
+**Status**: In Progress (Phase 1 Complete via PR #623)
+**Date**: 2025-11-07 (Updated)
 **Goal**: Extract Egregora configuration from `mkdocs.yml` into dedicated `.egregora/` directory
 
 ---
@@ -12,8 +12,20 @@ This document describes the migration from embedding Egregora configuration in `
 
 1. **Backend independence** - Egregora config separate from MkDocs (support Hugo, Astro, etc.)
 2. **User customization** - Override prompts without modifying package code
-3. **Type safety** - Pydantic validation for configuration
+3. **Type safety** - Pydantic V2 validation for configuration
 4. **Cleaner separation** - Clear boundary between rendering and pipeline concerns
+5. **Window-based processing** - Replaces period-based grouping with flexible windowing
+
+### Update (2025-11-07): Windowing PR Integration
+
+**PR #623** (`claude/replace-periods-with-windowing-011CUsvZWfA3SEo5nM6193ck`) has implemented Phase 1 of this plan, including:
+
+- ✅ Pydantic V2 schema (`config/schema.py`) with `EgregoraConfig`
+- ✅ Config loader (`config/loader.py`) with `load_egregora_config()`, `create_default_config()`
+- ✅ Config facade pattern (`config/__init__.py`)
+- ✅ Window-based processing (replaces period-based grouping)
+
+**Remaining work**: Phases 2-6 (prompt overrides, scaffolding, consumer updates, docs, tests)
 
 ---
 
@@ -98,7 +110,7 @@ site-root/
 
 ### Configuration File Format
 
-**File**: `.egregora/config.yml`
+**File**: `.egregora/config.yml` (as implemented in PR #623)
 
 ```yaml
 # Egregora Configuration
@@ -110,44 +122,73 @@ models:
   enricher: google-gla:gemini-flash-latest
   enricher_vision: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
-  ranking: google-gla:gemini-2.0-flash-exp
-  editor: google-gla:gemini-2.0-flash-exp
+  ranking: google-gla:gemini-2.0-flash-exp      # Optional
+  editor: google-gla:gemini-2.0-flash-exp       # Optional
 
 # Writer agent settings
 writer:
   # Custom instructions appended to system prompt
-  prompt: |
+  custom_instructions: |
     Write analytical posts in the style of Scott Alexander / LessWrong.
     Focus on capturing narrative threads and preserving complexity.
 
-  # Enable meme helper text in prompts
-  enable_memes: false
+  # Enable banner image generation
+  enable_banners: true
+
+  # Maximum tokens per prompt
+  max_prompt_tokens: 100000             # Default 100k cap
+  use_full_context_window: false        # Override cap with full model context
 
 # RAG (Retrieval-Augmented Generation) settings
 rag:
   enabled: true
-  top_k: 5                      # Number of results to retrieve
-  min_similarity: 0.7           # Minimum similarity threshold (0-1)
-  retrieval_mode: ann           # 'ann' (approximate) or 'exact'
-  retrieval_nprobe: 10          # ANN search quality (1-100)
-  embedding_dimensions: 768     # Vector dimensions (fixed for gemini-embedding-001)
-
-# Author profile settings
-profiles:
-  top_authors_count: 20         # Number of top authors to profile
-  include_in_context: true      # Include profiles in writer context
+  top_k: 5                              # Number of results to retrieve
+  min_similarity: 0.7                   # Minimum similarity threshold (0-1)
+  mode: ann                             # 'ann' (approximate) or 'exact'
+  nprobe: 10                            # ANN search quality (1-100, higher = better + slower)
+  overfetch: 3                          # Overfetch multiplier for ANN candidate pool
 
 # Privacy settings
 privacy:
-  anonymize: true               # Convert names to UUIDs
-  detect_pii: true              # Scan for PII (phones, emails, addresses)
+  anonymization_enabled: true           # Convert names to UUIDs
+  pii_detection_enabled: true           # Scan for PII (phones, emails, addresses)
+
+# Enrichment settings
+enrichment:
+  url_enabled: true                     # URL enrichment
+  media_enabled: true                   # Media/image enrichment
+  batch_size: 10                        # Batch API calls for efficiency
+
+# Pipeline windowing settings (NEW in PR #623)
+pipeline:
+  # Window size and unit
+  step_size: 100                        # Size of each processing window
+  step_unit: messages                   # Unit: 'messages', 'hours', 'days', 'bytes'
+
+  # Window boundaries
+  min_window_size: 10                   # Minimum messages per window
+  overlap_ratio: 0.2                    # Overlap fraction (0.0-0.5) for context continuity
+  max_window_time: 168                  # Max hours per window (optional constraint)
+
+  # Filtering
+  from_date: "2024-01-01"               # Start date (ISO format, optional)
+  to_date: "2024-12-31"                 # End date (ISO format, optional)
+  timezone: "America/New_York"          # Timezone for timestamps
+
+  # API batching
+  batch_threshold: 10                   # Minimum items before batching API calls
+
+  # Token limits
+  max_prompt_tokens: 100000             # Max tokens per prompt (cost control)
+  use_full_context_window: false        # Use full model context (overrides cap)
 
 # Feature flags
 features:
-  enrichment: true              # URL/media enrichment
-  profiles: true                # Author profile generation
-  ranking: false                # Elo-based post ranking
+  ranking_enabled: false                # Elo-based post ranking
+  annotations_enabled: true             # Conversation annotations/threading
 ```
+
+**Note**: The `pipeline` section replaces the old `period` parameter with flexible windowing. Windows can be defined by message count, time spans, or byte size, with configurable overlap for context continuity.
 
 ### Prompt Override Mechanism
 
@@ -170,222 +211,92 @@ def find_prompts_dir(site_root: Path) -> Path:
 
 ## Implementation Plan
 
-### Phase 1: Config File Infrastructure
+### Phase 1: Config File Infrastructure ✅ COMPLETE (PR #623)
 
-#### Step 1.1: Create Pydantic config schema
+**Status**: ✅ Implemented in PR #623 (`claude/replace-periods-with-windowing-011CUsvZWfA3SEo5nM6193ck`)
 
-**New file**: `src/egregora/config/schema.py`
+This phase has been completed with the following implementations:
 
-```python
-from pydantic import BaseModel, Field
+#### ✅ Step 1.1: Pydantic V2 config schema created
 
-class ModelsConfig(BaseModel):
-    """Model configuration for all agents."""
-    writer: str = "google-gla:gemini-2.0-flash-exp"
-    enricher: str = "google-gla:gemini-flash-latest"
-    enricher_vision: str = "google-gla:gemini-flash-latest"
-    embedding: str = "google-gla:gemini-embedding-001"
-    ranking: str = "google-gla:gemini-2.0-flash-exp"
-    editor: str = "google-gla:gemini-2.0-flash-exp"
+**Implemented**: `src/egregora/config/schema.py`
 
-class WriterConfig(BaseModel):
-    """Writer agent configuration."""
-    prompt: str | None = None
-    enable_memes: bool = False
+Complete Pydantic V2 models with validation:
+- `EgregoraConfig` - Root config model
+- `ModelsConfig` - LLM model configuration
+- `RAGConfig` - Retrieval settings (renamed fields: `mode`, `nprobe` instead of `retrieval_mode`, `retrieval_nprobe`)
+- `WriterConfig` - Writer agent settings (includes `max_prompt_tokens`, `use_full_context_window`)
+- `PrivacyConfig` - Anonymization settings
+- `EnrichmentConfig` - URL/media enrichment settings
+- `PipelineConfig` - **NEW**: Windowing parameters (`step_size`, `step_unit`, `min_window_size`, `overlap_ratio`, `max_window_time`)
+- `FeaturesConfig` - Feature flags (`ranking_enabled`, `annotations_enabled`)
 
-class RAGConfig(BaseModel):
-    """RAG retrieval configuration."""
-    enabled: bool = True
-    top_k: int = Field(default=5, ge=1, le=100)
-    min_similarity: float = Field(default=0.7, ge=0.0, le=1.0)
-    retrieval_mode: str = Field(default="ann", pattern="^(ann|exact)$")
-    retrieval_nprobe: int = Field(default=10, ge=1, le=100)
-    embedding_dimensions: int = 768
+**Key differences from original plan**:
+- Uses Pydantic V2 with `ConfigDict` instead of V1
+- `extra="forbid"` prevents unknown fields
+- `PipelineConfig` replaces period-based grouping with windowing
+- RAG fields renamed: `mode`/`nprobe`/`overfetch` (not `retrieval_mode`/`retrieval_nprobe`)
+- Writer: `custom_instructions` (not `prompt`), `enable_banners` (not `enable_memes`)
 
-class ProfilesConfig(BaseModel):
-    """Author profile configuration."""
-    top_authors_count: int = Field(default=20, ge=1)
-    include_in_context: bool = True
+#### ✅ Step 1.2: Config loader implemented
 
-class PrivacyConfig(BaseModel):
-    """Privacy and anonymization settings."""
-    anonymize: bool = True
-    detect_pii: bool = True
+**Implemented**: `src/egregora/config/loader.py`
 
-class FeaturesConfig(BaseModel):
-    """Feature flags for optional pipeline stages."""
-    enrichment: bool = True
-    profiles: bool = True
-    ranking: bool = False
+Functions:
+- `find_egregora_config(start_dir: Path) -> Path | None` - Upward search for `.egregora/config.yml`
+- `load_egregora_config(site_root: Path) -> EgregoraConfig` - Load and validate config
+- `create_default_config(site_root: Path) -> EgregoraConfig` - Create default config if missing
+- `save_egregora_config(config: EgregoraConfig, site_root: Path)` - Save config to YAML
 
-class EgregoraConfig(BaseModel):
-    """Root configuration schema for .egregora/config.yml"""
-    models: ModelsConfig = Field(default_factory=ModelsConfig)
-    writer: WriterConfig = Field(default_factory=WriterConfig)
-    rag: RAGConfig = Field(default_factory=RAGConfig)
-    profiles: ProfilesConfig = Field(default_factory=ProfilesConfig)
-    privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
-    features: FeaturesConfig = Field(default_factory=FeaturesConfig)
-```
+**Strategy**: Clean break, no backward compatibility:
+- ONLY loads from `.egregora/config.yml`
+- Creates default config if missing
+- No `mkdocs.yml` fallback
+- No legacy transformation
+- No deprecation warnings
 
-**Benefits**:
-- Type safety with IDE autocomplete
-- Validation at load time (catches errors early)
-- Self-documenting with Field constraints
-- Easy to extend with new settings
+#### ✅ Step 1.3: Config facade pattern implemented
 
-#### Step 1.2: Add config file finder and loader
+**Implemented**: `src/egregora/config/__init__.py`
 
-**File**: `src/egregora/config/site.py`
+Facade pattern exports:
+- All schema models (`EgregoraConfig`, `ModelsConfig`, `RAGConfig`, etc.)
+- Loader functions (`load_egregora_config`, `create_default_config`, `save_egregora_config`, `find_egregora_config`)
+- Model utilities (`ModelConfig`, `ModelType`, `get_model_config`)
+- Site paths (`SitePaths`, `resolve_site_paths`, `load_mkdocs_config`)
+- Runtime contexts (`ProcessConfig`, `WriterConfig`, `EditorContext`, etc.)
 
-Add functions:
+Benefits:
+- Simplified imports: `from egregora.config import EgregoraConfig`
+- Stable API: Internal restructuring doesn't break consumers
+- Better IDE autocomplete
 
-```python
-def find_egregora_dir(start: Path) -> Path | None:
-    """Search upward from start for .egregora/ directory.
+#### ✅ Step 1.4: Window-based processing implemented
 
-    Returns:
-        Path to .egregora/ directory, or None if not found
-    """
-    current = start.expanduser().resolve()
-    for candidate in (current, *current.parents):
-        egregora_dir = candidate / ".egregora"
-        if egregora_dir.is_dir():
-            return egregora_dir
-    return None
+**Replaced**: Period-based grouping → Window-based processing
 
-def load_egregora_config(egregora_dir: Path) -> EgregoraConfig:
-    """Load and validate .egregora/config.yml.
+**New `ProcessConfig` fields**:
+- `step_size: int` - Window size (default 100)
+- `step_unit: str` - Unit: "messages", "hours", "days", "bytes"
+- `min_window_size: int` - Minimum messages per window (default 10)
+- `overlap_ratio: float` - Overlap fraction 0.0-0.5 (default 0.2)
+- `max_window_time: timedelta | None` - Optional time constraint
 
-    Args:
-        egregora_dir: Path to .egregora directory
+**Removed**: `period: str` parameter
 
-    Returns:
-        Validated EgregoraConfig object
-
-    Raises:
-        FileNotFoundError: If config.yml doesn't exist
-        ValidationError: If config is invalid
-    """
-    config_path = egregora_dir / "config.yml"
-    if not config_path.exists():
-        msg = f"Configuration file not found: {config_path}"
-        raise FileNotFoundError(msg)
-
-    # Use existing _ConfigLoader for !ENV support
-    config_dict = yaml.load(
-        config_path.read_text(encoding="utf-8"),
-        Loader=_ConfigLoader
-    )
-
-    # Validate with Pydantic
-    return EgregoraConfig(**config_dict)
-```
-
-#### Step 1.3: Update SitePaths dataclass
-
-**File**: `src/egregora/config/site.py`
-
-```python
-@dataclass(frozen=True, slots=True)
-class SitePaths:
-    """Resolved paths for an Egregora site."""
-
-    site_root: Path
-    mkdocs_path: Path | None
-    egregora_dir: Path | None  # 🆕 Add this field
-    docs_dir: Path
-    blog_dir: str
-    posts_dir: Path
-    profiles_dir: Path
-    media_dir: Path
-    rankings_dir: Path
-    rag_dir: Path
-    enriched_dir: Path
-    config: dict[str, Any]
-```
-
-Update `resolve_site_paths()`:
-
-```python
-def resolve_site_paths(start: Path) -> SitePaths:
-    """Resolve all important directories for the site."""
-    start = start.expanduser().resolve()
-    config, mkdocs_path = load_mkdocs_config(start)
-    egregora_dir = find_egregora_dir(start)  # 🆕 Find .egregora/
-    site_root = mkdocs_path.parent if mkdocs_path else start
-    # ... rest of function
-    return SitePaths(
-        site_root=site_root,
-        mkdocs_path=mkdocs_path,
-        egregora_dir=egregora_dir,  # 🆕 Include in result
-        # ... rest of fields
-    )
-```
-
-#### Step 1.4: Update ModelConfig to use .egregora/config.yml
-
-**File**: `src/egregora/config/model.py`
-
-```python
-def load_site_config(output_dir: Path) -> EgregoraConfig:
-    """Load egregora configuration from .egregora/config.yml.
-
-    Args:
-        output_dir: Output directory (will look for .egregora/ upward)
-
-    Returns:
-        Validated EgregoraConfig object
-
-    Raises:
-        FileNotFoundError: If .egregora/config.yml not found
-    """
-    egregora_dir = find_egregora_dir(output_dir)
-    if not egregora_dir:
-        msg = f"No .egregora/ directory found starting from {output_dir}"
-        raise FileNotFoundError(msg)
-
-    return load_egregora_config(egregora_dir)
-```
-
-Update `ModelConfig` class:
-
-```python
-class ModelConfig:
-    """Centralized model configuration with fallback hierarchy."""
-
-    def __init__(
-        self,
-        cli_model: str | None = None,
-        site_config: EgregoraConfig | None = None  # 🆕 Changed type
-    ) -> None:
-        """Initialize model config.
-
-        Args:
-            cli_model: Model specified via CLI flag (highest priority)
-            site_config: Configuration from .egregora/config.yml
-        """
-        self.cli_model = cli_model
-        self.site_config = site_config or EgregoraConfig()
-
-    def get_model(self, model_type: ModelType) -> str:
-        """Get model name with fallback hierarchy.
-
-        Priority:
-        1. CLI flag (--model)
-        2. .egregora/config.yml models.{type}
-        3. Default for task type
-        """
-        if self.cli_model:
-            return self.cli_model
-
-        # 🆕 Use Pydantic model attributes
-        return getattr(self.site_config.models, model_type)
-```
+**Pipeline changes**:
+- `create_windows()` function creates overlapping windows
+- `Window` dataclass tracks `start_ts`, `end_ts`, `message_count`
+- Resume logic uses timestamp-based identification (not window_id)
+- Automatic window splitting for oversized prompts
 
 ---
 
-### Phase 2: Custom Prompt Overrides
+### Phase 2: Custom Prompt Overrides ⏳ PENDING
+
+**Status**: ⏳ Not yet implemented
+
+This phase enables users to override system prompts without modifying package code.
 
 #### Step 2.1: Update prompt template loader
 
@@ -498,7 +409,11 @@ class WriterPromptTemplate(PromptTemplate):
 
 ---
 
-### Phase 3: Site Scaffolding
+### Phase 3: Site Scaffolding ⏳ PENDING
+
+**Status**: ⏳ Not yet implemented
+
+This phase updates site initialization to create `.egregora/` directory structure.
 
 #### Step 3.1: Create config.yml template
 
@@ -650,7 +565,11 @@ extra:
 
 ---
 
-### Phase 4: Update Config Consumers
+### Phase 4: Update Config Consumers ⏳ PENDING
+
+**Status**: ⏳ Not yet implemented
+
+This phase updates all code that reads configuration to use `EgregoraConfig` model.
 
 #### Step 4.1: Update CLI commands
 
@@ -762,7 +681,11 @@ def run_pipeline(config: ProcessConfig) -> None:
 
 ---
 
-### Phase 5: Documentation
+### Phase 5: Documentation ⏳ PENDING
+
+**Status**: ⏳ Not yet implemented
+
+This phase updates all documentation to reflect new configuration structure.
 
 #### Step 5.1: Update CLAUDE.md
 
@@ -925,7 +848,11 @@ Update quick start section:
 
 ---
 
-### Phase 6: Testing
+### Phase 6: Testing ⏳ PENDING
+
+**Status**: ⏳ Not yet implemented
+
+This phase adds comprehensive tests for config loading and prompt overrides.
 
 #### Step 6.1: Unit tests - Config loading
 
@@ -1271,16 +1198,71 @@ models:
 
 ---
 
-## Next Steps
+## Progress Summary
 
-1. Review and approve this plan
-2. Implement Phase 1 (config infrastructure)
-3. Test with minimal example site
-4. Iterate based on feedback
-5. Implement remaining phases
-6. Update documentation
-7. Announce migration path to users
+### Completed ✅
+
+| Phase | Status | Implemented In | Key Deliverables |
+|-------|--------|----------------|------------------|
+| **Phase 1: Config Infrastructure** | ✅ Complete | PR #623 | Pydantic V2 schema, config loader, facade pattern, windowing |
+
+### In Progress / Pending ⏳
+
+| Phase | Status | Key Tasks Remaining |
+|-------|--------|---------------------|
+| **Phase 2: Custom Prompt Overrides** | ⏳ Pending | Update `prompt_templates.py`, add `.egregora/prompts/` discovery |
+| **Phase 3: Site Scaffolding** | ⏳ Pending | Create `config.yml.jinja`, update `scaffolding.py`, remove `extra.egregora` from mkdocs template |
+| **Phase 4: Update Config Consumers** | ⏳ Pending | Update CLI, writer agent, enrichment, pipeline to use `EgregoraConfig` |
+| **Phase 5: Documentation** | ⏳ Pending | Update CLAUDE.md, configuration docs, README |
+| **Phase 6: Testing** | ⏳ Pending | Unit tests, integration tests, E2E tests for config and prompts |
+
+### Key Changes from Original Plan
+
+PR #623 introduced several improvements:
+
+1. **Pydantic V2** instead of V1 (`ConfigDict`, `extra="forbid"`)
+2. **Windowing** replaces period-based grouping (`step_size`, `step_unit`, `overlap_ratio`)
+3. **Token limits** added (`max_prompt_tokens`, `use_full_context_window`)
+4. **Field renames**:
+   - `writer.prompt` → `writer.custom_instructions`
+   - `writer.enable_memes` → `writer.enable_banners`
+   - `rag.retrieval_mode` → `rag.mode`
+   - `rag.retrieval_nprobe` → `rag.nprobe`
+5. **No backward compatibility** (clean break, alpha phase)
 
 ---
 
-**Status**: Awaiting approval to begin implementation
+## Next Steps
+
+### Immediate (Phase 2-3)
+
+1. **Implement prompt overrides** (Phase 2)
+   - Update `prompt_templates.py` to search `.egregora/prompts/`
+   - Add fallback to package prompts
+   - Test custom prompt loading
+
+2. **Update scaffolding** (Phase 3)
+   - Create `config.yml.jinja` template
+   - Update `init/scaffolding.py` to create `.egregora/`
+   - Remove `extra.egregora` from mkdocs.yml template
+
+### Medium-term (Phase 4-6)
+
+3. **Update config consumers** (Phase 4)
+   - CLI commands use `EgregoraConfig`
+   - Writer/enrichment/pipeline use Pydantic models
+   - Remove dict-based config access
+
+4. **Documentation updates** (Phase 5)
+   - CLAUDE.md with `.egregora/` examples
+   - Configuration guide
+   - Migration instructions
+
+5. **Testing** (Phase 6)
+   - Config loading tests
+   - Prompt override tests
+   - E2E integration tests
+
+---
+
+**Status**: Phase 1 complete (PR #623), Phases 2-6 awaiting implementation
