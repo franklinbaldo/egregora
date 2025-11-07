@@ -16,43 +16,63 @@ Benefits:
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# Default models
+DEFAULT_MODEL = "google-gla:gemini-flash-latest"
+DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
+DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
+
+# Model naming conventions
+PydanticModelName = Annotated[
+    str,
+    "Pydantic-AI provider-prefixed model id (e.g., 'google-gla:gemini-flash-latest')",
+]
+GoogleModelName = Annotated[
+    str,
+    "Google Generative AI SDK model id (e.g., 'models/gemini-embedding-001')",
+]
 
 
 class ModelsConfig(BaseModel):
     """LLM model configuration for different tasks.
 
-    All model names use pydantic-ai format: "google-gla:model-name"
-    Examples:
-    - "google-gla:gemini-2.0-flash-exp"
-    - "google-gla:gemini-flash-latest"
+    - Pydantic-AI agents expect provider-prefixed IDs like ``google-gla:gemini-flash-latest``
+    - Direct Google GenAI SDK calls expect ``models/<name>`` identifiers
     """
 
-    writer: str = Field(
-        default="google-gla:gemini-2.0-flash-exp",
-        description="Model for blog post generation",
+    # Text generation agents (all default to DEFAULT_MODEL, pydantic naming)
+    writer: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for blog post generation (pydantic-ai format)",
     )
-    enricher: str = Field(
-        default="google-gla:gemini-flash-latest",
-        description="Model for URL/text enrichment",
+    enricher: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for URL/text enrichment (pydantic-ai format)",
     )
-    enricher_vision: str = Field(
-        default="google-gla:gemini-flash-latest",
-        description="Model for image/video enrichment",
+    enricher_vision: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for image/video enrichment (pydantic-ai format)",
     )
-    embedding: str = Field(
-        default="google-gla:gemini-embedding-001",
-        description="Model for vector embeddings (RAG)",
+    ranking: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for post ranking (pydantic-ai format)",
     )
-    ranking: str | None = Field(
-        default=None,
-        description="Model for post ranking (optional)",
+    editor: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for interactive post editing (pydantic-ai format)",
     )
-    editor: str | None = Field(
-        default=None,
-        description="Model for interactive post editing (optional)",
+
+    # Special models with their own defaults (direct Gemini API usage)
+    embedding: GoogleModelName = Field(
+        default=DEFAULT_EMBEDDING_MODEL,
+        description="Model for vector embeddings (Google GenAI format: models/...)",
+    )
+    banner: GoogleModelName = Field(
+        default=DEFAULT_BANNER_MODEL,
+        description="Model for banner/cover image generation (Google GenAI format)",
     )
 
 

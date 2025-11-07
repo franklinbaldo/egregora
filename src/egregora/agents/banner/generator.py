@@ -69,7 +69,8 @@ class BannerGenerator:
             msg = "Banner generation requires GOOGLE_API_KEY. Set environment variable or pass api_key parameter, or set enabled=False to disable banner generation."
             raise ValueError(msg)
         self.client = genai.Client(api_key=self.api_key)
-        self.model = "gemini-2.5-flash-image"
+        # Default model (can be overridden via config or passed in __init__)
+        self.model = "models/gemini-2.5-flash-image"
 
     def generate_banner(self, request: BannerRequest) -> BannerResult:
         """Generate a banner image for a blog post.

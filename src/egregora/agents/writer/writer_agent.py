@@ -344,13 +344,11 @@ def write_posts_with_pydantic_agent(
     retrieval_nprobe = config.rag.nprobe
     retrieval_overfetch = config.rag.overfetch
 
+    # Always use structured tool calling mode (Pydantic AI with tools)
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
-        _register_writer_tools(
-            agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
-        )
-    else:
-        agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
+    _register_writer_tools(
+        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+    )
 
     # Generate window identifier for logging
     window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"

@@ -7,7 +7,7 @@ import ibis
 from google import genai
 
 from egregora.agents.tools.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig, from_pydantic_ai_model
+from egregora.config import ModelConfig
 from egregora.utils.genai import call_with_retries
 
 if TYPE_CHECKING:
@@ -53,8 +53,11 @@ async def query_rag(
 async def ask_llm(question: str, client: genai.Client, model_config: ModelConfig) -> str:
     """Simple Q&A with fresh LLM instance."""
     try:
-        model_pydantic = model_config.get_model("editor")
-        model_google = from_pydantic_ai_model(model_pydantic)
+        model_google = model_config.get_model("editor")
+        if ":" in model_google:
+            model_google = model_google.split(":", 1)[1]
+        if not model_google.startswith("models/"):
+            model_google = f"models/{model_google}"
         response = await call_with_retries(
             client.aio.models.generate_content,
             model=model_google,
