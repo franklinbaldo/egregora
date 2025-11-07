@@ -5,7 +5,7 @@ seed: null
 ttl: 24h
 variables:
   defaults:
-    period_date: ""
+    window_id: ""
     markdown_table: ""
     active_authors: ""
     custom_instructions: ""
@@ -15,7 +15,7 @@ variables:
     freeform_memory: ""
     enable_memes: false
   allowed:
-    - period_date
+    - window_id
     - markdown_table
     - active_authors
     - custom_instructions
@@ -45,7 +45,7 @@ You are the Egregora Writer Agent.
 Your task is to analyze WhatsApp group conversations and decide what's worth writing about.
 You have full editorial control - choose the number of posts (0-N) and all metadata.
 
-## Period: {{ period_date }}
+## Window: {{ window_id }}
 
 ## Active Authors
 {{ active_authors }}
