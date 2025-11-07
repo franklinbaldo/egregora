@@ -118,5 +118,3 @@ class EnrichmentConfig:
     client: Annotated[object, "The Gemini client"]
     output_dir: Annotated[Path, "The directory to save enriched data"]
     model: Annotated[str, "The Gemini model to use for enrichment"] = "models/gemini-flash-latest"
-
-

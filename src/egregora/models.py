@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from egregora.types import GroupSlug
-
-if TYPE_CHECKING:
-    pass
 
 
 class MergeConfig(BaseModel):
