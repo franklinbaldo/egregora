@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic_ai.models.test import TestModel
@@ -42,7 +44,8 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
     )
 
     context = WriterRuntimeContext(
-        window_id="2025-01-01",
+        start_time=datetime(2025, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        end_time=datetime(2025, 1, 1, 23, 59, tzinfo=ZoneInfo("UTC")),
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,

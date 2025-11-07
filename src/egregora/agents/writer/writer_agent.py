@@ -549,6 +549,9 @@ async def write_posts_with_pydantic_agent_stream(
     retrieval_nprobe = config.rag.nprobe
     retrieval_overfetch = config.rag.overfetch
 
+    # Generate window label from timestamps (Phase 7)
+    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
+
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
     if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
         _register_writer_tools(
@@ -558,7 +561,7 @@ async def write_posts_with_pydantic_agent_stream(
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
 
     state = WriterAgentState(
-        window_id=context.window_id,
+        window_id=window_label,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
