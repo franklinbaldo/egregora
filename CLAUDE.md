@@ -574,7 +574,8 @@ Each journal entry has **two sections**:
 ```markdown
 ---
 window_label: 2025-01-15 10:00 to 12:00
-timestamp: 2025-01-15 12:05:23 UTC
+date: 2025-01-15
+draft: true
 ---
 
 # Model Thinking

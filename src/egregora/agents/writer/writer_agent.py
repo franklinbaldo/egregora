@@ -251,7 +251,7 @@ def _save_journal_to_file(
     # Render journal content
     journal_content = template.render(
         window_label=window_label,
-        timestamp=datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        date=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
         thinking_parts=thinking_contents,
         freeform_content=freeform_content,
     )
