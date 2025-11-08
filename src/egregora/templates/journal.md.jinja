@@ -5,21 +5,28 @@ created: {{ created }}
 draft: true
 ---
 
-{% if thinking_parts %}
-# Model Thinking
+# Agent Execution Log
 
-{% for thinking in thinking_parts %}
-{{ thinking }}
+{% for entry in intercalated_log %}
+{% if entry.entry_type == "thinking" %}
+## Thinking
 
-{% if not loop.last %}
----
+{{ entry.content }}
+
+{% elif entry.entry_type == "freeform" %}
+## Freeform
+
+{{ entry.content }}
+
+{% elif entry.entry_type == "tool_call" %}
+<tool-call{% if entry.tool_name %} name="{{ entry.tool_name }}"{% endif %}>
+{{ entry.content }}
+</tool-call>
+
+{% elif entry.entry_type == "tool_return" %}
+<tool-return{% if entry.tool_name %} name="{{ entry.tool_name }}"{% endif %}>
+{{ entry.content }}
+</tool-return>
 
 {% endif %}
 {% endfor %}
-{% endif %}
-
-{% if freeform_content %}
-# Freeform Reflection
-
-{{ freeform_content }}
-{% endif %}

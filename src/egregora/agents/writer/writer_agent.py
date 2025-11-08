@@ -48,7 +48,14 @@ except ImportError:
             return json.dumps(messages, indent=2, default=str)
 
 
-from pydantic_ai.messages import ModelResponse, TextPart, ThinkingPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
@@ -211,17 +218,109 @@ def _extract_freeform_content(messages: Any) -> str:
     return "\n\n".join(freeform_parts).strip()
 
 
+@dataclass(frozen=True)
+class JournalEntry:
+    """Represents a single entry in the intercalated journal log.
+
+    Each entry is one of: thinking, freeform text, or tool usage.
+    Entries preserve the actual execution order from the agent's message history.
+    """
+
+    entry_type: str  # "thinking", "freeform", "tool_call", "tool_return"
+    content: str
+    timestamp: datetime | None = None
+    tool_name: str | None = None
+
+
+def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:  # noqa: C901
+    """Extract intercalated journal log preserving actual execution order.
+
+    Processes agent message history to create a timeline showing:
+    - Model thinking/reasoning
+    - Freeform text output
+    - Tool calls and their returns
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        List of JournalEntry objects in chronological order
+
+    """
+    entries: list[JournalEntry] = []
+
+    for message in messages:
+        # Handle ModelResponse (contains thinking and freeform output)
+        if isinstance(message, ModelResponse):
+            for part in message.parts:
+                if isinstance(part, ThinkingPart):
+                    entries.append(
+                        JournalEntry(
+                            entry_type="thinking",
+                            content=part.content,
+                            timestamp=getattr(message, "timestamp", None),
+                        )
+                    )
+                elif isinstance(part, TextPart):
+                    entries.append(
+                        JournalEntry(
+                            entry_type="freeform",
+                            content=part.content,
+                            timestamp=getattr(message, "timestamp", None),
+                        )
+                    )
+                elif isinstance(part, ToolCallPart):
+                    # Format tool call
+                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
+                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_call",
+                            content=tool_call_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=part.tool_name,
+                        )
+                    )
+                elif isinstance(part, ToolReturnPart):
+                    # Format tool return
+                    result_str = str(part.content) if hasattr(part, "content") else "No result"
+                    tool_return_content = f"Result: {result_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_return",
+                            content=tool_return_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=getattr(part, "tool_name", None),
+                        )
+                    )
+
+        # Handle ModelRequest (contains tool calls from model side)
+        elif isinstance(message, ModelRequest):
+            for part in message.parts:
+                if isinstance(part, ToolCallPart):
+                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
+                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_call",
+                            content=tool_call_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=part.tool_name,
+                        )
+                    )
+
+    return entries
+
+
 def _save_journal_to_file(
-    thinking_contents: list[str],
-    freeform_content: str,
+    intercalated_log: list[JournalEntry],
     window_label: str,
     output_dir: Path,
 ) -> Path | None:
-    """Save journal entry combining thinking and freeform content to markdown file.
+    """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
 
     Args:
-        thinking_contents: List of thinking/reasoning content strings
-        freeform_content: Freeform reflection/memo content
+        intercalated_log: List of journal entries in chronological order
         window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
         output_dir: Base output directory
 
@@ -230,7 +329,7 @@ def _save_journal_to_file(
 
     """
     # Skip if no content at all
-    if not thinking_contents and not freeform_content:
+    if not intercalated_log:
         return None
 
     # Create journal directory if it doesn't exist
@@ -253,9 +352,8 @@ def _save_journal_to_file(
     journal_content = template.render(
         window_label=window_label,
         date=now_utc.strftime("%Y-%m-%d"),
-        created=now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
-        thinking_parts=thinking_contents,
-        freeform_content=freeform_content,
+        created=now_utc.isoformat(),
+        intercalated_log=intercalated_log,
     )
 
     # Write to file
@@ -553,12 +651,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
-        # Extract thinking and freeform content, save to journal
-        thinking_contents = _extract_thinking_content(result.all_messages())
-        freeform_content = _extract_freeform_content(result.all_messages())
-        journal_path = _save_journal_to_file(
-            thinking_contents, freeform_content, window_label, context.output_dir
-        )
+        # Extract intercalated log (thinking, freeform, tool usage in order), save to journal
+        intercalated_log = _extract_intercalated_log(result.all_messages())
+        journal_path = _save_journal_to_file(intercalated_log, window_label, context.output_dir)
 
         usage = result.usage()
         logfire_info(
@@ -567,8 +662,10 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
             journal_saved=journal_path is not None,
-            thinking_parts=len(thinking_contents),
-            freeform_length=len(freeform_content),
+            journal_entries=len(intercalated_log),
+            journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
+            journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
+            journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
             # Standard token counts
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,

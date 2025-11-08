@@ -565,21 +565,25 @@ output/
 
 **Journal structure** (Jinja template: `src/egregora/templates/journal.md.jinja`):
 
-Each journal entry has **two sections**:
+Each journal entry is an **intercalated execution log** showing the agent's complete thought process in chronological order:
 
-1. **Model Thinking** - Step-by-step reasoning process (from ThinkingPart)
-2. **Freeform Reflection** - Continuity memo with synthesis decisions, unresolved questions, and memory for next window (from plain text output)
+1. **Thinking sections** - Step-by-step reasoning (from ThinkingPart)
+2. **Freeform sections** - Continuity memos and reflections (from TextPart)
+3. **Tool calls** - Tool invocations with XML tag fencing (e.g., `<tool-call name="write_post">`)
+4. **Tool returns** - Tool results with XML tag fencing (e.g., `<tool-return name="write_post">`)
 
 **Example journal entry** (`journal/journal_2025-01-15_10-00_to_12-00.md`):
 ```markdown
 ---
 window_label: 2025-01-15 10:00 to 12:00
 date: 2025-01-15
-created: 2025-01-15 12:05:23 UTC
+created: 2025-01-15T12:05:23.123456+00:00
 draft: true
 ---
 
-# Model Thinking
+# Agent Execution Log
+
+## Thinking
 
 Let me analyze these conversations to identify the main themes...
 
@@ -590,9 +594,23 @@ First, I notice several recurring topics:
 
 Based on this analysis, I'll create a post focusing on...
 
----
+<tool-call name="write_post">
+Tool: write_post
+Arguments:
+{
+  "metadata": {
+    "title": "The Emergence of AI Consciousness Debates",
+    "date": "2025-01-15"
+  },
+  "content": "..."
+}
+</tool-call>
 
-# Freeform Reflection
+<tool-return name="write_post">
+Result: {'status': 'success', 'path': '/output/posts/ai-consciousness.md'}
+</tool-return>
+
+## Freeform
 
 # Continuity Journal — 2025-01-15
 
@@ -611,13 +629,18 @@ Key context to carry forward: the self-referential nature of consciousness...
 ```
 
 **Benefits**:
-- **Transparency**: See both internal reasoning AND editorial decisions
-- **Debugging**: Understand why certain posts were created or skipped
-- **Improvement**: Identify patterns to refine prompts and model settings
-- **Audit trail**: Complete record of AI decision-making process
-- **Continuity**: Freeform section becomes memory for next window
+- **Transparency**: See internal reasoning, editorial decisions, AND tool usage in execution order
+- **Debugging**: Understand why certain posts were created or skipped, and which tools were called
+- **Improvement**: Identify patterns to refine prompts, model settings, and tool usage
+- **Audit trail**: Complete chronological record of AI decision-making and actions
+- **Continuity**: Freeform sections become memory for next window
+- **Tool visibility**: XML-fenced tool calls show exact arguments and results
 
-**Format**: Uses YAML frontmatter for metadata, simple `#` headings for sections
+**Format**:
+- YAML frontmatter with ISO 8601 timestamp (`created` field)
+- Simple `##` headings for thinking/freeform sections
+- XML tags for tool usage (`<tool-call>`, `<tool-return>`)
+- Chronological interleaving preserves actual execution order
 
 ## Development Workflow
 
