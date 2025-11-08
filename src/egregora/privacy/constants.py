@@ -115,6 +115,7 @@ def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> u
         This function does NOT store the mapping author_raw → UUID.
         By default, the mapping is one-way and NOT reversible.
         See privacy.enable_reidentification config for escrow option.
+
     """
     key = f"{tenant_id}:{source}:{author_raw}"
     return uuid.uuid5(NS_AUTHORS, key)
@@ -140,6 +141,7 @@ def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> u
 
         >>> deterministic_thread_uuid("default", "slack", "C1234567890")
         UUID('...')
+
     """
     key = f"{tenant_id}:{source}:{thread_key}"
     return uuid.uuid5(NS_THREADS, key)
@@ -162,6 +164,7 @@ def deterministic_media_uuid(tenant_id: str, source: str, media_identifier: str)
     Examples:
         >>> deterministic_media_uuid("default", "whatsapp", "IMG_1234.jpg")
         UUID('...')
+
     """
     key = f"{tenant_id}:{source}:{media_identifier}"
     return uuid.uuid5(NS_MEDIA, key)
@@ -191,6 +194,7 @@ def deterministic_event_uuid(tenant_id: str, source: str, msg_id: str) -> uuid.U
     Note:
         This is used for the event_id (PRIMARY KEY) in IR v1 schema.
         Re-ingesting the same data must produce identical event_ids.
+
     """
     key = f"{tenant_id}:{source}:{msg_id}"
     return uuid.uuid5(NS_EVENTS, key)
@@ -208,6 +212,7 @@ def validate_namespaces() -> None:
         AssertionError: If namespaces are invalid or changed
 
     Called on module import to catch accidental modifications.
+
     """
     # Ensure all namespaces are distinct
     namespaces = {NS_AUTHORS, NS_THREADS, NS_MEDIA, NS_EVENTS}
