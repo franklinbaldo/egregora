@@ -10,6 +10,7 @@ import ibis
 import pandas as pd
 import pyarrow as pa
 from google.genai import types as genai_types
+from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
@@ -126,12 +127,25 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
     """
     try:
         backend = table._find_backend()
-        if backend is not None:
-            ordered_table = ensure_deterministic_order(table)
-            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+    except (AttributeError, IbisError):
+        backend = None
+    if backend is not None:
+        ordered_table = ensure_deterministic_order(table)
+        yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+        return
+
+    # Fallback: check for in-memory tables (ibis.memtable) that carry their own data proxy.
+    op = getattr(table, "op", lambda: None)()
+    data_proxy = getattr(op, "data", None)
+    if data_proxy is not None:
+        dataframe = data_proxy.to_frame()
+        records = _frame_to_records(dataframe)
+        if not records:
             return
-    except AttributeError:
-        pass
+        for start in range(0, len(records), batch_size):
+            yield records[start : start + batch_size]
+        return
+
     count = table.count().execute()
     if not count:
         return

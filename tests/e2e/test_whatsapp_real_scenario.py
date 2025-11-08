@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 
 import ibis
 import pytest
-from egregora.ingestion.parser import filter_egregora_messages, parse_export
 
 from egregora.config.loader import create_default_config
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.enrichment.media import extract_and_replace_media
+from egregora.ingestion import filter_egregora_messages, parse_source
 from egregora.sources.whatsapp import process_whatsapp_export
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
@@ -101,12 +101,14 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
     def _stub_writer(
         table,
-        period_key,
+        start_time,
+        end_time,
         client,
         config=None,
     ):
-        """Stub writer matching new signature: write_posts_for_period(table, period_date, client, config)."""
-        captured_dates.append(period_key)
+        """Stub writer matching new signature: write_posts_for_window(table, start_time, end_time, client, config)."""
+        window_label = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+        captured_dates.append(window_label)
 
         # Extract paths from config if provided, otherwise use dummy paths
         if config:
@@ -120,11 +122,12 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         output_dir.mkdir(parents=True, exist_ok=True)
         profiles_dir.mkdir(parents=True, exist_ok=True)
 
-        post_path = output_dir / f"{period_key}-stub.md"
+        post_filename = f"{start_time:%Y%m%d_%H%M%S}-stub.md"
+        post_path = output_dir / post_filename
         post_path.write_text(
             "---\n"
-            f"title: Stub Post for {period_key}\n"
-            f"date: {period_key}\n"
+            f"title: Stub Post for {window_label}\n"
+            f"date: {start_time:%Y-%m-%d}\n"
             "tags: []\n"
             "---\n"
             "This is a placeholder post used during testing.\n",
@@ -136,7 +139,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.write_posts_for_period", _stub_writer)
+    monkeypatch.setattr("egregora.pipeline.runner.write_posts_for_window", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):
@@ -151,7 +154,7 @@ def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixtur
 
 def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     assert {"timestamp", "author", "message"}.issubset(table.columns)
     assert table.count().execute() == 10
@@ -162,7 +165,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
     dates = [value.date() for value in table["date"].execute().tolist()]
 
     assert date(2025, 10, 28) in dates
@@ -170,7 +173,7 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     participant_rows = table.filter(~table.author.isin(["system", "egregora"]))
     assert participant_rows.count().execute() == 10
@@ -178,7 +181,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
 
 def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     combined = " ".join(table["message"].execute().tolist())
     assert "IMG-20251028-WA0035.jpg" in combined
@@ -187,7 +190,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
 
 def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     authors = table["author"].execute().tolist()
     for forbidden in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
@@ -199,8 +202,8 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
 
 def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table_one = parse_export(export, timezone=whatsapp_fixture.timezone)
-    table_two = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
+    table_two = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     authors_one = sorted(table_one.select("author").distinct().execute()["author"].tolist())
     authors_two = sorted(table_two.select("author").distinct().execute()["author"].tolist())
@@ -210,7 +213,7 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
 
 def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     distinct_authors = table.select("author").distinct().execute()["author"].tolist()
     authors = [value for value in distinct_authors if value not in {"system", "egregora"}]
@@ -222,7 +225,7 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
 
 def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -244,7 +247,7 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
 
 def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -265,7 +268,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 
 def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir_one = tmp_path / "docs1"
     docs_dir_two = tmp_path / "docs2"
@@ -301,7 +304,8 @@ def test_full_pipeline_completes_without_crash(
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,
@@ -323,7 +327,8 @@ def test_pipeline_creates_expected_directory_structure(
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,
@@ -349,7 +354,8 @@ def test_pipeline_respects_date_range_filters(
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         from_date=date(2025, 10, 29),
         to_date=date(2025, 10, 29),
@@ -363,7 +369,7 @@ def test_pipeline_respects_date_range_filters(
 
 def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     original_records = table.execute().to_dict("records")
     sample_record = original_records[0]
@@ -385,7 +391,7 @@ def test_enrichment_adds_egregora_messages(
     tmp_path: Path,
 ):
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir = tmp_path / "docs"
     posts_dir = docs_dir / "posts"
@@ -453,7 +459,8 @@ def test_pipeline_handles_missing_media_gracefully(
     results = process_whatsapp_export(
         zip_path=corrupted_zip,
         output_dir=site_root,
-        period="day",
+        step_size=100,
+        step_unit="messages",
         enable_enrichment=False,
         timezone=whatsapp_fixture.timezone,
         gemini_api_key=gemini_api_key,
@@ -477,7 +484,7 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     """Test that parser strictly enforces MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     # Verify table only has MESSAGE_SCHEMA columns (including message_id)
     expected_columns = {
@@ -503,7 +510,7 @@ def test_enrichment_handles_schema_mismatch(
 ):
     """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_export(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     # Add extra columns to simulate the schema mismatch
     table = table.mutate(

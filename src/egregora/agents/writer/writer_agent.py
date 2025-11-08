@@ -1,8 +1,8 @@
 """Pydantic-AI powered writer agent.
 
-This module experiments with migrating the writer workflow to Pydantic-AI.
+This module implements the writer workflow using Pydantic-AI.
 It exposes ``write_posts_with_pydantic_agent`` which mirrors the signature of
-``write_posts_for_period`` but routes the LLM conversation through a
+``write_posts_for_window`` but routes the LLM conversation through a
 ``pydantic_ai.Agent`` instance. The implementation keeps the existing tool
 surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.
@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -66,9 +67,13 @@ class WriterRuntimeContext:
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
     Separates runtime data (paths, clients) from configuration (EgregoraConfig).
+
+    Windows are identified by (start_time, end_time) tuple, not artificial IDs.
+    This makes them stable across config changes and more meaningful for logging.
     """
 
-    period_date: str
+    start_time: datetime
+    end_time: datetime
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
@@ -142,7 +147,7 @@ class WriterAgentState(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-    period_date: str
+    window_id: str
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
@@ -345,8 +350,12 @@ def write_posts_with_pydantic_agent(
     _register_writer_tools(
         agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
     )
+
+    # Generate window identifier for logging
+    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
+
     state = WriterAgentState(
-        period_date=context.period_date,
+        window_id=window_label,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
@@ -357,9 +366,83 @@ def write_posts_with_pydantic_agent(
         retrieval_overfetch=retrieval_overfetch,
         annotations_store=context.annotations_store,
     )
-    with logfire_span("writer_agent", period=context.period_date, model=model_name):
-        result = agent.run_sync(prompt, deps=state)
-        result_payload = getattr(result, "data", result)
+    # Validate prompt fits in model's context window
+    from egregora.agents.model_limits import validate_prompt_fits  # noqa: PLC0415
+
+    # Extract token cap settings from pipeline config
+    max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
+    use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
+
+    fits, estimated_tokens, effective_limit = validate_prompt_fits(
+        prompt,
+        model_name,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
+    )
+    if not fits:
+        # Check if we're under the model's hard limit (may exceed 100k cap but still valid)
+        from egregora.agents.model_limits import get_model_context_limit  # noqa: PLC0415
+
+        model_limit = get_model_context_limit(model_name)
+        model_effective_limit = int(model_limit * 0.9)  # 10% safety margin
+
+        if estimated_tokens <= model_effective_limit:
+            # Single large message exception: Exceeds 100k cap but fits in model
+            logger.warning(
+                "Prompt exceeds %dk cap (%d tokens) but fits in model limit (%d tokens) for %s (window: %s) - allowing as exception (likely single large message)",
+                max_prompt_tokens // 1000,
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                window_label,
+            )
+        else:
+            # Hard limit exceeded - raise exception to trigger window splitting
+            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+
+            logger.error(
+                "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s) - will split window",
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                window_label,
+            )
+            raise PromptTooLargeError(
+                estimated_tokens=estimated_tokens,
+                effective_limit=model_effective_limit,
+                model_name=model_name,
+                window_id=window_label,
+            )
+    else:
+        logger.info(
+            "Prompt fits: %d tokens / %d limit (%.1f%% usage) for %s",
+            estimated_tokens,
+            effective_limit,
+            (estimated_tokens / effective_limit) * 100,
+            model_name,
+        )
+
+    with logfire_span("writer_agent", period=window_label, model=model_name):
+        max_attempts = 3
+        result = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = agent.run_sync(prompt, deps=state)
+                break
+            except Exception as exc:
+                if attempt == max_attempts:
+                    logger.exception("Writer agent failed after %s attempts", attempt)
+                    raise
+                delay = attempt * 2
+                logger.warning(
+                    "Writer agent attempt %s/%s failed: %s. Retrying in %ss...",
+                    attempt,
+                    max_attempts,
+                    exc,
+                    delay,
+                )
+                time.sleep(delay)
+        result_payload = getattr(result, "output", getattr(result, "data", result))
 
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
@@ -367,7 +450,7 @@ def write_posts_with_pydantic_agent(
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
-            period=context.period_date,
+            period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
             tokens_total=usage.total_tokens if usage else 0,
@@ -380,7 +463,8 @@ def write_posts_with_pydantic_agent(
             output_path = Path(record_dir).expanduser()
             output_path.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            filename = output_path / f"writer-{context.period_date}-{timestamp}.json"
+            # Use start time for filename
+            filename = output_path / f"writer-{context.start_time:%Y%m%d_%H%M%S}-{timestamp}.json"
             try:
                 payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
                 filename.write_bytes(payload)
@@ -482,6 +566,9 @@ async def write_posts_with_pydantic_agent_stream(
     retrieval_nprobe = config.rag.nprobe
     retrieval_overfetch = config.rag.overfetch
 
+    # Generate window label from timestamps (Phase 7)
+    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
+
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
     if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
         _register_writer_tools(
@@ -491,7 +578,7 @@ async def write_posts_with_pydantic_agent_stream(
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
 
     state = WriterAgentState(
-        period_date=context.period_date,
+        window_id=window_label,
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,

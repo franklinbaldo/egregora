@@ -9,8 +9,10 @@ from __future__ import annotations
 import logging
 import tempfile
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import duckdb
 import ibis
@@ -19,16 +21,16 @@ from google import genai
 from egregora.adapters import get_adapter
 from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.tools.rag import VectorStore, index_all_media
-from egregora.agents.writer import WriterConfig, write_posts_for_period
+from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
-from egregora.pipeline import group_by_period
+from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.ir import validate_ir_schema
-from egregora.pipeline.media_utils import process_media_for_period
+from egregora.pipeline.media_utils import process_media_for_window
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 
@@ -39,19 +41,19 @@ __all__ = ["run_source_pipeline"]
 
 
 def _perform_enrichment(  # noqa: PLR0913
-    period_table: ir.Table,
+    window_table: ir.Table,
     media_mapping: dict[str, Path],
     config: EgregoraConfig,
     enrichment_cache: EnrichmentCache,
     site_paths: any,
     posts_dir: Path,
 ) -> ir.Table:
-    """Execute enrichment for a period's table.
+    """Execute enrichment for a window's table.
 
     Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
 
     Args:
-        period_table: Table to enrich
+        window_table: Table to enrich
         media_mapping: Media file mapping
         config: Egregora configuration
         enrichment_cache: Enrichment cache instance
@@ -68,7 +70,7 @@ def _perform_enrichment(  # noqa: PLR0913
         posts_dir=posts_dir,
     )
     return enrich_table(
-        period_table,
+        window_table,
         media_mapping,
         config,
         enrichment_context,
@@ -94,7 +96,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     1. Source adapter selection and IR parsing
     2. Command and avatar processing
     3. Filtering (egregora messages, opted-out users, date range)
-    4. Period grouping
+    4. Window creation (flexible grouping by message count, time, or tokens)
     5. Media extraction and enrichment (optional)
     6. Post writing with LLM
     7. RAG indexing
@@ -109,7 +111,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         client: Optional pre-configured genai.Client
 
     Returns:
-        Dict mapping period keys to {'posts': [...], 'profiles': [...]}
+        Dict mapping window IDs to {'posts': [...], 'profiles': [...]}
 
     Raises:
         ValueError: If source is unknown or configuration is invalid
@@ -137,7 +139,12 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             options.default_backend = backend
         # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
         timezone = config.pipeline.timezone
-        period = config.pipeline.period
+        step_size = config.pipeline.step_size
+        step_unit = config.pipeline.step_unit
+        overlap_ratio = config.pipeline.overlap_ratio
+        max_window_time_hours = config.pipeline.max_window_time
+        # Convert hours to timedelta if specified (schema stores as int, pipeline expects timedelta)
+        max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
         batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
@@ -193,6 +200,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             logger.info("[magenta]🧾 No /egregora commands detected[/]")
         logger.info("[cyan]🖼️  Processing avatar commands...[/]")
         from egregora.enrichment.avatar_pipeline import AvatarContext
+
         avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
@@ -234,64 +242,203 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 logger.info(
                     "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
                 )
-        logger.info("🎯 [bold cyan]Grouping by period:[/] %s", period)
-        periods = group_by_period(messages_table, period)
-        if not periods:
-            logger.info("[yellow]No periods found after grouping[/]")
-            return {}
+
+        # Phase 7: Checkpoint-based resume logic
+        checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint and "last_processed_timestamp" in checkpoint:
+            last_timestamp_str = checkpoint["last_processed_timestamp"]
+            last_timestamp = datetime.fromisoformat(last_timestamp_str)
+
+            # Ensure timezone-aware comparison
+            if last_timestamp.tzinfo is None:
+                last_timestamp = last_timestamp.replace(tzinfo=ZoneInfo("UTC"))
+
+            original_count = messages_table.count().execute()
+            messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+            filtered_count = messages_table.count().execute()
+            resumed_count = original_count - filtered_count
+
+            if resumed_count > 0:
+                logger.info(
+                    "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+                    resumed_count,
+                    last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
+        else:
+            logger.info("🆕 [cyan]Starting fresh[/] (no checkpoint found)")
+
+        logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
+        windows_iterator = create_windows(
+            messages_table,
+            step_size=step_size,
+            step_unit=step_unit,
+            overlap_ratio=overlap_ratio,
+            max_window_time=max_window_time,
+        )
+
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
-        for period_key in sorted(periods.keys()):
-            period_table = periods[period_key]
-            period_count = period_table.count().execute()
-            logger.info("➡️  [bold]%s[/] — %s messages", period_key, period_count)
 
-            # Phase 3: Simple skip logic - check if posts already exist for this period
-            existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
-            if existing_posts:
-                logger.info("⏭️  Skipping %s — %s existing posts found", period_key, len(existing_posts))
-                result = {"posts": [str(p) for p in existing_posts], "profiles": []}
-                results[period_key] = result
-                continue
-            with tempfile.TemporaryDirectory(prefix=f"egregora-media-{period_key}-") as temp_dir_str:
-                temp_dir = Path(temp_dir_str)
-                period_table, media_mapping = process_media_for_period(
-                    period_table=period_table,
-                    adapter=adapter,
-                    media_dir=site_paths.media_dir,
-                    temp_dir=temp_dir,
-                    docs_dir=site_paths.docs_dir,
-                    posts_dir=posts_dir,
-                    zip_path=input_path,
-                )
-            # Phase 3: Simplified enrichment - no complex checkpointing
-            if enable_enrichment:
-                logger.info("✨ [cyan]Enriching[/] period %s", period_key)
-                enriched_table = _perform_enrichment(
-                    period_table, media_mapping, config, enrichment_cache, site_paths, posts_dir
-                )
-            else:
-                enriched_table = period_table
+        def process_window_with_auto_split(
+            window: Window,  # noqa: F821
+            *,
+            depth: int = 0,
+            max_depth: int = 5,
+        ) -> dict[str, dict[str, list[str]]]:
+            """Process a window with automatic splitting if prompt exceeds model limit.
 
-            # Phase 3: Simplified writing - no checkpointing (already checked for existing posts)
-            writer_config = WriterConfig(
-                output_dir=posts_dir,
-                profiles_dir=profiles_dir,
-                rag_dir=site_paths.rag_dir,
-                model_config=model_config,
-                enable_rag=True,
-                retrieval_mode=retrieval_mode,
-                retrieval_nprobe=retrieval_nprobe,
-                retrieval_overfetch=retrieval_overfetch,
-            )
-            result = write_posts_for_period(enriched_table, period_key, client, writer_config)
-            results[period_key] = result
-            post_count = len(result.get("posts", []))
-            profile_count = len(result.get("profiles", []))
+            Uses calculated upfront splitting (not recursive trial-and-error).
+            Depth tracking is a safety mechanism for rare edge cases.
+
+            Args:
+                window: Window to process
+                depth: Current split depth (for logging and safety checks)
+                max_depth: Maximum split depth to prevent pathological cases
+
+            Returns:
+                Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+
+            Raises:
+                RuntimeError: If max split depth reached (indicates miscalculation)
+
+            """
+            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+            from egregora.pipeline import split_window_into_n_parts  # noqa: PLC0415
+
+            # Constants
+            min_window_size = 5  # Minimum messages before we stop splitting
+
+            indent = "  " * depth
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            window_table = window.table
+            window_count = window.size
+
             logger.info(
-                "[green]✔ Generated[/] %s posts / %s profiles for %s", post_count, profile_count, period_key
+                "%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth
             )
+
+            # Stop splitting if window too small or max depth reached
+            if window_count < min_window_size:
+                logger.warning(
+                    "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
+                    indent,
+                    window_label,
+                    window_count,
+                )
+            if depth >= max_depth:
+                error_msg = (
+                    f"Max split depth {max_depth} reached for window {window_label}. "
+                    "Window cannot be split enough to fit in model context (possible miscalculation). "
+                    "Try increasing --max-prompt-tokens or using --use-full-context-window."
+                )
+                logger.error("%s❌ %s", indent, error_msg)
+                raise RuntimeError(error_msg)
+
+            try:
+                # Try to process the window normally
+                temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
+                with tempfile.TemporaryDirectory(prefix=temp_prefix) as temp_dir_str:
+                    temp_dir = Path(temp_dir_str)
+                    window_table_processed, media_mapping = process_media_for_window(
+                        window_table=window_table,
+                        adapter=adapter,
+                        media_dir=site_paths.media_dir,
+                        temp_dir=temp_dir,
+                        docs_dir=site_paths.docs_dir,
+                        posts_dir=posts_dir,
+                        zip_path=input_path,
+                    )
+
+                if enable_enrichment:
+                    logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
+                    enriched_table = _perform_enrichment(
+                        window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                    )
+                else:
+                    enriched_table = window_table_processed
+
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
+                    model_config=model_config,
+                    enable_rag=True,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_window(
+                    enriched_table, window.start_time, window.end_time, client, writer_config
+                )
+                post_count = len(result.get("posts", []))
+                profile_count = len(result.get("profiles", []))
+                logger.info(
+                    "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
+                    indent,
+                    post_count,
+                    profile_count,
+                    window_label,
+                )
+
+            except PromptTooLargeError as e:
+                # Prompt too large - split window and retry
+                logger.warning(
+                    "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
+                    indent,
+                    window_label,
+                    e.estimated_tokens // 1000,
+                    e.effective_limit // 1000,
+                )
+
+                # Calculate how many splits we need upfront (deterministic, not iterative)
+                # Same philosophy as max_window_time reduction: calculate the factor
+                # reduction_factor = effective_limit / estimated_tokens
+                # num_splits = 1 / reduction_factor = estimated_tokens / effective_limit
+                import math  # noqa: PLC0415
+
+                num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
+                logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
+
+                split_windows = split_window_into_n_parts(window, num_splits)
+
+                if not split_windows:
+                    error_msg = f"Cannot split window {window_label} - all splits would be empty"
+                    logger.exception("%s❌ %s", indent, error_msg)
+                    raise RuntimeError(error_msg) from e
+
+                # Process each split window
+                combined_results = {}
+                for i, split_window in enumerate(split_windows, 1):
+                    split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
+                    logger.info(
+                        "%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label
+                    )
+                    split_results = process_window_with_auto_split(
+                        split_window, depth=depth + 1, max_depth=max_depth
+                    )
+                    combined_results.update(split_results)
+
+                return combined_results
+            else:
+                return {window_label: result}
+
+        # Phase 8: Process windows with automatic splitting for oversized prompts
+        for window in windows_iterator:
+            # Skip empty windows (common in sparse conversations with time-based windowing)
+            if window.size == 0:
+                logger.debug(
+                    "Skipping empty window %d (%s to %s)",
+                    window.window_index,
+                    window.start_time.strftime("%Y-%m-%d %H:%M"),
+                    window.end_time.strftime("%Y-%m-%d %H:%M"),
+                )
+                continue
+
+            window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
+            results.update(window_results)
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
             try:
@@ -304,6 +451,31 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     logger.info("[yellow]No media enrichments to index[/]")
             except Exception:
                 logger.exception("[red]Failed to index media into RAG[/]")
+
+        # Phase 7: Save checkpoint after successful processing
+        # Only save checkpoint if at least one window was actually processed
+        # (prevents data loss when all windows are skipped due to min_window_size)
+        if results:
+            # Checkpoint based on messages in the filtered table
+            checkpoint_stats = messages_table.aggregate(
+                max_timestamp=messages_table.timestamp.max(),
+                total_processed=messages_table.count(),
+            ).execute()
+
+            total_processed = checkpoint_stats["total_processed"][0]
+            max_timestamp = checkpoint_stats["max_timestamp"][0]
+            save_checkpoint(checkpoint_path, max_timestamp, total_processed)
+            logger.info(
+                "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
+                max_timestamp.strftime("%Y-%m-%d %H:%M:%S") if max_timestamp else "N/A",
+                len(results),
+            )
+        else:
+            logger.warning(
+                "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+                "All windows may have been empty or filtered out."
+            )
+
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
     finally:

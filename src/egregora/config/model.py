@@ -24,8 +24,6 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 # No fallback constants needed - schema.py provides non-nullable defaults
 
 
-
-
 class ModelConfig:
     """Centralized model configuration with CLI override support.
 
@@ -68,7 +66,6 @@ class ModelConfig:
         model = getattr(self.config.models, model_type)
         logger.debug("Using config model for %s: %s", model_type, model)
         return model
-
 
 
 def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConfig:

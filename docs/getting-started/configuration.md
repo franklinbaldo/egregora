@@ -16,9 +16,11 @@ egregora process [OPTIONS] EXPORT_PATH
 |--------|-------------|---------|
 | `--output` | Output directory for blog | `.` |
 | `--timezone` | Timezone for message timestamps | System timezone |
-| `--period` | Grouping period: `daily`, `weekly`, `monthly` | `weekly` |
-| `--start-date` | Start date (YYYY-MM-DD) | First message |
-| `--end-date` | End date (YYYY-MM-DD) | Last message |
+| `--step-size` | Size of each processing window | `1` |
+| `--step-unit` | Unit: `messages`, `hours`, `days` | `days` |
+| `--min-window-size` | Minimum messages per window | `10` |
+| `--from-date` | Start date (YYYY-MM-DD) | First message |
+| `--to-date` | End date (YYYY-MM-DD) | Last message |
 
 ### Model Configuration
 
@@ -202,7 +204,7 @@ client = create_gemini_client(
 ```bash
 egregora process export.zip \
   --model=models/gemini-1.5-pro \
-  --period=weekly \
+  --step-size=7 --step-unit=days \
   --enrich \
   --profile
 ```
@@ -212,7 +214,7 @@ egregora process export.zip \
 ```bash
 egregora process export.zip \
   --model=models/gemini-1.5-flash \
-  --period=weekly \
+  --step-size=7 --step-unit=days \
   --retrieval-mode=exact \
   --no-enrich
 ```

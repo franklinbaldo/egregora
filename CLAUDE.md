@@ -69,8 +69,15 @@ uv run mypy src/                    # Type check
 # Set API key
 export GOOGLE_API_KEY="your-api-key"
 
-# Process WhatsApp export (creates blog in ./output)
+# Process WhatsApp export (creates blog in ./output, default: 1 day windows)
 uv run egregora process whatsapp-export.zip --output=./output
+
+# Time-based windowing (default)
+uv run egregora process export.zip --step-size=1 --step-unit=days  # 1 day (default)
+uv run egregora process export.zip --step-size=7 --step-unit=days  # 1 week
+
+# Message count windowing
+uv run egregora process export.zip --step-size=100 --step-unit=messages
 
 # Serve generated blog locally
 cd output
@@ -200,7 +207,7 @@ Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops an
 
 5. **Generation** (`src/egregora/agents/writer/`)
    - Pydantic-AI agent with tool calling (`writer_agent.py`)
-   - Decides: 0-N posts per period, themes, structure ("trust the LLM")
+   - Decides: 0-N posts per window, themes, structure ("trust the LLM")
    - Tools: `write_post`, `read/write_profile`, `search_media`, `annotate`, `generate_banner`
    - Backend switchable via `EGREGORA_LLM_BACKEND` env var
 
@@ -232,16 +239,20 @@ The codebase has undergone comprehensive modernization (2025-01). Follow these p
 @dataclass(frozen=True, slots=True)
 class WriterRuntimeContext:
     """Runtime context for writer agent execution."""
-    period_date: str
+    start_time: datetime  # Window start timestamp
+    end_time: datetime    # Window end timestamp
     output_dir: Path
     profiles_dir: Path
-    # ... use model_copy() for updates
+    rag_dir: Path
+    client: Any
+    annotations_store: AnnotationStore | None = None
+    # Frozen dataclass - immutable after creation
 ```
 
 **Simple Resume Logic (Phase 3)**:
 - ✅ Check if output files exist → skip if yes, process if no
 - ❌ Don't use complex checkpoint systems with JSON metadata
-- Example: `if sorted(posts_dir.glob(f"{period_key}-*.md")): continue`
+- Example: `if window_has_posts(window_index, posts_dir): continue`
 
 **Source Organization (Phase 6)**:
 - ✅ Source-specific code in `sources/{whatsapp,slack}/`
@@ -253,12 +264,22 @@ class WriterRuntimeContext:
 - ✅ Use generic names: `parse_source()` not `parse_export()`
 - ✅ Alpha mindset: rename without backward compatibility if it improves clarity
 
+**Flexible Windowing (Phase 7 - 2025-01-07)**:
+- ✅ Period-based grouping (day/week/month) → flexible windowing
+- ✅ Support multiple units: `messages` (count), `hours`/`days` (time), `bytes` (text size ~4 bytes/token)
+- ✅ Sequential window indices (0, 1, 2...) instead of calendar keys ("2025-W03")
+- ✅ Windows are runtime-only (NOT persisted to DB - depend on dynamic config)
+- ✅ CLI params: `--step-size`, `--step-unit`, `--min-window-size`
+- ✅ Example: `create_windows(table, step_size=100, step_unit="messages")`
+- ❌ Don't create DB schemas for windows (they're transient views of CONVERSATION_SCHEMA)
+- ❌ Don't use `tokens` unit (replaced with `bytes` for simplicity/speed)
+
 ## Code Structure
 
 ```
 src/egregora/
 ├── cli.py                    # Typer CLI (entry point)
-├── pipeline.py               # Grouping utilities (group_by_period)
+├── pipeline.py               # Windowing utilities (create_windows, Window dataclass)
 ├── database/
 │   ├── schema.py            # ALL table schemas (CONVERSATION_SCHEMA, RAG_CHUNKS_SCHEMA, etc.)
 │   └── connection.py        # DuckDB connection management

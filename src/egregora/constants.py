@@ -66,13 +66,13 @@ class RetrievalMode(str, Enum):
     FLAT = "flat"
 
 
-class TimePeriod(str, Enum):
-    """Time period groupings for conversations."""
+class WindowUnit(str, Enum):
+    """Units for windowing messages."""
 
-    DAY = "day"
-    WEEK = "week"
-    MONTH = "month"
-    YEAR = "year"
+    MESSAGES = "messages"
+    HOURS = "hours"
+    DAYS = "days"
+    BYTES = "bytes"
 
 
 class MediaType(str, Enum):

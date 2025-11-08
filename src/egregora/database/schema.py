@@ -51,6 +51,10 @@ WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
 # ============================================================================
 # RAG Vector Store Schemas
 # ============================================================================
+# NOTE: Windows are runtime-only constructs (see pipeline.py Window dataclass).
+# They are NOT persisted as database schemas because they depend on dynamic
+# runtime config (step_size, step_unit). Changing windowing params would
+# invalidate any persisted window data.
 
 RAG_CHUNKS_SCHEMA = ibis.schema(
     {

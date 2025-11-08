@@ -179,7 +179,7 @@ class WhatsAppFixture:
 @pytest.fixture(scope="session")
 def whatsapp_fixture() -> WhatsAppFixture:
     """Load WhatsApp archive metadata once for the entire test session."""
-    zip_path = Path(__file__).parent / "Conversa do WhatsApp com Teste.zip"
+    zip_path = Path(__file__).parent / "fixtures" / "Conversa do WhatsApp com Teste.zip"
     with zipfile.ZipFile(zip_path) as archive:
         validate_zip_contents(archive)
     group_name, chat_file = discover_chat_file(zip_path)

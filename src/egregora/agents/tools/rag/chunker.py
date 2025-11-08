@@ -16,7 +16,10 @@ def estimate_tokens(text: str) -> int:
     Gemini embedding limit: 2048 tokens
     We use 1800 tokens max per chunk for safety.
     """
-    return len(text) // 4
+    # Centralized implementation
+    from egregora.agents.model_limits import estimate_tokens as _estimate  # noqa: PLC0415
+
+    return _estimate(text)
 
 
 def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 150) -> list[str]:

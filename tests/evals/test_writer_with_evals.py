@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic_ai.models.test import TestModel
@@ -35,7 +37,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     """Run writer agent and return structured output.
 
     Args:
-        inputs: Case inputs with 'prompt' and 'period_date'
+        inputs: Case inputs with 'prompt' and 'window_id'
         writer_dirs: Tuple of (posts_dir, profiles_dir, rag_dir)
 
     Returns:
@@ -59,8 +61,14 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
         },
     )
 
+    # Parse window_id string (e.g., "2025-01-01") to start_time/end_time
+    window_date = datetime.fromisoformat(inputs["window_id"]).date()
+    start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
+    end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
+
     context = WriterRuntimeContext(
-        period_date=inputs["period_date"],
+        start_time=start_time,
+        end_time=end_time,
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
@@ -117,8 +125,14 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
         },
     )
 
+    # Parse window_id string (e.g., "2025-01-01") to start_time/end_time
+    window_date = datetime.fromisoformat(case.inputs["window_id"]).date()
+    start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
+    end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
+
     context = WriterRuntimeContext(
-        period_date=case.inputs["period_date"],
+        start_time=start_time,
+        end_time=end_time,
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
@@ -163,8 +177,14 @@ async def test_writer_stream_empty_conversation(writer_dirs):
         },
     )
 
+    # Parse window_id string (e.g., "2025-01-01") to start_time/end_time
+    window_date = datetime.fromisoformat(case.inputs["window_id"]).date()
+    start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
+    end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
+
     context = WriterRuntimeContext(
-        period_date=case.inputs["period_date"],
+        start_time=start_time,
+        end_time=end_time,
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,

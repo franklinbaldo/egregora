@@ -173,13 +173,29 @@ class EnrichmentConfig(BaseModel):
 class PipelineConfig(BaseModel):
     """Pipeline execution settings."""
 
-    period: Literal["day", "week", "month"] = Field(
-        default="day",
-        description="Grouping period for posts",
+    step_size: int = Field(
+        default=1,
+        ge=1,
+        description="Size of each processing window (number of messages, hours, days, etc.)",
+    )
+    step_unit: Literal["messages", "hours", "days", "bytes"] = Field(
+        default="days",
+        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (max packing)",
+    )
+    overlap_ratio: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=0.5,
+        description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
+    )
+    max_window_time: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum time span per window in hours (optional constraint)",
     )
     timezone: str | None = Field(
         default=None,
-        description="Timezone for date parsing (e.g., 'America/New_York')",
+        description="Timezone for timestamp parsing (e.g., 'America/New_York')",
     )
     batch_threshold: int = Field(
         default=10,
@@ -193,6 +209,15 @@ class PipelineConfig(BaseModel):
     to_date: str | None = Field(
         default=None,
         description="End date for filtering (ISO format: YYYY-MM-DD)",
+    )
+    max_prompt_tokens: int = Field(
+        default=100_000,
+        ge=1_000,
+        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
+    )
+    use_full_context_window: bool = Field(
+        default=False,
+        description="Use full model context window (overrides max_prompt_tokens cap)",
     )
 
 
@@ -232,6 +257,10 @@ class EgregoraConfig(BaseModel):
     privacy:
       anonymization_enabled: true
       pii_detection_enabled: true
+
+    pipeline:
+      step_size: 1
+      step_unit: days
     ```
     """
 

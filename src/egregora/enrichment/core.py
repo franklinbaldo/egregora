@@ -235,9 +235,14 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
             )
-            result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
-            url_job.markdown = result.data.markdown
-            cache.store(url_job.key, {"markdown": result.data.markdown, "type": "url"})
+            try:
+                result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
+            except Exception as exc:  # noqa: BLE001 - log and continue enrichment
+                logger.warning("URL enrichment failed for %s: %s", url_job.url, exc)
+                continue
+            output = getattr(result, "output", getattr(result, "data", result))
+            url_job.markdown = output.markdown
+            cache.store(url_job.key, {"markdown": output.markdown, "type": "url"})
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
     if pending_media_jobs:
         for media_job in pending_media_jobs:
@@ -260,8 +265,18 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
                 "Analyze and enrich this media file. Provide a detailed description in markdown format.",
                 binary_content,
             ]
-            result = media_enrichment_agent.run_sync(message_content, deps=context)
-            markdown_content = result.data.markdown.strip()
+            try:
+                result = media_enrichment_agent.run_sync(message_content, deps=context)
+            except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
+                logger.warning(
+                    "Media enrichment failed for %s (%s): %s",
+                    media_job.file_path,
+                    media_job.media_type,
+                    exc,
+                )
+                continue
+            output = getattr(result, "output", getattr(result, "data", result))
+            markdown_content = output.markdown.strip()
             if not markdown_content:
                 markdown_content = f"[No enrichment generated for media: {media_job.file_path.name}]"
             if "PII_DETECTED" in markdown_content:
@@ -322,11 +337,11 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
         return messages_table
     schema = CONVERSATION_SCHEMA
     normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
-    enrichment_table = ibis.memtable(normalized_rows, schema=schema)
+    enrichment_table = ibis.memtable(normalized_rows).cast(schema)
     messages_table_filtered = messages_table.select(*schema.names)
     messages_table_filtered = messages_table_filtered.mutate(
         timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
-    )
+    ).cast(schema)
     combined = messages_table_filtered.union(enrichment_table, distinct=False)
     combined = combined.order_by("timestamp")
     if (duckdb_connection is None) != (target_table is None):

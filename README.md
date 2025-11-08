@@ -162,11 +162,14 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 ### Basic Processing
 
 ```bash
-# Process with default settings (day grouping)
+# Process with default settings (1 day per window)
 egregora process export.zip --output=./blog
 
-# Group by week
-egregora process export.zip --period=week
+# Group by week (7 days per window)
+egregora process export.zip --step-size=7 --step-unit=days
+
+# Group by message count (100 messages per window)
+egregora process export.zip --step-size=100 --step-unit=messages
 
 # Filter date range
 egregora process export.zip \
@@ -188,8 +191,8 @@ egregora rank --site-dir=./blog --comparisons=50
 
 # Stage-by-stage processing (for debugging)
 egregora parse export.zip --output=messages.csv
-egregora group messages.csv --period=week --output=grouped.csv
-egregora enrich grouped.csv --zip-file=export.zip --output=enriched.csv
+egregora group messages.csv --step-size=7 --step-unit=days --output-dir=windows
+egregora enrich windows/window_*.csv --zip-file=export.zip --output=enriched.csv
 ```
 
 ### Privacy Controls

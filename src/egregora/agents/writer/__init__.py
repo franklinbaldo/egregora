@@ -1,7 +1,7 @@
 """Simple writer: LLM with write_post tool for editorial control.
 
 The LLM decides what's worth writing, how many posts to create, and all metadata.
-Uses function calling (write_post tool) to generate 0-N posts per period.
+Uses function calling (write_post tool) to generate 0-N posts per window.
 
 Documentation:
 - Multi-Post Generation: docs/features/multi-post.md
@@ -14,7 +14,7 @@ from egregora.agents.writer.core import (
     get_top_authors,
     load_markdown_extensions,
     load_site_config,
-    write_posts_for_period,
+    write_posts_for_window,
 )
 from egregora.agents.writer.tools import PostMetadata
 
@@ -24,5 +24,5 @@ __all__ = [
     "get_top_authors",
     "load_markdown_extensions",
     "load_site_config",
-    "write_posts_for_period",
+    "write_posts_for_window",
 ]

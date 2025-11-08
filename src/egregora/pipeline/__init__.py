@@ -24,8 +24,9 @@ What's Exported:
   - `IR_SCHEMA`: Standardized schema all sources must produce (timestamp, author, message, etc.)
   - `create_ir_table`, `validate_ir_schema`: IR table utilities
 
-**Backward Compatibility** (legacy pipeline.py):
-  - `group_by_period`, `period_has_posts`: Temporal grouping utilities (lazy-loaded)
+**Windowing Utilities** (pipeline.py):
+  - `create_windows`, `Window`: Message windowing (lazy-loaded)
+  - `load_checkpoint`, `save_checkpoint`: Resume logic via sentinel files (lazy-loaded)
 
 Architecture: Staged Pipeline
 ------------------------------
@@ -39,8 +40,8 @@ Egregora follows a **staged pipeline** with six phases (see CLAUDE.md for full d
 5. **Generation**: Pydantic-AI writer agent with tool calling
 6. **Publication**: MkDocs site rendering
 
-**Phase 3 Resume Logic**: Simple file existence checks (not complex checkpoints).
-Stages can skip work if artifacts already exist (e.g., skip enrichment if cache hit).
+**Phase 7 Resume Logic**: Checkpoint-based resume using sentinel files.
+Tracks last processed timestamp (not window indices). Post dates are LLM-decided.
 
 Pipeline Flow Diagram:
 ----------------------
@@ -98,33 +99,37 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
-# Backward Compatibility Layer
+# Windowing & Checkpoint Utilities Layer
 # ============================================================================
-# Lazy-loaded imports from legacy pipeline.py module (temporal grouping utilities).
-# This __getattr__ hook provides transparent access to group_by_period and
-# period_has_posts without requiring full module import. Enables gradual migration
-# from monolithic pipeline.py to modular pipeline/ package structure.
+# Lazy-loaded imports from pipeline.py module (windowing and checkpoint utilities).
+# This __getattr__ hook provides transparent access to create_windows, Window,
+# load_checkpoint, and save_checkpoint without requiring full module import.
 
 
 def __getattr__(name: str) -> object:
-    """Lazy import for backward compatibility with pipeline.py module.
+    """Lazy import for windowing utilities from pipeline.py module.
 
-    Dynamically loads temporal grouping utilities (group_by_period, period_has_posts)
-    from the legacy egregora/pipeline.py module when accessed. This avoids circular
-    imports and maintains API compatibility during the transition to the new
-    pipeline package architecture.
+    Dynamically loads windowing utilities (create_windows, checkpoints, etc.)
+    from the egregora/pipeline.py module when accessed. This avoids circular
+    imports and maintains a clean namespace.
 
     Args:
-        name: Attribute name being accessed (e.g., 'group_by_period')
+        name: Attribute name being accessed (e.g., 'create_windows')
 
     Returns:
         Requested attribute from pipeline.py module
 
     Raises:
-        AttributeError: If attribute doesn't exist in backward compat layer
+        AttributeError: If attribute doesn't exist in the module
 
     """
-    if name in ("group_by_period", "period_has_posts"):
+    if name in (
+        "create_windows",
+        "Window",
+        "load_checkpoint",
+        "save_checkpoint",
+        "split_window_into_n_parts",
+    ):
         parent = sys.modules["egregora"]
         module_path = parent.__path__[0]
         pipeline_py = Path(module_path) / "pipeline.py"
@@ -144,7 +149,8 @@ def __getattr__(name: str) -> object:
 #   - IR primitives (IR_SCHEMA, create_ir_table, validate_ir_schema)
 #   - Stage abstractions (PipelineStage, StageConfig, StageResult)
 #   - Source adapters (SourceAdapter, MediaMapping)
-#   - Backward compat (group_by_period, period_has_posts - lazy-loaded via __getattr__)
+#   - Windowing utilities (create_windows, Window - lazy-loaded via __getattr__)
+#   - Checkpoint utilities (load_checkpoint, save_checkpoint - lazy-loaded via __getattr__)
 __all__ = [
     "IR_SCHEMA",
     "MediaMapping",
@@ -152,8 +158,11 @@ __all__ = [
     "SourceAdapter",
     "StageConfig",
     "StageResult",
+    "Window",
     "create_ir_table",
-    "group_by_period",
-    "period_has_posts",
+    "create_windows",
+    "load_checkpoint",
+    "save_checkpoint",
+    "split_window_into_n_parts",
     "validate_ir_schema",
 ]

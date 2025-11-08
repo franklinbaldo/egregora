@@ -59,7 +59,7 @@ This will:
 
 1. Parse the WhatsApp export
 2. Anonymize all names (real names never reach the AI)
-3. Group messages by time period (default: weekly)
+3. Group messages into windows (default: 100 messages per window)
 4. Generate blog posts using Gemini
 
 !!! info
@@ -87,7 +87,7 @@ Egregora processed your chat through multiple stages:
 2. **Privacy**: Replaced names with UUIDs (e.g., `john` → `a3f2b91c`)
 3. **Augmentation**: (Optional) Enriched URLs/media with descriptions
 4. **Knowledge**: Built RAG index for retrieving similar past posts
-5. **Generation**: Gemini generated 0-N blog posts per period
+5. **Generation**: Gemini generated 0-N blog posts per window
 6. **Publication**: Created markdown files in `docs/posts/`
 
 ## Next Steps
@@ -104,10 +104,10 @@ See [Configuration Guide](configuration.md) for details.
 
 ### Generate More Posts
 
-Process another time period:
+Process another export or adjust windowing:
 
 ```bash
-egregora process another-export.zip --output=. --period=daily
+egregora process another-export.zip --output=. --step-size=1 --step-unit=days
 ```
 
 ### Improve Existing Posts
@@ -129,8 +129,8 @@ egregora rank --site-dir=. --comparisons=50
 ## Common Options
 
 ```bash
-# Daily posts instead of weekly
-egregora process export.zip --period=daily
+# Daily windowing instead of 100-message windows
+egregora process export.zip --step-size=1 --step-unit=days
 
 # Enable URL/media enrichment
 egregora process export.zip --enrich
