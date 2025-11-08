@@ -92,6 +92,19 @@ class SlackInputSource(InputSource):
             NotImplementedError: This is a template - full implementation needed
 
         """
+        # FAIL-FAST: Slack adapter is not implemented yet
+        # This prevents users from accidentally using an incomplete implementation
+        raise NotImplementedError(
+            "Slack input source is not yet implemented. "
+            "This is a template/example adapter. "
+            "To use Slack exports with Egregora, please contribute an implementation "
+            "or wait for Week 2 when adapter plugins will be prioritized. "
+            "For now, only WhatsApp exports are supported."
+        )
+
+        # The code below is template/reference implementation
+        # Uncomment and complete when implementing Slack support
+        """
         if not self.supports_format(source_path):
             msg = f"Source path {source_path} is not a valid Slack export directory"
             raise ValueError(msg)
@@ -132,6 +145,7 @@ class SlackInputSource(InputSource):
             additional_metadata={"channel_count": len(channels), "message_count": len(all_messages)},
         )
         return (table, metadata)
+        """
 
     def extract_media(self, _source_path: Path, _output_dir: Path, **_kwargs: Any) -> dict[str, str]:
         """Extract media files from Slack export.
