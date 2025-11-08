@@ -677,10 +677,10 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
             tokens_input_audio=usage.input_audio_tokens if usage else 0,
             tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
             # Thinking/reasoning tokens (from details dict - provider-specific)
-            tokens_thinking=usage.details.get("thinking_tokens", 0) if usage else 0,
-            tokens_reasoning=usage.details.get("reasoning_tokens", 0) if usage else 0,
+            tokens_thinking=(usage.details or {}).get("thinking_tokens", 0) if usage else 0,
+            tokens_reasoning=(usage.details or {}).get("reasoning_tokens", 0) if usage else 0,
             # Raw details for any other model-specific metrics
-            usage_details=usage.details if usage else {},
+            usage_details=usage.details if usage and usage.details else {},
         )
         logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
         record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
