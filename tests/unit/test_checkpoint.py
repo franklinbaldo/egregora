@@ -481,3 +481,167 @@ def test_checkpoint_invalidation_on_code_change(temp_cache_dir: Path):
     assert result3 == "result-2"
     assert was_cached3 is False
     assert call_count == 2  # Called again
+
+
+# ==============================================================================
+# Garbage Collection Tests
+# ==============================================================================
+
+
+def test_gc_checkpoints_by_age_keeps_recent(temp_cache_dir: Path):
+    """gc_checkpoints_by_age() keeps most recent checkpoints."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    import time
+
+    # Create 10 checkpoints with different timestamps
+    for i in range(10):
+        save_checkpoint(temp_cache_dir / "stage1" / f"checkpoint{i}" / "checkpoint.pkl", f"data{i}")
+        time.sleep(0.01)  # Ensure different mtimes
+
+    # Keep only last 3
+    count = gc_checkpoints_by_age(stage="stage1", keep_last=3, cache_dir=temp_cache_dir)
+
+    assert count == 7  # Deleted 7 old checkpoints
+    # Verify only 3 remain
+    remaining = list((temp_cache_dir / "stage1").rglob("checkpoint.pkl"))
+    assert len(remaining) == 3
+
+
+def test_gc_checkpoints_by_age_all_stages(temp_cache_dir: Path):
+    """gc_checkpoints_by_age() applies to all stages when stage=None."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    import time
+
+    # Create checkpoints for multiple stages
+    for stage_num in range(3):
+        for i in range(5):
+            save_checkpoint(
+                temp_cache_dir / f"stage{stage_num}" / f"checkpoint{i}" / "checkpoint.pkl",
+                f"data-{stage_num}-{i}",
+            )
+            time.sleep(0.01)
+
+    # Keep last 2 per stage (all stages)
+    count = gc_checkpoints_by_age(keep_last=2, cache_dir=temp_cache_dir)
+
+    # Should delete 3 per stage (5 - 2) = 9 total
+    assert count == 9
+
+    # Verify each stage has 2 checkpoints
+    for stage_num in range(3):
+        remaining = list((temp_cache_dir / f"stage{stage_num}").rglob("checkpoint.pkl"))
+        assert len(remaining) == 2
+
+
+def test_gc_checkpoints_by_age_nonexistent_stage(temp_cache_dir: Path):
+    """gc_checkpoints_by_age() returns 0 for nonexistent stage."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+
+    count = gc_checkpoints_by_age(stage="nonexistent", keep_last=5, cache_dir=temp_cache_dir)
+    assert count == 0
+
+
+def test_gc_checkpoints_by_age_keep_all(temp_cache_dir: Path):
+    """gc_checkpoints_by_age() keeps all when keep_last >= count."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+
+    # Create 3 checkpoints
+    save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data1")
+    save_checkpoint(temp_cache_dir / "stage1" / "b" / "checkpoint.pkl", "data2")
+    save_checkpoint(temp_cache_dir / "stage1" / "c" / "checkpoint.pkl", "data3")
+
+    # Keep last 10 (more than we have)
+    count = gc_checkpoints_by_age(stage="stage1", keep_last=10, cache_dir=temp_cache_dir)
+
+    assert count == 0  # Nothing deleted
+    remaining = list((temp_cache_dir / "stage1").rglob("checkpoint.pkl"))
+    assert len(remaining) == 3
+
+
+def test_gc_checkpoints_by_size_under_limit(temp_cache_dir: Path):
+    """gc_checkpoints_by_size() does nothing when already under limit."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+
+    # Create small checkpoints
+    save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data")
+    save_checkpoint(temp_cache_dir / "stage2" / "b" / "checkpoint.pkl", "data")
+
+    # Set limit very high (1 GB)
+    count = gc_checkpoints_by_size(max_size_bytes=1024**3, cache_dir=temp_cache_dir)
+
+    assert count == 0  # Nothing deleted
+
+
+def test_gc_checkpoints_by_size_evicts_lru(temp_cache_dir: Path):
+    """gc_checkpoints_by_size() evicts least recently used checkpoints."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+
+    # Create checkpoints with large data
+    large_data = "x" * (1024 * 1024)  # 1 MB each
+
+    save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", large_data)
+    save_checkpoint(temp_cache_dir / "stage1" / "b" / "checkpoint.pkl", large_data)
+    save_checkpoint(temp_cache_dir / "stage1" / "c" / "checkpoint.pkl", large_data)
+
+    # Set limit to ~2 MB (should keep 2, delete 1)
+    count = gc_checkpoints_by_size(max_size_bytes=2 * 1024 * 1024, cache_dir=temp_cache_dir)
+
+    assert count >= 1  # At least 1 deleted
+    # Total cache should be under limit
+    remaining_size = sum(
+        p.stat().st_size for p in temp_cache_dir.rglob("checkpoint.pkl")
+    )
+    assert remaining_size <= 2 * 1024 * 1024
+
+
+def test_gc_checkpoints_by_size_empty_cache(temp_cache_dir: Path):
+    """gc_checkpoints_by_size() returns 0 for empty cache."""
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+
+    count = gc_checkpoints_by_size(max_size_bytes=1024, cache_dir=temp_cache_dir)
+    assert count == 0
+
+
+def test_get_cache_stats_empty(temp_cache_dir: Path):
+    """get_cache_stats() returns zeros for empty cache."""
+    from egregora.pipeline.checkpoint import get_cache_stats
+
+    stats = get_cache_stats(cache_dir=temp_cache_dir)
+
+    assert stats["total_size"] == 0
+    assert stats["total_count"] == 0
+    assert stats["stages"] == {}
+
+
+def test_get_cache_stats_multiple_stages(temp_cache_dir: Path):
+    """get_cache_stats() returns per-stage breakdown."""
+    from egregora.pipeline.checkpoint import get_cache_stats
+
+    # Create checkpoints for multiple stages
+    save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data1" * 100)
+    save_checkpoint(temp_cache_dir / "stage1" / "b" / "checkpoint.pkl", "data2" * 100)
+    save_checkpoint(temp_cache_dir / "stage2" / "c" / "checkpoint.pkl", "data3" * 200)
+
+    stats = get_cache_stats(cache_dir=temp_cache_dir)
+
+    # Verify total counts
+    assert stats["total_count"] == 3
+    assert stats["total_size"] > 0
+
+    # Verify per-stage breakdown
+    assert "stage1" in stats["stages"]
+    assert "stage2" in stats["stages"]
+    assert stats["stages"]["stage1"]["count"] == 2
+    assert stats["stages"]["stage2"]["count"] == 1
+
+
+def test_get_cache_stats_nonexistent_dir(temp_cache_dir: Path):
+    """get_cache_stats() returns zeros for nonexistent directory."""
+    from egregora.pipeline.checkpoint import get_cache_stats
+
+    nonexistent = temp_cache_dir / "nonexistent"
+    stats = get_cache_stats(cache_dir=nonexistent)
+
+    assert stats["total_size"] == 0
+    assert stats["total_count"] == 0
+    assert stats["stages"] == {}

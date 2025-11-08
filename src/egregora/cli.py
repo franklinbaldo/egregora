@@ -40,7 +40,8 @@ from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import create_windows
-from egregora.pipeline.runner import run_source_pipeline
+# FIXME: run_source_pipeline not implemented yet
+# from egregora.pipeline.runner import run_source_pipeline
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
@@ -307,14 +308,16 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                 border_style="cyan",
             )
         )
-        run_source_pipeline(
-            source=source,
-            input_path=config.zip_file,
-            output_dir=config.output_dir,
-            config=egregora_config,
-            api_key=api_key,
-            model_override=config.model,
-        )
+        # FIXME: run_source_pipeline not implemented yet
+        # run_source_pipeline(
+        #     source=source,
+        #     input_path=config.zip_file,
+        #     output_dir=config.output_dir,
+        #     config=egregora_config,
+        #     api_key=api_key,
+        #     model_override=config.model,
+        # )
+        console.print("[yellow]⚠️  run_source_pipeline not yet implemented (Week 2 work in progress)[/yellow]")
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
@@ -1226,6 +1229,162 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
 
 
 _register_ranking_cli(app)
+
+
+# ==============================================================================
+# Cache Management Commands
+# ==============================================================================
+
+cache_app = typer.Typer(
+    name="cache",
+    help="Manage pipeline checkpoints and cache",
+)
+app.add_typer(cache_app)
+
+
+@cache_app.command(name="stats")
+def cache_stats(
+    cache_dir: Annotated[
+        Path, typer.Option(help="Checkpoint cache directory")
+    ] = Path(".egregora-cache/checkpoints"),
+) -> None:
+    """Show cache statistics (size, count, per-stage breakdown)."""
+    from egregora.pipeline.checkpoint import get_cache_stats
+
+    stats = get_cache_stats(cache_dir=cache_dir)
+
+    if stats["total_count"] == 0:
+        console.print("[yellow]Cache is empty[/yellow]")
+        return
+
+    # Display total stats
+    total_mb = stats["total_size"] / (1024**2)
+    console.print(f"[cyan]Total cache size:[/cyan] {total_mb:.2f} MB")
+    console.print(f"[cyan]Total checkpoints:[/cyan] {stats['total_count']}")
+    console.print()
+
+    # Per-stage breakdown
+    if stats["stages"]:
+        console.print("[cyan]Per-stage breakdown:[/cyan]")
+        for stage_name, stage_stats in sorted(stats["stages"].items()):
+            stage_mb = stage_stats["size"] / (1024**2)
+            console.print(f"  • {stage_name}: {stage_stats['count']} checkpoints, {stage_mb:.2f} MB")
+
+
+@cache_app.command(name="clear")
+def cache_clear(
+    stage: Annotated[str | None, typer.Option(help="Stage to clear (clears all if not specified)")] = None,
+    cache_dir: Annotated[
+        Path, typer.Option(help="Checkpoint cache directory")
+    ] = Path(".egregora-cache/checkpoints"),
+    force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Clear checkpoints (cache invalidation).
+
+    Examples:
+        egregora cache clear --stage=enrichment   # Clear only enrichment checkpoints
+        egregora cache clear                      # Clear all checkpoints
+        egregora cache clear --force              # Skip confirmation
+    """
+    from egregora.pipeline.checkpoint import clear_checkpoints, get_cache_stats
+
+    # Get stats before clearing
+    stats = get_cache_stats(cache_dir=cache_dir)
+
+    if stats["total_count"] == 0:
+        console.print("[yellow]Cache is already empty[/yellow]")
+        return
+
+    # Confirm before clearing (unless --force)
+    if not force:
+        if stage:
+            stage_stats = stats["stages"].get(stage, {"count": 0, "size": 0})
+            if stage_stats["count"] == 0:
+                console.print(f"[yellow]No checkpoints found for stage '{stage}'[/yellow]")
+                return
+            stage_mb = stage_stats["size"] / (1024**2)
+            console.print(f"[yellow]About to delete {stage_stats['count']} checkpoints ({stage_mb:.2f} MB) for stage '{stage}'[/yellow]")
+        else:
+            total_mb = stats["total_size"] / (1024**2)
+            console.print(f"[yellow]About to delete all {stats['total_count']} checkpoints ({total_mb:.2f} MB)[/yellow]")
+
+        confirm = typer.confirm("Continue?")
+        if not confirm:
+            console.print("[cyan]Cancelled[/cyan]")
+            raise typer.Exit(0)
+
+    # Clear checkpoints
+    count = clear_checkpoints(stage=stage, cache_dir=cache_dir)
+    console.print(f"[green]✅ Deleted {count} checkpoints[/green]")
+
+
+@cache_app.command(name="gc")
+def cache_gc(
+    keep_last: Annotated[
+        int | None, typer.Option(help="Keep last N checkpoints per stage (age-based GC)")
+    ] = None,
+    max_size: Annotated[
+        str | None, typer.Option(help="Maximum cache size (e.g., '10GB', '500MB')")
+    ] = None,
+    stage: Annotated[str | None, typer.Option(help="Stage to garbage collect (applies to all if not specified)")] = None,
+    cache_dir: Annotated[
+        Path, typer.Option(help="Checkpoint cache directory")
+    ] = Path(".egregora-cache/checkpoints"),
+) -> None:
+    """Garbage collect old checkpoints.
+
+    Use --keep-last for age-based GC (keep N most recent per stage).
+    Use --max-size for size-based GC (LRU eviction until under limit).
+
+    Examples:
+        egregora cache gc --keep-last=5               # Keep last 5 checkpoints per stage
+        egregora cache gc --keep-last=3 --stage=enrichment  # Keep last 3 enrichment checkpoints
+        egregora cache gc --max-size=10GB             # Keep cache under 10 GB
+        egregora cache gc --max-size=500MB            # Keep cache under 500 MB
+    """
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age, gc_checkpoints_by_size
+
+    if keep_last is None and max_size is None:
+        console.print("[red]Error: Must specify either --keep-last or --max-size[/red]")
+        console.print("Examples:")
+        console.print("  egregora cache gc --keep-last=5")
+        console.print("  egregora cache gc --max-size=10GB")
+        raise typer.Exit(1)
+
+    if keep_last is not None and max_size is not None:
+        console.print("[red]Error: Cannot use both --keep-last and --max-size (choose one)[/red]")
+        raise typer.Exit(1)
+
+    if keep_last is not None:
+        # Age-based GC
+        console.print(f"[cyan]Garbage collecting checkpoints (keeping last {keep_last} per stage)...[/cyan]")
+        count = gc_checkpoints_by_age(stage=stage, keep_last=keep_last, cache_dir=cache_dir)
+        console.print(f"[green]✅ Deleted {count} old checkpoints[/green]")
+
+    elif max_size is not None:
+        # Size-based GC
+        # Parse max_size (e.g., "10GB", "500MB")
+        max_size_upper = max_size.upper()
+        try:
+            if max_size_upper.endswith("GB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024**3)
+            elif max_size_upper.endswith("MB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024**2)
+            elif max_size_upper.endswith("KB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024)
+            elif max_size_upper.endswith("B"):
+                max_size_bytes = int(max_size_upper[:-1])
+            else:
+                # Try parsing as raw bytes
+                max_size_bytes = int(max_size)
+        except ValueError:
+            console.print(f"[red]Error: Invalid size format '{max_size}'[/red]")
+            console.print("Valid formats: '10GB', '500MB', '1KB', or raw bytes")
+            raise typer.Exit(1)
+
+        console.print(f"[cyan]Garbage collecting checkpoints (max size: {max_size})...[/cyan]")
+        count = gc_checkpoints_by_size(max_size_bytes=max_size_bytes, cache_dir=cache_dir)
+        console.print(f"[green]✅ Deleted {count} checkpoints to stay under size limit[/green]")
 
 
 def main() -> None:

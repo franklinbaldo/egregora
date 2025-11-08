@@ -348,3 +348,160 @@ def clear_checkpoints(
                 d.rmdir()
 
     return count
+
+
+def gc_checkpoints_by_age(
+    stage: str | None = None,
+    keep_last: int = 5,
+    cache_dir: Path = Path(".egregora-cache/checkpoints"),
+) -> int:
+    """Garbage collect checkpoints by age (keep last N per stage).
+
+    Args:
+        stage: Stage identifier (optional, applies to all stages if None)
+        keep_last: Number of most recent checkpoints to keep per stage
+        cache_dir: Checkpoint directory
+
+    Returns:
+        Number of checkpoint files deleted
+
+    Example:
+        >>> # Keep only last 5 enrichment checkpoints
+        >>> count = gc_checkpoints_by_age(stage="enrichment", keep_last=5)
+        >>> print(f"Deleted {count} old checkpoints")
+
+        >>> # Keep last 3 checkpoints for all stages
+        >>> count = gc_checkpoints_by_age(keep_last=3)
+
+    """
+    if not cache_dir.exists():
+        return 0
+
+    count = 0
+
+    # Determine which stages to process
+    if stage is not None:
+        stages_to_process = [cache_dir / stage] if (cache_dir / stage).exists() else []
+    else:
+        # All stage directories
+        stages_to_process = [d for d in cache_dir.iterdir() if d.is_dir()]
+
+    # Process each stage
+    for stage_dir in stages_to_process:
+        # Find all checkpoints for this stage
+        checkpoints = list(stage_dir.rglob("checkpoint.pkl"))
+
+        # Sort by modification time (newest first)
+        checkpoints.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+        # Delete all but the last N
+        for checkpoint_file in checkpoints[keep_last:]:
+            checkpoint_file.unlink()
+            count += 1
+
+        # Remove empty directories
+        for d in sorted(stage_dir.rglob("*"), reverse=True):
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+
+    return count
+
+
+def gc_checkpoints_by_size(
+    max_size_bytes: int,
+    cache_dir: Path = Path(".egregora-cache/checkpoints"),
+) -> int:
+    """Garbage collect checkpoints to stay under size limit (LRU eviction).
+
+    Args:
+        max_size_bytes: Maximum total cache size in bytes
+        cache_dir: Checkpoint directory
+
+    Returns:
+        Number of checkpoint files deleted
+
+    Example:
+        >>> # Keep cache under 10 GB
+        >>> count = gc_checkpoints_by_size(max_size_bytes=10 * 1024**3)
+        >>> print(f"Deleted {count} checkpoints to stay under limit")
+
+    """
+    if not cache_dir.exists():
+        return 0
+
+    # Find all checkpoints
+    checkpoints = list(cache_dir.rglob("checkpoint.pkl"))
+
+    # Sort by access time (least recently used first)
+    # Note: st_atime may not be accurate on all filesystems (noatime mount)
+    # Fallback to modification time if access time is unavailable
+    checkpoints.sort(key=lambda p: p.stat().st_atime)
+
+    # Calculate total size
+    total_size = sum(p.stat().st_size for p in checkpoints)
+
+    count = 0
+    # Evict checkpoints until under limit (LRU)
+    for checkpoint_file in checkpoints:
+        if total_size <= max_size_bytes:
+            break
+
+        file_size = checkpoint_file.stat().st_size
+        checkpoint_file.unlink()
+        total_size -= file_size
+        count += 1
+
+    # Remove empty directories
+    for d in sorted(cache_dir.rglob("*"), reverse=True):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+
+    return count
+
+
+def get_cache_stats(
+    cache_dir: Path = Path(".egregora-cache/checkpoints"),
+) -> dict[str, Any]:
+    """Get cache statistics (size, count, per-stage breakdown).
+
+    Args:
+        cache_dir: Checkpoint directory
+
+    Returns:
+        Dictionary with cache statistics:
+        - total_size: Total cache size in bytes
+        - total_count: Total number of checkpoints
+        - stages: Per-stage breakdown {stage_name: {size, count}}
+
+    Example:
+        >>> stats = get_cache_stats()
+        >>> print(f"Total cache: {stats['total_size'] / 1024**2:.1f} MB")
+        >>> print(f"Enrichment: {stats['stages']['enrichment']['count']} checkpoints")
+
+    """
+    if not cache_dir.exists():
+        return {"total_size": 0, "total_count": 0, "stages": {}}
+
+    total_size = 0
+    total_count = 0
+    stages: dict[str, dict[str, int]] = {}
+
+    # Process each stage directory
+    for stage_dir in cache_dir.iterdir():
+        if not stage_dir.is_dir():
+            continue
+
+        stage_name = stage_dir.name
+        stage_checkpoints = list(stage_dir.rglob("checkpoint.pkl"))
+        stage_size = sum(p.stat().st_size for p in stage_checkpoints)
+        stage_count = len(stage_checkpoints)
+
+        stages[stage_name] = {"size": stage_size, "count": stage_count}
+        total_size += stage_size
+        total_count += stage_count
+
+    return {
+        "total_size": total_size,
+        "total_count": total_count,
+        "stages": stages,
+    }
