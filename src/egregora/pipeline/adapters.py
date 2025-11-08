@@ -12,15 +12,49 @@ import logging
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID, uuid5
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
-__all__ = ["MEDIA_UUID_NAMESPACE", "MediaMapping", "SourceAdapter"]
+__all__ = ["AdapterMeta", "MEDIA_UUID_NAMESPACE", "MediaMapping", "SourceAdapter"]
 MediaMapping = dict[str, Path]
 MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+
+class AdapterMeta(TypedDict):
+    """Metadata for adapter discovery and plugin registration.
+
+    This metadata enables:
+    - Plugin discovery via entry points
+    - IR version validation
+    - Adapter documentation links
+    - Version compatibility checking
+
+    Attributes:
+        name: Human-readable adapter name (e.g., "WhatsApp", "Slack")
+        version: Semantic version of the adapter (e.g., "1.0.0")
+        source: Platform identifier matching source_identifier (e.g., "whatsapp")
+        doc_url: Documentation URL for users
+        ir_version: IR schema version supported (e.g., "v1")
+
+    Example:
+        >>> meta: AdapterMeta = {
+        ...     "name": "WhatsApp",
+        ...     "version": "1.0.0",
+        ...     "source": "whatsapp",
+        ...     "doc_url": "https://github.com/franklinbaldo/egregora#whatsapp",
+        ...     "ir_version": "v1"
+        ... }
+
+    """
+
+    name: str
+    version: str
+    source: str
+    doc_url: str
+    ir_version: str
 
 
 class SourceAdapter(ABC):
@@ -35,10 +69,12 @@ class SourceAdapter(ABC):
     Required Methods:
         - source_name (property): Human-readable name
         - source_identifier (property): CLI identifier
+        - adapter_meta(): Return adapter metadata for plugin discovery
         - parse(): Convert raw export to IR-compliant table
 
     Optional Methods (with default implementations):
         - extract_media(): Extract bundled media files
+        - deliver_media(): Deliver media file on demand
         - get_metadata(): Extract export metadata
 
     Adapters should be stateless and reusable.
@@ -59,6 +95,27 @@ class SourceAdapter(ABC):
 
         Used in CLI and configuration. Should be lowercase, alphanumeric.
         Examples: "whatsapp", "slack", "discord", "telegram"
+        """
+
+    @abstractmethod
+    def adapter_meta(self) -> AdapterMeta:
+        """Return adapter metadata for plugin discovery and validation.
+
+        This method enables:
+        - Plugin registry to discover and validate adapters
+        - IR version compatibility checking
+        - Documentation links for users
+        - Version tracking for debugging
+
+        Returns:
+            AdapterMeta with name, version, source, doc_url, ir_version
+
+        Example:
+            >>> adapter = WhatsAppAdapter()
+            >>> meta = adapter.adapter_meta()
+            >>> print(f"{meta['name']} v{meta['version']} (IR {meta['ir_version']})")
+            WhatsApp v1.0.0 (IR v1)
+
         """
 
     @abstractmethod

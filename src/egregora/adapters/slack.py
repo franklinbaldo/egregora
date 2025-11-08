@@ -20,7 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from egregora.pipeline.adapters import MediaMapping, SourceAdapter
+from egregora.pipeline.adapters import AdapterMeta, MediaMapping, SourceAdapter
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -63,6 +63,21 @@ class SlackAdapter(SourceAdapter):
     @property
     def source_identifier(self) -> str:
         return "slack"
+
+    def adapter_meta(self) -> AdapterMeta:
+        """Return adapter metadata for plugin discovery.
+
+        Returns:
+            AdapterMeta with Slack adapter information (STUB)
+
+        """
+        return AdapterMeta(
+            name="Slack",
+            version="0.1.0",
+            source="slack",
+            doc_url="https://github.com/franklinbaldo/egregora#slack-exports",
+            ir_version="v1",
+        )
 
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
         """Parse Slack export into IR-compliant table.

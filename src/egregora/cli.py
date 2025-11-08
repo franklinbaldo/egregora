@@ -1737,6 +1737,58 @@ def views_drop(
         conn.close()
 
 
+@app.command()
+def adapters(
+    as_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
+) -> None:
+    """List all available source adapters.
+
+    This command shows all registered adapters, including:
+    - Built-in adapters (WhatsApp, Slack)
+    - Third-party plugins (via entry points)
+
+    Example:
+        egregora adapters
+        egregora adapters --json
+
+    """
+    from egregora.adapters import get_global_registry
+
+    try:
+        registry = get_global_registry()
+        adapters_list = registry.list_adapters()
+
+        if as_json:
+            import json
+
+            print(json.dumps(adapters_list, indent=2))
+        else:
+            from rich.table import Table
+
+            table = Table(title="Egregora Source Adapters", show_header=True, header_style="bold magenta")
+            table.add_column("Name", style="cyan", no_wrap=True)
+            table.add_column("Version", style="green")
+            table.add_column("Source ID", style="yellow")
+            table.add_column("IR Version", style="blue")
+            table.add_column("Documentation", style="dim")
+
+            for meta in adapters_list:
+                table.add_row(
+                    meta["name"],
+                    meta["version"],
+                    meta["source"],
+                    meta["ir_version"],
+                    meta["doc_url"],
+                )
+
+            console.print(table)
+            console.print(f"\n[dim]Total adapters: {len(adapters_list)}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error listing adapters: {e}[/red]")
+        raise typer.Exit(1)
+
+
 def main() -> None:
     """Entry point for the CLI."""
     app()

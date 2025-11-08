@@ -6,17 +6,31 @@ converting their specific export formats into the standardized IR schema.
 Available Adapters:
 - WhatsAppAdapter: For WhatsApp ZIP exports (production-ready)
 - SlackAdapter: For Slack exports (stub/template for demonstration)
+
+Plugin System:
+- AdapterRegistry: Automatically discovers and loads adapters
+- get_global_registry(): Access the global adapter registry
+
+Example:
+    >>> from egregora.adapters import get_global_registry
+    >>> registry = get_global_registry()
+    >>> adapter = registry.get("whatsapp")
+
 """
 
+from egregora.adapters.registry import AdapterRegistry, get_global_registry
 from egregora.adapters.slack import SlackAdapter
 from egregora.adapters.whatsapp import WhatsAppAdapter
 from egregora.pipeline.adapters import SourceAdapter
 
+# Legacy registry (deprecated in favor of AdapterRegistry)
 ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}
 
 
 def get_adapter(source_identifier: str) -> SourceAdapter:
     """Get an adapter instance by source identifier.
+
+    DEPRECATED: Use get_global_registry().get() instead.
 
     Args:
         source_identifier: Source identifier (e.g., "whatsapp", "slack")
@@ -25,15 +39,26 @@ def get_adapter(source_identifier: str) -> SourceAdapter:
         Adapter instance
 
     Raises:
-        ValueError: If source identifier is not recognized
+        KeyError: If source identifier is not recognized
+
+    Example:
+        >>> # New way (recommended)
+        >>> from egregora.adapters import get_global_registry
+        >>> adapter = get_global_registry().get("whatsapp")
+        >>>
+        >>> # Old way (still works)
+        >>> from egregora.adapters import get_adapter
+        >>> adapter = get_adapter("whatsapp")
 
     """
-    if source_identifier not in ADAPTER_REGISTRY:
-        available = ", ".join(ADAPTER_REGISTRY.keys())
-        msg = f"Unknown source: '{source_identifier}'. Available sources: {available}"
-        raise ValueError(msg)
-    adapter_class = ADAPTER_REGISTRY[source_identifier]
-    return adapter_class()
+    return get_global_registry().get(source_identifier)
 
 
-__all__ = ["ADAPTER_REGISTRY", "SlackAdapter", "WhatsAppAdapter", "get_adapter"]
+__all__ = [
+    "ADAPTER_REGISTRY",
+    "AdapterRegistry",
+    "SlackAdapter",
+    "WhatsAppAdapter",
+    "get_adapter",
+    "get_global_registry",
+]
