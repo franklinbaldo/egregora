@@ -1497,6 +1497,7 @@ def views_list(
     Examples:
         egregora views list
         egregora views list --db-path=pipeline.db
+
     """
     import duckdb
 
@@ -1549,6 +1550,7 @@ def views_create(
         egregora views create pipeline.db
         egregora views create pipeline.db --table-name=conversations
         egregora views create pipeline.db --force  # Recreate existing views
+
     """
     import duckdb
 
@@ -1602,6 +1604,7 @@ def views_refresh(
     Examples:
         egregora views refresh pipeline.db                 # Refresh all
         egregora views refresh pipeline.db --view-name=author_message_counts  # Refresh specific view
+
     """
     import duckdb
 
@@ -1637,9 +1640,7 @@ def views_refresh(
 
         else:
             # Refresh all materialized views
-            materialized_views = [
-                name for name, view in registry.views.items() if view.materialized
-            ]
+            materialized_views = [name for name, view in registry.views.items() if view.materialized]
 
             if not materialized_views:
                 console.print("[yellow]No materialized views to refresh[/yellow]")
@@ -1672,6 +1673,7 @@ def views_drop(
         egregora views drop pipeline.db                 # Drop all
         egregora views drop pipeline.db --view-name=author_message_counts  # Drop specific view
         egregora views drop pipeline.db --force         # Skip confirmation
+
     """
     import duckdb
 
