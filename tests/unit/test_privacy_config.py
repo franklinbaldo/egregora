@@ -19,14 +19,14 @@ class TestPrivacyConfig:
     def test_privacy_config_is_frozen(self):
         """PrivacyConfig is immutable (frozen dataclass)."""
         config = PrivacyConfig(tenant_id="test")
-        
+
         with pytest.raises(AttributeError):
             config.tenant_id = "modified"  # type: ignore[misc]
 
     def test_privacy_config_defaults(self):
         """PrivacyConfig has sensible defaults."""
         config = PrivacyConfig(tenant_id="test")
-        
+
         assert config.tenant_id == "test"
         assert config.detect_pii is True
         assert config.allowed_media_domains == ()
@@ -42,7 +42,7 @@ class TestPrivacyConfig:
             enable_reidentification_escrow=True,
             reidentification_retention_days=30,
         )
-        
+
         assert config.tenant_id == "acme-corp"
         assert config.detect_pii is False
         assert config.allowed_media_domains == ("acme.com", "trusted.com")
@@ -61,7 +61,7 @@ class TestPrivacyConfig:
                 tenant_id="test",
                 reidentification_retention_days=0,
             )
-        
+
         with pytest.raises(ValueError, match="reidentification_retention_days must be >= 1"):
             PrivacyConfig(
                 tenant_id="test",
@@ -74,5 +74,5 @@ class TestPrivacyConfig:
             tenant_id="test",
             reidentification_retention_days=1,
         )
-        
+
         assert config.reidentification_retention_days == 1
