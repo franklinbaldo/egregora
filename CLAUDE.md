@@ -471,6 +471,81 @@ Agents automatically use custom prompts when found. Check logs for confirmation:
 INFO:egregora.prompt_templates:Using custom prompts from /path/to/.egregora/prompts
 ```
 
+### Model Thinking/Reasoning
+
+**MODERN (2025-01)**: Egregora tracks all token types including thinking/reasoning tokens used by advanced models.
+
+Some models support "thinking" or "reasoning" - internal step-by-step problem-solving before generating the final answer. This uses additional tokens but can improve output quality for complex tasks.
+
+#### Enabling Thinking
+
+**For Google Gemini models**, add model settings to enable thinking:
+
+```python
+# In your agent code or config
+from pydantic_ai.models.google import GoogleModel, GoogleModelSettings
+
+model = GoogleModel('gemini-2.5-pro')
+settings = GoogleModelSettings(
+    google_thinking_config={'include_thoughts': True}
+)
+agent = Agent(model, model_settings=settings)
+```
+
+**For Anthropic Claude models**:
+
+```python
+from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
+
+model = AnthropicModel('claude-sonnet-4-0')
+settings = AnthropicModelSettings(
+    anthropic_thinking={'type': 'enabled', 'budget_tokens': 1024}
+)
+agent = Agent(model, model_settings=settings)
+```
+
+See [Pydantic AI Thinking docs](https://ai.pydantic.dev/thinking/) for other providers (OpenAI, Bedrock, Groq, Mistral, Cohere).
+
+#### Token Tracking
+
+Egregora comprehensively tracks all token types in agent usage logs:
+
+**Standard tokens**:
+- `tokens_input` - Input/prompt tokens
+- `tokens_output` - Output/completion tokens
+- `tokens_total` - Total tokens (input + output)
+
+**Cache tokens** (prompt caching for cost savings):
+- `tokens_cache_write` - Tokens written to cache
+- `tokens_cache_read` - Tokens read from cache
+- `tokens_cache_audio_read` - Audio tokens read from cache
+
+**Audio tokens** (multimodal models):
+- `tokens_input_audio` - Audio input tokens
+
+**Thinking/reasoning tokens** (model-specific):
+- `tokens_thinking` - Thinking tokens (from `usage.details['thinking_tokens']`)
+- `tokens_reasoning` - Reasoning tokens (from `usage.details['reasoning_tokens']`)
+- `usage_details` - Raw details dict for other model-specific metrics
+
+**Example log output** (with thinking enabled):
+```
+INFO:egregora.utils.logfire_config:Writer agent completed
+  period=2025-01-15 10:00 to 12:00
+  posts_created=2
+  profiles_updated=3
+  tokens_total=15420
+  tokens_input=12000
+  tokens_output=3420
+  tokens_cache_write=0
+  tokens_cache_read=8000
+  tokens_thinking=2100    # Thinking tokens used
+  tokens_reasoning=0
+  usage_details={'thinking_tokens': 2100}
+```
+
+All token metrics are logged to **Pydantic Logfire** (if enabled) for observability and cost tracking.
+
 ## Development Workflow
 
 ### Adding a New Feature

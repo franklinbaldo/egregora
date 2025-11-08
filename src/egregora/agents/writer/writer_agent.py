@@ -454,9 +454,21 @@ def write_posts_with_pydantic_agent(
             period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
+            # Standard token counts
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,
             tokens_output=usage.output_tokens if usage else 0,
+            # Cache token counts (prompt caching)
+            tokens_cache_write=usage.cache_write_tokens if usage else 0,
+            tokens_cache_read=usage.cache_read_tokens if usage else 0,
+            # Audio token counts (for multimodal models)
+            tokens_input_audio=usage.input_audio_tokens if usage else 0,
+            tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
+            # Thinking/reasoning tokens (from details dict - provider-specific)
+            tokens_thinking=usage.details.get("thinking_tokens", 0) if usage else 0,
+            tokens_reasoning=usage.details.get("reasoning_tokens", 0) if usage else 0,
+            # Raw details for any other model-specific metrics
+            usage_details=usage.details if usage else {},
         )
         logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
         record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
