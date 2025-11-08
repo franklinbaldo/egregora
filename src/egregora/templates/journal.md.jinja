@@ -1,0 +1,23 @@
+---
+window_label: {{ window_label }}
+timestamp: {{ timestamp }}
+---
+
+{% if thinking_parts %}
+# Model Thinking
+
+{% for thinking in thinking_parts %}
+{{ thinking }}
+
+{% if not loop.last %}
+---
+
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if freeform_content %}
+# Freeform Reflection
+
+{{ freeform_content }}
+{% endif %}

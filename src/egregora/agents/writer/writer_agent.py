@@ -26,6 +26,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -55,7 +56,6 @@ from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
-from egregora.prompt_templates import get_prompt_loader
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
@@ -216,7 +216,6 @@ def _save_journal_to_file(
     freeform_content: str,
     window_label: str,
     output_dir: Path,
-    site_root: Path | None = None,
 ) -> Path | None:
     """Save journal entry combining thinking and freeform content to markdown file.
 
@@ -225,7 +224,6 @@ def _save_journal_to_file(
         freeform_content: Freeform reflection/memo content
         window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
         output_dir: Base output directory
-        site_root: Optional site root for custom template overrides
 
     Returns:
         Path to saved journal file, or None if no content
@@ -243,9 +241,12 @@ def _save_journal_to_file(
     safe_filename = window_label.replace(":", "-").replace(" ", "_")
     journal_path = journal_dir / f"journal_{safe_filename}.md"
 
-    # Load template
-    template_loader = get_prompt_loader(site_root)
-    template = template_loader.get_template("system/journal.jinja")
+    # Load template from templates directory
+    templates_dir = Path(__file__).parent.parent.parent / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
+    )
+    template = env.get_template("journal.md.jinja")
 
     # Render journal content
     journal_content = template.render(
@@ -554,7 +555,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         thinking_contents = _extract_thinking_content(result.all_messages())
         freeform_content = _extract_freeform_content(result.all_messages())
         journal_path = _save_journal_to_file(
-            thinking_contents, freeform_content, window_label, context.output_dir, context.site_root
+            thinking_contents, freeform_content, window_label, context.output_dir
         )
 
         usage = result.usage()

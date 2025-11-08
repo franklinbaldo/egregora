@@ -563,22 +563,21 @@ output/
     └── ...
 ```
 
-**Journal structure** (Jinja template: `prompts/system/journal.jinja`):
+**Journal structure** (Jinja template: `src/egregora/templates/journal.md.jinja`):
 
 Each journal entry has **two sections**:
 
-1. **Part 1: Model Thinking** - Step-by-step reasoning process (from ThinkingPart)
-2. **Part 2: Freeform Reflection** - Continuity memo with synthesis decisions, unresolved questions, and memory for next window (from plain text output)
+1. **Model Thinking** - Step-by-step reasoning process (from ThinkingPart)
+2. **Freeform Reflection** - Continuity memo with synthesis decisions, unresolved questions, and memory for next window (from plain text output)
 
 **Example journal entry** (`journal/journal_2025-01-15_10-00_to_12-00.md`):
 ```markdown
-# Journal Entry — 2025-01-15 10:00 to 12:00
-
-Generated: 2025-01-15 12:05:23 UTC
-
+---
+window_label: 2025-01-15 10:00 to 12:00
+timestamp: 2025-01-15 12:05:23 UTC
 ---
 
-## Part 1: Model Thinking
+# Model Thinking
 
 Let me analyze these conversations to identify the main themes...
 
@@ -591,7 +590,7 @@ Based on this analysis, I'll create a post focusing on...
 
 ---
 
-## Part 2: Freeform Reflection
+# Freeform Reflection
 
 # Continuity Journal — 2025-01-15
 
@@ -616,7 +615,7 @@ Key context to carry forward: the self-referential nature of consciousness...
 - **Audit trail**: Complete record of AI decision-making process
 - **Continuity**: Freeform section becomes memory for next window
 
-**Customization**: Override the template by placing `journal.jinja` in `{site_root}/.egregora/prompts/system/`
+**Format**: Uses YAML frontmatter for metadata, simple `#` headings for sections
 
 ## Development Workflow
 
