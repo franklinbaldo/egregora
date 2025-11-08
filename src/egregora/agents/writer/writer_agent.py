@@ -26,6 +26,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -46,6 +47,15 @@ except ImportError:
                 return messages.to_json(indent=2)
             return json.dumps(messages, indent=2, default=str)
 
+
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
@@ -158,6 +168,199 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
+
+
+def _extract_thinking_content(messages: Any) -> list[str]:
+    """Extract thinking/reasoning content from agent message history.
+
+    Parses ModelResponse messages to find ThinkingPart objects containing
+    the model's step-by-step reasoning process.
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        List of thinking content strings
+
+    """
+    thinking_contents: list[str] = []
+
+    for message in messages:
+        # Check if this is a ModelResponse message
+        if isinstance(message, ModelResponse):
+            # Iterate through parts to find ThinkingPart
+            thinking_contents.extend(part.content for part in message.parts if isinstance(part, ThinkingPart))
+
+    return thinking_contents
+
+
+def _extract_freeform_content(messages: Any) -> str:
+    """Extract freeform content from agent message history.
+
+    Freeform content is plain text output from the model that's NOT a tool call.
+    This is typically the model's continuity journal / reflection memo.
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        Combined freeform content as a single string
+
+    """
+    freeform_parts: list[str] = []
+
+    for message in messages:
+        # Check if this is a ModelResponse message
+        if isinstance(message, ModelResponse):
+            # Iterate through parts to find TextPart (non-tool text output)
+            freeform_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
+
+    return "\n\n".join(freeform_parts).strip()
+
+
+@dataclass(frozen=True)
+class JournalEntry:
+    """Represents a single entry in the intercalated journal log.
+
+    Each entry is one of: thinking, freeform text, or tool usage.
+    Entries preserve the actual execution order from the agent's message history.
+    """
+
+    entry_type: str  # "thinking", "freeform", "tool_call", "tool_return"
+    content: str
+    timestamp: datetime | None = None
+    tool_name: str | None = None
+
+
+def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:  # noqa: C901
+    """Extract intercalated journal log preserving actual execution order.
+
+    Processes agent message history to create a timeline showing:
+    - Model thinking/reasoning
+    - Freeform text output
+    - Tool calls and their returns
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        List of JournalEntry objects in chronological order
+
+    """
+    entries: list[JournalEntry] = []
+
+    for message in messages:
+        # Handle ModelResponse (contains thinking and freeform output)
+        if isinstance(message, ModelResponse):
+            for part in message.parts:
+                if isinstance(part, ThinkingPart):
+                    entries.append(
+                        JournalEntry(
+                            entry_type="thinking",
+                            content=part.content,
+                            timestamp=getattr(message, "timestamp", None),
+                        )
+                    )
+                elif isinstance(part, TextPart):
+                    entries.append(
+                        JournalEntry(
+                            entry_type="freeform",
+                            content=part.content,
+                            timestamp=getattr(message, "timestamp", None),
+                        )
+                    )
+                elif isinstance(part, ToolCallPart):
+                    # Format tool call
+                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
+                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_call",
+                            content=tool_call_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=part.tool_name,
+                        )
+                    )
+                elif isinstance(part, ToolReturnPart):
+                    # Format tool return
+                    result_str = str(part.content) if hasattr(part, "content") else "No result"
+                    tool_return_content = f"Result: {result_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_return",
+                            content=tool_return_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=getattr(part, "tool_name", None),
+                        )
+                    )
+
+        # Handle ModelRequest (contains tool calls from model side)
+        elif isinstance(message, ModelRequest):
+            for part in message.parts:
+                if isinstance(part, ToolCallPart):
+                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
+                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
+                    entries.append(
+                        JournalEntry(
+                            entry_type="tool_call",
+                            content=tool_call_content,
+                            timestamp=getattr(message, "timestamp", None),
+                            tool_name=part.tool_name,
+                        )
+                    )
+
+    return entries
+
+
+def _save_journal_to_file(
+    intercalated_log: list[JournalEntry],
+    window_label: str,
+    output_dir: Path,
+) -> Path | None:
+    """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
+
+    Args:
+        intercalated_log: List of journal entries in chronological order
+        window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
+        output_dir: Base output directory
+
+    Returns:
+        Path to saved journal file, or None if no content
+
+    """
+    # Skip if no content at all
+    if not intercalated_log:
+        return None
+
+    # Create journal directory if it doesn't exist
+    journal_dir = output_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate filename from window label (sanitize for filesystem)
+    safe_filename = window_label.replace(":", "-").replace(" ", "_")
+    journal_path = journal_dir / f"journal_{safe_filename}.md"
+
+    # Load template from templates directory
+    templates_dir = Path(__file__).parent.parent.parent / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
+    )
+    template = env.get_template("journal.md.jinja")
+
+    # Render journal content
+    now_utc = datetime.now(tz=UTC)
+    journal_content = template.render(
+        window_label=window_label,
+        date=now_utc.strftime("%Y-%m-%d"),
+        created=now_utc.isoformat(),
+        intercalated_log=intercalated_log,
+    )
+
+    # Write to file
+    journal_path.write_text(journal_content, encoding="utf-8")
+    logger.info("Saved journal entry to %s", journal_path)
+
+    return journal_path
 
 
 def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
@@ -316,7 +519,7 @@ def _register_writer_tools(  # noqa: C901
             return BannerResult(status="failed", path=None)
 
 
-def write_posts_with_pydantic_agent(
+def write_posts_with_pydantic_agent(  # noqa: PLR0915
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -448,15 +651,36 @@ def write_posts_with_pydantic_agent(
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
+        # Extract intercalated log (thinking, freeform, tool usage in order), save to journal
+        intercalated_log = _extract_intercalated_log(result.all_messages())
+        journal_path = _save_journal_to_file(intercalated_log, window_label, context.output_dir)
+
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
             period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
+            journal_saved=journal_path is not None,
+            journal_entries=len(intercalated_log),
+            journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
+            journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
+            journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
+            # Standard token counts
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,
             tokens_output=usage.output_tokens if usage else 0,
+            # Cache token counts (prompt caching)
+            tokens_cache_write=usage.cache_write_tokens if usage else 0,
+            tokens_cache_read=usage.cache_read_tokens if usage else 0,
+            # Audio token counts (for multimodal models)
+            tokens_input_audio=usage.input_audio_tokens if usage else 0,
+            tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
+            # Thinking/reasoning tokens (from details dict - provider-specific)
+            tokens_thinking=(usage.details or {}).get("thinking_tokens", 0) if usage else 0,
+            tokens_reasoning=(usage.details or {}).get("reasoning_tokens", 0) if usage else 0,
+            # Raw details for any other model-specific metrics
+            usage_details=usage.details if usage and usage.details else {},
         )
         logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
         record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
