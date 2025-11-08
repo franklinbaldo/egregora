@@ -26,6 +26,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import ibis
 from ibis.expr.types import Table
@@ -69,6 +70,12 @@ def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_pr
 
     """
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
+    utc_zone = ZoneInfo("UTC")
+    if last_timestamp.tzinfo is None:
+        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+    else:
+        last_timestamp = last_timestamp.astimezone(utc_zone)
 
     checkpoint = {
         "last_processed_timestamp": last_timestamp.isoformat(),
