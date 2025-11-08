@@ -277,12 +277,8 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     posts_one.mkdir()
     posts_two.mkdir()
 
-    _, mapping_one = extract_and_replace_media(
-        table, export.zip_path, docs_dir_one, posts_one
-    )
-    _, mapping_two = extract_and_replace_media(
-        table, export.zip_path, docs_dir_two, posts_two
-    )
+    _, mapping_one = extract_and_replace_media(table, export.zip_path, docs_dir_one, posts_one)
+    _, mapping_two = extract_and_replace_media(table, export.zip_path, docs_dir_two, posts_two)
 
     assert mapping_one.keys() == mapping_two.keys()
     for key in mapping_one:
