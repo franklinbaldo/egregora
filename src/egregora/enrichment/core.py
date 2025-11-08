@@ -95,6 +95,7 @@ class EnrichmentRuntimeContext:
     cache: EnrichmentCache
     docs_dir: Path
     posts_dir: Path
+    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     duckdb_connection: "DuckDBBackend | None" = None
     target_table: str | None = None
 
@@ -228,15 +229,16 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
     if pending_url_jobs:
         for url_job in pending_url_jobs:
             ts = _ensure_datetime(url_job.timestamp)
-            context = UrlEnrichmentContext(
+            url_context = UrlEnrichmentContext(
                 url=url_job.url,
                 original_message=url_job.original_message,
                 sender_uuid=url_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
+                site_root=context.site_root,
             )
             try:
-                result = url_enrichment_agent.run_sync("Enrich this URL", deps=context)
+                result = url_enrichment_agent.run_sync("Enrich this URL", deps=url_context)
             except Exception as exc:  # noqa: BLE001 - log and continue enrichment
                 logger.warning("URL enrichment failed for %s: %s", url_job.url, exc)
                 continue
@@ -252,7 +254,7 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
                 media_path = media_job.file_path.relative_to(docs_dir)
             except ValueError:
                 media_path = media_job.file_path
-            context = MediaEnrichmentContext(
+            media_context = MediaEnrichmentContext(
                 media_type=media_job.media_type or "unknown",
                 media_filename=media_job.file_path.name,
                 media_path=str(media_path),
@@ -260,13 +262,14 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
                 sender_uuid=media_job.sender_uuid,
                 date=ts.strftime("%Y-%m-%d"),
                 time=ts.strftime("%H:%M"),
+                site_root=context.site_root,
             )
             message_content = [
                 "Analyze and enrich this media file. Provide a detailed description in markdown format.",
                 binary_content,
             ]
             try:
-                result = media_enrichment_agent.run_sync(message_content, deps=context)
+                result = media_enrichment_agent.run_sync(message_content, deps=media_context)
             except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
                 logger.warning(
                     "Media enrichment failed for %s (%s): %s",
