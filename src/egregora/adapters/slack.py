@@ -20,10 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-import ibis
-
 from egregora.pipeline.adapters import MediaMapping, SourceAdapter
-from egregora.pipeline.ir import IR_SCHEMA, create_ir_table
 
 if TYPE_CHECKING:
     from pathlib import Path
