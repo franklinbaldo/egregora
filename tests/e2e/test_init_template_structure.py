@@ -292,7 +292,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     assert mkdocs_path.exists()
 
     with mkdocs_path.open() as f:
-        mkdocs_dict = yaml.load(f, Loader=_ConfigLoader)  # noqa: S506 - test code
+        mkdocs_dict = yaml.load(f, Loader=_ConfigLoader)
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
