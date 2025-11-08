@@ -9,9 +9,8 @@ Tests:
 - Error handling and failure recording
 """
 
-import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
@@ -127,7 +126,7 @@ def test_run_context_with_parents():
 def test_record_run_minimal(runs_db: duckdb.DuckDBPyConnection):
     """record_run() writes minimal run record."""
     run_id = uuid.uuid4()
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
 
     record_run(
         conn=runs_db,
@@ -152,8 +151,8 @@ def test_record_run_minimal(runs_db: duckdb.DuckDBPyConnection):
 def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
     """record_run() writes all metadata fields."""
     run_id = uuid.uuid4()
-    started_at = datetime.now(timezone.utc)
-    finished_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
+    finished_at = datetime.now(UTC)
 
     record_run(
         conn=runs_db,
@@ -193,7 +192,7 @@ def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
 def test_record_run_auto_detects_git_commit(runs_db: duckdb.DuckDBPyConnection):
     """record_run() auto-detects git commit SHA if not provided."""
     run_id = uuid.uuid4()
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
 
     record_run(
         conn=runs_db,
@@ -232,8 +231,8 @@ def test_record_lineage_single_parent(runs_db: duckdb.DuckDBPyConnection):
         run_id=parent_id,
         stage="privacy",
         status="completed",
-        started_at=datetime.now(timezone.utc),
-        finished_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
     )
 
     # Create child run
@@ -242,7 +241,7 @@ def test_record_lineage_single_parent(runs_db: duckdb.DuckDBPyConnection):
         run_id=child_id,
         stage="enrichment",
         status="running",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
 
     # Record lineage
@@ -275,8 +274,8 @@ def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
             run_id=parent_id,
             stage="privacy",
             status="completed",
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
         )
 
     # Create child run
@@ -285,7 +284,7 @@ def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
         run_id=child_id,
         stage="enrichment",
         status="running",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
 
     # Record lineage (multiple parents)
@@ -517,8 +516,8 @@ def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
         run_id=parent_id,
         stage="parent-stage",
         status="completed",
-        started_at=datetime.now(timezone.utc),
-        finished_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
     )
     conn.close()
 

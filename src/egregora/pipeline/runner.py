@@ -33,10 +33,11 @@ Usage:
 import hashlib
 import subprocess
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import duckdb
 import ibis
@@ -91,6 +92,7 @@ class RunContext:
 
         Returns:
             Immutable RunContext instance
+
         """
         return cls(
             run_id=uuid.uuid4(),
@@ -107,6 +109,7 @@ def get_git_commit_sha() -> str | None:
 
     Returns:
         Git commit SHA (e.g., "a1b2c3d4..."), or None if not in git repo
+
     """
     try:
         result = subprocess.run(
@@ -138,6 +141,7 @@ def fingerprint_table(table: ibis.Table) -> str:
         - Hashing full data (expensive)
         - Sampling rows (faster but less deterministic)
         - Using Ibis table hash if available
+
     """
     # Hash schema (column names + types)
     schema_str = str(table.schema())
@@ -197,6 +201,7 @@ def record_run(
 
     Raises:
         duckdb.Error: If insert fails
+
     """
     # Auto-detect code_ref if not provided
     if code_ref is None:
@@ -246,6 +251,7 @@ def record_lineage(
 
     Raises:
         duckdb.Error: If insert fails
+
     """
     if not parent_run_ids:
         return  # No lineage to record
@@ -298,6 +304,7 @@ def run_stage_with_tracking(
         ...     input_table=raw_data,
         ...     config=privacy_config,
         ... )
+
     """
     # Connect to runs database
     db_path = context.db_path or Path(".egregora-cache/runs.duckdb")
@@ -312,7 +319,7 @@ def run_stage_with_tracking(
         rows_in = input_table.count().execute()
 
     # Record run start
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     record_run(
         conn=conn,
         run_id=context.run_id,
@@ -338,7 +345,7 @@ def run_stage_with_tracking(
         result = stage_func(input_table=input_table, **kwargs)
 
         # Record success
-        finished_at = datetime.now(timezone.utc)
+        finished_at = datetime.now(UTC)
 
         # Calculate output rows if result is Ibis table
         rows_out = None
@@ -362,8 +369,8 @@ def run_stage_with_tracking(
 
     except Exception as e:
         # Record failure
-        finished_at = datetime.now(timezone.utc)
-        error_msg = f"{type(e).__name__}: {str(e)}"
+        finished_at = datetime.now(UTC)
+        error_msg = f"{type(e).__name__}: {e!s}"
 
         conn.execute(
             """
