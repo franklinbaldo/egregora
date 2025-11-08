@@ -107,6 +107,7 @@ class TestCheckRequiredPackages:
     @patch("egregora.diagnostics.importlib.import_module")
     def test_missing_packages(self, mock_import: MagicMock) -> None:
         """Returns ERROR when packages are missing."""
+
         # Mock importlib to raise ImportError for specific packages
         def mock_import_func(name: str) -> None:
             if name in ("ibis", "duckdb"):

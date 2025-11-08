@@ -1235,7 +1235,9 @@ _register_ranking_cli(app)
 
 @app.command(name="doctor")
 def doctor(
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show detailed diagnostic information")] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show detailed diagnostic information")
+    ] = False,
 ) -> None:
     """Run diagnostic checks to verify Egregora setup.
 
@@ -1252,6 +1254,7 @@ def doctor(
     Examples:
         egregora doctor          # Run all checks
         egregora doctor -v       # Show detailed output
+
     """
     from egregora.diagnostics import HealthStatus, run_diagnostics
 
@@ -1294,9 +1297,13 @@ def doctor(
     if error_count == 0 and warning_count == 0:
         console.print("[bold green]✅ All checks passed! Egregora is ready to use.[/bold green]")
     elif error_count == 0:
-        console.print(f"[bold yellow]⚠️  {warning_count} warning(s) found. Egregora should work but some features may be limited.[/bold yellow]")
+        console.print(
+            f"[bold yellow]⚠️  {warning_count} warning(s) found. Egregora should work but some features may be limited.[/bold yellow]"
+        )
     else:
-        console.print(f"[bold red]❌ {error_count} error(s) found. Please fix these issues before using Egregora.[/bold red]")
+        console.print(
+            f"[bold red]❌ {error_count} error(s) found. Please fix these issues before using Egregora.[/bold red]"
+        )
 
     console.print()
     console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")

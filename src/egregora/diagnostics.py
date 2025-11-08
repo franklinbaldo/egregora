@@ -40,6 +40,7 @@ class DiagnosticResult:
         status: Health status (OK, WARNING, ERROR, INFO)
         message: Human-readable message
         details: Optional additional details
+
     """
 
     check: str
@@ -134,8 +135,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
 
             # Verify extension is loaded
             result = conn.execute(
-                "SELECT extension_name, loaded FROM duckdb_extensions() "
-                "WHERE extension_name = 'vss'"
+                "SELECT extension_name, loaded FROM duckdb_extensions() WHERE extension_name = 'vss'"
             ).fetchone()
 
             if result and result[1]:  # loaded = True
@@ -317,6 +317,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         >>> results = run_diagnostics()
         >>> for result in results:
         ...     print(f"{result.check}: {result.status.value}")
+
     """
     checks = [
         check_python_version,
