@@ -548,30 +548,37 @@ INFO:egregora.utils.logfire_config:Writer agent completed
 
 All token metrics are logged to **Pydantic Logfire** (if enabled) for observability and cost tracking.
 
-#### Saving Thinking Content
+#### Saving Journal Entries
 
-**MODERN (2025-01)**: When models use thinking/reasoning, Egregora automatically saves the thinking content to markdown files for later review.
+**MODERN (2025-01)**: Egregora automatically saves journal entries combining the model's thinking and freeform reflection for each window.
 
-**Where thinking files are saved**:
+**Where journal files are saved**:
 ```
 output/
 ├── posts/                    # Generated blog posts
 ├── profiles/                 # Author profiles
-└── .thinking/                # Model thinking content (gitignored by default)
-    ├── thinking_2025-01-15_10-00_to_12-00.md
-    ├── thinking_2025-01-15_12-00_to_14-00.md
+└── journal/                  # Model journal entries
+    ├── journal_2025-01-15_10-00_to_12-00.md
+    ├── journal_2025-01-15_12-00_to_14-00.md
     └── ...
 ```
 
-**Example thinking file** (`.thinking/thinking_2025-01-15_10-00_to_12-00.md`):
+**Journal structure** (Jinja template: `prompts/system/journal.jinja`):
+
+Each journal entry has **two sections**:
+
+1. **Part 1: Model Thinking** - Step-by-step reasoning process (from ThinkingPart)
+2. **Part 2: Freeform Reflection** - Continuity memo with synthesis decisions, unresolved questions, and memory for next window (from plain text output)
+
+**Example journal entry** (`journal/journal_2025-01-15_10-00_to_12-00.md`):
 ```markdown
-# Model Thinking - 2025-01-15 10:00 to 12:00
+# Journal Entry — 2025-01-15 10:00 to 12:00
 
 Generated: 2025-01-15 12:05:23 UTC
 
 ---
 
-## Thinking Part 1
+## Part 1: Model Thinking
 
 Let me analyze these conversations to identify the main themes...
 
@@ -583,15 +590,33 @@ First, I notice several recurring topics:
 Based on this analysis, I'll create a post focusing on...
 
 ---
+
+## Part 2: Freeform Reflection
+
+# Continuity Journal — 2025-01-15
+
+## Post-Mortem and Synthesis Decisions
+
+This writing period was defined by rich technical discussion...
+I chose to focus on the emergence of AI consciousness debates...
+
+## Unresolved Tensions and Future Inquiry
+
+The central unresolved question is: What constitutes genuine understanding?
+
+## Memory and Context Persistence
+
+Key context to carry forward: the self-referential nature of consciousness...
 ```
 
 **Benefits**:
-- **Transparency**: See exactly how the model reasoned through content decisions
+- **Transparency**: See both internal reasoning AND editorial decisions
 - **Debugging**: Understand why certain posts were created or skipped
-- **Improvement**: Identify patterns in model reasoning to refine prompts
-- **Audit trail**: Keep record of AI decision-making process
+- **Improvement**: Identify patterns to refine prompts and model settings
+- **Audit trail**: Complete record of AI decision-making process
+- **Continuity**: Freeform section becomes memory for next window
 
-**Note**: Thinking files are saved to `.thinking/` which should be gitignored (not published to the blog site).
+**Customization**: Override the template by placing `journal.jinja` in `{site_root}/.egregora/prompts/system/`
 
 ## Development Workflow
 

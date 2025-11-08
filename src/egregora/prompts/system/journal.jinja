@@ -1,0 +1,33 @@
+# Journal Entry — {{ window_label }}
+
+Generated: {{ timestamp }}
+
+---
+
+## Part 1: Model Thinking
+
+{% if thinking_parts %}
+{% for thinking in thinking_parts %}
+{% if thinking_parts|length > 1 %}
+### Thinking Part {{ loop.index }}
+{% endif %}
+
+{{ thinking }}
+
+{% if not loop.last %}
+---
+{% endif %}
+{% endfor %}
+{% else %}
+*No thinking content available for this window.*
+{% endif %}
+
+---
+
+## Part 2: Freeform Reflection
+
+{% if freeform_content %}
+{{ freeform_content }}
+{% else %}
+*No freeform reflection available for this window.*
+{% endif %}

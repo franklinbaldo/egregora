@@ -47,7 +47,7 @@ except ImportError:
             return json.dumps(messages, indent=2, default=str)
 
 
-from pydantic_ai.messages import ModelResponse, ThinkingPart
+from pydantic_ai.messages import ModelResponse, TextPart, ThinkingPart
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
@@ -55,6 +55,7 @@ from egregora.agents.tools.profiler import read_profile, write_profile
 from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
+from egregora.prompt_templates import get_prompt_loader
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
@@ -186,47 +187,79 @@ def _extract_thinking_content(messages: Any) -> list[str]:
     return thinking_contents
 
 
-def _save_thinking_to_file(thinking_contents: list[str], window_label: str, output_dir: Path) -> Path | None:
-    """Save thinking content to a markdown file.
+def _extract_freeform_content(messages: Any) -> str:
+    """Extract freeform content from agent message history.
+
+    Freeform content is plain text output from the model that's NOT a tool call.
+    This is typically the model's continuity journal / reflection memo.
 
     Args:
-        thinking_contents: List of thinking content strings
-        window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
-        output_dir: Base output directory
+        messages: Agent message history from result.all_messages()
 
     Returns:
-        Path to saved thinking file, or None if no thinking content
+        Combined freeform content as a single string
 
     """
-    if not thinking_contents:
+    freeform_parts: list[str] = []
+
+    for message in messages:
+        # Check if this is a ModelResponse message
+        if isinstance(message, ModelResponse):
+            # Iterate through parts to find TextPart (non-tool text output)
+            freeform_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
+
+    return "\n\n".join(freeform_parts).strip()
+
+
+def _save_journal_to_file(
+    thinking_contents: list[str],
+    freeform_content: str,
+    window_label: str,
+    output_dir: Path,
+    site_root: Path | None = None,
+) -> Path | None:
+    """Save journal entry combining thinking and freeform content to markdown file.
+
+    Args:
+        thinking_contents: List of thinking/reasoning content strings
+        freeform_content: Freeform reflection/memo content
+        window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
+        output_dir: Base output directory
+        site_root: Optional site root for custom template overrides
+
+    Returns:
+        Path to saved journal file, or None if no content
+
+    """
+    # Skip if no content at all
+    if not thinking_contents and not freeform_content:
         return None
 
-    # Create thinking directory if it doesn't exist
-    thinking_dir = output_dir / ".thinking"
-    thinking_dir.mkdir(parents=True, exist_ok=True)
+    # Create journal directory if it doesn't exist
+    journal_dir = output_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename from window label (sanitize for filesystem)
     safe_filename = window_label.replace(":", "-").replace(" ", "_")
-    thinking_path = thinking_dir / f"thinking_{safe_filename}.md"
+    journal_path = journal_dir / f"journal_{safe_filename}.md"
 
-    # Build markdown content
-    content_parts = [
-        f"# Model Thinking - {window_label}\n\n",
-        f"Generated: {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n",
-        "---\n\n",
-    ]
+    # Load template
+    template_loader = get_prompt_loader(site_root)
+    template = template_loader.get_template("system/journal.jinja")
 
-    for i, thinking in enumerate(thinking_contents, 1):
-        if len(thinking_contents) > 1:
-            content_parts.append(f"## Thinking Part {i}\n\n")
-        content_parts.append(thinking.strip())
-        content_parts.append("\n\n---\n\n")
+    # Render journal content
+    journal_content = template.render(
+        window_label=window_label,
+        timestamp=datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        thinking_parts=thinking_contents,
+        freeform_content=freeform_content,
+    )
 
     # Write to file
-    thinking_path.write_text("".join(content_parts), encoding="utf-8")
-    logger.info("Saved thinking content to %s", thinking_path)
+    journal_path.write_text(journal_content, encoding="utf-8")
+    logger.info("Saved journal entry to %s", journal_path)
 
-    return thinking_path
+    return journal_path
 
 
 def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
@@ -517,9 +550,12 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
-        # Extract and save thinking/reasoning content to markdown file
+        # Extract thinking and freeform content, save to journal
         thinking_contents = _extract_thinking_content(result.all_messages())
-        thinking_path = _save_thinking_to_file(thinking_contents, window_label, context.output_dir)
+        freeform_content = _extract_freeform_content(result.all_messages())
+        journal_path = _save_journal_to_file(
+            thinking_contents, freeform_content, window_label, context.output_dir, context.site_root
+        )
 
         usage = result.usage()
         logfire_info(
@@ -527,8 +563,9 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
             period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
-            thinking_saved=thinking_path is not None,
+            journal_saved=journal_path is not None,
             thinking_parts=len(thinking_contents),
+            freeform_length=len(freeform_content),
             # Standard token counts
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,
