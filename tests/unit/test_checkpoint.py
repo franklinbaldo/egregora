@@ -490,8 +490,9 @@ def test_checkpoint_invalidation_on_code_change(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_age_keeps_recent(temp_cache_dir: Path):
     """gc_checkpoints_by_age() keeps most recent checkpoints."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
     import time
+
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
 
     # Create 10 checkpoints with different timestamps
     for i in range(10):
@@ -509,8 +510,9 @@ def test_gc_checkpoints_by_age_keeps_recent(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_age_all_stages(temp_cache_dir: Path):
     """gc_checkpoints_by_age() applies to all stages when stage=None."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
     import time
+
+    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
 
     # Create checkpoints for multiple stages
     for stage_num in range(3):
@@ -588,9 +590,7 @@ def test_gc_checkpoints_by_size_evicts_lru(temp_cache_dir: Path):
 
     assert count >= 1  # At least 1 deleted
     # Total cache should be under limit
-    remaining_size = sum(
-        p.stat().st_size for p in temp_cache_dir.rglob("checkpoint.pkl")
-    )
+    remaining_size = sum(p.stat().st_size for p in temp_cache_dir.rglob("checkpoint.pkl"))
     assert remaining_size <= 2 * 1024 * 1024
 
 
