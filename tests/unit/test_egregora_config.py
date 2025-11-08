@@ -8,13 +8,11 @@ Tests cover:
 - Error handling
 """
 
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
 from egregora.config.loader import create_default_config, find_egregora_config, load_egregora_config
-from egregora.config.schema import EgregoraConfig, RAGConfig
+from egregora.config.schema import EgregoraConfig
 
 
 def test_egregora_config_defaults():
