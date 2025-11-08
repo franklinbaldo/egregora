@@ -1,4 +1,8 @@
-"""Avatar processing with moderation for user profiles."""
+"""Avatar download and validation for user profiles.
+
+Simplified: URL-only format, saved to media/images/ like regular media.
+Avatars go through regular media enrichment pipeline (no special moderation).
+"""
 
 from __future__ import annotations
 
@@ -8,25 +12,15 @@ import ipaddress
 import logging
 import socket
 import uuid
-import zipfile
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
 from PIL import Image
 
 from egregora.config import MEDIA_DIR_NAME
-from egregora.config.schema import DEFAULT_MODEL
-from egregora.enrichment.agents import (
-    AvatarEnrichmentContext,
-    create_avatar_enrichment_agent,
-    load_file_as_binary_content,
-)
 
 logger = logging.getLogger(__name__)
-ModerationStatus = Literal["approved", "questionable", "blocked"]
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024
@@ -54,18 +48,6 @@ BLOCKED_IP_RANGES = [
     ipaddress.ip_network("fe80::/10"),
     ipaddress.ip_network("fc00::/7"),
 ]
-
-
-@dataclass
-class AvatarModerationResult:
-    """Result of avatar moderation."""
-
-    status: ModerationStatus
-    reason: str
-    has_pii: bool
-    avatar_uuid: str
-    avatar_path: Path
-    enrichment_path: Path
 
 
 class AvatarProcessingError(Exception):
@@ -434,187 +416,7 @@ def download_avatar_from_url(
         return (avatar_uuid, avatar_path)
 
 
-def _get_mime_type_from_extension(ext: str) -> str:
-    """Get MIME type from file extension.
-
-    Args:
-        ext: File extension (e.g., '.jpg')
-
-    Returns:
-        MIME type string
-
-    Raises:
-        AvatarProcessingError: If extension is not supported
-
-    """
-    if ext in (".jpg", ".jpeg"):
-        return "image/jpeg"
-    if ext == ".png":
-        return "image/png"
-    if ext == ".gif":
-        return "image/gif"
-    if ext == ".webp":
-        return "image/webp"
-    msg = f"Unsupported extension: {ext}"
-    raise AvatarProcessingError(msg)
-
-
-def _find_file_in_zip(zf: zipfile.ZipFile, media_filename: str) -> bytes:
-    """Find and extract file from ZIP archive.
-
-    Args:
-        zf: Open ZIP file object
-        media_filename: Name of file to find
-
-    Returns:
-        File content as bytes
-
-    Raises:
-        AvatarProcessingError: If file not found or too large
-
-    """
-    for info in zf.infolist():
-        if info.is_dir():
-            continue
-
-        # Security check for path traversal
-        if ".." in info.filename or info.filename.startswith("/"):
-            logger.warning("Skipping suspicious ZIP entry with path traversal: %s", info.filename)
-            continue
-
-        filename = Path(info.filename).name
-        if filename == media_filename:
-            if info.file_size > MAX_AVATAR_SIZE_BYTES:
-                msg = f"Avatar image too large: {info.file_size} bytes (max: {MAX_AVATAR_SIZE_BYTES} bytes)"
-                raise AvatarProcessingError(msg)
-            return zf.read(info)
-
-    msg = f"Media file not found in ZIP: {media_filename}"
-    raise AvatarProcessingError(msg)
-
-
-def extract_avatar_from_zip(zip_path: Path, media_filename: str, docs_dir: Path) -> tuple[uuid.UUID, Path]:
-    """Extract avatar image from WhatsApp ZIP export.
-
-    Args:
-        zip_path: Path to WhatsApp export ZIP
-        media_filename: Filename of the media in the ZIP
-        docs_dir: MkDocs docs directory
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If extraction fails or image is invalid
-
-    """
-    logger.info("Extracting avatar from ZIP: %s", media_filename)
-    try:
-        ext = _validate_image_format(media_filename)
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            content = _find_file_in_zip(zf, media_filename)
-
-        mime_type = _get_mime_type_from_extension(ext)
-        _validate_image_content(content, mime_type)
-        _validate_image_dimensions(content)
-
-        avatar_uuid = _generate_avatar_uuid(content)
-        avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
-    except zipfile.BadZipFile as e:
-        msg = f"Invalid ZIP file: {e}"
-        raise AvatarProcessingError(msg) from e
-    except OSError as e:
-        msg = f"Failed to extract avatar: {e}"
-        raise AvatarProcessingError(msg) from e
-    else:
-        return (avatar_uuid, avatar_path)
-
-
-def enrich_and_moderate_avatar(
-    avatar_uuid: uuid.UUID, avatar_path: Path, docs_dir: Path, model: str = DEFAULT_MODEL
-) -> AvatarModerationResult:
-    """Enrich avatar image with AI description and moderation.
-
-    Creates pydantic-ai agent with configured model.
-    Reads auth from GOOGLE_API_KEY environment variable.
-
-    Args:
-        avatar_uuid: UUID of the avatar
-        avatar_path: Path to avatar image
-        docs_dir: MkDocs docs directory
-        model: Pydantic-AI model id (default: google-gla:gemini-flash-latest)
-
-    Returns:
-        AvatarModerationResult with moderation verdict
-
-    Raises:
-        AvatarProcessingError: If enrichment fails
-
-    """
-    logger.info("Enriching and moderating avatar: %s", avatar_uuid)
-    avatar_enrichment_agent = create_avatar_enrichment_agent(model)
-    try:
-        binary_content = load_file_as_binary_content(avatar_path)
-        relative_path = avatar_path.relative_to(docs_dir).as_posix()
-        context = AvatarEnrichmentContext(media_filename=avatar_path.name, media_path=relative_path)
-        message_content = ["Analyze and moderate this avatar image", binary_content]
-        result = avatar_enrichment_agent.run_sync(message_content, deps=context)
-        output = getattr(result, "output", getattr(result, "data", result))
-        is_appropriate = output.is_appropriate
-        reason = output.reason
-        description = output.description
-        status = "approved" if is_appropriate else "blocked"
-        has_pii = "pii" in reason.lower() or "personal" in reason.lower()
-        enrichment_text = f"# Avatar Analysis\n\n{description}\n\n**Status**: {status}\n**Reason**: {reason}"
-        enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-        enrichment_path.write_text(enrichment_text, encoding="utf-8")
-        logger.info("Saved enrichment to: %s", enrichment_path)
-        if has_pii or status == "blocked":
-            logger.warning("Avatar %s blocked (PII: %s, Status: %s)", avatar_uuid, has_pii, status)
-            if has_pii and status == "approved":
-                status = "blocked"
-            try:
-                avatar_path.unlink(missing_ok=True)
-                logger.info("Deleted blocked avatar: %s", avatar_path)
-            except OSError:
-                logger.exception("Failed to delete avatar %s", avatar_path)
-            try:
-                enrichment_path.unlink(missing_ok=True)
-                logger.info("Deleted enrichment file: %s", enrichment_path)
-            except OSError:
-                logger.exception("Failed to delete enrichment %s", enrichment_path)
-        return AvatarModerationResult(
-            status=status,
-            reason=reason,
-            has_pii=has_pii,
-            avatar_uuid=str(avatar_uuid),
-            avatar_path=avatar_path,
-            enrichment_path=enrichment_path,
-        )
-    except Exception as e:
-        logger.error("Avatar enrichment failed for %s: %s", avatar_uuid, e, exc_info=True)
-        try:
-            if avatar_path and avatar_path.exists():
-                avatar_path.unlink(missing_ok=True)
-                logger.info("Cleaned up avatar file after failure: %s", avatar_path)
-        except OSError:
-            logger.exception("Failed to clean up avatar %s", avatar_path)
-        try:
-            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-            if enrichment_path.exists():
-                enrichment_path.unlink(missing_ok=True)
-                logger.info("Cleaned up enrichment file after failure: %s", enrichment_path)
-        except (OSError, AttributeError):
-            logger.exception("Failed to clean up enrichment file")
-        msg = f"Failed to enrich avatar {avatar_uuid}: {e}"
-        raise AvatarProcessingError(msg) from e
-
-
 __all__ = [
-    "AvatarModerationResult",
     "AvatarProcessingError",
-    "ModerationStatus",
     "download_avatar_from_url",
-    "enrich_and_moderate_avatar",
-    "extract_avatar_from_zip",
 ]
