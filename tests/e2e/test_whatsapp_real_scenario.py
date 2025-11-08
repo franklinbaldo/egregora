@@ -158,6 +158,8 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
 
     assert {"timestamp", "author", "message"}.issubset(table.columns)
     assert table.count().execute() == 10
+    messages = table["message"].execute().tolist()
+    assert all(message is not None and message.strip() for message in messages)
 
     timestamps = table["timestamp"].execute()
     assert all(ts.tzinfo is not None for ts in timestamps)

@@ -480,7 +480,9 @@ def _parse_messages(
         # Finalize previous message
         if builder is not None:
             row = builder.finalize()
-            if row["message"]:
+            # Drop empty messages (WhatsApp exports occasionally include blank lines that should not count as messages)
+            message = row.get("message")
+            if message:
                 row[_IMPORT_ORDER_COLUMN] = position
                 rows.append(row)
                 position += 1
@@ -501,7 +503,8 @@ def _parse_messages(
     # Finalize last message
     if builder is not None:
         row = builder.finalize()
-        if row["message"]:
+        message = row.get("message")
+        if message:
             row[_IMPORT_ORDER_COLUMN] = position
             rows.append(row)
 
