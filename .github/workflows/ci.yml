@@ -8,8 +8,15 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Security: Limit GITHUB_TOKEN permissions to minimum required
+# See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+permissions:
+  contents: read  # Allow checkout
+
 jobs:
   lint-and-test:
+    permissions:
+      contents: read  # Checkout code
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -59,6 +66,8 @@ jobs:
         continue-on-error: true  # VCR cassettes might not exist yet
 
   security:
+    permissions:
+      contents: read  # Checkout code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +88,9 @@ jobs:
         continue-on-error: true
 
   build:
+    permissions:
+      contents: read   # Checkout code
+      actions: write   # Upload artifacts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
