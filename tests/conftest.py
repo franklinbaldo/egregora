@@ -203,6 +203,46 @@ def gemini_api_key() -> str:
     return "test-key"
 
 
+@pytest.fixture(autouse=True)
+def stub_enrichment_agents(monkeypatch):
+    """Provide deterministic Pydantic-AI agents for enrichment/avatars during tests."""
+    from types import SimpleNamespace
+
+    from egregora.enrichment.agents import AvatarModerationOutput, EnrichmentOutput
+
+    def _make_enrichment_agent(prefix: str):
+        class _StubAgent:
+            def run_sync(self, *args, **kwargs):  # noqa: ANN002, ANN003 - signature defined by Agent interface
+                return SimpleNamespace(output=EnrichmentOutput(markdown=f"{prefix}-stub"))
+
+        return _StubAgent()
+
+    def _make_avatar_agent():
+        class _StubAvatarAgent:
+            def run_sync(self, *args, **kwargs):  # noqa: ANN002, ANN003
+                return SimpleNamespace(
+                    output=AvatarModerationOutput(
+                        is_appropriate=True,
+                        reason="stub-approval",
+                        description="stub-avatar",
+                    )
+                )
+
+        return _StubAvatarAgent()
+
+    url_stub = lambda model: _make_enrichment_agent("url")
+    media_stub = lambda model: _make_enrichment_agent("media")
+    avatar_stub = lambda model: _make_avatar_agent()
+
+    monkeypatch.setattr("egregora.enrichment.agents.create_url_enrichment_agent", url_stub)
+    monkeypatch.setattr("egregora.enrichment.agents.create_media_enrichment_agent", media_stub)
+    monkeypatch.setattr("egregora.enrichment.agents.create_avatar_enrichment_agent", avatar_stub)
+    monkeypatch.setattr("egregora.enrichment.core.create_url_enrichment_agent", url_stub, raising=False)
+    monkeypatch.setattr("egregora.enrichment.core.create_media_enrichment_agent", media_stub, raising=False)
+    monkeypatch.setattr("egregora.enrichment.avatar.create_avatar_enrichment_agent", avatar_stub, raising=False)
+    yield
+
+
 @pytest.fixture
 def mock_batch_client(monkeypatch):
     """Monkey-patch genai.Client with mocks for fast tests.

@@ -132,8 +132,8 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
     target_table = context.target_table
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
-    url_enrichment_agent = create_url_enrichment_agent(url_model)
-    media_enrichment_agent = create_media_enrichment_agent(vision_model)
+    url_enrichment_agent = create_url_enrichment_agent(url_model) if enable_url else None
+    media_enrichment_agent = create_media_enrichment_agent(vision_model) if enable_media else None
     if messages_table.count().execute() == 0:
         return messages_table
     rows = _table_to_pylist(messages_table)
@@ -225,7 +225,7 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
                 seen_media_keys.add(cache_key)
                 enrichment_count += 1
     pending_url_jobs = [url_job for url_job in url_jobs if url_job.markdown is None]
-    if pending_url_jobs:
+    if pending_url_jobs and url_enrichment_agent:
         for url_job in pending_url_jobs:
             ts = _ensure_datetime(url_job.timestamp)
             context = UrlEnrichmentContext(
@@ -244,7 +244,7 @@ def enrich_table(  # noqa: C901, PLR0912, PLR0915
             url_job.markdown = output.markdown
             cache.store(url_job.key, {"markdown": output.markdown, "type": "url"})
     pending_media_jobs = [job for job in media_jobs if job.markdown is None]
-    if pending_media_jobs:
+    if pending_media_jobs and media_enrichment_agent:
         for media_job in pending_media_jobs:
             binary_content = load_file_as_binary_content(media_job.file_path)
             ts = _ensure_datetime(media_job.timestamp)

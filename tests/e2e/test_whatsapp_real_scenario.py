@@ -312,7 +312,7 @@ def test_full_pipeline_completes_without_crash(
     )
 
     assert results
-    assert processed_dates == ["2025-10-28"]
+    assert processed_dates == ["2025-10-28 14:10 to 14:15"]
 
 
 def test_pipeline_creates_expected_directory_structure(
@@ -338,7 +338,7 @@ def test_pipeline_creates_expected_directory_structure(
     assert (docs_dir / "posts").exists()
     assert (docs_dir / "profiles").exists()
     assert (docs_dir / "media").exists()
-    assert (site_root / "enriched").exists()
+    assert (site_root / ".egregora").exists()
 
 
 def test_pipeline_respects_date_range_filters(

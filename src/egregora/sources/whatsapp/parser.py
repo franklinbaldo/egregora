@@ -480,9 +480,10 @@ def _parse_messages(
         # Finalize previous message
         if builder is not None:
             row = builder.finalize()
-            row[_IMPORT_ORDER_COLUMN] = position
-            rows.append(row)
-            position += 1
+            if row["message"]:
+                row[_IMPORT_ORDER_COLUMN] = position
+                rows.append(row)
+                position += 1
 
         # Create timestamp with proper timezone
         tz = _resolve_timezone(timezone)
@@ -500,8 +501,9 @@ def _parse_messages(
     # Finalize last message
     if builder is not None:
         row = builder.finalize()
-        row[_IMPORT_ORDER_COLUMN] = position
-        rows.append(row)
+        if row["message"]:
+            row[_IMPORT_ORDER_COLUMN] = position
+            rows.append(row)
 
     return rows
 

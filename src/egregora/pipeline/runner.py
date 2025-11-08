@@ -25,7 +25,7 @@ from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
-from egregora.enrichment.avatar_pipeline import process_avatar_commands
+from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
@@ -199,8 +199,6 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         else:
             logger.info("[magenta]🧾 No /egregora commands detected[/]")
         logger.info("[cyan]🖼️  Processing avatar commands...[/]")
-        from egregora.enrichment.avatar_pipeline import AvatarContext
-
         avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
