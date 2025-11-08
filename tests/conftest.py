@@ -203,6 +203,40 @@ def gemini_api_key() -> str:
     return "test-key"
 
 
+@pytest.fixture(autouse=True)
+def stub_enrichment_agents(monkeypatch):
+    """Provide deterministic enrichment/vision agents for offline tests."""
+
+    def _stub_agent(model):  # pragma: no cover - simple factory
+        return object()
+
+    def _stub_url_run(agent, url):
+        return f"Stub enrichment for {url}"
+
+    def _stub_media_run(agent, file_path, **kwargs):
+        return f"Stub enrichment for {file_path}"
+
+    monkeypatch.setattr("egregora.enrichment.thin_agents.make_url_agent", lambda model: _stub_agent(model))
+    monkeypatch.setattr("egregora.enrichment.simple_runner.make_url_agent", lambda model: _stub_agent(model), raising=False)
+    monkeypatch.setattr("egregora.enrichment.thin_agents.make_media_agent", lambda model: _stub_agent(model))
+    monkeypatch.setattr("egregora.enrichment.simple_runner.make_media_agent", lambda model: _stub_agent(model), raising=False)
+    monkeypatch.setattr("egregora.enrichment.thin_agents.run_url_enrichment", lambda agent, url: _stub_url_run(agent, url))
+    monkeypatch.setattr(
+        "egregora.enrichment.simple_runner.run_url_enrichment",
+        lambda agent, url: _stub_url_run(agent, url),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.thin_agents.run_media_enrichment",
+        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.simple_runner.run_media_enrichment",
+        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
+        raising=False,
+    )
+
+
 @pytest.fixture
 def mock_batch_client(monkeypatch):
     """Monkey-patch genai.Client with mocks for fast tests.
