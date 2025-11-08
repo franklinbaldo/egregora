@@ -217,10 +217,16 @@ def stub_enrichment_agents(monkeypatch):
         return f"Stub enrichment for {file_path}"
 
     monkeypatch.setattr("egregora.enrichment.thin_agents.make_url_agent", lambda model: _stub_agent(model))
-    monkeypatch.setattr("egregora.enrichment.simple_runner.make_url_agent", lambda model: _stub_agent(model), raising=False)
+    monkeypatch.setattr(
+        "egregora.enrichment.simple_runner.make_url_agent", lambda model: _stub_agent(model), raising=False
+    )
     monkeypatch.setattr("egregora.enrichment.thin_agents.make_media_agent", lambda model: _stub_agent(model))
-    monkeypatch.setattr("egregora.enrichment.simple_runner.make_media_agent", lambda model: _stub_agent(model), raising=False)
-    monkeypatch.setattr("egregora.enrichment.thin_agents.run_url_enrichment", lambda agent, url: _stub_url_run(agent, url))
+    monkeypatch.setattr(
+        "egregora.enrichment.simple_runner.make_media_agent", lambda model: _stub_agent(model), raising=False
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.thin_agents.run_url_enrichment", lambda agent, url: _stub_url_run(agent, url)
+    )
     monkeypatch.setattr(
         "egregora.enrichment.simple_runner.run_url_enrichment",
         lambda agent, url: _stub_url_run(agent, url),
