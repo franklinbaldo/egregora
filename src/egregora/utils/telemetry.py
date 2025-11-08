@@ -32,8 +32,9 @@ Environment Variables:
 
 import os
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 # Lazy imports to avoid requiring OpenTelemetry dependencies
 _OTEL_ENABLED = os.getenv("EGREGORA_OTEL", "0") == "1"
@@ -45,6 +46,7 @@ def is_telemetry_enabled() -> bool:
 
     Returns:
         True if EGREGORA_OTEL=1, False otherwise
+
     """
     return _OTEL_ENABLED
 
@@ -68,6 +70,7 @@ def configure_otel() -> None:
         >>> os.environ["EGREGORA_OTEL"] = "1"
         >>> configure_otel()
         >>> tracer = get_tracer(__name__)
+
     """
     global _OTEL_CONFIGURED
 
@@ -155,6 +158,7 @@ def get_tracer(name: str):
         >>> tracer = get_tracer(__name__)
         >>> with tracer.start_as_current_span("my_operation"):
         ...     do_work()
+
     """
     if not _OTEL_ENABLED:
         # Return no-op tracer (doesn't fail if telemetry disabled)
@@ -191,6 +195,7 @@ def traced_operation(
     Example:
         >>> with traced_operation("enrich_urls", attributes={"url_count": 10}):
         ...     enrich_urls(table)
+
     """
     if not _OTEL_ENABLED:
         # No-op if telemetry disabled
@@ -215,6 +220,7 @@ def get_current_trace_id() -> str | None:
         >>> with traced_operation("my_op"):
         ...     trace_id = get_current_trace_id()
         ...     print(f"Trace ID: {trace_id}")
+
     """
     if not _OTEL_ENABLED:
         return None
@@ -253,6 +259,7 @@ def traced(operation_name: str | None = None, **default_attributes: Any):
         >>> @traced("process_data", stage="enrichment")
         ... def process_table(table):
         ...     return table.mutate(processed=True)
+
     """
 
     def decorator(func):

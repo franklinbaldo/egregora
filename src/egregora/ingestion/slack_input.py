@@ -17,8 +17,6 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-import ibis
-
 from egregora.ingestion.base import InputMetadata, InputSource
 
 if TYPE_CHECKING:
