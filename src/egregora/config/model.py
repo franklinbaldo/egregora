@@ -16,37 +16,12 @@ if TYPE_CHECKING:
 
 EMBEDDING_DIM = 768
 logger = logging.getLogger(__name__)
-DEFAULT_WRITER_MODEL = "google-gla:gemini-flash-latest"
-DEFAULT_ENRICHER_MODEL = "google-gla:gemini-flash-latest"
-DEFAULT_ENRICHER_VISION_MODEL = "google-gla:gemini-flash-latest"
-DEFAULT_RANKING_MODEL = "google-gla:gemini-flash-latest"
-DEFAULT_EDITOR_MODEL = "google-gla:gemini-flash-latest"
-DEFAULT_EMBEDDING_MODEL = "google-gla:gemini-embedding-001"
-ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "embedding"]
 
+# Model type literal for type checking
+ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
 
-def from_pydantic_ai_model(model_name: str) -> str:
-    """Convert pydantic-ai string notation to Google API model format.
-
-    Use this ONLY for direct Google GenAI SDK calls (e.g., embeddings).
-    Pydantic-AI agents should use the pydantic-ai format directly.
-
-    Examples:
-        "google-gla:gemini-flash-latest" -> "models/gemini-flash-latest"
-        "google-gla:gemini-2.0-flash-exp" -> "models/gemini-2.0-flash-exp"
-
-    Args:
-        model_name: Model name in pydantic-ai format (provider:model)
-
-    Returns:
-        Model name in Google API format (models/model-name)
-
-    """
-    if ":" in model_name:
-        _, model_name = model_name.split(":", 1)
-    if not model_name.startswith("models/"):
-        model_name = f"models/{model_name}"
-    return model_name
+# NOTE: Model defaults are centralized in schema.py ModelsConfig class
+# No fallback constants needed - schema.py provides non-nullable defaults
 
 
 class ModelConfig:
@@ -72,7 +47,8 @@ class ModelConfig:
         Priority:
         1. CLI flag (--model) if provided
         2. Config file (.egregora/config.yml models.{type})
-        3. Default for task type
+           - Agent-specific models default to models.default if not specified
+           - Resolution happens in schema.py @model_validator
 
         Args:
             model_type: Type of model to retrieve
@@ -86,24 +62,10 @@ class ModelConfig:
             logger.debug("Using CLI model for %s: %s", model_type, self.cli_model)
             return self.cli_model
 
-        # Get from config
-        model = getattr(self.config.models, model_type, None)
-        if model:
-            logger.debug("Using config model for %s: %s", model_type, model)
-            return model
-
-        # Fall back to defaults
-        defaults = {
-            "writer": DEFAULT_WRITER_MODEL,
-            "enricher": DEFAULT_ENRICHER_MODEL,
-            "enricher_vision": DEFAULT_ENRICHER_VISION_MODEL,
-            "ranking": DEFAULT_RANKING_MODEL,
-            "editor": DEFAULT_EDITOR_MODEL,
-            "embedding": DEFAULT_EMBEDDING_MODEL,
-        }
-        default_model = defaults[model_type]
-        logger.debug("Using default model for %s: %s", model_type, default_model)
-        return default_model
+        # Get from config (defaults already resolved by schema validator)
+        model = getattr(self.config.models, model_type)
+        logger.debug("Using config model for %s: %s", model_type, model)
+        return model
 
 
 def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConfig:

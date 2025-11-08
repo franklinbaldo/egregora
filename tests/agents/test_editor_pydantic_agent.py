@@ -54,7 +54,7 @@ def model_config() -> ModelConfig:
             writer="google-gla:gemini-flash-latest",
             enricher="google-gla:gemini-flash-latest",
             enricher_vision="google-gla:gemini-flash-latest",
-            embedding="google-gla:gemini-embedding-001",
+            embedding="models/gemini-embedding-001",
             ranking="google-gla:gemini-flash-latest",
             editor="google-gla:gemini-flash-latest",
         )

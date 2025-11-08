@@ -199,14 +199,20 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         else:
             logger.info("[magenta]🧾 No /egregora commands detected[/]")
         logger.info("[cyan]🖼️  Processing avatar commands...[/]")
-        avatar_results = process_avatar_commands(
-            messages_table=messages_table,
-            zip_path=input_path,
+        from egregora.enrichment.avatar_pipeline import AvatarContext
+
+        avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
             group_slug=str(group_slug),
             vision_client=client,
             model=vision_model,
+            adapter=adapter,
+            input_path=input_path,
+        )
+        avatar_results = process_avatar_commands(
+            messages_table=messages_table,
+            context=avatar_context,
         )
         if avatar_results:
             logger.info("[green]✓ Processed[/] %s avatar command(s)", len(avatar_results))

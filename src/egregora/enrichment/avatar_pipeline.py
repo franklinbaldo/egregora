@@ -11,7 +11,6 @@ from egregora.enrichment.avatar import (
     AvatarProcessingError,
     download_avatar_from_url,
     enrich_and_moderate_avatar,
-    extract_avatar_from_zip,
 )
 from egregora.enrichment.media import extract_urls, find_media_references
 from egregora.ingestion import extract_commands  # Phase 6: Re-exported from sources/whatsapp
@@ -34,7 +33,8 @@ class AvatarContext:
     group_slug: str
     vision_client: genai.Client
     model: str
-    zip_path: Path | None = None
+    adapter: any  # SourceAdapter - avoiding circular import
+    input_path: Path
 
 
 def _acquire_avatar_from_url(value: str, context: AvatarContext) -> tuple[str, Path]:
@@ -58,8 +58,45 @@ def _acquire_avatar_from_url(value: str, context: AvatarContext) -> tuple[str, P
     raise AvatarProcessingError(msg)
 
 
-def _acquire_avatar_from_zip(message: str, context: AvatarContext) -> tuple[str, Path]:
-    """Acquire avatar from ZIP attachment.
+def _process_avatar_file(temp_file: Path, context: AvatarContext) -> tuple[str, Path]:
+    """Process a delivered avatar file and save it.
+
+    Args:
+        temp_file: Path to temporary avatar file
+        context: Avatar processing context
+
+    Returns:
+        Tuple of (avatar_uuid, avatar_path)
+
+    Raises:
+        AvatarProcessingError: If validation fails
+
+    """
+    from egregora.enrichment.avatar import (
+        _generate_avatar_uuid,
+        _get_mime_type_from_extension,
+        _save_avatar_file,
+        _validate_image_content,
+        _validate_image_dimensions,
+        _validate_image_format,
+    )
+
+    # Validate and process the file
+    ext = _validate_image_format(temp_file.name)
+    content = temp_file.read_bytes()
+
+    mime_type = _get_mime_type_from_extension(ext)
+    _validate_image_content(content, mime_type)
+    _validate_image_dimensions(content)
+
+    avatar_uuid = _generate_avatar_uuid(content, context.group_slug)
+    avatar_path = _save_avatar_file(content, avatar_uuid, ext, context.docs_dir)
+
+    return (str(avatar_uuid), avatar_path)
+
+
+def _acquire_avatar_from_adapter(message: str, context: AvatarContext) -> tuple[str, Path]:
+    """Acquire avatar from media via source adapter.
 
     Args:
         message: Message text containing media reference
@@ -69,19 +106,35 @@ def _acquire_avatar_from_zip(message: str, context: AvatarContext) -> tuple[str,
         Tuple of (avatar_uuid, avatar_path)
 
     Raises:
-        AvatarProcessingError: If no media reference or ZIP path
+        AvatarProcessingError: If no media reference or delivery fails
 
     """
+    import tempfile
+
     media_refs = find_media_references(message)
-    if media_refs and context.zip_path:
-        return extract_avatar_from_zip(
-            zip_path=context.zip_path,
-            media_filename=media_refs[0],
-            docs_dir=context.docs_dir,
-            group_slug=context.group_slug,
+    if not media_refs:
+        msg = "No media attachment found for avatar command"
+        raise AvatarProcessingError(msg)
+
+    # Use adapter.deliver_media() to get the file (source-agnostic)
+    with tempfile.TemporaryDirectory(prefix="egregora-avatar-") as temp_dir_str:
+        temp_dir = Path(temp_dir_str)
+        adapter_kwargs = {
+            "zip_path": context.input_path,
+            "input_path": context.input_path,
+        }
+        delivered_file = context.adapter.deliver_media(
+            media_reference=media_refs[0],
+            temp_dir=temp_dir,
+            **adapter_kwargs,
         )
-    msg = "No media attachment found for avatar command"
-    raise AvatarProcessingError(msg)
+
+        if delivered_file is None or not delivered_file.exists():
+            msg = f"Failed to deliver media file: {media_refs[0]}"
+            raise AvatarProcessingError(msg)
+
+        # Now process the delivered file as an avatar
+        return _process_avatar_file(delivered_file, context)
 
 
 def _cleanup_avatar_files(avatar_path: Path) -> None:
@@ -115,7 +168,7 @@ def _acquire_avatar_source(
     context: AvatarContext,
     author_uuid: str,
 ) -> tuple[str, Path]:
-    """Acquire avatar from URL or ZIP attachment.
+    """Acquire avatar from URL or adapter media delivery.
 
     Args:
         value: Optional command value (may contain URL)
@@ -135,9 +188,9 @@ def _acquire_avatar_source(
         if urls:
             logger.info("Downloading avatar from URL for %s", author_uuid)
             return _acquire_avatar_from_url(value, context)
-        # Fall through to ZIP extraction if no URL in value
-    logger.info("Extracting avatar from ZIP for %s", author_uuid)
-    return _acquire_avatar_from_zip(message, context)
+        # Fall through to adapter extraction if no URL in value
+    logger.info("Extracting avatar via adapter for %s", author_uuid)
+    return _acquire_avatar_from_adapter(message, context)
 
 
 def process_avatar_commands(

@@ -18,6 +18,7 @@ import httpx
 from PIL import Image
 
 from egregora.config import MEDIA_DIR_NAME
+from egregora.config.schema import DEFAULT_MODEL
 from egregora.enrichment.agents import (
     AvatarEnrichmentContext,
     create_avatar_enrichment_agent,
@@ -526,7 +527,7 @@ def extract_avatar_from_zip(
 
 
 def enrich_and_moderate_avatar(
-    avatar_uuid: uuid.UUID, avatar_path: Path, docs_dir: Path, model: str = "models/gemini-flash-latest"
+    avatar_uuid: uuid.UUID, avatar_path: Path, docs_dir: Path, model: str = DEFAULT_MODEL
 ) -> AvatarModerationResult:
     """Enrich avatar image with AI description and moderation.
 
@@ -537,7 +538,7 @@ def enrich_and_moderate_avatar(
         avatar_uuid: UUID of the avatar
         avatar_path: Path to avatar image
         docs_dir: MkDocs docs directory
-        model: Model name in Google API format (default: models/gemini-flash-latest)
+        model: Pydantic-AI model id (default: google-gla:gemini-flash-latest)
 
     Returns:
         AvatarModerationResult with moderation verdict
@@ -554,9 +555,10 @@ def enrich_and_moderate_avatar(
         context = AvatarEnrichmentContext(media_filename=avatar_path.name, media_path=relative_path)
         message_content = ["Analyze and moderate this avatar image", binary_content]
         result = avatar_enrichment_agent.run_sync(message_content, deps=context)
-        is_appropriate = result.data.is_appropriate
-        reason = result.data.reason
-        description = result.data.description
+        output = getattr(result, "output", getattr(result, "data", result))
+        is_appropriate = output.is_appropriate
+        reason = output.reason
+        description = output.description
         status = "approved" if is_appropriate else "blocked"
         has_pii = "pii" in reason.lower() or "personal" in reason.lower()
         enrichment_text = f"# Avatar Analysis\n\n{description}\n\n**Status**: {status}\n**Reason**: {reason}"

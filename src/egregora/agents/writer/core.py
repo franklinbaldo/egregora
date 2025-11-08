@@ -13,6 +13,7 @@ Documentation:
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import yaml
+from slugify import slugify
 
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import get_active_authors
@@ -38,12 +40,15 @@ from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_post
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
+from egregora.agents.model_limits import PromptTooLargeError
 
 if TYPE_CHECKING:
     from google import genai
     from google.genai import types as genai_types
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
+
+FALLBACK_WRITER_MODEL = os.environ.get("EGREGORA_FALLBACK_WRITER_MODEL", "models/gemini-2.0-flash-lite")
 
 
 @dataclass
@@ -224,6 +229,8 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
         for post_path in saved_posts:
             index_post(Path(post_path), store, embedding_model=embedding_model)
         logger.info("Indexed %s new posts in RAG", len(saved_posts))
+    except PromptTooLargeError:
+        raise
     except Exception:
         logger.exception("Failed to index posts in RAG")
 
@@ -256,7 +263,7 @@ def _write_posts_for_window_pydantic(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
     model_config = ModelConfig() if config.model_config is None else config.model_config
-    model_config.get_model("writer")
+    writer_model = model_config.get_model("writer")
     embedding_model = model_config.get_model("embedding")
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
     messages_table = table.to_pyarrow()
@@ -304,7 +311,10 @@ def _write_posts_for_window_pydantic(
     if config.model_config is None:
         egregora_config = create_default_config()
     else:
-        egregora_config = config.model_config.config
+        # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
+        egregora_config = config.model_config.config.model_copy(deep=True)
+        egregora_config.models.writer = writer_model
+        egregora_config.models.embedding = embedding_model
 
     # Create runtime context for writer agent
     runtime_context = WriterRuntimeContext(
@@ -317,14 +327,111 @@ def _write_posts_for_window_pydantic(
         annotations_store=annotations_store,
     )
 
-    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
-        prompt=prompt,
-        config=egregora_config,
-        context=runtime_context,
-    )
+    try:
+        saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+            prompt=prompt,
+            config=egregora_config,
+            context=runtime_context,
+        )
+    except PromptTooLargeError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Writer agent failed for %s — falling back to single-post summary", date_range)
+        fallback_result = _generate_fallback_post(
+            conversation_markdown=conversation_md,
+            profiles_context=profiles_context,
+            start_time=start_time,
+            end_time=end_time,
+            output_dir=config.output_dir,
+            client=client,
+            model_name=FALLBACK_WRITER_MODEL,
+        )
+        if config.enable_rag:
+            _index_posts_in_rag(fallback_result["posts"], config.rag_dir, embedding_model=embedding_model)
+        return fallback_result
     if config.enable_rag:
         _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}
+
+
+def _generate_fallback_post(
+    *,
+    conversation_markdown: str,
+    profiles_context: str,
+    start_time: datetime,
+    end_time: datetime,
+    output_dir: Path,
+    client: genai.Client,
+    model_name: str,
+) -> dict[str, list[str]]:
+    """Generate a single markdown post when the structured writer agent fails."""
+    from google.genai import types as genai_types  # Local import to avoid optional dependency issues
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    window_label = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+    prompt_lines = [
+        "You are a reliable blog writer tasked with producing ONE markdown article summarizing a conversation window.",
+        "Requirements:",
+        "1. ALWAYS include valid YAML front matter at the top with keys: title, date, slug, tags.",
+        f"2. Date must be {start_time:%Y-%m-%d}.",
+        "3. Use friendly, concise prose (600-900 words) with headings and bullet points when useful.",
+        "4. Highlight key takeaways, decisions, and action items from the conversation.",
+        "5. Include a short 'Highlights' section with 3 bullet points.",
+        "6. Do NOT invent information that is not present in the conversation.",
+        "",
+        f"Conversation window ({window_label}):",
+        "```markdown",
+        conversation_markdown or "*(conversation not available)*",
+        "```",
+    ]
+    if profiles_context:
+        prompt_lines.extend(
+            [
+                "",
+                "Profiles context:",
+                "```markdown",
+                profiles_context,
+                "```",
+            ]
+        )
+    prompt = "\n".join(prompt_lines)
+
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])],
+            config=genai_types.GenerateContentConfig(temperature=0.4),
+        )
+        generated = (response.text or "").strip()
+    except Exception as fallback_exc:  # noqa: BLE001
+        logger.error("Fallback writer model %s failed: %s", model_name, fallback_exc)
+        generated = ""
+
+    if not generated:
+        generated = (
+            f"# Conversation Summary\n\n"
+            f"Window: {window_label}\n\n"
+            "The fallback writer could not retrieve model output, so only timestamps are recorded."
+        )
+
+    if not generated.lstrip().startswith("---"):
+        safe_title = f"Conversation Highlights {start_time:%b %d, %Y}"
+        fallback_slug = slugify(f"{start_time:%Y-%m-%d-%H%M}-fallback")
+        front_matter = (
+            "---\n"
+            f'title: "{safe_title}"\n'
+            f"date: {start_time:%Y-%m-%d}\n"
+            f"slug: {fallback_slug}\n"
+            "tags: [fallback]\n"
+            "---\n\n"
+        )
+        generated = front_matter + generated
+
+    filename = f"{window_label}-fallback.md"
+    path = output_dir / filename
+    path.write_text(generated, encoding="utf-8")
+    logger.warning("Fallback writer generated %s", path)
+    return {"posts": [str(path)], "profiles": []}
 
 
 def write_posts_for_window(

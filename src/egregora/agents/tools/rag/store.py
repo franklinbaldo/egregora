@@ -10,6 +10,7 @@ from typing import Any
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
@@ -691,13 +692,22 @@ class VectorStore:
         """Materialize a table on the store backend when necessary."""
         try:
             backend = table._find_backend()
-        except (AttributeError, RuntimeError) as e:
+        except (AttributeError, RuntimeError, IbisError) as e:
             logger.debug("Could not determine table backend: %s", e)
             backend = None
         if backend is self._client:
             return table
+
         source_schema = table.schema()
-        dataframe = table.execute()
+        dataframe = None
+        if backend is None:
+            op = getattr(table, "op", lambda: None)()
+            data_proxy = getattr(op, "data", None)
+            if data_proxy is not None:
+                dataframe = data_proxy.to_frame()
+        if dataframe is None:
+            dataframe = table.execute()
+
         records = (
             dataframe.to_dict("records")
             if hasattr(dataframe, "to_dict")

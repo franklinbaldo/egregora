@@ -72,7 +72,7 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
     """Create URL enrichment agent with specified model.
 
     Args:
-        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+        model: Pydantic-AI model id (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for URL enrichment
@@ -99,7 +99,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
     """Create media enrichment agent with specified model.
 
     Args:
-        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+        model: Pydantic-AI model id (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for media enrichment
@@ -128,7 +128,7 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     """Create avatar enrichment agent with specified model.
 
     Args:
-        model: Model string in pydantic-ai format (e.g., 'google-gla:gemini-flash-latest')
+        model: Pydantic-AI model id (e.g., 'google-gla:gemini-flash-latest')
 
     Returns:
         Configured agent for avatar moderation

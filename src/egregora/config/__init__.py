@@ -78,20 +78,13 @@ from egregora.config.loader import (
 # - ModelConfig: Dataclass with model_name, backend, temperature
 # - ModelType: Enum of model roles (WRITER, ENRICHER, EMBEDDING, RANKING, EDITOR)
 # - get_model_config(): Get config from EgregoraConfig or environment
-# - from_pydantic_ai_model(): Convert pydantic-ai Model to ModelConfig
-# - DEFAULT_*_MODEL: Default model names for each role
+# - ModelType: Type literal for model names
 # - EMBEDDING_DIM: Embedding vector dimensions (768 for text-embedding-004)
+# Note: Model defaults are centralized in schema.py ModelsConfig (no fallback constants)
 from egregora.config.model import (
-    DEFAULT_EDITOR_MODEL,
-    DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_ENRICHER_MODEL,
-    DEFAULT_ENRICHER_VISION_MODEL,
-    DEFAULT_RANKING_MODEL,
-    DEFAULT_WRITER_MODEL,
     EMBEDDING_DIM,
     ModelConfig,
     ModelType,
-    from_pydantic_ai_model,
     get_model_config,
 )
 
@@ -186,13 +179,8 @@ from egregora.config.types import (
 __all__ = [
     "DEFAULT_BLOG_DIR",  # Default blog directory name
     "DEFAULT_DOCS_DIR",  # Default docs directory name
-    "DEFAULT_EDITOR_MODEL",  # Default model for post editing
-    "DEFAULT_EMBEDDING_MODEL",  # Default model for embeddings
-    "DEFAULT_ENRICHER_MODEL",  # Default model for text enrichment
-    "DEFAULT_ENRICHER_VISION_MODEL",  # Default model for media enrichment
-    "DEFAULT_RANKING_MODEL",  # Default model for Elo ranking
-    "DEFAULT_WRITER_MODEL",  # Default model for blog post generation
     "EMBEDDING_DIM",  # Embedding vector dimensions
+    "ModelType",  # Type literal for model roles
     "MEDIA_DIR_NAME",  # Media subdirectory name
     "PROFILES_DIR_NAME",  # Profiles subdirectory name
     "ComparisonConfig",  # Elo ranking comparison parameters
@@ -235,7 +223,6 @@ __all__ = [
     "create_default_config",  # Create default config
     "find_egregora_config",  # Find config file in directory tree
     "find_mkdocs_file",  # Locate mkdocs.yml
-    "from_pydantic_ai_model",  # Convert pydantic-ai Model
     "get_model_config",  # Get config from EgregoraConfig or env
     # ==========================================================================
     # Config Loading & Persistence

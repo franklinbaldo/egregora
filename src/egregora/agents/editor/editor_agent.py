@@ -145,6 +145,10 @@ async def ask_llm_impl(question: str, client: genai.Client, model: str) -> AskLL
     from google.genai import types as genai_types  # noqa: PLC0415
 
     try:
+        if ":" in model:
+            model = model.split(":", 1)[1]
+        if not model.startswith("models/"):
+            model = f"models/{model}"
         response = await call_with_retries(
             client.aio.models.generate_content,
             model=model,

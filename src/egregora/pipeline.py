@@ -72,7 +72,7 @@ def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_pr
 
     checkpoint = {
         "last_processed_timestamp": last_timestamp.isoformat(),
-        "messages_processed": messages_processed,
+        "messages_processed": int(messages_processed),
         "schema_version": "1.0",
     }
 

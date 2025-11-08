@@ -106,7 +106,7 @@ async def test_ranking_agent_full_comparison(site_dir: Path, test_profile: Path)
         post_b_id="post-b",
         profile_path=test_profile,
         api_key="test-key",  # Won't be used with TestModel
-        model="models/gemini-flash-latest",
+        model="google-gla:gemini-flash-latest",
         agent_model=test_model,
     )
     with pytest.raises(RuntimeError, match="Ranking agent execution failed"):
