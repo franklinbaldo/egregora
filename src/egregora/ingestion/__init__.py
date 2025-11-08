@@ -70,7 +70,7 @@ See Also:
 
 """
 
-from egregora.ingestion.base import InputSource
+from egregora.ingestion.base import InputSource, input_registry
 from egregora.ingestion.slack_input import SlackInputSource
 
 # Phase 6: Re-export WhatsApp parser from sources/whatsapp
@@ -83,6 +83,10 @@ from egregora.sources.whatsapp.parser import (
     parse_multiple,
     parse_source,  # Phase 6: Renamed from parse_export (alpha - no backward compat)
 )
+
+# Register built-in adapters
+input_registry.register(WhatsAppInputSource)
+input_registry.register(SlackInputSource)
 
 __all__ = [
     "InputSource",
