@@ -1,7 +1,5 @@
 """Tests for database view registry."""
 
-from datetime import UTC, datetime
-
 import duckdb
 import ibis
 import pytest
@@ -169,18 +167,20 @@ class TestViewRegistry:
         registry = ViewRegistry(sample_table)
 
         # Register views with dependencies
-        registry.register_many([
-            ViewDefinition(
-                name="base_stats",
-                sql="SELECT author, COUNT(*) as count FROM messages GROUP BY author",
-                materialized=True,
-            ),
-            ViewDefinition(
-                name="top_authors",
-                sql="SELECT author FROM base_stats WHERE count > 1 ORDER BY count DESC",
-                dependencies=("base_stats",),
-            ),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(
+                    name="base_stats",
+                    sql="SELECT author, COUNT(*) as count FROM messages GROUP BY author",
+                    materialized=True,
+                ),
+                ViewDefinition(
+                    name="top_authors",
+                    sql="SELECT author FROM base_stats WHERE count > 1 ORDER BY count DESC",
+                    dependencies=("base_stats",),
+                ),
+            ]
+        )
 
         registry.create_all()
 
@@ -251,18 +251,20 @@ class TestViewRegistry:
         registry = ViewRegistry(sample_table)
 
         # Register multiple materialized views
-        registry.register_many([
-            ViewDefinition(
-                name="total_messages",
-                sql="SELECT COUNT(*) as count FROM messages",
-                materialized=True,
-            ),
-            ViewDefinition(
-                name="total_authors",
-                sql="SELECT COUNT(DISTINCT author) as count FROM messages",
-                materialized=True,
-            ),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(
+                    name="total_messages",
+                    sql="SELECT COUNT(*) as count FROM messages",
+                    materialized=True,
+                ),
+                ViewDefinition(
+                    name="total_authors",
+                    sql="SELECT COUNT(DISTINCT author) as count FROM messages",
+                    materialized=True,
+                ),
+            ]
+        )
 
         registry.create_all()
 
@@ -339,10 +341,12 @@ class TestViewRegistry:
     def test_drop_all(self, sample_table: duckdb.DuckDBPyConnection) -> None:
         """drop_all() removes all views."""
         registry = ViewRegistry(sample_table)
-        registry.register_many([
-            ViewDefinition(name="view1", sql="SELECT 1"),
-            ViewDefinition(name="view2", sql="SELECT 2"),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(name="view1", sql="SELECT 1"),
+                ViewDefinition(name="view2", sql="SELECT 2"),
+            ]
+        )
 
         registry.create_all()
         registry.drop_all()
@@ -356,10 +360,12 @@ class TestViewRegistry:
 
     def test_list_views(self, registry: ViewRegistry) -> None:
         """list_views() returns all registered view names."""
-        registry.register_many([
-            ViewDefinition(name="view1", sql="SELECT 1"),
-            ViewDefinition(name="view2", sql="SELECT 2"),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(name="view1", sql="SELECT 1"),
+                ViewDefinition(name="view2", sql="SELECT 2"),
+            ]
+        )
 
         views = registry.list_views()
 
@@ -381,10 +387,12 @@ class TestViewRegistry:
 
     def test_topological_sort_simple(self, registry: ViewRegistry) -> None:
         """_topological_sort() orders views by dependencies."""
-        registry.register_many([
-            ViewDefinition(name="base", sql="SELECT 1"),
-            ViewDefinition(name="derived", sql="SELECT * FROM base", dependencies=("base",)),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(name="base", sql="SELECT 1"),
+                ViewDefinition(name="derived", sql="SELECT * FROM base", dependencies=("base",)),
+            ]
+        )
 
         sorted_views = registry._topological_sort()
 
@@ -393,12 +401,14 @@ class TestViewRegistry:
 
     def test_topological_sort_complex(self, registry: ViewRegistry) -> None:
         """_topological_sort() handles complex dependency graphs."""
-        registry.register_many([
-            ViewDefinition(name="a", sql="SELECT 1"),
-            ViewDefinition(name="b", sql="SELECT 1"),
-            ViewDefinition(name="c", sql="SELECT * FROM a", dependencies=("a",)),
-            ViewDefinition(name="d", sql="SELECT * FROM b, c", dependencies=("b", "c")),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(name="a", sql="SELECT 1"),
+                ViewDefinition(name="b", sql="SELECT 1"),
+                ViewDefinition(name="c", sql="SELECT * FROM a", dependencies=("a",)),
+                ViewDefinition(name="d", sql="SELECT * FROM b, c", dependencies=("b", "c")),
+            ]
+        )
 
         sorted_views = registry._topological_sort()
 
@@ -409,10 +419,12 @@ class TestViewRegistry:
 
     def test_topological_sort_circular_raises(self, registry: ViewRegistry) -> None:
         """_topological_sort() raises ValueError for circular dependencies."""
-        registry.register_many([
-            ViewDefinition(name="view1", sql="SELECT * FROM view2", dependencies=("view2",)),
-            ViewDefinition(name="view2", sql="SELECT * FROM view1", dependencies=("view1",)),
-        ])
+        registry.register_many(
+            [
+                ViewDefinition(name="view1", sql="SELECT * FROM view2", dependencies=("view2",)),
+                ViewDefinition(name="view2", sql="SELECT * FROM view1", dependencies=("view1",)),
+            ]
+        )
 
         with pytest.raises(ValueError, match="Circular dependencies"):
             registry._topological_sort()
