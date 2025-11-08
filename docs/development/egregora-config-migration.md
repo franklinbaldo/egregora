@@ -1,7 +1,7 @@
 # Egregora Configuration Migration: `.egregora/` Folder Structure
 
-**Status**: In Progress (Phase 1 Complete via PR #623)
-**Date**: 2025-11-07 (Updated)
+**Status**: In Progress (Phases 1-3 Complete)
+**Date**: 2025-11-08 (Updated)
 **Goal**: Extract Egregora configuration from `mkdocs.yml` into dedicated `.egregora/` directory
 
 ---
@@ -1209,13 +1209,13 @@ models:
 | Phase | Status | Implemented In | Key Deliverables |
 |-------|--------|----------------|------------------|
 | **Phase 1: Config Infrastructure** | ✅ Complete | PR #623 | Pydantic V2 schema, config loader, facade pattern, windowing |
+| **Phase 2: Custom Prompt Overrides** | ✅ Complete | Current branch | `find_prompts_dir()`, `create_prompt_environment()`, site_root param in all templates |
+| **Phase 3: Site Scaffolding** | ✅ Complete | Current branch | `config.yml.jinja`, `prompts/README.md.jinja`, updated `scaffolding.py`, removed `extra.egregora` from mkdocs |
 
 ### In Progress / Pending ⏳
 
 | Phase | Status | Key Tasks Remaining |
 |-------|--------|---------------------|
-| **Phase 2: Custom Prompt Overrides** | ⏳ Pending | Update `prompt_templates.py`, add `.egregora/prompts/` discovery |
-| **Phase 3: Site Scaffolding** | ⏳ Pending | Create `config.yml.jinja`, update `scaffolding.py`, remove `extra.egregora` from mkdocs template |
 | **Phase 4: Update Config Consumers** | ⏳ Pending | Update CLI, writer agent, enrichment, pipeline to use `EgregoraConfig` |
 | **Phase 5: Documentation** | ⏳ Pending | Update CLAUDE.md, configuration docs, README |
 | **Phase 6: Testing** | ⏳ Pending | Unit tests, integration tests, E2E tests for config and prompts |
@@ -1269,4 +1269,4 @@ PR #623 introduced several improvements:
 
 ---
 
-**Status**: Phase 1 complete (PR #623), Phases 2-6 awaiting implementation
+**Status**: Phases 1-3 complete, Phases 4-6 awaiting implementation
