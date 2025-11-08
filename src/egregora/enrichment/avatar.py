@@ -73,8 +73,11 @@ class AvatarProcessingError(Exception):
 
 
 def _get_avatar_directory(docs_dir: Path) -> Path:
-    """Get or create the avatars directory."""
-    avatar_dir = docs_dir / MEDIA_DIR_NAME / "avatars"
+    """Get or create the images directory for avatars.
+
+    Simplified: avatars are just regular images, saved to media/images/ like all other images.
+    """
+    avatar_dir = docs_dir / MEDIA_DIR_NAME / "images"
     avatar_dir.mkdir(parents=True, exist_ok=True)
     return avatar_dir
 

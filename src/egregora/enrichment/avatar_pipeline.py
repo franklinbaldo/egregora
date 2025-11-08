@@ -1,4 +1,8 @@
-"""Avatar pipeline integration - processes avatar commands from messages."""
+"""Avatar pipeline integration - processes avatar commands from messages.
+
+Simplified approach: Only accept URL format, download to media/images/, store URL in profile.
+No special pipeline, enrichment, or moderation - avatars are just regular media.
+"""
 
 from __future__ import annotations
 
@@ -7,18 +11,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from egregora.agents.tools.profiler import remove_profile_avatar, update_profile_avatar
-from egregora.enrichment.avatar import (
-    AvatarProcessingError,
-    download_avatar_from_url,
-    enrich_and_moderate_avatar,
-)
-from egregora.enrichment.media import extract_urls, find_media_references
+from egregora.enrichment.avatar import AvatarProcessingError, download_avatar_from_url
+from egregora.enrichment.media import extract_urls
 from egregora.ingestion import extract_commands  # Phase 6: Re-exported from sources/whatsapp
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from google import genai
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -26,171 +25,42 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AvatarContext:
-    """Context for avatar processing operations."""
+    """Context for avatar processing operations - simplified."""
 
     docs_dir: Path
     profiles_dir: Path
     group_slug: str
-    vision_client: genai.Client
-    model: str
-    adapter: any  # SourceAdapter - avoiding circular import
-    input_path: Path
 
 
-def _acquire_avatar_from_url(value: str, context: AvatarContext) -> tuple[str, Path]:
-    """Acquire avatar from URL in command value.
+def _download_avatar_from_command(value: str | None, context: AvatarContext) -> str:
+    """Download avatar from URL in command value.
 
     Args:
         value: Command value containing URL
         context: Avatar processing context
 
     Returns:
-        Tuple of (avatar_uuid, avatar_path)
+        The avatar URL
 
     Raises:
         AvatarProcessingError: If no valid URL found
 
     """
-    urls = extract_urls(value)
-    if urls:
-        return download_avatar_from_url(url=urls[0], docs_dir=context.docs_dir, group_slug=context.group_slug)
-    msg = "No valid URL found in command value"
-    raise AvatarProcessingError(msg)
-
-
-def _process_avatar_file(temp_file: Path, context: AvatarContext) -> tuple[str, Path]:
-    """Process a delivered avatar file and save it.
-
-    Args:
-        temp_file: Path to temporary avatar file
-        context: Avatar processing context
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If validation fails
-
-    """
-    from egregora.enrichment.avatar import (
-        _generate_avatar_uuid,
-        _get_mime_type_from_extension,
-        _save_avatar_file,
-        _validate_image_content,
-        _validate_image_dimensions,
-        _validate_image_format,
-    )
-
-    # Validate and process the file
-    ext = _validate_image_format(temp_file.name)
-    content = temp_file.read_bytes()
-
-    mime_type = _get_mime_type_from_extension(ext)
-    _validate_image_content(content, mime_type)
-    _validate_image_dimensions(content)
-
-    avatar_uuid = _generate_avatar_uuid(content, context.group_slug)
-    avatar_path = _save_avatar_file(content, avatar_uuid, ext, context.docs_dir)
-
-    return (str(avatar_uuid), avatar_path)
-
-
-def _acquire_avatar_from_adapter(message: str, context: AvatarContext) -> tuple[str, Path]:
-    """Acquire avatar from media via source adapter.
-
-    Args:
-        message: Message text containing media reference
-        context: Avatar processing context
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If no media reference or delivery fails
-
-    """
-    import tempfile
-
-    media_refs = find_media_references(message)
-    if not media_refs:
-        msg = "No media attachment found for avatar command"
+    if not value:
+        msg = "Avatar command requires a URL value"
         raise AvatarProcessingError(msg)
 
-    # Use adapter.deliver_media() to get the file (source-agnostic)
-    with tempfile.TemporaryDirectory(prefix="egregora-avatar-") as temp_dir_str:
-        temp_dir = Path(temp_dir_str)
-        adapter_kwargs = {
-            "zip_path": context.input_path,
-            "input_path": context.input_path,
-        }
-        delivered_file = context.adapter.deliver_media(
-            media_reference=media_refs[0],
-            temp_dir=temp_dir,
-            **adapter_kwargs,
-        )
+    urls = extract_urls(value)
+    if not urls:
+        msg = "No valid URL found in command value"
+        raise AvatarProcessingError(msg)
 
-        if delivered_file is None or not delivered_file.exists():
-            msg = f"Failed to deliver media file: {media_refs[0]}"
-            raise AvatarProcessingError(msg)
+    url = urls[0]
+    # Download and save to media/images/ (same as regular media)
+    download_avatar_from_url(url=url, docs_dir=context.docs_dir, group_slug=context.group_slug)
 
-        # Now process the delivered file as an avatar
-        return _process_avatar_file(delivered_file, context)
-
-
-def _cleanup_avatar_files(avatar_path: Path) -> None:
-    """Clean up avatar and enrichment files after processing failure.
-
-    Args:
-        avatar_path: Path to avatar file to clean up
-
-    """
-    if not (avatar_path and avatar_path.exists()):
-        return
-
-    try:
-        avatar_path.unlink(missing_ok=True)
-        logger.info("Cleaned up avatar file: %s", avatar_path)
-    except OSError:
-        logger.exception("Failed to clean up avatar %s", avatar_path)
-
-    try:
-        enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-        if enrichment_path.exists():
-            enrichment_path.unlink(missing_ok=True)
-            logger.info("Cleaned up enrichment file: %s", enrichment_path)
-    except OSError:
-        logger.exception("Failed to clean up enrichment file")
-
-
-def _acquire_avatar_source(
-    value: str | None,
-    message: str,
-    context: AvatarContext,
-    author_uuid: str,
-) -> tuple[str, Path]:
-    """Acquire avatar from URL or adapter media delivery.
-
-    Args:
-        value: Optional command value (may contain URL)
-        message: Message text (may contain media reference)
-        context: Avatar processing context
-        author_uuid: Author UUID for logging
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If no valid avatar source found
-
-    """
-    if value:
-        urls = extract_urls(value)
-        if urls:
-            logger.info("Downloading avatar from URL for %s", author_uuid)
-            return _acquire_avatar_from_url(value, context)
-        # Fall through to adapter extraction if no URL in value
-    logger.info("Extracting avatar via adapter for %s", author_uuid)
-    return _acquire_avatar_from_adapter(message, context)
+    # Return the URL (this is what we store in the profile)
+    return url
 
 
 def process_avatar_commands(
@@ -199,18 +69,17 @@ def process_avatar_commands(
 ) -> dict[str, str]:
     """Process all avatar commands from messages table.
 
-    This function:
-    1. Extracts avatar commands from messages
+    Simplified flow:
+    1. Extract avatar commands
     2. For 'set avatar' commands:
-       - Downloads/extracts the avatar image
-       - Enriches with AI moderation
-       - Updates profile if approved
+       - Download image from URL to media/images/
+       - Store URL in profile
     3. For 'unset avatar' commands:
-       - Removes avatar from profile
+       - Remove avatar URL from profile
 
     Args:
         messages_table: Ibis table with message data
-        context: Avatar processing context with paths and clients
+        context: Avatar processing context with paths
 
     Returns:
         Dict mapping author_uuid to result message
@@ -228,7 +97,6 @@ def process_avatar_commands(
         author_uuid = cmd_entry["author"]
         timestamp = cmd_entry["timestamp"]
         command = cmd_entry["command"]
-        message = cmd_entry.get("message", "")
         cmd_type = command["command"]
         target = command["target"]
         if cmd_type in ("set", "unset") and target == "avatar":
@@ -236,7 +104,6 @@ def process_avatar_commands(
                 result = _process_set_avatar_command(
                     author_uuid=author_uuid,
                     timestamp=timestamp,
-                    message=message,
                     context=context,
                     value=command.get("value"),
                 )
@@ -252,57 +119,41 @@ def process_avatar_commands(
 def _process_set_avatar_command(
     author_uuid: str,
     timestamp: str,
-    message: str,
     context: AvatarContext,
     value: str | None = None,
 ) -> str:
-    """Process a 'set avatar' command.
+    """Process a 'set avatar' command - simplified.
 
     Args:
         author_uuid: UUID of the author
         timestamp: Command timestamp
-        message: Message text
         context: Avatar processing context
-        value: Optional command value
+        value: Command value containing URL
 
     Returns:
         Result message describing what happened
 
     """
     logger.info("Processing 'set avatar' command for %s", author_uuid)
-    avatar_path = None
     try:
-        avatar_uuid, avatar_path = _acquire_avatar_source(value, message, context, author_uuid)
-        logger.info("Enriching and moderating avatar for %s", author_uuid)
-        moderation_result = enrich_and_moderate_avatar(
-            avatar_uuid=avatar_uuid,
-            avatar_path=avatar_path,
-            docs_dir=context.docs_dir,
-            model=context.model,
-        )
+        # Download avatar from URL to media/images/
+        avatar_url = _download_avatar_from_command(value, context)
+
+        # Store just the URL in profile
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid=moderation_result.avatar_uuid,
-            avatar_path=moderation_result.avatar_path,
-            moderation_status=moderation_result.status,
-            moderation_reason=moderation_result.reason,
+            avatar_url=avatar_url,
             timestamp=str(timestamp),
             profiles_dir=context.profiles_dir,
         )
     except AvatarProcessingError as e:
         logger.exception("Failed to process avatar for %s", author_uuid)
-        _cleanup_avatar_files(avatar_path)
         return f"❌ Failed to process avatar for {author_uuid}: {e}"
     except Exception as e:
         logger.exception("Unexpected error processing avatar for %s", author_uuid)
-        _cleanup_avatar_files(avatar_path)
         return f"❌ Unexpected error processing avatar for {author_uuid}: {e}"
     else:
-        if moderation_result.status == "approved":
-            return f"✅ Avatar approved and set for {author_uuid}"
-        if moderation_result.status == "questionable":
-            return f"⚠️ Avatar requires manual review for {author_uuid}: {moderation_result.reason}"
-        return f"❌ Avatar blocked for {author_uuid}: {moderation_result.reason}"
+        return f"✅ Avatar set for {author_uuid}"
 
 
 def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir: Path) -> str:

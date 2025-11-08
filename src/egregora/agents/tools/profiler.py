@@ -393,26 +393,20 @@ def filter_opted_out_authors(
     return (filtered_table, removed_count)
 
 
-def update_profile_avatar(  # noqa: PLR0913
+def update_profile_avatar(
     author_uuid: Annotated[str, "The anonymized author UUID"],
-    avatar_uuid: Annotated[str, "The UUID of the avatar image"],
-    avatar_path: Annotated[Path, "The path to the avatar image"],
-    moderation_status: Annotated[str, "The moderation status: approved, questionable, or blocked"],
-    moderation_reason: Annotated[str, "The reason for the moderation decision"],
+    avatar_url: Annotated[str, "The URL of the avatar image"],
     timestamp: Annotated[str, "The timestamp of when the avatar was set"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the updated profile"]:
-    """Update an author's profile with avatar information.
+    """Update an author's profile with avatar URL - simplified.
 
-    This should be called after avatar moderation is complete.
-    Only approved avatars will be set as active.
+    Stores just the URL. The image is downloaded to media/images/ like any other media.
+    When avatar changes, we just update the URL - old media file stays where it is.
 
     Args:
         author_uuid: The anonymized author UUID
-        avatar_uuid: UUID of the avatar image
-        avatar_path: Path to the avatar image
-        moderation_status: approved, questionable, or blocked
-        moderation_reason: Reason for moderation decision
+        avatar_url: URL of the avatar image
         timestamp: When the avatar was set
         profiles_dir: Where profiles are stored
 
@@ -426,17 +420,10 @@ def update_profile_avatar(  # noqa: PLR0913
         content = profile_path.read_text(encoding="utf-8")
     else:
         content = f"# Profile: {author_uuid}\n\n"
-    if moderation_status == "approved":
-        avatar_content = (
-            f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ✅ Approved\n- Set on: {timestamp}"
-        )
-        logger.info("✅ Avatar approved for %s", author_uuid)
-    elif moderation_status == "questionable":
-        avatar_content = f"- UUID: {avatar_uuid}\n- Path: {avatar_path}\n- Status: ⚠️ Pending Review\n- Reason: {moderation_reason}\n- Set on: {timestamp}\n- Note: This avatar requires manual review before it can be used"
-        logger.warning("⚠️ Avatar requires review for %s: %s", author_uuid, moderation_reason)
-    else:
-        avatar_content = f"- UUID: {avatar_uuid}\n- Status: ❌ Blocked\n- Reason: {moderation_reason}\n- Attempted on: {timestamp}\n- Note: This avatar was rejected and cannot be used"
-        logger.warning("❌ Avatar blocked for %s: %s", author_uuid, moderation_reason)
+
+    avatar_content = f"- URL: {avatar_url}\n- Set on: {timestamp}"
+    logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
+
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
@@ -475,19 +462,17 @@ def get_avatar_info(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[dict | None, "Avatar info dict or None if no avatar"]:
-    """Get avatar information from an author's profile.
+    """Get avatar information from an author's profile - simplified.
 
     Args:
         author_uuid: The anonymized author UUID
         profiles_dir: Where profiles are stored
 
     Returns:
-        Dict with avatar info or None if no avatar:
+        Dict with avatar URL or None if no avatar:
         {
-            'uuid': '...',
-            'path': '...',
-            'status': 'approved|questionable|blocked',
-            'reason': '...',  # if not approved
+            'url': 'https://...',
+            'set_on': '...',
         }
 
     """
@@ -500,27 +485,19 @@ def get_avatar_info(
     if not avatar_section_match:
         return None
     avatar_section = avatar_section_match.group(1)
-    uuid_match = re.search("- UUID:\\s*(.+)", avatar_section)
-    path_match = re.search("- Path:\\s*(.+)", avatar_section)
-    status_match = re.search("- Status:\\s*(.+)", avatar_section)
-    reason_match = re.search("- Reason:\\s*(.+)", avatar_section)
-    if not uuid_match:
+
+    # Check if avatar was removed
+    if "None" in avatar_section and "removed" in avatar_section:
         return None
-    info = {
-        "uuid": uuid_match.group(1).strip(),
-        "path": path_match.group(1).strip() if path_match else None,
-        "status": "unknown",
+
+    # Extract URL
+    url_match = re.search("- URL:\\s*(.+)", avatar_section)
+    if not url_match:
+        return None
+
+    set_on_match = re.search("- Set on:\\s*(.+)", avatar_section)
+
+    return {
+        "url": url_match.group(1).strip(),
+        "set_on": set_on_match.group(1).strip() if set_on_match else None,
     }
-    if status_match:
-        status_text = status_match.group(1).strip()
-        if "Approved" in status_text or "✅" in status_text:
-            info["status"] = "approved"
-        elif "Pending" in status_text or "⚠️" in status_text:
-            info["status"] = "questionable"
-        elif "Blocked" in status_text or "❌" in status_text:
-            info["status"] = "blocked"
-        elif "None" in status_text or "removed" in status_text:
-            return None
-    if reason_match:
-        info["reason"] = reason_match.group(1).strip()
-    return info
