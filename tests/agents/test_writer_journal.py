@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ThinkingPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 
 from egregora.agents.writer.writer_agent import (
     JournalEntry,
@@ -16,9 +21,6 @@ from egregora.agents.writer.writer_agent import (
     _extract_thinking_content,
     _save_journal_to_file,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 def test_extract_thinking_content_empty():
@@ -45,7 +47,8 @@ def test_extract_thinking_content_multiple():
     """Test thinking extraction with multiple ThinkingParts."""
     messages = [
         ModelResponse(
-            parts=[ThinkingPart(content="Step 1: Identify themes...")], timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC)
+            parts=[ThinkingPart(content="Step 1: Identify themes...")],
+            timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC),
         ),
         ModelResponse(
             parts=[ThinkingPart(content="Step 2: Synthesize content...")],
@@ -97,10 +100,12 @@ def test_extract_freeform_content_multiple():
     """Test freeform extraction joins multiple TextParts."""
     messages = [
         ModelResponse(
-            parts=[TextPart(content="First reflection...")], timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC)
+            parts=[TextPart(content="First reflection...")],
+            timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC),
         ),
         ModelResponse(
-            parts=[TextPart(content="Second reflection...")], timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC)
+            parts=[TextPart(content="Second reflection...")],
+            timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC),
         ),
     ]
     result = _extract_freeform_content(messages)
@@ -170,7 +175,9 @@ def test_extract_intercalated_log_with_tool_calls():
         ),
         ModelResponse(
             parts=[
-                ToolReturnPart(content='{"status": "success", "path": "/posts/test.md"}', tool_name="write_post")
+                ToolReturnPart(
+                    content='{"status": "success", "path": "/posts/test.md"}', tool_name="write_post"
+                )
             ],
             timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC),
         ),
@@ -199,11 +206,15 @@ def test_extract_intercalated_log_preserves_chronological_order():
         ModelResponse(
             parts=[ThinkingPart(content="First thought")], timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC)
         ),
-        ModelResponse(parts=[TextPart(content="First text")], timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC)),
+        ModelResponse(
+            parts=[TextPart(content="First text")], timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC)
+        ),
         ModelResponse(
             parts=[ThinkingPart(content="Second thought")], timestamp=datetime(2025, 1, 15, 10, 2, tzinfo=UTC)
         ),
-        ModelResponse(parts=[TextPart(content="Second text")], timestamp=datetime(2025, 1, 15, 10, 3, tzinfo=UTC)),
+        ModelResponse(
+            parts=[TextPart(content="Second text")], timestamp=datetime(2025, 1, 15, 10, 3, tzinfo=UTC)
+        ),
     ]
     result = _extract_intercalated_log(messages)
     assert len(result) == 4
