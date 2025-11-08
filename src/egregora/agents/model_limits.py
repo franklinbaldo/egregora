@@ -80,12 +80,12 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def get_model_context_limit(model_name: str) -> int:
+def get_model_context_limit(model_name: str | object) -> int:
     """Get input token limit for a model.
 
     Args:
-        model_name: Model name (e.g., "models/gemini-2.0-flash-exp",
-                    "google-gla:gemini-1.5-pro", or "gemini-1.5-flash")
+        model_name: Model identifier or object (e.g., "models/gemini-2.0-flash-exp",
+                    "google-gla:gemini-1.5-pro", "gemini-1.5-flash", or a TestModel instance)
 
     Returns:
         Input token limit for the model. Defaults to conservative 128k if unknown.
@@ -100,8 +100,15 @@ def get_model_context_limit(model_name: str) -> int:
 
     """
     # Strip common prefixes
+    if not isinstance(model_name, str):
+        raw_name = getattr(model_name, "model_name", None) or getattr(model_name, "name", None)
+        if not isinstance(raw_name, str):
+            raw_name = str(model_name)
+    else:
+        raw_name = model_name
+
     clean_name = (
-        model_name.replace("models/", "")
+        raw_name.replace("models/", "")
         .replace("google-gla:", "")
         .replace("google-vertex:", "")
         .replace("gemini-", "gemini-")  # Normalize gemini- prefix
