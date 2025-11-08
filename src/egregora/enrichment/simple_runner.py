@@ -132,56 +132,64 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # --- URL Enrichment: Extract unique URLs from table ---
+    # --- URL Enrichment: Extract unique URLs with timestamps using Ibis ---
     if enable_url:
-        # Get messages with URLs (use Python for URL extraction since regex in SQL is complex)
-        url_messages = messages_table.filter(messages_table.message.notnull()).execute()
-        unique_urls: set[str] = set()
+        # Create UDF to extract URLs from messages
+        @ibis.udf.scalar.python
+        def extract_urls_udf(message: str | None) -> list[str]:
+            if not message:
+                return []
+            return extract_urls(message)[:3]  # Limit to 3 URLs per message
 
-        for row in url_messages.itertuples():
-            if enrichment_count >= max_enrichments:
-                break
-            urls = extract_urls(row.message)
-            for url in urls[:3]:  # Limit URLs per message
-                if enrichment_count >= max_enrichments:
-                    break
-                unique_urls.add(url)
+        # Extract URLs with timestamps in a single query
+        url_table = messages_table.filter(messages_table.message.notnull())
+        url_table = url_table.mutate(urls=extract_urls_udf(messages_table.message))
+        url_table = url_table.select("timestamp", "urls")
+
+        # Explode URLs array into individual rows
+        url_table = url_table.filter(url_table.urls.length() > 0)
+        url_table = url_table.mutate(url=ibis._.urls.unnest())
+        url_table = url_table.select("url", "timestamp")
+
+        # Get first timestamp for each unique URL
+        url_table = url_table.group_by("url").agg(first_timestamp=ibis._.timestamp.min())
+
+        # Execute once to get all URLs with timestamps
+        try:
+            url_data = url_table.order_by("first_timestamp").limit(max_enrichments).execute()
+        except Exception as exc:  # noqa: BLE001 - log and continue if query fails
+            logger.warning("Failed to extract URLs from table: %s", exc)
+            url_data = None
 
         # Process each unique URL
-        for url in sorted(unique_urls)[:max_enrichments]:
-            if enrichment_count >= max_enrichments:
-                break
+        if url_data is not None and len(url_data) > 0:
+            for row in url_data.itertuples():
+                if enrichment_count >= max_enrichments:
+                    break
 
-            cache_key = make_enrichment_cache_key(kind="url", identifier=url)
+                url = row.url
+                timestamp = row.first_timestamp
+                cache_key = make_enrichment_cache_key(kind="url", identifier=url)
 
-            # Check cache first
-            cache_entry = cache.load(cache_key)
-            if cache_entry:
-                markdown = cache_entry.get("markdown", "")
-            else:
-                # Call agent (one call per URL)
-                try:
-                    markdown = run_url_enrichment(url_agent, url)
-                    cache.store(cache_key, {"markdown": markdown, "type": "url"})
-                except Exception as exc:  # noqa: BLE001 - log and continue enrichment
-                    logger.warning("URL enrichment failed for %s: %s", url, exc)
-                    continue
+                # Check cache first
+                cache_entry = cache.load(cache_key)
+                if cache_entry:
+                    markdown = cache_entry.get("markdown", "")
+                else:
+                    # Call agent (one call per URL)
+                    try:
+                        markdown = run_url_enrichment(url_agent, url)
+                        cache.store(cache_key, {"markdown": markdown, "type": "url"})
+                    except Exception as exc:  # noqa: BLE001 - log and continue enrichment
+                        logger.warning("URL enrichment failed for %s: %s", url, exc)
+                        continue
 
-            # Write output file
-            enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
-            enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
-            _atomic_write_text(enrichment_path, markdown)
+                # Write output file
+                enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
+                enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
+                _atomic_write_text(enrichment_path, markdown)
 
-            # Add enrichment row (use first message timestamp for simplicity)
-            first_msg_with_url = (
-                messages_table.filter(messages_table.message.contains(url))
-                .order_by(messages_table.timestamp)
-                .limit(1)
-                .execute()
-            )
-
-            if len(first_msg_with_url) > 0:
-                timestamp = first_msg_with_url.iloc[0]["timestamp"]
+                # Add enrichment row
                 enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
                 new_rows.append(
                     {
@@ -194,9 +202,9 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                     }
                 )
 
-            enrichment_count += 1
+                enrichment_count += 1
 
-    # --- Media Enrichment: Extract unique media from table ---
+    # --- Media Enrichment: Extract unique media with timestamps using Ibis ---
     if enable_media and media_mapping:
         # Build media filename lookup
         media_filename_lookup: dict[str, tuple[str, Path]] = {}
@@ -204,87 +212,104 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             media_filename_lookup[original_filename] = (original_filename, file_path)
             media_filename_lookup[file_path.name] = (original_filename, file_path)
 
-        # Get messages with media references
-        media_messages = messages_table.filter(messages_table.message.notnull()).execute()
-        unique_media: set[str] = set()
+        # Create UDF to extract media references from messages
+        valid_media_refs = set(media_filename_lookup.keys())
 
-        for row in media_messages.itertuples():
-            if enrichment_count >= max_enrichments:
-                break
+        @ibis.udf.scalar.python
+        def extract_media_udf(message: str | None) -> list[str]:
+            if not message:
+                return []
 
             # Extract all media references
-            refs = find_media_references(row.message)
-            markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
+            refs = find_media_references(message)
+            markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", message)
             uuid_refs = re.findall(
-                "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", row.message
+                "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", message
             )
             refs.extend(markdown_refs)
             refs.extend(uuid_refs)
 
-            # Add to unique set if in media_mapping
-            for ref in set(refs):
-                if ref in media_filename_lookup:
-                    unique_media.add(ref)
+            # Return only refs that exist in media_mapping
+            return [ref for ref in set(refs) if ref in valid_media_refs]
+
+        # Extract media with timestamps in a single query
+        media_table = messages_table.filter(messages_table.message.notnull())
+        media_table = media_table.mutate(media_refs=extract_media_udf(messages_table.message))
+        media_table = media_table.select("timestamp", "media_refs")
+
+        # Explode media array into individual rows
+        media_table = media_table.filter(media_table.media_refs.length() > 0)
+        media_table = media_table.mutate(media_ref=ibis._.media_refs.unnest())
+        media_table = media_table.select("media_ref", "timestamp")
+
+        # Get first timestamp for each unique media reference
+        media_table = media_table.group_by("media_ref").agg(first_timestamp=ibis._.timestamp.min())
+
+        # Execute once to get all media with timestamps
+        try:
+            media_data = (
+                media_table.order_by("first_timestamp").limit(max_enrichments - enrichment_count).execute()
+            )
+        except Exception as exc:  # noqa: BLE001 - log and continue if query fails
+            logger.warning("Failed to extract media from table: %s", exc)
+            media_data = None
 
         # Process each unique media file
-        for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
-            lookup_result = media_filename_lookup.get(ref)
-            if not lookup_result:
-                continue
+        if media_data is not None and len(media_data) > 0:
+            for row in media_data.itertuples():
+                if enrichment_count >= max_enrichments:
+                    break
 
-            original_filename, file_path = lookup_result
-            cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
+                ref = row.media_ref
+                timestamp = row.first_timestamp
 
-            media_type = detect_media_type(file_path)
-            if not media_type:
-                logger.warning("Unsupported media type for enrichment: %s", file_path.name)
-                continue
-
-            # Check cache first
-            cache_entry = cache.load(cache_key)
-            if cache_entry:
-                markdown_content = cache_entry.get("markdown", "")
-            else:
-                # Call agent
-                try:
-                    markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
-                    cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-                except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
-                    logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
+                lookup_result = media_filename_lookup.get(ref)
+                if not lookup_result:
                     continue
 
-            # Check for PII detection
-            if "PII_DETECTED" in markdown_content:
-                logger.warning("PII detected in media: %s. Media will be deleted.", file_path.name)
-                markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
-                try:
-                    file_path.unlink()
-                    logger.info("Deleted media file containing PII: %s", file_path)
-                    pii_media_deleted = True
-                    pii_detected_count += 1
-                except (FileNotFoundError, PermissionError):
-                    logger.exception("Failed to delete %s", file_path)
-                except OSError:
-                    logger.exception("Unexpected OS error deleting %s", file_path)
+                original_filename, file_path = lookup_result
+                cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
 
-            if not markdown_content:
-                markdown_content = f"[No enrichment generated for media: {file_path.name}]"
+                media_type = detect_media_type(file_path)
+                if not media_type:
+                    logger.warning("Unsupported media type for enrichment: %s", file_path.name)
+                    continue
 
-            # Write output file
-            enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
-            _atomic_write_text(enrichment_path, markdown_content)
+                # Check cache first
+                cache_entry = cache.load(cache_key)
+                if cache_entry:
+                    markdown_content = cache_entry.get("markdown", "")
+                else:
+                    # Call agent
+                    try:
+                        markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
+                        cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+                    except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
+                        logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
+                        continue
 
-            # Add enrichment row (use first message timestamp)
-            # Note: ref might be original filename or UUID filename
-            first_msg_with_media = (
-                messages_table.filter(messages_table.message.contains(ref))
-                .order_by(messages_table.timestamp)
-                .limit(1)
-                .execute()
-            )
+                # Check for PII detection
+                if "PII_DETECTED" in markdown_content:
+                    logger.warning("PII detected in media: %s. Media will be deleted.", file_path.name)
+                    markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+                    try:
+                        file_path.unlink()
+                        logger.info("Deleted media file containing PII: %s", file_path)
+                        pii_media_deleted = True
+                        pii_detected_count += 1
+                    except (FileNotFoundError, PermissionError):
+                        logger.exception("Failed to delete %s", file_path)
+                    except OSError:
+                        logger.exception("Unexpected OS error deleting %s", file_path)
 
-            if len(first_msg_with_media) > 0:
-                timestamp = first_msg_with_media.iloc[0]["timestamp"]
+                if not markdown_content:
+                    markdown_content = f"[No enrichment generated for media: {file_path.name}]"
+
+                # Write output file
+                enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
+                _atomic_write_text(enrichment_path, markdown_content)
+
+                # Add enrichment row
                 enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
                 new_rows.append(
                     {
@@ -297,7 +322,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                     }
                 )
 
-            enrichment_count += 1
+                enrichment_count += 1
 
     # If PII was deleted, update media references in messages
     if pii_media_deleted:
