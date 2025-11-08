@@ -76,6 +76,41 @@ def test_create_prompt_environment_fallback(tmp_path):
     assert template is not None
 
 
+def test_empty_custom_prompts_directory_fallback(tmp_path):
+    """Test that empty .egregora/prompts/ directory falls back to package prompts.
+
+    This is the critical bug scenario: when `egregora init` creates an empty
+    .egregora/prompts/ directory, the prompt loader should still find templates
+    from the package defaults, not fail with TemplateNotFound.
+    """
+    # Create empty custom prompts directory (like `egregora init` does)
+    custom_prompts = tmp_path / ".egregora" / "prompts"
+    custom_prompts.mkdir(parents=True)
+
+    # Create environment - should use package prompts as fallback
+    env = create_prompt_environment(tmp_path)
+
+    # Should successfully load package templates even though custom dir is empty
+    writer_template = env.get_template("system/writer.jinja")
+    assert writer_template is not None
+
+    # Test that we can actually render it
+    result = writer_template.render(
+        conversation="test",
+        custom_instructions="",
+        context={},
+        rag_context="",
+        profiles_context="",
+        freeform_memory="",
+        active_authors=[],
+        start_time="2025-01-01",
+        end_time="2025-01-02",
+        meme_help="",
+        markdown_features="",
+    )
+    assert result  # Should have content, not be empty or error
+
+
 def test_custom_prompt_override_priority(tmp_path):
     """Test that custom prompts override package prompts."""
     # Create custom writer prompt

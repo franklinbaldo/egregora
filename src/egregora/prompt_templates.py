@@ -63,22 +63,42 @@ def find_prompts_dir(site_root: Path | None = None) -> Path:
 
 
 def create_prompt_environment(site_root: Path | None = None) -> Environment:
-    """Create Jinja2 environment with appropriate prompts directory.
+    """Create Jinja2 environment with fallback prompt directories.
+
+    Uses FileSystemLoader with priority-based search:
+    1. {site_root}/.egregora/prompts/ (custom overrides) - if exists
+    2. src/egregora/prompts/ (package defaults) - always included
+
+    This allows users to override individual templates without copying all of them.
+    Fresh sites with empty .egregora/prompts/ work out of the box.
 
     Args:
         site_root: Site root to check for custom prompts
 
     Returns:
-        Configured Jinja2 Environment
+        Configured Jinja2 Environment with fallback search paths
 
     Examples:
         >>> env = create_prompt_environment(Path("/my/site"))
-        >>> template = env.get_template("system/writer.jinja")
+        >>> template = env.get_template("system/writer.jinja")  # Searches custom then package
 
     """
-    prompts_dir = find_prompts_dir(site_root)
+    # Build search paths with priority order
+    search_paths: list[Path] = []
+
+    # Add custom prompts directory if it exists
+    if site_root:
+        user_prompts = site_root / ".egregora" / "prompts"
+        if user_prompts.is_dir():
+            search_paths.append(user_prompts)
+            logger.info("Custom prompts directory: %s", user_prompts)
+
+    # Always add package prompts as fallback
+    search_paths.append(PACKAGE_PROMPTS_DIR)
+    logger.debug("Prompt search paths: %s", search_paths)
+
     return Environment(
-        loader=FileSystemLoader(prompts_dir),
+        loader=FileSystemLoader(search_paths),
         autoescape=select_autoescape(enabled_extensions=()),
         trim_blocks=True,
         lstrip_blocks=True,
