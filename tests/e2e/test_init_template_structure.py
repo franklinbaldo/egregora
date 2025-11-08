@@ -1,7 +1,7 @@
 """Test that egregora init generates files matching the template structure.
 
 This test ensures that the file structure created by the init/scaffolding code
-matches the templates defined in src/egregora/publication/site/templates/.
+matches the templates defined in src/egregora/rendering/templates/.
 """
 
 from pathlib import Path
@@ -9,7 +9,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.config.site import resolve_site_paths
-from egregora.init.scaffolding import _create_site_structure
+from egregora.init.scaffolding import SITE_TEMPLATES_DIR, _create_site_structure
 
 
 def test_init_creates_all_template_files(tmp_path: Path):
@@ -22,7 +22,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -65,7 +65,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
 def test_all_templates_are_used(tmp_path: Path):
     """Verify that every .jinja2 template in templates/ is used by init."""
     # Get all templates
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     all_templates = set(template_dir.glob("*.jinja2"))
 
     # Templates that should be used by _create_site_structure
@@ -112,7 +112,7 @@ def test_init_directory_structure(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -154,7 +154,7 @@ def test_init_directory_structure(tmp_path: Path):
 def test_template_files_match_output_structure():
     """Verify template filenames match their output paths logically."""
     # This is a sanity check to ensure template names make sense
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
 
     # Expected logical mapping (not exhaustive, just key examples)
     # Some templates have semantic names (homepage) rather than output names (index)
@@ -198,7 +198,7 @@ def test_egregora_directory_created(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -242,7 +242,7 @@ def test_config_yml_structure(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -281,17 +281,18 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     """Test that mkdocs.yml doesn't have extra.egregora."""
     import yaml
 
+    from egregora.config.site import _ConfigLoader
     from egregora.init.scaffolding import ensure_mkdocs_project
 
     # Create site
-    ensure_mkdocs_project(tmp_path, site_name="Test Site")
+    ensure_mkdocs_project(tmp_path)
 
     # Read mkdocs.yml
     mkdocs_path = tmp_path / "mkdocs.yml"
     assert mkdocs_path.exists()
 
     with mkdocs_path.open() as f:
-        mkdocs_dict = yaml.safe_load(f)
+        mkdocs_dict = yaml.load(f, Loader=_ConfigLoader)  # noqa: S506 - test code
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
@@ -310,7 +311,7 @@ def test_prompts_readme_created(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),
@@ -348,7 +349,7 @@ def test_prompts_subdirectories_created(tmp_path: Path):
     site_paths = resolve_site_paths(tmp_path)
 
     # Set up Jinja2 environment
-    template_dir = Path(__file__).parent.parent / "src" / "egregora" / "publication" / "site" / "templates"
+    template_dir = SITE_TEMPLATES_DIR
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(),

@@ -1,0 +1,88 @@
+# Custom Prompt Overrides
+
+This directory allows you to customize Egregora's LLM prompts without modifying package code.
+
+## How It Works
+
+1. **Find the prompt** you want to customize in Egregora's package prompts (`src/egregora/prompts/`)
+2. **Copy it here** with the same directory structure
+3. **Edit** the template as needed
+4. **Egregora will automatically use** your version instead of the default
+
+## Available Prompts
+
+### System Prompts
+- `system/writer.jinja` - Main writer agent prompt (generates blog posts)
+- `system/editor.jinja` - Interactive post editor prompt
+
+### Enrichment Prompts
+- `enrichment/url_simple.jinja` - Lightweight URL descriptions
+- `enrichment/url_detailed.jinja` - Detailed URL enrichment with context
+- `enrichment/media_simple.jinja` - Lightweight media descriptions
+- `enrichment/media_detailed.jinja` - Detailed media enrichment with context
+
+## Example: Customizing the Writer Prompt
+
+```bash
+# 1. Create the system directory
+mkdir -p .egregora/prompts/system
+
+# 2. Copy the package default
+cp <egregora-install-path>/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+
+# 3. Edit the template
+vim .egregora/prompts/system/writer.jinja
+
+# 4. Run Egregora - it will automatically use your custom prompt
+egregora process export.zip
+```
+
+## Directory Structure
+
+```
+.egregora/
+└── prompts/
+    ├── README.md (this file)
+    ├── system/
+    │   ├── writer.jinja      # Your custom writer prompt (optional)
+    │   └── editor.jinja       # Your custom editor prompt (optional)
+    └── enrichment/
+        ├── url_simple.jinja   # Your custom URL prompt (optional)
+        └── media_simple.jinja # Your custom media prompt (optional)
+```
+
+## Tips
+
+- **Start small**: Override one prompt at a time
+- **Test thoroughly**: Run `egregora process` with a small dataset first
+- **Version control**: Commit your custom prompts to track changes
+- **Fallback**: Delete a custom prompt to revert to package default
+
+## Jinja2 Syntax
+
+Prompts use Jinja2 templating. Common patterns:
+
+```jinja
+{# Comments (not included in output) #}
+
+{# Variables #}
+{{ variable_name }}
+
+{# Conditionals #}
+{% if condition %}
+  ...
+{% endif %}
+
+{# Loops #}
+{% for item in items %}
+  - {{ item }}
+{% endfor %}
+```
+
+See: https://jinja.palletsprojects.com/templates/
+
+## Getting Help
+
+- **Documentation**: https://docs.egregora.ai
+- **Issues**: https://github.com/franklinbaldo/egregora/issues
+- **Discussions**: https://github.com/franklinbaldo/egregora/discussions

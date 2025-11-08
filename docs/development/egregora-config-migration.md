@@ -852,9 +852,9 @@ Update quick start section:
 
 ---
 
-### Phase 6: Testing ⏳ PENDING
+### Phase 6: Testing ✅ COMPLETE
 
-**Status**: ⏳ Not yet implemented
+**Status**: ✅ Complete (2025-01-08)
 
 This phase adds comprehensive tests for config loading and prompt overrides.
 
@@ -1213,12 +1213,11 @@ models:
 | **Phase 3: Site Scaffolding** | ✅ Complete | Current branch | `config.yml.jinja`, `prompts/README.md.jinja`, updated `scaffolding.py`, removed `extra.egregora` from mkdocs |
 | **Phase 4: Update Config Consumers** | ✅ Complete | Current branch | site_root in all agent deps (WriterRuntimeContext, EditorAgentState, enrichment contexts), renderer-agnostic design |
 | **Phase 5: Documentation** | ✅ Complete | Current branch | Updated CLAUDE.md, configuration.md with .egregora/ structure, custom prompts, EgregoraConfig references |
+| **Phase 6: Testing** | ✅ Complete | Current branch | 32 comprehensive tests: config loading (16), prompt overrides (11), scaffolding (5) |
 
 ### In Progress / Pending ⏳
 
-| Phase | Status | Key Tasks Remaining |
-|-------|--------|---------------------|
-| **Phase 6: Testing** | ⏳ Pending | Unit tests, integration tests, E2E tests for config and prompts |
+No phases remaining - migration complete!
 
 ### Key Changes from Original Plan
 
