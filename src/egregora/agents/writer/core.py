@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 import yaml
 
+from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import get_active_authors
 from egregora.agents.tools.rag import VectorStore, index_post
@@ -38,7 +39,6 @@ from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_post
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.agents.model_limits import PromptTooLargeError
 
 if TYPE_CHECKING:
     from google import genai
@@ -331,7 +331,7 @@ def _write_posts_for_window_pydantic(
         )
     except PromptTooLargeError:
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Writer agent failed for %s — aborting window", date_range)
         raise RuntimeError(f"Writer agent failed for {date_range}") from exc
     if config.enable_rag:

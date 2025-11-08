@@ -212,14 +212,14 @@ def stub_enrichment_agents(monkeypatch):
 
     def _make_enrichment_agent(prefix: str):
         class _StubAgent:
-            def run_sync(self, *args, **kwargs):  # noqa: ANN002, ANN003 - signature defined by Agent interface
+            def run_sync(self, *args, **kwargs):
                 return SimpleNamespace(output=EnrichmentOutput(markdown=f"{prefix}-stub"))
 
         return _StubAgent()
 
     def _make_avatar_agent():
         class _StubAvatarAgent:
-            def run_sync(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            def run_sync(self, *args, **kwargs):
                 return SimpleNamespace(
                     output=AvatarModerationOutput(
                         is_appropriate=True,
@@ -239,8 +239,9 @@ def stub_enrichment_agents(monkeypatch):
     monkeypatch.setattr("egregora.enrichment.agents.create_avatar_enrichment_agent", avatar_stub)
     monkeypatch.setattr("egregora.enrichment.core.create_url_enrichment_agent", url_stub, raising=False)
     monkeypatch.setattr("egregora.enrichment.core.create_media_enrichment_agent", media_stub, raising=False)
-    monkeypatch.setattr("egregora.enrichment.avatar.create_avatar_enrichment_agent", avatar_stub, raising=False)
-    yield
+    monkeypatch.setattr(
+        "egregora.enrichment.avatar.create_avatar_enrichment_agent", avatar_stub, raising=False
+    )
 
 
 @pytest.fixture
