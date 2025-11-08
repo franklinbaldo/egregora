@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import yaml
-from slugify import slugify
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.tools.annotations import AnnotationStore
@@ -48,7 +47,6 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 
-FALLBACK_WRITER_MODEL = os.environ.get("EGREGORA_FALLBACK_WRITER_MODEL", "models/gemini-2.0-flash-lite")
 
 
 @dataclass
@@ -343,103 +341,12 @@ def _write_posts_for_window_pydantic(
         )
     except PromptTooLargeError:
         raise
-    except Exception:
-        logger.exception("Writer agent failed for %s — falling back to single-post summary", date_range)
-        fallback_result = _generate_fallback_post(
-            conversation_markdown=conversation_md,
-            profiles_context=profiles_context,
-            start_time=start_time,
-            end_time=end_time,
-            output_dir=config.output_dir,
-            client=client,
-            model_name=FALLBACK_WRITER_MODEL,
-        )
-        if config.enable_rag:
-            _index_posts_in_rag(fallback_result["posts"], config.rag_dir, embedding_model=embedding_model)
-        return fallback_result
+    except Exception as exc:
+        logger.exception("Writer agent failed for %s — aborting window", date_range)
+        raise RuntimeError(f"Writer agent failed for {date_range}") from exc
     if config.enable_rag:
         _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}
-
-
-def _generate_fallback_post(
-    *,
-    conversation_markdown: str,
-    profiles_context: str,
-    start_time: datetime,
-    end_time: datetime,
-    output_dir: Path,
-    client: genai.Client,
-    model_name: str,
-) -> dict[str, list[str]]:
-    """Generate a single markdown post when the structured writer agent fails."""
-    from google.genai import types as genai_types  # Local import to avoid optional dependency issues
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    window_label = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
-    prompt_lines = [
-        "You are a reliable blog writer tasked with producing ONE markdown article summarizing a conversation window.",
-        "Requirements:",
-        "1. ALWAYS include valid YAML front matter at the top with keys: title, date, slug, tags.",
-        f"2. Date must be {start_time:%Y-%m-%d}.",
-        "3. Use friendly, concise prose (600-900 words) with headings and bullet points when useful.",
-        "4. Highlight key takeaways, decisions, and action items from the conversation.",
-        "5. Include a short 'Highlights' section with 3 bullet points.",
-        "6. Do NOT invent information that is not present in the conversation.",
-        "",
-        f"Conversation window ({window_label}):",
-        "```markdown",
-        conversation_markdown or "*(conversation not available)*",
-        "```",
-    ]
-    if profiles_context:
-        prompt_lines.extend(
-            [
-                "",
-                "Profiles context:",
-                "```markdown",
-                profiles_context,
-                "```",
-            ]
-        )
-    prompt = "\n".join(prompt_lines)
-
-    try:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])],
-            config=genai_types.GenerateContentConfig(temperature=0.4),
-        )
-        generated = (response.text or "").strip()
-    except Exception as fallback_exc:  # noqa: BLE001
-        logger.error("Fallback writer model %s failed: %s", model_name, fallback_exc)
-        generated = ""
-
-    if not generated:
-        generated = (
-            f"# Conversation Summary\n\n"
-            f"Window: {window_label}\n\n"
-            "The fallback writer could not retrieve model output, so only timestamps are recorded."
-        )
-
-    if not generated.lstrip().startswith("---"):
-        safe_title = f"Conversation Highlights {start_time:%b %d, %Y}"
-        fallback_slug = slugify(f"{start_time:%Y-%m-%d-%H%M}-fallback")
-        front_matter = (
-            "---\n"
-            f'title: "{safe_title}"\n'
-            f"date: {start_time:%Y-%m-%d}\n"
-            f"slug: {fallback_slug}\n"
-            "tags: [fallback]\n"
-            "---\n\n"
-        )
-        generated = front_matter + generated
-
-    filename = f"{window_label}-fallback.md"
-    path = output_dir / filename
-    path.write_text(generated, encoding="utf-8")
-    logger.warning("Fallback writer generated %s", path)
-    return {"posts": [str(path)], "profiles": []}
 
 
 def write_posts_for_window(
