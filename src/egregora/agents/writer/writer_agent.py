@@ -21,6 +21,7 @@ import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import time
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
@@ -422,8 +423,26 @@ def write_posts_with_pydantic_agent(
         )
 
     with logfire_span("writer_agent", period=window_label, model=model_name):
-        result = agent.run_sync(prompt, deps=state)
-        result_payload = getattr(result, "data", result)
+        max_attempts = 3
+        result = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = agent.run_sync(prompt, deps=state)
+                break
+            except Exception as exc:  # noqa: BLE001 - log and retry
+                if attempt == max_attempts:
+                    logger.exception("Writer agent failed after %s attempts", attempt)
+                    raise
+                delay = attempt * 2
+                logger.warning(
+                    "Writer agent attempt %s/%s failed: %s. Retrying in %ss...",
+                    attempt,
+                    max_attempts,
+                    exc,
+                    delay,
+                )
+                time.sleep(delay)
+        result_payload = getattr(result, "output", getattr(result, "data", result))
 
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())

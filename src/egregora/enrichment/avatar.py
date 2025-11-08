@@ -555,9 +555,10 @@ def enrich_and_moderate_avatar(
         context = AvatarEnrichmentContext(media_filename=avatar_path.name, media_path=relative_path)
         message_content = ["Analyze and moderate this avatar image", binary_content]
         result = avatar_enrichment_agent.run_sync(message_content, deps=context)
-        is_appropriate = result.data.is_appropriate
-        reason = result.data.reason
-        description = result.data.description
+        output = getattr(result, "output", getattr(result, "data", result))
+        is_appropriate = output.is_appropriate
+        reason = output.reason
+        description = output.description
         status = "approved" if is_appropriate else "blocked"
         has_pii = "pii" in reason.lower() or "personal" in reason.lower()
         enrichment_text = f"# Avatar Analysis\n\n{description}\n\n**Status**: {status}\n**Reason**: {reason}"
