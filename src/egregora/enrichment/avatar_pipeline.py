@@ -1,19 +1,26 @@
 """Avatar pipeline integration - processes avatar commands from messages.
 
 Simplified approach: Only accept URL format, download to media/images/, store URL in profile.
-No special pipeline, enrichment, or moderation - avatars are just regular media.
+Avatars go through regular media enrichment pipeline for LLM descriptions.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.agents.tools.profiler import remove_profile_avatar, update_profile_avatar
+from egregora.enrichment.agents import (
+    MediaEnrichmentContext,
+    create_media_enrichment_agent,
+    load_file_as_binary_content,
+)
 from egregora.enrichment.avatar import AvatarProcessingError, download_avatar_from_url
-from egregora.enrichment.media import extract_urls
+from egregora.enrichment.media import detect_media_type, extract_urls
 from egregora.ingestion import extract_commands  # Phase 6: Re-exported from sources/whatsapp
+from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -23,6 +30,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _ensure_datetime(timestamp: datetime | str) -> datetime:
+    """Ensure timestamp is a datetime object.
+
+    Args:
+        timestamp: Either datetime or ISO string
+
+    Returns:
+        datetime object
+
+    """
+    if isinstance(timestamp, datetime):
+        return timestamp
+    if isinstance(timestamp, str):
+        return datetime.fromisoformat(timestamp)
+    msg = f"Unsupported timestamp type: {type(timestamp)}"
+    raise TypeError(msg)
+
+
 @dataclass
 class AvatarContext:
     """Context for avatar processing operations - simplified."""
@@ -30,13 +55,106 @@ class AvatarContext:
     docs_dir: Path
     profiles_dir: Path
     group_slug: str
+    vision_model: str  # For enrichment
+    cache: EnrichmentCache | None = None  # Optional cache for enrichment
 
 
-def _download_avatar_from_command(value: str | None, context: AvatarContext) -> str:
-    """Download avatar from URL in command value.
+def _enrich_avatar(
+    avatar_path: Path,
+    author_uuid: str,
+    timestamp: datetime,
+    context: AvatarContext,
+) -> None:
+    """Enrich avatar with LLM description (regular media enrichment).
+
+    Args:
+        avatar_path: Path to downloaded avatar image
+        author_uuid: Author who set the avatar
+        timestamp: When the avatar was set
+        context: Avatar processing context
+
+    """
+    # Check cache first
+    cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
+    if context.cache:
+        cached = context.cache.load(cache_key)
+        if cached and cached.get("markdown"):
+            logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
+            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+            enrichment_path.write_text(cached["markdown"], encoding="utf-8")
+            return
+
+    # Create enrichment agent
+    media_enrichment_agent = create_media_enrichment_agent(context.vision_model)
+
+    # Load avatar as binary content
+    try:
+        binary_content = load_file_as_binary_content(avatar_path)
+    except (OSError, ValueError) as e:
+        logger.warning("Failed to load avatar for enrichment: %s", e)
+        return
+
+    # Detect media type
+    media_type = detect_media_type(avatar_path)
+    if not media_type:
+        logger.warning("Could not detect media type for avatar: %s", avatar_path.name)
+        return
+
+    # Create enrichment context
+    try:
+        media_path = avatar_path.relative_to(context.docs_dir)
+    except ValueError:
+        media_path = avatar_path
+
+    enrichment_context = MediaEnrichmentContext(
+        media_type=media_type,
+        media_filename=avatar_path.name,
+        media_path=str(media_path),
+        original_message=f"Avatar set by {author_uuid}",
+        sender_uuid=author_uuid,
+        date=timestamp.strftime("%Y-%m-%d"),
+        time=timestamp.strftime("%H:%M"),
+    )
+
+    # Run enrichment
+    message_content = [
+        "Analyze and enrich this avatar image. Provide a detailed description in markdown format.",
+        binary_content,
+    ]
+
+    try:
+        result = media_enrichment_agent.run_sync(message_content, deps=enrichment_context)
+        output = getattr(result, "output", getattr(result, "data", result))
+        markdown_content = output.markdown.strip()
+
+        if not markdown_content:
+            markdown_content = f"[No enrichment generated for avatar: {avatar_path.name}]"
+
+        # Save enrichment markdown
+        enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+        enrichment_path.write_text(markdown_content, encoding="utf-8")
+        logger.info("Saved avatar enrichment to: %s", enrichment_path)
+
+        # Cache the result
+        if context.cache:
+            context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+
+    except Exception as e:  # noqa: BLE001 - skip and continue pipeline (consistent with core enrichment)
+        logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, e)
+
+
+def _download_avatar_from_command(
+    value: str | None,
+    author_uuid: str,
+    timestamp: datetime,
+    context: AvatarContext,
+) -> str:
+    """Download avatar from URL in command value and enrich it.
 
     Args:
         value: Command value containing URL
+        author_uuid: Author UUID for enrichment context
+        timestamp: Timestamp for enrichment context
         context: Avatar processing context
 
     Returns:
@@ -57,7 +175,12 @@ def _download_avatar_from_command(value: str | None, context: AvatarContext) -> 
 
     url = urls[0]
     # Download and save to media/images/ (same as regular media)
-    download_avatar_from_url(url=url, docs_dir=context.docs_dir, group_slug=context.group_slug)
+    _avatar_uuid, avatar_path = download_avatar_from_url(
+        url=url, docs_dir=context.docs_dir, group_slug=context.group_slug
+    )
+
+    # Enrich with regular media enrichment pipeline
+    _enrich_avatar(avatar_path, author_uuid, timestamp, context)
 
     # Return the URL (this is what we store in the profile)
     return url
@@ -69,17 +192,18 @@ def process_avatar_commands(
 ) -> dict[str, str]:
     """Process all avatar commands from messages table.
 
-    Simplified flow:
+    Flow:
     1. Extract avatar commands
     2. For 'set avatar' commands:
        - Download image from URL to media/images/
+       - Enrich with regular media enrichment (LLM description)
        - Store URL in profile
     3. For 'unset avatar' commands:
        - Remove avatar URL from profile
 
     Args:
         messages_table: Ibis table with message data
-        context: Avatar processing context with paths
+        context: Avatar processing context (paths, vision model, cache)
 
     Returns:
         Dict mapping author_uuid to result message
@@ -95,12 +219,14 @@ def process_avatar_commands(
     results = {}
     for cmd_entry in avatar_commands:
         author_uuid = cmd_entry["author"]
-        timestamp = cmd_entry["timestamp"]
+        timestamp_raw = cmd_entry["timestamp"]
         command = cmd_entry["command"]
         cmd_type = command["command"]
         target = command["target"]
         if cmd_type in ("set", "unset") and target == "avatar":
             if cmd_type == "set":
+                # Convert timestamp to datetime for enrichment
+                timestamp = _ensure_datetime(timestamp_raw)
                 result = _process_set_avatar_command(
                     author_uuid=author_uuid,
                     timestamp=timestamp,
@@ -110,7 +236,7 @@ def process_avatar_commands(
                 results[author_uuid] = result
             elif cmd_type == "unset":
                 result = _process_unset_avatar_command(
-                    author_uuid=author_uuid, timestamp=timestamp, profiles_dir=context.profiles_dir
+                    author_uuid=author_uuid, timestamp=str(timestamp_raw), profiles_dir=context.profiles_dir
                 )
                 results[author_uuid] = result
     return results
@@ -118,11 +244,11 @@ def process_avatar_commands(
 
 def _process_set_avatar_command(
     author_uuid: str,
-    timestamp: str,
+    timestamp: datetime,
     context: AvatarContext,
     value: str | None = None,
 ) -> str:
-    """Process a 'set avatar' command - simplified.
+    """Process a 'set avatar' command with enrichment.
 
     Args:
         author_uuid: UUID of the author
@@ -136,8 +262,8 @@ def _process_set_avatar_command(
     """
     logger.info("Processing 'set avatar' command for %s", author_uuid)
     try:
-        # Download avatar from URL to media/images/
-        avatar_url = _download_avatar_from_command(value, context)
+        # Download avatar from URL to media/images/ and enrich it
+        avatar_url = _download_avatar_from_command(value, author_uuid, timestamp, context)
 
         # Store just the URL in profile
         update_profile_avatar(
