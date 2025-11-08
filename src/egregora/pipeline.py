@@ -25,8 +25,8 @@ import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import ibis
 from ibis.expr.types import Table
