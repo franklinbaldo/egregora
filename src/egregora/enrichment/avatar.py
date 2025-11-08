@@ -493,9 +493,7 @@ def _find_file_in_zip(zf: zipfile.ZipFile, media_filename: str) -> bytes:
     raise AvatarProcessingError(msg)
 
 
-def extract_avatar_from_zip(
-    zip_path: Path, media_filename: str, docs_dir: Path
-) -> tuple[uuid.UUID, Path]:
+def extract_avatar_from_zip(zip_path: Path, media_filename: str, docs_dir: Path) -> tuple[uuid.UUID, Path]:
     """Extract avatar image from WhatsApp ZIP export.
 
     Args:
