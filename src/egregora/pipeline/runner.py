@@ -248,8 +248,11 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             last_timestamp = datetime.fromisoformat(last_timestamp_str)
 
             # Ensure timezone-aware comparison
+            utc_zone = ZoneInfo("UTC")
             if last_timestamp.tzinfo is None:
-                last_timestamp = last_timestamp.replace(tzinfo=ZoneInfo("UTC"))
+                last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+            else:
+                last_timestamp = last_timestamp.astimezone(utc_zone)
 
             original_count = messages_table.count().execute()
             messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
