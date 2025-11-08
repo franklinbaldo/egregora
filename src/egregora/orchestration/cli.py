@@ -1321,41 +1321,6 @@ def write_posts(  # noqa: PLR0913, PLR0915
 _register_ranking_cli(app)
 
 
-@app.command("get-avatar")
-def get_avatar_cli(
-    author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
-    site_dir: Annotated[
-        Path,
-        typer.Option("--site-dir", "-s", help="Path to MkDocs site directory"),
-    ] = Path("output"),
-):
-    """Get avatar information for an author."""
-    from ..augmentation.profiler import get_avatar_info
-
-    # Resolve paths
-    site_path = site_dir.resolve()
-    if not site_path.exists():
-        console.print(f"[red]Site directory not found: {site_path}[/red]")
-        raise typer.Exit(1)
-
-    site_paths = resolve_site_paths(site_path)
-
-    # Get avatar info
-    avatar_info = get_avatar_info(author_uuid, site_paths.profiles_dir)
-
-    if not avatar_info:
-        console.print(f"[yellow]No avatar found for author {author_uuid}[/yellow]")
-        return
-
-    # Display avatar info
-    console.print(Panel(f"[bold]Avatar Info for {author_uuid}[/bold]"))
-    console.print(f"[cyan]UUID:[/cyan] {avatar_info['uuid']}")
-    console.print(f"[cyan]Path:[/cyan] {avatar_info.get('path', 'N/A')}")
-    console.print(f"[cyan]Status:[/cyan] {avatar_info['status']}")
-    if "reason" in avatar_info:
-        console.print(f"[cyan]Reason:[/cyan] {avatar_info['reason']}")
-
-
 @app.command("review-avatar")
 def review_avatar_cli(
     author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],

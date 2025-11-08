@@ -8,13 +8,14 @@ import re
 import uuid
 import zipfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 import httpx
 
 from ..config import MEDIA_DIR_NAME
-from ..prompt_templates import AvatarEnrichmentPromptTemplate
+from ..prompt_templates import DetailedMediaEnrichmentPromptTemplate
 from ..utils.gemini_dispatcher import GeminiDispatcher
 
 logger = logging.getLogger(__name__)
@@ -287,11 +288,19 @@ def enrich_and_moderate_avatar(
             path=str(avatar_path),
         )
 
-        # Generate enrichment prompt
+        # Generate enrichment prompt using the standard media enrichment template
+        # with is_avatar=True to enable moderation
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
-        prompt_template = AvatarEnrichmentPromptTemplate(
+        now = datetime.now(UTC)
+        prompt_template = DetailedMediaEnrichmentPromptTemplate(
+            media_type="image",
             media_filename=avatar_path.name,
             media_path=relative_path,
+            original_message="[Avatar upload]",
+            sender_uuid="system",
+            date=now.strftime("%Y-%m-%d"),
+            time=now.strftime("%H:%M:%S"),
+            is_avatar=True,  # Enable avatar moderation
         )
         prompt = prompt_template.render()
 

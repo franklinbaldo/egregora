@@ -128,6 +128,7 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):  # noqa: PLR0913
     sender_uuid: str
     date: str
     time: str
+    is_avatar: bool = False
     env: Environment | None = None
 
     template_name: ClassVar[str] = "enricher_media_detailed.jinja"
@@ -142,24 +143,7 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):  # noqa: PLR0913
             sender_uuid=self.sender_uuid,
             date=self.date,
             time=self.time,
-        )
-
-
-@dataclass(slots=True)
-class AvatarEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for avatar enrichment with moderation."""
-
-    media_filename: str
-    media_path: str
-    env: Environment | None = None
-
-    template_name: ClassVar[str] = "enricher_avatar.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            media_filename=self.media_filename,
-            media_path=self.media_path,
+            is_avatar=self.is_avatar,
         )
 
 
@@ -194,6 +178,5 @@ __all__ = [
     "MediaEnrichmentPromptTemplate",
     "DetailedUrlEnrichmentPromptTemplate",
     "DetailedMediaEnrichmentPromptTemplate",
-    "AvatarEnrichmentPromptTemplate",
     "EditorPromptTemplate",
 ]

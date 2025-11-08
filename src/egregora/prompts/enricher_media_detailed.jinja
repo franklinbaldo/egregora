@@ -16,6 +16,46 @@ The media file has been uploaded for your analysis.
 ## Context
 This media was shared privately. Preserve confidentiality—do not expose the sharer's identity, exact message, or share timestamp.
 
+{% if is_avatar %}
+## Avatar Content Moderation
+
+⚠️ **CRITICAL: This image is being evaluated for use as a profile avatar**
+
+This avatar will be publicly visible. Evaluate for appropriateness and include a moderation verdict.
+
+**BLOCK if the image contains:**
+- Violence, gore, or graphic injury
+- Explicit sexual or pornographic content
+- Hate symbols, extremist imagery, or discriminatory content
+- Graphic drug use or paraphernalia
+- Self-harm or dangerous activities
+- Weapons used in threatening manner
+- Shocking or disturbing imagery
+- Harassment, bullying, or targeted attacks
+
+**MARK AS QUESTIONABLE if the image contains:**
+- Suggestive content (not explicit but borderline)
+- Alcohol or tobacco prominently featured
+- Weapons shown in non-threatening context (e.g., historical, educational)
+- Political symbols or controversial imagery
+- Blurry or low-quality images making assessment difficult
+- Minor violations of typical avatar guidelines
+
+**APPROVE if the image:**
+- Shows appropriate portraits, selfies, or headshots
+- Contains safe artistic content, illustrations, or cartoons
+- Displays nature, animals, objects, or scenery
+- Features logos, symbols, or abstract art (non-offensive)
+- Contains memes or humor (as long as not offensive)
+- Shows appropriate group photos or public figures
+- Is generally suitable for a professional or social profile
+
+**You MUST include this line at the very start of your response:**
+```
+MODERATION_STATUS: [APPROVED|QUESTIONABLE|BLOCKED]
+```
+
+{% endif %}
 ## Privacy Check
 
 ⚠️ **CRITICAL: Check for Personally Identifiable Information (PII)**
