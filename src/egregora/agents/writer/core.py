@@ -40,6 +40,7 @@ from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_post
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
+from egregora.agents.model_limits import PromptTooLargeError
 
 if TYPE_CHECKING:
     from google import genai
@@ -228,6 +229,8 @@ def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_mode
         for post_path in saved_posts:
             index_post(Path(post_path), store, embedding_model=embedding_model)
         logger.info("Indexed %s new posts in RAG", len(saved_posts))
+    except PromptTooLargeError:
+        raise
     except Exception:
         logger.exception("Failed to index posts in RAG")
 
@@ -330,7 +333,13 @@ def _write_posts_for_window_pydantic(
             config=egregora_config,
             context=runtime_context,
         )
+<<<<<<< HEAD
     except Exception:
+=======
+    except PromptTooLargeError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+>>>>>>> a4dacee (Re-raise PromptTooLargeError for window splitting)
         logger.exception("Writer agent failed for %s — falling back to single-post summary", date_range)
         fallback_result = _generate_fallback_post(
             conversation_markdown=conversation_md,
