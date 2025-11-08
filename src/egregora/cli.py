@@ -40,8 +40,7 @@ from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
 from egregora.pipeline import create_windows
-# FIXME: run_source_pipeline not implemented yet
-# from egregora.pipeline.runner import run_source_pipeline
+from egregora.pipeline.runner import run_source_pipeline
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
@@ -308,16 +307,14 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                 border_style="cyan",
             )
         )
-        # FIXME: run_source_pipeline not implemented yet
-        # run_source_pipeline(
-        #     source=source,
-        #     input_path=config.zip_file,
-        #     output_dir=config.output_dir,
-        #     config=egregora_config,
-        #     api_key=api_key,
-        #     model_override=config.model,
-        # )
-        console.print("[yellow]⚠️  run_source_pipeline not yet implemented (Week 2 work in progress)[/yellow]")
+        run_source_pipeline(
+            source=source,
+            input_path=config.zip_file,
+            output_dir=config.output_dir,
+            config=egregora_config,
+            api_key=api_key,
+            model_override=config.model,
+        )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")

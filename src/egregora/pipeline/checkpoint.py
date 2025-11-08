@@ -256,7 +256,7 @@ def run_with_checkpointing(
     """
     # Compute input fingerprint if not provided
     if input_fingerprint is None and input_table is not None:
-        from egregora.pipeline.runner import fingerprint_table
+        from egregora.pipeline.tracking import fingerprint_table
 
         input_fingerprint = fingerprint_table(input_table)
     elif input_fingerprint is None:

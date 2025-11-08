@@ -1,387 +1,488 @@
-"""Pipeline runner with observability and lineage tracking.
+"""High-level pipeline runner - sets up and executes the complete pipeline.
 
-This module provides infrastructure for tracking pipeline execution:
-1. Record run metadata (stage, duration, metrics, errors)
-2. Track lineage relationships (which runs depend on which)
-3. Content-addressed checkpointing (skip stages if output exists)
-4. OpenTelemetry integration (traces, logs)
-
-Usage:
-    from egregora.pipeline.runner import RunContext, record_run, run_stage_with_tracking
-
-    # Create run context
-    ctx = RunContext.create(stage="privacy", tenant_id="acme")
-
-    # Execute stage with automatic tracking
-    result, run_id = run_stage_with_tracking(
-        stage_func=privacy_gate_stage,
-        input_table=raw_data,
-        context=ctx,
-    )
-
-    # Record run metadata manually
-    record_run(
-        conn=duckdb_conn,
-        run_id=uuid.uuid4(),
-        stage="enrichment",
-        status="completed",
-        started_at=start_time,
-        finished_at=end_time,
-    )
+This module provides the main entry point for running the source-agnostic pipeline.
+It handles the complete flow from parsing to final output generation.
 """
 
-import hashlib
-import subprocess
-import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from __future__ import annotations
+
+import logging
+import tempfile
+from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import duckdb
 import ibis
+from google import genai
 
-# Type variable for stage function return type
-T = TypeVar("T")
+from egregora.adapters import get_adapter
+from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
+from egregora.agents.tools.rag import VectorStore, index_all_media
+from egregora.agents.writer import WriterConfig, write_posts_for_window
+from egregora.config import ModelConfig, resolve_site_paths
+from egregora.config.schema import EgregoraConfig
+from egregora.enrichment import enrich_table
+from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
+from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
+from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
+from egregora.pipeline.ir import validate_ir_schema
+from egregora.pipeline.media_utils import process_media_for_window
+from egregora.types import GroupSlug
+from egregora.utils.cache import EnrichmentCache
 
-
-@dataclass(frozen=True, slots=True)
-class RunContext:
-    """Immutable context for pipeline run tracking.
-
-    Created once at pipeline start, passed to all stages.
-    Contains run-specific metadata for lineage and observability.
-    """
-
-    run_id: uuid.UUID
-    """Unique identifier for this run (immutable)."""
-
-    stage: str
-    """Pipeline stage identifier (ingestion, privacy, enrichment, etc.)."""
-
-    tenant_id: str | None = None
-    """Tenant identifier for multi-tenant isolation."""
-
-    parent_run_ids: tuple[uuid.UUID, ...] = ()
-    """Parent run IDs (upstream dependencies for lineage tracking)."""
-
-    db_path: Path | None = None
-    """Path to DuckDB database for run tracking (default: .egregora-cache/runs.duckdb)."""
-
-    trace_id: str | None = None
-    """OpenTelemetry trace ID for distributed tracing."""
-
-    @classmethod
-    def create(
-        cls,
-        stage: str,
-        tenant_id: str | None = None,
-        parent_run_ids: list[uuid.UUID] | None = None,
-        db_path: Path | None = None,
-        trace_id: str | None = None,
-    ) -> "RunContext":
-        """Create a new run context with generated run_id.
-
-        Args:
-            stage: Pipeline stage identifier
-            tenant_id: Tenant identifier (optional)
-            parent_run_ids: Parent run IDs for lineage (optional)
-            db_path: DuckDB database path (default: .egregora-cache/runs.duckdb)
-            trace_id: OpenTelemetry trace ID (optional)
-
-        Returns:
-            Immutable RunContext instance
-
-        """
-        return cls(
-            run_id=uuid.uuid4(),
-            stage=stage,
-            tenant_id=tenant_id,
-            parent_run_ids=tuple(parent_run_ids or []),
-            db_path=db_path or Path(".egregora-cache/runs.duckdb"),
-            trace_id=trace_id,
-        )
+if TYPE_CHECKING:
+    import ibis.expr.types as ir
+logger = logging.getLogger(__name__)
+__all__ = ["run_source_pipeline"]
 
 
-def get_git_commit_sha() -> str | None:
-    """Get current git commit SHA for reproducibility tracking.
+def _perform_enrichment(  # noqa: PLR0913
+    window_table: ir.Table,
+    media_mapping: dict[str, Path],
+    config: EgregoraConfig,
+    enrichment_cache: EnrichmentCache,
+    site_paths: any,
+    posts_dir: Path,
+) -> ir.Table:
+    """Execute enrichment for a window's table.
 
-    Returns:
-        Git commit SHA (e.g., "a1b2c3d4..."), or None if not in git repo
-
-    """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=2,
-        )
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-
-def fingerprint_table(table: ibis.Table) -> str:
-    """Generate SHA256 fingerprint of Ibis table.
-
-    Used for content-addressed checkpointing: same input → same fingerprint.
+    Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
 
     Args:
-        table: Ibis table to fingerprint
+        window_table: Table to enrich
+        media_mapping: Media file mapping
+        config: Egregora configuration
+        enrichment_cache: Enrichment cache instance
+        site_paths: Site path configuration
+        posts_dir: Posts output directory
 
     Returns:
-        SHA256 fingerprint (format: "sha256:<hex>")
-
-    Note:
-        This is a simple implementation that hashes the schema + first 1000 rows.
-        For production, consider:
-        - Hashing full data (expensive)
-        - Sampling rows (faster but less deterministic)
-        - Using Ibis table hash if available
+        Enriched table
 
     """
-    # Hash schema (column names + types)
-    schema_str = str(table.schema())
-
-    # Hash sample of data (first 1000 rows)
-    # FIXME: This is non-deterministic if table order changes
-    # Better approach: hash sorted data or use table metadata
-    sample = table.limit(1000).execute()
-    data_str = sample.to_csv(index=False)
-
-    # Combine schema + data
-    combined = f"{schema_str}\n{data_str}"
-
-    # SHA256 hash
-    hash_obj = hashlib.sha256(combined.encode("utf-8"))
-    return f"sha256:{hash_obj.hexdigest()}"
-
-
-def record_run(
-    conn: duckdb.DuckDBPyConnection,
-    run_id: uuid.UUID,
-    stage: str,
-    status: str,
-    started_at: datetime,
-    finished_at: datetime | None = None,
-    *,
-    tenant_id: str | None = None,
-    input_fingerprint: str | None = None,
-    code_ref: str | None = None,
-    config_hash: str | None = None,
-    rows_in: int | None = None,
-    rows_out: int | None = None,
-    llm_calls: int = 0,
-    tokens: int = 0,
-    error: str | None = None,
-    trace_id: str | None = None,
-) -> None:
-    """Record run metadata to runs table.
-
-    Args:
-        conn: DuckDB connection
-        run_id: Unique run identifier
-        stage: Pipeline stage (ingestion, privacy, enrichment, etc.)
-        status: Run status (running, completed, failed, degraded)
-        started_at: When run started (UTC)
-        finished_at: When run finished (UTC), None if still running
-        tenant_id: Tenant identifier (optional)
-        input_fingerprint: SHA256 of input data (for checkpointing)
-        code_ref: Git commit SHA
-        config_hash: SHA256 of config
-        rows_in: Number of input rows
-        rows_out: Number of output rows
-        llm_calls: Number of LLM API calls
-        tokens: Total tokens consumed
-        error: Error message if status=failed
-        trace_id: OpenTelemetry trace ID
-
-    Raises:
-        duckdb.Error: If insert fails
-
-    """
-    # Auto-detect code_ref if not provided
-    if code_ref is None:
-        code_ref = get_git_commit_sha()
-
-    # Insert run record
-    conn.execute(
-        """
-        INSERT INTO runs (
-            run_id, stage, tenant_id, started_at, finished_at,
-            input_fingerprint, code_ref, config_hash,
-            rows_in, rows_out, llm_calls, tokens,
-            status, error, trace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            str(run_id),
-            stage,
-            tenant_id,
-            started_at,
-            finished_at,
-            input_fingerprint,
-            code_ref,
-            config_hash,
-            rows_in,
-            rows_out,
-            llm_calls,
-            tokens,
-            status,
-            error,
-            trace_id,
-        ],
+    enrichment_context = EnrichmentRuntimeContext(
+        cache=enrichment_cache,
+        docs_dir=site_paths.docs_dir,
+        posts_dir=posts_dir,
+    )
+    return enrich_table(
+        window_table,
+        media_mapping,
+        config,
+        enrichment_context,
     )
 
 
-def record_lineage(
-    conn: duckdb.DuckDBPyConnection,
-    child_run_id: uuid.UUID,
-    parent_run_ids: list[uuid.UUID],
-) -> None:
-    """Record lineage relationships between runs.
-
-    Args:
-        conn: DuckDB connection
-        child_run_id: Downstream run ID (depends on parents)
-        parent_run_ids: Upstream run IDs (dependencies)
-
-    Raises:
-        duckdb.Error: If insert fails
-
-    """
-    if not parent_run_ids:
-        return  # No lineage to record
-
-    # Insert lineage edges
-    for parent_id in parent_run_ids:
-        conn.execute(
-            """
-            INSERT INTO lineage (child_run_id, parent_run_id)
-            VALUES (?, ?)
-            ON CONFLICT DO NOTHING
-            """,
-            [str(child_run_id), str(parent_id)],
-        )
-
-
-def run_stage_with_tracking(
-    stage_func: Callable[..., T],
+def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
+    source: str,
+    input_path: Path,
+    output_dir: Path,
+    config: EgregoraConfig,
     *,
-    context: RunContext,
-    input_table: ibis.Table | None = None,
-    **kwargs: Any,
-) -> tuple[T, uuid.UUID]:
-    """Execute a pipeline stage with automatic run tracking.
+    api_key: str | None = None,
+    model_override: str | None = None,
+    client: genai.Client | None = None,
+) -> dict[str, dict[str, list[str]]]:
+    """Run the complete source-agnostic pipeline.
 
-    This wrapper:
-    1. Records run start (status=running)
-    2. Executes stage function
-    3. Records run completion (status=completed/failed)
-    4. Records lineage relationships
-    5. Handles errors gracefully
+    MODERN (Phase 2): Uses EgregoraConfig instead of 16 individual parameters.
+
+    This is the main entry point for processing chat exports from any source.
+    It handles:
+    1. Source adapter selection and IR parsing
+    2. Command and avatar processing
+    3. Filtering (egregora messages, opted-out users, date range)
+    4. Window creation (flexible grouping by message count, time, or tokens)
+    5. Media extraction and enrichment (optional)
+    6. Post writing with LLM
+    7. RAG indexing
 
     Args:
-        stage_func: Pipeline stage function to execute
-        context: Run context with metadata
-        input_table: Input Ibis table (for fingerprinting, optional)
-        **kwargs: Additional arguments to pass to stage_func
+        source: Source identifier ("whatsapp", "slack", etc.)
+        input_path: Path to input file (ZIP, JSON, etc.)
+        output_dir: Output directory for generated content
+        config: Egregora configuration (models, RAG, pipeline, enrichment, etc.)
+        api_key: Google Gemini API key (optional override)
+        model_override: Model override for CLI --model flag
+        client: Optional pre-configured genai.Client
 
     Returns:
-        (result, run_id): Stage function result + run ID
+        Dict mapping window IDs to {'posts': [...], 'profiles': [...]}
 
     Raises:
-        Exception: Re-raises any exception from stage_func after recording failure
-
-    Example:
-        >>> ctx = RunContext.create(stage="privacy", tenant_id="acme")
-        >>> result, run_id = run_stage_with_tracking(
-        ...     stage_func=privacy_gate_stage,
-        ...     context=ctx,
-        ...     input_table=raw_data,
-        ...     config=privacy_config,
-        ... )
+        ValueError: If source is unknown or configuration is invalid
+        RuntimeError: If pipeline execution fails
 
     """
-    # Connect to runs database
-    db_path = context.db_path or Path(".egregora-cache/runs.duckdb")
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
-
-    # Calculate input fingerprint (for checkpointing)
-    input_fingerprint = None
-    rows_in = None
-    if input_table is not None:
-        input_fingerprint = fingerprint_table(input_table)
-        rows_in = input_table.count().execute()
-
-    # Record run start
-    started_at = datetime.now(UTC)
-    record_run(
-        conn=conn,
-        run_id=context.run_id,
-        stage=context.stage,
-        status="running",
-        started_at=started_at,
-        tenant_id=context.tenant_id,
-        input_fingerprint=input_fingerprint,
-        rows_in=rows_in,
-        trace_id=context.trace_id,
-    )
-
-    # Record lineage (if parent runs exist)
-    if context.parent_run_ids:
-        record_lineage(
-            conn=conn,
-            child_run_id=context.run_id,
-            parent_run_ids=list(context.parent_run_ids),
-        )
-
+    logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
+    adapter = get_adapter(source)
+    output_dir = output_dir.expanduser().resolve()
+    site_paths = resolve_site_paths(output_dir)
+    if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+        msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
+        raise ValueError(msg)
+    if not site_paths.docs_dir.exists():
+        msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+        raise ValueError(msg)
+    runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
+    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect(str(runtime_db_path))
+    backend = ibis.duckdb.from_connection(connection)
+    options = getattr(ibis, "options", None)
+    old_backend = getattr(options, "default_backend", None) if options else None
     try:
-        # Execute stage function
-        result = stage_func(input_table=input_table, **kwargs)
+        if options is not None:
+            options.default_backend = backend
+        # Extract config values (Phase 2: reduced from 16 params to EgregoraConfig)
+        timezone = config.pipeline.timezone
+        step_size = config.pipeline.step_size
+        step_unit = config.pipeline.step_unit
+        overlap_ratio = config.pipeline.overlap_ratio
+        max_window_time_hours = config.pipeline.max_window_time
+        # Convert hours to timedelta if specified (schema stores as int, pipeline expects timedelta)
+        max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
+        batch_threshold = config.pipeline.batch_threshold
+        enable_enrichment = config.enrichment.enabled
+        retrieval_mode = config.rag.mode
+        retrieval_nprobe = config.rag.nprobe
+        retrieval_overfetch = config.rag.overfetch
 
-        # Record success
-        finished_at = datetime.now(UTC)
+        # Parse date strings if provided
+        from_date: date_type | None = None
+        to_date: date_type | None = None
+        if config.pipeline.from_date:
+            from_date = date_type.fromisoformat(config.pipeline.from_date)
+        if config.pipeline.to_date:
+            to_date = date_type.fromisoformat(config.pipeline.to_date)
 
-        # Calculate output rows if result is Ibis table
-        rows_out = None
-        if isinstance(result, ibis.Table):
-            rows_out = result.count().execute()
+        model_config = ModelConfig(config=config, cli_model=model_override)
+        if client is None:
+            client = genai.Client(api_key=api_key)
+        text_model = model_config.get_model("enricher")
+        vision_model = model_config.get_model("enricher_vision")
+        embedding_model = model_config.get_model("embedding")
+        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+        enrichment_cache = EnrichmentCache(cache_dir)
+        logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
+        messages_table = adapter.parse(input_path, timezone=timezone)
+        is_valid, errors = validate_ir_schema(messages_table)
+        if not is_valid:
+            raise ValueError(
+                "Source adapter produced invalid IR schema. Errors:\n"
+                + "\n".join(f"  - {err}" for err in errors)
+            )
+        total_messages = messages_table.count().execute()
+        logger.info("[green]✅ Parsed[/] %s messages", total_messages)
+        metadata = adapter.get_metadata(input_path)
+        group_slug = GroupSlug(metadata.get("group_slug", "unknown"))
+        logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
+        content_dirs = {
+            "posts": site_paths.posts_dir,
+            "profiles": site_paths.profiles_dir,
+            "media": site_paths.media_dir,
+        }
+        for label, directory in content_dirs.items():
+            try:
+                directory.relative_to(site_paths.docs_dir)
+            except ValueError as exc:
+                msg = f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. Expected parent {site_paths.docs_dir}, got {directory}."
+                raise ValueError(msg) from exc
+            directory.mkdir(parents=True, exist_ok=True)
+        commands = extract_commands(messages_table)
+        if commands:
+            process_commands(commands, site_paths.profiles_dir)
+            logger.info("[magenta]🧾 Processed[/] %s /egregora commands", len(commands))
+        else:
+            logger.info("[magenta]🧾 No /egregora commands detected[/]")
+        logger.info("[cyan]🖼️  Processing avatar commands...[/]")
+        # Avatars go through regular media enrichment pipeline
+        # UUID generation is content-based only (no group namespacing)
+        avatar_context = AvatarContext(
+            docs_dir=site_paths.docs_dir,
+            profiles_dir=site_paths.profiles_dir,
+            vision_model=vision_model,
+            cache=enrichment_cache,
+        )
+        avatar_results = process_avatar_commands(
+            messages_table=messages_table,
+            context=avatar_context,
+        )
+        if avatar_results:
+            logger.info("[green]✓ Processed[/] %s avatar command(s)", len(avatar_results))
+        messages_table, egregora_removed = filter_egregora_messages(messages_table)
+        if egregora_removed:
+            logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
+        messages_table, removed_count = filter_opted_out_authors(messages_table, site_paths.profiles_dir)
+        if removed_count > 0:
+            logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
+        if from_date or to_date:
+            original_count = messages_table.count().execute()
+            if from_date and to_date:
+                messages_table = messages_table.filter(
+                    (messages_table.timestamp.date() >= from_date)
+                    & (messages_table.timestamp.date() <= to_date)
+                )
+                logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
+            elif from_date:
+                messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
+                logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
+            elif to_date:
+                messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
+                logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
+            filtered_count = messages_table.count().execute()
+            removed_by_date = original_count - filtered_count
+            if removed_by_date > 0:
+                logger.info(
+                    "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
+                )
 
-        # Update run record (completed)
-        conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, rows_out, str(context.run_id)],
+        # Phase 7: Checkpoint-based resume logic
+        checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint and "last_processed_timestamp" in checkpoint:
+            last_timestamp_str = checkpoint["last_processed_timestamp"]
+            last_timestamp = datetime.fromisoformat(last_timestamp_str)
+
+            # Ensure timezone-aware comparison
+            if last_timestamp.tzinfo is None:
+                last_timestamp = last_timestamp.replace(tzinfo=ZoneInfo("UTC"))
+
+            original_count = messages_table.count().execute()
+            messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+            filtered_count = messages_table.count().execute()
+            resumed_count = original_count - filtered_count
+
+            if resumed_count > 0:
+                logger.info(
+                    "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+                    resumed_count,
+                    last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
+        else:
+            logger.info("🆕 [cyan]Starting fresh[/] (no checkpoint found)")
+
+        logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
+        windows_iterator = create_windows(
+            messages_table,
+            step_size=step_size,
+            step_unit=step_unit,
+            overlap_ratio=overlap_ratio,
+            max_window_time=max_window_time,
         )
 
-        conn.close()
-        return result, context.run_id
+        results = {}
+        posts_dir = site_paths.posts_dir
+        profiles_dir = site_paths.profiles_dir
 
-    except Exception as e:
-        # Record failure
-        finished_at = datetime.now(UTC)
-        error_msg = f"{type(e).__name__}: {e!s}"
+        def process_window_with_auto_split(
+            window: Window,  # noqa: F821
+            *,
+            depth: int = 0,
+            max_depth: int = 5,
+        ) -> dict[str, dict[str, list[str]]]:
+            """Process a window with automatic splitting if prompt exceeds model limit.
 
-        conn.execute(
+            Uses calculated upfront splitting (not recursive trial-and-error).
+            Depth tracking is a safety mechanism for rare edge cases.
+
+            Args:
+                window: Window to process
+                depth: Current split depth (for logging and safety checks)
+                max_depth: Maximum split depth to prevent pathological cases
+
+            Returns:
+                Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+
+            Raises:
+                RuntimeError: If max split depth reached (indicates miscalculation)
+
             """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, error_msg, str(context.run_id)],
-        )
+            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+            from egregora.pipeline import split_window_into_n_parts  # noqa: PLC0415
 
-        conn.close()
-        raise  # Re-raise exception after recording
+            # Constants
+            min_window_size = 5  # Minimum messages before we stop splitting
+
+            indent = "  " * depth
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            window_table = window.table
+            window_count = window.size
+
+            logger.info(
+                "%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth
+            )
+
+            # Stop splitting if window too small or max depth reached
+            if window_count < min_window_size:
+                logger.warning(
+                    "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
+                    indent,
+                    window_label,
+                    window_count,
+                )
+            if depth >= max_depth:
+                error_msg = (
+                    f"Max split depth {max_depth} reached for window {window_label}. "
+                    "Window cannot be split enough to fit in model context (possible miscalculation). "
+                    "Try increasing --max-prompt-tokens or using --use-full-context-window."
+                )
+                logger.error("%s❌ %s", indent, error_msg)
+                raise RuntimeError(error_msg)
+
+            try:
+                # Try to process the window normally
+                temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
+                with tempfile.TemporaryDirectory(prefix=temp_prefix) as temp_dir_str:
+                    temp_dir = Path(temp_dir_str)
+                    window_table_processed, media_mapping = process_media_for_window(
+                        window_table=window_table,
+                        adapter=adapter,
+                        media_dir=site_paths.media_dir,
+                        temp_dir=temp_dir,
+                        docs_dir=site_paths.docs_dir,
+                        posts_dir=posts_dir,
+                        zip_path=input_path,
+                    )
+
+                if enable_enrichment:
+                    logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
+                    enriched_table = _perform_enrichment(
+                        window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                    )
+                else:
+                    enriched_table = window_table_processed
+
+                writer_config = WriterConfig(
+                    output_dir=posts_dir,
+                    profiles_dir=profiles_dir,
+                    rag_dir=site_paths.rag_dir,
+                    site_root=site_paths.site_root,
+                    model_config=model_config,
+                    enable_rag=True,
+                    retrieval_mode=retrieval_mode,
+                    retrieval_nprobe=retrieval_nprobe,
+                    retrieval_overfetch=retrieval_overfetch,
+                )
+
+                result = write_posts_for_window(
+                    enriched_table, window.start_time, window.end_time, client, writer_config
+                )
+                post_count = len(result.get("posts", []))
+                profile_count = len(result.get("profiles", []))
+                logger.info(
+                    "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
+                    indent,
+                    post_count,
+                    profile_count,
+                    window_label,
+                )
+
+            except PromptTooLargeError as e:
+                # Prompt too large - split window and retry
+                logger.warning(
+                    "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
+                    indent,
+                    window_label,
+                    e.estimated_tokens // 1000,
+                    e.effective_limit // 1000,
+                )
+
+                # Calculate how many splits we need upfront (deterministic, not iterative)
+                # Same philosophy as max_window_time reduction: calculate the factor
+                # reduction_factor = effective_limit / estimated_tokens
+                # num_splits = 1 / reduction_factor = estimated_tokens / effective_limit
+                import math  # noqa: PLC0415
+
+                num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
+                logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
+
+                split_windows = split_window_into_n_parts(window, num_splits)
+
+                if not split_windows:
+                    error_msg = f"Cannot split window {window_label} - all splits would be empty"
+                    logger.exception("%s❌ %s", indent, error_msg)
+                    raise RuntimeError(error_msg) from e
+
+                # Process each split window
+                combined_results = {}
+                for i, split_window in enumerate(split_windows, 1):
+                    split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
+                    logger.info(
+                        "%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label
+                    )
+                    split_results = process_window_with_auto_split(
+                        split_window, depth=depth + 1, max_depth=max_depth
+                    )
+                    combined_results.update(split_results)
+
+                return combined_results
+            else:
+                return {window_label: result}
+
+        # Phase 8: Process windows with automatic splitting for oversized prompts
+        for window in windows_iterator:
+            # Skip empty windows (common in sparse conversations with time-based windowing)
+            if window.size == 0:
+                logger.debug(
+                    "Skipping empty window %d (%s to %s)",
+                    window.window_index,
+                    window.start_time.strftime("%Y-%m-%d %H:%M"),
+                    window.end_time.strftime("%Y-%m-%d %H:%M"),
+                )
+                continue
+
+            window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
+            results.update(window_results)
+        if enable_enrichment and results:
+            logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
+            try:
+                rag_dir = site_paths.rag_dir
+                store = VectorStore(rag_dir / "chunks.parquet")
+                media_chunks = index_all_media(site_paths.docs_dir, store, embedding_model=embedding_model)
+                if media_chunks > 0:
+                    logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
+                else:
+                    logger.info("[yellow]No media enrichments to index[/]")
+            except Exception:
+                logger.exception("[red]Failed to index media into RAG[/]")
+
+        # Phase 7: Save checkpoint after successful processing
+        # Only save checkpoint if at least one window was actually processed
+        # (prevents data loss when all windows are skipped due to min_window_size)
+        if results:
+            # Checkpoint based on messages in the filtered table
+            checkpoint_stats = messages_table.aggregate(
+                max_timestamp=messages_table.timestamp.max(),
+                total_processed=messages_table.count(),
+            ).execute()
+
+            total_processed = checkpoint_stats["total_processed"][0]
+            max_timestamp = checkpoint_stats["max_timestamp"][0]
+            save_checkpoint(checkpoint_path, max_timestamp, total_processed)
+            logger.info(
+                "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
+                max_timestamp.strftime("%Y-%m-%d %H:%M:%S") if max_timestamp else "N/A",
+                len(results),
+            )
+        else:
+            logger.warning(
+                "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+                "All windows may have been empty or filtered out."
+            )
+
+        logger.info("[bold green]🎉 Pipeline completed successfully![/]")
+        return results
+    finally:
+        try:
+            if "enrichment_cache" in locals():
+                enrichment_cache.close()
+        finally:
+            if client:
+                client.close()
+        if options is not None:
+            options.default_backend = old_backend
+        connection.close()

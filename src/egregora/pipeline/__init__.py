@@ -105,6 +105,20 @@ from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 # This __getattr__ hook provides transparent access to create_windows, Window,
 # load_checkpoint, and save_checkpoint without requiring full module import.
 
+# ============================================================================
+# Run Tracking & Observability Layer
+# ============================================================================
+# Run tracking infrastructure for observability, lineage, and checkpointing.
+# Re-exported from tracking.py for backwards compatibility.
+from egregora.pipeline.tracking import (
+    RunContext,
+    fingerprint_table,
+    get_git_commit_sha,
+    record_lineage,
+    record_run,
+    run_stage_with_tracking,
+)
+
 
 def __getattr__(name: str) -> object:
     """Lazy import for windowing utilities from pipeline.py module.
@@ -151,17 +165,24 @@ def __getattr__(name: str) -> object:
 #   - Source adapters (SourceAdapter, MediaMapping)
 #   - Windowing utilities (create_windows, Window - lazy-loaded via __getattr__)
 #   - Checkpoint utilities (load_checkpoint, save_checkpoint - lazy-loaded via __getattr__)
+#   - Run tracking (RunContext, record_run, run_stage_with_tracking)
 __all__ = [
     "IR_SCHEMA",
     "MediaMapping",
     "PipelineStage",
+    "RunContext",
     "SourceAdapter",
     "StageConfig",
     "StageResult",
     "Window",
     "create_ir_table",
     "create_windows",
+    "fingerprint_table",
+    "get_git_commit_sha",
     "load_checkpoint",
+    "record_lineage",
+    "record_run",
+    "run_stage_with_tracking",
     "save_checkpoint",
     "split_window_into_n_parts",
     "validate_ir_schema",
