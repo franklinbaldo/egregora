@@ -18,10 +18,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import time
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
@@ -429,7 +429,7 @@ def write_posts_with_pydantic_agent(
             try:
                 result = agent.run_sync(prompt, deps=state)
                 break
-            except Exception as exc:  # noqa: BLE001 - log and retry
+            except Exception as exc:
                 if attempt == max_attempts:
                     logger.exception("Writer agent failed after %s attempts", attempt)
                     raise

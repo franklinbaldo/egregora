@@ -11,7 +11,6 @@ from egregora.enrichment.avatar import (
     AvatarProcessingError,
     download_avatar_from_url,
     enrich_and_moderate_avatar,
-    extract_avatar_from_zip,
 )
 from egregora.enrichment.media import extract_urls, find_media_references
 from egregora.ingestion import extract_commands  # Phase 6: Re-exported from sources/whatsapp

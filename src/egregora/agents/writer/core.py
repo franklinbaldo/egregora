@@ -330,7 +330,7 @@ def _write_posts_for_window_pydantic(
             config=egregora_config,
             context=runtime_context,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception:
         logger.exception("Writer agent failed for %s — falling back to single-post summary", date_range)
         fallback_result = _generate_fallback_post(
             conversation_markdown=conversation_md,
@@ -414,7 +414,7 @@ def _generate_fallback_post(
         fallback_slug = slugify(f"{start_time:%Y-%m-%d-%H%M}-fallback")
         front_matter = (
             "---\n"
-            f"title: \"{safe_title}\"\n"
+            f'title: "{safe_title}"\n'
             f"date: {start_time:%Y-%m-%d}\n"
             f"slug: {fallback_slug}\n"
             "tags: [fallback]\n"

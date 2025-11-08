@@ -435,7 +435,9 @@ def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
     ] = None,
     model: Annotated[
         str | None,
-        typer.Option(help="Gemini model to use (pydantic-ai format, default: google-gla:gemini-flash-latest)"),
+        typer.Option(
+            help="Gemini model to use (pydantic-ai format, default: google-gla:gemini-flash-latest)"
+        ),
     ] = None,
     gemini_key: Annotated[
         str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")

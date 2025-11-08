@@ -200,6 +200,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             logger.info("[magenta]🧾 No /egregora commands detected[/]")
         logger.info("[cyan]🖼️  Processing avatar commands...[/]")
         from egregora.enrichment.avatar_pipeline import AvatarContext
+
         avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,

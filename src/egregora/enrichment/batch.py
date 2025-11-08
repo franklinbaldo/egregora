@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import ibis
-from ibis import IbisError
 import pandas as pd
 import pyarrow as pa
 from google.genai import types as genai_types
+from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
