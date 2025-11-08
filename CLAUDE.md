@@ -159,6 +159,57 @@ Task 5: Fix BLE001 in utils files (3 files)
 ✅ **Focus**: You review summaries instead of making repetitive edits
 ✅ **Scalability**: Handles 20+ files as easily as 5 files
 
+## Post-Commit Reflection Workflow
+
+After each commit and push, take a moment to reflect on lessons learned from the work. This helps capture institutional knowledge and improve future development sessions.
+
+### Reflection Process
+
+1. **After each commit/push**, pause and reflect on:
+   - What technical decisions were made and why
+   - What worked well in the implementation
+   - What could be improved next time
+   - Any error patterns or debugging insights
+   - Architecture insights or design tradeoffs
+
+2. **Document valuable reflections** by asking the user for permission to update CLAUDE.md with these insights
+
+3. **Add reflections to relevant sections**:
+   - Technical patterns → "Development Workflow" or "Modern Patterns" sections
+   - Common errors → "Common Pitfalls" section
+   - Testing insights → "Testing Strategy" section
+   - Architecture decisions → "Architecture: Staged Pipeline" section
+
+### What Makes a Good Reflection
+
+**Examples of valuable reflections**:
+- "Extracted tracking code to separate module during merge to prevent future conflicts - clean separation is better than large monolithic files"
+- "UUID serialization in Ibis memtables requires converting to strings first, let Ibis cast back to UUID type"
+- "Content-addressed checkpointing with SHA256 enables deterministic pipeline resumption across runs"
+- "Two-level validation (compile-time + runtime) provides safety without blocking execution"
+
+**What to capture**:
+- Architecture decisions that deviate from obvious approaches
+- Non-obvious error fixes that took time to debug
+- Patterns that emerged across multiple similar tasks
+- Trade-offs made between competing design principles
+
+**What to skip**:
+- Obvious fixes (typos, simple syntax errors)
+- One-off decisions unlikely to recur
+- Implementation details already documented in code comments
+
+### Integration with Roadmap Progression
+
+After completing each task and reflecting on lessons learned:
+
+1. **Suggest the next task** from the architecture roadmap
+2. **Explain why** that task is the logical next step
+3. **Reference dependencies** between completed and upcoming work
+4. **Continue systematically** through roadmap priorities
+
+This ensures steady progress while capturing knowledge for future sessions.
+
 ## Architecture: Staged Pipeline
 
 Egregora uses a **staged pipeline** (not traditional ETL) with feedback loops and stateful operations:
