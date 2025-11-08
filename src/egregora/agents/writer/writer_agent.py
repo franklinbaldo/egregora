@@ -345,10 +345,17 @@ def write_posts_with_pydantic_agent(
     retrieval_nprobe = config.rag.nprobe
     retrieval_overfetch = config.rag.overfetch
 
-    agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
+    structured_env = os.environ.get("EGREGORA_STRUCTURED_OUTPUT")
+    structured_enabled = True
+    if structured_env is not None:
+        structured_enabled = structured_env.lower() not in {"0", "false", "no"}
+
+    if structured_enabled and test_model is None:
+        agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
         _register_writer_tools(
-            agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+            agent,
+            enable_banner=is_banner_generation_available(),
+            enable_rag=is_rag_available(),
         )
     else:
         agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
