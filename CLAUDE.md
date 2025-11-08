@@ -534,17 +534,64 @@ INFO:egregora.utils.logfire_config:Writer agent completed
   period=2025-01-15 10:00 to 12:00
   posts_created=2
   profiles_updated=3
+  thinking_saved=True      # Thinking content saved to .md file
+  thinking_parts=1         # Number of thinking parts found
   tokens_total=15420
   tokens_input=12000
   tokens_output=3420
   tokens_cache_write=0
   tokens_cache_read=8000
-  tokens_thinking=2100    # Thinking tokens used
+  tokens_thinking=2100     # Thinking tokens used
   tokens_reasoning=0
   usage_details={'thinking_tokens': 2100}
 ```
 
 All token metrics are logged to **Pydantic Logfire** (if enabled) for observability and cost tracking.
+
+#### Saving Thinking Content
+
+**MODERN (2025-01)**: When models use thinking/reasoning, Egregora automatically saves the thinking content to markdown files for later review.
+
+**Where thinking files are saved**:
+```
+output/
+├── posts/                    # Generated blog posts
+├── profiles/                 # Author profiles
+└── .thinking/                # Model thinking content (gitignored by default)
+    ├── thinking_2025-01-15_10-00_to_12-00.md
+    ├── thinking_2025-01-15_12-00_to_14-00.md
+    └── ...
+```
+
+**Example thinking file** (`.thinking/thinking_2025-01-15_10-00_to_12-00.md`):
+```markdown
+# Model Thinking - 2025-01-15 10:00 to 12:00
+
+Generated: 2025-01-15 12:05:23 UTC
+
+---
+
+## Thinking Part 1
+
+Let me analyze these conversations to identify the main themes...
+
+First, I notice several recurring topics:
+1. Technical discussions about AI development
+2. Personal anecdotes about remote work
+3. Philosophical questions about consciousness
+
+Based on this analysis, I'll create a post focusing on...
+
+---
+```
+
+**Benefits**:
+- **Transparency**: See exactly how the model reasoned through content decisions
+- **Debugging**: Understand why certain posts were created or skipped
+- **Improvement**: Identify patterns in model reasoning to refine prompts
+- **Audit trail**: Keep record of AI decision-making process
+
+**Note**: Thinking files are saved to `.thinking/` which should be gitignored (not published to the blog site).
 
 ## Development Workflow
 

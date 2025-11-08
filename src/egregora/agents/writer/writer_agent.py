@@ -56,6 +56,13 @@ from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
+try:
+    from pydantic_ai.messages import ModelResponse, ThinkingPart
+except ImportError:
+    # Fallback for older pydantic-ai versions without ThinkingPart
+    ModelResponse = None  # type: ignore[misc,assignment]
+    ThinkingPart = None  # type: ignore[misc,assignment]
+
 if TYPE_CHECKING:
     from egregora.agents.tools.annotations import AnnotationStore
 logger = logging.getLogger(__name__)
@@ -158,6 +165,81 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
     annotations_store: AnnotationStore | None
+
+
+def _extract_thinking_content(messages: Any) -> list[str]:
+    """Extract thinking/reasoning content from agent message history.
+
+    Parses ModelResponse messages to find ThinkingPart objects containing
+    the model's step-by-step reasoning process.
+
+    Args:
+        messages: Agent message history from result.all_messages()
+
+    Returns:
+        List of thinking content strings
+
+    """
+    if ThinkingPart is None or ModelResponse is None:
+        return []
+
+    thinking_contents: list[str] = []
+
+    try:
+        for message in messages:
+            # Check if this is a ModelResponse message
+            if isinstance(message, ModelResponse):
+                # Iterate through parts to find ThinkingPart
+                thinking_contents.extend(
+                    part.content for part in message.parts if isinstance(part, ThinkingPart)
+                )
+    except (AttributeError, TypeError) as e:
+        logger.debug("Could not extract thinking content: %s", e)
+
+    return thinking_contents
+
+
+def _save_thinking_to_file(thinking_contents: list[str], window_label: str, output_dir: Path) -> Path | None:
+    """Save thinking content to a markdown file.
+
+    Args:
+        thinking_contents: List of thinking content strings
+        window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
+        output_dir: Base output directory
+
+    Returns:
+        Path to saved thinking file, or None if no thinking content
+
+    """
+    if not thinking_contents:
+        return None
+
+    # Create thinking directory if it doesn't exist
+    thinking_dir = output_dir / ".thinking"
+    thinking_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate filename from window label (sanitize for filesystem)
+    safe_filename = window_label.replace(":", "-").replace(" ", "_")
+    thinking_path = thinking_dir / f"thinking_{safe_filename}.md"
+
+    # Build markdown content
+    content_parts = [
+        f"# Model Thinking - {window_label}\n\n",
+        f"Generated: {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n",
+        "---\n\n",
+    ]
+
+    for i, thinking in enumerate(thinking_contents, 1):
+        if len(thinking_contents) > 1:
+            content_parts.append(f"## Thinking Part {i}\n\n")
+        content_parts.append(thinking.strip())
+        content_parts.append("\n\n---\n\n")
+
+    # Write to file
+    thinking_path.write_text("".join(content_parts), encoding="utf-8")
+    logger.info("Saved thinking content to %s", thinking_path)
+
+    return thinking_path
 
 
 def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
@@ -316,7 +398,7 @@ def _register_writer_tools(  # noqa: C901
             return BannerResult(status="failed", path=None)
 
 
-def write_posts_with_pydantic_agent(
+def write_posts_with_pydantic_agent(  # noqa: PLR0915
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -448,12 +530,18 @@ def write_posts_with_pydantic_agent(
         # Extract tool results from message history
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
+        # Extract and save thinking/reasoning content to markdown file
+        thinking_contents = _extract_thinking_content(result.all_messages())
+        thinking_path = _save_thinking_to_file(thinking_contents, window_label, context.output_dir)
+
         usage = result.usage()
         logfire_info(
             "Writer agent completed",
             period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
+            thinking_saved=thinking_path is not None,
+            thinking_parts=len(thinking_contents),
             # Standard token counts
             tokens_total=usage.total_tokens if usage else 0,
             tokens_input=usage.input_tokens if usage else 0,
