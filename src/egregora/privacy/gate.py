@@ -60,10 +60,11 @@ See: docs/architecture/adr-002-deterministic-uuids.md
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, NamedTuple
+from typing import Any, NamedTuple
 
 import ibis
 
@@ -101,6 +102,7 @@ class PrivacyPass(NamedTuple):
     Immutability:
         NamedTuple ensures tokens are immutable after creation.
         This prevents accidental modification during pipeline execution.
+
     """
 
     ir_version: str
@@ -154,6 +156,7 @@ def require_privacy_pass(func: Callable[..., Any]) -> Callable[..., Any]:
         >>> privacy_pass = PrivacyPass("v1", "run-123", "default", datetime.now())
         >>> llm_function(privacy_pass=privacy_pass)
         'ok'
+
     """
 
     @wraps(func)
@@ -208,6 +211,7 @@ class PrivacyConfig:
         ... )
         >>> config.tenant_id
         'acme-corp'
+
     """
 
     tenant_id: str = "default"
@@ -221,9 +225,7 @@ class PrivacyConfig:
     def __post_init__(self) -> None:
         """Validate configuration."""
         if self.enable_reidentification and not self.reidentification_salt:
-            raise ValueError(
-                "reidentification_salt required when enable_reidentification=True"
-            )
+            raise ValueError("reidentification_salt required when enable_reidentification=True")
 
 
 # ============================================================================
@@ -254,6 +256,7 @@ class PrivacyGate:
         ... )
         >>> # Now safe to pass to LLM functions
         >>> enriched = enrich_media(anonymized_table, privacy_pass=privacy_pass)
+
     """
 
     @staticmethod
@@ -299,6 +302,7 @@ class PrivacyGate:
             True
             >>> privacy_pass.tenant_id
             'default'
+
         """
         logger.info(
             "🔒 Privacy gate: Starting",
@@ -315,10 +319,7 @@ class PrivacyGate:
 
         if not required_columns.issubset(actual_columns):
             missing = required_columns - actual_columns
-            raise ValueError(
-                f"Privacy gate requires columns: {required_columns}. "
-                f"Missing: {missing}"
-            )
+            raise ValueError(f"Privacy gate requires columns: {required_columns}. Missing: {missing}")
 
         # 2. Anonymize authors (UUID5)
         # TODO: Update anonymizer.py to accept tenant_id parameter (Day 1 remaining task)
@@ -338,8 +339,7 @@ class PrivacyGate:
             # Fallback: anonymizer not found
             logger.error("anonymize_table not found, privacy gate incomplete!")
             raise RuntimeError(
-                "Privacy gate requires anonymizer.py. "
-                "Ensure src/egregora/privacy/anonymizer.py exists."
+                "Privacy gate requires anonymizer.py. Ensure src/egregora/privacy/anonymizer.py exists."
             )
 
         # 3. Detect PII
@@ -412,6 +412,7 @@ class ReidentificationEscrow:
 
     Note:
         This is NOT implemented yet. See ADR-003 for policy and design.
+
     """
 
     def __init__(self, tenant_id: str, salt: str):
@@ -420,12 +421,12 @@ class ReidentificationEscrow:
         Args:
             tenant_id: Tenant identifier
             salt: Tenant-specific salt (should be random, stored securely)
+
         """
         self.tenant_id = tenant_id
         self.salt = salt
         logger.warning(
-            "ReidentificationEscrow is not yet implemented. "
-            "This is a placeholder for future feature."
+            "ReidentificationEscrow is not yet implemented. This is a placeholder for future feature."
         )
 
     def store_mapping(self, author_raw: str, author_uuid: str) -> None:
@@ -437,10 +438,10 @@ class ReidentificationEscrow:
 
         Raises:
             NotImplementedError: This feature is not yet implemented
+
         """
         raise NotImplementedError(
-            "Re-identification escrow not yet implemented. "
-            "See ADR-003 for design and policy."
+            "Re-identification escrow not yet implemented. See ADR-003 for design and policy."
         )
 
     def reidentify(self, author_uuid: str) -> str | None:
@@ -454,8 +455,8 @@ class ReidentificationEscrow:
 
         Raises:
             NotImplementedError: This feature is not yet implemented
+
         """
         raise NotImplementedError(
-            "Re-identification escrow not yet implemented. "
-            "See ADR-003 for design and policy."
+            "Re-identification escrow not yet implemented. See ADR-003 for design and policy."
         )

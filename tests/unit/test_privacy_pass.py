@@ -16,7 +16,8 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from egregora.privacy.gate import (
     PrivacyConfig,
@@ -24,7 +25,6 @@ from egregora.privacy.gate import (
     PrivacyPass,
     require_privacy_pass,
 )
-
 
 # ============================================================================
 # PrivacyPass Token Tests
