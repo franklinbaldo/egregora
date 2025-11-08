@@ -3,7 +3,6 @@
 import io
 import socket
 import uuid
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -333,22 +332,18 @@ class TestZIPPathTraversal:
 class TestProfileAvatarManagement:
     """Test profile avatar management functions."""
 
-    def test_update_profile_avatar_approved(self, tmp_path):
-        """Test updating profile with approved avatar."""
+    def test_update_profile_avatar(self, tmp_path):
+        """Test updating profile with avatar URL."""
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
 
         author_uuid = "test-author-uuid"
-        avatar_uuid = "avatar-uuid-123"
-        avatar_path = Path("media/avatars/avatar.jpg")
+        avatar_url = "https://example.com/avatar.jpg"
         timestamp = "2025-01-15T10:00:00"
 
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid=avatar_uuid,
-            avatar_path=avatar_path,
-            moderation_status="approved",
-            moderation_reason="Looks good",
+            avatar_url=avatar_url,
             timestamp=timestamp,
             profiles_dir=profiles_dir,
         )
@@ -359,55 +354,39 @@ class TestProfileAvatarManagement:
 
         content = profile_path.read_text()
         assert "## Avatar" in content
-        assert avatar_uuid in content
-        assert "✅ Approved" in content
+        assert avatar_url in content
         assert timestamp in content
 
-    def test_update_profile_avatar_questionable(self, tmp_path):
-        """Test updating profile with questionable avatar."""
+    def test_update_profile_avatar_changes_url(self, tmp_path):
+        """Test updating avatar URL replaces previous one."""
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
 
         author_uuid = "test-author-uuid"
 
+        # Set first avatar
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid="avatar-123",
-            avatar_path=Path("media/avatars/avatar.jpg"),
-            moderation_status="questionable",
-            moderation_reason="Needs manual review",
+            avatar_url="https://example.com/old-avatar.jpg",
             timestamp="2025-01-15T10:00:00",
+            profiles_dir=profiles_dir,
+        )
+
+        # Update to new avatar
+        new_url = "https://example.com/new-avatar.jpg"
+        update_profile_avatar(
+            author_uuid=author_uuid,
+            avatar_url=new_url,
+            timestamp="2025-01-15T11:00:00",
             profiles_dir=profiles_dir,
         )
 
         profile_path = profiles_dir / f"{author_uuid}.md"
         content = profile_path.read_text()
 
-        assert "⚠️ Pending Review" in content
-        assert "Needs manual review" in content
-
-    def test_update_profile_avatar_blocked(self, tmp_path):
-        """Test updating profile with blocked avatar."""
-        profiles_dir = tmp_path / "profiles"
-        profiles_dir.mkdir()
-
-        author_uuid = "test-author-uuid"
-
-        update_profile_avatar(
-            author_uuid=author_uuid,
-            avatar_uuid="avatar-123",
-            avatar_path=Path("media/avatars/avatar.jpg"),
-            moderation_status="blocked",
-            moderation_reason="Inappropriate content",
-            timestamp="2025-01-15T10:00:00",
-            profiles_dir=profiles_dir,
-        )
-
-        profile_path = profiles_dir / f"{author_uuid}.md"
-        content = profile_path.read_text()
-
-        assert "❌ Blocked" in content
-        assert "Inappropriate content" in content
+        # Should have new URL, not old
+        assert new_url in content
+        assert "old-avatar.jpg" not in content
 
     def test_remove_profile_avatar(self, tmp_path):
         """Test removing avatar from profile."""
@@ -419,10 +398,7 @@ class TestProfileAvatarManagement:
         # First set an avatar
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid="avatar-123",
-            avatar_path=Path("media/avatars/avatar.jpg"),
-            moderation_status="approved",
-            moderation_reason="",
+            avatar_url="https://example.com/avatar.jpg",
             timestamp="2025-01-15T10:00:00",
             profiles_dir=profiles_dir,
         )
@@ -437,31 +413,27 @@ class TestProfileAvatarManagement:
         assert "None (removed on" in content
         assert timestamp in content
 
-    def test_get_avatar_info_approved(self, tmp_path):
-        """Test getting avatar info for approved avatar."""
+    def test_get_avatar_info(self, tmp_path):
+        """Test getting avatar info."""
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
 
         author_uuid = "test-author-uuid"
-        avatar_uuid = "avatar-uuid-123"
-        avatar_path = Path("media/avatars/avatar.jpg")
+        avatar_url = "https://example.com/avatar.jpg"
+        timestamp = "2025-01-15T10:00:00"
 
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid=avatar_uuid,
-            avatar_path=avatar_path,
-            moderation_status="approved",
-            moderation_reason="",
-            timestamp="2025-01-15T10:00:00",
+            avatar_url=avatar_url,
+            timestamp=timestamp,
             profiles_dir=profiles_dir,
         )
 
         info = get_avatar_info(author_uuid, profiles_dir)
 
         assert info is not None
-        assert info["uuid"] == avatar_uuid
-        assert info["status"] == "approved"
-        assert str(avatar_path) in info["path"]
+        assert info["url"] == avatar_url
+        assert info["set_on"] == timestamp
 
     def test_get_avatar_info_no_avatar(self, tmp_path):
         """Test getting avatar info when no avatar exists."""
@@ -481,10 +453,7 @@ class TestProfileAvatarManagement:
         # Set and then remove avatar
         update_profile_avatar(
             author_uuid=author_uuid,
-            avatar_uuid="avatar-123",
-            avatar_path=Path("media/avatars/avatar.jpg"),
-            moderation_status="approved",
-            moderation_reason="",
+            avatar_url="https://example.com/avatar.jpg",
             timestamp="2025-01-15T10:00:00",
             profiles_dir=profiles_dir,
         )
@@ -493,3 +462,4 @@ class TestProfileAvatarManagement:
 
         info = get_avatar_info(author_uuid, profiles_dir)
         assert info is None
+
