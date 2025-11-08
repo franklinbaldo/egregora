@@ -47,6 +47,8 @@ except ImportError:
             return json.dumps(messages, indent=2, default=str)
 
 
+from pydantic_ai.messages import ModelResponse, ThinkingPart
+
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.tools.annotations import AnnotationStore
 from egregora.agents.tools.profiler import read_profile, write_profile
@@ -55,13 +57,6 @@ from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
-
-try:
-    from pydantic_ai.messages import ModelResponse, ThinkingPart
-except ImportError:
-    # Fallback for older pydantic-ai versions without ThinkingPart
-    ModelResponse = None  # type: ignore[misc,assignment]
-    ThinkingPart = None  # type: ignore[misc,assignment]
 
 if TYPE_CHECKING:
     from egregora.agents.tools.annotations import AnnotationStore
@@ -180,21 +175,13 @@ def _extract_thinking_content(messages: Any) -> list[str]:
         List of thinking content strings
 
     """
-    if ThinkingPart is None or ModelResponse is None:
-        return []
-
     thinking_contents: list[str] = []
 
-    try:
-        for message in messages:
-            # Check if this is a ModelResponse message
-            if isinstance(message, ModelResponse):
-                # Iterate through parts to find ThinkingPart
-                thinking_contents.extend(
-                    part.content for part in message.parts if isinstance(part, ThinkingPart)
-                )
-    except (AttributeError, TypeError) as e:
-        logger.debug("Could not extract thinking content: %s", e)
+    for message in messages:
+        # Check if this is a ModelResponse message
+        if isinstance(message, ModelResponse):
+            # Iterate through parts to find ThinkingPart
+            thinking_contents.extend(part.content for part in message.parts if isinstance(part, ThinkingPart))
 
     return thinking_contents
 
