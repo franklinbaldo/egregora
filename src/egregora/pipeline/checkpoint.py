@@ -48,8 +48,9 @@ Usage:
 import hashlib
 import pickle
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import ibis
 
@@ -69,12 +70,13 @@ def get_config_hash(config: Any) -> str:
         This uses pickle serialization, which may not be stable across
         Python versions. For production, consider using a more stable
         serialization format (e.g., JSON with sorted keys).
+
     """
     try:
         serialized = pickle.dumps(config, protocol=pickle.HIGHEST_PROTOCOL)
         hash_obj = hashlib.sha256(serialized)
         return f"sha256:{hash_obj.hexdigest()}"
-    except (pickle.PicklingError, TypeError, AttributeError) as e:
+    except (pickle.PicklingError, TypeError, AttributeError):
         # Fallback: hash string representation
         # FIXME: This is not stable (dict ordering, memory addresses)
         # AttributeError: lambda functions, local objects
@@ -114,6 +116,7 @@ def checkpoint_path(
         ... )
         >>> print(cp_path)
         .egregora-cache/checkpoints/enrichment/abc123.../checkpoint.pkl
+
     """
     # Auto-detect code_ref if not provided
     if code_ref is None:
@@ -136,9 +139,7 @@ def checkpoint_path(
     if config_hash:
         composite_parts.append(config_hash)
 
-    composite_fingerprint = hashlib.sha256(
-        ":".join(composite_parts).encode("utf-8")
-    ).hexdigest()
+    composite_fingerprint = hashlib.sha256(":".join(composite_parts).encode("utf-8")).hexdigest()
 
     # Generate hierarchical path: stage/composite_fingerprint/checkpoint.pkl
     # This structure allows:
@@ -164,6 +165,7 @@ def load_checkpoint(path: Path) -> Any | None:
     Note:
         This uses pickle deserialization. Only load checkpoints from
         trusted sources (your own pipeline runs).
+
     """
     if not path.exists():
         return None
@@ -186,6 +188,7 @@ def save_checkpoint(path: Path, result: Any) -> None:
     Raises:
         OSError: If directory creation or file write fails
         pickle.PicklingError: If result cannot be pickled
+
     """
     # Create parent directories
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -249,6 +252,7 @@ def run_with_checkpointing(
         ... )
         >>> if was_cached:
         ...     print("Cache hit! Skipped enrichment.")
+
     """
     # Compute input fingerprint if not provided
     if input_fingerprint is None and input_table is not None:
@@ -287,7 +291,7 @@ def run_with_checkpointing(
     # Save checkpoint
     try:
         save_checkpoint(cp_path, result)
-    except (pickle.PicklingError, OSError) as e:
+    except (pickle.PicklingError, OSError):
         # Log warning but don't fail (checkpointing is optional)
         # FIXME: Add proper logging when logfire/logging is configured
         pass
@@ -315,6 +319,7 @@ def clear_checkpoints(
 
         >>> # Clear all checkpoints
         >>> count = clear_checkpoints()
+
     """
     if not cache_dir.exists():
         return 0

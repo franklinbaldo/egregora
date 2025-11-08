@@ -9,8 +9,6 @@ Tests:
 - @traced decorator works when disabled
 """
 
-import os
-
 import pytest
 
 from egregora.utils.telemetry import (
@@ -22,7 +20,6 @@ from egregora.utils.telemetry import (
     traced_operation,
 )
 
-
 # ==============================================================================
 # is_telemetry_enabled() Tests
 # ==============================================================================
@@ -33,7 +30,6 @@ def test_telemetry_disabled_by_default(monkeypatch):
     monkeypatch.delenv("EGREGORA_OTEL", raising=False)
 
     # Re-import to pick up env var change
-    from egregora.utils import telemetry
 
     # FIXME: Module-level variable already set, can't test dynamically
     # This test only works if env var set before import
@@ -46,7 +42,6 @@ def test_telemetry_enabled_via_env_var(monkeypatch):
     # NOTE: This test doesn't work due to module-level variable
     # Would need to reload module, which is complex
     # Tested manually via integration tests instead
-    pass
 
 
 # ==============================================================================
@@ -64,7 +59,6 @@ def test_configure_otel_handles_missing_dependencies():
     """configure_otel() prints warning if OpenTelemetry not installed."""
     # NOTE: We can't test this easily without actually removing packages
     # This is verified by manual testing
-    pass
 
 
 # ==============================================================================
@@ -196,7 +190,6 @@ def test_telemetry_integration_manual():
 
     5. View traces at http://localhost:16686
     """
-    pass
 
 
 # ==============================================================================
@@ -210,9 +203,8 @@ def test_traced_operation_handles_exceptions():
     def failing_function():
         raise ValueError("Intentional test error")
 
-    with pytest.raises(ValueError, match="Intentional test error"):
-        with traced_operation("failing_op"):
-            failing_function()
+    with pytest.raises(ValueError, match="Intentional test error"), traced_operation("failing_op"):
+        failing_function()
 
 
 def test_traced_decorator_handles_exceptions():
