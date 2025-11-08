@@ -7,12 +7,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import Any, TypedDict
 
 from ibis.expr.types import Table
-
-if TYPE_CHECKING:
-    from importlib.metadata import EntryPoint
 
 logger = logging.getLogger(__name__)
 
@@ -213,16 +210,13 @@ class InputSourceRegistry:
                 # Validate IR version
                 if meta["ir_version"] != "v1":
                     logger.warning(
-                        f"Adapter '{ep.name}' requires IR {meta['ir_version']}, skipping "
-                        f"(only v1 supported)"
+                        f"Adapter '{ep.name}' requires IR {meta['ir_version']}, skipping (only v1 supported)"
                     )
                     continue
 
                 # Register adapter
                 self._sources[ep.name] = adapter_cls
-                logger.info(
-                    f"Loaded plugin adapter: {ep.name} v{meta['version']} " f"(source: {meta['source']})"
-                )
+                logger.info(f"Loaded plugin adapter: {ep.name} v{meta['version']} (source: {meta['source']})")
 
             except Exception as e:
                 logger.error(f"Failed to load adapter plugin '{ep.name}': {e}")
