@@ -1356,37 +1356,6 @@ def get_avatar_cli(
         console.print(f"[cyan]Reason:[/cyan] {avatar_info['reason']}")
 
 
-@app.command("remove-avatar")
-def remove_avatar_cli(
-    author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
-    site_dir: Annotated[
-        Path,
-        typer.Option("--site-dir", "-s", help="Path to MkDocs site directory"),
-    ] = Path("output"),
-):
-    """Remove avatar from an author's profile."""
-    from datetime import datetime
-
-    from ..augmentation.profiler import remove_profile_avatar
-
-    # Resolve paths
-    site_path = site_dir.resolve()
-    if not site_path.exists():
-        console.print(f"[red]Site directory not found: {site_path}[/red]")
-        raise typer.Exit(1)
-
-    site_paths = resolve_site_paths(site_path)
-
-    # Confirm removal
-    console.print(f"[yellow]Removing avatar for author {author_uuid}...[/yellow]")
-
-    # Remove avatar
-    timestamp = datetime.now().isoformat()
-    remove_profile_avatar(author_uuid, timestamp, site_paths.profiles_dir)
-
-    console.print(f"[green]✅ Avatar removed for {author_uuid}[/green]")
-
-
 @app.command("review-avatar")
 def review_avatar_cli(
     author_uuid: Annotated[str, typer.Argument(help="The UUID of the author")],
