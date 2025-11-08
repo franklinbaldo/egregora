@@ -123,32 +123,20 @@ class TestDeterministicEventUUID:
 
     def test_basic_determinism(self):
         """Same inputs produce same UUID."""
-        uuid1 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z"
-        )
-        uuid2 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z"
-        )
+        uuid1 = deterministic_event_uuid("default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z")
+        uuid2 = deterministic_event_uuid("default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z")
         assert uuid1 == uuid2
 
     def test_different_message_ids(self):
         """Different message IDs produce different UUIDs."""
-        uuid1 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z"
-        )
-        uuid2 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-456", "2025-01-08T10:00:00Z"
-        )
+        uuid1 = deterministic_event_uuid("default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z")
+        uuid2 = deterministic_event_uuid("default", "whatsapp", "msg-456", "2025-01-08T10:00:00Z")
         assert uuid1 != uuid2
 
     def test_different_timestamps(self):
         """Different timestamps produce different UUIDs."""
-        uuid1 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z"
-        )
-        uuid2 = deterministic_event_uuid(
-            "default", "whatsapp", "msg-123", "2025-01-08T11:00:00Z"
-        )
+        uuid1 = deterministic_event_uuid("default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z")
+        uuid2 = deterministic_event_uuid("default", "whatsapp", "msg-123", "2025-01-08T11:00:00Z")
         assert uuid1 != uuid2
 
 
@@ -176,13 +164,11 @@ def test_uuid5_determinism_property(tenant_id: str, source: str, author: str):
     source=st.text(min_size=1, max_size=20),
     author=st.text(min_size=1, max_size=100),
 )
-def test_tenant_isolation_property(
-    tenant1: str, tenant2: str, source: str, author: str
-):
+def test_tenant_isolation_property(tenant1: str, tenant2: str, source: str, author: str):
     """Property test: Different tenants → different UUIDs (unless same tenant)."""
     uuid1 = deterministic_author_uuid(tenant1, source, author)
     uuid2 = deterministic_author_uuid(tenant2, source, author)
-    
+
     if tenant1 == tenant2:
         assert uuid1 == uuid2
     else:
@@ -195,13 +181,11 @@ def test_tenant_isolation_property(
     source2=st.text(min_size=1, max_size=20),
     author=st.text(min_size=1, max_size=100),
 )
-def test_source_separation_property(
-    tenant_id: str, source1: str, source2: str, author: str
-):
+def test_source_separation_property(tenant_id: str, source1: str, source2: str, author: str):
     """Property test: Different sources → different UUIDs (unless same source)."""
     uuid1 = deterministic_author_uuid(tenant_id, source1, author)
     uuid2 = deterministic_author_uuid(tenant_id, source2, author)
-    
+
     if source1 == source2:
         assert uuid1 == uuid2
     else:
@@ -214,9 +198,7 @@ def test_source_separation_property(
     msg_id=st.text(min_size=1, max_size=100),
     timestamp=st.text(min_size=1, max_size=50),
 )
-def test_event_uuid_determinism_property(
-    tenant_id: str, source: str, msg_id: str, timestamp: str
-):
+def test_event_uuid_determinism_property(tenant_id: str, source: str, msg_id: str, timestamp: str):
     """Property test: Event UUIDs are deterministic."""
     uuid1 = deterministic_event_uuid(tenant_id, source, msg_id, timestamp)
     uuid2 = deterministic_event_uuid(tenant_id, source, msg_id, timestamp)
