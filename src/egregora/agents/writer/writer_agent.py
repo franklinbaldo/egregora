@@ -342,25 +342,41 @@ def _save_journal_to_file(
 
     # Load template from templates directory
     templates_dir = Path(__file__).parent.parent.parent / "templates"
-    env = Environment(
-        loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
-    )
-    template = env.get_template("journal.md.jinja")
+    if not templates_dir.exists():
+        logger.warning("Templates directory not found: %s", templates_dir)
+        return None
+
+    try:
+        env = Environment(
+            loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
+        )
+        template = env.get_template("journal.md.jinja")
+    except (OSError, ValueError):  # TemplateNotFound, file I/O errors
+        logger.exception("Failed to load journal template")
+        return None
 
     # Render journal content
     now_utc = datetime.now(tz=UTC)
-    journal_content = template.render(
-        window_label=window_label,
-        date=now_utc.strftime("%Y-%m-%d"),
-        created=now_utc.isoformat(),
-        intercalated_log=intercalated_log,
-    )
+    try:
+        journal_content = template.render(
+            window_label=window_label,
+            date=now_utc.strftime("%Y-%m-%d"),
+            created=now_utc.isoformat(),
+            intercalated_log=intercalated_log,
+        )
+    except (TypeError, ValueError):  # Template rendering errors
+        logger.exception("Failed to render journal template")
+        return None
 
     # Write to file
-    journal_path.write_text(journal_content, encoding="utf-8")
-    logger.info("Saved journal entry to %s", journal_path)
-
-    return journal_path
+    try:
+        journal_path.write_text(journal_content, encoding="utf-8")
+    except (OSError, PermissionError):
+        logger.exception("Failed to write journal file %s", journal_path)
+        return None
+    else:
+        logger.info("Saved journal entry to %s", journal_path)
+        return journal_path
 
 
 def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
