@@ -12,7 +12,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-
 # ============================================================================
 # Frozen UUID5 Namespaces (DO NOT MODIFY)
 # ============================================================================
@@ -39,51 +38,57 @@ NAMESPACE_THREAD = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
 # Multi-Tenant Namespace Generation
 # ============================================================================
 
+
 @dataclass(frozen=True, slots=True)
 class NamespaceContext:
     """Context for generating tenant-isolated UUID5 namespaces.
-    
+
     Attributes:
         tenant_id: Tenant identifier for multi-tenant isolation
         source: Source adapter name (e.g., 'whatsapp', 'slack')
-        
+
     Example:
         >>> ctx = NamespaceContext(tenant_id="default", source="whatsapp")
         >>> author_ns = ctx.author_namespace()
         >>> uuid.uuid5(author_ns, "Alice")
+
     """
+
     tenant_id: str
     source: str
-    
+
     def author_namespace(self) -> uuid.UUID:
         """Get tenant-scoped author namespace.
-        
+
         Returns:
             UUID5 namespace for author identity within this tenant+source
-            
+
         Example:
             >>> ctx = NamespaceContext("acme-corp", "slack")
             >>> ns = ctx.author_namespace()
             >>> uuid.uuid5(ns, "alice@acme.com")
+
         """
         # Format: "tenant:{tenant_id}:source:{source}:author"
         namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:author"
         return uuid.uuid5(NAMESPACE_AUTHOR, namespace_key)
-    
+
     def event_namespace(self) -> uuid.UUID:
         """Get tenant-scoped event namespace.
-        
+
         Returns:
             UUID5 namespace for event identity within this tenant+source
+
         """
         namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:event"
         return uuid.uuid5(NAMESPACE_EVENT, namespace_key)
-    
+
     def thread_namespace(self) -> uuid.UUID:
         """Get tenant-scoped thread namespace.
-        
+
         Returns:
             UUID5 namespace for thread identity within this tenant+source
+
         """
         namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:thread"
         return uuid.uuid5(NAMESPACE_THREAD, namespace_key)
@@ -93,27 +98,29 @@ class NamespaceContext:
 # Helper Functions
 # ============================================================================
 
+
 def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> uuid.UUID:
     """Generate deterministic UUID for an author.
-    
+
     This function ensures:
     1. Same author → same UUID across runs (determinism)
     2. Different tenants → different UUIDs (isolation)
     3. Same author in different sources → different UUIDs (source separation)
-    
+
     Args:
         tenant_id: Tenant identifier
         source: Source adapter name (e.g., 'whatsapp', 'slack')
         author_raw: Original author name
-        
+
     Returns:
         Deterministic UUID5 for this author
-        
+
     Example:
         >>> deterministic_author_uuid("default", "whatsapp", "Alice")
         UUID('...')  # Always the same for this input
         >>> deterministic_author_uuid("acme", "whatsapp", "Alice")
         UUID('...')  # Different UUID (different tenant)
+
     """
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     author_namespace = ctx.author_namespace()
@@ -123,26 +130,27 @@ def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> u
 
 def deterministic_event_uuid(
     tenant_id: str,
-    source: str, 
+    source: str,
     message_id: str,
     timestamp_iso: str,
 ) -> uuid.UUID:
     """Generate deterministic UUID for an event.
-    
+
     Args:
         tenant_id: Tenant identifier
         source: Source adapter name
         message_id: Source-specific message identifier
         timestamp_iso: ISO 8601 timestamp string
-        
+
     Returns:
         Deterministic UUID5 for this event
-        
+
     Example:
         >>> deterministic_event_uuid(
         ...     "default", "whatsapp", "msg-123", "2025-01-08T10:00:00Z"
         ... )
         UUID('...')
+
     """
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     event_namespace = ctx.event_namespace()
