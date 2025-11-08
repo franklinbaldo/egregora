@@ -168,9 +168,14 @@ def _validate_url_for_ssrf(url: str) -> None:
     logger.info("URL validation passed for: %s (resolves to: %s)", url, ", ".join(ip_addresses))
 
 
-def _generate_avatar_uuid(content: bytes, group_slug: str) -> uuid.UUID:
-    """Generate deterministic UUID for avatar based on content."""
-    namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_slug)
+def _generate_avatar_uuid(content: bytes) -> uuid.UUID:
+    """Generate deterministic UUID for avatar based on content only.
+
+    Same content = same UUID, regardless of which group/chat uses it.
+    This enables global deduplication across all groups.
+    """
+    # Use a fixed namespace for all egregora media
+    namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # NAMESPACE_DNS
     content_hash = hashlib.sha256(content).hexdigest()
     return uuid.uuid5(namespace, content_hash)
 
@@ -389,14 +394,13 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, docs_dir
 
 
 def download_avatar_from_url(
-    url: str, docs_dir: Path, group_slug: str, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
+    url: str, docs_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
 ) -> tuple[uuid.UUID, Path]:
     """Download avatar from URL and save to avatars directory.
 
     Args:
         url: URL of the avatar image
         docs_dir: MkDocs docs directory
-        group_slug: Group slug for UUID namespace
         timeout: HTTP timeout in seconds
 
     Returns:
@@ -416,7 +420,7 @@ def download_avatar_from_url(
         _validate_image_dimensions(content)
 
         ext = _get_extension_from_mime_type(content_type, url)
-        avatar_uuid = _generate_avatar_uuid(content, group_slug)
+        avatar_uuid = _generate_avatar_uuid(content)
         avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
     except httpx.HTTPError as e:
         logger.debug("HTTP error details: %s", e)
@@ -490,7 +494,7 @@ def _find_file_in_zip(zf: zipfile.ZipFile, media_filename: str) -> bytes:
 
 
 def extract_avatar_from_zip(
-    zip_path: Path, media_filename: str, docs_dir: Path, group_slug: str
+    zip_path: Path, media_filename: str, docs_dir: Path
 ) -> tuple[uuid.UUID, Path]:
     """Extract avatar image from WhatsApp ZIP export.
 
@@ -498,7 +502,6 @@ def extract_avatar_from_zip(
         zip_path: Path to WhatsApp export ZIP
         media_filename: Filename of the media in the ZIP
         docs_dir: MkDocs docs directory
-        group_slug: Group slug for UUID namespace
 
     Returns:
         Tuple of (avatar_uuid, avatar_path)
@@ -517,7 +520,7 @@ def extract_avatar_from_zip(
         _validate_image_content(content, mime_type)
         _validate_image_dimensions(content)
 
-        avatar_uuid = _generate_avatar_uuid(content, group_slug)
+        avatar_uuid = _generate_avatar_uuid(content)
         avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
     except zipfile.BadZipFile as e:
         msg = f"Invalid ZIP file: {e}"

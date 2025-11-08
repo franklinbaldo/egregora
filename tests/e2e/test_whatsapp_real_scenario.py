@@ -237,7 +237,6 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
         export.zip_path,
         docs_dir,
         posts_dir,
-        str(export.group_slug),
     )
 
     assert len(media_mapping) == 4
@@ -259,7 +258,6 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
         export.zip_path,
         docs_dir,
         posts_dir,
-        str(export.group_slug),
     )
 
     joined_messages = " ".join(updated_table["message"].execute().dropna().tolist())
@@ -280,10 +278,10 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     posts_two.mkdir()
 
     _, mapping_one = extract_and_replace_media(
-        table, export.zip_path, docs_dir_one, posts_one, str(export.group_slug)
+        table, export.zip_path, docs_dir_one, posts_one
     )
     _, mapping_two = extract_and_replace_media(
-        table, export.zip_path, docs_dir_two, posts_two, str(export.group_slug)
+        table, export.zip_path, docs_dir_two, posts_two
     )
 
     assert mapping_one.keys() == mapping_two.keys()
@@ -403,7 +401,6 @@ def test_enrichment_adds_egregora_messages(
         export.zip_path,
         docs_dir,
         posts_dir,
-        str(export.group_slug),
     )
 
     cache = EnrichmentCache(tmp_path / "cache")
@@ -529,7 +526,6 @@ def test_enrichment_handles_schema_mismatch(
         export.zip_path,
         docs_dir,
         posts_dir,
-        str(export.group_slug),
     )
 
     cache = EnrichmentCache(tmp_path / "cache")

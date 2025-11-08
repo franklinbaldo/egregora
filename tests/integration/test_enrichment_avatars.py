@@ -85,24 +85,32 @@ class TestAvatarValidation:
             _validate_image_format("avatar.pdf")
 
     def test_generate_avatar_uuid_deterministic(self):
-        """Test UUID generation is deterministic."""
+        """Test UUID generation is deterministic (content-based only)."""
         content = b"test image content"
-        slug = "test-group"
 
-        uuid1 = _generate_avatar_uuid(content, slug)
-        uuid2 = _generate_avatar_uuid(content, slug)
+        uuid1 = _generate_avatar_uuid(content)
+        uuid2 = _generate_avatar_uuid(content)
 
         assert uuid1 == uuid2
         assert isinstance(uuid1, uuid.UUID)
 
     def test_generate_avatar_uuid_different_content(self):
         """Test different content produces different UUIDs."""
-        slug = "test-group"
-
-        uuid1 = _generate_avatar_uuid(b"content1", slug)
-        uuid2 = _generate_avatar_uuid(b"content2", slug)
+        uuid1 = _generate_avatar_uuid(b"content1")
+        uuid2 = _generate_avatar_uuid(b"content2")
 
         assert uuid1 != uuid2
+
+    def test_generate_avatar_uuid_same_content_different_groups(self):
+        """Test same content produces SAME UUID (global deduplication)."""
+        # This is the key change - same content = same UUID, regardless of group
+        content = b"shared avatar image"
+
+        uuid1 = _generate_avatar_uuid(content)
+        uuid2 = _generate_avatar_uuid(content)
+
+        # Same content should produce identical UUID (deduplication across groups)
+        assert uuid1 == uuid2
 
 
 class TestSSRFProtection:

@@ -200,10 +200,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             logger.info("[magenta]🧾 No /egregora commands detected[/]")
         logger.info("[cyan]🖼️  Processing avatar commands...[/]")
         # Avatars go through regular media enrichment pipeline
+        # UUID generation is content-based only (no group namespacing)
         avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
             profiles_dir=site_paths.profiles_dir,
-            group_slug=str(group_slug),
             vision_model=vision_model,
             cache=enrichment_cache,
         )

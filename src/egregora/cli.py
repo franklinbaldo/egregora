@@ -966,8 +966,9 @@ def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and sta
             original_count = messages_table.count().execute()
             console.print(f"[cyan]Loaded {original_count} messages[/cyan]")
             console.print("[yellow]Extracting media from ZIP...[/yellow]")
+            # Media UUIDs are content-based only (global deduplication)
             messages_table, media_mapping = extract_and_replace_media(
-                messages_table, zip_path, site_paths.docs_dir, posts_dir, "chat"
+                messages_table, zip_path, site_paths.docs_dir, posts_dir
             )
             console.print(f"[green]Extracted {len(media_mapping)} media files[/green]")
             cache_dir = Path(".egregora-cache") / site_paths.site_root.name
