@@ -246,10 +246,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
             # Allow nullable mismatches if both are same base type
             # e.g., String(nullable=True) vs String(nullable=False)
             if not _types_compatible(expected_type, actual_type):
-                msg = (
-                    f"IR v1 type mismatch for column '{col}': "
-                    f"expected {expected_type}, got {actual_type}"
-                )
+                msg = f"IR v1 type mismatch for column '{col}': expected {expected_type}, got {actual_type}"
                 raise SchemaError(msg)
 
     # 2. Runtime check: Validate sample rows with Pydantic
@@ -290,9 +287,8 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
         # Runtime validation failure is not critical - schema validation passed
         # Log warning but don't fail (execution issues with memtable, etc.)
         import logging
-        logging.getLogger(__name__).warning(
-            f"IR v1 runtime validation skipped due to execution error: {e}"
-        )
+
+        logging.getLogger(__name__).warning(f"IR v1 runtime validation skipped due to execution error: {e}")
 
 
 def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
