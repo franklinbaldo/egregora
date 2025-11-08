@@ -38,6 +38,7 @@ class ViewDefinition:
         materialized: Whether to materialize (cache) the view
         dependencies: List of tables/views this depends on
         description: Human-readable description
+
     """
 
     name: str
@@ -69,6 +70,7 @@ class ViewRegistry:
         ... ))
         >>> registry.create_all()
         >>> results = registry.query("active_authors")
+
     """
 
     connection: duckdb.DuckDBPyConnection
@@ -82,6 +84,7 @@ class ViewRegistry:
 
         Raises:
             ValueError: If view name is already registered
+
         """
         if view.name in self.views:
             msg = f"View '{view.name}' is already registered"
@@ -95,6 +98,7 @@ class ViewRegistry:
 
         Args:
             views: List of view definitions
+
         """
         for view in views:
             self.register(view)
@@ -108,6 +112,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not registered
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -143,6 +148,7 @@ class ViewRegistry:
 
         Args:
             force: If True, drop existing views before creating
+
         """
         # Topological sort based on dependencies
         sorted_views = self._topological_sort()
@@ -161,6 +167,7 @@ class ViewRegistry:
         Raises:
             KeyError: If view not registered
             ValueError: If view is not materialized
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -183,9 +190,7 @@ class ViewRegistry:
 
     def refresh_all(self) -> None:
         """Refresh all materialized views in dependency order."""
-        materialized_views = [
-            name for name, view in self.views.items() if view.materialized
-        ]
+        materialized_views = [name for name, view in self.views.items() if view.materialized]
 
         # Sort by dependencies
         sorted_views = self._topological_sort()
@@ -207,6 +212,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not registered or doesn't exist in database
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -230,6 +236,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not registered
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -245,6 +252,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not registered
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -275,6 +283,7 @@ class ViewRegistry:
 
         Returns:
             List of view names
+
         """
         return list(self.views.keys())
 
@@ -289,6 +298,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not registered
+
         """
         if name not in self.views:
             msg = f"View '{name}' not registered"
@@ -304,9 +314,10 @@ class ViewRegistry:
 
         Raises:
             ValueError: If circular dependencies detected
+
         """
         # Kahn's algorithm
-        in_degree = {name: 0 for name in self.views}
+        in_degree = dict.fromkeys(self.views, 0)
         adj_list = {name: [] for name in self.views}
 
         # Build adjacency list and in-degree counts
@@ -347,6 +358,7 @@ def register_common_views(
     Args:
         registry: ViewRegistry instance
         table_name: Name of the base messages table
+
     """
     views = [
         # Author statistics
