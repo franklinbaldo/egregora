@@ -480,9 +480,12 @@ def _parse_messages(
         # Finalize previous message
         if builder is not None:
             row = builder.finalize()
-            row[_IMPORT_ORDER_COLUMN] = position
-            rows.append(row)
-            position += 1
+            # Drop empty messages (WhatsApp exports occasionally include blank lines that should not count as messages)
+            message = row.get("message")
+            if message:
+                row[_IMPORT_ORDER_COLUMN] = position
+                rows.append(row)
+                position += 1
 
         # Create timestamp with proper timezone
         tz = _resolve_timezone(timezone)
@@ -500,8 +503,10 @@ def _parse_messages(
     # Finalize last message
     if builder is not None:
         row = builder.finalize()
-        row[_IMPORT_ORDER_COLUMN] = position
-        rows.append(row)
+        message = row.get("message")
+        if message:
+            row[_IMPORT_ORDER_COLUMN] = position
+            rows.append(row)
 
     return rows
 

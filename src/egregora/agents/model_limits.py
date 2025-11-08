@@ -10,6 +10,7 @@ limits cause API failures or silent truncation, wasting tokens and degrading qua
 """
 
 import logging
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,23 @@ KNOWN_MODEL_LIMITS = {
 }
 
 
+@runtime_checkable
+class _HasModelName(Protocol):
+    @property
+    def model_name(self) -> str:  # pragma: no cover - structural helper
+        ...
+
+
+@runtime_checkable
+class _HasName(Protocol):
+    @property
+    def name(self) -> str:  # pragma: no cover - structural helper
+        ...
+
+
+ModelIdentifier = str | _HasModelName | _HasName
+
+
 def estimate_tokens(text: str) -> int:
     """Estimate token count using character-based approximation.
 
@@ -80,12 +98,12 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def get_model_context_limit(model_name: str | object) -> int:
+def get_model_context_limit(model_name: ModelIdentifier) -> int:
     """Get input token limit for a model.
 
     Args:
-        model_name: Model name (e.g., "models/gemini-2.0-flash-exp",
-                    "google-gla:gemini-1.5-pro", or "gemini-1.5-flash")
+        model_name: Model identifier or object (e.g., "models/gemini-2.0-flash-exp",
+                    "google-gla:gemini-1.5-pro", "gemini-1.5-flash", or a TestModel instance)
 
     Returns:
         Input token limit for the model. Defaults to conservative 128k if unknown.
@@ -100,12 +118,14 @@ def get_model_context_limit(model_name: str | object) -> int:
 
     """
     # Strip common prefixes
-    if not isinstance(model_name, str):
-        raw_name = getattr(model_name, "model_name", None) or getattr(model_name, "name", None)
-        if not isinstance(raw_name, str):
-            raw_name = str(model_name)
-    else:
+    if isinstance(model_name, str):
         raw_name = model_name
+    elif isinstance(model_name, _HasModelName):
+        raw_name = model_name.model_name
+    elif isinstance(model_name, _HasName):
+        raw_name = model_name.name
+    else:
+        raw_name = str(model_name)
 
     clean_name = (
         raw_name.replace("models/", "")

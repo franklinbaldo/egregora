@@ -121,8 +121,8 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
     # Create thin agents (created once, reused for all items)
-    url_agent = make_url_agent(url_model)
-    media_agent = make_media_agent(vision_model)
+    url_agent = make_url_agent(url_model) if enable_url else None
+    media_agent = make_media_agent(vision_model) if enable_media else None
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -133,7 +133,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     pii_media_deleted = False
 
     # --- URL Enrichment: Extract unique URLs from table ---
-    if enable_url:
+    if enable_url and url_agent is not None:
         # Get messages with URLs (use Python for URL extraction since regex in SQL is complex)
         url_messages = messages_table.filter(messages_table.message.notnull()).execute()
         unique_urls: set[str] = set()
@@ -197,7 +197,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             enrichment_count += 1
 
     # --- Media Enrichment: Extract unique media from table ---
-    if enable_media and media_mapping:
+    if enable_media and media_mapping and media_agent is not None:
         # Build media filename lookup
         media_filename_lookup: dict[str, tuple[str, Path]] = {}
         for original_filename, file_path in media_mapping.items():
