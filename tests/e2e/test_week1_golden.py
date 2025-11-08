@@ -21,9 +21,8 @@ import duckdb
 import pytest
 
 from egregora.database.schema import CONVERSATION_SCHEMA
-from egregora.pipeline.runner import RunContext, fingerprint_table, record_run
+from egregora.pipeline.runner import fingerprint_table, record_run
 from egregora.privacy.anonymizer import anonymize_table
-from egregora.privacy.constants import deterministic_author_uuid
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.sources.whatsapp.parser import parse_source
 
@@ -135,7 +134,7 @@ def test_week1_golden_whatsapp_pipeline(
     assert df["timestamp"].notna().all(), "Missing timestamps"
     assert df["author"].notna().all(), "Missing authors"
     assert df["message"].notna().all(), "Missing messages"
-    print(f"   ✅ All required fields populated")
+    print("   ✅ All required fields populated")
 
     # Record ingestion run
     ingestion_end_time = datetime.now(UTC)
@@ -245,8 +244,8 @@ def test_week1_golden_whatsapp_pipeline(
     assert input_fingerprint == input_fingerprint2, "Fingerprint changed on re-ingest"
 
     reingest_end = time.time()
-    print(f"   ✅ Re-ingestion produces identical UUIDs")
-    print(f"   ✅ Input fingerprint stable across runs")
+    print("   ✅ Re-ingestion produces identical UUIDs")
+    print("   ✅ Input fingerprint stable across runs")
     print(f"   ⏱️  Duration: {reingest_end - reingest_start:.2f}s")
 
     # ===========================================================================
@@ -276,7 +275,7 @@ def test_week1_golden_whatsapp_pipeline(
     assert len(lineage) == 1, f"Expected 1 lineage edge, got {len(lineage)}"
     assert lineage[0][0] == privacy_run_id, "Child should be privacy run"
     assert lineage[0][1] == ingestion_run_id, "Parent should be ingestion run"
-    print(f"   ✅ Lineage tracked: ingestion → privacy")
+    print("   ✅ Lineage tracked: ingestion → privacy")
 
     # ===========================================================================
     # Performance Validation
@@ -286,7 +285,7 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Week 1 target: <5 min for golden test
     assert total_time < 300, f"Test too slow: {total_time:.2f}s (target: <300s)"
-    print(f"   ✅ Performance target met (<5 min)")
+    print("   ✅ Performance target met (<5 min)")
 
     # ===========================================================================
     # Summary
@@ -296,7 +295,7 @@ def test_week1_golden_whatsapp_pipeline(
     print("=" * 70)
     print(f"   Ingestion:     {row_count} messages parsed")
     print(f"   Privacy:       {len(unique_authors_raw)} authors anonymized (UUID5)")
-    print(f"   Determinism:   Re-ingest produces identical values")
+    print("   Determinism:   Re-ingest produces identical values")
     print(f"   Runs tracking: {len(runs)} runs, {len(lineage)} lineage edges")
     print(f"   Total time:    {total_time:.2f}s (target: <300s)")
     print("=" * 70)
