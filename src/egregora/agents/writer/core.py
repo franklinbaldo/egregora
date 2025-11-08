@@ -13,7 +13,6 @@ Documentation:
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -46,7 +45,6 @@ if TYPE_CHECKING:
     from google.genai import types as genai_types
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
-
 
 
 @dataclass
