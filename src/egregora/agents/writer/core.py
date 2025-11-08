@@ -291,9 +291,35 @@ def _write_posts_for_window_pydantic(
     if markdown_extensions_yaml:
         markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
 
+    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
+    if config.model_config is None:
+        egregora_config = create_default_config()
+    else:
+        # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
+        egregora_config = config.model_config.config.model_copy(deep=True)
+        egregora_config.models.writer = writer_model
+        egregora_config.models.embedding = embedding_model
+
+    # Determine site root for custom prompt overrides (renderer-agnostic)
+    # site_root is where the .egregora/ directory lives
+    site_root = config.output_dir.parent if config.output_dir else None
+
+    # Create runtime context for writer agent
+    runtime_context = WriterRuntimeContext(
+        start_time=start_time,
+        end_time=end_time,
+        output_dir=config.output_dir,
+        profiles_dir=config.profiles_dir,
+        rag_dir=config.rag_dir,
+        site_root=site_root,
+        client=client,
+        annotations_store=annotations_store,
+    )
+
     # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
 
+    # Render prompt using runtime context
     template = WriterPromptTemplate(
         date=date_range,
         markdown_table=conversation_md,
@@ -304,28 +330,9 @@ def _write_posts_for_window_pydantic(
         rag_context=rag_context,
         freeform_memory=freeform_memory,
         enable_memes=meme_help_enabled,
+        site_root=runtime_context.site_root,
     )
     prompt = template.render()
-
-    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
-    if config.model_config is None:
-        egregora_config = create_default_config()
-    else:
-        # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
-        egregora_config = config.model_config.config.model_copy(deep=True)
-        egregora_config.models.writer = writer_model
-        egregora_config.models.embedding = embedding_model
-
-    # Create runtime context for writer agent
-    runtime_context = WriterRuntimeContext(
-        start_time=start_time,
-        end_time=end_time,
-        output_dir=config.output_dir,
-        profiles_dir=config.profiles_dir,
-        rag_dir=config.rag_dir,
-        client=client,
-        annotations_store=annotations_store,
-    )
 
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(

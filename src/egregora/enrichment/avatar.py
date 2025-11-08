@@ -552,9 +552,12 @@ def enrich_and_moderate_avatar(
     try:
         binary_content = load_file_as_binary_content(avatar_path)
         relative_path = avatar_path.relative_to(docs_dir).as_posix()
-        context = AvatarEnrichmentContext(media_filename=avatar_path.name, media_path=relative_path)
+        site_root = docs_dir.parent if docs_dir else None
+        avatar_context = AvatarEnrichmentContext(
+            media_filename=avatar_path.name, media_path=relative_path, site_root=site_root
+        )
         message_content = ["Analyze and moderate this avatar image", binary_content]
-        result = avatar_enrichment_agent.run_sync(message_content, deps=context)
+        result = avatar_enrichment_agent.run_sync(message_content, deps=avatar_context)
         output = getattr(result, "output", getattr(result, "data", result))
         is_appropriate = output.is_appropriate
         reason = output.reason

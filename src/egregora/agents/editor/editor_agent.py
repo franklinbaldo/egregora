@@ -93,6 +93,7 @@ class EditorAgentState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     editor: Editor
     rag_dir: Path
+    site_root: Path | None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     client: Any
     model_config_obj: ModelConfig
     post_path: Path
@@ -315,6 +316,11 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     original_content = post_path.read_text(encoding="utf-8")
     snapshot = markdown_to_snapshot(original_content, doc_id=str(post_path))
     editor = Editor(snapshot)
+
+    # Determine site root for custom prompt overrides (renderer-agnostic)
+    # Walk up from post_path to find site root (where .egregora/ would live)
+    site_root = post_path.parent.parent if post_path.parent else None
+
     context = context or {}
     prompt = EditorPromptTemplate(
         post_content=original_content,
@@ -322,10 +328,12 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         version=snapshot.version,
         lines=snapshot.lines,
         context=context,
+        site_root=site_root,
     ).render()
     state = EditorAgentState(
         editor=editor,
         rag_dir=rag_dir,
+        site_root=site_root,
         client=client,
         model_config_obj=model_config,
         post_path=post_path,
@@ -349,6 +357,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
                 doc_id=ctx.deps.post_path.stem,
                 version=ctx.deps.editor.snapshot.version,
                 lines=ctx.deps.editor.snapshot.lines,
+                site_root=ctx.deps.site_root,
             )
             return template.render()
 
