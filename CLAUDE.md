@@ -382,26 +382,93 @@ uv run pytest tests/e2e/test_with_golden_fixtures.py
 
 ### Environment Variables
 
+**MODERN (Phase 2-4)**: Most configuration moved to `.egregora/config.yml`. Only credentials remain as env vars:
+
 ```bash
-GOOGLE_API_KEY          # Required for Gemini API
-EGREGORA_LLM_BACKEND    # "pydantic-ai" or "google-genai" (default: pydantic-ai)
+GOOGLE_API_KEY          # Required for Gemini API (keep out of git)
 ```
 
-### MkDocs Config (`mkdocs.yml`)
+### Egregora Config (`.egregora/config.yml`)
 
-Generated sites store config in `mkdocs.yml`:
+**MODERN (Phase 2-4)**: Configuration lives in `.egregora/config.yml` (Pydantic `EgregoraConfig` model), separate from MkDocs.
+
+Generated sites have this structure:
+
+```
+site-root/
+├── mkdocs.yml              # MkDocs-only config (theme, plugins, nav)
+├── .egregora/              # Egregora configuration directory
+│   ├── config.yml          # Main configuration file
+│   ├── prompts/            # Optional custom prompt overrides
+│   │   ├── README.md       # Usage guide
+│   │   ├── system/
+│   │   │   ├── writer.jinja     # Custom writer prompt
+│   │   │   └── editor.jinja     # Custom editor prompt
+│   │   └── enrichment/
+│   │       ├── url_simple.jinja
+│   │       └── media_simple.jinja
+│   └── .gitignore
+└── .egregora-cache/        # Cache directory (gitignored)
+```
+
+**Example `.egregora/config.yml`** (maps to `EgregoraConfig` in `config/schema.py`):
 
 ```yaml
-extra:
-  egregora:
-    models:
-      writer: models/gemini-2.0-flash-exp       # Blog post generation
-      enricher: models/gemini-1.5-flash         # URL/media descriptions
-      embedding: models/text-embedding-004      # Vector embeddings
-    retrieval:
-      mode: ann                                  # "ann" or "exact"
-      nprobe: 10                                 # ANN quality (higher = better, slower)
-      embedding_dimensions: 768
+# Model configuration (pydantic-ai format: provider:model-name)
+models:
+  writer: google-gla:gemini-2.0-flash-exp
+  enricher: google-gla:gemini-flash-latest
+  enricher_vision: google-gla:gemini-flash-latest
+  embedding: google-gla:gemini-embedding-001
+  ranking: google-gla:gemini-2.0-flash-exp
+  editor: google-gla:gemini-2.0-flash-exp
+
+# RAG (Retrieval-Augmented Generation) settings
+rag:
+  enabled: true
+  top_k: 5
+  min_similarity: 0.7
+  mode: ann                    # "ann" or "exact"
+  nprobe: 10                   # ANN quality (higher = better, slower)
+  embedding_dimensions: 768
+
+# Writer agent settings
+writer:
+  custom_instructions: |
+    Write analytical posts in the style of Scott Alexander / LessWrong.
+  enable_banners: true
+  max_prompt_tokens: 100000
+
+# Pipeline windowing settings
+pipeline:
+  step_size: 100
+  step_unit: messages          # "messages", "hours", "days", "bytes"
+  min_window_size: 10
+  overlap_ratio: 0.0
+```
+
+### Custom Prompt Overrides
+
+Place custom Jinja2 templates in `.egregora/prompts/` to override package defaults:
+
+**Priority order** (highest to lowest):
+1. Custom prompts in `{site_root}/.egregora/prompts/`
+2. Package defaults in `src/egregora/prompts/`
+
+**Example**: Override writer prompt
+
+```bash
+# Copy default template
+mkdir -p .egregora/prompts/system
+cp src/egregora/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+
+# Edit to customize
+vim .egregora/prompts/system/writer.jinja
+```
+
+Agents automatically use custom prompts when found. Check logs for confirmation:
+```
+INFO:egregora.prompt_templates:Using custom prompts from /path/to/.egregora/prompts
 ```
 
 ## Development Workflow
