@@ -242,7 +242,7 @@ class TestValidateIRSchema:
         }
 
         # Build schema without 'source'
-        schema = ibis.schema({k: IR_V1_SCHEMA[k] for k in data.keys()})
+        schema = ibis.schema({k: IR_V1_SCHEMA[k] for k in data})
         table = ibis.memtable(data, schema=schema)
 
         with pytest.raises(SchemaError, match="schema mismatch"):
