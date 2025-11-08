@@ -80,7 +80,7 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def get_model_context_limit(model_name: str) -> int:
+def get_model_context_limit(model_name: str | object) -> int:
     """Get input token limit for a model.
 
     Args:
@@ -100,8 +100,15 @@ def get_model_context_limit(model_name: str) -> int:
 
     """
     # Strip common prefixes
+    if not isinstance(model_name, str):
+        raw_name = getattr(model_name, "model_name", None) or getattr(model_name, "name", None)
+        if not isinstance(raw_name, str):
+            raw_name = str(model_name)
+    else:
+        raw_name = model_name
+
     clean_name = (
-        model_name.replace("models/", "")
+        raw_name.replace("models/", "")
         .replace("google-gla:", "")
         .replace("google-vertex:", "")
         .replace("gemini-", "gemini-")  # Normalize gemini- prefix

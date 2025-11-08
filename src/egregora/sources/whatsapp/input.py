@@ -171,8 +171,9 @@ class WhatsAppInputSource(InputSource):
             media_filenames = set(media_files)
         if not media_filenames:
             return {}
+        # UUID generation is content-based only (global deduplication)
         extracted = extract_media_from_zip(
-            zip_path=source_path, filenames=media_filenames, docs_dir=output_dir, group_slug=group_slug
+            zip_path=source_path, filenames=media_filenames, docs_dir=output_dir
         )
         result = {}
         for original, absolute_path in extracted.items():

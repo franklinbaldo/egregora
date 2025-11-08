@@ -522,6 +522,177 @@ Agents automatically use custom prompts when found. Check logs for confirmation:
 INFO:egregora.prompt_templates:Using custom prompts from /path/to/.egregora/prompts
 ```
 
+### Model Thinking/Reasoning
+
+**MODERN (2025-01)**: Egregora tracks all token types including thinking/reasoning tokens used by advanced models.
+
+Some models support "thinking" or "reasoning" - internal step-by-step problem-solving before generating the final answer. This uses additional tokens but can improve output quality for complex tasks.
+
+#### Enabling Thinking
+
+**For Google Gemini models**, add model settings to enable thinking:
+
+```python
+# In your agent code or config
+from pydantic_ai.models.google import GoogleModel, GoogleModelSettings
+
+model = GoogleModel('gemini-2.5-pro')
+settings = GoogleModelSettings(
+    google_thinking_config={'include_thoughts': True}
+)
+agent = Agent(model, model_settings=settings)
+```
+
+**For Anthropic Claude models**:
+
+```python
+from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
+
+model = AnthropicModel('claude-sonnet-4-0')
+settings = AnthropicModelSettings(
+    anthropic_thinking={'type': 'enabled', 'budget_tokens': 1024}
+)
+agent = Agent(model, model_settings=settings)
+```
+
+See [Pydantic AI Thinking docs](https://ai.pydantic.dev/thinking/) for other providers (OpenAI, Bedrock, Groq, Mistral, Cohere).
+
+#### Token Tracking
+
+Egregora comprehensively tracks all token types in agent usage logs:
+
+**Standard tokens**:
+- `tokens_input` - Input/prompt tokens
+- `tokens_output` - Output/completion tokens
+- `tokens_total` - Total tokens (input + output)
+
+**Cache tokens** (prompt caching for cost savings):
+- `tokens_cache_write` - Tokens written to cache
+- `tokens_cache_read` - Tokens read from cache
+- `tokens_cache_audio_read` - Audio tokens read from cache
+
+**Audio tokens** (multimodal models):
+- `tokens_input_audio` - Audio input tokens
+
+**Thinking/reasoning tokens** (model-specific):
+- `tokens_thinking` - Thinking tokens (from `usage.details['thinking_tokens']`)
+- `tokens_reasoning` - Reasoning tokens (from `usage.details['reasoning_tokens']`)
+- `usage_details` - Raw details dict for other model-specific metrics
+
+**Example log output** (with thinking enabled):
+```
+INFO:egregora.utils.logfire_config:Writer agent completed
+  period=2025-01-15 10:00 to 12:00
+  posts_created=2
+  profiles_updated=3
+  thinking_saved=True      # Thinking content saved to .md file
+  thinking_parts=1         # Number of thinking parts found
+  tokens_total=15420
+  tokens_input=12000
+  tokens_output=3420
+  tokens_cache_write=0
+  tokens_cache_read=8000
+  tokens_thinking=2100     # Thinking tokens used
+  tokens_reasoning=0
+  usage_details={'thinking_tokens': 2100}
+```
+
+All token metrics are logged to **Pydantic Logfire** (if enabled) for observability and cost tracking.
+
+#### Saving Journal Entries
+
+**MODERN (2025-01)**: Egregora automatically saves journal entries combining the model's thinking and freeform reflection for each window.
+
+**Where journal files are saved**:
+```
+output/
+├── posts/                    # Generated blog posts
+├── profiles/                 # Author profiles
+└── journal/                  # Model journal entries
+    ├── journal_2025-01-15_10-00_to_12-00.md
+    ├── journal_2025-01-15_12-00_to_14-00.md
+    └── ...
+```
+
+**Journal structure** (Jinja template: `src/egregora/templates/journal.md.jinja`):
+
+Each journal entry is an **intercalated execution log** showing the agent's complete thought process in chronological order:
+
+1. **Thinking sections** - Step-by-step reasoning (from ThinkingPart)
+2. **Freeform sections** - Continuity memos and reflections (from TextPart)
+3. **Tool calls** - Tool invocations with XML tag fencing (e.g., `<tool-call name="write_post">`)
+4. **Tool returns** - Tool results with XML tag fencing (e.g., `<tool-return name="write_post">`)
+
+**Example journal entry** (`journal/journal_2025-01-15_10-00_to_12-00.md`):
+```markdown
+---
+window_label: 2025-01-15 10:00 to 12:00
+date: 2025-01-15
+created: 2025-01-15T12:05:23.123456+00:00
+draft: true
+---
+
+# Agent Execution Log
+
+## Thinking
+
+Let me analyze these conversations to identify the main themes...
+
+First, I notice several recurring topics:
+1. Technical discussions about AI development
+2. Personal anecdotes about remote work
+3. Philosophical questions about consciousness
+
+Based on this analysis, I'll create a post focusing on...
+
+<tool-call name="write_post">
+Tool: write_post
+Arguments:
+{
+  "metadata": {
+    "title": "The Emergence of AI Consciousness Debates",
+    "date": "2025-01-15"
+  },
+  "content": "..."
+}
+</tool-call>
+
+<tool-return name="write_post">
+Result: {'status': 'success', 'path': '/output/posts/ai-consciousness.md'}
+</tool-return>
+
+## Freeform
+
+# Continuity Journal — 2025-01-15
+
+## Post-Mortem and Synthesis Decisions
+
+This writing period was defined by rich technical discussion...
+I chose to focus on the emergence of AI consciousness debates...
+
+## Unresolved Tensions and Future Inquiry
+
+The central unresolved question is: What constitutes genuine understanding?
+
+## Memory and Context Persistence
+
+Key context to carry forward: the self-referential nature of consciousness...
+```
+
+**Benefits**:
+- **Transparency**: See internal reasoning, editorial decisions, AND tool usage in execution order
+- **Debugging**: Understand why certain posts were created or skipped, and which tools were called
+- **Improvement**: Identify patterns to refine prompts, model settings, and tool usage
+- **Audit trail**: Complete chronological record of AI decision-making and actions
+- **Continuity**: Freeform sections become memory for next window
+- **Tool visibility**: XML-fenced tool calls show exact arguments and results
+
+**Format**:
+- YAML frontmatter with ISO 8601 timestamp (`created` field)
+- Simple `##` headings for thinking/freeform sections
+- XML tags for tool usage (`<tool-call>`, `<tool-return>`)
+- Chronological interleaving preserves actual execution order
+
 ## Development Workflow
 
 ### Adding a New Feature

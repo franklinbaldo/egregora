@@ -89,9 +89,11 @@ def extract_media_from_zip(
     zip_path: Annotated[Path, "The path to the WhatsApp export ZIP file"],
     filenames: Annotated[set[str], "A set of media filenames to extract"],
     docs_dir: Annotated[Path, "The MkDocs docs directory"],
-    group_slug: Annotated[str, "The slug of the WhatsApp group"],
 ) -> Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"]:
     """Extract media files from ZIP and save to output_dir/media/.
+
+    UUID generation is based on content only - enables global deduplication
+    across all groups (same file = same UUID regardless of group).
 
     Returns dict mapping original filename to saved path.
     """
@@ -99,7 +101,8 @@ def extract_media_from_zip(
         return {}
     media_dir = docs_dir / MEDIA_DIR_NAME
     media_dir.mkdir(parents=True, exist_ok=True)
-    namespace = uuid.uuid5(uuid.NAMESPACE_DNS, group_slug)
+    # Fixed namespace for all egregora media (same as avatars)
+    namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
     extracted = {}
     with zipfile.ZipFile(zip_path, "r") as zf:
         for info in zf.infolist():
@@ -171,12 +174,13 @@ def extract_and_replace_media(
     zip_path: Annotated[Path, "The path to the WhatsApp export ZIP file"],
     docs_dir: Annotated[Path, "The MkDocs docs directory"],
     posts_dir: Annotated[Path, "The directory where posts are stored"],
-    group_slug: Annotated[str, "The slug of the WhatsApp group"] = "shared",
 ) -> tuple[
     Annotated[Table, "The updated table with media references replaced"],
     Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"],
 ]:
     """Extract media from ZIP and replace mentions in Table.
+
+    UUID generation is content-based only - enables global deduplication.
 
     Returns:
         - Updated Table with new media paths
@@ -190,7 +194,7 @@ def extract_and_replace_media(
             message = row.get("message", "")
             media_refs = find_media_references(message)
             all_media.update(media_refs)
-    media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir, group_slug)
+    media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir)
     if not media_mapping:
         return (messages_table, {})
 
