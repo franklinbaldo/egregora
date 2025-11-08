@@ -1,140 +1,115 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "IR v1 Schema (Ibis Format)",
-  "description": "Intermediate Representation v1 for Egregora pipeline. This is the canonical schema that all source adapters must output.",
+  "title": "IR v1 Schema",
+  "description": "Canonical Ibis schema for Intermediate Representation v1",
   "version": "1.0.0",
-  "locked": true,
-  "fields": {
+  "generated": "2025-01-08",
+  "note": "When using ibis.schema(), all dtypes default to nullable=True",
+  "columns": {
     "event_id": {
-      "type": "uuid",
-      "nullable": false,
-      "description": "Primary key, deterministic UUID5 generated from source + msg_id"
+      "type": "UUID",
+      "nullable": true,
+      "description": "Unique event identifier"
     },
     "tenant_id": {
-      "type": "string",
-      "nullable": false,
-      "default": "default",
-      "description": "Tenant identifier for multi-tenant isolation"
+      "type": "String",
+      "nullable": true,
+      "description": "Namespace isolation for multiple data sources"
     },
     "source": {
-      "type": "string",
-      "nullable": false,
-      "pattern": "^[a-z]+$",
-      "enum": ["whatsapp", "slack", "discord", "telegram"],
-      "description": "Source platform identifier (lowercase)"
+      "type": "String",
+      "nullable": true,
+      "description": "Source adapter name (e.g., 'whatsapp', 'slack')"
     },
     "thread_id": {
-      "type": "uuid",
-      "nullable": false,
-      "description": "Thread/conversation identifier (UUID5)"
+      "type": "UUID",
+      "nullable": true,
+      "description": "Conversation thread identifier"
     },
     "msg_id": {
-      "type": "string",
-      "nullable": false,
-      "description": "Source-specific message identifier"
+      "type": "String",
+      "nullable": true,
+      "description": "Message identifier within thread"
     },
     "ts": {
-      "type": "timestamp",
+      "type": "Timestamp",
       "timezone": "UTC",
-      "nullable": false,
-      "description": "Message timestamp in UTC"
+      "nullable": true,
+      "description": "Message timestamp"
     },
     "author_raw": {
-      "type": "string",
-      "nullable": false,
-      "privacy": "sensitive",
-      "description": "Original author name (NEVER send to LLM)"
+      "type": "String",
+      "nullable": true,
+      "description": "Original author name (PRIVACY BOUNDARY - anonymized before LLM)"
     },
     "author_uuid": {
-      "type": "uuid",
-      "nullable": false,
-      "description": "Anonymized author identifier (UUID5)"
+      "type": "UUID",
+      "nullable": true,
+      "description": "Deterministic UUID mapping for privacy"
     },
     "text": {
-      "type": "string",
+      "type": "String",
       "nullable": true,
       "description": "Message text content"
     },
     "media_url": {
-      "type": "string",
+      "type": "String",
       "nullable": true,
-      "description": "URL or path to media attachment"
+      "description": "Media attachment URL or path"
     },
     "media_type": {
-      "type": "string",
+      "type": "String",
       "nullable": true,
-      "description": "Media MIME type or category"
+      "description": "MIME type of media attachment"
     },
     "attrs": {
-      "type": "json",
+      "type": "JSON",
       "nullable": true,
-      "description": "Source-specific metadata (flexible schema)"
+      "description": "Source-specific attributes (flexible extension point)"
     },
     "pii_flags": {
-      "type": "json",
+      "type": "JSON",
       "nullable": true,
-      "description": "PII detection results from privacy gate"
+      "description": "PII detection results"
     },
     "created_at": {
-      "type": "timestamp",
+      "type": "Timestamp",
       "timezone": "UTC",
-      "nullable": false,
-      "default": "now()",
-      "description": "Row creation timestamp (ingestion time)"
+      "nullable": true,
+      "description": "Pipeline processing timestamp"
     },
     "created_by_run": {
-      "type": "uuid",
+      "type": "UUID",
       "nullable": true,
-      "description": "Foreign key to runs.run_id"
+      "description": "Pipeline run ID for lineage tracking"
     }
   },
-  "primary_key": ["event_id"],
-  "unique_constraints": [
-    ["tenant_id", "source", "thread_id", "msg_id"]
+  "required_columns": [
+    "event_id",
+    "tenant_id",
+    "source",
+    "thread_id",
+    "msg_id",
+    "ts",
+    "author_raw",
+    "author_uuid",
+    "created_at"
   ],
-  "indexes": [
-    {
-      "name": "idx_ir_v1_thread_ts",
-      "columns": ["thread_id", "ts"],
-      "type": "btree"
-    },
-    {
-      "name": "idx_ir_v1_tenant",
-      "columns": ["tenant_id", "source"],
-      "type": "btree"
-    },
-    {
-      "name": "idx_ir_v1_author",
-      "columns": ["author_uuid"],
-      "type": "btree"
-    },
-    {
-      "name": "idx_ir_v1_run",
-      "columns": ["created_by_run"],
-      "type": "btree",
-      "where": "created_by_run IS NOT NULL"
-    }
-  ],
-  "ibis_schema": {
-    "event_id": "uuid",
-    "tenant_id": "string",
-    "source": "string",
-    "thread_id": "uuid",
-    "msg_id": "string",
-    "ts": "timestamp(timezone='UTC')",
-    "author_raw": "string",
-    "author_uuid": "uuid",
-    "text": "!string",
-    "media_url": "!string",
-    "media_type": "!string",
-    "attrs": "!json",
-    "pii_flags": "!json",
-    "created_at": "timestamp(timezone='UTC')",
-    "created_by_run": "!uuid"
-  },
-  "notes": {
-    "nullable_syntax": "Fields prefixed with ! in ibis_schema are nullable",
-    "migration_path": "See ir_v1.sql for CONVERSATION_SCHEMA → IR v1 mapping",
-    "breaking_changes": "Requires new version (ir_v2.sql) and migration script"
-  }
+  "column_order": [
+    "event_id",
+    "tenant_id",
+    "source",
+    "thread_id",
+    "msg_id",
+    "ts",
+    "author_raw",
+    "author_uuid",
+    "text",
+    "media_url",
+    "media_type",
+    "attrs",
+    "pii_flags",
+    "created_at",
+    "created_by_run"
+  ]
 }
