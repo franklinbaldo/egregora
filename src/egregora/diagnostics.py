@@ -1,0 +1,349 @@
+"""Diagnostic utilities for verifying Egregora setup.
+
+This module provides health checks for dependencies, configuration,
+and system requirements. Used by the `egregora doctor` CLI command.
+
+Usage:
+    from egregora.diagnostics import run_diagnostics, DiagnosticResult
+
+    results = run_diagnostics()
+    for result in results:
+        print(f"{result.check}: {result.status}")
+"""
+
+import importlib.util
+import os
+import subprocess
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import duckdb
+
+
+class HealthStatus(str, Enum):
+    """Health check status levels."""
+
+    OK = "ok"
+    WARNING = "warning"
+    ERROR = "error"
+    INFO = "info"
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticResult:
+    """Result of a diagnostic health check.
+
+    Attributes:
+        check: Name of the check (e.g., "API Key")
+        status: Health status (OK, WARNING, ERROR, INFO)
+        message: Human-readable message
+        details: Optional additional details
+    """
+
+    check: str
+    status: HealthStatus
+    message: str
+    details: dict[str, Any] | None = None
+
+
+def check_python_version() -> DiagnosticResult:
+    """Check if Python version meets minimum requirement (3.12+)."""
+    import sys
+
+    version = sys.version_info
+    if version >= (3, 12):
+        return DiagnosticResult(
+            check="Python Version",
+            status=HealthStatus.OK,
+            message=f"Python {version.major}.{version.minor}.{version.micro}",
+        )
+    return DiagnosticResult(
+        check="Python Version",
+        status=HealthStatus.ERROR,
+        message=f"Python {version.major}.{version.minor}.{version.micro} (requires 3.12+)",
+    )
+
+
+def check_required_packages() -> DiagnosticResult:
+    """Check if required packages are installed."""
+    required = [
+        "ibis",
+        "duckdb",
+        "pydantic",
+        "pydantic_ai",
+        "google.genai",
+        "typer",
+        "rich",
+    ]
+
+    missing = []
+    for package in required:
+        try:
+            # Try importing the module to check if it's available
+            importlib.import_module(package)
+        except ImportError:
+            missing.append(package)
+
+    if not missing:
+        return DiagnosticResult(
+            check="Required Packages",
+            status=HealthStatus.OK,
+            message=f"All {len(required)} required packages installed",
+        )
+
+    return DiagnosticResult(
+        check="Required Packages",
+        status=HealthStatus.ERROR,
+        message=f"Missing packages: {', '.join(missing)}",
+        details={"missing": missing},
+    )
+
+
+def check_api_key() -> DiagnosticResult:
+    """Check if GOOGLE_API_KEY is configured."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+
+    if api_key:
+        # Mask the key for security
+        masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        return DiagnosticResult(
+            check="API Key",
+            status=HealthStatus.OK,
+            message=f"GOOGLE_API_KEY set ({masked})",
+        )
+
+    return DiagnosticResult(
+        check="API Key",
+        status=HealthStatus.WARNING,
+        message="GOOGLE_API_KEY not set (required for enrichment and generation)",
+        details={"env_var": "GOOGLE_API_KEY"},
+    )
+
+
+def check_duckdb_extensions() -> DiagnosticResult:
+    """Check if DuckDB VSS extension is available."""
+    try:
+        conn = duckdb.connect(":memory:")
+
+        # Try to install VSS extension
+        try:
+            conn.execute("INSTALL vss")
+            conn.execute("LOAD vss")
+
+            # Verify extension is loaded
+            result = conn.execute(
+                "SELECT extension_name, loaded FROM duckdb_extensions() "
+                "WHERE extension_name = 'vss'"
+            ).fetchone()
+
+            if result and result[1]:  # loaded = True
+                return DiagnosticResult(
+                    check="DuckDB VSS Extension",
+                    status=HealthStatus.OK,
+                    message="VSS extension available and loaded",
+                )
+
+            return DiagnosticResult(
+                check="DuckDB VSS Extension",
+                status=HealthStatus.WARNING,
+                message="VSS extension installed but not loaded",
+            )
+
+        except duckdb.IOException as e:
+            # Extension not available (e.g., unsupported platform)
+            return DiagnosticResult(
+                check="DuckDB VSS Extension",
+                status=HealthStatus.WARNING,
+                message=f"VSS extension not available: {e}",
+                details={"workaround": "Use --retrieval-mode=exact for RAG"},
+            )
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        return DiagnosticResult(
+            check="DuckDB VSS Extension",
+            status=HealthStatus.ERROR,
+            message=f"Failed to check VSS extension: {e}",
+        )
+
+
+def check_git() -> DiagnosticResult:
+    """Check if git is available for code_ref tracking."""
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        )
+        version = result.stdout.strip()
+        return DiagnosticResult(
+            check="Git",
+            status=HealthStatus.OK,
+            message=version,
+        )
+
+    except subprocess.CalledProcessError:
+        return DiagnosticResult(
+            check="Git",
+            status=HealthStatus.WARNING,
+            message="Git not available (code_ref tracking disabled)",
+        )
+
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return DiagnosticResult(
+            check="Git",
+            status=HealthStatus.WARNING,
+            message="Git not found in PATH (code_ref tracking disabled)",
+        )
+
+
+def check_cache_directory() -> DiagnosticResult:
+    """Check if cache directory is writable."""
+    cache_dir = Path(".egregora-cache")
+
+    try:
+        # Try creating cache directory
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Try writing a test file
+        test_file = cache_dir / ".write_test"
+        test_file.write_text("test")
+        test_file.unlink()
+
+        # Check size if exists
+        if cache_dir.exists():
+            total_size = sum(f.stat().st_size for f in cache_dir.rglob("*") if f.is_file())
+            size_mb = total_size / (1024**2)
+
+            return DiagnosticResult(
+                check="Cache Directory",
+                status=HealthStatus.OK,
+                message=f"Writable at {cache_dir.absolute()} ({size_mb:.1f} MB)",
+                details={"path": str(cache_dir.absolute()), "size_mb": size_mb},
+            )
+
+        return DiagnosticResult(
+            check="Cache Directory",
+            status=HealthStatus.OK,
+            message=f"Writable at {cache_dir.absolute()}",
+        )
+
+    except OSError as e:
+        return DiagnosticResult(
+            check="Cache Directory",
+            status=HealthStatus.ERROR,
+            message=f"Cannot write to {cache_dir.absolute()}: {e}",
+        )
+
+
+def check_egregora_config() -> DiagnosticResult:
+    """Check if .egregora/config.yml exists and is valid."""
+    config_file = Path(".egregora/config.yml")
+
+    if not config_file.exists():
+        return DiagnosticResult(
+            check="Egregora Config",
+            status=HealthStatus.INFO,
+            message="No .egregora/config.yml (will use defaults)",
+        )
+
+    try:
+        # Try loading config
+        from egregora.config import load_egregora_config
+
+        config = load_egregora_config(config_file.parent.parent)  # Pass site root
+
+        return DiagnosticResult(
+            check="Egregora Config",
+            status=HealthStatus.OK,
+            message=f"Valid config at {config_file}",
+            details={
+                "writer_model": config.models.writer,
+                "rag_enabled": config.rag.enabled,
+                "pipeline_step_unit": config.pipeline.step_unit,
+            },
+        )
+
+    except Exception as e:
+        return DiagnosticResult(
+            check="Egregora Config",
+            status=HealthStatus.ERROR,
+            message=f"Invalid config: {e}",
+        )
+
+
+def check_adapters() -> DiagnosticResult:
+    """Check available source adapters."""
+    try:
+        from egregora.ingestion import input_registry
+
+        sources = input_registry.list_sources()
+
+        if sources:
+            return DiagnosticResult(
+                check="Source Adapters",
+                status=HealthStatus.OK,
+                message=f"{len(sources)} adapters available: {', '.join(sources)}",
+                details={"adapters": sources},
+            )
+
+        return DiagnosticResult(
+            check="Source Adapters",
+            status=HealthStatus.ERROR,
+            message="No adapters registered",
+        )
+
+    except Exception as e:
+        return DiagnosticResult(
+            check="Source Adapters",
+            status=HealthStatus.ERROR,
+            message=f"Failed to list adapters: {e}",
+        )
+
+
+def run_diagnostics() -> list[DiagnosticResult]:
+    """Run all diagnostic checks.
+
+    Returns:
+        List of diagnostic results, one per check
+
+    Example:
+        >>> results = run_diagnostics()
+        >>> for result in results:
+        ...     print(f"{result.check}: {result.status.value}")
+    """
+    checks = [
+        check_python_version,
+        check_required_packages,
+        check_api_key,
+        check_duckdb_extensions,
+        check_git,
+        check_cache_directory,
+        check_egregora_config,
+        check_adapters,
+    ]
+
+    results = []
+    for check_func in checks:
+        try:
+            result = check_func()
+            results.append(result)
+        except Exception as e:
+            # Catch-all for unexpected errors
+            check_name = getattr(check_func, "__name__", "Unknown Check")
+            check_name = check_name.replace("check_", "").replace("_", " ").title()
+            results.append(
+                DiagnosticResult(
+                    check=check_name,
+                    status=HealthStatus.ERROR,
+                    message=f"Check failed: {e}",
+                )
+            )
+
+    return results
