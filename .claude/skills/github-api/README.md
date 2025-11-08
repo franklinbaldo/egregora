@@ -48,11 +48,30 @@ https://gist.github.com/user/123
 
 ## Key Features
 
-1. **No HTML Scraping** - Direct access to plain text content
-2. **No Authentication** - Works with public repos (raw content has no rate limits)
-3. **Multiple Formats** - Choose diff, patch, raw, or feed formats
-4. **Whitespace Control** - Add `?w=1` to ignore whitespace changes
-5. **Line Numbers** - Use `#L10-L20` for specific line ranges
+1. **Plain Text First** - Direct access without HTML scraping (when possible)
+2. **Smart Fallback** - Falls back to HTML for errors or review comments
+3. **No Authentication** - Works with public repos (raw content has no rate limits)
+4. **Multiple Formats** - Choose diff, patch, raw, or feed formats
+5. **Whitespace Control** - Add `?w=1` to ignore whitespace changes
+6. **Line Numbers** - Use `#L10-L20` for specific line ranges
+
+## Important Notes
+
+**When to use HTML instead of plain text:**
+- URL has fragment identifier (`#discussion_r123`, `#issuecomment-456`)
+- .diff/.patch returns 403 Forbidden error
+- Need review comments or discussion threads
+- Want PR description and metadata
+
+**Fragment identifiers require HTML:**
+```bash
+# Has fragment → Must use HTML
+https://github.com/owner/repo/pull/123#discussion_r2506786717  ✅ HTML
+https://github.com/owner/repo/pull/123.diff  ❌ Won't show comment
+
+# No fragment → Try plain text first
+https://github.com/owner/repo/pull/123  → Try .diff first
+```
 
 ## URL Patterns
 
@@ -69,11 +88,13 @@ https://gist.github.com/user/123
 ## Workflow
 
 When a user shares a GitHub URL:
-1. **Identify** the URL type
-2. **Transform** to plain text format
-3. **Fetch** using WebFetch tool
-4. **Analyze** the content
-5. **Respond** with insights
+1. **Check** for fragment identifiers (`#discussion_...`) → Use HTML if present
+2. **Identify** the URL type (PR, commit, file, etc.)
+3. **Transform** to plain text format (.diff, .patch, raw)
+4. **Fetch** using WebFetch tool
+5. **Handle errors** - If 403: Fall back to HTML
+6. **Analyze** the content
+7. **Respond** with insights
 
 ## Documentation
 

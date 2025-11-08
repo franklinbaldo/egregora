@@ -67,6 +67,27 @@ https://github.com/franklinbaldo/egregora/pull/600.diff?w=1
 - Linters: Check only modified lines
 - Documentation: Show what changed
 
+**Important limitation - Review Comments:**
+
+PR URLs with review comment fragments (e.g., `#discussion_r2506786717`) require HTML fetch:
+
+```
+# URL with review comment
+https://github.com/owner/repo/pull/123#discussion_r2506786717
+
+# .diff format won't show the comment
+https://github.com/owner/repo/pull/123.diff  ❌ No review comments
+
+# Fetch HTML to see comments and discussion
+https://github.com/owner/repo/pull/123  ✅ Includes review comments
+```
+
+**When to use HTML instead of .diff:**
+- PR has fragment identifier (`#discussion_...`, `#issuecomment-...`)
+- Need to see review comments or discussion threads
+- Want PR description and metadata
+- .diff/.patch returns 403 error
+
 ### 2. Commits → Diff/Patch
 
 Works identically to PRs:
@@ -374,24 +395,43 @@ gist.github.com/{user}/{id}
 
 ## Best Practices
 
-### 1. Always Transform User URLs
+### 1. Smart URL Transformation
 
-When a user shares a GitHub URL, automatically:
-1. Identify the URL type (PR, commit, file, etc.)
-2. Determine the best plain text format
-3. Transform the URL
-4. Fetch the content
-5. Analyze and respond
+When a user shares a GitHub URL, use this strategy:
 
-**Example:**
+1. **Check for fragment identifiers** (`#discussion_...`, `#issuecomment-...`)
+   - If present: Fetch HTML (comments only visible in HTML)
+   - If absent: Try plain text first
+
+2. **For plain text attempts:**
+   - Identify URL type (PR, commit, file, etc.)
+   - Transform to appropriate format (.diff, .patch, raw)
+   - Fetch the content
+   - If 403/error: Fall back to HTML
+
+3. **Analyze and respond**
+
+**Example 1 - Simple PR:**
 ```markdown
 User: "Check this PR: https://github.com/owner/repo/pull/42"
 
-Don't just visit the URL. Instead:
-1. Transform: https://github.com/owner/repo/pull/42.diff
-2. Fetch diff
-3. Analyze changes
-4. Provide insights
+Strategy:
+1. No fragment identifier → Try plain text
+2. Transform: https://github.com/owner/repo/pull/42.diff
+3. Fetch diff
+4. If 403: Fall back to https://github.com/owner/repo/pull/42 (HTML)
+5. Analyze and provide insights
+```
+
+**Example 2 - PR with review comment:**
+```markdown
+User: "Look at this comment: https://github.com/owner/repo/pull/42#discussion_r12345"
+
+Strategy:
+1. Fragment identifier detected (#discussion_r12345) → Use HTML
+2. Fetch: https://github.com/owner/repo/pull/42
+3. Locate the specific review comment in HTML
+4. Provide context and analysis
 ```
 
 ### 2. Use Whitespace Filtering
@@ -440,9 +480,16 @@ Large PRs/commits may have truncated diffs:
 - Verify user has access (private repos)
 - Confirm SHA/ref is correct
 
+**403 Forbidden:**
+- Common with redirected .diff/.patch URLs (patch-diff.githubusercontent.com)
+- Private repos require authentication
+- **Fallback strategy**: Fetch the HTML page instead
+- Example: If `pull/123.diff` fails with 403, try fetching `pull/123` as HTML
+
 **Redirect Required:**
-- `github.com` URLs may redirect
-- Follow redirects automatically
+- `github.com` URLs may redirect to other domains
+- `.diff`/`.patch` URLs redirect to `patch-diff.githubusercontent.com` (may cause 403)
+- **Recommended**: Try plain text first, fall back to HTML if 403 occurs
 - Use `raw.githubusercontent.com` directly for files
 
 **Rate Limiting:**
@@ -455,6 +502,32 @@ Large PRs/commits may have truncated diffs:
 - Files over 1MB may not display
 - Use API with authentication for large files
 - Consider streaming for very large files
+
+### Fallback Strategy
+
+When plain text formats fail (403, 404, or other errors):
+
+1. **Try plain text first**: `{url}.diff` or `{url}.patch`
+2. **If 403/error occurs**: Fall back to HTML page fetch
+3. **HTML advantages**:
+   - Works for private repos you have access to
+   - Includes review comments and discussion threads
+   - Shows PR descriptions and metadata
+4. **HTML disadvantages**:
+   - Requires parsing rendered content
+   - Larger payload
+   - May include UI elements
+
+**Example workflow:**
+```
+User shares: https://github.com/owner/repo/pull/123
+
+Attempt 1: https://github.com/owner/repo/pull/123.diff
+Result: 403 Forbidden
+
+Attempt 2: https://github.com/owner/repo/pull/123 (HTML)
+Result: Success - includes code changes, comments, and discussion
+```
 
 ## Integration with Claude Code Tools
 
@@ -515,12 +588,28 @@ gist.githubusercontent.com/{user}/{id}/raw/{file}   # Specific
 ## Summary
 
 When users share GitHub URLs:
-1. **Recognize** the URL type (PR, commit, file, compare, gist)
-2. **Transform** to appropriate plain text format
-3. **Fetch** the content using WebFetch
-4. **Analyze** the plain text content
-5. **Respond** with insights
 
-This skill eliminates the need to scrape HTML and provides direct access to GitHub's structured content formats.
+1. **Detect** fragment identifiers (`#discussion_...`, `#issuecomment-...`)
+   - If present → Use HTML (required for comments)
+   - If absent → Try plain text first
 
-Remember: GitHub makes it easy to access plain text versions of almost any content—you just need to know the right URL patterns!
+2. **Recognize** the URL type (PR, commit, file, compare, gist)
+
+3. **Transform** to appropriate plain text format (.diff, .patch, raw)
+
+4. **Fetch** the content using WebFetch
+   - If 403/error → Fall back to HTML page
+
+5. **Analyze** the content and **respond** with insights
+
+### Key Takeaways
+
+✅ **Plain text first** - Faster, cleaner, easier to parse
+✅ **HTML fallback** - When plain text fails or comments needed
+✅ **Know the patterns** - .diff, .patch, raw.githubusercontent.com
+✅ **Handle errors gracefully** - 403 on .diff? Try HTML
+✅ **Fragment identifiers** - Always require HTML fetch
+
+This skill minimizes HTML scraping while providing direct access to GitHub's structured content formats, with smart fallbacks when needed.
+
+Remember: GitHub makes it easy to access plain text versions of almost any content—you just need to know the right URL patterns and when to fall back!
