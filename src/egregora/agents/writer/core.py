@@ -61,6 +61,7 @@ class WriterConfig:
     output_dir: Path = Path("output/posts")
     profiles_dir: Path = Path("output/profiles")
     rag_dir: Path = Path("output/rag")
+    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     model_config: ModelConfig | None = None
     enable_rag: bool = True
     retrieval_mode: str = "ann"
@@ -291,25 +292,13 @@ def _write_posts_for_window_pydantic(
     if markdown_extensions_yaml:
         markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
 
-    # Format timestamps for LLM prompt (human-readable)
-    date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
-
-    template = WriterPromptTemplate(
-        date=date_range,
-        markdown_table=conversation_md,
-        active_authors=", ".join(active_authors),
-        custom_instructions=custom_writer_prompt or "",
-        markdown_features=markdown_features_section,
-        profiles_context=profiles_context,
-        rag_context=rag_context,
-        freeform_memory=freeform_memory,
-        enable_memes=meme_help_enabled,
-    )
-    prompt = template.render()
+    # Use site_root from config for custom prompt overrides
+    # site_root is where the .egregora/ directory lives
+    site_root = config.site_root
 
     # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
     if config.model_config is None:
-        egregora_config = create_default_config()
+        egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
     else:
         # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
         egregora_config = config.model_config.config.model_copy(deep=True)
@@ -323,9 +312,28 @@ def _write_posts_for_window_pydantic(
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
+        site_root=site_root,
         client=client,
         annotations_store=annotations_store,
     )
+
+    # Format timestamps for LLM prompt (human-readable)
+    date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
+
+    # Render prompt using runtime context
+    template = WriterPromptTemplate(
+        date=date_range,
+        markdown_table=conversation_md,
+        active_authors=", ".join(active_authors),
+        custom_instructions=custom_writer_prompt or "",
+        markdown_features=markdown_features_section,
+        profiles_context=profiles_context,
+        rag_context=rag_context,
+        freeform_memory=freeform_memory,
+        enable_memes=meme_help_enabled,
+        site_root=runtime_context.site_root,
+    )
+    prompt = template.render()
 
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(

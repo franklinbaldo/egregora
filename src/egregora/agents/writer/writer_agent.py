@@ -78,6 +78,7 @@ class WriterRuntimeContext:
     profiles_dir: Path
     rag_dir: Path
     client: Any
+    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     annotations_store: AnnotationStore | None = None
 
 

@@ -86,25 +86,8 @@ nav:
   - About: about.md
 {% endif %}
 
-# Egregora configuration
+# Egregora configuration moved to .egregora/config.yml
+# (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
 extra:
-  egregora:
-    # Custom instructions for the writer agent (optional)
-    # Uncomment and customize as needed:
-    # writer_prompt: |
-    #   Write analytical posts in the style of Scott Alexander / LessWrong.
-    #   Focus on capturing narrative threads and preserving complexity.
-
-    # RAG settings
-    rag:
-      enabled: true
-      top_k: 5
-      min_similarity: 0.7
-
-    # Profile settings
-    profiles:
-      top_authors_count: 20
-      include_in_context: true
-
   # Disable MkDocs generator notice
   generator: false

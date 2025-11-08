@@ -1,6 +1,11 @@
 # Configuration
 
-Egregora can be configured through CLI arguments, environment variables, and `mkdocs.yml` extras.
+**MODERN (Phase 2-4)**: Egregora configuration lives in `.egregora/config.yml`, separate from rendering (MkDocs).
+
+Configuration sources (priority order):
+1. **CLI arguments** - Highest priority (one-time overrides)
+2. **`.egregora/config.yml`** - Main configuration file
+3. **Defaults** - Defined in Pydantic `EgregoraConfig` model
 
 ## CLI Configuration
 
@@ -54,70 +59,113 @@ egregora process [OPTIONS] EXPORT_PATH
 
 ## Environment Variables
 
-### Required
+**MODERN**: Only credentials live in environment variables (keep out of git).
 
 ```bash
-export GOOGLE_API_KEY="your-gemini-api-key"
+export GOOGLE_API_KEY="your-gemini-api-key"  # Required for Gemini API
 ```
 
-### Optional
+## .egregora/config.yml
 
-```bash
-# Override default model
-export EGREGORA_MODEL="models/gemini-2.0-flash-exp"
+**MODERN (Phase 2-4)**: Main configuration file (maps to Pydantic `EgregoraConfig` model).
 
-# Cache directory
-export EGREGORA_CACHE_DIR="/path/to/cache"
-
-# Database path
-export EGREGORA_DB_PATH="/path/to/egregora.db"
-```
-
-## MkDocs Configuration
-
-You can configure Egregora settings in `mkdocs.yml` under the `extra.egregora` key:
+Generated automatically by `egregora init` or `egregora process` on first run:
 
 ```yaml
-extra:
-  egregora:
-    # Model configuration
-    models:
-      writer: models/gemini-2.0-flash-exp
-      enricher: models/gemini-1.5-flash
-      embeddings: models/text-embedding-004
+# Model configuration (pydantic-ai format: provider:model-name)
+models:
+  writer: google-gla:gemini-2.0-flash-exp
+  enricher: google-gla:gemini-flash-latest
+  enricher_vision: google-gla:gemini-flash-latest
+  embedding: google-gla:gemini-embedding-001
+  ranking: google-gla:gemini-2.0-flash-exp      # Optional
+  editor: google-gla:gemini-2.0-flash-exp       # Optional
 
-    # RAG settings
-    rag:
-      retrieval_mode: ann
-      retrieval_nprobe: 10
-      embedding_dimensions: 768
+# RAG (Retrieval-Augmented Generation) settings
+rag:
+  enabled: true
+  top_k: 5                    # Number of results to retrieve
+  min_similarity: 0.7         # Minimum similarity threshold (0-1)
+  mode: ann                   # "ann" (fast) or "exact" (precise)
+  nprobe: 10                  # ANN quality (higher = better, slower)
+  embedding_dimensions: 768
+  overfetch: null             # Optional overfetch factor
 
-    # Privacy settings
-    privacy:
-      anonymize: true
-      detect_pii: true
+# Writer agent settings
+writer:
+  custom_instructions: |      # Optional custom prompt additions
+    Write in a casual, friendly tone inspired by longform journalism.
+  enable_banners: true        # Generate banner images
+  max_prompt_tokens: 100000   # Token limit per prompt
 
-    # Feature flags
-    features:
-      enrich: false
-      profile: false
-      ranking: false
+# Privacy settings
+privacy:
+  anonymization_enabled: true
+  pii_detection_enabled: true
+
+# Enrichment settings
+enrichment:
+  enable_url: true
+  enable_media: true
+  max_enrichments: 50
+
+# Pipeline windowing settings
+pipeline:
+  step_size: 1                # Size of each window
+  step_unit: days             # "messages", "hours", "days", "bytes"
+  min_window_size: 10         # Minimum messages per window
+  overlap_ratio: 0.2          # Window overlap (0.0-0.5)
+
+# Feature flags
+features:
+  enable_rag: true
+  enable_profiles: false
+  enable_ranking: false
 ```
+
+**Location**: `.egregora/config.yml` in site root (next to `mkdocs.yml`)
 
 ## Advanced Configuration
 
 ### Custom Prompt Templates
 
-Egregora uses Jinja2 templates for prompts. You can override them by creating a `templates/` directory:
+**MODERN (Phase 2-4)**: Override prompts by placing custom Jinja2 templates in `.egregora/prompts/`.
 
-```bash
-my-blog/
-├── templates/
-│   ├── writer_prompt.jinja2
-│   └── enricher_prompt.jinja2
+**Directory structure**:
+
+```
+site-root/
+├── .egregora/
+│   ├── config.yml
+│   └── prompts/              # Custom prompt overrides
+│       ├── README.md         # Auto-generated usage guide
+│       ├── system/
+│       │   ├── writer.jinja  # Override writer agent prompt
+│       │   └── editor.jinja  # Override editor agent prompt
+│       └── enrichment/
+│           ├── url_simple.jinja
+│           ├── url_detailed.jinja
+│           ├── media_simple.jinja
+│           └── media_detailed.jinja
 ```
 
-See `src/egregora/prompts/` for the default templates.
+**Priority**: Custom prompts (`.egregora/prompts/`) override package defaults (`src/egregora/prompts/`).
+
+**Example**: Override writer prompt
+
+```bash
+# Copy default template
+mkdir -p .egregora/prompts/system
+cp src/egregora/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+
+# Edit to customize
+vim .egregora/prompts/system/writer.jinja
+```
+
+Agents automatically detect and use custom prompts. Check logs for:
+```
+INFO:egregora.prompt_templates:Using custom prompts from /path/to/.egregora/prompts
+```
 
 ### Database Configuration
 
