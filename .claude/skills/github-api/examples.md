@@ -2,23 +2,60 @@
 
 Practical examples of using GitHub's plain text URL transformations.
 
-## Example 1: Code Review
+## Example 1: Code Review (Simple PR)
 
 **User Request:**
 > "Can you review this PR? https://github.com/franklinbaldo/egregora/pull/600"
 
 **Claude Workflow:**
 
-1. **Identify**: This is a pull request URL
-2. **Transform**: Add `.diff` suffix
-3. **Fetch**: `https://github.com/franklinbaldo/egregora/pull/600.diff`
-4. **Analyze**: Review the unified diff
-5. **Respond**: Provide code review feedback
+1. **Check**: No fragment identifier → Try plain text
+2. **Identify**: This is a pull request URL
+3. **Transform**: Add `.diff` suffix
+4. **Fetch**: `https://github.com/franklinbaldo/egregora/pull/600.diff`
+5. **Handle errors**: If 403 → Fall back to HTML
+6. **Analyze**: Review the unified diff
+7. **Respond**: Provide code review feedback
 
 **Why `.diff` instead of `.patch`?**
 - `.diff` is lighter weight (just the changes)
 - `.patch` includes commit metadata (author, message, date)
 - For code review, just the diff is usually sufficient
+
+## Example 1b: PR Review Comment
+
+**User Request:**
+> "Check this review comment: https://github.com/franklinbaldo/egregora/pull/628#discussion_r2506786717"
+
+**Claude Workflow:**
+
+1. **Check**: Fragment identifier detected (`#discussion_r2506786717`) → Use HTML
+2. **Fetch**: `https://github.com/franklinbaldo/egregora/pull/628` (HTML page)
+3. **Analyze**: Extract PR info, code changes, and specific review comment
+4. **Respond**: Provide context about the comment and related code
+
+**Why HTML instead of `.diff`?**
+- Review comments are only visible in the HTML page
+- `.diff` format shows code changes but not discussion threads
+- Fragment identifiers (`#discussion_...`) require HTML rendering
+
+**Example response:**
+```
+PR #628: "Simplify avatar to accept only URL format"
+
+The review comment (discussion_r2506786717) is a P1 priority issue from Codex:
+
+Issue: The new `update_profile_avatar()` signature only accepts `avatar_url`
+and timestamp, but existing callers still pass the old parameters (avatar_uuid,
+avatar_path, moderation_status). This will cause TypeErrors.
+
+Code context:
+- File: profiler.py
+- Function: update_profile_avatar()
+- Change: Simplified from 5 params to 2 params (URL + timestamp)
+
+Recommendation: Update all callers to use the new URL-only interface.
+```
 
 ## Example 2: Understanding a File
 
