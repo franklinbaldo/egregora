@@ -31,10 +31,7 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.database.schema import CONVERSATION_SCHEMA
-from egregora.enrichment.batch import (
-    _safe_timestamp_plus_one,
-    _table_to_pylist,
-)
+from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
     detect_media_type,
     extract_urls,
@@ -98,7 +95,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
 ) -> Table:
     """Add LLM-generated enrichment rows using thin-agent pattern.
 
-    Simple loop over messages, one agent call per URL/media, cache hits skip API calls.
+    Uses Ibis/SQL to extract URLs and media references, then processes unique items.
 
     Args:
         messages_table: Table with messages to enrich
@@ -130,62 +127,61 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     if messages_table.count().execute() == 0:
         return messages_table
 
-    rows = _table_to_pylist(messages_table)
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # Track what we've already enriched (to avoid duplicates)
-    seen_url_keys: set[str] = set()
-    seen_media_keys: set[str] = set()
+    # --- URL Enrichment: Extract unique URLs from table ---
+    if enable_url:
+        # Get messages with URLs (use Python for URL extraction since regex in SQL is complex)
+        url_messages = messages_table.filter(messages_table.message.notnull()).execute()
+        unique_urls: set[str] = set()
 
-    # Build media filename lookup (both original filename and UUID filename)
-    media_filename_lookup: dict[str, tuple[str, Path]] = {}
-    if enable_media and media_mapping:
-        for original_filename, file_path in media_mapping.items():
-            media_filename_lookup[original_filename] = (original_filename, file_path)
-            media_filename_lookup[file_path.name] = (original_filename, file_path)
-
-    # --- MAIN LOOP: Process each message ---
-    for row in rows:
-        if enrichment_count >= max_enrichments:
-            break
-
-        message = row.get("message", "")
-        timestamp = row["timestamp"]
-
-        # --- URL Enrichment ---
-        if enable_url and message:
-            urls = extract_urls(message)
-            for url in urls[:3]:  # Limit to 3 URLs per message
+        for row in url_messages.itertuples():
+            if enrichment_count >= max_enrichments:
+                break
+            urls = extract_urls(row.message)
+            for url in urls[:3]:  # Limit URLs per message
                 if enrichment_count >= max_enrichments:
                     break
+                unique_urls.add(url)
 
-                cache_key = make_enrichment_cache_key(kind="url", identifier=url)
-                if cache_key in seen_url_keys:
+        # Process each unique URL
+        for url in sorted(unique_urls)[:max_enrichments]:
+            if enrichment_count >= max_enrichments:
+                break
+
+            cache_key = make_enrichment_cache_key(kind="url", identifier=url)
+
+            # Check cache first
+            cache_entry = cache.load(cache_key)
+            if cache_entry:
+                markdown = cache_entry.get("markdown", "")
+            else:
+                # Call agent (one call per URL)
+                try:
+                    markdown = run_url_enrichment(url_agent, url)
+                    cache.store(cache_key, {"markdown": markdown, "type": "url"})
+                except Exception as exc:  # noqa: BLE001 - log and continue enrichment
+                    logger.warning("URL enrichment failed for %s: %s", url, exc)
                     continue
 
-                # Check cache first
-                cache_entry = cache.load(cache_key)
-                if cache_entry:
-                    markdown = cache_entry.get("markdown", "")
-                else:
-                    # Call agent (one call per URL)
-                    try:
-                        markdown = run_url_enrichment(url_agent, url)
-                        # Store in cache
-                        cache.store(cache_key, {"markdown": markdown, "type": "url"})
-                    except Exception as exc:  # noqa: BLE001 - log and continue enrichment
-                        logger.warning("URL enrichment failed for %s: %s", url, exc)
-                        continue
+            # Write output file
+            enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
+            enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
+            _atomic_write_text(enrichment_path, markdown)
 
-                # Write output file
-                enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
-                enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
-                _atomic_write_text(enrichment_path, markdown)
+            # Add enrichment row (use first message timestamp for simplicity)
+            first_msg_with_url = (
+                messages_table.filter(messages_table.message.contains(url))
+                .order_by(messages_table.timestamp)
+                .limit(1)
+                .execute()
+            )
 
-                # Add enrichment row to table
+            if len(first_msg_with_url) > 0:
+                timestamp = first_msg_with_url.iloc[0]["timestamp"]
                 enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
                 new_rows.append(
                     {
@@ -198,106 +194,110 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                     }
                 )
 
-                seen_url_keys.add(cache_key)
-                enrichment_count += 1
+            enrichment_count += 1
 
-        # --- Media Enrichment ---
-        if enable_media and media_filename_lookup and message:
-            # Extract media references from message
-            media_refs = find_media_references(message)
+    # --- Media Enrichment: Extract unique media from table ---
+    if enable_media and media_mapping:
+        # Build media filename lookup
+        media_filename_lookup: dict[str, tuple[str, Path]] = {}
+        for original_filename, file_path in media_mapping.items():
+            media_filename_lookup[original_filename] = (original_filename, file_path)
+            media_filename_lookup[file_path.name] = (original_filename, file_path)
 
-            # Also check for markdown image references
-            markdown_media_pattern = "!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)"
-            markdown_matches = re.findall(markdown_media_pattern, message)
-            media_refs.extend(markdown_matches)
+        # Get messages with media references
+        media_messages = messages_table.filter(messages_table.message.notnull()).execute()
+        unique_media: set[str] = set()
 
-            # Also check for UUID filenames
-            uuid_filename_pattern = "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)"
-            uuid_matches = re.findall(uuid_filename_pattern, message)
-            media_refs.extend(uuid_matches)
+        for row in media_messages.itertuples():
+            if enrichment_count >= max_enrichments:
+                break
 
-            # Filter to only refs that exist in media_mapping
-            media_refs = [ref for ref in set(media_refs) if ref in media_filename_lookup]
+            # Extract all media references
+            refs = find_media_references(row.message)
+            markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
+            uuid_refs = re.findall(
+                "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", row.message
+            )
+            refs.extend(markdown_refs)
+            refs.extend(uuid_refs)
 
-            for ref in media_refs:
-                if enrichment_count >= max_enrichments:
-                    break
+            # Add to unique set if in media_mapping
+            for ref in set(refs):
+                if ref in media_filename_lookup:
+                    unique_media.add(ref)
 
-                lookup_result = media_filename_lookup.get(ref)
-                if not lookup_result:
+        # Process each unique media file
+        for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
+            lookup_result = media_filename_lookup.get(ref)
+            if not lookup_result:
+                continue
+
+            original_filename, file_path = lookup_result
+            cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
+
+            media_type = detect_media_type(file_path)
+            if not media_type:
+                logger.warning("Unsupported media type for enrichment: %s", file_path.name)
+                continue
+
+            # Check cache first
+            cache_entry = cache.load(cache_key)
+            if cache_entry:
+                markdown_content = cache_entry.get("markdown", "")
+            else:
+                # Call agent
+                try:
+                    markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
+                    cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+                except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
+                    logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
                     continue
 
-                original_filename, file_path = lookup_result
-                cache_key = make_enrichment_cache_key(kind="media", identifier=str(file_path))
+            # Check for PII detection
+            if "PII_DETECTED" in markdown_content:
+                logger.warning("PII detected in media: %s. Media will be deleted.", file_path.name)
+                markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
+                try:
+                    file_path.unlink()
+                    logger.info("Deleted media file containing PII: %s", file_path)
+                    pii_media_deleted = True
+                    pii_detected_count += 1
+                except (FileNotFoundError, PermissionError):
+                    logger.exception("Failed to delete %s", file_path)
+                except OSError:
+                    logger.exception("Unexpected OS error deleting %s", file_path)
 
-                if cache_key in seen_media_keys:
-                    continue
+            if not markdown_content:
+                markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-                media_type = detect_media_type(file_path)
-                if not media_type:
-                    logger.warning("Unsupported media type for enrichment: %s", file_path.name)
-                    continue
+            # Write output file
+            enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
+            _atomic_write_text(enrichment_path, markdown_content)
 
-                # Check cache first
-                cache_entry = cache.load(cache_key)
-                if cache_entry:
-                    markdown_content = cache_entry.get("markdown", "")
-                else:
-                    # Call agent (one call per media file)
-                    try:
-                        markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
-                        # Store in cache
-                        cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-                    except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
-                        logger.warning(
-                            "Media enrichment failed for %s (%s): %s",
-                            file_path,
-                            media_type,
-                            exc,
-                        )
-                        continue
+            # Add enrichment row (use first message timestamp)
+            # Note: ref might be original filename or UUID filename
+            first_msg_with_media = (
+                messages_table.filter(messages_table.message.contains(ref))
+                .order_by(messages_table.timestamp)
+                .limit(1)
+                .execute()
+            )
 
-                # Check for PII detection
-                if "PII_DETECTED" in markdown_content:
-                    logger.warning(
-                        "PII detected in media: %s. Media will be deleted after redaction.",
-                        file_path.name,
-                    )
-                    markdown_content = markdown_content.replace("PII_DETECTED", "").strip()
-                    try:
-                        file_path.unlink()
-                        logger.info("Deleted media file containing PII: %s", file_path)
-                        pii_media_deleted = True
-                        pii_detected_count += 1
-                    except (FileNotFoundError, PermissionError):
-                        logger.exception("Failed to delete %s", file_path)
-                    except OSError:
-                        logger.exception("Unexpected OS error deleting %s", file_path)
-
-                if not markdown_content:
-                    markdown_content = f"[No enrichment generated for media: {file_path.name}]"
-
-                # Write output file
-                enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
-                _atomic_write_text(enrichment_path, markdown_content)
-
-                # Add enrichment row to table
+            if len(first_msg_with_media) > 0:
+                timestamp = first_msg_with_media.iloc[0]["timestamp"]
                 enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
                 new_rows.append(
                     {
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": (
-                            f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}"
-                        ),
+                        "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
                         "original_line": "",
                         "tagged_line": "",
                     }
                 )
 
-                seen_media_keys.add(cache_key)
-                enrichment_count += 1
+            enrichment_count += 1
 
     # If PII was deleted, update media references in messages
     if pii_media_deleted:
