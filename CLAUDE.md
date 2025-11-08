@@ -575,6 +575,7 @@ Each journal entry has **two sections**:
 ---
 window_label: 2025-01-15 10:00 to 12:00
 date: 2025-01-15
+created: 2025-01-15 12:05:23 UTC
 draft: true
 ---
 

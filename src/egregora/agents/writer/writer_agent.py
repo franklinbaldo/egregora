@@ -249,9 +249,11 @@ def _save_journal_to_file(
     template = env.get_template("journal.md.jinja")
 
     # Render journal content
+    now_utc = datetime.now(tz=UTC)
     journal_content = template.render(
         window_label=window_label,
-        date=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+        date=now_utc.strftime("%Y-%m-%d"),
+        created=now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
         thinking_parts=thinking_contents,
         freeform_content=freeform_content,
     )
