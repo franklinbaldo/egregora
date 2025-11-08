@@ -287,6 +287,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     client: genai.Client,
     model_config: ModelConfig,
     rag_dir: Path,
+    site_root: Path | None = None,
     context: dict[str, Any] | None = None,
     _max_turns: int = 15,
     agent_model: object | None = None,  # Test model injection - accepts any Pydantic AI compatible model
@@ -298,6 +299,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
         client: genai.Client instance
         model_config: Model configuration
         rag_dir: Path to RAG database
+        site_root: Optional site root path for custom prompt overrides
         context: Optional context (ELO score, ranking comments, etc.)
         max_turns: Maximum number of conversation turns
         agent_model: Optional test model for deterministic tests
@@ -316,10 +318,6 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     original_content = post_path.read_text(encoding="utf-8")
     snapshot = markdown_to_snapshot(original_content, doc_id=str(post_path))
     editor = Editor(snapshot)
-
-    # Determine site root for custom prompt overrides (renderer-agnostic)
-    # Walk up from post_path to find site root (where .egregora/ would live)
-    site_root = post_path.parent.parent if post_path.parent else None
 
     context = context or {}
     prompt = EditorPromptTemplate(
