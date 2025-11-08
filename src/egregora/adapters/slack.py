@@ -82,14 +82,16 @@ class SlackAdapter(SourceAdapter):
             NotImplementedError: This is a stub implementation
 
         """
-        if not input_path.exists():
-            msg = f"Input path does not exist: {input_path}"
-            raise FileNotFoundError(msg)
-        messages_data = self._parse_slack_json(input_path)
-        if not messages_data:
-            return ibis.memtable([], schema=ibis.schema(IR_SCHEMA))
-        table = ibis.memtable(messages_data)
-        return create_ir_table(table, timezone=timezone)
+        msg = (
+            "Slack adapter is not yet implemented. "
+            "This is a stub for demonstration purposes.\n\n"
+            "To add Slack support:\n"
+            "1. Implement SlackAdapter.parse() to read Slack JSON export format\n"
+            "2. Map Slack message fields to IR v1 schema\n"
+            "3. Add tests for Slack-specific parsing logic\n\n"
+            "See src/egregora/adapters/whatsapp/ for a complete adapter example."
+        )
+        raise NotImplementedError(msg)
 
     def _parse_slack_json(self, input_path: Path) -> list[dict[str, Any]]:
         """Parse Slack JSON export (stub implementation).
@@ -185,11 +187,12 @@ class SlackAdapter(SourceAdapter):
         Returns:
             Empty dict (stub implementation)
 
-        Note:
-            A real implementation would handle Slack file attachments.
+        Raises:
+            NotImplementedError: This is a stub implementation
 
         """
-        return {}
+        msg = "Slack adapter media extraction is not yet implemented."
+        raise NotImplementedError(msg)
 
     def get_metadata(self, _input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
         """Extract metadata from Slack export.
@@ -201,12 +204,9 @@ class SlackAdapter(SourceAdapter):
         Returns:
             Dictionary with channel/workspace metadata
 
-        Note:
-            Stub implementation returns minimal metadata.
+        Raises:
+            NotImplementedError: This is a stub implementation
 
         """
-        return {
-            "channel_name": "unknown-channel",
-            "workspace": "unknown-workspace",
-            "export_date": datetime.now(tz=UTC).date().isoformat(),
-        }
+        msg = "Slack adapter metadata extraction is not yet implemented."
+        raise NotImplementedError(msg)
