@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.config import DEFAULT_BLOG_DIR, SitePaths
 from egregora.config.loader import create_default_config
@@ -70,7 +70,7 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     SIMPLIFIED (Alpha): Always create .egregora/ structure.
     """
     # Create .egregora/ structure (new!)
-    _create_egregora_structure(site_paths)
+    _create_egregora_structure(site_paths, env)
 
     # Create docs/ structure
     docs_dir = site_paths.docs_dir
@@ -118,35 +118,62 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     _render_egregora_config(site_paths.site_root, env, context)
 
 
-def _create_egregora_structure(site_paths: SitePaths) -> None:
-    """Create .egregora/ directory structure (SIMPLIFIED - Alpha version).
+def _create_egregora_structure(site_paths: SitePaths, env: Environment | None = None) -> None:
+    """Create .egregora/ directory structure with templates.
 
     Creates:
-    - .egregora/config.yml (Pydantic-generated default config)
+    - .egregora/config.yml (from template with comments)
     - .egregora/prompts/ (for custom prompt overrides)
-    - .egregora/prompts/README.md
+    - .egregora/prompts/system/ (writer, editor prompts)
+    - .egregora/prompts/enrichment/ (URL, media prompts)
+    - .egregora/prompts/README.md (usage guide)
     - .egregora/.gitignore (ignore ephemeral data)
     """
     egregora_dir = site_paths.egregora_dir
     egregora_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create prompts directory
+    # Use template environment if not provided
+    if env is None:
+        env = Environment(loader=FileSystemLoader(str(SITE_TEMPLATES_DIR)), autoescape=select_autoescape())
+
+    # Create config.yml from template (with comments)
+    config_path = site_paths.config_path
+    if not config_path.exists():
+        try:
+            config_template = env.get_template(".egregora/config.yml.jinja")
+            config_content = config_template.render()
+            config_path.write_text(config_content, encoding="utf-8")
+            logger.info("Created .egregora/config.yml from template")
+        except (OSError, TemplateError) as e:
+            # Fallback to Pydantic default if template fails
+            logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
+            create_default_config(site_paths.site_root)
+
+    # Create prompts directory structure
     prompts_dir = site_paths.prompts_dir
     prompts_dir.mkdir(exist_ok=True)
 
-    # Create prompts README
+    # Create subdirectories for prompt categories
+    (prompts_dir / "system").mkdir(exist_ok=True)
+    (prompts_dir / "enrichment").mkdir(exist_ok=True)
+
+    # Create prompts README from template
     prompts_readme = prompts_dir / "README.md"
     if not prompts_readme.exists():
-        prompts_readme.write_text(
-            "# Custom Prompts\n\n"
-            "Place custom prompt overrides here with same names as package defaults.\n\n"
-            "Available prompts:\n"
-            "- `writer.md` - Main blog post writer prompt\n"
-            "- `enricher_url.md` - URL enrichment prompt\n"
-            "- `enricher_media.md` - Media enrichment prompt\n\n"
-            "The custom prompt will be used instead of the package default.\n",
-            encoding="utf-8",
-        )
+        try:
+            readme_template = env.get_template(".egregora/prompts/README.md.jinja")
+            readme_content = readme_template.render()
+            prompts_readme.write_text(readme_content, encoding="utf-8")
+            logger.info("Created .egregora/prompts/README.md")
+        except (OSError, TemplateError) as e:
+            # Fallback to simple README if template fails
+            logger.warning("Failed to render prompts README template: %s. Using simple version.", e)
+            prompts_readme.write_text(
+                "# Custom Prompts\n\n"
+                "Place custom prompt overrides here with same structure as package defaults.\n\n"
+                "See https://docs.egregora.ai for more information.\n",
+                encoding="utf-8",
+            )
 
     # Create .gitignore
     gitignore = egregora_dir / ".gitignore"
@@ -163,12 +190,7 @@ def _create_egregora_structure(site_paths: SitePaths) -> None:
             "*.pyc\n",
             encoding="utf-8",
         )
-
-    # Create default config.yml using Pydantic config loader
-    config_path = site_paths.config_path
-    if not config_path.exists():
-        create_default_config(site_paths.site_root)
-        logger.info("Created default .egregora/config.yml")
+        logger.info("Created .egregora/.gitignore")
 
 
 def _render_egregora_config(site_root: Path, env: Environment, context: dict[str, Any]) -> None:

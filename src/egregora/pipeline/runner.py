@@ -360,6 +360,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     output_dir=posts_dir,
                     profiles_dir=profiles_dir,
                     rag_dir=site_paths.rag_dir,
+                    site_root=site_paths.site_root,
                     model_config=model_config,
                     enable_rag=True,
                     retrieval_mode=retrieval_mode,

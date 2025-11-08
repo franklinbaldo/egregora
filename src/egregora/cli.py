@@ -1203,6 +1203,7 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
                 output_dir=site_paths.posts_dir,
                 profiles_dir=site_paths.profiles_dir,
                 rag_dir=site_paths.rag_dir,
+                site_root=site_paths.site_root,
                 model_config=model_config,
                 enable_rag=enable_rag,
                 retrieval_mode=retrieval_mode,
