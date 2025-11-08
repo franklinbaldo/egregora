@@ -291,18 +291,18 @@ def _write_posts_for_window_pydantic(
     if markdown_extensions_yaml:
         markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
 
+    # Determine site root for custom prompt overrides (renderer-agnostic)
+    # site_root is where the .egregora/ directory lives
+    site_root = config.output_dir.parent if config.output_dir else None
+
     # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
     if config.model_config is None:
-        egregora_config = create_default_config()
+        egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
     else:
         # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
         egregora_config = config.model_config.config.model_copy(deep=True)
         egregora_config.models.writer = writer_model
         egregora_config.models.embedding = embedding_model
-
-    # Determine site root for custom prompt overrides (renderer-agnostic)
-    # site_root is where the .egregora/ directory lives
-    site_root = config.output_dir.parent if config.output_dir else None
 
     # Create runtime context for writer agent
     runtime_context = WriterRuntimeContext(
