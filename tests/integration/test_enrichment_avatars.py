@@ -462,4 +462,3 @@ class TestProfileAvatarManagement:
 
         info = get_avatar_info(author_uuid, profiles_dir)
         assert info is None
-
