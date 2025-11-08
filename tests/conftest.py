@@ -207,7 +207,7 @@ def gemini_api_key() -> str:
 def stub_enrichment_agents(monkeypatch):
     """Provide deterministic enrichment/vision agents for offline tests."""
 
-    def _stub_url_agent(model):  # noqa: D401 - simple closure
+    def _stub_url_agent(model):
         return object()
 
     def _stub_media_agent(model):
@@ -260,7 +260,7 @@ def stub_enrichment_agents(monkeypatch):
 
     def _avatar_agent(_model):
         class _StubAvatar:
-            def run_sync(self, *args, **kwargs):  # noqa: ANN002, ANN003 - signature compatibility
+            def run_sync(self, *args, **kwargs):
                 return SimpleNamespace(
                     output=SimpleNamespace(
                         is_appropriate=True,
