@@ -11,7 +11,7 @@ from egregora.database.message_schema import group_slug
 from egregora.database.message_schema import group_slug as create_slug
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
-from egregora.ingestion.base import InputMetadata, InputSource
+from egregora.ingestion.base import AdapterMeta, InputMetadata, InputSource
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import parse_source  # Phase 6: Renamed from parse_export
 
@@ -187,6 +187,21 @@ class WhatsAppInputSource(InputSource):
                     output_dir,
                 )
         return result
+
+    def adapter_meta(self) -> AdapterMeta:
+        """Return adapter metadata for plugin discovery.
+
+        Returns:
+            AdapterMeta with name, version, source, doc_url, ir_version
+
+        """
+        return {
+            "name": "whatsapp",
+            "version": "1.0.0",
+            "source": "WhatsApp",
+            "doc_url": "https://docs.egregora.dev/adapters/whatsapp",
+            "ir_version": "v1",
+        }
 
     def _detect_zip_contents(self, zip_path: Path) -> tuple[str, list[str]]:
         """Detect chat file and media files in ZIP.

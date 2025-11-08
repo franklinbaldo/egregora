@@ -17,7 +17,7 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-from egregora.ingestion.base import InputMetadata, InputSource
+from egregora.ingestion.base import AdapterMeta, InputMetadata, InputSource
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -144,6 +144,21 @@ class SlackInputSource(InputSource):
         )
         return (table, metadata)
         """
+
+    def adapter_meta(self) -> AdapterMeta:
+        """Return adapter metadata for plugin discovery.
+
+        Returns:
+            AdapterMeta with name, version, source, doc_url, ir_version
+
+        """
+        return {
+            "name": "slack",
+            "version": "0.1.0",
+            "source": "Slack",
+            "doc_url": "https://docs.egregora.dev/adapters/slack",
+            "ir_version": "v1",
+        }
 
     def extract_media(self, _source_path: Path, _output_dir: Path, **_kwargs: Any) -> dict[str, str]:
         """Extract media files from Slack export.
