@@ -1241,9 +1241,9 @@ app.add_typer(cache_app)
 
 @cache_app.command(name="stats")
 def cache_stats(
-    cache_dir: Annotated[
-        Path, typer.Option(help="Checkpoint cache directory")
-    ] = Path(".egregora-cache/checkpoints"),
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
 ) -> None:
     """Show cache statistics (size, count, per-stage breakdown)."""
     from egregora.pipeline.checkpoint import get_cache_stats
@@ -1271,9 +1271,9 @@ def cache_stats(
 @cache_app.command(name="clear")
 def cache_clear(
     stage: Annotated[str | None, typer.Option(help="Stage to clear (clears all if not specified)")] = None,
-    cache_dir: Annotated[
-        Path, typer.Option(help="Checkpoint cache directory")
-    ] = Path(".egregora-cache/checkpoints"),
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
     force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
 ) -> None:
     """Clear checkpoints (cache invalidation).
@@ -1282,6 +1282,7 @@ def cache_clear(
         egregora cache clear --stage=enrichment   # Clear only enrichment checkpoints
         egregora cache clear                      # Clear all checkpoints
         egregora cache clear --force              # Skip confirmation
+
     """
     from egregora.pipeline.checkpoint import clear_checkpoints, get_cache_stats
 
@@ -1300,10 +1301,14 @@ def cache_clear(
                 console.print(f"[yellow]No checkpoints found for stage '{stage}'[/yellow]")
                 return
             stage_mb = stage_stats["size"] / (1024**2)
-            console.print(f"[yellow]About to delete {stage_stats['count']} checkpoints ({stage_mb:.2f} MB) for stage '{stage}'[/yellow]")
+            console.print(
+                f"[yellow]About to delete {stage_stats['count']} checkpoints ({stage_mb:.2f} MB) for stage '{stage}'[/yellow]"
+            )
         else:
             total_mb = stats["total_size"] / (1024**2)
-            console.print(f"[yellow]About to delete all {stats['total_count']} checkpoints ({total_mb:.2f} MB)[/yellow]")
+            console.print(
+                f"[yellow]About to delete all {stats['total_count']} checkpoints ({total_mb:.2f} MB)[/yellow]"
+            )
 
         confirm = typer.confirm("Continue?")
         if not confirm:
@@ -1320,13 +1325,13 @@ def cache_gc(
     keep_last: Annotated[
         int | None, typer.Option(help="Keep last N checkpoints per stage (age-based GC)")
     ] = None,
-    max_size: Annotated[
-        str | None, typer.Option(help="Maximum cache size (e.g., '10GB', '500MB')")
+    max_size: Annotated[str | None, typer.Option(help="Maximum cache size (e.g., '10GB', '500MB')")] = None,
+    stage: Annotated[
+        str | None, typer.Option(help="Stage to garbage collect (applies to all if not specified)")
     ] = None,
-    stage: Annotated[str | None, typer.Option(help="Stage to garbage collect (applies to all if not specified)")] = None,
-    cache_dir: Annotated[
-        Path, typer.Option(help="Checkpoint cache directory")
-    ] = Path(".egregora-cache/checkpoints"),
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
 ) -> None:
     """Garbage collect old checkpoints.
 
@@ -1338,6 +1343,7 @@ def cache_gc(
         egregora cache gc --keep-last=3 --stage=enrichment  # Keep last 3 enrichment checkpoints
         egregora cache gc --max-size=10GB             # Keep cache under 10 GB
         egregora cache gc --max-size=500MB            # Keep cache under 500 MB
+
     """
     from egregora.pipeline.checkpoint import gc_checkpoints_by_age, gc_checkpoints_by_size
 

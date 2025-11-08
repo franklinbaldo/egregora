@@ -104,7 +104,6 @@ from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 # Lazy-loaded imports from pipeline.py module (windowing and checkpoint utilities).
 # This __getattr__ hook provides transparent access to create_windows, Window,
 # load_checkpoint, and save_checkpoint without requiring full module import.
-
 # ============================================================================
 # Run Tracking & Observability Layer
 # ============================================================================
