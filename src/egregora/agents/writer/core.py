@@ -341,7 +341,8 @@ def _write_posts_for_window_pydantic(
         raise
     except Exception as exc:
         logger.exception("Writer agent failed for %s — aborting window", date_range)
-        raise RuntimeError(f"Writer agent failed for {date_range}") from exc
+        msg = f"Writer agent failed for {date_range}"
+        raise RuntimeError(msg) from exc
     if config.enable_rag:
         _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}

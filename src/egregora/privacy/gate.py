@@ -84,7 +84,7 @@ class PrivacyPass(NamedTuple):
     """UTC timestamp when privacy gate executed."""
 
 
-def require_privacy_pass(func: F) -> F:
+def require_privacy_pass[F: Callable[..., Any]](func: F) -> F:
     """Decorator: Fail if privacy_pass not provided or invalid.
 
     Use this decorator on any function that touches LLM APIs or processes
@@ -120,16 +120,22 @@ def require_privacy_pass(func: F) -> F:
         privacy_pass = kwargs.get("privacy_pass")
 
         if privacy_pass is None:
-            raise RuntimeError(
+            msg = (
                 f"{func.__name__} requires PrivacyPass capability. "
                 "Run PrivacyGate.run() first and pass privacy_pass=... kwarg."
             )
+            raise RuntimeError(
+                msg
+            )
 
         if not isinstance(privacy_pass, PrivacyPass):
-            raise RuntimeError(
+            msg = (
                 f"{func.__name__} received invalid privacy_pass. "
                 f"Expected PrivacyPass instance, got {type(privacy_pass).__name__}. "
                 "Cannot forge privacy tokens - use PrivacyGate.run()."
+            )
+            raise RuntimeError(
+                msg
             )
 
         return func(*args, **kwargs)
@@ -207,10 +213,12 @@ class PrivacyGate:
 
         # Validate config
         if not config.tenant_id:
-            raise ValueError("PrivacyConfig.tenant_id cannot be empty")
+            msg = "PrivacyConfig.tenant_id cannot be empty"
+            raise ValueError(msg)
 
         if not run_id:
-            raise ValueError("run_id cannot be empty")
+            msg = "run_id cannot be empty"
+            raise ValueError(msg)
 
         # 1. Validate IR schema (implicit via anonymize_table)
         # TODO: Add explicit IR schema validation once IR v1 is integrated

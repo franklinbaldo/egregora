@@ -2004,9 +2004,8 @@ def adapters(
         adapters_list = registry.list_adapters()
 
         if as_json:
-            import json
+            pass
 
-            print(json.dumps(adapters_list, indent=2))
         else:
             from rich.table import Table
 

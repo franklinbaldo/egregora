@@ -19,8 +19,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from egregora.privacy.config import PrivacyConfig
 from egregora.privacy.gate import (
-    PrivacyConfig,
     PrivacyGate,
     PrivacyPass,
     require_privacy_pass,
@@ -34,13 +34,13 @@ from egregora.privacy.gate import (
 def test_privacy_pass_creation():
     """PrivacyPass tokens are created correctly."""
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="550e8400-e29b-41d4-a716-446655440000",
         tenant_id="default",
         timestamp=datetime(2025, 1, 8, 12, 0, 0),
     )
 
-    assert privacy_pass.ir_version == "v1"
+    assert privacy_pass.ir_version == "1.0.0"
     assert privacy_pass.run_id == "550e8400-e29b-41d4-a716-446655440000"
     assert privacy_pass.tenant_id == "default"
     assert privacy_pass.timestamp == datetime(2025, 1, 8, 12, 0, 0)
@@ -49,7 +49,7 @@ def test_privacy_pass_creation():
 def test_privacy_pass_immutability():
     """PrivacyPass tokens are immutable (NamedTuple)."""
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="test-run-123",
         tenant_id="default",
         timestamp=datetime.now(),
@@ -63,7 +63,7 @@ def test_privacy_pass_immutability():
 def test_privacy_pass_repr():
     """PrivacyPass has human-readable repr for logging."""
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="550e8400-e29b-41d4-a716-446655440000",
         tenant_id="acme-corp",
         timestamp=datetime(2025, 1, 8, 12, 0, 0),
@@ -72,7 +72,7 @@ def test_privacy_pass_repr():
     repr_str = repr(privacy_pass)
     assert "acme-corp" in repr_str
     assert "550e8400" in repr_str  # First 8 chars of run_id
-    assert "v1" in repr_str
+    assert "1.0.0" in repr_str
 
 
 # ============================================================================
@@ -88,7 +88,7 @@ def test_require_privacy_pass_with_valid_token():
         return f"Processed: {message}"
 
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="test-run",
         tenant_id="default",
         timestamp=datetime.now(),
@@ -109,7 +109,7 @@ def test_require_privacy_pass_without_token_fails():
     with pytest.raises(RuntimeError) as exc_info:
         llm_function()
 
-    assert "requires PrivacyPass capability token" in str(exc_info.value)
+    assert "requires PrivacyPass capability" in str(exc_info.value)
     assert "llm_function" in str(exc_info.value)
 
 
@@ -124,8 +124,8 @@ def test_require_privacy_pass_with_wrong_type_fails():
     with pytest.raises(RuntimeError) as exc_info:
         llm_function(privacy_pass=None)
 
-    assert "requires PrivacyPass capability token" in str(exc_info.value)
-    assert "NoneType" in str(exc_info.value)
+    assert "requires PrivacyPass capability" in str(exc_info.value)
+    assert "llm_function" in str(exc_info.value)
 
 
 def test_require_privacy_pass_with_dict_fails():
@@ -136,12 +136,12 @@ def test_require_privacy_pass_with_dict_fails():
         return "This should not execute"
 
     # Wrong type (dict instead of PrivacyPass)
-    fake_pass = {"ir_version": "v1", "run_id": "fake"}
+    fake_pass = {"ir_version": "1.0.0", "run_id": "fake"}
 
     with pytest.raises(RuntimeError) as exc_info:
         llm_function(privacy_pass=fake_pass)
 
-    assert "requires PrivacyPass capability token" in str(exc_info.value)
+    assert "received invalid privacy_pass" in str(exc_info.value)
     assert "dict" in str(exc_info.value)
 
 
@@ -152,44 +152,41 @@ def test_require_privacy_pass_with_dict_fails():
 
 def test_privacy_config_defaults():
     """PrivacyConfig has sensible defaults."""
-    config = PrivacyConfig()
+    config = PrivacyConfig(tenant_id="default")
 
     assert config.tenant_id == "default"
-    assert config.anonymize_authors is True
-    assert config.pii_patterns == ()
-    assert config.media_allowlist is None
-    assert config.media_denylist is None
-    assert config.enable_reidentification is False
-    assert config.reidentification_salt is None
+    assert config.detect_pii is True
+    assert config.allowed_media_domains == ()
+    assert config.enable_reidentification_escrow is False
+    assert config.reidentification_retention_days == 90
 
 
 def test_privacy_config_with_custom_values():
     """PrivacyConfig accepts custom values."""
     config = PrivacyConfig(
         tenant_id="acme-corp",
-        anonymize_authors=True,
-        pii_patterns=("\\d{3}-\\d{2}-\\d{4}",),  # SSN pattern
-        media_allowlist=("*.acme.com", "*.cdn.example.com"),
-        enable_reidentification=True,
-        reidentification_salt="random-salt-abc123",
+        detect_pii=True,
+        allowed_media_domains=("acme.com", "cdn.example.com"),
+        enable_reidentification_escrow=True,
+        reidentification_retention_days=30,
     )
 
     assert config.tenant_id == "acme-corp"
-    assert config.pii_patterns == ("\\d{3}-\\d{2}-\\d{4}",)
-    assert config.media_allowlist == ("*.acme.com", "*.cdn.example.com")
-    assert config.enable_reidentification is True
-    assert config.reidentification_salt == "random-salt-abc123"
+    assert config.detect_pii is True
+    assert config.allowed_media_domains == ("acme.com", "cdn.example.com")
+    assert config.enable_reidentification_escrow is True
+    assert config.reidentification_retention_days == 30
 
 
-def test_privacy_config_reidentification_requires_salt():
-    """PrivacyConfig validation: reidentification requires salt."""
+def test_privacy_config_reidentification_validation():
+    """PrivacyConfig validation: retention days must be >= 1."""
     with pytest.raises(ValueError) as exc_info:
         PrivacyConfig(
-            enable_reidentification=True,
-            reidentification_salt=None,  # Missing required salt
+            tenant_id="test",
+            reidentification_retention_days=0,  # Invalid: must be >= 1
         )
 
-    assert "reidentification_salt required" in str(exc_info.value)
+    assert "reidentification_retention_days must be >= 1" in str(exc_info.value)
 
 
 def test_privacy_config_immutability():
@@ -213,7 +210,7 @@ def test_privacy_config_immutability():
 def test_privacy_pass_with_random_values(tenant_id: str, run_id: str):
     """PrivacyPass works with any valid string values."""
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id=run_id,
         tenant_id=tenant_id,
         timestamp=datetime.now(),
@@ -222,7 +219,7 @@ def test_privacy_pass_with_random_values(tenant_id: str, run_id: str):
     # Basic properties
     assert privacy_pass.tenant_id == tenant_id
     assert privacy_pass.run_id == run_id
-    assert privacy_pass.ir_version == "v1"
+    assert privacy_pass.ir_version == "1.0.0"
 
     # Can be used in decorated functions
     @require_privacy_pass
@@ -242,7 +239,7 @@ def test_decorator_enforcement_is_consistent(message: str):
         return f"Processed: {msg}"
 
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id=str(uuid4()),
         tenant_id="test",
         timestamp=datetime.now(),
@@ -286,7 +283,7 @@ def test_privacy_gate_run_basic():
 
     # Check capability token
     assert isinstance(privacy_pass, PrivacyPass)
-    assert privacy_pass.ir_version == "v1"
+    assert privacy_pass.ir_version == "1.0.0"
     assert privacy_pass.run_id == run_id
     assert privacy_pass.tenant_id == "default"
 
@@ -300,17 +297,19 @@ def test_privacy_gate_run_basic():
 def test_privacy_gate_missing_required_columns():
     """PrivacyGate.run() fails if table missing required columns."""
     import ibis
+    from ibis.common.exceptions import IbisTypeError
 
-    # Table missing 'author_raw' column
+    # Table missing 'author' column
     table = ibis.memtable([{"message": "Hello"}])
 
     config = PrivacyConfig(tenant_id="default")
     run_id = str(uuid4())
 
-    with pytest.raises(ValueError) as exc_info:
+    # Anonymizer expects 'author' column
+    with pytest.raises(IbisTypeError) as exc_info:
         PrivacyGate.run(table, config, run_id)
 
-    assert "Missing: {'author_raw'}" in str(exc_info.value)
+    assert "Column 'author' is not found in table" in str(exc_info.value)
 
 
 def test_privacy_pass_can_be_passed_through_pipeline():
@@ -326,7 +325,7 @@ def test_privacy_pass_can_be_passed_through_pipeline():
 
     # Create token
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="pipeline-run-123",
         tenant_id="default",
         timestamp=datetime.now(),
@@ -389,7 +388,7 @@ def test_multiple_decorators_work_together():
         return "ok"
 
     privacy_pass = PrivacyPass(
-        ir_version="v1",
+        ir_version="1.0.0",
         run_id="test",
         tenant_id="default",
         timestamp=datetime.now(),

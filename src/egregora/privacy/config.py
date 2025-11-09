@@ -45,7 +45,7 @@ class PrivacyConfig:
 
     enable_reidentification_escrow: bool = False
     """Store author_raw → author_uuid mapping for re-identification.
-    
+
     WARNING: Enabling this stores PII for re-identification. Only enable
     if you have explicit consent and compliance requirements.
     """
@@ -56,7 +56,9 @@ class PrivacyConfig:
     def __post_init__(self) -> None:
         """Validate configuration."""
         if not self.tenant_id:
-            raise ValueError("tenant_id cannot be empty")
+            msg = "tenant_id cannot be empty"
+            raise ValueError(msg)
 
         if self.reidentification_retention_days < 1:
-            raise ValueError("reidentification_retention_days must be >= 1")
+            msg = "reidentification_retention_days must be >= 1"
+            raise ValueError(msg)

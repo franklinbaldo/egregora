@@ -219,7 +219,7 @@ class InputSourceRegistry:
                 logger.info(f"Loaded plugin adapter: {ep.name} v{meta['version']} (source: {meta['source']})")
 
             except Exception as e:
-                logger.error(f"Failed to load adapter plugin '{ep.name}': {e}")
+                logger.exception(f"Failed to load adapter plugin '{ep.name}': {e}")
 
         self._plugins_loaded = True
 

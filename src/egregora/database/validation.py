@@ -365,7 +365,7 @@ def adapter_output_validator(table: Table) -> Table:
     return table
 
 
-def validate_adapter_output(func: F) -> F:
+def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
     """Decorator to validate adapter outputs against IR v1 schema.
 
     This decorator wraps adapter methods (typically `parse()`) to automatically
@@ -412,7 +412,7 @@ def validate_adapter_output(func: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
-def validate_stage(func: F) -> F:
+def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
     """Decorator to validate pipeline stage inputs and outputs against IR v1 schema.
 
     This decorator wraps stage.process() methods to automatically validate:

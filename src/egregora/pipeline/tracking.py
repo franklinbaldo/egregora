@@ -288,7 +288,7 @@ def record_lineage(
         )
 
 
-def run_stage_with_tracking(
+def run_stage_with_tracking[T](
     stage_func: Callable[..., T],
     *,
     context: RunContext,

@@ -148,9 +148,8 @@ def checkpoint_path(
     # - Multiple versions per stage (different inputs/code/config)
     stage_dir = cache_dir / stage
     checkpoint_dir = stage_dir / composite_fingerprint[:16]  # First 16 chars (collision-resistant)
-    checkpoint_file = checkpoint_dir / "checkpoint.pkl"
+    return checkpoint_dir / "checkpoint.pkl"
 
-    return checkpoint_file
 
 
 def load_checkpoint(path: Path) -> Any | None:
@@ -208,7 +207,7 @@ def save_checkpoint(path: Path, result: Any) -> None:
         raise
 
 
-def run_with_checkpointing(
+def run_with_checkpointing[T](
     stage_func: Callable[..., T],
     *,
     stage: str,

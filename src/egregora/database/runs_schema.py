@@ -190,5 +190,5 @@ def drop_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("DROP TABLE IF EXISTS runs")
         logger.info("Dropped runs table")
     except Exception as e:
-        logger.error(f"Failed to drop runs table: {e}")
+        logger.exception(f"Failed to drop runs table: {e}")
         raise

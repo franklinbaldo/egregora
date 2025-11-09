@@ -25,6 +25,7 @@ Usage:
     result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
 
+import contextlib
 import logging
 from pathlib import Path
 from typing import Literal
@@ -107,7 +108,7 @@ class StorageManager:
             return self.ibis_conn.table(name)
         except Exception as e:
             msg = f"Table '{name}' not found in database"
-            logger.error(msg)
+            logger.exception(msg)
             raise ValueError(msg) from e
 
     def write_table(
@@ -252,14 +253,10 @@ class StorageManager:
 
         """
         # Try dropping as view first (ibis.memtable creates views), then table
-        try:
+        with contextlib.suppress(Exception):
             self.conn.execute(f"DROP VIEW IF EXISTS {name}")
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self.conn.execute(f"DROP TABLE IF EXISTS {name}")
-        except Exception:
-            pass
         logger.info("Dropped table/view: %s", name)
 
         if checkpoint_too:

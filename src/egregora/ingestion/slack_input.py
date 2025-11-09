@@ -92,12 +92,15 @@ class SlackInputSource(InputSource):
         """
         # FAIL-FAST: Slack adapter is not implemented yet
         # This prevents users from accidentally using an incomplete implementation
-        raise NotImplementedError(
+        msg = (
             "Slack input source is not yet implemented. "
             "This is a template/example adapter. "
             "To use Slack exports with Egregora, please contribute an implementation "
             "or wait for Week 2 when adapter plugins will be prioritized. "
             "For now, only WhatsApp exports are supported."
+        )
+        raise NotImplementedError(
+            msg
         )
 
         # The code below is template/reference implementation
