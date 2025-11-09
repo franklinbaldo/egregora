@@ -99,13 +99,6 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
-# View Registry (Priority C.1)
-# ============================================================================
-# Callable-based view builders for pipeline stage transformations. Allows
-# stages to reference views by name and swap Ibis ↔ SQL transparently.
-from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
-
-# ============================================================================
 # Windowing & Checkpoint Utilities Layer
 # ============================================================================
 # Lazy-loaded imports from pipeline.py module (windowing and checkpoint utilities).
@@ -124,6 +117,13 @@ from egregora.pipeline.tracking import (
     record_run,
     run_stage_with_tracking,
 )
+
+# ============================================================================
+# View Registry (Priority C.1)
+# ============================================================================
+# Callable-based view builders for pipeline stage transformations. Allows
+# stages to reference views by name and swap Ibis ↔ SQL transparently.
+from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
 
 
 def __getattr__(name: str) -> object:
