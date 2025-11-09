@@ -212,35 +212,46 @@ def record_run(
         duckdb.Error: If insert fails
 
     """
+    # Ensure runs table exists (idempotent)
+    from egregora.database.runs_schema import ensure_runs_table_exists
+
+    ensure_runs_table_exists(conn)
+
     # Auto-detect code_ref if not provided
     if code_ref is None:
         code_ref = get_git_commit_sha()
+
+    # Calculate duration if both timestamps provided
+    duration_seconds = None
+    if started_at and finished_at:
+        duration_seconds = (finished_at - started_at).total_seconds()
 
     # Insert run record
     conn.execute(
         """
         INSERT INTO runs (
-            run_id, stage, tenant_id, started_at, finished_at,
+            run_id, tenant_id, stage, status, error,
             input_fingerprint, code_ref, config_hash,
-            rows_in, rows_out, llm_calls, tokens,
-            status, error, trace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            started_at, finished_at, duration_seconds,
+            rows_in, rows_out, llm_calls, tokens, trace_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             str(run_id),
-            stage,
             tenant_id,
-            started_at,
-            finished_at,
+            stage,
+            status,
+            error,
             input_fingerprint,
             code_ref,
             config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
             rows_in,
             rows_out,
             llm_calls,
             tokens,
-            status,
-            error,
             trace_id,
         ],
     )
@@ -355,6 +366,7 @@ def run_stage_with_tracking(
 
         # Record success
         finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
 
         # Calculate output rows if result is Ibis table
         rows_out = None
@@ -367,10 +379,11 @@ def run_stage_with_tracking(
             UPDATE runs
             SET status = 'completed',
                 finished_at = ?,
+                duration_seconds = ?,
                 rows_out = ?
             WHERE run_id = ?
             """,
-            [finished_at, rows_out, str(context.run_id)],
+            [finished_at, duration_seconds, rows_out, str(context.run_id)],
         )
 
         conn.close()
@@ -379,6 +392,7 @@ def run_stage_with_tracking(
     except Exception as e:
         # Record failure
         finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
         error_msg = f"{type(e).__name__}: {e!s}"
 
         conn.execute(
@@ -386,10 +400,11 @@ def run_stage_with_tracking(
             UPDATE runs
             SET status = 'failed',
                 finished_at = ?,
+                duration_seconds = ?,
                 error = ?
             WHERE run_id = ?
             """,
-            [finished_at, error_msg, str(context.run_id)],
+            [finished_at, duration_seconds, error_msg, str(context.run_id)],
         )
 
         conn.close()

@@ -52,12 +52,14 @@ RUNS_TABLE_SCHEMA = ibis.schema(
     {
         # Identity
         "run_id": dt.UUID,
+        # Multi-tenant isolation
+        "tenant_id": dt.String(nullable=True),  # Tenant identifier (multi-tenant isolation)
         # Execution metadata
         "stage": dt.string,  # Stage name (e.g., "parsing", "enrichment", "writing")
         "status": dt.string,  # "running", "completed", "failed"
         "error": dt.String(nullable=True),  # Error message if status="failed"
         # Fingerprinting (content-addressed checkpointing)
-        "input_fingerprint": dt.string,  # SHA256 of input data + config + code
+        "input_fingerprint": dt.String(nullable=True),  # SHA256 of input data + config + code
         "code_ref": dt.String(nullable=True),  # Git commit SHA
         "config_hash": dt.String(nullable=True),  # SHA256 of config
         # Timing
@@ -81,10 +83,11 @@ RUNS_TABLE_SCHEMA = ibis.schema(
 RUNS_TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id UUID PRIMARY KEY,
+    tenant_id VARCHAR,
     stage VARCHAR NOT NULL,
-    status VARCHAR NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
+    status VARCHAR NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'degraded')),
     error TEXT,
-    input_fingerprint VARCHAR NOT NULL,
+    input_fingerprint VARCHAR,
     code_ref VARCHAR,
     config_hash VARCHAR,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -102,6 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_fingerprint ON runs(input_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id);
 """
 
 # ============================================================================

@@ -19,6 +19,7 @@ class TestRunsTableSchema:
         """Test that schema defines all required columns."""
         required_columns = {
             "run_id",
+            "tenant_id",
             "stage",
             "status",
             "error",
@@ -45,6 +46,10 @@ class TestRunsTableSchema:
         # UUID type
         assert isinstance(schema["run_id"], UUID)
 
+        # Multi-tenant
+        assert isinstance(schema["tenant_id"], String)
+        assert schema["tenant_id"].nullable is True
+
         # String types
         assert isinstance(schema["stage"], String)
         assert isinstance(schema["status"], String)
@@ -53,6 +58,7 @@ class TestRunsTableSchema:
 
         # Fingerprint columns
         assert isinstance(schema["input_fingerprint"], String)
+        assert schema["input_fingerprint"].nullable is True
         assert isinstance(schema["code_ref"], String)
         assert schema["code_ref"].nullable is True
         assert isinstance(schema["config_hash"], String)
