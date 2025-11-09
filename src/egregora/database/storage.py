@@ -54,6 +54,7 @@ class StorageManager:
         >>> table = storage.read_table("conversations")
         >>> enriched = table.mutate(score=table.rating * 2)
         >>> storage.write_table(enriched, "conversations_enriched")
+
     """
 
     def __init__(
@@ -67,6 +68,7 @@ class StorageManager:
             db_path: Path to DuckDB file (None = in-memory database)
             checkpoint_dir: Directory for parquet checkpoints
                           (defaults to .egregora/data/)
+
         """
         self.db_path = db_path
         self.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
@@ -99,6 +101,7 @@ class StorageManager:
         Example:
             >>> table = storage.read_table("conversations")
             >>> df = table.execute()
+
         """
         try:
             return self.ibis_conn.table(name)
@@ -125,6 +128,7 @@ class StorageManager:
         Example:
             >>> enriched = table.mutate(score=...)
             >>> storage.write_table(enriched, "conversations_enriched")
+
         """
         if checkpoint:
             # Write checkpoint to parquet
@@ -147,17 +151,16 @@ class StorageManager:
             self.conn.execute(sql)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
+        # Direct write without checkpoint (faster but no persistence)
+        elif mode == "replace":
+            # Use Ibis to_sql for direct write
+            # Note: This requires executing the table first
+            df = table.execute()
+            self.conn.register(name, df)
+            logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
-            # Direct write without checkpoint (faster but no persistence)
-            if mode == "replace":
-                # Use Ibis to_sql for direct write
-                # Note: This requires executing the table first
-                df = table.execute()
-                self.conn.register(name, df)
-                logger.info("Table '%s' written without checkpoint (%s)", name, mode)
-            else:
-                msg = "Append mode requires checkpoint=True"
-                raise ValueError(msg)
+            msg = "Append mode requires checkpoint=True"
+            raise ValueError(msg)
 
     def execute_view(
         self,
@@ -185,6 +188,7 @@ class StorageManager:
             ...     chunks_builder,
             ...     "conversations"
             ... )
+
         """
         # Read input table
         input_ir = self.read_table(input_table)
@@ -207,6 +211,7 @@ class StorageManager:
 
         Returns:
             True if table exists, False otherwise
+
         """
         tables = self.conn.execute(
             """
@@ -223,6 +228,7 @@ class StorageManager:
 
         Returns:
             Sorted list of table names
+
         """
         tables = self.conn.execute(
             """
@@ -243,6 +249,7 @@ class StorageManager:
 
         Example:
             >>> storage.drop_table("temp_results", checkpoint_too=True)
+
         """
         # Try dropping as view first (ibis.memtable creates views), then table
         try:
@@ -289,6 +296,7 @@ def temp_storage() -> StorageManager:
         >>> with temp_storage() as storage:
         ...     storage.write_table(my_table, "temp")
         ...     result = storage.read_table("temp")
+
     """
     return StorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))
 
