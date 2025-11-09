@@ -1737,6 +1737,255 @@ def views_drop(
         conn.close()
 
 
+# ==============================================================================
+# Run Tracking Commands
+# ==============================================================================
+
+runs_app = typer.Typer(
+    name="runs",
+    help="View and manage pipeline run history",
+)
+app.add_typer(runs_app)
+
+
+@runs_app.command(name="tail")
+def runs_tail(
+    n: Annotated[int, typer.Option(help="Number of runs to show")] = 10,
+    db_path: Annotated[
+        Path, typer.Option(help="Runs database path")
+    ] = Path(".egregora-cache/runs.duckdb"),
+) -> None:
+    """Show last N runs.
+
+    Examples:
+        egregora runs tail              # Last 10 runs
+        egregora runs tail --n 20       # Last 20 runs
+
+    """
+    import duckdb
+    from rich.table import Table
+
+    if not db_path.exists():
+        console.print(f"[yellow]No runs database found at {db_path}[/yellow]")
+        console.print("[dim]Runs will be tracked after first pipeline execution[/dim]")
+        return
+
+    # Connect to runs database
+    conn = duckdb.connect(str(db_path), read_only=True)
+
+    try:
+        # Query last N runs
+        result = conn.execute(
+            """
+            SELECT
+                run_id,
+                stage,
+                status,
+                started_at,
+                rows_in,
+                rows_out,
+                duration_seconds
+            FROM runs
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            [n],
+        ).fetchall()
+
+        if not result:
+            console.print("[yellow]No runs found[/yellow]")
+            return
+
+        # Create Rich table
+        table = Table(title=f"Last {len(result)} Runs", show_header=True, header_style="bold cyan")
+        table.add_column("Run ID", style="dim", no_wrap=True)
+        table.add_column("Stage", style="cyan")
+        table.add_column("Status", style="bold")
+        table.add_column("Started At", style="blue")
+        table.add_column("Rows In", justify="right")
+        table.add_column("Rows Out", justify="right")
+        table.add_column("Duration", justify="right")
+
+        for row in result:
+            run_id, stage, status, started_at, rows_in, rows_out, duration = row
+
+            # Color-code status
+            if status == "completed":
+                status_text = f"[green]{status}[/green]"
+            elif status == "failed":
+                status_text = f"[red]{status}[/red]"
+            elif status == "running":
+                status_text = f"[yellow]{status}[/yellow]"
+            else:
+                status_text = status
+
+            # Format duration
+            duration_text = f"{duration:.2f}s" if duration is not None else "-"
+
+            # Format rows
+            rows_in_text = str(rows_in) if rows_in is not None else "-"
+            rows_out_text = str(rows_out) if rows_out is not None else "-"
+
+            # Truncate run_id for display
+            run_id_short = str(run_id)[:8]
+
+            table.add_row(
+                run_id_short,
+                stage,
+                status_text,
+                str(started_at),
+                rows_in_text,
+                rows_out_text,
+                duration_text,
+            )
+
+        console.print(table)
+
+    finally:
+        conn.close()
+
+
+@runs_app.command(name="show")
+def runs_show(
+    run_id: Annotated[str, typer.Argument(help="Run ID to show (full UUID or prefix)")],
+    db_path: Annotated[
+        Path, typer.Option(help="Runs database path")
+    ] = Path(".egregora-cache/runs.duckdb"),
+) -> None:
+    """Show detailed run info.
+
+    Examples:
+        egregora runs show a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+        egregora runs show a0eebc99  # Prefix matching
+
+    """
+    import duckdb
+    from rich.panel import Panel
+
+    if not db_path.exists():
+        console.print(f"[red]No runs database found at {db_path}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to runs database
+    conn = duckdb.connect(str(db_path), read_only=True)
+
+    try:
+        # Query run by ID (support prefix matching)
+        result = conn.execute(
+            """
+            SELECT
+                run_id, tenant_id, stage, status, error,
+                input_fingerprint, code_ref, config_hash,
+                started_at, finished_at, duration_seconds,
+                rows_in, rows_out, llm_calls, tokens, trace_id
+            FROM runs
+            WHERE CAST(run_id AS VARCHAR) LIKE ?
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            [f"{run_id}%"],
+        ).fetchone()
+
+        if not result:
+            console.print(f"[red]Run not found: {run_id}[/red]")
+            raise typer.Exit(1)
+
+        # Unpack result
+        (
+            run_id_full,
+            tenant_id,
+            stage,
+            status,
+            error,
+            input_fingerprint,
+            code_ref,
+            config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
+            rows_in,
+            rows_out,
+            llm_calls,
+            tokens,
+            trace_id,
+        ) = result
+
+        # Build panel content
+        lines = []
+
+        # Color-code status
+        if status == "completed":
+            status_display = f"[green]{status}[/green]"
+        elif status == "failed":
+            status_display = f"[red]{status}[/red]"
+        elif status == "running":
+            status_display = f"[yellow]{status}[/yellow]"
+        else:
+            status_display = status
+
+        lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id_full}")
+        if tenant_id:
+            lines.append(f"[bold cyan]Tenant:[/bold cyan] {tenant_id}")
+        lines.append(f"[bold cyan]Stage:[/bold cyan] {stage}")
+        lines.append(f"[bold cyan]Status:[/bold cyan] {status_display}")
+        lines.append("")
+
+        # Timestamps
+        lines.append("[bold]Timestamps:[/bold]")
+        lines.append(f"  Started:  {started_at}")
+        if finished_at:
+            lines.append(f"  Finished: {finished_at}")
+        if duration_seconds:
+            lines.append(f"  Duration: {duration_seconds:.2f}s")
+        lines.append("")
+
+        # Metrics
+        if rows_in is not None or rows_out is not None or llm_calls or tokens:
+            lines.append("[bold]Metrics:[/bold]")
+            if rows_in is not None:
+                lines.append(f"  Rows In:   {rows_in:,}")
+            if rows_out is not None:
+                lines.append(f"  Rows Out:  {rows_out:,}")
+            if llm_calls:
+                lines.append(f"  LLM Calls: {llm_calls:,}")
+            if tokens:
+                lines.append(f"  Tokens:    {tokens:,}")
+            lines.append("")
+
+        # Fingerprints
+        if input_fingerprint or code_ref or config_hash:
+            lines.append("[bold]Fingerprints:[/bold]")
+            if input_fingerprint:
+                lines.append(f"  Input:  {input_fingerprint[:32]}...")
+            if code_ref:
+                lines.append(f"  Code:   {code_ref}")
+            if config_hash:
+                lines.append(f"  Config: {config_hash[:32]}...")
+            lines.append("")
+
+        # Error (if failed)
+        if error:
+            lines.append("[bold red]Error:[/bold red]")
+            lines.append(f"  {error}")
+            lines.append("")
+
+        # Observability
+        if trace_id:
+            lines.append("[bold]Observability:[/bold]")
+            lines.append(f"  Trace ID: {trace_id}")
+
+        # Display panel
+        panel = Panel(
+            "\n".join(lines),
+            title=f"[bold]Run Details: {stage}[/bold]",
+            border_style="cyan",
+        )
+        console.print(panel)
+
+    finally:
+        conn.close()
+
+
 @app.command()
 def adapters(
     as_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
