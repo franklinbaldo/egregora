@@ -283,7 +283,7 @@ draft: true
     log = [JournalEntry(entry_type="thinking", content="Test content")]
 
     # Temporarily patch the templates directory location
-    import egregora.agents.writer.writer_agent as writer_module
+    import egregora.agents.writer.agent as writer_module
 
     original_file = writer_module.__file__
     writer_module.__file__ = str(tmp_path / "fake" / "fake" / "fake.py")

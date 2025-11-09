@@ -22,8 +22,10 @@ from typing import TYPE_CHECKING, Any
 import frontmatter
 import yaml
 
+from egregora.agents.models import AgentConfig
+
 if TYPE_CHECKING:
-    from egregora.agents.models import AgentConfig, AgentTools
+    from egregora.agents.models import AgentTools
 
 logger = logging.getLogger(__name__)
 
