@@ -169,7 +169,7 @@ class TestCheckDuckDBExtensions:
         # Can be OK or WARNING depending on environment
         assert result.status in (HealthStatus.OK, HealthStatus.WARNING)
 
-    @patch("egregora.diagnostics.duckdb.connect")
+    @patch("duckdb.connect")
     def test_vss_extension_io_error(self, mock_connect: MagicMock) -> None:
         """Returns WARNING when VSS extension is not available."""
         mock_conn = MagicMock()
@@ -185,7 +185,7 @@ class TestCheckDuckDBExtensions:
         assert result.details is not None
         assert "workaround" in result.details
 
-    @patch("egregora.diagnostics.duckdb.connect")
+    @patch("duckdb.connect")
     def test_duckdb_connection_error(self, mock_connect: MagicMock) -> None:
         """Returns ERROR when DuckDB connection fails."""
         mock_connect.side_effect = Exception("Connection failed")
