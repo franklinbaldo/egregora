@@ -10,13 +10,12 @@ Tests cover:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import ibis
 import pytest
 
 from egregora.adapters.registry import AdapterRegistry, ValidatedAdapter
-from egregora.database.validation import SchemaError, IR_V1_SCHEMA, validate_adapter_output
+from egregora.database.validation import SchemaError, validate_adapter_output
 from egregora.pipeline.adapters import AdapterMeta, SourceAdapter
 
 
@@ -53,9 +52,11 @@ class MockAdapter(SourceAdapter):
         """Return valid or invalid table based on initialization."""
         if self._return_valid:
             # Return valid IR v1 table using IR schema
-            import pandas as pd
-            from datetime import UTC, datetime
             import uuid
+            from datetime import UTC, datetime
+
+            import pandas as pd
+
             from egregora.database.validation import IR_V1_SCHEMA
 
             # Create test UUID for created_by_run to avoid null type issues
@@ -83,15 +84,14 @@ class MockAdapter(SourceAdapter):
             # Create memtable with explicit schema
             table = ibis.memtable(df, schema=IR_V1_SCHEMA)
             return table
-        else:
-            # Return invalid table (missing required columns)
-            import pandas as pd
+        # Return invalid table (missing required columns)
+        import pandas as pd
 
-            data = {
-                "invalid_column": ["test"],
-                "another_column": [123],
-            }
-            return ibis.memtable(pd.DataFrame(data))
+        data = {
+            "invalid_column": ["test"],
+            "another_column": [123],
+        }
+        return ibis.memtable(pd.DataFrame(data))
 
 
 class TestValidateAdapterOutputDecorator:
@@ -258,9 +258,10 @@ class TestSchemaValidationErrors:
 
     def test_extra_columns_allowed(self) -> None:
         """Test that extra columns are allowed (schema is superset)."""
-        import pandas as pd
-        from datetime import UTC, datetime
         import uuid
+        from datetime import UTC, datetime
+
+        import pandas as pd
 
         # Create valid table with extra column
         data = {

@@ -17,7 +17,6 @@ Third-party adapters can register via entry points in pyproject.toml:
 from __future__ import annotations
 
 import logging
-from functools import wraps
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import TYPE_CHECKING, Any

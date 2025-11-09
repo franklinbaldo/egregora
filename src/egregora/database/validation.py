@@ -38,10 +38,11 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import ibis
 import ibis.expr.datatypes as dt
