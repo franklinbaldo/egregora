@@ -244,7 +244,7 @@ def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> u
 ## Quick Wins (Do Immediately) ⚡
 
 ### QW-0: IR v1 Lockfile (30 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 **Tasks**:
 1. Create `schema/ir_v1.sql` with canonical IR schema
@@ -263,7 +263,7 @@ def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> u
 ---
 
 ### QW-1: Fail Build on Pandas Import (5 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 ```bash
 # Turn on pre-commit check in CI
@@ -277,7 +277,7 @@ def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> u
 ---
 
 ### QW-2: Slack Adapter Fail-Fast (10 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 **File**: `src/egregora/ingestion/slack_input.py`
 
@@ -297,7 +297,7 @@ def parse_source(self, input_path: Path) -> ibis.Table:
 ---
 
 ### QW-3: Privacy Gate as Capability Token (45 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 **File**: `src/egregora/privacy/gate.py` (new)
 
@@ -381,7 +381,7 @@ enriched = enrich_media(table, privacy_pass=privacy_pass)
 ---
 
 ### QW-4: Deterministic UUID5 Namespaces (20 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 **Tasks**:
 1. Create `src/egregora/privacy/constants.py` with frozen UUID5 namespaces
@@ -400,7 +400,7 @@ enriched = enrich_media(table, privacy_pass=privacy_pass)
 ---
 
 ### QW-5: Minimal OpenTelemetry Bootstrap (30 min)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08)
 
 **File**: `src/egregora/utils/telemetry.py`
 
@@ -489,7 +489,7 @@ EGREGORA_OTEL=1 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
 ## Priority A: Platform Seams & Plugins (Weeks 1-2)
 
 ### A.1: Adapter Plugin System (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Third-party adapters via entry points + `adapter_meta()`
 
@@ -593,7 +593,7 @@ cookiecutter gh:franklinbaldo/cookiecutter-egregora-adapter
 ---
 
 ### A.2: Content-Addressed Checkpoints (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Fingerprint-based checkpoints (no custom markers)
 
@@ -677,7 +677,7 @@ egregora cache clear --stage=enrich
 ---
 
 ### A.3: IR Schema Validation (1 day)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Runtime validation at adapter boundary
 
@@ -750,7 +750,7 @@ def adapter_output_validator(table: ibis.Table) -> ibis.Table:
 ## Priority B: Privacy as a Capability (Weeks 2-3)
 
 ### B.1: PrivacyPass + Re-identification Policy (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-08) - Implemented as QW-3
 
 **Goal**: Capability-based privacy gate + re-id escrow documentation
 
@@ -861,7 +861,7 @@ def test_re_ingest_stability(whatsapp_zip: Path):
 ## Priority C: Data Layer Discipline (Weeks 3-4)
 
 ### C.1: View Registry + SQL Stage Views (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Centralized view registry + allow SQL when needed
 
@@ -944,7 +944,7 @@ def chunking_stage(storage: StorageManager) -> ibis.Table:
 ---
 
 ### C.2: StorageManager + No Raw SQL (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Centralized DuckDB access via `StorageManager`
 
@@ -1010,6 +1010,45 @@ def enrich_stage(storage: StorageManager, config: Config, privacy_pass: PrivacyP
 **Success**:
 - [ ] All stages use `StorageManager` (no raw SQL)
 - [ ] Checkpoints saved to `.egregora/data/`
+
+---
+
+### C.3: Validate All Stages Conform to IR (1 day)
+**Status**: ✅ Completed (2025-01-09)
+
+**Goal**: Automatic validation for pipeline stages to ensure IR v1 schema conformance
+
+**File**: `src/egregora/database/validation.py` (addition)
+
+**Implementation**:
+```python
+from egregora.database.validation import validate_stage
+
+class MyStage(PipelineStage):
+    @validate_stage
+    def process(self, data: Table, context: dict[str, Any]) -> StageResult:
+        # Input validated automatically
+        transformed = data.filter(...)
+        # Output validated automatically
+        return StageResult(data=transformed)
+```
+
+**Features**:
+- `@validate_stage` decorator for PipelineStage.process() methods
+- Two-level validation: compile-time (schema structure) + runtime (sample rows)
+- Validates both input and output to ensure schema preservation
+- Helpful error messages with stage context
+- Consistent with `@validate_adapter_output` pattern
+
+**Tests**: `tests/unit/test_stage_validation.py` (7 tests)
+
+**Docs**: `docs/pipeline/stage-validation.md`
+
+**Success**:
+- [x] @validate_stage decorator implemented
+- [x] Two-level validation (compile + runtime)
+- [x] Comprehensive test coverage (7 tests)
+- [x] Documentation complete
 
 ---
 
