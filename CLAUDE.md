@@ -347,6 +347,16 @@ class WriterRuntimeContext:
 - ❌ Don't use raw SQL - use StorageManager methods
 - See `docs/database/storage-manager.md` for full guide
 
+**Stage Validation (Priority C.3 - 2025-01-09)**:
+- ✅ `@validate_stage` decorator for automatic IR v1 schema validation
+- ✅ Validates both input and output of pipeline stages
+- ✅ Two-level validation: compile-time (schema structure) + runtime (sample rows)
+- ✅ Ensures stages preserve IR v1 contract throughout transformations
+- ✅ Example: `@validate_stage def process(self, data: Table, context) -> StageResult:`
+- ✅ Helpful error messages with stage context
+- ❌ Don't drop required IR columns or change types in stages
+- See `docs/pipeline/stage-validation.md` for full guide
+
 ## Code Structure
 
 ```

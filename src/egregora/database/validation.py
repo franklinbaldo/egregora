@@ -12,7 +12,8 @@ Usage:
     from egregora.database.validation import (
         validate_ir_schema,
         adapter_output_validator,
-        validate_adapter_output
+        validate_adapter_output,
+        validate_stage,
     )
 
     # Manual validation
@@ -26,6 +27,15 @@ Usage:
     @validate_adapter_output
     def parse(self, input_path: Path) -> ibis.Table:
         return parse_source(input_path)
+
+    # Decorator for pipeline stage methods
+    from egregora.pipeline.base import PipelineStage, StageResult
+
+    class MyStage(PipelineStage):
+        @validate_stage
+        def process(self, data: Table, context: dict[str, Any]) -> StageResult:
+            # Transform logic here
+            return StageResult(data=transformed_data)
 
 See Also:
     - docs/architecture/ir-v1-spec.md
@@ -395,6 +405,75 @@ def validate_adapter_output(func: F) -> F:
             # Enhance error with function context
             func_name = getattr(func, "__qualname__", func.__name__)
             msg = f"Adapter output validation failed in {func_name}: {e}"
+            raise SchemaError(msg) from e
+
+        return result
+
+    return wrapper  # type: ignore[return-value]
+
+
+def validate_stage(func: F) -> F:
+    """Decorator to validate pipeline stage inputs and outputs against IR v1 schema.
+
+    This decorator wraps stage.process() methods to automatically validate:
+    1. Input data conforms to IR v1 schema
+    2. Output data conforms to IR v1 schema (preserves schema contract)
+
+    Args:
+        func: Stage process method (returns StageResult with .data attribute)
+
+    Returns:
+        Wrapped function that validates input/output
+
+    Raises:
+        SchemaError: If input or output doesn't match IR v1 schema
+
+    Example:
+        >>> from egregora.pipeline.base import PipelineStage, StageResult
+        >>> class MyStage(PipelineStage):
+        ...     @validate_stage
+        ...     def process(self, data: Table, context: dict[str, Any]) -> StageResult:
+        ...         # Transform logic here
+        ...         transformed = data.filter(...)
+        ...         return StageResult(data=transformed)
+
+    Note:
+        This validates BOTH inputs and outputs to ensure stages preserve
+        the IR v1 schema contract throughout the pipeline.
+
+    """
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:  # Returns StageResult
+        # Extract input data from args
+        # Signature: process(self, data: Table, context: dict[str, Any]) -> StageResult
+        if len(args) < 2:
+            msg = "Stage process method requires at least 2 arguments: (self, data)"
+            raise TypeError(msg)
+
+        input_data = args[1]  # data parameter
+
+        # Validate input
+        try:
+            validate_ir_schema(input_data)
+        except SchemaError as e:
+            func_name = getattr(func, "__qualname__", func.__name__)
+            msg = f"Stage input validation failed in {func_name}: {e}"
+            raise SchemaError(msg) from e
+
+        # Call original function
+        result = func(*args, **kwargs)
+
+        # Extract output data from StageResult
+        # StageResult has .data attribute
+        output_data = result.data
+
+        # Validate output
+        try:
+            validate_ir_schema(output_data)
+        except SchemaError as e:
+            func_name = getattr(func, "__qualname__", func.__name__)
+            msg = f"Stage output validation failed in {func_name}: {e}"
             raise SchemaError(msg) from e
 
         return result
