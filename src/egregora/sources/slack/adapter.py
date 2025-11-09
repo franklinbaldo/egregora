@@ -272,7 +272,11 @@ class SlackInputSource(InputSource):
         }
 
     def _slugify(self, text: str) -> str:
-        """Convert text to URL-safe slug."""
-        slug = text.lower()
-        slug = re.sub("[^a-z0-9]+", "-", slug)
-        return slug.strip("-")
+        """Convert text to URL-safe slug.
+
+        .. deprecated:: Phase 3
+           Use egregora.utils.paths.slugify instead for Unicode support.
+        """
+        from egregora.utils.paths import slugify
+
+        return slugify(text)

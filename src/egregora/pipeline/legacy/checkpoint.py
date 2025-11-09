@@ -1,5 +1,14 @@
 """Content-addressed checkpointing for deterministic pipeline resumption.
 
+.. deprecated:: Phase 2
+   This module is deprecated and will be removed in a future version.
+   Use the modern tracking system instead:
+
+   - For resume logic: Use sentinel files (pipeline.windowing.load_checkpoint/save_checkpoint)
+   - For tracking: Use pipeline.tracking.record_run and pipeline.tracking.fingerprint_table
+
+   The modern system provides better observability and integrates with the runs database.
+
 This module enables pipelines to skip expensive stages when:
 1. Input data hasn't changed (same fingerprint)
 2. Code version hasn't changed (same git commit)
@@ -8,8 +17,8 @@ This module enables pipelines to skip expensive stages when:
 Checkpoints are content-addressed: SHA256(input + code + config) → output path.
 This ensures deterministic resumption: same inputs always load same checkpoint.
 
-Usage:
-    from egregora.pipeline.checkpoint import (
+Usage (DEPRECATED):
+    from egregora.pipeline.legacy.checkpoint import (
         checkpoint_path,
         load_checkpoint,
         save_checkpoint,
@@ -48,6 +57,7 @@ Usage:
 import hashlib
 import pickle
 import subprocess
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -55,6 +65,14 @@ from typing import Any, TypeVar
 import ibis
 
 T = TypeVar("T")
+
+# Deprecation warning for the entire module
+warnings.warn(
+    "The pipeline.legacy.checkpoint module is deprecated. "
+    "Use pipeline.tracking for observability and pipeline.windowing for resume logic.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def get_config_hash(config: Any) -> str:
