@@ -311,7 +311,7 @@ def test_save_journal_to_file_missing_templates_dir(tmp_path: Path):
     log = [JournalEntry(entry_type="thinking", content="Test")]
 
     # The templates directory won't exist relative to tmp_path
-    import egregora.agents.writer.writer_agent as writer_module
+    import egregora.agents.writer.agent as writer_module
 
     original_file = writer_module.__file__
     writer_module.__file__ = str(tmp_path / "nonexistent" / "nonexistent" / "fake.py")

@@ -234,7 +234,7 @@ class TestBuiltInAdapters:
 
     def test_slack_adapter_has_metadata(self):
         """Test Slack adapter implements adapter_meta."""
-        from egregora.ingestion.slack_input import SlackInputSource
+        from egregora.sources.slack import SlackInputSource
 
         adapter = SlackInputSource()
         meta = adapter.adapter_meta()

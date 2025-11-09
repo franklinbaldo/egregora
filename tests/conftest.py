@@ -301,7 +301,7 @@ def mock_batch_client(monkeypatch):
         MockGeminiClient,
     )
     monkeypatch.setattr(
-        "egregora.agents.editor.editor_agent.genai.Client",
+        "egregora.agents.editor.agent.genai.Client",
         MockGeminiClient,
     )
 

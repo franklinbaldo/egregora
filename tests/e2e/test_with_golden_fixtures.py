@@ -88,7 +88,7 @@ def test_pipeline_with_golden_fixtures(
         return GoldenTestModel(window_id=whatsapp_fixture.export_date.isoformat())
 
     monkeypatch.setattr(
-        "egregora.agents.writer.writer_agent.GeminiModel",
+        "egregora.agents.writer.agent.GeminiModel",
         _make_test_model,
     )
 
