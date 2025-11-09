@@ -512,6 +512,115 @@ WARNING: Adapter discord requires IR v2 (current: v1), skipping
 
 ---
 
+## Output Validation
+
+Egregora provides runtime validation to ensure adapter outputs conform to IR v1 schema. This catches schema mismatches, type errors, and missing columns before data enters the pipeline.
+
+### Manual Validation
+
+Validate adapter output manually using `validate_ir_schema()`:
+
+```python
+from egregora.database.validation import validate_ir_schema, SchemaError
+
+# Parse export
+table = adapter.parse(Path("export.json"))
+
+# Validate against IR v1 schema
+try:
+    validate_ir_schema(table)
+    print("✓ Schema valid")
+except SchemaError as e:
+    print(f"✗ Schema error: {e}")
+```
+
+### Decorator-Based Validation
+
+Use `@validate_adapter_output` to automatically validate adapter methods:
+
+```python
+from egregora.database.validation import validate_adapter_output
+
+class DiscordAdapter(SourceAdapter):
+    @validate_adapter_output
+    def parse(self, input_path: Path, **kwargs) -> Table:
+        """Parse Discord export - output automatically validated."""
+        # Parsing logic here
+        return table
+```
+
+**Benefits**:
+- Catches schema errors immediately
+- Clear error messages with field names
+- No performance impact (validation only on first 100 rows)
+
+### Registry-Level Validation
+
+Enable automatic validation for **all** adapters via `AdapterRegistry`:
+
+```python
+from egregora.adapters import AdapterRegistry
+
+# Create registry with validation enabled
+registry = AdapterRegistry(validate_outputs=True)
+
+# All adapter outputs automatically validated
+adapter = registry.get("discord")
+table = adapter.parse(Path("export.json"))  # ✓ Auto-validated
+```
+
+**When to use**:
+- Development: Catch schema bugs early
+- Testing: Ensure test fixtures match IR v1
+- Production: Optional safety net (adds ~100ms overhead)
+
+### Validation Errors
+
+Common validation errors and fixes:
+
+**Missing Columns**:
+```
+SchemaError: IR v1 schema mismatch:
+Missing columns:
+  - created_at: timestamp
+  - created_by_run: uuid
+```
+**Fix**: Add missing columns to adapter output
+
+**Type Mismatches**:
+```
+SchemaError: IR v1 type mismatch for column 'ts': expected timestamp, got string
+```
+**Fix**: Convert timestamp strings to `datetime` objects
+
+**Extra Columns**:
+```
+SchemaError: IR v1 schema mismatch:
+Extra columns:
+  + discord_raw_data: string
+```
+**Fix**: Remove extra columns or update IR v1 schema (requires proposal)
+
+### Testing With Validation
+
+Include validation in adapter tests:
+
+```python
+def test_discord_adapter_validates():
+    """Test that Discord adapter output validates."""
+    from egregora.database.validation import validate_ir_schema
+
+    adapter = DiscordAdapter()
+    table = adapter.parse(Path("tests/fixtures/discord_export.json"))
+
+    # Should not raise
+    validate_ir_schema(table)
+```
+
+**Best practice**: Always validate in tests to catch schema drift.
+
+---
+
 ## Best Practices
 
 1. **Use UUID5 for deterministic IDs**:

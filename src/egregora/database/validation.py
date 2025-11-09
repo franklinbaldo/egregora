@@ -9,16 +9,23 @@ to the IR v1 schema specification at runtime. It combines:
 
 Usage:
 
-    from egregora.database.validation import validate_ir_schema, adapter_output_validator
+    from egregora.database.validation import (
+        validate_ir_schema,
+        adapter_output_validator,
+        validate_adapter_output
+    )
 
-    # Validate table schema
+    # Manual validation
     table = adapter.parse_source(input_path)
     validate_ir_schema(table)  # Raises SchemaError if invalid
 
-    # Use as decorator
-    @adapter_output_validator
-    def parse_whatsapp(export_path: Path) -> ibis.Table:
-        return parse_source(export_path)
+    # Function wrapper
+    validated_table = adapter_output_validator(table)
+
+    # Decorator for adapter methods
+    @validate_adapter_output
+    def parse(self, input_path: Path) -> ibis.Table:
+        return parse_source(input_path)
 
 See Also:
     - docs/architecture/ir-v1-spec.md
@@ -32,8 +39,9 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -41,6 +49,9 @@ from pydantic import BaseModel, Field, ValidationError
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
+# Type variable for decorator
+F = TypeVar("F", bound=Callable[..., "Table"])
 
 
 class SchemaError(Exception):
@@ -341,3 +352,50 @@ def adapter_output_validator(table: Table) -> Table:
     """
     validate_ir_schema(table)
     return table
+
+
+def validate_adapter_output(func: F) -> F:
+    """Decorator to validate adapter outputs against IR v1 schema.
+
+    This decorator wraps adapter methods (typically `parse()`) to automatically
+    validate their outputs conform to IR v1 schema specification.
+
+    Args:
+        func: Function returning an Ibis Table (adapter parse method)
+
+    Returns:
+        Wrapped function that validates output
+
+    Raises:
+        SchemaError: If adapter output doesn't match IR v1 schema
+
+    Example:
+        >>> class MyAdapter(SourceAdapter):
+        ...     @validate_adapter_output
+        ...     def parse(self, input_path: Path) -> Table:
+        ...         # Parse logic here
+        ...         return table
+
+    Note:
+        This is a convenience decorator. AdapterRegistry can also
+        auto-validate outputs when validate_outputs=True.
+
+    """
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Table:
+        # Call original function
+        result = func(*args, **kwargs)
+
+        # Validate output
+        try:
+            validate_ir_schema(result)
+        except SchemaError as e:
+            # Enhance error with function context
+            func_name = getattr(func, "__qualname__", func.__name__)
+            msg = f"Adapter output validation failed in {func_name}: {e}"
+            raise SchemaError(msg) from e
+
+        return result
+
+    return wrapper  # type: ignore[return-value]
