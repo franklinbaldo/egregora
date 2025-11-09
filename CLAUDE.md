@@ -325,6 +325,17 @@ class WriterRuntimeContext:
 - ❌ Don't create DB schemas for windows (they're transient views of CONVERSATION_SCHEMA)
 - ❌ Don't use `tokens` unit (replaced with `bytes` for simplicity/speed)
 
+**View Registry (Priority C.1 - 2025-01-09)**:
+- ✅ Callable view builders: `ViewBuilder = Callable[[Table], Table]`
+- ✅ Centralized registry for pipeline transformations
+- ✅ Transparent Ibis ↔ SQL swapping for performance
+- ✅ Reference views by name, not implementation
+- ✅ Example: `chunks_builder = views.get("chunks"); result = chunks_builder(table)`
+- ✅ Built-in views: `chunks`, `chunks_optimized`, `hourly_aggregates`, `daily_aggregates`
+- ✅ Register custom views with decorator: `@views.register("my_view")`
+- ❌ Don't confuse with `database/views.py` (SQL materialized views for query optimization)
+- See `docs/pipeline/view-registry.md` for full guide
+
 ## Code Structure
 
 ```
@@ -333,11 +344,19 @@ src/egregora/
 ├── pipeline.py               # Windowing utilities (create_windows, Window dataclass)
 ├── database/
 │   ├── schema.py            # ALL table schemas (CONVERSATION_SCHEMA, RAG_CHUNKS_SCHEMA, etc.)
-│   └── connection.py        # DuckDB connection management
+│   ├── connection.py        # DuckDB connection management
+│   └── views.py             # SQL materialized views (database query optimization)
 ├── config/
 │   ├── types.py             # Config dataclasses
 │   ├── pipeline.py          # Pipeline-specific configs
 │   └── site.py              # Site/MkDocs config loading
+├── pipeline/
+│   ├── base.py              # PipelineStage protocol
+│   ├── ir.py                # IR schema and validation
+│   ├── views.py             # View registry for pipeline transformations (Priority C.1)
+│   ├── tracking.py          # Run tracking and lineage
+│   ├── checkpoint.py        # Content-addressed checkpointing
+│   └── adapters.py          # SourceAdapter protocol
 ├── ingestion/
 │   ├── base.py              # Abstract base classes (InputSource, InputMetadata)
 │   ├── slack_input.py       # Slack source (future)

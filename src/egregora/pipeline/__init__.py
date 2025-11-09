@@ -99,6 +99,13 @@ from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
+# View Registry (Priority C.1)
+# ============================================================================
+# Callable-based view builders for pipeline stage transformations. Allows
+# stages to reference views by name and swap Ibis ↔ SQL transparently.
+from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
+
+# ============================================================================
 # Windowing & Checkpoint Utilities Layer
 # ============================================================================
 # Lazy-loaded imports from pipeline.py module (windowing and checkpoint utilities).
@@ -173,6 +180,8 @@ __all__ = [
     "SourceAdapter",
     "StageConfig",
     "StageResult",
+    "ViewBuilder",
+    "ViewRegistry",
     "Window",
     "create_ir_table",
     "create_windows",
@@ -185,4 +194,5 @@ __all__ = [
     "save_checkpoint",
     "split_window_into_n_parts",
     "validate_ir_schema",
+    "views",
 ]
