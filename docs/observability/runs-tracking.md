@@ -18,8 +18,8 @@ Egregora tracks every pipeline execution in a **runs database** (`.egregora/runs
 ## Quick Start
 
 ```bash
-# Process a WhatsApp export (runs automatically tracked)
-egregora process export.zip --output=./my-blog
+# Write blog posts from a WhatsApp export (runs automatically tracked)
+egregora write export.zip --output=./my-blog
 
 # View recent runs
 egregora runs tail
@@ -275,7 +275,7 @@ if existing_run:
 
 ```bash
 # Re-run pipeline - automatically skips completed windows
-egregora process export.zip --output=./my-blog
+egregora write export.zip --output=./my-blog
 
 # Only processes new/changed data (detected via fingerprints)
 ```
@@ -396,7 +396,7 @@ duckdb .egregora/runs.duckdb "COPY runs TO 'runs.csv' (HEADER, DELIMITER ',')"
 **Solution**: Delete and recreate:
 ```bash
 rm .egregora/runs.duckdb
-egregora process export.zip  # Recreates with new schema
+egregora write export.zip  # Recreates with new schema
 ```
 
 ### Permission Denied

@@ -269,8 +269,8 @@ pytest tests/unit/test_runs_tracking.py -v
 
 **Manual testing:**
 ```bash
-# Process a small export
-egregora process tests/fixtures/small-export.zip --output=./test-output
+# Write blog posts from a small export
+egregora write tests/fixtures/small-export.zip --output=./test-output
 
 # View runs
 egregora runs tail
@@ -355,8 +355,8 @@ egregora runs show <run_id>
 # 1. Run tests
 pytest tests/unit/test_runs_schema.py tests/unit/test_runs_tracking.py -v
 
-# 2. Process a WhatsApp export
-egregora process export.zip --output=./output
+# 2. Write blog posts from a WhatsApp export
+egregora write export.zip --output=./output
 
 # 3. View runs
 egregora runs tail

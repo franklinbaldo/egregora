@@ -324,7 +324,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -367,7 +367,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
-    """Process chat export and generate blog posts + author profiles.
+    """Write blog posts from chat exports using LLM-powered synthesis.
 
     Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
@@ -375,12 +375,12 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         Control how messages are grouped into posts using --step-size and --step-unit:
 
         By time (default):
-            egregora process export.zip --step-size=1 --step-unit=days
-            egregora process export.zip --step-size=7 --step-unit=days
-            egregora process export.zip --step-size=24 --step-unit=hours
+            egregora write export.zip --step-size=1 --step-unit=days
+            egregora write export.zip --step-size=7 --step-unit=days
+            egregora write export.zip --step-size=24 --step-unit=hours
 
         By message count:
-            egregora process export.zip --step-size=100 --step-unit=messages
+            egregora write export.zip --step-size=100 --step-unit=messages
 
     The LLM decides:
     - What's worth writing about (filters noise automatically)
