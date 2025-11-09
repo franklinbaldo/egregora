@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "RUNS_TABLE_SCHEMA",
     "RUNS_TABLE_DDL",
+    "RUNS_TABLE_SCHEMA",
     "create_runs_table",
     "ensure_runs_table_exists",
 ]
