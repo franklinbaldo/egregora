@@ -490,6 +490,127 @@ def drop_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 # ----------------------------------------------------------------------------
+# Lineage Table Schema
+# ----------------------------------------------------------------------------
+
+LINEAGE_TABLE_DDL = """
+CREATE TABLE lineage (
+  -- Lineage Relationship (Composite PRIMARY KEY)
+  child_run_id   UUID NOT NULL,
+    -- Run ID of the downstream/dependent run
+  parent_run_id  UUID NOT NULL,
+    -- Run ID of the upstream/dependency run
+
+  PRIMARY KEY (child_run_id, parent_run_id),
+    -- A child can have multiple parents (e.g., join two tables)
+    -- A parent can have multiple children (e.g., privacy → multiple enrichments)
+
+  -- Foreign Key Constraints
+  FOREIGN KEY (child_run_id)  REFERENCES runs(run_id),
+  FOREIGN KEY (parent_run_id) REFERENCES runs(run_id)
+);
+
+-- Indexes for Performance
+-- Find all parents of a run (upstream dependencies)
+CREATE INDEX idx_lineage_child ON lineage (child_run_id);
+
+-- Find all children of a run (downstream dependents)
+CREATE INDEX idx_lineage_parent ON lineage (parent_run_id);
+"""
+
+
+def create_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create lineage table in DuckDB connection.
+
+    The lineage table tracks data lineage relationships between pipeline runs,
+    enabling dependency tracking, impact analysis, and reproducibility.
+
+    Args:
+        conn: DuckDB connection
+
+    Raises:
+        RuntimeError: If table creation fails
+
+    Example:
+        >>> import duckdb
+        >>> conn = duckdb.connect(":memory:")
+        >>> create_runs_table(conn)  # Must create runs table first
+        >>> create_lineage_table(conn)
+        >>> result = conn.execute("SELECT COUNT(*) FROM lineage").fetchone()
+        >>> assert result[0] == 0  # Table exists but empty
+
+    """
+    try:
+        conn.execute(LINEAGE_TABLE_DDL)
+        logger.info("Created lineage table with indexes")
+    except Exception as e:
+        msg = f"Failed to create lineage table: {e}"
+        raise RuntimeError(msg) from e
+
+
+def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
+    """Ensure lineage table exists (idempotent).
+
+    This is the recommended function to call before any lineage operations.
+    It will create the table if it doesn't exist, or do nothing if it does.
+
+    Note: This function also ensures the runs table exists, since lineage
+    has foreign key constraints to the runs table.
+
+    Args:
+        conn: DuckDB connection
+
+    Example:
+        >>> from egregora.database import StorageManager
+        >>> storage = StorageManager()
+        >>> ensure_lineage_table_exists(storage.conn)  # Safe to call multiple times
+
+    """
+    # Ensure runs table exists first (lineage has FK to runs)
+    ensure_runs_table_exists(conn)
+
+    try:
+        # Check if table exists
+        result = conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'lineage'"
+        ).fetchone()
+
+        if result and result[0] == 0:
+            logger.debug("Lineage table doesn't exist, creating...")
+            create_lineage_table(conn)
+        else:
+            logger.debug("Lineage table already exists")
+    except Exception as e:
+        # If check fails, try creating anyway (DuckDB will skip if exists)
+        logger.warning(f"Error checking for lineage table existence: {e}, attempting creation...")
+        create_lineage_table(conn)
+
+
+def drop_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Drop lineage table (for testing/cleanup).
+
+    Args:
+        conn: DuckDB connection
+
+    Warning:
+        This permanently deletes all lineage history!
+
+    Example:
+        >>> import duckdb
+        >>> conn = duckdb.connect(":memory:")
+        >>> create_lineage_table(conn)
+        >>> drop_lineage_table(conn)
+
+    """
+    try:
+        conn.execute("DROP TABLE IF EXISTS lineage")
+        logger.info("Dropped lineage table")
+    except Exception as e:
+        logger.exception(f"Failed to drop lineage table: {e}")
+        raise
+
+
+# ----------------------------------------------------------------------------
 # Message Schema Utilities
 # ----------------------------------------------------------------------------
 

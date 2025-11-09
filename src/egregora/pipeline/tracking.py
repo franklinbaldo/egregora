@@ -276,6 +276,11 @@ def record_lineage(
     if not parent_run_ids:
         return  # No lineage to record
 
+    # Ensure lineage table exists (idempotent)
+    from egregora.database.schemas import ensure_lineage_table_exists
+
+    ensure_lineage_table_exists(conn)
+
     # Insert lineage edges
     for parent_id in parent_run_ids:
         conn.execute(
