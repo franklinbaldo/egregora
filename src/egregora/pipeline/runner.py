@@ -449,6 +449,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
             run_id = uuid.uuid4()
             from datetime import UTC
+
             started_at = datetime.now(UTC)
 
             # Record run start
