@@ -1751,9 +1751,7 @@ app.add_typer(runs_app)
 @runs_app.command(name="tail")
 def runs_tail(
     n: Annotated[int, typer.Option(help="Number of runs to show")] = 10,
-    db_path: Annotated[
-        Path, typer.Option(help="Runs database path")
-    ] = Path(".egregora-cache/runs.duckdb"),
+    db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
 ) -> None:
     """Show last N runs.
 
@@ -1848,9 +1846,7 @@ def runs_tail(
 @runs_app.command(name="show")
 def runs_show(
     run_id: Annotated[str, typer.Argument(help="Run ID to show (full UUID or prefix)")],
-    db_path: Annotated[
-        Path, typer.Option(help="Runs database path")
-    ] = Path(".egregora-cache/runs.duckdb"),
+    db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
 ) -> None:
     """Show detailed run info.
 
