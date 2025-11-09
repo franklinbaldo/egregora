@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import uuid
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -31,6 +32,7 @@ from egregora.ingestion import extract_commands, filter_egregora_messages  # Pha
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.ir import validate_ir_schema
 from egregora.pipeline.media_utils import process_media_for_window
+from egregora.pipeline.tracking import record_run
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 
@@ -132,6 +134,11 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = duckdb.connect(str(runtime_db_path))
     backend = ibis.duckdb.from_connection(connection)
+
+    # Setup runs tracking database (Priority D.1)
+    runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
+    runs_conn = duckdb.connect(str(runs_db_path))
+
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     try:
@@ -438,8 +445,77 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 )
                 continue
 
-            window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
-            results.update(window_results)
+            # Track window processing (Priority D.1)
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            run_id = uuid.uuid4()
+            from datetime import UTC
+            started_at = datetime.now(UTC)
+
+            # Record run start
+            try:
+                record_run(
+                    conn=runs_conn,
+                    run_id=run_id,
+                    stage=f"window_{window.window_index}",
+                    status="running",
+                    started_at=started_at,
+                    rows_in=window.size,
+                )
+            except Exception as e:
+                logger.warning("Failed to record run start: %s", e)
+
+            # Process window
+            try:
+                window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
+                results.update(window_results)
+
+                # Record run completion
+                finished_at = datetime.now(UTC)
+                posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
+                profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
+
+                try:
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'completed',
+                            finished_at = ?,
+                            duration_seconds = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, (finished_at - started_at).total_seconds(), str(run_id)],
+                    )
+                    logger.debug(
+                        "📊 Tracked run %s: %s posts, %s profiles",
+                        str(run_id)[:8],
+                        posts_count,
+                        profiles_count,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to record run completion: %s", e)
+
+            except Exception as e:
+                # Record run failure
+                finished_at = datetime.now(UTC)
+                error_msg = f"{type(e).__name__}: {e!s}"
+
+                try:
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'failed',
+                            finished_at = ?,
+                            duration_seconds = ?,
+                            error = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, (finished_at - started_at).total_seconds(), error_msg, str(run_id)],
+                    )
+                except Exception as update_err:
+                    logger.warning("Failed to record run failure: %s", update_err)
+
+                # Re-raise the original exception
+                raise
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
             try:
@@ -484,8 +560,12 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             if "enrichment_cache" in locals():
                 enrichment_cache.close()
         finally:
-            if client:
-                client.close()
+            try:
+                if "runs_conn" in locals():
+                    runs_conn.close()
+            finally:
+                if client:
+                    client.close()
         if options is not None:
             options.default_backend = old_backend
         connection.close()
