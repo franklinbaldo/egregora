@@ -336,6 +336,17 @@ class WriterRuntimeContext:
 - ❌ Don't confuse with `database/views.py` (SQL materialized views for query optimization)
 - See `docs/pipeline/view-registry.md` for full guide
 
+**StorageManager (Priority C.2 - 2025-01-09)**:
+- ✅ Centralized DuckDB connection management
+- ✅ Automatic parquet checkpointing for persistence
+- ✅ Integrated with ViewRegistry for executing views
+- ✅ Context manager support: `with StorageManager() as storage:`
+- ✅ Example: `storage.write_table(table, "name", checkpoint=True)`
+- ✅ Table operations: read, write, drop, exists, list
+- ✅ View execution: `storage.execute_view("output", builder, "input")`
+- ❌ Don't use raw SQL - use StorageManager methods
+- See `docs/database/storage-manager.md` for full guide
+
 ## Code Structure
 
 ```
@@ -345,6 +356,8 @@ src/egregora/
 ├── database/
 │   ├── schema.py            # ALL table schemas (CONVERSATION_SCHEMA, RAG_CHUNKS_SCHEMA, etc.)
 │   ├── connection.py        # DuckDB connection management
+│   ├── storage.py           # StorageManager for centralized DB access (Priority C.2)
+│   ├── validation.py        # IR schema validation
 │   └── views.py             # SQL materialized views (database query optimization)
 ├── config/
 │   ├── types.py             # Config dataclasses
