@@ -4,7 +4,7 @@ import ibis
 import pytest
 from ibis.expr.types import Table
 
-from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
+from egregora.pipeline.views import ViewRegistry, views
 
 
 class TestViewRegistry:
@@ -217,8 +217,8 @@ class TestCommonViews:
 
     def test_chunks_view(self):
         """Test chunks view adds chunk_idx column."""
-        from datetime import datetime
         import uuid
+        from datetime import datetime
 
         # Create sample IR table with UUID strings
         id1 = str(uuid.uuid4())
@@ -289,8 +289,8 @@ class TestCommonViews:
 
     def test_hourly_aggregates_view(self):
         """Test hourly_aggregates view computes statistics."""
-        from datetime import datetime
         import uuid
+        from datetime import datetime
 
         # Create sample data spanning 2 hours
         # Use UUID strings for PyArrow compatibility
@@ -323,8 +323,8 @@ class TestCommonViews:
 
     def test_daily_aggregates_view(self):
         """Test daily_aggregates view computes statistics."""
-        from datetime import datetime
         import uuid
+        from datetime import datetime
 
         # Create sample data spanning 2 days
         # Use UUID strings for PyArrow compatibility

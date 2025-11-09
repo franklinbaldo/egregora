@@ -60,6 +60,7 @@ class ViewRegistry:
         >>>
         >>> builder = registry.get("enriched")
         >>> result = builder(my_table)
+
     """
 
     def __init__(self) -> None:
@@ -83,6 +84,7 @@ class ViewRegistry:
             >>> @views.register("my_view")
             >>> def my_view_builder(ir: Table) -> Table:
             ...     return ir.limit(100)
+
         """
 
         def decorator(func: ViewBuilder) -> ViewBuilder:
@@ -110,6 +112,7 @@ class ViewRegistry:
             >>> def chunks(ir: Table) -> Table:
             ...     return ir.mutate(chunk_idx=...)
             >>> views.register_function("chunks", chunks)
+
         """
         if name in self._views:
             msg = f"View '{name}' is already registered"
@@ -133,6 +136,7 @@ class ViewRegistry:
         Example:
             >>> builder = views.get("chunks")
             >>> result = builder(ir_table)
+
         """
         if name not in self._views:
             msg = f"View not found: {name}"
@@ -148,6 +152,7 @@ class ViewRegistry:
 
         Returns:
             True if view exists, False otherwise
+
         """
         return name in self._views
 
@@ -156,6 +161,7 @@ class ViewRegistry:
 
         Returns:
             Sorted list of view names
+
         """
         return sorted(self._views.keys())
 
@@ -167,6 +173,7 @@ class ViewRegistry:
 
         Raises:
             KeyError: If view not found
+
         """
         if name not in self._views:
             msg = f"View not found: {name}"
@@ -205,6 +212,7 @@ def chunks_view(ir: Table) -> Table:
 
     Returns:
         IR table with added chunk_idx column
+
     """
     win = ibis.window(group_by="thread_id", order_by="ts")
     return ir.mutate(chunk_idx=ibis.row_number().over(win))
@@ -221,6 +229,7 @@ def chunks_sql(ir: Table) -> Table:
 
     Returns:
         IR table with added chunk_idx column
+
     """
     return ir.sql("""
         SELECT
@@ -242,6 +251,7 @@ def messages_with_media_view(ir: Table) -> Table:
 
     Returns:
         IR table filtered to messages with media_url not null
+
     """
     return ir.filter(ir.media_url.notnull())
 
@@ -255,6 +265,7 @@ def messages_with_text_view(ir: Table) -> Table:
 
     Returns:
         IR table filtered to messages with non-empty text
+
     """
     return ir.filter(ir.text.notnull() & (ir.text != ""))
 
@@ -273,6 +284,7 @@ def hourly_aggregates_view(ir: Table) -> Table:
 
     Returns:
         Aggregated table with hourly statistics
+
     """
     return (
         ir.mutate(hour=ir.ts.truncate("hour"))
@@ -301,6 +313,7 @@ def daily_aggregates_view(ir: Table) -> Table:
 
     Returns:
         Aggregated table with daily statistics
+
     """
     return (
         ir.mutate(day=ir.ts.truncate("day"))
