@@ -18,7 +18,7 @@ from uuid import UUID, uuid5
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
-__all__ = ["AdapterMeta", "MEDIA_UUID_NAMESPACE", "MediaMapping", "SourceAdapter"]
+__all__ = ["MEDIA_UUID_NAMESPACE", "AdapterMeta", "MediaMapping", "SourceAdapter"]
 MediaMapping = dict[str, Path]
 MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
