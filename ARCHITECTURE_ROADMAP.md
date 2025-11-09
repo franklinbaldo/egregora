@@ -1055,7 +1055,7 @@ class MyStage(PipelineStage):
 ## Priority D: Observability & Runs Tracking (Weeks 4-5)
 
 ### D.1: Runs Table + CLI (2 days)
-**Status**: [ ] Not Started
+**Status**: ✅ Completed (2025-01-09)
 
 **Goal**: Every stage writes to `runs` table
 

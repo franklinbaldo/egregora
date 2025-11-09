@@ -86,6 +86,10 @@ uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 # Other commands
 uv run egregora edit posts/my-post.md        # AI-powered post editor
 uv run egregora rank --site-dir=. --comparisons=50  # Elo ranking
+
+# Run tracking (observability)
+uv run egregora runs tail               # View recent pipeline runs
+uv run egregora runs show <run_id>      # View detailed run info
 ```
 
 ## Parallel Task Delegation with Subagents
@@ -356,6 +360,18 @@ class WriterRuntimeContext:
 - ✅ Helpful error messages with stage context
 - ❌ Don't drop required IR columns or change types in stages
 - See `docs/pipeline/stage-validation.md` for full guide
+
+**Pipeline Run Tracking (Priority D.1 - 2025-01-09)**:
+- ✅ Automatic window-level tracking in `.egregora/runs.duckdb`
+- ✅ Records: run_id, stage, status, duration, rows processed, errors
+- ✅ CLI commands: `egregora runs tail` (recent runs), `egregora runs show <run_id>` (details)
+- ✅ Status transitions: running → completed/failed
+- ✅ Graceful error handling: tracking failures logged but don't block pipeline
+- ✅ Example: Every window creates a run record automatically
+- ✅ Debug failures: `egregora runs tail` to find failed runs, `show <run_id>` for error details
+- ✅ Performance monitoring: Track duration per window, identify bottlenecks
+- ❌ Don't rely on runs database for critical pipeline logic (it's observability only)
+- See `docs/observability/runs-tracking.md` for full guide
 
 ## Code Structure
 
