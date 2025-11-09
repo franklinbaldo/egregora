@@ -124,9 +124,7 @@ def require_privacy_pass[F: Callable[..., Any]](func: F) -> F:
                 f"{func.__name__} requires PrivacyPass capability. "
                 "Run PrivacyGate.run() first and pass privacy_pass=... kwarg."
             )
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         if not isinstance(privacy_pass, PrivacyPass):
             msg = (
@@ -134,9 +132,7 @@ def require_privacy_pass[F: Callable[..., Any]](func: F) -> F:
                 f"Expected PrivacyPass instance, got {type(privacy_pass).__name__}. "
                 "Cannot forge privacy tokens - use PrivacyGate.run()."
             )
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         return func(*args, **kwargs)
 

@@ -151,7 +151,6 @@ def checkpoint_path(
     return checkpoint_dir / "checkpoint.pkl"
 
 
-
 def load_checkpoint(path: Path) -> Any | None:
     """Load checkpoint from disk if it exists.
 

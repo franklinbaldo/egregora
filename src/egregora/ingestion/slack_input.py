@@ -99,9 +99,7 @@ class SlackInputSource(InputSource):
             "or wait for Week 2 when adapter plugins will be prioritized. "
             "For now, only WhatsApp exports are supported."
         )
-        raise NotImplementedError(
-            msg
-        )
+        raise NotImplementedError(msg)
 
         # The code below is template/reference implementation
         # Uncomment and complete when implementing Slack support
