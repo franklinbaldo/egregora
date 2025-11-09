@@ -182,7 +182,6 @@ __all__ = [
     "StageResult",
     "ViewBuilder",
     "ViewRegistry",
-    "Window",
     "create_ir_table",
     "create_windows",
     "fingerprint_table",

@@ -200,7 +200,5 @@ def parse_whatsapp_line(line: str) -> dict[str, str] | None:
 
 
 __all__ = [
-    "WHATSAPP_MESSAGE_GRAMMAR",
-    "build_whatsapp_message_grammar",
     "parse_whatsapp_line",
 ]

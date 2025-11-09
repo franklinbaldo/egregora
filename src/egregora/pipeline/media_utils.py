@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")
 MARKDOWN_LINK_PATTERN = re.compile("(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
-__all__ = ["extract_markdown_media_refs", "process_media_for_window", "replace_markdown_media_refs"]
+__all__ = ["process_media_for_window"]
 
 
 def extract_markdown_media_refs(table: Table) -> set[str]:

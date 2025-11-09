@@ -28,4 +28,4 @@ def register_all() -> None:
 
 
 register_all()
-__all__ = ["input_registry", "output_registry", "register_all"]
+__all__ = ["input_registry", "output_registry"]

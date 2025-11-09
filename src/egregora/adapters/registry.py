@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from egregora.pipeline.adapters import SourceAdapter
 
 logger = logging.getLogger(__name__)
-__all__ = ["AdapterRegistry", "ValidatedAdapter", "get_global_registry"]
+__all__ = ["AdapterRegistry", "get_global_registry"]
 
 
 class ValidatedAdapter:

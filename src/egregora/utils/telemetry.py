@@ -178,10 +178,6 @@ def shutdown_otel() -> None:
         _provider = None
 
 
-# Convenience API
-__all__ = [
-    "configure_otel",
-    "get_tracer",
-    "is_otel_enabled",
-    "shutdown_otel",
-]
+# Note: All telemetry exports removed from __all__ - OpenTelemetry integration never activated
+# Functions remain available for direct import if needed in the future
+__all__: list[str] = []

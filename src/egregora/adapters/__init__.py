@@ -55,7 +55,6 @@ def get_adapter(source_identifier: str) -> SourceAdapter:
 
 
 __all__ = [
-    "ADAPTER_REGISTRY",
     "AdapterRegistry",
     "SlackAdapter",
     "WhatsAppAdapter",

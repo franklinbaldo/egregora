@@ -189,9 +189,6 @@ __all__ = [
     # ==========================================================================
     # Root config and sub-configs loaded from .egregora/config.yml
     "EgregoraConfig",  # Root config (contains all sub-configs)
-    "EgregoraEnrichmentConfig",  # Enrichment settings
-    "EgregoraPipelineConfig",  # Pipeline settings
-    "EgregoraWriterConfig",  # Writer agent settings
     "EnrichmentConfig",  # Enrichment stage parameters
     "FeaturesConfig",  # Feature flags
     "MediaEnrichmentContext",  # Media enrichment runtime context

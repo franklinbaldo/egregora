@@ -13,7 +13,7 @@ from egregora.types import GroupSlug
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-__all__ = ["MESSAGE_SCHEMA", "WHATSAPP_SCHEMA", "ensure_message_schema", "group_slug"]
+__all__ = ["MESSAGE_SCHEMA", "ensure_message_schema", "group_slug"]
 DEFAULT_TIMEZONE = "UTC"
 MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),
