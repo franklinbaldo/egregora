@@ -1,5 +1,7 @@
 # Architecture Roadmap - Executive Summary
 
+> **Note**: This is a historical planning document from January 2025. The content-addressed checkpoint system mentioned here was deprecated and moved to `pipeline/legacy/`. Current architecture uses simpler resume logic. See [CLAUDE.md](/CLAUDE.md) for up-to-date patterns.
+
 **Date**: 2025-01-08
 **Status**: Planning Complete → Ready for Implementation
 **Branch**: `claude/actionable-plan-011CUur116K7c4WxATK5d2y4`

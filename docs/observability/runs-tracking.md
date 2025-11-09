@@ -13,7 +13,7 @@ Egregora tracks every pipeline execution in a **runs database** (`.egregora/runs
 - CLI commands for viewing run history
 - Error tracking with full stack traces
 - Performance metrics (duration, rows processed)
-- Content-addressed checkpointing (planned)
+- Lineage tracking (DAG of run dependencies)
 
 ## Quick Start
 
@@ -249,33 +249,20 @@ Long durations usually indicate:
 2. **Slow LLM API** - Network issues or rate limiting
 3. **Heavy enrichment** - Many URLs/media to process
 
-## Integration with Checkpointing
+## Integration with Resume Logic
 
-**Status**: Planned (Priority D.2)
+**Current Status**: Simple file-based resume (Implemented)
 
-Future integration will enable:
-
-### Content-Addressed Checkpointing
+Egregora uses simple resume logic by checking if output files exist:
 
 ```python
-# Calculate fingerprint
-input_fingerprint = sha256(table_data + config + code_ref)
+# Check if window already has posts
+if window_has_posts(window_index, posts_dir):
+    logger.info(f"Skipping window {window_index} - posts already exist")
+    continue
 
-# Check if already processed
-existing_run = SELECT * FROM runs
-    WHERE input_fingerprint = ?
-    AND status = 'completed'
-
-if existing_run:
-    # Skip processing, load cached output
-    return load_checkpoint(existing_run.run_id)
-```
-
-### Deterministic Resume
-
-```bash
-# Re-run pipeline - automatically skips completed windows
-egregora write export.zip --output=./my-blog
+# Process window
+process_window(window)
 
 # Only processes new/changed data (detected via fingerprints)
 ```

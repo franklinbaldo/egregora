@@ -1,5 +1,7 @@
 # Week 1 Execution Guide
 
+> **Note**: This is a historical planning document from January 2025. Some implementation details have changed (e.g., checkpoint system moved to `pipeline/legacy/`). For current architecture, see [CLAUDE.md](/CLAUDE.md) and [docs/guide/architecture.md](guide/architecture.md).
+
 **Goal**: Green-to-green foundation with IR v1, privacy capability, and lineage tracking.
 
 **Timeline**: 5 days (2025-01-08 to 2025-01-13)

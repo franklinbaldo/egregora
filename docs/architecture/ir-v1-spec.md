@@ -47,7 +47,7 @@ The privacy gate is responsible for:
 All UUIDs are generated using **UUID5** (name-based) to ensure:
 
 - Re-ingesting the same data produces **identical** `event_id` and `author_uuid`
-- Multi-run deduplication via content-addressed checkpointing
+- Deterministic deduplication across pipeline runs
 - Stable joins across pipeline runs
 
 ### 4. Multi-Tenant Ready
