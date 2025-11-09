@@ -17,7 +17,7 @@ import duckdb
 import ibis
 import pytest
 
-from egregora.pipeline.runner import (
+from egregora.pipeline.tracking import (
     RunContext,
     fingerprint_table,
     get_git_commit_sha,
@@ -46,6 +46,7 @@ def runs_db(temp_db_path: Path) -> duckdb.DuckDBPyConnection:
             tenant_id VARCHAR,
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
+            duration_seconds DOUBLE,
             input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
@@ -363,6 +364,7 @@ def test_run_stage_with_tracking_success(
             tenant_id VARCHAR,
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
+            duration_seconds DOUBLE,
             input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
@@ -427,6 +429,7 @@ def test_run_stage_with_tracking_failure(temp_db_path: Path):
             tenant_id VARCHAR,
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
+            duration_seconds DOUBLE,
             input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
@@ -487,6 +490,7 @@ def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
             tenant_id VARCHAR,
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
+            duration_seconds DOUBLE,
             input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
