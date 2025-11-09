@@ -3,6 +3,9 @@
 This module provides health checks for dependencies, configuration,
 and system requirements. Used by the `egregora doctor` CLI command.
 
+All imports are lazy (inside functions) to allow diagnostics to run even
+when dependencies are missing - this is the whole point of diagnostics!
+
 Usage:
     from egregora.diagnostics import run_diagnostics, DiagnosticResult
 
@@ -18,8 +21,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
-
-import duckdb
 
 
 class HealthStatus(str, Enum):
@@ -125,6 +126,17 @@ def check_api_key() -> DiagnosticResult:
 
 def check_duckdb_extensions() -> DiagnosticResult:
     """Check if DuckDB VSS extension is available."""
+    # Lazy import - allows doctor command to run even if duckdb not installed
+    try:
+        import duckdb
+    except ImportError:
+        return DiagnosticResult(
+            check="DuckDB VSS Extension",
+            status=HealthStatus.ERROR,
+            message="DuckDB not installed (run: uv sync --all-extras)",
+            details={"missing_package": "duckdb"},
+        )
+
     try:
         conn = duckdb.connect(":memory:")
 
