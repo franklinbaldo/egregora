@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora.database.schema import CONVERSATION_SCHEMA
+from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
     detect_media_type,

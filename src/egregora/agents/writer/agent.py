@@ -58,16 +58,16 @@ from pydantic_ai.messages import (
 )
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
-from egregora.agents.tools.annotations import AnnotationStore
-from egregora.agents.tools.profiler import read_profile, write_profile
-from egregora.agents.tools.rag import VectorStore, is_rag_available, query_media
+from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.profiler import read_profile, write_profile
+from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
 if TYPE_CHECKING:
-    from egregora.agents.tools.annotations import AnnotationStore
+    from egregora.agents.shared.annotations import AnnotationStore
 logger = logging.getLogger(__name__)
 
 

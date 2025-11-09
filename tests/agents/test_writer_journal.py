@@ -14,7 +14,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.writer.writer_agent import (
+from egregora.agents.writer.agent import (
     JournalEntry,
     _extract_freeform_content,
     _extract_intercalated_log,

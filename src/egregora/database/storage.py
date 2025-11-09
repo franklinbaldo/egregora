@@ -282,7 +282,11 @@ class StorageManager:
         self.close()
 
 
-# Convenience function for temporary storage
+# ============================================================================
+# Convenience Functions (Phase 2.2: Consolidated from connection.py)
+# ============================================================================
+
+
 def temp_storage() -> StorageManager:
     """Create temporary in-memory storage manager.
 
@@ -298,7 +302,39 @@ def temp_storage() -> StorageManager:
     return StorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))
 
 
+@contextlib.contextmanager
+def duckdb_backend():
+    """Context manager for temporary DuckDB backend.
+
+    MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.
+
+    Sets up an in-memory DuckDB database as the default Ibis backend,
+    and properly cleans up connections on exit.
+
+    Yields:
+        Ibis backend connected to DuckDB
+
+    Example:
+        >>> with duckdb_backend():
+        ...     table = ibis.read_csv("data.csv")
+        ...     result = table.execute()
+
+    """
+    connection = duckdb.connect(":memory:")
+    backend = ibis.duckdb.from_connection(connection)
+    old_backend = getattr(ibis.options, "default_backend", None)
+    try:
+        ibis.options.default_backend = backend
+        logger.debug("DuckDB backend initialized")
+        yield backend
+    finally:
+        ibis.options.default_backend = old_backend
+        connection.close()
+        logger.debug("DuckDB backend closed")
+
+
 __all__ = [
     "StorageManager",
+    "duckdb_backend",
     "temp_storage",
 ]

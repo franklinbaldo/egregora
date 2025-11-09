@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from egregora.agents.tools.profiler import remove_profile_avatar, update_profile_avatar
+from egregora.agents.shared.profiler import remove_profile_avatar, update_profile_avatar
 from egregora.enrichment.agents import (
     MediaEnrichmentContext,
     create_media_enrichment_agent,

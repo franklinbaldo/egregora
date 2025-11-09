@@ -7,11 +7,11 @@ import zipfile
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.message_schema import group_slug
-from egregora.database.message_schema import group_slug as create_slug
+from egregora.database.schemas import group_slug
+from egregora.database.schemas import group_slug as create_slug
 from egregora.enrichment.batch import _iter_table_record_batches
 from egregora.enrichment.media import extract_media_from_zip, find_media_references
-from egregora.ingestion.base import AdapterMeta, InputMetadata, InputSource
+from egregora.sources.base import AdapterMeta, InputMetadata, InputSource
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import parse_source  # Phase 6: Renamed from parse_export
 

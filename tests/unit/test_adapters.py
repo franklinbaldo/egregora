@@ -8,7 +8,7 @@ import pytest
 from egregora.adapters import ADAPTER_REGISTRY, get_adapter
 from egregora.adapters.slack import SlackAdapter
 from egregora.adapters.whatsapp import WhatsAppAdapter
-from egregora.pipeline.ir import validate_ir_schema
+from egregora.pipeline.validation import validate_ir_schema
 
 
 class TestAdapterRegistry:

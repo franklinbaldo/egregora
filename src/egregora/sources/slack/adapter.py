@@ -17,7 +17,7 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-from egregora.ingestion.base import AdapterMeta, InputMetadata, InputSource
+from egregora.sources.base import AdapterMeta, InputMetadata, InputSource
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -120,7 +120,7 @@ class SlackInputSource(InputSource):
             all_messages.extend(messages)
         if not all_messages:
             logger.warning("No messages found in Slack export")
-            from egregora.database.message_schema import (  # noqa: PLC0415 - avoid circular import
+            from egregora.database.schemas import (  # noqa: PLC0415 - avoid circular import
                 MESSAGE_SCHEMA,
             )
 

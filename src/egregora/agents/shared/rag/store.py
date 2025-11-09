@@ -14,7 +14,7 @@ from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
-from egregora.database import schema as database_schema
+from egregora.database import schemas as database_schema
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"

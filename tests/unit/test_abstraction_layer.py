@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from egregora.ingestion.base import InputSource, input_registry
+import egregora.registry  # noqa: F401 - trigger registration
 from egregora.rendering.base import OutputFormat, output_registry
+from egregora.sources.base import InputSource, input_registry
 
 
 class TestInputRegistry:

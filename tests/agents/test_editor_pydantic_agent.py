@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.editor.editor_agent import run_editor_session_with_pydantic_agent
+from egregora.agents.editor.agent import run_editor_session_with_pydantic_agent
 from egregora.config import ModelConfig
 from egregora.config.schema import EgregoraConfig, ModelsConfig
 

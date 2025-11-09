@@ -3,7 +3,7 @@
 import duckdb
 import pytest
 
-from egregora.database.runs_schema import (
+from egregora.database.schemas import (
     RUNS_TABLE_DDL,
     RUNS_TABLE_SCHEMA,
     create_runs_table,

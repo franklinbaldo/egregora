@@ -16,7 +16,7 @@ import pytest
 
 from egregora.adapters.registry import AdapterRegistry, ValidatedAdapter
 from egregora.database.validation import SchemaError, validate_adapter_output
-from egregora.pipeline.adapters import AdapterMeta, SourceAdapter
+from egregora.sources.base import AdapterMeta, SourceAdapter
 
 
 class MockAdapter(SourceAdapter):

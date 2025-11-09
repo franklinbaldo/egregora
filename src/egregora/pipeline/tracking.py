@@ -213,7 +213,7 @@ def record_run(
 
     """
     # Ensure runs table exists (idempotent)
-    from egregora.database.runs_schema import ensure_runs_table_exists
+    from egregora.database.schemas import ensure_runs_table_exists
 
     ensure_runs_table_exists(conn)
 

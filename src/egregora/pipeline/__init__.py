@@ -78,25 +78,11 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 # ============================================================================
-# Source Adapter Primitives
-# ============================================================================
-# Abstract interfaces for parsing different message sources (WhatsApp, Slack, etc.)
-# and handling media attachments across platforms.
-from egregora.pipeline.adapters import MediaMapping, SourceAdapter
-
-# ============================================================================
 # Pipeline Stage Abstraction
 # ============================================================================
 # Base classes for building modular, composable pipeline stages. Each stage
 # implements the PipelineStage protocol: Table → Table transformations.
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
-
-# ============================================================================
-# Intermediate Representation (IR)
-# ============================================================================
-# Standardized schema that all source adapters must produce. Ensures uniform
-# data structure across different chat platforms (timestamp, author, message, etc.).
-from egregora.pipeline.ir import IR_SCHEMA, create_ir_table, validate_ir_schema
 
 # ============================================================================
 # Windowing & Checkpoint Utilities Layer
@@ -119,25 +105,42 @@ from egregora.pipeline.tracking import (
 )
 
 # ============================================================================
+# Intermediate Representation (IR)
+# ============================================================================
+# Standardized schema that all source adapters must produce. Ensures uniform
+# data structure across different chat platforms (timestamp, author, message, etc.).
+from egregora.pipeline.validation import IR_SCHEMA, create_ir_table, validate_ir_schema
+
+# ============================================================================
 # View Registry (Priority C.1)
 # ============================================================================
 # Callable-based view builders for pipeline stage transformations. Allows
 # stages to reference views by name and swap Ibis ↔ SQL transparently.
 from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
 
+# ============================================================================
+# Source Adapter Primitives
+# ============================================================================
+# Abstract interfaces for parsing different message sources (WhatsApp, Slack, etc.)
+# and handling media attachments across platforms.
+from egregora.sources.base import MediaMapping, SourceAdapter
+
 
 def __getattr__(name: str) -> object:
-    """Lazy import for windowing utilities from pipeline.py module.
+    """Lazy import for windowing utilities from pipeline/windowing.py module.
+
+    MODERN (Phase 2): Updated to load from pipeline/windowing.py instead of
+    top-level pipeline.py for better organization.
 
     Dynamically loads windowing utilities (create_windows, checkpoints, etc.)
-    from the egregora/pipeline.py module when accessed. This avoids circular
-    imports and maintains a clean namespace.
+    from the egregora/pipeline/windowing.py module when accessed. This avoids
+    circular imports and maintains a clean namespace.
 
     Args:
         name: Attribute name being accessed (e.g., 'create_windows')
 
     Returns:
-        Requested attribute from pipeline.py module
+        Requested attribute from pipeline/windowing.py module
 
     Raises:
         AttributeError: If attribute doesn't exist in the module
@@ -150,14 +153,22 @@ def __getattr__(name: str) -> object:
         "save_checkpoint",
         "split_window_into_n_parts",
     ):
-        parent = sys.modules["egregora"]
-        module_path = parent.__path__[0]
-        pipeline_py = Path(module_path) / "pipeline.py"
-        spec = spec_from_file_location("egregora._pipeline_utils", pipeline_py)
-        if spec and spec.loader:
-            module = module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return getattr(module, name)
+        # Import from pipeline/windowing.py (Phase 2 reorganization)
+        from egregora.pipeline.windowing import (
+            Window,
+            create_windows,
+            load_checkpoint,
+            save_checkpoint,
+            split_window_into_n_parts,
+        )
+
+        return {
+            "create_windows": create_windows,
+            "Window": Window,
+            "load_checkpoint": load_checkpoint,
+            "save_checkpoint": save_checkpoint,
+            "split_window_into_n_parts": split_window_into_n_parts,
+        }[name]
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 

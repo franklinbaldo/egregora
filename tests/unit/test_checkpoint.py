@@ -13,7 +13,7 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.pipeline.checkpoint import (
+from egregora.pipeline.legacy.checkpoint import (
     checkpoint_path,
     clear_checkpoints,
     get_config_hash,
@@ -492,7 +492,7 @@ def test_gc_checkpoints_by_age_keeps_recent(temp_cache_dir: Path):
     """gc_checkpoints_by_age() keeps most recent checkpoints."""
     import time
 
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age
 
     # Create 10 checkpoints with different timestamps
     for i in range(10):
@@ -512,7 +512,7 @@ def test_gc_checkpoints_by_age_all_stages(temp_cache_dir: Path):
     """gc_checkpoints_by_age() applies to all stages when stage=None."""
     import time
 
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age
 
     # Create checkpoints for multiple stages
     for stage_num in range(3):
@@ -537,7 +537,7 @@ def test_gc_checkpoints_by_age_all_stages(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_age_nonexistent_stage(temp_cache_dir: Path):
     """gc_checkpoints_by_age() returns 0 for nonexistent stage."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age
 
     count = gc_checkpoints_by_age(stage="nonexistent", keep_last=5, cache_dir=temp_cache_dir)
     assert count == 0
@@ -545,7 +545,7 @@ def test_gc_checkpoints_by_age_nonexistent_stage(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_age_keep_all(temp_cache_dir: Path):
     """gc_checkpoints_by_age() keeps all when keep_last >= count."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age
 
     # Create 3 checkpoints
     save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data1")
@@ -562,7 +562,7 @@ def test_gc_checkpoints_by_age_keep_all(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_size_under_limit(temp_cache_dir: Path):
     """gc_checkpoints_by_size() does nothing when already under limit."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_size
 
     # Create small checkpoints
     save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data")
@@ -576,7 +576,7 @@ def test_gc_checkpoints_by_size_under_limit(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_size_evicts_lru(temp_cache_dir: Path):
     """gc_checkpoints_by_size() evicts least recently used checkpoints."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_size
 
     # Create checkpoints with large data
     large_data = "x" * (1024 * 1024)  # 1 MB each
@@ -596,7 +596,7 @@ def test_gc_checkpoints_by_size_evicts_lru(temp_cache_dir: Path):
 
 def test_gc_checkpoints_by_size_empty_cache(temp_cache_dir: Path):
     """gc_checkpoints_by_size() returns 0 for empty cache."""
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_size
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_size
 
     count = gc_checkpoints_by_size(max_size_bytes=1024, cache_dir=temp_cache_dir)
     assert count == 0
@@ -604,7 +604,7 @@ def test_gc_checkpoints_by_size_empty_cache(temp_cache_dir: Path):
 
 def test_get_cache_stats_empty(temp_cache_dir: Path):
     """get_cache_stats() returns zeros for empty cache."""
-    from egregora.pipeline.checkpoint import get_cache_stats
+    from egregora.pipeline.legacy.checkpoint import get_cache_stats
 
     stats = get_cache_stats(cache_dir=temp_cache_dir)
 
@@ -615,7 +615,7 @@ def test_get_cache_stats_empty(temp_cache_dir: Path):
 
 def test_get_cache_stats_multiple_stages(temp_cache_dir: Path):
     """get_cache_stats() returns per-stage breakdown."""
-    from egregora.pipeline.checkpoint import get_cache_stats
+    from egregora.pipeline.legacy.checkpoint import get_cache_stats
 
     # Create checkpoints for multiple stages
     save_checkpoint(temp_cache_dir / "stage1" / "a" / "checkpoint.pkl", "data1" * 100)
@@ -637,7 +637,7 @@ def test_get_cache_stats_multiple_stages(temp_cache_dir: Path):
 
 def test_get_cache_stats_nonexistent_dir(temp_cache_dir: Path):
     """get_cache_stats() returns zeros for nonexistent directory."""
-    from egregora.pipeline.checkpoint import get_cache_stats
+    from egregora.pipeline.legacy.checkpoint import get_cache_stats
 
     nonexistent = temp_cache_dir / "nonexistent"
     stats = get_cache_stats(cache_dir=nonexistent)

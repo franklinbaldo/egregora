@@ -8,10 +8,10 @@ They are examples showing how to implement new sources/formats and need
 completion before being production-ready.
 """
 
-from egregora.ingestion.base import input_registry
-from egregora.ingestion.whatsapp_input import WhatsAppInputSource
 from egregora.rendering.base import output_registry
 from egregora.rendering.mkdocs import MkDocsOutputFormat
+from egregora.sources.base import input_registry
+from egregora.sources.whatsapp.input import WhatsAppInputSource
 
 
 def register_all() -> None:

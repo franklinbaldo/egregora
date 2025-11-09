@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.ingestion.slack_input import SlackInputSource
+from egregora.sources.slack.adapter import SlackInputSource
 
 
 def test_slack_parse_raises_not_implemented(tmp_path: Path):

@@ -31,7 +31,7 @@ from egregora.enrichment.media import get_media_subfolder
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.pipeline.adapters import SourceAdapter
+    from egregora.sources.base import SourceAdapter
 logger = logging.getLogger(__name__)
 MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")
 MARKDOWN_LINK_PATTERN = re.compile("(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")

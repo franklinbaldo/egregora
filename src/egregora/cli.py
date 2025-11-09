@@ -18,10 +18,8 @@ from rich.markup import escape
 from rich.panel import Panel
 
 from egregora.agents.editor import run_editor_session
-from egregora.agents.loader import load_agent
-from egregora.agents.registry import ToolRegistry
-from egregora.agents.resolver import AgentResolver
-from egregora.agents.tools.profiler import get_active_authors
+from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
+from egregora.agents.shared.profiler import get_active_authors
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
@@ -1332,7 +1330,7 @@ def cache_stats(
     ),
 ) -> None:
     """Show cache statistics (size, count, per-stage breakdown)."""
-    from egregora.pipeline.checkpoint import get_cache_stats
+    from egregora.pipeline.legacy.checkpoint import get_cache_stats
 
     stats = get_cache_stats(cache_dir=cache_dir)
 
@@ -1370,7 +1368,7 @@ def cache_clear(
         egregora cache clear --force              # Skip confirmation
 
     """
-    from egregora.pipeline.checkpoint import clear_checkpoints, get_cache_stats
+    from egregora.pipeline.legacy.checkpoint import clear_checkpoints, get_cache_stats
 
     # Get stats before clearing
     stats = get_cache_stats(cache_dir=cache_dir)
@@ -1431,7 +1429,7 @@ def cache_gc(
         egregora cache gc --max-size=500MB            # Keep cache under 500 MB
 
     """
-    from egregora.pipeline.checkpoint import gc_checkpoints_by_age, gc_checkpoints_by_size
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age, gc_checkpoints_by_size
 
     if keep_last is None and max_size is None:
         console.print("[red]Error: Must specify either --keep-last or --max-size[/red]")

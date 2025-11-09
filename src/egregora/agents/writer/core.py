@@ -22,9 +22,10 @@ import ibis
 import yaml
 
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.tools.annotations import AnnotationStore
-from egregora.agents.tools.profiler import get_active_authors
-from egregora.agents.tools.rag import VectorStore, index_post
+from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.profiler import get_active_authors
+from egregora.agents.shared.rag import VectorStore, index_post
+from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.agents.writer.handlers import (
@@ -35,7 +36,6 @@ from egregora.agents.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.agents.writer.writer_agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate

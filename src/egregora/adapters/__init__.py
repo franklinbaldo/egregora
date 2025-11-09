@@ -21,7 +21,7 @@ Example:
 from egregora.adapters.registry import AdapterRegistry, get_global_registry
 from egregora.adapters.slack import SlackAdapter
 from egregora.adapters.whatsapp import WhatsAppAdapter
-from egregora.pipeline.adapters import SourceAdapter
+from egregora.sources.base import SourceAdapter
 
 # Legacy registry (deprecated in favor of AdapterRegistry)
 ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}

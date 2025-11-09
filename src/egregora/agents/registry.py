@@ -1,24 +1,25 @@
-"""Agent tool and skill registries.
+"""Agent configuration, tool, and skill registries.
 
-This module provides registries for managing tools and skills that can be used by
-AI agents. Tools define specific capabilities (e.g., write_post, read_profile) while
-skills are reusable prompt components that can be injected into agent templates.
-
-The registries handle:
-- Loading tool and skill definitions from YAML/text files
-- Resolving tool profiles and computing tool sets
+This module provides registries and utilities for managing AI agent configurations,
+tools, and skills. It handles:
+- Loading agent configurations from Jinja2 templates with YAML frontmatter
+- Resolving agent names from post metadata and directory structure
+- Merging agent variables with post-specific overrides
+- Managing tool definitions and tool profiles
+- Managing reusable skill components
 - Generating content hashes for versioning and reproducibility
-- Validating tool and skill references
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 
 if TYPE_CHECKING:
@@ -45,6 +46,132 @@ class Skill:
 def _normalize_and_hash(content: str) -> str:
     """Normalize YAML content and return its SHA256 hash."""
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+# Agent configuration loading (from loader.py)
+
+
+def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
+    """Load an agent's configuration from a .jinja file.
+
+    Reads an agent configuration file in Jinja2 format with YAML frontmatter embedded
+    in Jinja comments. The frontmatter is parsed and validated against the AgentConfig
+    Pydantic model, while the rest of the file becomes the prompt template.
+
+    Args:
+        agent_name: Name of the agent (without .jinja extension, e.g., "writer", "editor")
+        egregora_path: Path to the .egregora directory containing agent configurations
+
+    Returns:
+        A tuple of (AgentConfig, prompt_template) where:
+            - AgentConfig: Validated configuration object with model, tools, skills, etc.
+            - prompt_template: The Jinja2 template string for the agent's system prompt
+
+    Raises:
+        FileNotFoundError: If the agent template file doesn't exist
+        ValueError: If the YAML frontmatter is invalid or missing
+        ValueError: If the agent configuration fails Pydantic validation
+
+    Example:
+        >>> config, template = load_agent("writer", Path(".egregora"))
+        >>> print(config.model)
+        'gemini-2.0-flash-exp'
+        >>> print(config.agent_id)
+        'writer_v1'
+
+    """
+    agent_path = egregora_path / "agents" / f"{agent_name}.jinja"
+    if not agent_path.exists():
+        msg = f"Agent template not found: {agent_path}"
+        raise FileNotFoundError(msg)
+    raw_content = agent_path.read_text(encoding="utf-8")
+    match = re.search("{#---(.*?)#---#}", raw_content, re.DOTALL)
+    if not match:
+        msg = f"Front-matter not found in {agent_path}"
+        raise ValueError(msg)
+    front_matter_str = match.group(1)
+    prompt_template = raw_content[match.end() :].strip()
+    try:
+        config_dict = yaml.safe_load(front_matter_str)
+    except yaml.YAMLError as e:
+        msg = f"Invalid YAML in {agent_path}: {e}"
+        raise ValueError(msg) from e
+    try:
+        agent_config = AgentConfig(**config_dict)
+    except Exception as e:
+        msg = f"Invalid agent config in {agent_path}: {e}"
+        raise ValueError(msg) from e
+    return (agent_config, prompt_template)
+
+
+# Agent resolution and variable merging (from resolver.py)
+
+
+def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
+    """Resolves the agent name based on post, section, and default fallbacks."""
+    post = frontmatter.load(post_path)
+    if "egregora" in post and "agent" in post["egregora"]:
+        return post["egregora"]["agent"]
+    current_dir = post_path.parent
+    while current_dir != docs_path.parent:
+        agent_md_path = current_dir / "_agent.md"
+        if agent_md_path.exists():
+            agent_md = frontmatter.load(agent_md_path)
+            if "egregora" in agent_md and "agent" in agent_md["egregora"]:
+                return agent_md["egregora"]["agent"]
+        if current_dir == docs_path:
+            break
+        current_dir = current_dir.parent
+    return "_default"
+
+
+def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any]:
+    """Merges variables from the post's front-matter into the agent's variables,.
+
+    respecting the allowlist.
+    """
+    post = frontmatter.load(post_path)
+    post_vars = post.get("egregora", {}).get("variables", {})
+    merged_vars = agent_config.variables.defaults.copy()
+    allowed_vars = agent_config.variables.allowed
+    for key, value in post_vars.items():
+        if key in allowed_vars:
+            merged_vars[key] = value
+        else:
+            logger.warning(
+                "Variable '%s' from %s not allowed by agent %s, ignoring",
+                key,
+                post_path.name,
+                agent_config.agent_id,
+            )
+    return merged_vars
+
+
+class AgentResolver:
+    """Resolver for loading agents and merging configurations.
+
+    Handles resolving which agent to use for a given post based on frontmatter
+    metadata and directory structure, then loads and merges configurations.
+    """
+
+    def __init__(self, egregora_path: Path, docs_path: Path) -> None:
+        self.egregora_path = egregora_path
+        self.docs_path = docs_path
+
+    def resolve(
+        self, post_path: Path, agent_override: str | None = None
+    ) -> tuple[AgentConfig, str, dict[str, Any]]:
+        """Resolves the agent for a given post and returns the agent config, prompt template.
+
+        And the final merged variables.
+        """
+        agent_name = agent_override or resolve_agent_name(post_path, self.docs_path)
+        agent_config, prompt_template = load_agent(agent_name, self.egregora_path)
+        final_vars = merge_variables(agent_config, post_path)
+        return (agent_config, prompt_template, final_vars)
+
+
+# Tool and skill registries
 
 
 class ToolRegistry:

@@ -21,7 +21,7 @@ from pydantic_ai import Agent, RunContext
 
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.editor.document import DocumentSnapshot, Editor
-from egregora.agents.tools.rag import VectorStore, query_similar_posts
+from egregora.agents.shared.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig
 from egregora.prompt_templates import EditorPromptTemplate
 from egregora.utils.genai import call_with_retries

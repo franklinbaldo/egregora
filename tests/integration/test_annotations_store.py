@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 
-from egregora.agents.tools.annotations import AnnotationStore
+from egregora.agents.shared.annotations import AnnotationStore
 
 NUM_CONCURRENT_INSERTS = 10
 

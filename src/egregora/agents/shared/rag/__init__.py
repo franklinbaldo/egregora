@@ -16,19 +16,19 @@ Documentation:
 
 import os
 
-from egregora.agents.tools.rag.pydantic_helpers import (
+from egregora.agents.shared.rag.pydantic_helpers import (
     build_rag_context_for_writer,
     find_relevant_docs,
     format_rag_context,
 )
-from egregora.agents.tools.rag.retriever import (
+from egregora.agents.shared.rag.retriever import (
     index_all_media,
     index_media_enrichment,
     index_post,
     query_media,
     query_similar_posts,
 )
-from egregora.agents.tools.rag.store import VectorStore
+from egregora.agents.shared.rag.store import VectorStore
 
 
 def is_rag_available() -> bool:

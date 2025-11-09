@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.ranking.ranking_agent import ComparisonConfig, run_comparison_with_pydantic_agent
+from egregora.agents.ranking.agent import ComparisonConfig, run_comparison_with_pydantic_agent
 
 if TYPE_CHECKING:
     from pathlib import Path

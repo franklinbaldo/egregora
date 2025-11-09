@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import ibis
 from google import genai
 
-from egregora.agents.tools.rag import VectorStore, query_similar_posts
+from egregora.agents.shared.rag import VectorStore, query_similar_posts
 from egregora.config import ModelConfig
 from egregora.utils.genai import call_with_retries
 

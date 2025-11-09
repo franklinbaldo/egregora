@@ -171,7 +171,7 @@ To add support for a new chat platform:
 # src/egregora/adapters/discord.py
 
 from egregora.pipeline.adapters import SourceAdapter
-from egregora.pipeline.ir import create_ir_table
+from egregora.pipeline.validation import create_ir_table
 
 class DiscordAdapter(SourceAdapter):
     @property

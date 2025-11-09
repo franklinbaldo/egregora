@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from egregora.ingestion.base import (
+from egregora.sources.base import (
     AdapterMeta,
     InputMetadata,
     InputSource,

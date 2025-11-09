@@ -34,7 +34,7 @@ Use Cases:
 
 Example:
     >>> from pathlib import Path
-    >>> from egregora.agents.tools.annotations import AnnotationStore
+    >>> from egregora.agents.shared.annotations import AnnotationStore
     >>>
     >>> # Initialize annotation storage
     >>> store = AnnotationStore(Path(".egregora-cache/annotations.duckdb"))
@@ -78,7 +78,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.database import schema as database_schema
+from egregora.database import schemas as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 if TYPE_CHECKING:

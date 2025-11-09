@@ -10,6 +10,10 @@ MODERN (Phase 7): Checkpoint-based resume logic.
 - Post dates are LLM-decided based on message content
 - Windows are ephemeral processing batches (not tied to resume state)
 
+MODERN (Phase 2): Moved from top-level pipeline.py to pipeline/windowing.py.
+- Consolidates all windowing logic in pipeline/ subdirectory
+- Re-exported from pipeline/__init__.py for backward compatibility
+
 DESIGN PHILOSOPHY: Calculate, Don't Iterate
 - When max_window_time constraint would be exceeded, calculate exact reduction upfront
 - max_window_time constrains the **step** (advancement), not the overlap-adjusted span

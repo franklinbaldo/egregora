@@ -9,7 +9,7 @@ import duckdb
 import ibis
 import pytest
 
-from egregora.agents.tools.rag import store as store_module
+from egregora.agents.shared.rag import store as store_module
 
 ROW_COUNT = 42
 THRESHOLD = 10

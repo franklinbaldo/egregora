@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.ranking.store import RankingStore
-from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.config.loader import create_default_config
-from egregora.database import schema as database_schema
+from egregora.database import schemas as database_schema
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache

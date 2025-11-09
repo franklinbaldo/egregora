@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.pipeline.adapters import SourceAdapter
+    from egregora.sources.base import SourceAdapter
 
 logger = logging.getLogger(__name__)
 __all__ = ["AdapterRegistry", "get_global_registry"]
