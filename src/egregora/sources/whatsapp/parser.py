@@ -480,6 +480,7 @@ def _parse_messages(
         # Finalize previous message
         if builder is not None:
             row = builder.finalize()
+            # Drop empty messages (WhatsApp exports occasionally include blank lines that should not count as messages)
             message = row.get("message")
             if message:
                 row[_IMPORT_ORDER_COLUMN] = position

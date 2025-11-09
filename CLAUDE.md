@@ -617,14 +617,17 @@ INFO:egregora.utils.logfire_config:Writer agent completed
   period=2025-01-15 10:00 to 12:00
   posts_created=2
   profiles_updated=3
-  thinking_saved=True      # Thinking content saved to .md file
-  thinking_parts=1         # Number of thinking parts found
+  journal_saved=True               # Journal entry saved to .md file
+  journal_entries=25               # Total journal entries
+  journal_thinking_entries=8       # Number of thinking sections
+  journal_freeform_entries=12      # Number of freeform sections
+  journal_tool_calls=5             # Number of tool invocations
   tokens_total=15420
   tokens_input=12000
   tokens_output=3420
   tokens_cache_write=0
   tokens_cache_read=8000
-  tokens_thinking=2100     # Thinking tokens used
+  tokens_thinking=2100             # Thinking tokens used
   tokens_reasoning=0
   usage_details={'thinking_tokens': 2100}
 ```

@@ -207,25 +207,39 @@ def gemini_api_key() -> str:
 def stub_enrichment_agents(monkeypatch):
     """Provide deterministic enrichment/vision agents for offline tests."""
 
-    def _stub_agent(model):  # pragma: no cover - simple factory
+    def _stub_url_agent(model):
+        return object()
+
+    def _stub_media_agent(model):
         return object()
 
     def _stub_url_run(agent, url):
         return f"Stub enrichment for {url}"
 
-    def _stub_media_run(agent, file_path, **kwargs):
-        return f"Stub enrichment for {file_path}"
+    def _stub_media_run(agent, media_path, **kwargs):
+        return f"Stub enrichment for {media_path}"
 
-    monkeypatch.setattr("egregora.enrichment.thin_agents.make_url_agent", lambda model: _stub_agent(model))
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_url_agent", lambda model: _stub_agent(model), raising=False
-    )
-    monkeypatch.setattr("egregora.enrichment.thin_agents.make_media_agent", lambda model: _stub_agent(model))
-    monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_media_agent", lambda model: _stub_agent(model), raising=False
+        "egregora.enrichment.thin_agents.make_url_agent",
+        lambda model: _stub_url_agent(model),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.run_url_enrichment", lambda agent, url: _stub_url_run(agent, url)
+        "egregora.enrichment.simple_runner.make_url_agent",
+        lambda model: _stub_url_agent(model),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.thin_agents.make_media_agent",
+        lambda model: _stub_media_agent(model),
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.simple_runner.make_media_agent",
+        lambda model: _stub_media_agent(model),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "egregora.enrichment.thin_agents.run_url_enrichment",
+        lambda agent, url: _stub_url_run(agent, url),
     )
     monkeypatch.setattr(
         "egregora.enrichment.simple_runner.run_url_enrichment",
@@ -234,11 +248,32 @@ def stub_enrichment_agents(monkeypatch):
     )
     monkeypatch.setattr(
         "egregora.enrichment.thin_agents.run_media_enrichment",
-        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
+        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path),
     )
     monkeypatch.setattr(
         "egregora.enrichment.simple_runner.run_media_enrichment",
-        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
+        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path),
+        raising=False,
+    )
+
+    from types import SimpleNamespace
+
+    def _avatar_agent(_model):
+        class _StubAvatar:
+            def run_sync(self, *args, **kwargs):
+                return SimpleNamespace(
+                    output=SimpleNamespace(
+                        is_appropriate=True,
+                        reason="stub",
+                        description="stub",
+                    )
+                )
+
+        return _StubAvatar()
+
+    monkeypatch.setattr(
+        "egregora.enrichment.avatar.create_avatar_enrichment_agent",
+        lambda model: _avatar_agent(model),
         raising=False,
     )
 
