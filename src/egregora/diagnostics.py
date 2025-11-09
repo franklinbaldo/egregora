@@ -128,7 +128,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
     """Check if DuckDB VSS extension is available."""
     # Lazy import - allows doctor command to run even if duckdb not installed
     try:
-        import duckdb
+        duckdb = importlib.import_module("duckdb")
     except ImportError:
         return DiagnosticResult(
             check="DuckDB VSS Extension",
