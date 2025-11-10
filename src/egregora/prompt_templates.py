@@ -326,6 +326,55 @@ class EditorPromptTemplate(PromptTemplate):
         )
 
 
+@dataclass(slots=True)
+class RankingSystemPromptTemplate(PromptTemplate):
+    """Prompt template for the ranking agent system prompt.
+
+    Supports custom prompts via site_root/.egregora/prompts/system/ranking.jinja
+    """
+
+    site_root: Path | None = None
+    env: Environment | None = None
+    template_name: ClassVar[str] = "system/ranking.jinja"
+
+    def render(self) -> str:
+        return self._render(env=self.env, site_root=self.site_root)
+
+
+@dataclass(slots=True)
+class RankingComparisonPromptTemplate(PromptTemplate):
+    """Prompt template for the ranking agent comparison prompt.
+
+    Supports custom prompts via site_root/.egregora/prompts/ranking/comparison.jinja
+    """
+
+    alias_or_uuid: str
+    bio: str | None
+    post_a_id: str
+    content_a: str
+    post_b_id: str
+    content_b: str
+    comments_a_display: str
+    comments_b_display: str
+    site_root: Path | None = None
+    env: Environment | None = None
+    template_name: ClassVar[str] = "ranking/comparison.jinja"
+
+    def render(self) -> str:
+        return self._render(
+            env=self.env,
+            site_root=self.site_root,
+            alias_or_uuid=self.alias_or_uuid,
+            bio=self.bio,
+            post_a_id=self.post_a_id,
+            content_a=self.content_a,
+            post_b_id=self.post_b_id,
+            content_b=self.content_b,
+            comments_a_display=self.comments_a_display,
+            comments_b_display=self.comments_b_display,
+        )
+
+
 __all__ = [
     "PACKAGE_PROMPTS_DIR",
     "AvatarEnrichmentPromptTemplate",
@@ -334,6 +383,8 @@ __all__ = [
     "EditorPromptTemplate",
     "MediaEnrichmentPromptTemplate",
     "PromptTemplate",
+    "RankingComparisonPromptTemplate",
+    "RankingSystemPromptTemplate",
     "UrlEnrichmentPromptTemplate",
     "WriterPromptTemplate",
     "create_prompt_environment",
