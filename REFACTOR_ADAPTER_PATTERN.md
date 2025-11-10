@@ -1,8 +1,24 @@
 # Adapter Pattern Refactoring Plan
 
-**Status**: Planning
+**Status**: Planning (Updated Post PR 627 Merge)
 **Date**: 2025-01-10
+**Last Updated**: 2025-11-10
 **Scope**: Major architectural refactor to decouple agents from I/O structure
+
+## Recent Changes Compatibility
+
+**✅ COMPATIBLE** - Plan updated to reflect:
+1. **PR 627 Merge** - Directory structure changes (posts/, profiles/ at root level)
+2. **File Renames** - Agent files renamed (writer_agent.py → agent.py, etc.)
+3. **Jinja Templates** - Enrichment and ranking agents now use templates with `site_root`
+4. **Agent Reorganization** - agents/tools/ → agents/shared/
+
+**Key Adjustments:**
+- Directory structure in MkDocsOutputAdapter matches current reality
+- File paths updated to reflect renamed agent files
+- Phase 4 acknowledges existing Jinja template system (site_root → prompts_dir)
+- Journal location: posts/journal/ (not root-level journal/)
+- URL enrichments: currently docs/media/urls/, will migrate to media/urls/
 
 ---
 
@@ -181,20 +197,24 @@ class OutputAdapter(Protocol):
 class MkDocsOutputAdapter:
     """Output adapter for MkDocs static site structure.
 
-    Structure:
+    Structure (MODERN - Post PR 627):
         site_root/
-        ├── posts/              # Blog posts
-        ├── profiles/           # Author profiles
-        ├── docs/
-        │   └── media/
-        │       ├── urls/       # URL enrichments
-        │       └── <files>     # Media enrichments
-        ├── journal/            # Agent journals
-        ├── .egregora/
-        │   ├── prompts/        # Custom prompts (optional)
-        │   ├── rag/            # Vector store
-        │   └── annotations/    # Annotations
-        └── rankings/           # Elo rankings
+        ├── posts/              # Blog posts (root level, not in docs/)
+        │   └── journal/        # Agent journals (inside posts/)
+        ├── profiles/           # Author profiles (root level)
+        ├── media/              # Media files (root level)
+        │   ├── images/         # Images including banners
+        │   └── urls/           # URL enrichments (note: currently at docs/media/urls/)
+        ├── rankings/           # Elo rankings (root level)
+        ├── enriched/           # Enriched content (root level)
+        └── .egregora/
+            ├── prompts/        # Custom prompts (optional)
+            ├── rag/            # Vector store
+            ├── annotations/    # Annotations
+            └── .cache/         # Cache directory
+
+    Note: URL enrichments currently at docs/media/urls/ - this will move to media/urls/
+          as part of this refactor for consistency.
     """
 
     def __init__(self, site_root: Path):
@@ -253,7 +273,10 @@ class MkDocsOutputAdapter:
         return enrichment_path
 
     def get_media_urls_dir(self) -> Path:
-        return self.site_root / "docs" / "media" / "urls"
+        # TODO: Migrate from docs/media/urls/ to media/urls/ for consistency
+        # Currently: site_root / "docs" / "media" / "urls"
+        # Future: site_root / "media" / "urls"
+        return self.site_root / "media" / "urls"
 
     # Journal
     def write_journal(self, window_label: str, content: str) -> Path:
@@ -264,7 +287,8 @@ class MkDocsOutputAdapter:
         return path
 
     def get_journal_dir(self) -> Path:
-        return self.site_root / "journal"
+        # Journal is currently inside posts/ directory
+        return self.site_root / "posts" / "journal"
 
     # Prompts
     def get_prompts_dir(self) -> Path | None:
@@ -355,10 +379,10 @@ class WriterRuntimeContext:
 
 #### Files to Update:
 
-- `src/egregora/agents/writer/writer_agent.py` → `WriterRuntimeContext`
-- `src/egregora/agents/editor/editor_agent.py` → `EditorAgentState`
+- `src/egregora/agents/writer/agent.py` → `WriterRuntimeContext` (renamed from writer_agent.py)
+- `src/egregora/agents/editor/agent.py` → `EditorAgentState` (renamed from editor_agent.py)
 - `src/egregora/enrichment/core.py` → `EnrichmentRuntimeContext`
-- `src/egregora/agents/ranking/ranking_agent.py` → `ComparisonConfig`
+- `src/egregora/agents/ranking/agent.py` → `ComparisonConfig` (renamed from ranking_agent.py)
 
 ---
 
@@ -415,21 +439,23 @@ enrichment_path = context.output.write_url_enrichment(url, markdown)  # ✅
 #### Files to Update:
 
 1. **Writer Agent** (`agents/writer/`)
-   - `writer_agent.py` → `write_post_tool`, `write_profile_tool`, journal saving
-   - `tools.py` → All tool implementations
+   - `agent.py` → `write_post_tool`, `write_profile_tool`, journal saving (renamed from writer_agent.py)
+   - `tools.py` → All tool implementations (if exists)
+   - `handlers.py` → Handler functions
 
 2. **Editor Agent** (`agents/editor/`)
-   - `editor_agent.py` → State initialization, profile reading
+   - `agent.py` → State initialization, profile reading (renamed from editor_agent.py)
 
 3. **Enrichment** (`enrichment/`)
    - `simple_runner.py` → URL enrichment, media enrichment writes
    - `core.py` → Context creation
+   - `thin_agents.py` → Agent initialization with site_root
 
 4. **Ranking Agent** (`agents/ranking/`)
-   - `ranking_agent.py` → Config initialization, prompt template resolution
+   - `agent.py` → Config initialization, prompt template resolution (renamed from ranking_agent.py)
 
-5. **Profiler** (`agents/tools/`)
-   - `profiler.py` → `read_profile`, `write_profile`
+5. **Profiler** (`agents/shared/`)
+   - `profiler.py` → `read_profile`, `write_profile` (moved from agents/tools/)
 
 6. **Utilities** (`utils/`)
    - `write_post.py` → Refactor to accept adapter or move logic to adapter
@@ -438,18 +464,22 @@ enrichment_path = context.output.write_url_enrichment(url, markdown)  # ✅
 
 ### Phase 4: Update Prompt Template System
 
-**Goal**: Templates accept `prompts_dir` instead of `site_root`
+**Goal**: Templates receive prompts directory from adapter instead of constructing path
 
-#### Before:
+**Current State** (Post-Jinja extraction): Templates currently accept `site_root` and internally
+resolve to `.egregora/prompts/`. This works but violates adapter pattern.
+
+#### Before (Current - Post Jinja templates merge):
 
 ```python
 @dataclass(slots=True)
 class UrlEnrichmentPromptTemplate(PromptTemplate):
     url: str
-    site_root: Path | None = None  # ❌ Template constructs .egregora/prompts
+    site_root: Path | None = None  # ✅ Already using templates, but ❌ still constructs path
 
     def render(self) -> str:
         return self._render(site_root=self.site_root, url=self.url)
+        # Internally: prompts_dir = site_root / ".egregora" / "prompts" if site_root else None
 ```
 
 #### After:
@@ -462,12 +492,21 @@ class UrlEnrichmentPromptTemplate(PromptTemplate):
 
     def render(self) -> str:
         return self._render(prompts_dir=self.prompts_dir, url=self.url)
+        # No path construction - adapter provides the directory
+```
+
+**Adapter usage:**
+```python
+# Agent gets prompts_dir from adapter
+prompts_dir = ctx.deps.output.get_prompts_dir()
+template = UrlEnrichmentPromptTemplate(url=url, prompts_dir=prompts_dir)
 ```
 
 #### Files to Update:
 
-- `src/egregora/prompt_templates.py` → All template classes
-- Template rendering logic to use `prompts_dir` directly
+- `src/egregora/prompt_templates.py` → All template classes (change `site_root` → `prompts_dir`)
+- `src/egregora/prompt_templates.py` → Update `_render()` and `create_prompt_environment()`
+- All agent files that create templates → Pass `prompts_dir` from adapter
 
 ---
 
@@ -560,24 +599,26 @@ class MemoryOutputAdapter:
 
 ### Modified Files (Update)
 
-**Core:**
-- `src/egregora/agents/writer/writer_agent.py`
-- `src/egregora/agents/writer/tools.py`
-- `src/egregora/agents/editor/editor_agent.py`
-- `src/egregora/agents/ranking/ranking_agent.py`
+**Core (Post PR 627 - updated paths):**
+- `src/egregora/agents/writer/agent.py` (renamed from writer_agent.py)
+- `src/egregora/agents/writer/handlers.py`
+- `src/egregora/agents/writer/core.py`
+- `src/egregora/agents/editor/agent.py` (renamed from editor_agent.py)
+- `src/egregora/agents/ranking/agent.py` (renamed from ranking_agent.py)
 - `src/egregora/enrichment/core.py`
 - `src/egregora/enrichment/simple_runner.py`
 - `src/egregora/enrichment/thin_agents.py`
-- `src/egregora/enrichment/agents.py`
-- `src/egregora/agents/tools/profiler.py`
+- `src/egregora/enrichment/avatar_pipeline.py`
+- `src/egregora/agents/shared/profiler.py` (moved from agents/tools/)
 - `src/egregora/utils/write_post.py`
 
 **Prompts:**
-- `src/egregora/prompt_templates.py`
+- `src/egregora/prompt_templates.py` (change site_root → prompts_dir)
 
 **Pipeline:**
 - `src/egregora/cli.py`
-- `src/egregora/pipeline.py`
+- `src/egregora/pipeline/runner.py` (renamed from pipeline.py)
+- `src/egregora/pipeline/windowing.py`
 
 **Tests:**
 - `tests/agents/test_writer_pydantic_agent.py`
