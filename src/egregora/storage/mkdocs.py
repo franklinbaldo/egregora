@@ -13,15 +13,21 @@ conventions. All implementations work with a site_root directory structure:
 These implementations return relative paths as identifiers (e.g., "posts/my-post.md").
 """
 
+from __future__ import annotations
+
 import uuid as uuid_lib
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from egregora.rendering.base import OutputFormat
 
 
 class MkDocsPostStorage:
     """Filesystem-based post storage following MkDocs conventions.
 
     Structure:
-        site_root/posts/{slug}.md
+        site_root/posts/{date}-{slug}.md
 
     Posts are stored as markdown files with YAML frontmatter:
         ---
@@ -33,11 +39,13 @@ class MkDocsPostStorage:
         Post content here...
     """
 
-    def __init__(self, site_root: Path):
+    def __init__(self, site_root: Path, output_format: "OutputFormat | None" = None):
         """Initialize MkDocs post storage.
 
         Args:
             site_root: Root directory for MkDocs site
+            output_format: OutputFormat instance for utilities (normalize_slug, etc.)
+                          If None, will use default implementations without validations
 
         Side Effects:
             Creates posts/ directory if it doesn't exist
@@ -46,22 +54,45 @@ class MkDocsPostStorage:
         self.site_root = site_root
         self.posts_dir = site_root / "posts"
         self.posts_dir.mkdir(parents=True, exist_ok=True)
+        self.output_format = output_format
 
     def write(self, slug: str, metadata: dict, content: str) -> str:
-        """Write post to filesystem.
+        """Write post to filesystem with data integrity validations.
 
         Args:
             slug: URL-friendly slug (e.g., "my-post")
-            metadata: YAML frontmatter dict
+            metadata: YAML frontmatter dict (date optional, defaults to today)
             content: Markdown content (body only)
 
         Returns:
-            Relative path string (e.g., "posts/my-post.md")
+            Relative path string (e.g., "posts/2025-01-10-my-post.md")
+
+        Note:
+            Uses OutputFormat utilities for:
+            - Slug normalization (URL-safe, lowercase, hyphens)
+            - Date extraction (handles window labels, ISO timestamps, defaults to today)
+            - Unique filename generation (prevents silent overwrites)
 
         """
         import yaml
 
-        path = self.posts_dir / f"{slug}.md"
+        # Extract date from metadata (optional, defaults to today via extract_date_prefix)
+        date_str = metadata.get("date", "")
+
+        # Apply data integrity validations if OutputFormat is available
+        if self.output_format:
+            # Normalize slug to URL-safe format
+            normalized_slug = self.output_format.normalize_slug(slug)
+
+            # Extract clean YYYY-MM-DD date prefix (handles empty string → today's date)
+            date_prefix = self.output_format.extract_date_prefix(str(date_str))
+
+            # Generate unique filename with date prefix
+            filename_pattern = f"{date_prefix}-{normalized_slug}.md"
+            path = self.output_format.generate_unique_filename(self.posts_dir, filename_pattern)
+        else:
+            # Fallback: simple filename without validations
+            path = self.posts_dir / f"{slug}.md"
 
         # Combine frontmatter + content
         frontmatter = yaml.dump(metadata, sort_keys=False, allow_unicode=True)
@@ -77,17 +108,29 @@ class MkDocsPostStorage:
         """Read post from filesystem.
 
         Args:
-            slug: URL-friendly slug
+            slug: URL-friendly slug (matches files with or without date prefix)
 
         Returns:
             (metadata dict, content string) if post exists, None otherwise
 
+        Note:
+            Searches for both date-prefixed ({date}-{slug}.md) and simple ({slug}.md) formats.
+            This provides backwards compatibility with posts written before data integrity updates.
+
         """
-        path = self.posts_dir / f"{slug}.md"
+        # Try finding date-prefixed file first (new format)
+        matching_files = list(self.posts_dir.glob(f"*-{slug}.md"))
+        if matching_files:
+            # Use most recent file if multiple matches
+            path = matching_files[0]
+        else:
+            # Fall back to simple format (legacy)
+            path = self.posts_dir / f"{slug}.md"
+
         if not path.exists():
             return None
 
-        # Parse frontmatter (reuse existing logic if available)
+        # Parse frontmatter
         raw_content = path.read_text(encoding="utf-8")
         return self._parse_frontmatter(raw_content)
 
@@ -95,12 +138,21 @@ class MkDocsPostStorage:
         """Check if post exists.
 
         Args:
-            slug: URL-friendly slug
+            slug: URL-friendly slug (matches files with or without date prefix)
 
         Returns:
-            True if {posts_dir}/{slug}.md exists
+            True if post exists in either date-prefixed or simple format
+
+        Note:
+            Checks both {date}-{slug}.md (new format) and {slug}.md (legacy format).
 
         """
+        # Check for date-prefixed format first
+        matching_files = list(self.posts_dir.glob(f"*-{slug}.md"))
+        if matching_files:
+            return True
+
+        # Fall back to simple format
         return (self.posts_dir / f"{slug}.md").exists()
 
     @staticmethod

@@ -1,9 +1,14 @@
 """Abstract base class for output formats (MkDocs, Hugo, Jekyll, etc.)."""
 
+import datetime
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 
 @dataclass
@@ -187,6 +192,332 @@ class OutputFormat(ABC):
             '''
 
         """
+
+    # ===== Storage Protocol Properties (Abstract) =====
+
+    @property
+    @abstractmethod
+    def posts(self) -> "PostStorage":
+        """Get post storage implementation for this format.
+
+        Returns:
+            PostStorage implementation (MkDocs, Hugo, Database, etc.)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+
+    @property
+    @abstractmethod
+    def profiles(self) -> "ProfileStorage":
+        """Get profile storage implementation for this format.
+
+        Returns:
+            ProfileStorage implementation
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+
+    @property
+    @abstractmethod
+    def journals(self) -> "JournalStorage":
+        """Get journal storage implementation for this format.
+
+        Returns:
+            JournalStorage implementation
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+
+    @property
+    @abstractmethod
+    def enrichments(self) -> "EnrichmentStorage":
+        """Get enrichment storage implementation for this format.
+
+        Returns:
+            EnrichmentStorage implementation
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+
+    @abstractmethod
+    def initialize(self, site_root: Path) -> None:
+        """Initialize storage implementations for a specific site.
+
+        Must be called before accessing storage properties (posts, profiles, etc.).
+        Creates necessary directories and sets up storage backends.
+
+        Args:
+            site_root: Root directory of the site
+
+        Raises:
+            RuntimeError: If initialization fails
+            ValueError: If site_root is invalid
+
+        Example:
+            >>> format = MkDocsOutputFormat()
+            >>> format.initialize(Path("/path/to/site"))
+            >>> posts = format.posts  # Now safe to access
+
+        """
+
+    # ===== Common Utility Methods (Concrete) =====
+
+    @staticmethod
+    def normalize_slug(slug: str) -> str:
+        """Normalize slug to be URL-safe and filesystem-safe.
+
+        Converts to lowercase, replaces spaces/special chars with hyphens.
+        All output formats should use this for consistent slug handling.
+
+        Args:
+            slug: Raw slug from metadata (may contain spaces, capitals, etc.)
+
+        Returns:
+            Normalized slug (lowercase, hyphens only)
+
+        Examples:
+            >>> OutputFormat.normalize_slug("My Great Post!")
+            'my-great-post'
+            >>> OutputFormat.normalize_slug("AI & Machine Learning")
+            'ai-machine-learning'
+
+        """
+        from egregora.utils import slugify
+
+        return slugify(slug)
+
+    @staticmethod
+    def extract_date_prefix(date_str: str) -> str:
+        """Extract clean YYYY-MM-DD date from various formats.
+
+        Handles:
+        - Clean dates: "2025-03-02"
+        - ISO timestamps: "2025-03-02T10:30:00"
+        - Window labels: "2025-03-02 08:01 to 12:49"
+        - Datetimes: "2025-03-02 10:30:45"
+
+        All output formats should use this for consistent date handling.
+
+        Args:
+            date_str: Date string in various formats
+
+        Returns:
+            Clean date in YYYY-MM-DD format, or today's date if parsing fails
+
+        Examples:
+            >>> OutputFormat.extract_date_prefix("2025-03-02")
+            '2025-03-02'
+            >>> OutputFormat.extract_date_prefix("2025-03-02 10:00 to 12:00")
+            '2025-03-02'
+
+        """
+        if not date_str:
+            return datetime.date.today().isoformat()
+
+        date_str = date_str.strip()
+
+        # Try ISO date first (YYYY-MM-DD)
+        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+            try:
+                datetime.date.fromisoformat(date_str)
+                return date_str
+            except (ValueError, AttributeError):
+                pass
+
+        # Extract YYYY-MM-DD pattern from longer strings
+        match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+        if match:
+            clean_date = match.group(1)
+            try:
+                datetime.date.fromisoformat(clean_date)
+                return clean_date
+            except (ValueError, AttributeError):
+                pass
+
+        # Fallback: use today's date
+        return datetime.date.today().isoformat()
+
+    @staticmethod
+    def generate_unique_filename(base_dir: Path, filename_pattern: str, max_attempts: int = 1000) -> Path:
+        """Generate unique filename by adding suffix if file exists.
+
+        Pattern for preventing silent overwrites - all formats should use this.
+
+        Args:
+            base_dir: Directory where file will be created
+            filename_pattern: Filename template with optional {suffix} placeholder
+                             e.g., "2025-01-10-my-post.md" or "2025-01-10-my-post{suffix}.md"
+            max_attempts: Maximum number of suffix attempts (default 1000)
+
+        Returns:
+            Unique filepath that doesn't exist
+
+        Raises:
+            RuntimeError: If unique filename cannot be generated after max_attempts
+
+        Examples:
+            >>> # If file doesn't exist
+            >>> generate_unique_filename(Path("/posts"), "my-post.md")
+            Path("/posts/my-post.md")
+
+            >>> # If file exists, adds -2, -3, etc.
+            >>> generate_unique_filename(Path("/posts"), "my-post.md")
+            Path("/posts/my-post-2.md")
+
+        """
+        from egregora.utils import safe_path_join
+
+        # Try original filename first
+        if "{suffix}" not in filename_pattern:
+            # Add suffix placeholder before extension
+            parts = filename_pattern.rsplit(".", 1)
+            if len(parts) == 2:
+                filename_pattern = f"{parts[0]}{{suffix}}.{parts[1]}"
+            else:
+                filename_pattern = f"{filename_pattern}{{suffix}}"
+
+        # Try without suffix first
+        original_filename = filename_pattern.replace("{suffix}", "")
+        filepath = safe_path_join(base_dir, original_filename)
+
+        if not filepath.exists():
+            return filepath
+
+        # Generate with suffix
+        for suffix in range(2, max_attempts + 2):
+            filename = filename_pattern.replace("{suffix}", f"-{suffix}")
+            filepath = safe_path_join(base_dir, filename)
+
+            if not filepath.exists():
+                return filepath
+
+        msg = f"Could not generate unique filename after {max_attempts} attempts: {filename_pattern}"
+        raise RuntimeError(msg)
+
+    def parse_frontmatter(self, content: str) -> tuple[dict, str]:
+        """Parse frontmatter from markdown content.
+
+        Default implementation handles YAML frontmatter (used by MkDocs, Jekyll).
+        Override in subclasses for format-specific frontmatter (Hugo uses TOML).
+
+        Args:
+            content: Raw markdown with frontmatter
+
+        Returns:
+            (metadata dict, body string)
+
+        Raises:
+            ValueError: If frontmatter is malformed
+
+        """
+        import yaml
+
+        if not content.startswith("---\n"):
+            return {}, content
+
+        # Find end of frontmatter
+        end_marker = content.find("\n---\n", 4)
+        if end_marker == -1:
+            return {}, content
+
+        # Extract and parse frontmatter
+        frontmatter_text = content[4:end_marker]
+        body = content[end_marker + 5 :].lstrip()
+
+        try:
+            metadata = yaml.safe_load(frontmatter_text) or {}
+        except yaml.YAMLError as e:
+            msg = f"Invalid YAML frontmatter: {e}"
+            raise ValueError(msg) from e
+
+        return metadata, body
+
+    def prepare_window(
+        self, window_label: str, window_data: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        """Pre-processing hook called before writer agent processes a window.
+
+        Template Method pattern - base implementation does nothing, subclasses
+        override to perform format-specific preparation tasks.
+
+        Examples of format-specific preparation:
+        - Database: Begin transaction, lock tables
+        - S3: Download existing posts for modification
+        - MkDocs: Validate .authors.yml before starting
+
+        Args:
+            window_label: Window identifier (e.g., "2025-01-10 10:00 to 12:00")
+            window_data: Optional metadata about the window (message count, date range, etc.)
+
+        Returns:
+            Optional context dict to pass to finalize_window()
+
+        Note:
+            This method is called even for empty windows.
+            Implementations should be idempotent and handle errors gracefully.
+
+        Examples:
+            >>> # Database implementation
+            >>> def prepare_window(self, window_label, window_data):
+            >>>     self.connection.begin()
+            >>>     return {"transaction_id": self.connection.transaction_id}
+
+        """
+        # Base implementation does nothing - subclasses override for specific tasks
+        return None
+
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Post-processing hook called after writer agent completes a window.
+
+        Template Method pattern - base implementation does nothing, subclasses
+        override to perform format-specific finalization tasks.
+
+        Examples of format-specific finalization:
+        - MkDocs: Update .authors.yml, regenerate navigation, update tags index
+        - Hugo: Run Hugo build to regenerate site, update taxonomies
+        - Database: Commit transaction, update search indexes, vacuum
+        - S3: Upload changed files to S3, invalidate CloudFront cache
+
+        Args:
+            window_label: Window identifier (e.g., "2025-01-10 10:00 to 12:00")
+            posts_created: List of post identifiers created during this window
+            profiles_updated: List of profile identifiers updated during this window
+            metadata: Optional metadata about the window (duration, token count, context from prepare_window)
+
+        Note:
+            This method is called even if no posts/profiles were created.
+            Implementations should be idempotent and handle empty lists gracefully.
+
+        Examples:
+            >>> # MkDocs implementation
+            >>> def finalize_window(self, window_label, posts_created, profiles_updated, metadata):
+            >>>     self._update_authors_yml(profiles_updated)
+            >>>     self._regenerate_tags_index(posts_created)
+            >>>     logger.info(f"Finalized MkDocs window: {window_label}")
+
+            >>> # Database implementation
+            >>> def finalize_window(self, window_label, posts_created, profiles_updated, metadata):
+            >>>     self.connection.commit()
+            >>>     self._update_search_index(posts_created)
+            >>>     logger.info(f"Committed database window: {window_label}")
+
+        """
+        # Base implementation does nothing - subclasses override for specific tasks
+        pass
 
 
 class OutputFormatRegistry:

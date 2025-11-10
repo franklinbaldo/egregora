@@ -18,6 +18,8 @@ from egregora.rendering.base import OutputFormat, SiteConfiguration
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 logger = logging.getLogger(__name__)
 
 
@@ -36,10 +38,114 @@ class HugoOutputFormat(OutputFormat):
     3. Complete the implementation below
     """
 
+    def __init__(self) -> None:
+        """Initialize HugoOutputFormat with uninitialized storage."""
+        self._site_root: Path | None = None
+        self._posts_impl: "PostStorage | None" = None
+        self._profiles_impl: "ProfileStorage | None" = None
+        self._journals_impl: "JournalStorage | None" = None
+        self._enrichments_impl: "EnrichmentStorage | None" = None
+
     @property
     def format_type(self) -> str:
         """Return 'hugo' as the format type identifier."""
         return "hugo"
+
+    def initialize(self, site_root: Path) -> None:
+        """Initialize Hugo storage implementations.
+
+        Note: Currently reuses MkDocs storage as placeholder since Hugo is not priority.
+        Creates all necessary directories and initializes storage protocol
+        implementations for Hugo filesystem structure.
+
+        Args:
+            site_root: Root directory of the Hugo site
+
+        Raises:
+            ValueError: If site_root is invalid
+            RuntimeError: If storage initialization fails
+
+        """
+        from egregora.storage.mkdocs import (
+            MkDocsEnrichmentStorage,
+            MkDocsJournalStorage,
+            MkDocsPostStorage,
+            MkDocsProfileStorage,
+        )
+
+        self._site_root = site_root
+
+        # Create storage implementations (using MkDocs as placeholder)
+        self._posts_impl = MkDocsPostStorage(site_root, output_format=self)
+        self._profiles_impl = MkDocsProfileStorage(site_root)
+        self._journals_impl = MkDocsJournalStorage(site_root)
+        self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
+
+        logger.debug(f"Initialized Hugo storage for {site_root}")
+
+    @property
+    def posts(self) -> "PostStorage":
+        """Get Hugo post storage implementation.
+
+        Returns:
+            PostStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._posts_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._posts_impl
+
+    @property
+    def profiles(self) -> "ProfileStorage":
+        """Get Hugo profile storage implementation.
+
+        Returns:
+            ProfileStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._profiles_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._profiles_impl
+
+    @property
+    def journals(self) -> "JournalStorage":
+        """Get Hugo journal storage implementation.
+
+        Returns:
+            JournalStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._journals_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._journals_impl
+
+    @property
+    def enrichments(self) -> "EnrichmentStorage":
+        """Get Hugo enrichment storage implementation.
+
+        Returns:
+            EnrichmentStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._enrichments_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._enrichments_impl
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root is a Hugo site.

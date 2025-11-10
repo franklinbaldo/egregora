@@ -13,6 +13,8 @@ from egregora.utils.write_post import write_post as write_mkdocs_post
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 logger = logging.getLogger(__name__)
 
 
@@ -24,12 +26,118 @@ class MkDocsOutputFormat(OutputFormat):
     - Material for MkDocs theme
     - Blog plugin for post management
     - YAML front matter for metadata
+
+    Coordinates all storage operations for MkDocs-based sites and provides
+    storage protocol implementations through properties.
     """
+
+    def __init__(self) -> None:
+        """Initialize MkDocsOutputFormat with uninitialized storage."""
+        self._site_root: Path | None = None
+        self._posts_impl: "PostStorage | None" = None
+        self._profiles_impl: "ProfileStorage | None" = None
+        self._journals_impl: "JournalStorage | None" = None
+        self._enrichments_impl: "EnrichmentStorage | None" = None
 
     @property
     def format_type(self) -> str:
         """Return 'mkdocs' as the format type identifier."""
         return "mkdocs"
+
+    def initialize(self, site_root: Path) -> None:
+        """Initialize MkDocs storage implementations.
+
+        Creates all necessary directories and initializes storage protocol
+        implementations for MkDocs filesystem structure.
+
+        Args:
+            site_root: Root directory of the MkDocs site
+
+        Raises:
+            ValueError: If site_root is invalid
+            RuntimeError: If storage initialization fails
+
+        """
+        from egregora.storage.mkdocs import (
+            MkDocsEnrichmentStorage,
+            MkDocsJournalStorage,
+            MkDocsPostStorage,
+            MkDocsProfileStorage,
+        )
+
+        self._site_root = site_root
+
+        # Create storage implementations
+        self._posts_impl = MkDocsPostStorage(site_root, output_format=self)
+        self._profiles_impl = MkDocsProfileStorage(site_root)
+        self._journals_impl = MkDocsJournalStorage(site_root)
+        self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
+
+        logger.debug(f"Initialized MkDocs storage for {site_root}")
+
+    @property
+    def posts(self) -> "PostStorage":
+        """Get MkDocs post storage implementation.
+
+        Returns:
+            MkDocsPostStorage instance
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._posts_impl is None:
+            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._posts_impl
+
+    @property
+    def profiles(self) -> "ProfileStorage":
+        """Get MkDocs profile storage implementation.
+
+        Returns:
+            MkDocsProfileStorage instance
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._profiles_impl is None:
+            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._profiles_impl
+
+    @property
+    def journals(self) -> "JournalStorage":
+        """Get MkDocs journal storage implementation.
+
+        Returns:
+            MkDocsJournalStorage instance
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._journals_impl is None:
+            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._journals_impl
+
+    @property
+    def enrichments(self) -> "EnrichmentStorage":
+        """Get MkDocs enrichment storage implementation.
+
+        Returns:
+            MkDocsEnrichmentStorage instance
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._enrichments_impl is None:
+            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._enrichments_impl
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
