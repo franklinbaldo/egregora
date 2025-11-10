@@ -274,9 +274,9 @@ def shutdown_otel() -> None:
 
 
 __all__ = [
-    "is_otel_enabled",
     "configure_otel",
-    "get_tracer",
     "get_current_trace_id",
+    "get_tracer",
+    "is_otel_enabled",
     "shutdown_otel",
 ]
