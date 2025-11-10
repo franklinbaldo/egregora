@@ -59,10 +59,15 @@ class SitePaths:
     """Resolved paths for an Egregora MkDocs site.
 
     SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
+    MODERN (Regression Fix): Content at root level (not in docs/).
     - .egregora/config.yml - Configuration
+    - .egregora/mkdocs.yml - MkDocs configuration
     - .egregora/prompts/ - Custom prompt overrides
     - .egregora/rag/ - Vector store data
     - .egregora/.cache/ - Ephemeral cache
+    - media/ - Media files at root
+    - profiles/ - Author profiles at root
+    - posts/ - Blog posts at root
     """
 
     site_root: Path
@@ -71,12 +76,13 @@ class SitePaths:
     # Egregora directories (.egregora/)
     egregora_dir: Path
     config_path: Path
+    mkdocs_config_path: Path  # NEW: mkdocs.yml in .egregora/
     prompts_dir: Path
     rag_dir: Path
     cache_dir: Path
 
-    # Content directories (docs/)
-    docs_dir: Path
+    # Content directories (at root, not in docs/)
+    docs_dir: Path  # For MkDocs compatibility, points to site_root
     blog_dir: str
     posts_dir: Path
     profiles_dir: Path

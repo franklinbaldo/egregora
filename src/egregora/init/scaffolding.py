@@ -118,16 +118,57 @@ def _create_site_structure(site_paths: SitePaths, env: Environment, context: dic
     _render_egregora_config(site_paths.site_root, env, context)
 
 
+def _copy_default_prompts(target_prompts_dir: Path) -> None:
+    """Copy default prompt templates from package to site.
+
+    This implements the "version pinning" strategy: prompts are copied once during
+    init and become site-specific. Users can customize without losing changes,
+    and Egregora can update defaults without breaking existing sites.
+
+    Args:
+        target_prompts_dir: Destination directory (.egregora/prompts/)
+
+    """
+    # Find source prompts directory in package
+    package_prompts_dir = Path(__file__).resolve().parent.parent / "prompts"
+
+    if not package_prompts_dir.exists():
+        logger.warning("Package prompts directory not found: %s", package_prompts_dir)
+        return
+
+    # Copy all .jinja files from package to site
+    prompt_files_copied = 0
+    for source_file in package_prompts_dir.rglob("*.jinja"):
+        # Compute relative path to preserve directory structure
+        rel_path = source_file.relative_to(package_prompts_dir)
+        target_file = target_prompts_dir / rel_path
+
+        # Only copy if target doesn't exist (don't overwrite customizations)
+        if not target_file.exists():
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                target_file.write_text(source_file.read_text(encoding="utf-8"), encoding="utf-8")
+                prompt_files_copied += 1
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning("Failed to copy prompt %s: %s", source_file.name, e)
+
+    if prompt_files_copied > 0:
+        logger.info("Copied %d default prompt templates to %s", prompt_files_copied, target_prompts_dir)
+
+
 def _create_egregora_structure(site_paths: SitePaths, env: Environment | None = None) -> None:
     """Create .egregora/ directory structure with templates.
 
     Creates:
     - .egregora/config.yml (from template with comments)
-    - .egregora/prompts/ (for custom prompt overrides)
+    - .egregora/prompts/ (for custom prompt overrides + default copies)
     - .egregora/prompts/system/ (writer, editor prompts)
     - .egregora/prompts/enrichment/ (URL, media prompts)
     - .egregora/prompts/README.md (usage guide)
     - .egregora/.gitignore (ignore ephemeral data)
+
+    Version Pinning: Default prompts are copied (not symlinked) so sites have
+    stable prompt versions that can be customized independently.
     """
     egregora_dir = site_paths.egregora_dir
     egregora_dir.mkdir(parents=True, exist_ok=True)
@@ -149,13 +190,16 @@ def _create_egregora_structure(site_paths: SitePaths, env: Environment | None = 
             logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
             create_default_config(site_paths.site_root)
 
-    # Create prompts directory structure
+    # Create prompts directory structure and copy default prompts
     prompts_dir = site_paths.prompts_dir
     prompts_dir.mkdir(exist_ok=True)
 
     # Create subdirectories for prompt categories
     (prompts_dir / "system").mkdir(exist_ok=True)
     (prompts_dir / "enrichment").mkdir(exist_ok=True)
+
+    # Copy default prompts from package to site (version pinning strategy)
+    _copy_default_prompts(prompts_dir)
 
     # Create prompts README from template
     prompts_readme = prompts_dir / "README.md"
