@@ -63,6 +63,7 @@ from egregora.agents.shared.profiler import read_profile, write_profile
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
 from egregora.database.streaming import stream_ibis
+from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.utils.logfire_config import logfire_info, logfire_span
 from egregora.utils.write_post import write_post
 
@@ -76,20 +77,38 @@ class WriterRuntimeContext:
     """Runtime context for writer agent execution.
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
-    Separates runtime data (paths, clients) from configuration (EgregoraConfig).
+    MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
+    Stores are pre-constructed and injected (not built from directories).
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
     """
 
+    # Time window
     start_time: datetime
     end_time: datetime
-    output_dir: Path
-    profiles_dir: Path
-    rag_dir: Path
+
+    # Storage protocols (injected)
+    posts: PostStorage
+    profiles: ProfileStorage
+    journals: JournalStorage
+
+    # Pre-constructed stores (injected, not built from paths)
+    rag_store: VectorStore
+    annotations_store: AnnotationStore | None
+
+    # LLM client
     client: Any
-    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
-    annotations_store: AnnotationStore | None = None
+
+    # Prompt templates directory (resolved by caller, not constructed here)
+    prompts_dir: Path | None = None
+
+    # DEPRECATED (to be removed in Phase 3):
+    # These are kept temporarily for backward compatibility during migration
+    output_dir: Path | None = None
+    profiles_dir: Path | None = None
+    rag_dir: Path | None = None
+    site_root: Path | None = None
 
 
 class PostMetadata(BaseModel):
