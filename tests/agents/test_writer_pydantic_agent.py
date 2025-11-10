@@ -7,8 +7,10 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic_ai.models.test import TestModel
 
+from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config.loader import create_default_config
+from egregora.storage.memory import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 if TYPE_CHECKING:
@@ -43,14 +45,31 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         },
     )
 
+    # MODERN (Adapter Pattern): Use in-memory storage for testing
+    posts_storage = InMemoryPostStorage()
+    profiles_storage = InMemoryProfileStorage()
+    journals_storage = InMemoryJournalStorage()
+    rag_store = VectorStore(rag_dir / "chunks.parquet")
+
     context = WriterRuntimeContext(
         start_time=datetime(2025, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         end_time=datetime(2025, 1, 1, 23, 59, tzinfo=ZoneInfo("UTC")),
+        # Storage protocols (in-memory for testing)
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=None,
+        # LLM client
+        client=batch_client,
+        # Prompt templates directory
+        prompts_dir=None,
+        # Deprecated (kept for backward compatibility)
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        client=batch_client,
-        annotations_store=None,
+        site_root=site_root,
     )
 
     # Note: TestModel doesn't create actual tool calls, so saved_posts will be empty

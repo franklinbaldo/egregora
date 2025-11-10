@@ -45,7 +45,35 @@ if TYPE_CHECKING:
     from google import genai
     from google.genai import types as genai_types
     from ibis.expr.types import Table
+
+    from egregora.storage import JournalStorage, PostStorage, ProfileStorage
+
 logger = logging.getLogger(__name__)
+
+
+def _create_storage_implementations(
+    site_root: Path,
+) -> tuple[PostStorage, ProfileStorage, JournalStorage]:
+    """Create storage implementations for the given site root.
+
+    This factory function hides the concrete storage implementation from agents.
+    Currently uses MkDocs filesystem storage, but could be swapped for database
+    or S3 storage without changing agent code.
+
+    Args:
+        site_root: Root directory for the site
+
+    Returns:
+        Tuple of (PostStorage, ProfileStorage, JournalStorage) implementations
+    """
+    # Import concrete implementations at runtime (not at type-check time)
+    from egregora.storage.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
+
+    return (
+        MkDocsPostStorage(site_root),
+        MkDocsProfileStorage(site_root),
+        MkDocsJournalStorage(site_root),
+    )
 
 
 @dataclass
@@ -334,16 +362,37 @@ def _write_posts_for_window_pydantic(
         egregora_config.models.writer = writer_model
         egregora_config.models.embedding = embedding_model
 
-    # Create runtime context for writer agent
+    # Create storage implementations (MODERN: Adapter Pattern)
+    # Determine site_root for storage (use output_dir parent if site_root not set)
+    storage_root = site_root if site_root else config.output_dir.parent
+    posts_storage, profiles_storage, journals_storage = _create_storage_implementations(storage_root)
+
+    # Create pre-constructed stores
+    rag_store = VectorStore(config.rag_dir / "chunks.parquet")
+
+    # Resolve prompts directory
+    prompts_dir = storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+
+    # Create runtime context for writer agent (MODERN: uses storage protocols)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
+        # Storage protocols
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=annotations_store,
+        # LLM client
+        client=client,
+        # Prompt templates directory
+        prompts_dir=prompts_dir,
+        # Deprecated (kept for backward compatibility)
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
         site_root=site_root,
-        client=client,
-        annotations_store=annotations_store,
     )
 
     # Format timestamps for LLM prompt (human-readable)
