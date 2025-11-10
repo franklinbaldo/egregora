@@ -80,7 +80,7 @@ def make_url_agent(model_name: str) -> Agent[None, EnrichmentOut]:
     """
     # Enable URL context grounding for Google models
     model_settings = GoogleModelSettings(
-        google_tools=[{'url_context': {}}]  # Enable URL context grounding
+        google_tools=[{"url_context": {}}]  # Enable URL context grounding
     )
 
     return Agent[None, EnrichmentOut](
