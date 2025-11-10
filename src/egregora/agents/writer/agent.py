@@ -528,12 +528,13 @@ def _register_writer_tools(  # noqa: C901
         def generate_banner_tool(
             ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
         ) -> BannerResult:
-            # Construct correct media path (media/banners/ at site root, not in posts/)
+            # Save banners to media/images/ at site root (same as other media)
+            # Banners will be enriched through the same pipeline as other media
             if ctx.deps.site_root:
-                banner_output_dir = ctx.deps.site_root / "media" / "banners"
+                banner_output_dir = ctx.deps.site_root / "media" / "images"
             else:
                 # Fallback: use output_dir (posts_dir) if site_root not available
-                banner_output_dir = ctx.deps.output_dir / "media" / "banners"
+                banner_output_dir = ctx.deps.output_dir / "media" / "images"
 
             banner_path = generate_banner_for_post(
                 post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
