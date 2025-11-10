@@ -35,6 +35,7 @@ from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.telemetry import get_current_trace_id
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -457,6 +458,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 # Generate deterministic fingerprint for this window
                 input_fingerprint = fingerprint_window(window)
 
+                # Capture current OTEL trace ID for observability linking
+                trace_id = get_current_trace_id()
+
                 record_run(
                     conn=runs_conn,
                     run_id=run_id,
@@ -465,6 +469,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     started_at=started_at,
                     rows_in=window.size,
                     input_fingerprint=input_fingerprint,
+                    trace_id=trace_id,
                 )
             except Exception as e:
                 logger.warning("Failed to record run start: %s", e)

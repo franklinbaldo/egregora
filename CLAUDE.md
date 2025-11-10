@@ -373,6 +373,34 @@ class WriterRuntimeContext:
 - ❌ Don't rely on runs database for critical pipeline logic (it's observability only)
 - See `docs/observability/runs-tracking.md` for full guide
 
+**OpenTelemetry Integration (Priority D.2 - 2025-01-10)**:
+- ✅ Vendor-neutral observability framework (opt-in via `EGREGORA_OTEL=1`)
+- ✅ Logfire as optional exporter (Pydantic's OTEL-compatible platform)
+- ✅ No mandatory API keys - works with console exporter by default
+- ✅ Exporter priority: Logfire → OTLP → Console (first available wins)
+- ✅ Automatic trace_id capture and storage in runs database
+- ✅ Links pipeline runs to distributed traces for deep debugging
+- ✅ Example usage:
+  ```bash
+  # Console exporter (default, no API key needed)
+  export EGREGORA_OTEL=1
+  egregora write export.zip
+
+  # Logfire exporter (optional, requires token)
+  export EGREGORA_OTEL=1
+  export LOGFIRE_TOKEN=your_token
+  egregora write export.zip
+
+  # Generic OTLP collector
+  export EGREGORA_OTEL=1
+  export OTEL_EXPORTER_OTLP_ENDPOINT=https://collector:4317
+  egregora write export.zip
+  ```
+- ✅ Functions: `get_tracer()`, `get_current_trace_id()`, `configure_otel()`, `shutdown_otel()`
+- ✅ Trace context automatically propagated through pipeline stages
+- ❌ Don't use Logfire-specific APIs directly - use OTEL APIs for portability
+- ❌ Don't require OTEL for core functionality - it's observability only
+
 ## Code Structure
 
 ```
@@ -431,7 +459,8 @@ src/egregora/
 ├── utils/
 │   ├── gemini_dispatcher.py # LLM API client (handles retries, batching)
 │   ├── cache.py             # DiskCache wrapper
-│   └── logfire_config.py    # Observability (Pydantic Logfire)
+│   ├── telemetry.py         # OpenTelemetry instrumentation (Priority D.2)
+│   └── logfire_config.py    # Logfire helpers (deprecated - use telemetry.py)
 └── rendering/
     ├── mkdocs.py            # MkDocs renderer
     └── templates/           # Jinja2 templates

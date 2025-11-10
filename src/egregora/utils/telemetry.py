@@ -46,6 +46,11 @@ def is_otel_enabled() -> bool:
 def configure_otel() -> TracerProvider | None:
     """Configure OpenTelemetry if EGREGORA_OTEL=1.
 
+    Exporter priority (first available wins):
+    1. Logfire (if LOGFIRE_TOKEN set) - Pydantic's observability platform
+    2. OTLP (if OTEL_EXPORTER_OTLP_ENDPOINT set) - Generic OTLP collector
+    3. Console (default) - Debug output to stdout
+
     Returns:
         TracerProvider if enabled and dependencies available, None otherwise
 
@@ -79,11 +84,33 @@ def configure_otel() -> TracerProvider | None:
 
     _provider = TracerProvider()
 
-    # Determine export destination
+    # Determine export destination (priority order)
+    logfire_token = os.getenv("LOGFIRE_TOKEN")
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
-    if otlp_endpoint:
-        # Production: Export to OTLP collector (requires opentelemetry-exporter-otlp)
+    if logfire_token:
+        # Priority 1: Logfire (Pydantic's OTEL-compatible observability)
+        try:
+            import logfire
+
+            logger.info("OpenTelemetry: Integrating with Logfire (OTEL-compatible)")
+            logfire.configure(token=logfire_token, send_to_logfire=True)
+
+            # Logfire automatically integrates with OTEL when configure() is called
+            # The provider is already set up by logfire.configure()
+            # We just need to ensure our tracer uses the Logfire-configured provider
+            _provider = trace.get_tracer_provider()  # type: ignore[assignment]
+
+            logger.info("OpenTelemetry: Logfire exporter configured")
+        except ImportError:
+            logger.warning(
+                "LOGFIRE_TOKEN set but logfire package not installed. "
+                "Install with: pip install logfire. Falling back to OTLP/Console."
+            )
+            # Fall through to OTLP/Console
+            _configure_fallback_exporter(_provider, otlp_endpoint)
+    elif otlp_endpoint:
+        # Priority 2: OTLP collector (generic observability backend)
         try:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                 OTLPSpanExporter,
@@ -100,16 +127,52 @@ def configure_otel() -> TracerProvider | None:
             console_exporter = ConsoleSpanExporter()
             _provider.add_span_processor(BatchSpanProcessor(console_exporter))
     else:
-        # Development: Export to console
-        logger.info("OpenTelemetry: Exporting to console (set OTEL_EXPORTER_OTLP_ENDPOINT for OTLP)")
+        # Priority 3: Console (development/debugging)
+        logger.info("OpenTelemetry: Exporting to console (set LOGFIRE_TOKEN or OTEL_EXPORTER_OTLP_ENDPOINT)")
         console_exporter = ConsoleSpanExporter()
         _provider.add_span_processor(BatchSpanProcessor(console_exporter))
 
-    # Set as global provider
-    trace.set_tracer_provider(_provider)
+    # Set as global provider (unless Logfire already did)
+    if not logfire_token:
+        trace.set_tracer_provider(_provider)
 
     logger.info("OpenTelemetry configured successfully")
     return _provider
+
+
+def _configure_fallback_exporter(provider: TracerProvider, otlp_endpoint: str | None) -> None:
+    """Configure fallback exporter when Logfire is unavailable.
+
+    Args:
+        provider: TracerProvider to configure
+        otlp_endpoint: OTLP endpoint URL (optional)
+
+    """
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+    )
+
+    if otlp_endpoint:
+        try:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
+
+            logger.info(f"OpenTelemetry: Exporting to OTLP endpoint {otlp_endpoint}")
+            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+            provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        except ImportError:
+            logger.warning(
+                "OTLP endpoint configured but opentelemetry-exporter-otlp not installed. "
+                "Falling back to console exporter."
+            )
+            console_exporter = ConsoleSpanExporter()
+            provider.add_span_processor(BatchSpanProcessor(console_exporter))
+    else:
+        logger.info("OpenTelemetry: Exporting to console")
+        console_exporter = ConsoleSpanExporter()
+        provider.add_span_processor(BatchSpanProcessor(console_exporter))
 
 
 def get_tracer(name: str = "egregora") -> Tracer:
@@ -158,6 +221,38 @@ def _no_op_span(name: str, **_kwargs: Any):
     return nullcontext()
 
 
+def get_current_trace_id() -> str | None:
+    """Get current OpenTelemetry trace ID from active span context.
+
+    Used for linking runs database records to OTEL traces.
+
+    Returns:
+        Trace ID as hex string (e.g., "abc123..."), or None if no active span
+
+    Example:
+        >>> from opentelemetry import trace
+        >>> tracer = get_tracer("egregora.pipeline")
+        >>> with tracer.start_as_current_span("my_operation"):
+        ...     trace_id = get_current_trace_id()
+        ...     record_run(..., trace_id=trace_id)
+
+    """
+    if not is_otel_enabled():
+        return None
+
+    try:
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        if span and span.get_span_context().is_valid:
+            # Format trace ID as 32-character hex string
+            return format(span.get_span_context().trace_id, "032x")
+        return None
+    except Exception:
+        # Gracefully handle any OTEL errors
+        return None
+
+
 def shutdown_otel() -> None:
     """Shutdown OpenTelemetry and flush pending spans.
 
@@ -178,6 +273,10 @@ def shutdown_otel() -> None:
         _provider = None
 
 
-# Note: All telemetry exports removed from __all__ - OpenTelemetry integration never activated
-# Functions remain available for direct import if needed in the future
-__all__: list[str] = []
+__all__ = [
+    "is_otel_enabled",
+    "configure_otel",
+    "get_tracer",
+    "get_current_trace_id",
+    "shutdown_otel",
+]
