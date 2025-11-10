@@ -162,7 +162,8 @@ blog/
 ├── mkdocs.yml
 ├── .egregora/
 │   ├── config.yml
-│   └── prompts/
+│   ├── prompts/            # Optional: custom prompt overrides
+│   └── .gitignore
 └── docs/                   # ❌ Should not exist
     ├── media/              # ❌ Should be in root
     ├── profiles/           # ❌ Should be in root
@@ -175,12 +176,17 @@ blog/
 ├── .egregora/
 │   ├── config.yml          # Egregora pipeline config
 │   ├── mkdocs.yml          # MkDocs rendering config
-│   └── prompts/
+│   ├── prompts/            # Optional: custom prompt overrides
+│   │   ├── README.md
+│   │   └── system/         # e.g., writer.jinja
+│   └── .gitignore
 ├── media/                  # ✅ In root
 ├── profiles/               # ✅ In root
 └── posts/                  # ✅ In root
     └── journal/
 ```
+
+**Note**: The `prompts/` directory is **optional** - it's only created if the user wants to override default prompts. Default prompts are in the egregora source code at `src/egregora/prompts/`.
 
 **MkDocs Configuration**:
 ```yaml
@@ -557,11 +563,15 @@ site/
 site/
 ├── .egregora/
 │   ├── config.yml
-│   └── mkdocs.yml
+│   ├── mkdocs.yml
+│   ├── prompts/            # Optional: custom prompt overrides
+│   └── .gitignore
 ├── media/
 ├── profiles/
 └── posts/
 ```
+
+**Note**: `prompts/` is optional for custom overrides. Default prompts are in egregora source.
 
 **Migration**: Delete old output directory and run `egregora init` + `egregora write` to regenerate.
 
