@@ -372,6 +372,9 @@ class VectorStore:
             embedding_dim = None
         if self.parquet_path.exists():
             existing_table = self._client.read_parquet(self.parquet_path)
+            # Migrate legacy schema: add missing columns with NULL defaults
+            # ALPHA MINDSET: We do migrations even in alpha for smooth upgrades
+            existing_table = self._migrate_legacy_schema(existing_table)
             self._validate_table_schema(existing_table, context="existing vector store")
             existing_table, chunks_table = self._align_schemas(existing_table, chunks_table)
             combined_table = existing_table.union(chunks_table, distinct=False)
@@ -405,6 +408,68 @@ class VectorStore:
         existing_table = self._cast_to_vector_store_schema(existing_table)
         new_table = self._cast_to_vector_store_schema(new_table)
         return (existing_table, new_table)
+
+    def _migrate_legacy_schema(self, table: Table) -> Table:
+        """Migrate legacy RAG schemas by adding missing columns with default values.
+
+        ALPHA MINDSET: We do migrations even in alpha to ensure smooth upgrades.
+        When the schema evolves (e.g., adding source_path/source_mtime_ns for
+        incremental indexing), existing parquet files need migration.
+
+        This method:
+        1. Detects missing columns (expected in schema but not in table)
+        2. Adds them with NULL defaults (all new columns must be nullable)
+        3. Logs migration for transparency
+
+        Args:
+            table: Existing table from parquet file
+
+        Returns:
+            Table: Migrated table with all expected columns
+
+        Raises:
+            ValueError: If a missing column is NOT nullable (migration impossible)
+
+        Example:
+            # Existing file has no source_path/source_mtime_ns
+            # After migration: source_path=NULL, source_mtime_ns=NULL for all rows
+
+        """
+        expected_columns = set(VECTOR_STORE_SCHEMA.names)
+        table_columns = set(table.columns)
+        missing = sorted(expected_columns - table_columns)
+
+        if not missing:
+            return table  # No migration needed
+
+        logger.info(
+            "Migrating legacy RAG schema: adding %d missing columns with NULL defaults: %s",
+            len(missing),
+            ", ".join(missing),
+        )
+
+        # Add missing columns with NULL defaults
+        mutations = {}
+        for column_name in missing:
+            column_type = VECTOR_STORE_SCHEMA[column_name]
+
+            # Verify column is nullable (required for migration)
+            if not column_type.nullable:
+                msg = (
+                    f"Cannot migrate legacy schema: column '{column_name}' is NOT nullable. "
+                    f"Migration requires all new columns to be nullable."
+                )
+                raise ValueError(msg)
+
+            # Add column with NULL default
+            # Use ibis.null() with explicit cast to ensure correct type
+            mutations[column_name] = ibis.null().cast(column_type)
+
+        # Apply mutations (add missing columns)
+        migrated_table = table.mutate(**mutations)
+
+        logger.debug("Migration complete - all expected columns present")
+        return migrated_table
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""
