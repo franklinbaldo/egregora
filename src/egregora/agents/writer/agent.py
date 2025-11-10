@@ -162,6 +162,7 @@ class WriterAgentState(BaseModel):
     output_dir: Path
     profiles_dir: Path
     rag_dir: Path
+    site_root: Path | None
     batch_client: Any
     embedding_model: str
     retrieval_mode: str
@@ -527,8 +528,16 @@ def _register_writer_tools(  # noqa: C901
         def generate_banner_tool(
             ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
         ) -> BannerResult:
+            # Save banners to media/images/ at site root (same as other media)
+            # Banners will be enriched through the same pipeline as other media
+            if ctx.deps.site_root:
+                banner_output_dir = ctx.deps.site_root / "media" / "images"
+            else:
+                # Fallback: use output_dir (posts_dir) if site_root not available
+                banner_output_dir = ctx.deps.output_dir / "media" / "images"
+
             banner_path = generate_banner_for_post(
-                post_title=title, post_summary=summary, output_dir=ctx.deps.output_dir, slug=post_slug
+                post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
             )
             if banner_path:
                 return BannerResult(status="success", path=str(banner_path))
@@ -579,6 +588,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
+        site_root=context.site_root,
         batch_client=context.client,
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
@@ -823,6 +833,7 @@ async def write_posts_with_pydantic_agent_stream(
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
+        site_root=context.site_root,
         batch_client=context.client,
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,

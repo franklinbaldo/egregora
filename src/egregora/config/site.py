@@ -164,8 +164,18 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
     MODERN (Regression Fix): Content at root level (not in docs/).
     """
     start = start.expanduser().resolve()
-    config, mkdocs_path = load_mkdocs_config(start)
-    site_root = mkdocs_path.parent if mkdocs_path else start
+    _config, mkdocs_path = load_mkdocs_config(start)
+
+    # Determine site_root based on mkdocs.yml location
+    if mkdocs_path:
+        # If mkdocs.yml is in .egregora/, go up 2 levels to get site root
+        if mkdocs_path.parent.name == ".egregora":
+            site_root = mkdocs_path.parent.parent
+        else:
+            # Legacy location: mkdocs.yml at root
+            site_root = mkdocs_path.parent
+    else:
+        site_root = start
 
     # .egregora/ structure (new)
     egregora_dir = site_root / ".egregora"
