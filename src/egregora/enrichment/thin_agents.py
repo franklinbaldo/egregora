@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import AnyUrl, BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.enrichment.agents import load_file_as_binary_content
 
@@ -41,20 +42,22 @@ class EnrichmentOut(BaseModel):
 
 URL_SYSTEM = """You write brief, informative Markdown summaries of web URLs.
 
-IMPORTANT: You should describe what the URL likely contains based on its structure,
-domain, and any context clues. Be specific and useful - mention the topic, source
-credibility, content type (article, video, documentation, etc.).
+IMPORTANT: You have access to URL context grounding - use it to fetch and read the actual
+content at the URL. Do NOT just guess based on the URL structure. Read the actual page
+content and summarize what's there.
 
 Guidelines:
-- Focus on what readers will find at this URL
-- Mention the source/domain and its reputation
-- Indicate content type (blog post, academic paper, video, tool, etc.)
+- Fetch and read the actual URL content using grounding
+- Summarize the main topic, key points, and content type
+- Mention the source/author and publication date if available
+- Be specific about what readers will learn from this content
 - Be concise but informative (2-3 sentences)
 - Return only Markdown content, no preamble or code fences
 
-Example: "This is a technical blog post from the Google AI Research team discussing
-their latest advances in multimodal language models. The article includes code
-examples and benchmarks comparing performance across different architectures."
+Example: "This is a technical blog post from the Google AI Research team published in
+March 2024, discussing their latest advances in multimodal language models. The article
+includes code examples, benchmark results showing 15% improvement over previous models,
+and practical deployment guidelines for production systems."
 """
 
 MEDIA_SYSTEM = """You describe media files succinctly in Markdown.
@@ -63,19 +66,28 @@ Be objective and descriptive. If it's a meme, mention what situations it's good 
 
 
 def make_url_agent(model_name: str) -> Agent[None, EnrichmentOut]:
-    """Create a minimal URL enrichment agent.
+    """Create a URL enrichment agent with grounding enabled.
+
+    Enables Gemini URL context grounding to fetch and read actual URL content
+    instead of guessing from URL structure.
 
     Args:
         model_name: Pydantic-AI model string (e.g., "google-gla:gemini-flash-latest")
 
     Returns:
-        Configured pydantic-ai Agent for URL enrichment
+        Configured pydantic-ai Agent for URL enrichment with grounding
 
     """
+    # Enable URL context grounding for Google models
+    model_settings = GoogleModelSettings(
+        google_tools=[{'url_context': {}}]  # Enable URL context grounding
+    )
+
     return Agent[None, EnrichmentOut](
         model=model_name,
         system_prompt=URL_SYSTEM,
         output_type=EnrichmentOut,
+        model_settings=model_settings,
     )
 
 
@@ -100,30 +112,25 @@ def make_media_agent(model_name: str) -> Agent[None, EnrichmentOut]:
 
 
 def run_url_enrichment(agent: Agent[None, EnrichmentOut], url: str | AnyUrl) -> str:
-    """Run URL enrichment with a single agent call.
+    """Run URL enrichment with grounding to fetch actual content.
 
-    NOTE: For production use, consider enabling Gemini grounding features for higher
-    quality enrichment:
-    - Google Search grounding: tools=[{'google_search_retrieval': {}}]
-    - Dynamic retrieval: Automatically fetches URL content
-
-    Current implementation sends only the URL string, which limits quality but is
-    faster and doesn't require additional API features. The LLM infers content from
-    URL structure, domain reputation, and context clues.
+    Uses Gemini URL context grounding to fetch and read the actual page content
+    instead of guessing from URL structure. This provides much higher quality
+    enrichment with accurate summaries, metadata, and key points.
 
     Args:
-        agent: Configured URL enrichment agent
+        agent: Configured URL enrichment agent (with grounding enabled)
         url: URL to enrich
 
     Returns:
-        Markdown content describing the URL
+        Markdown content describing the actual URL content
 
     Raises:
         Exception: If agent call fails (let errors propagate)
 
     """
     url_str = str(url)
-    prompt = f"Describe what content readers will find at this URL. Be specific about the topic, source, and content type.\n\nURL: {url_str}"
+    prompt = f"Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata (author, date, etc.).\n\nURL: {url_str}"
     result: RunResult[EnrichmentOut] = agent.run_sync(prompt)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))
