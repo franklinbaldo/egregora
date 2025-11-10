@@ -45,6 +45,8 @@ if TYPE_CHECKING:
     from google.genai import types as genai_types
     from ibis.expr.types import Table
 
+    from egregora.rendering.base import OutputFormat
+
 
 logger = logging.getLogger(__name__)
 
@@ -189,102 +191,126 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
-def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901, PLR0912
-    """Index new/changed posts using incremental indexing (delta detection).
+def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901
+    """Index new/changed documents using incremental indexing via OutputFormat.
+
+    Uses OutputFormat.list_documents() to get storage identifiers and mtimes,
+    then compares with RAG metadata using Ibis joins to identify new/changed files.
+    No filesystem assumptions - works with any storage backend.
 
     This should be called once at pipeline initialization before window processing.
-    Uses industry-standard incremental build pattern: compares filesystem state
-    with RAG metadata to identify only new or modified files, avoiding re-indexing.
-
-    Similar to: Make (mtime-based builds), rsync (delta sync), Git (content addressing),
-    Docker layers (incremental caching), Webpack (changed file detection).
-
-    All embeddings use fixed 768 dimensions.
 
     Args:
-        posts_dir: Directory containing post files (e.g., site_root/posts/)
+        output_format: OutputFormat instance (initialized with site_root)
         rag_dir: Directory containing RAG vector store
         embedding_model: Model to use for embeddings
 
     Returns:
-        Number of NEW posts indexed (not total indexed posts)
+        Number of NEW documents indexed (not total indexed documents)
 
     Algorithm:
-        1. Query RAG for all indexed sources (path -> mtime mapping)
-        2. Scan filesystem for all .md files
-        3. Compare: find files that are missing from RAG or have newer mtime
-        4. Index only those changed files (incremental, not full reindex)
+        1. Get all documents from OutputFormat as Ibis table (storage_identifier, mtime_ns)
+        2. Resolve identifiers to absolute paths (add source_path column)
+        3. Get indexed sources from RAG as Ibis table (source_path, source_mtime_ns)
+        4. Delta detection using Ibis left join: find new/changed documents
+        5. Materialize result and index those documents
 
     Note:
-        - Only indexes .md files in posts_dir
-        - Skips journal subdirectory (posts/journal/)
+        - Uses Ibis joins for efficient delta detection (no loops, no dicts)
+        - No filesystem assumptions (uses OutputFormat abstraction)
         - Skips files already indexed with same mtime (idempotent)
         - Safe to run multiple times - will only index new/changed files
 
     """
-    if not posts_dir.exists():
-        logger.debug("Posts directory does not exist yet: %s", posts_dir)
-        return 0
-
     try:
+        # Phase 1: Get all documents from OutputFormat as Ibis table
+        format_documents = output_format.list_documents()
+
+        # Check if empty
+        doc_count = format_documents.count().execute()
+        if doc_count == 0:
+            logger.debug("No documents found by output format")
+            return 0
+
+        logger.debug("OutputFormat reported %d documents", doc_count)
+
+        # Phase 2: Resolve storage identifiers to absolute paths
+        # Add source_path column by resolving each identifier
+        def resolve_identifier(identifier: str) -> str:
+            try:
+                return str(output_format.resolve_document_path(identifier))
+            except (ValueError, RuntimeError, OSError) as e:
+                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+                return ""
+
+        # Convert table to pandas to add resolved paths (Ibis doesn't support UDFs easily)
+        docs_df = format_documents.execute()
+        docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
+
+        # Filter out failed resolutions
+        docs_df = docs_df[docs_df["source_path"] != ""]
+
+        if docs_df.empty:
+            logger.warning("All document identifiers failed to resolve to paths")
+            return 0
+
+        # Convert back to Ibis table
+        docs_table = ibis.memtable(docs_df)
+
+        # Phase 3: Get already indexed sources from RAG as Ibis table
         store = VectorStore(rag_dir / "chunks.parquet")
+        indexed_table = store.get_indexed_sources_table()
 
-        # Phase 1: Get already indexed sources (path -> mtime mapping)
-        indexed_sources = store.get_indexed_sources()
-        logger.debug("Found %d already indexed sources in RAG", len(indexed_sources))
+        indexed_count_val = indexed_table.count().execute()
+        logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
 
-        # Phase 2: Scan filesystem for all posts
-        filesystem_posts = {}
-        for post_path in posts_dir.glob("*.md"):
-            if post_path.is_file():
-                absolute_path = str(post_path.resolve())
-                try:
-                    mtime_ns = post_path.stat().st_mtime_ns
-                    filesystem_posts[absolute_path] = mtime_ns
-                except OSError as e:
-                    logger.warning("Failed to stat file %s: %s", post_path.name, e)
-                    continue
+        # Phase 4: Delta detection using Ibis joins
+        # Rename columns in indexed_table to avoid conflicts
+        indexed_renamed = indexed_table.select(
+            indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
+        )
 
-        logger.debug("Found %d posts in filesystem", len(filesystem_posts))
+        # Left join format_documents with indexed_sources on source_path
+        joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
-        # Phase 3: Delta detection - find new or changed files
-        files_to_index = []
-        for absolute_path, mtime_ns in filesystem_posts.items():
-            indexed_mtime = indexed_sources.get(absolute_path)
+        # Find new or changed documents
+        new_or_changed = joined.filter(
+            (joined.indexed_mtime.isnull())  # New documents (not in RAG)
+            | (joined.mtime_ns > joined.indexed_mtime)  # Changed documents
+        ).select(
+            storage_identifier=joined.storage_identifier,
+            source_path=joined.source_path,
+            mtime_ns=joined.mtime_ns,
+        )
 
-            if indexed_mtime is None:
-                # File not in RAG - needs indexing
-                files_to_index.append((absolute_path, "new"))
-            elif mtime_ns > indexed_mtime:
-                # File modified since last index - needs re-indexing
-                files_to_index.append((absolute_path, "changed"))
-            # else: file unchanged, skip
+        # Materialize results
+        to_index = new_or_changed.execute()
 
-        if not files_to_index:
-            logger.debug("All posts already indexed with current mtime - no work needed")
+        if to_index.empty:
+            logger.debug("All documents already indexed with current mtime - no work needed")
             return 0
 
         logger.info(
-            "Incremental indexing: %d new/changed posts (skipped %d unchanged)",
-            len(files_to_index),
-            len(filesystem_posts) - len(files_to_index),
+            "Incremental indexing: %d new/changed documents (skipped %d unchanged)",
+            len(to_index),
+            doc_count - len(to_index),
         )
 
-        # Phase 4: Index only new/changed files
+        # Phase 5: Index only new/changed files
         indexed_count = 0
-        for absolute_path, change_type in files_to_index:
-            post_path = Path(absolute_path)
+        for row in to_index.itertuples():
             try:
-                index_post(post_path, store, embedding_model=embedding_model)
+                document_path = Path(row.source_path)
+                index_post(document_path, store, embedding_model=embedding_model)
                 indexed_count += 1
-                logger.debug("Indexed %s post: %s", change_type, post_path.name)
+                logger.debug("Indexed document: %s", row.storage_identifier)
             except Exception as e:  # noqa: BLE001
-                # Don't let one failing post break incremental indexing
-                logger.warning("Failed to index post %s: %s", post_path.name, e)
+                # Don't let one failing document break incremental indexing
+                logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
                 continue
 
         if indexed_count > 0:
-            logger.info("Indexed %d new/changed posts in RAG (incremental)", indexed_count)
+            logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
 
         return indexed_count  # noqa: TRY300
 
@@ -292,20 +318,21 @@ def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: 
         raise
     except Exception:
         # RAG indexing is non-critical - log error but don't fail pipeline
-        logger.exception("Failed to index posts in RAG")
+        logger.exception("Failed to index documents in RAG")
         return 0
 
 
-def index_new_posts_for_rag(post_paths: list[str], rag_dir: Path, *, embedding_model: str) -> int:
-    """Index specific newly created posts in RAG system (incremental indexing).
+def index_new_posts_for_rag(
+    post_identifiers: list[str], output_format: OutputFormat, rag_dir: Path, *, embedding_model: str
+) -> int:
+    """Index specific newly created posts via OutputFormat (incremental indexing).
 
-    This function indexes only the specified posts, avoiding duplication.
-    Use this after each window to index newly created posts incrementally.
-
-    All embeddings use fixed 768 dimensions.
+    Takes storage identifiers from writer agent result and indexes only those documents.
+    Uses OutputFormat.resolve_document_path() to get filesystem paths. No CWD assumptions.
 
     Args:
-        post_paths: List of post file paths to index (relative or absolute)
+        post_identifiers: List of storage identifiers from write_posts result
+        output_format: OutputFormat instance (initialized with site_root)
         rag_dir: Directory containing RAG vector store
         embedding_model: Model to use for embeddings
 
@@ -313,12 +340,12 @@ def index_new_posts_for_rag(post_paths: list[str], rag_dir: Path, *, embedding_m
         Number of posts successfully indexed
 
     Note:
-        - Only indexes the specified posts (no directory scanning)
-        - Skips files that don't exist
-        - Non-existent or invalid paths are logged but don't fail the operation
+        - Storage identifiers are format-specific (e.g., "posts/2025-01-10-my-post.md")
+        - OutputFormat resolves them to absolute filesystem paths
+        - No CWD assumptions anywhere
 
     """
-    if not post_paths:
+    if not post_identifiers:
         logger.debug("No new posts to index in RAG")
         return 0
 
@@ -326,20 +353,20 @@ def index_new_posts_for_rag(post_paths: list[str], rag_dir: Path, *, embedding_m
         store = VectorStore(rag_dir / "chunks.parquet")
         indexed_count = 0
 
-        for post_path_str in post_paths:
-            post_path = Path(post_path_str)
-
-            # Handle both absolute and relative paths
-            if not post_path.exists():
-                logger.warning("Post file not found for RAG indexing: %s", post_path)
-                continue
-
+        for identifier in post_identifiers:
             try:
+                # Resolve storage identifier to absolute filesystem path
+                post_path = output_format.resolve_document_path(identifier)
+
+                if not post_path.exists():
+                    logger.warning("Post file not found for RAG indexing: %s", identifier)
+                    continue
+
                 index_post(post_path, store, embedding_model=embedding_model)
                 indexed_count += 1
             except Exception as e:  # noqa: BLE001
                 # Don't let one failing post break incremental indexing
-                logger.warning("Failed to index post %s: %s", post_path.name, e)
+                logger.warning("Failed to index post %s: %s", identifier, e)
                 continue
 
         if indexed_count > 0:

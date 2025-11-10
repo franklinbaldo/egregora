@@ -12,7 +12,7 @@ Documentation:
 from egregora.agents.writer.core import (
     WriterConfig,
     get_top_authors,
-    index_all_posts_for_rag,
+    index_documents_for_rag,
     index_new_posts_for_rag,
     write_posts_for_window,
 )
@@ -22,7 +22,7 @@ __all__ = [
     "PostMetadata",
     "WriterConfig",
     "get_top_authors",
-    "index_all_posts_for_rag",
+    "index_documents_for_rag",
     "index_new_posts_for_rag",
     "write_posts_for_window",
 ]

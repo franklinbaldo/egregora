@@ -764,6 +764,48 @@ class VectorStore:
             logger.warning("Failed to get indexed sources: %s", e)
             return {}
 
+    def get_indexed_sources_table(self) -> Table:
+        """Get indexed source files as an Ibis table for efficient delta detection.
+
+        Returns Ibis table with columns:
+            - source_path: string (absolute filesystem path)
+            - source_mtime_ns: int64 (modification time in nanoseconds)
+
+        This enables efficient Ibis joins/filters for incremental indexing.
+
+        Returns:
+            Ibis table with indexed sources
+                Empty table with correct schema if no sources indexed
+
+        Example:
+            >>> store = VectorStore(rag_dir / "chunks.parquet")
+            >>> indexed = store.get_indexed_sources_table()
+            >>> indexed.head(2).execute()
+               source_path                          source_mtime_ns
+            0  /path/to/post1.md                    1704067200000000000
+            1  /path/to/post2.md                    1704070800000000000
+
+        """
+        if not self.parquet_path.exists():
+            # Return empty table with correct schema
+            return ibis.memtable([], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"}))
+
+        try:
+            self._ensure_dataset_loaded()
+
+            # Query distinct source files with their mtimes as Ibis table
+            # Filter out rows without source_path (old data or media chunks)
+            table = self._client.table(TABLE_NAME)
+            return (
+                table.filter(table.source_path.notnull())
+                .select("source_path", "source_mtime_ns")
+                .distinct()
+            )
+        except (duckdb.Error, IbisError) as e:
+            logger.warning("Failed to get indexed sources table: %s", e)
+            # Return empty table with correct schema
+            return ibis.memtable([], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"}))
+
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""
         if self._owns_connection:

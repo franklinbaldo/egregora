@@ -193,6 +193,79 @@ class OutputFormat(ABC):
 
         """
 
+    @abstractmethod
+    def list_documents(self) -> "Table":
+        """List all documents managed by this output format as an Ibis table.
+
+        Returns an Ibis table with storage identifiers and modification times.
+        This enables efficient delta detection using Ibis joins/filters.
+
+        Storage identifiers are format-specific and opaque to callers:
+        - MkDocs: relative paths like "posts/2025-01-10-post.md"
+        - Hugo: content paths like "content/blog/my-post.md"
+        - Database: record IDs like "post:123", "media:456"
+        - S3: object keys like "s3://bucket/posts/my-post.md"
+
+        To resolve identifiers to filesystem paths, use resolve_document_path().
+
+        Returns:
+            Ibis table with schema:
+                - storage_identifier: string (format-specific document ID)
+                - mtime_ns: int64 (modification time in nanoseconds)
+                Empty table if no documents exist
+
+        Example:
+            >>> format = MkDocsOutputFormat()
+            >>> format.initialize(site_root)
+            >>> docs = format.list_documents()
+            >>> docs.head(3).execute()
+               storage_identifier                mtime_ns
+            0  posts/2025-01-10-post.md         1704067200000000000
+            1  profiles/user-123.md             1704070800000000000
+            2  docs/media/video.mp4.md          1704074400000000000
+
+        Note:
+            - Returns Ibis table for efficient joins/filtering
+            - Storage identifiers are format-specific (not necessarily filesystem paths)
+            - mtime_ns is nanosecond timestamp for consistency with stat()
+            - Subclasses must implement based on their document structure
+
+        """
+
+    @abstractmethod
+    def resolve_document_path(self, identifier: str) -> Path:
+        """Resolve storage identifier to absolute filesystem path.
+
+        Takes a storage identifier from list_documents() and returns the absolute
+        filesystem path where the document can be read. This abstraction allows
+        different storage backends (filesystem, database, S3) to work uniformly.
+
+        Args:
+            identifier: Storage identifier from list_documents()
+
+        Returns:
+            Path: Absolute filesystem path to the document
+
+        Examples:
+            >>> # MkDocs (relative path identifier)
+            >>> format.resolve_document_path("posts/2025-01-10-post.md")
+            Path("/path/to/site/posts/2025-01-10-post.md")
+
+            >>> # Database (record ID identifier)
+            >>> format.resolve_document_path("post:123")
+            Path("/tmp/egregora-cache/post-123.md")  # Exported to temp file
+
+            >>> # S3 (object key identifier)
+            >>> format.resolve_document_path("s3://bucket/posts/my-post.md")
+            Path("/tmp/egregora-cache/my-post.md")  # Downloaded to temp file
+
+        Note:
+            - Always returns absolute paths (no CWD assumptions)
+            - For non-filesystem backends, may export to temporary files
+            - Caller is responsible for reading the returned path
+
+        """
+
     # ===== Storage Protocol Properties (Abstract) =====
 
     @property

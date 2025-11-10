@@ -289,23 +289,30 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
 
-        # Phase 7.5: Index all existing posts for RAG before window processing
-        # This ensures the writer agent has full context from previous runs
-        if config.rag.enabled:
-            logger.info("[bold cyan]📚 Indexing existing posts into RAG...[/]")
-            try:
-                from egregora.agents.writer.core import index_all_posts_for_rag  # noqa: PLC0415
+        # Create OutputFormat for RAG indexing (storage-agnostic)
+        from egregora.rendering import create_output_format  # noqa: PLC0415
 
-                indexed_count = index_all_posts_for_rag(
-                    posts_dir, site_paths.rag_dir, embedding_model=embedding_model
+        format_type = config.output.format
+        output_format = create_output_format(output_dir, format_type=format_type)
+
+        # Phase 7.5: Index all existing documents for RAG before window processing
+        # This ensures the writer agent has full context from previous runs
+        # Uses OutputFormat.list_documents() - no filesystem assumptions
+        if config.rag.enabled:
+            logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+            try:
+                from egregora.agents.writer.core import index_documents_for_rag  # noqa: PLC0415
+
+                indexed_count = index_documents_for_rag(
+                    output_format, site_paths.rag_dir, embedding_model=embedding_model
                 )
                 if indexed_count > 0:
-                    logger.info("[green]✓ Indexed[/] %s existing posts into RAG", indexed_count)
+                    logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
                 else:
-                    logger.info("[dim]No existing posts to index[/]")
+                    logger.info("[dim]No new documents to index[/]")
             except Exception:
                 # RAG indexing failure should not block pipeline
-                logger.exception("[yellow]⚠️  Failed to index existing posts into RAG[/]")
+                logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
 
         def process_window_with_auto_split(
             window: Window,  # noqa: F821
@@ -412,13 +419,13 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
 
                 # Index newly created posts into RAG immediately (incremental indexing)
                 # This ensures other agents/tools have access to the latest posts
-                # Uses index_new_posts_for_rag() to avoid re-indexing existing posts
+                # Uses OutputFormat.resolve_document_path() to resolve storage identifiers
                 if config.rag.enabled and post_count > 0:
                     try:
                         from egregora.agents.writer.core import index_new_posts_for_rag  # noqa: PLC0415
 
                         newly_indexed = index_new_posts_for_rag(
-                            result.get("posts", []), site_paths.rag_dir, embedding_model=embedding_model
+                            result.get("posts", []), output_format, site_paths.rag_dir, embedding_model=embedding_model
                         )
                         logger.debug("%s📚 Indexed %d new posts into RAG", indent, newly_indexed)
                     except Exception:  # noqa: BLE001
