@@ -55,7 +55,9 @@ class MediaEnrichmentDeps(BaseModel):
     prompts_dir: Path | None = None
 
 
-def make_url_agent(model_name: str, prompts_dir: Path | None = None) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
+def make_url_agent(
+    model_name: str, prompts_dir: Path | None = None
+) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
     """Create a URL enrichment agent using Jinja templates with grounding enabled.
 
     Enables Gemini URL context grounding to fetch and read actual URL content

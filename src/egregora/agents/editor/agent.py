@@ -321,7 +321,11 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
 
     context = context or {}
     # Resolve prompts directory (site_root parameter is for backward compatibility)
-    prompts_dir = site_root / ".egregora" / "prompts" if site_root and (site_root / ".egregora" / "prompts").is_dir() else None
+    prompts_dir = (
+        site_root / ".egregora" / "prompts"
+        if site_root and (site_root / ".egregora" / "prompts").is_dir()
+        else None
+    )
 
     prompt = EditorPromptTemplate(
         post_content=original_content,

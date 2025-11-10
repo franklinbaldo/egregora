@@ -678,7 +678,11 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                 profile_files = [default_profile]
             profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
             # Resolve prompts directory
-            prompts_dir = site_path / ".egregora" / "prompts" if (site_path / ".egregora" / "prompts").is_dir() else None
+            prompts_dir = (
+                site_path / ".egregora" / "prompts"
+                if (site_path / ".egregora" / "prompts").is_dir()
+                else None
+            )
             try:
                 # Import ComparisonConfig dynamically
                 comparison_config = ranking_agent.ComparisonConfig(
