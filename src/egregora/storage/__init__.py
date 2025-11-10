@@ -27,9 +27,10 @@ Example Usage:
     # post_id = "s3://bucket/posts/my-post.md" (S3 key)
 """
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
+@runtime_checkable
 class PostStorage(Protocol):
     """Storage interface for blog posts.
 
@@ -84,6 +85,7 @@ class PostStorage(Protocol):
         ...
 
 
+@runtime_checkable
 class ProfileStorage(Protocol):
     """Storage interface for author profiles.
 
@@ -133,6 +135,7 @@ class ProfileStorage(Protocol):
         ...
 
 
+@runtime_checkable
 class JournalStorage(Protocol):
     """Storage interface for agent journals (execution logs).
 
@@ -161,6 +164,7 @@ class JournalStorage(Protocol):
         ...
 
 
+@runtime_checkable
 class EnrichmentStorage(Protocol):
     """Storage for URL and media enrichments.
 
