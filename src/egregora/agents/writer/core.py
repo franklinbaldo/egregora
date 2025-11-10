@@ -509,9 +509,7 @@ def _write_posts_for_window_pydantic(
     )
 
     if config.enable_rag:
-        _index_posts_in_rag(
-            saved_posts, config.rag_dir, storage_root, embedding_model=embedding_model
-        )
+        _index_posts_in_rag(saved_posts, config.rag_dir, storage_root, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
