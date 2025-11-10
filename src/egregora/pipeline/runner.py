@@ -289,6 +289,24 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
 
+        # Phase 7.5: Index all existing posts for RAG before window processing
+        # This ensures the writer agent has full context from previous runs
+        if config.rag.enabled:
+            logger.info("[bold cyan]📚 Indexing existing posts into RAG...[/]")
+            try:
+                from egregora.agents.writer.core import index_all_posts_for_rag  # noqa: PLC0415
+
+                indexed_count = index_all_posts_for_rag(
+                    posts_dir, site_paths.rag_dir, embedding_model=embedding_model
+                )
+                if indexed_count > 0:
+                    logger.info("[green]✓ Indexed[/] %s existing posts into RAG", indexed_count)
+                else:
+                    logger.info("[dim]No existing posts to index[/]")
+            except Exception:
+                # RAG indexing failure should not block pipeline
+                logger.exception("[yellow]⚠️  Failed to index existing posts into RAG[/]")
+
         def process_window_with_auto_split(
             window: Window,  # noqa: F821
             *,
@@ -391,6 +409,20 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     profile_count,
                     window_label,
                 )
+
+                # Index newly created posts into RAG immediately (isolated process)
+                # This ensures other agents/tools have access to the latest posts
+                if config.rag.enabled and post_count > 0:
+                    try:
+                        from egregora.agents.writer.core import index_all_posts_for_rag  # noqa: PLC0415
+
+                        newly_indexed = index_all_posts_for_rag(
+                            posts_dir, site_paths.rag_dir, embedding_model=embedding_model
+                        )
+                        logger.debug("%s📚 Indexed %d posts into RAG", indent, newly_indexed)
+                    except Exception:  # noqa: BLE001
+                        # RAG indexing failure should not block window processing
+                        logger.warning("%s⚠️  Failed to index posts into RAG", indent)
 
             except PromptTooLargeError as e:
                 # Prompt too large - split window and retry

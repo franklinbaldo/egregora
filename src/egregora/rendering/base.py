@@ -576,3 +576,47 @@ class OutputFormatRegistry:
 
 
 output_registry = OutputFormatRegistry()
+
+
+def create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputFormat:
+    """Create and initialize an OutputFormat based on configuration.
+
+    This is the main factory function for creating output formats. It uses the
+    output_registry to get the appropriate format class and initializes it.
+
+    Industry standard: Configuration-driven factory pattern.
+    Format type specified in .egregora/config.yml, defaults to mkdocs.
+
+    Args:
+        site_root: Root directory for the site
+        format_type: Output format type from config ('mkdocs', 'hugo', etc.)
+
+    Returns:
+        Initialized OutputFormat instance
+
+    Raises:
+        KeyError: If format_type is not registered
+        RuntimeError: If format initialization fails
+
+    Examples:
+        >>> # From config: output.format = "mkdocs"
+        >>> fmt = create_output_format(site_root, format_type="mkdocs")
+        >>> # From config: output.format = "hugo"
+        >>> fmt = create_output_format(site_root, format_type="hugo")
+
+    Note:
+        This function automatically ensures the registry is populated by
+        importing egregora.rendering (which registers MkDocs and Hugo formats).
+
+    """
+    # Ensure registry is populated by importing rendering module
+    # This triggers registration in rendering/__init__.py
+    import egregora.rendering  # noqa: F401, PLC0415
+
+    # Get format class from registry
+    output_format = output_registry.get_format(format_type)
+
+    # Initialize with site_root
+    output_format.initialize(site_root)
+
+    return output_format

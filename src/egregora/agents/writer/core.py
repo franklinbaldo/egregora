@@ -16,10 +16,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import ibis
-import yaml
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.annotations import AnnotationStore
@@ -36,10 +35,10 @@ from egregora.agents.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.config import ModelConfig, load_mkdocs_config
+from egregora.config import ModelConfig
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.rendering.base import output_registry
+from egregora.rendering import create_output_format, output_registry
 
 if TYPE_CHECKING:
     from google import genai
@@ -48,55 +47,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def _create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputFormat:
-    """Create and initialize OutputFormat based on configuration.
-
-    Industry standard: Configuration-driven factory pattern.
-    Format type specified in .egregora/config.yml, defaults to mkdocs.
-
-    OutputFormat provides:
-    - Storage protocol implementations (posts, profiles, journals, enrichments)
-    - Common utilities (normalize_slug, extract_date_prefix, generate_unique_filename)
-    - Format-specific instructions and lifecycle hooks
-
-    Args:
-        site_root: Root directory for the site
-        format_type: Output format type from config ('mkdocs', 'hugo', etc.)
-
-    Returns:
-        Initialized OutputFormat instance
-
-    Raises:
-        ValueError: If format_type is not supported
-
-    Examples:
-        >>> # From config: output.format = "mkdocs"
-        >>> fmt = _create_output_format(site_root, format_type="mkdocs")
-        >>> # From config: output.format = "hugo"
-        >>> fmt = _create_output_format(site_root, format_type="hugo")
-
-    """
-    # Factory pattern - create based on config
-    if format_type == "mkdocs":
-        from egregora.rendering.mkdocs import MkDocsOutputFormat
-
-        output_format = MkDocsOutputFormat()
-    elif format_type == "hugo":
-        from egregora.rendering.hugo import HugoOutputFormat
-
-        output_format = HugoOutputFormat()
-    else:
-        msg = f"Unsupported output format: {format_type}. Supported formats: mkdocs, hugo"
-        raise ValueError(msg)
-
-    # Initialize storage implementations
-    output_format.initialize(site_root)
-
-    logger.debug("Initialized %s output format for %s", format_type, site_root)
-
-    return output_format
 
 
 @dataclass
@@ -118,65 +68,6 @@ class WriterConfig:
 
 
 MAX_CONVERSATION_TURNS = 10
-
-
-def _memes_enabled(site_config: dict[str, Any]) -> bool:
-    """Return True when meme helper text should be appended to the prompt."""
-    if not isinstance(site_config, dict):
-        return False
-    writer_settings = site_config.get("writer")
-    if not isinstance(writer_settings, dict):
-        return False
-    return bool(writer_settings.get("enable_memes", False))
-
-
-def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """Load egregora configuration from mkdocs.yml if it exists.
-
-    Reads the `extra.egregora` section from mkdocs.yml in the output directory.
-    Returns empty dict if no config found.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Dict with egregora config (writer_prompt, rag settings, etc.)
-
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, using default config")
-        return {}
-    egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.info("Loaded site config from %s", mkdocs_path)
-    return egregora_config
-
-
-def load_markdown_extensions(output_dir: Path) -> str:
-    """Load markdown_extensions section from mkdocs.yml and format for LLM.
-
-    The LLM understands these extension names and knows how to use them.
-    We just pass the YAML config directly.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Formatted YAML string with markdown_extensions section
-
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, no custom markdown extensions")
-        return ""
-    extensions = config.get("markdown_extensions", [])
-    if not extensions:
-        return ""
-    yaml_section = yaml.dump(
-        {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
-    )
-    logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
-    return yaml_section
 
 
 def load_format_instructions(site_root: Path | None) -> str:
@@ -298,59 +189,61 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
-def _index_posts_in_rag(
-    saved_posts: list[str], rag_dir: Path, storage_root: Path, *, embedding_model: str
-) -> None:
-    """Index newly created posts in RAG system.
+def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: str) -> int:
+    """Index all existing posts in RAG system before window processing.
+
+    This should be called once at pipeline initialization, not after each window.
+    Ensures the RAG vector store is up-to-date with all existing posts before
+    the writer agent runs, so it has full context.
 
     All embeddings use fixed 768 dimensions.
 
     Args:
-        saved_posts: List of storage identifiers (relative paths like "posts/my-post.md"
-                    or opaque IDs like "memory://posts/foo")
+        posts_dir: Directory containing post files (e.g., site_root/posts/)
         rag_dir: Directory containing RAG vector store
-        storage_root: Root directory for resolving relative paths
         embedding_model: Model to use for embeddings
 
+    Returns:
+        Number of posts indexed
+
     Note:
-        Only indexes posts that exist on the local filesystem. Skips:
-        - In-memory storage identifiers (memory://)
-        - Database identifiers (numeric IDs, UUIDs)
-        - S3 keys (s3://)
-        - Any identifier that doesn't resolve to an existing file
+        - Only indexes .md files in posts_dir
+        - Skips journal subdirectory (posts/journal/)
+        - New posts from current run will be indexed in next run
 
     """
-    if not saved_posts:
-        return
+    if not posts_dir.exists():
+        logger.debug("Posts directory does not exist yet: %s", posts_dir)
+        return 0
+
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
         indexed_count = 0
 
-        for identifier in saved_posts:
-            # Skip non-filesystem identifiers
-            if identifier.startswith(("memory://", "s3://", "http://", "https://")):
-                logger.debug("Skipping RAG indexing for non-filesystem identifier: %s", identifier)
-                continue
-
-            # Convert relative path to absolute path
-            post_path = storage_root / identifier
-
-            # Only index if file exists
-            if not post_path.exists():
-                logger.warning("Post file not found for RAG indexing: %s", post_path)
-                continue
-
-            index_post(post_path, store, embedding_model=embedding_model)
-            indexed_count += 1
+        # Find all markdown files in posts directory (excluding journal)
+        for post_path in posts_dir.glob("*.md"):
+            if post_path.is_file():
+                try:
+                    index_post(post_path, store, embedding_model=embedding_model)
+                    indexed_count += 1
+                except Exception as e:  # noqa: BLE001
+                    # Don't let one failing post break the whole indexing process
+                    logger.warning("Failed to index post %s: %s", post_path.name, e)
+                    continue
 
         if indexed_count > 0:
-            logger.info("Indexed %s new posts in RAG", indexed_count)
-        elif saved_posts:
-            logger.debug("No posts indexed in RAG (all were non-filesystem storage)")
+            logger.info("Indexed %d existing posts in RAG", indexed_count)
+        else:
+            logger.debug("No posts found to index in RAG")
+
+        return indexed_count  # noqa: TRY300
+
     except PromptTooLargeError:
         raise
     except Exception:
+        # RAG indexing is non-critical - log error but don't fail pipeline
         logger.exception("Failed to index posts in RAG")
+        return 0
 
 
 def _write_posts_for_window_pydantic(
@@ -401,13 +294,6 @@ def _write_posts_for_window_pydantic(
     profiles_context = _load_profiles_context(table, config.profiles_dir)
     freeform_memory = _load_freeform_memory(config.rag_dir)
     active_authors = get_active_authors(table)
-    site_config = load_site_config(config.output_dir)
-    custom_writer_prompt = site_config.get("writer_prompt", "")
-    meme_help_enabled = _memes_enabled(site_config)
-    markdown_extensions_yaml = load_markdown_extensions(config.output_dir)
-    markdown_features_section = ""
-    if markdown_extensions_yaml:
-        markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
 
     # Use site_root from config for custom prompt overrides
     # site_root is where the .egregora/ directory lives
@@ -428,7 +314,7 @@ def _write_posts_for_window_pydantic(
 
     # Get output format from config (industry standard: configuration-driven factory)
     format_type = egregora_config.output.format
-    output_format = _create_output_format(storage_root, format_type=format_type)
+    output_format = create_output_format(storage_root, format_type=format_type)
 
     # Get storage implementations from OutputFormat
     posts_storage = output_format.posts
@@ -471,18 +357,20 @@ def _write_posts_for_window_pydantic(
     # Load output format instructions from OutputFormat (MkDocs, Hugo, etc.)
     format_instructions = output_format.get_format_instructions()
 
+    # Get custom instructions from .egregora/config.yml (not mkdocs.yml)
+    custom_instructions = egregora_config.writer.custom_instructions or ""
+
     # Render prompt using runtime context
     template = WriterPromptTemplate(
         date=date_range,
         markdown_table=conversation_md,
         active_authors=", ".join(active_authors),
-        custom_instructions=custom_writer_prompt or "",
-        markdown_features=markdown_features_section,
+        custom_instructions=custom_instructions,
         format_instructions=format_instructions,
         profiles_context=profiles_context,
         rag_context=rag_context,
         freeform_memory=freeform_memory,
-        enable_memes=meme_help_enabled,
+        enable_memes=False,  # Meme generation removed in Phase 3
         prompts_dir=runtime_context.prompts_dir,
     )
     prompt = template.render()
@@ -508,8 +396,9 @@ def _write_posts_for_window_pydantic(
         metadata=None,  # Future: pass token counts, duration, etc.
     )
 
-    if config.enable_rag:
-        _index_posts_in_rag(saved_posts, config.rag_dir, storage_root, embedding_model=embedding_model)
+    # NOTE: RAG indexing moved to pipeline initialization (before window processing)
+    # New posts will be indexed in the next pipeline run, ensuring RAG is always
+    # up-to-date before the writer agent runs (not after).
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
