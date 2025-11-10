@@ -365,6 +365,7 @@ def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
         "config_hash",
         "rows_in",
         "rows_out",
+        "duration_seconds",
         "llm_calls",
         "tokens",
         "status",

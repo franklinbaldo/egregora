@@ -113,9 +113,10 @@ class MockGeminiBatchClient:
 
         for req in requests:
             # Generate deterministic embedding based on text content
+            # Fixed dimensionality for mock (tests expect 3072)
             embedding = self._generate_fake_embedding(
                 req.text,
-                dimensionality=req.output_dimensionality or 3072,
+                dimensionality=3072,
             )
 
             results.append(

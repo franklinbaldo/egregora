@@ -300,10 +300,6 @@ def mock_batch_client(monkeypatch):
         "egregora.sources.whatsapp.pipeline.genai.Client",
         MockGeminiClient,
     )
-    monkeypatch.setattr(
-        "egregora.agents.editor.agent.genai.Client",
-        MockGeminiClient,
-    )
 
     return MockGeminiClient
 
