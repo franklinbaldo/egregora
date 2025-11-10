@@ -234,7 +234,7 @@ class TestGroupCommand:
             ],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2  # Typer uses exit code 2 for validation errors
         assert "not found" in result.stdout.lower()
 
 
