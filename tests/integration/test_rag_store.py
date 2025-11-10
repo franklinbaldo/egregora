@@ -28,6 +28,7 @@ def _test_embedding(seed: int = 0) -> list[float]:
 
     """
     import random
+
     rng = random.Random(seed)
     return [rng.random() for _ in range(EMBEDDING_DIM)]
 

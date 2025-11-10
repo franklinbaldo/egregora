@@ -330,25 +330,24 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
 
     if isinstance(ibis_type, dt.Timestamp):
         return "TIMESTAMP WITH TIME ZONE"
-    elif isinstance(ibis_type, dt.Date):
+    if isinstance(ibis_type, dt.Date):
         return "DATE"
-    elif isinstance(ibis_type, dt.String):
+    if isinstance(ibis_type, dt.String):
         return "VARCHAR"
-    elif isinstance(ibis_type, dt.Int64):
+    if isinstance(ibis_type, dt.Int64):
         return "BIGINT"
-    elif isinstance(ibis_type, dt.Int32):
+    if isinstance(ibis_type, dt.Int32):
         return "INTEGER"
-    elif isinstance(ibis_type, dt.Float64):
+    if isinstance(ibis_type, dt.Float64):
         return "DOUBLE PRECISION"
-    elif isinstance(ibis_type, dt.Boolean):
+    if isinstance(ibis_type, dt.Boolean):
         return "BOOLEAN"
-    elif isinstance(ibis_type, dt.Binary):
+    if isinstance(ibis_type, dt.Binary):
         return "BLOB"
-    elif isinstance(ibis_type, dt.UUID):
+    if isinstance(ibis_type, dt.UUID):
         return "UUID"
-    else:
-        # Fallback to string representation
-        return str(ibis_type).upper()
+    # Fallback to string representation
+    return str(ibis_type).upper()
 
 
 def quote_identifier(identifier: str) -> str:
