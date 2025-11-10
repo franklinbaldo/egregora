@@ -50,11 +50,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _create_output_format(site_root: Path) -> OutputFormat:
-    """Create and initialize OutputFormat for the given site root.
+def _create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputFormat:
+    """Create and initialize OutputFormat based on configuration.
 
-    Currently always uses MkDocs format. Future: read format from .egregora/config.yml
-    or CLI parameters.
+    Industry standard: Configuration-driven factory pattern.
+    Format type specified in .egregora/config.yml, defaults to mkdocs.
 
     OutputFormat provides:
     - Storage protocol implementations (posts, profiles, journals, enrichments)
@@ -63,24 +63,38 @@ def _create_output_format(site_root: Path) -> OutputFormat:
 
     Args:
         site_root: Root directory for the site
+        format_type: Output format type from config ('mkdocs', 'hugo', etc.)
 
     Returns:
         Initialized OutputFormat instance
 
-    Note:
-        TODO: Read output format from config instead of hardcoding MkDocs.
-        Config should specify format type (mkdocs, hugo, database, s3).
+    Raises:
+        ValueError: If format_type is not supported
+
+    Examples:
+        >>> # From config: output.format = "mkdocs"
+        >>> fmt = _create_output_format(site_root, format_type="mkdocs")
+        >>> # From config: output.format = "hugo"
+        >>> fmt = _create_output_format(site_root, format_type="hugo")
 
     """
-    from egregora.rendering.mkdocs import MkDocsOutputFormat
+    # Factory pattern - create based on config
+    if format_type == "mkdocs":
+        from egregora.rendering.mkdocs import MkDocsOutputFormat
 
-    # Create MkDocs format (TODO: make configurable via .egregora/config.yml)
-    output_format = MkDocsOutputFormat()
+        output_format = MkDocsOutputFormat()
+    elif format_type == "hugo":
+        from egregora.rendering.hugo import HugoOutputFormat
+
+        output_format = HugoOutputFormat()
+    else:
+        msg = f"Unsupported output format: {format_type}. Supported formats: mkdocs, hugo"
+        raise ValueError(msg)
 
     # Initialize storage implementations
     output_format.initialize(site_root)
 
-    logger.debug("Initialized MkDocs output format for %s", site_root)
+    logger.debug("Initialized %s output format for %s", format_type, site_root)
 
     return output_format
 
@@ -374,7 +388,10 @@ def _write_posts_for_window_pydantic(
     # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
     # Determine site_root for storage (use output_dir parent if site_root not set)
     storage_root = site_root if site_root else config.output_dir.parent
-    output_format = _create_output_format(storage_root)
+
+    # Get output format from config (industry standard: configuration-driven factory)
+    format_type = egregora_config.output.format
+    output_format = _create_output_format(storage_root, format_type=format_type)
 
     # Get storage implementations from OutputFormat
     posts_storage = output_format.posts
