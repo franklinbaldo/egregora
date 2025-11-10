@@ -227,15 +227,15 @@ class TestGroupCommand:
             [
                 "group",
                 "nonexistent.csv",
-                "--period",
-                "day",
+                "--step-size=1",
+                "--step-unit=days",
                 "--output-dir",
                 str(test_output_dir / "periods"),
             ],
         )
 
-        assert result.exit_code == 2  # Typer uses exit code 2 for validation errors
-        assert "not found" in result.stdout.lower()
+        assert result.exit_code == 1  # File not found error
+        assert "not found" in result.output.lower()
 
 
 @pytest.mark.vcr
@@ -453,8 +453,8 @@ class TestSerializationFormats:
             [
                 "group",
                 str(messages_parquet),
-                "--period",
-                "day",
+                "--step-size=1",
+                "--step-unit=days",
                 "--output-dir",
                 str(periods_dir),
             ],

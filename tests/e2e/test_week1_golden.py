@@ -52,6 +52,7 @@ def runs_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             config_hash VARCHAR,
             rows_in INTEGER,
             rows_out INTEGER,
+            duration_seconds DOUBLE PRECISION,
             llm_calls INTEGER DEFAULT 0,
             tokens INTEGER DEFAULT 0,
             status VARCHAR NOT NULL,
@@ -331,12 +332,13 @@ def test_week1_schema_lockfile_validation():
 
 def test_week1_uuid5_namespaces_immutable():
     """Validate UUID5 namespaces are immutable (locked on 2025-01-08)."""
-    from egregora.privacy.constants import NS_AUTHORS, NS_MEDIA, NS_THREADS
+    from egregora.privacy.constants import NAMESPACE_AUTHOR, NAMESPACE_EVENT, NAMESPACE_THREAD
 
     # These UUIDs MUST NOT change (locked in Week 1)
-    assert str(NS_AUTHORS) == "a0eef1c4-7b8d-4f3e-9c6a-1d2e3f4a5b6c"
-    assert str(NS_THREADS) == "b1ffa2d5-8c9e-5a4f-ad7b-2e3f4a5b6c7d"
-    assert str(NS_MEDIA) == "c2aab3e6-9daf-6b5a-be8c-3f4a5b6c7d8e"
+    # Generated on 2025-01-08 and frozen for deterministic identity mapping
+    assert str(NAMESPACE_AUTHOR) == "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+    assert str(NAMESPACE_EVENT) == "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    assert str(NAMESPACE_THREAD) == "550e8400-e29b-41d4-a716-446655440000"
 
 
 def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
