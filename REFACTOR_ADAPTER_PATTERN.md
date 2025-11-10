@@ -1,14 +1,75 @@
 # Adapter Pattern Refactoring Plan
 
-**Status**: ✅ COMPLETE
+**Status**: ✅ COMPLETE (with PR #638 fix applied)
 **Date**: 2025-01-10
 **Completed**: 2025-11-10
-**Last Updated**: 2025-11-10 (Major Architecture Revision)
+**Last Updated**: 2025-11-10 (OutputFormat Coordinator Fix Applied)
 **Scope**: Major architectural refactor to decouple agents from I/O structure
 
-## ✅ IMPLEMENTATION COMPLETE (2025-11-10)
+## ✅ PR #638 FIX APPLIED (2025-11-10)
 
-All phases of the adapter pattern refactoring have been successfully implemented and tested:
+**Issue**: Adapter pattern refactoring bypassed OutputFormat coordinator and lost data integrity validations.
+
+**Fix Applied** (7 phases): Restored OutputFormat coordinator pattern with data integrity validations.
+
+### Phase 1-2: OutputFormat Common Utilities
+- Added abstract storage protocol properties to OutputFormat base class
+  - `posts`, `profiles`, `journals`, `enrichments` (return Protocol instances)
+  - `initialize(site_root)` method for two-step initialization
+- Added common utility static methods:
+  - `normalize_slug()` - URL-safe slug normalization using slugify
+  - `extract_date_prefix()` - handles window labels, ISO timestamps, clean dates
+  - `generate_unique_filename()` - prevents silent overwrites
+  - `parse_frontmatter()` - YAML parsing
+- Added template method hooks:
+  - `prepare_window()` - pre-processing before writer agent runs
+  - `finalize_window()` - post-processing after writer agent completes
+
+### Phase 3: MkDocsPostStorage Data Integrity
+- Updated `write()` to use OutputFormat utilities:
+  - Slug normalization for URL-safe filenames
+  - Date extraction for `{date}-{slug}.md` format
+  - Unique filename generation to prevent overwrites
+- Updated `read()` and `exists()` to handle both formats:
+  - New: `{date}-{slug}.md` (with validation)
+  - Legacy: `{slug}.md` (backwards compatibility)
+
+### Phase 4: Writer Agent Integration
+- Replaced `_create_storage_implementations()` with `_create_output_format()`
+- Writer agent now uses OutputFormat coordinator:
+  - Single format detection (no duplicate calls)
+  - Extract storage from `output_format` properties
+  - Call `finalize_window()` hook after completion
+
+### Phase 5: HugoOutputFormat
+- Added storage protocol implementation
+- Currently reuses MkDocs storage as placeholder (Hugo not priority)
+
+### Phase 6: Comprehensive Tests
+- Added 24 validation tests for OutputFormat utilities
+- Tests cover normalization, date extraction, unique filenames, integration
+
+### Phase 7: Documentation
+- Updated REFACTOR_ADAPTER_PATTERN.md (this file)
+- CLAUDE.md updates pending
+
+**Test Results**:
+- 35 agent tests passing
+- 17 storage protocol contract tests passing
+- 24 OutputFormat validation tests passing
+- All formats (MkDocs, Hugo) instantiate successfully
+
+**Architecture Benefits**:
+- WriterAgent → OutputFormat → Storage Protocols (proper layering)
+- Data integrity: slug normalization, date prefixes, unique filenames
+- Format-specific hooks: `prepare_window()`, `finalize_window()`
+- All formats benefit from common validation utilities
+
+**Commits**: ba6e09b, fae828a, 3d5ea08 (3 commits for fix)
+
+## ✅ ORIGINAL IMPLEMENTATION COMPLETE (2025-11-10)
+
+All phases of the adapter pattern refactoring were successfully implemented and tested:
 
 - ✅ **Phase 1**: Storage protocols defined (`PostStorage`, `ProfileStorage`, `JournalStorage`)
 - ✅ **Phase 2**: `WriterRuntimeContext` and `WriterAgentState` updated to use storage protocols
@@ -18,12 +79,12 @@ All phases of the adapter pattern refactoring have been successfully implemented
 - ✅ **Phase 6**: Journal tests updated for storage adapters
 - ✅ **Bonus**: Contract tests added to validate protocol implementations
 
-**Test Results**:
+**Original Test Results**:
 - 35 agent tests passing
 - 17 storage protocol contract tests passing
 - Both MkDocs and in-memory implementations validated
 
-**Commits**: a9edf16..fbb12af (8 commits)
+**Original Commits**: a9edf16..fbb12af (8 commits)
 
 ## ⚠️ MAJOR REVISION (2025-11-10)
 
