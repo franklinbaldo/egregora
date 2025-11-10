@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.config import DEFAULT_BLOG_DIR, SitePaths
+from egregora.config import SitePaths
 from egregora.config.loader import create_default_config
 from egregora.config.site import _ConfigLoader, resolve_site_paths
 
@@ -63,7 +63,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
     context = {
         "site_name": site_name,
         "blog_dir": "posts",  # Posts at root level
-        "docs_dir": ".",       # Docs dir is site root
+        "docs_dir": ".",  # Docs dir is site root
     }
 
     # Resolve paths first to get mkdocs_config_path in .egregora/
