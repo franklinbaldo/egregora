@@ -641,6 +641,44 @@ site/
 
 ---
 
+## Architecture Note: Output Format Abstraction
+
+**Good News**: Egregora **already has** a base class for output renderers, similar to SourceAdapter!
+
+**Location**: `src/egregora/rendering/base.py`
+
+```python
+class OutputFormat(ABC):
+    """Abstract base class for output formats (MkDocs, Hugo, Jekyll, Eleventy, etc.)"""
+
+    # Core methods every renderer must implement:
+    - scaffold_site()              # Create directory structure
+    - resolve_paths()              # Resolve site paths
+    - write_post()                 # Write blog post
+    - write_profile()              # Write author profile
+    - load_config()                # Load site config
+    - supports_site()              # Auto-detect site format
+    - format_type -> str           # e.g., "mkdocs", "hugo"
+    - get_markdown_extensions()    # Format-specific markdown features
+
+class OutputFormatRegistry:
+    """Registry for managing output formats (like SourceAdapter registry)"""
+    - register()      # Register new format
+    - get_format()    # Get by type
+    - detect_format() # Auto-detect from site
+    - list_formats()  # List all
+```
+
+**Current Implementations**:
+- ✅ **MkDocsOutputFormat** - Fully implemented (`rendering/mkdocs.py`)
+- 📝 **HugoOutputFormat** - Template/stub (`rendering/hugo.py`)
+
+**Registry**: Both registered in `registry.py` via `output_registry.register()`
+
+**Status**: Architecture exists but needs integration with folder structure fixes from this PR.
+
+---
+
 ## Conclusion
 
 PR #627 introduces significant architectural improvements but also introduces 6 user-facing regressions that impact:
