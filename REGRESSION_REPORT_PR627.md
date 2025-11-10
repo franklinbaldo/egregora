@@ -176,9 +176,10 @@ blog/
 ├── .egregora/
 │   ├── config.yml          # Egregora pipeline config
 │   ├── mkdocs.yml          # MkDocs rendering config
-│   ├── prompts/            # Optional: custom prompt overrides
+│   ├── prompts/            # Prompt templates (copied from source)
 │   │   ├── README.md
-│   │   └── system/         # e.g., writer.jinja
+│   │   ├── system/         # writer.jinja, editor.jinja, etc.
+│   │   └── enrichment/     # url_simple.jinja, media_simple.jinja, etc.
 │   └── .gitignore
 ├── media/                  # ✅ In root
 ├── profiles/               # ✅ In root
@@ -186,7 +187,14 @@ blog/
     └── journal/
 ```
 
-**Note**: The `prompts/` directory is **optional** - it's only created if the user wants to override default prompts. Default prompts are in the egregora source code at `src/egregora/prompts/`.
+**Prompt Versioning Strategy**:
+- `egregora init` **always copies** default prompts from `src/egregora/prompts/` → `.egregora/prompts/`
+- Subsequent runs use the **local copies** in `.egregora/prompts/` (not source)
+- This enables:
+  - ✅ Users can customize prompts without losing changes
+  - ✅ Egregora can update default prompts without breaking existing sites
+  - ✅ Sites have "pinned" prompt versions (like dependency locking)
+  - ✅ Future: Detect prompt updates and ask users if they want to upgrade
 
 **MkDocs Configuration**:
 ```yaml
@@ -564,14 +572,17 @@ site/
 ├── .egregora/
 │   ├── config.yml
 │   ├── mkdocs.yml
-│   ├── prompts/            # Optional: custom prompt overrides
+│   ├── prompts/            # Copied from source during init
+│   │   ├── README.md
+│   │   ├── system/
+│   │   └── enrichment/
 │   └── .gitignore
 ├── media/
 ├── profiles/
 └── posts/
 ```
 
-**Note**: `prompts/` is optional for custom overrides. Default prompts are in egregora source.
+**Note**: `prompts/` is **always created** during `egregora init` by copying defaults from `src/egregora/prompts/`. This pins prompt versions to the site, allowing customization and future upgrade prompts.
 
 **Migration**: Delete old output directory and run `egregora init` + `egregora write` to regenerate.
 
