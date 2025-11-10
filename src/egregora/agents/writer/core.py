@@ -65,6 +65,7 @@ def _create_storage_implementations(
 
     Returns:
         Tuple of (PostStorage, ProfileStorage, JournalStorage) implementations
+
     """
     # Import concrete implementations at runtime (not at type-check time)
     from egregora.storage.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
@@ -371,7 +372,9 @@ def _write_posts_for_window_pydantic(
     rag_store = VectorStore(config.rag_dir / "chunks.parquet")
 
     # Resolve prompts directory
-    prompts_dir = storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+    prompts_dir = (
+        storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+    )
 
     # Create runtime context for writer agent (MODERN: uses storage protocols)
     runtime_context = WriterRuntimeContext(
