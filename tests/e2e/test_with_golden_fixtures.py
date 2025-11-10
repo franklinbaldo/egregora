@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
@@ -20,8 +21,6 @@ from tests.utils.mock_batch_client import create_mock_genai_client
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 @pytest.mark.xfail(
