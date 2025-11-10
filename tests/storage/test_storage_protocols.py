@@ -20,7 +20,6 @@ from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.storage.memory import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from egregora.storage.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
 
-
 # --- Fixtures for all storage implementations ---
 
 
@@ -100,7 +99,9 @@ def test_post_storage_exists_returns_bool(post_storages):
 
         # After write
         storage.write(slug="test-exists", metadata={"title": "Test"}, content="Content")
-        assert storage.exists("test-exists") is True, f"{impl_name}: exists() should return True after write()"
+        assert storage.exists("test-exists") is True, (
+            f"{impl_name}: exists() should return True after write()"
+        )
 
 
 def test_post_storage_write_overwrites_existing(post_storages):
