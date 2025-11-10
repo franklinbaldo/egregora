@@ -517,7 +517,6 @@ class OutputFormat(ABC):
 
         """
         # Base implementation does nothing - subclasses override for specific tasks
-        pass
 
 
 class OutputFormatRegistry:

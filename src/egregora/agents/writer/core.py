@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     from google.genai import types as genai_types
     from ibis.expr.types import Table
 
-    from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,6 @@ def _create_output_format(site_root: Path) -> OutputFormat:
         Call initialize() on the returned format before accessing storage properties.
 
     """
-    from egregora.rendering.base import OutputFormat
-
     # Try to detect format from site structure
     detected_format = output_registry.detect_format(site_root)
 

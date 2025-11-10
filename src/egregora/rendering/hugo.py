@@ -41,10 +41,10 @@ class HugoOutputFormat(OutputFormat):
     def __init__(self) -> None:
         """Initialize HugoOutputFormat with uninitialized storage."""
         self._site_root: Path | None = None
-        self._posts_impl: "PostStorage | None" = None
-        self._profiles_impl: "ProfileStorage | None" = None
-        self._journals_impl: "JournalStorage | None" = None
-        self._enrichments_impl: "EnrichmentStorage | None" = None
+        self._posts_impl: PostStorage | None = None
+        self._profiles_impl: ProfileStorage | None = None
+        self._journals_impl: JournalStorage | None = None
+        self._enrichments_impl: EnrichmentStorage | None = None
 
     @property
     def format_type(self) -> str:
@@ -84,7 +84,7 @@ class HugoOutputFormat(OutputFormat):
         logger.debug(f"Initialized Hugo storage for {site_root}")
 
     @property
-    def posts(self) -> "PostStorage":
+    def posts(self) -> PostStorage:
         """Get Hugo post storage implementation.
 
         Returns:
@@ -100,7 +100,7 @@ class HugoOutputFormat(OutputFormat):
         return self._posts_impl
 
     @property
-    def profiles(self) -> "ProfileStorage":
+    def profiles(self) -> ProfileStorage:
         """Get Hugo profile storage implementation.
 
         Returns:
@@ -116,7 +116,7 @@ class HugoOutputFormat(OutputFormat):
         return self._profiles_impl
 
     @property
-    def journals(self) -> "JournalStorage":
+    def journals(self) -> JournalStorage:
         """Get Hugo journal storage implementation.
 
         Returns:
@@ -132,7 +132,7 @@ class HugoOutputFormat(OutputFormat):
         return self._journals_impl
 
     @property
-    def enrichments(self) -> "EnrichmentStorage":
+    def enrichments(self) -> EnrichmentStorage:
         """Get Hugo enrichment storage implementation.
 
         Returns:

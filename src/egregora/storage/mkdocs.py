@@ -39,7 +39,7 @@ class MkDocsPostStorage:
         Post content here...
     """
 
-    def __init__(self, site_root: Path, output_format: "OutputFormat | None" = None):
+    def __init__(self, site_root: Path, output_format: OutputFormat | None = None):
         """Initialize MkDocs post storage.
 
         Args:
