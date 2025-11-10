@@ -11,9 +11,11 @@
 
 During end-to-end testing of PR #627 with real data, **5 critical regressions** were identified that affect the quality and usability of generated blog sites. These issues span enrichment quality, profile metadata, configuration architecture, file naming conventions, and journal formatting.
 
+**Alpha Mindset**: As documented in CLAUDE.md, this project follows an "alpha mindset" - breaking changes are acceptable and expected. **No backward compatibility or migration scripts should be implemented**. Breaking changes should be documented but users must adapt to the new architecture.
+
 **Severity Breakdown**:
 - 🔴 **Critical (P0)**: 2 issues - Enrichment quality, Profile metadata
-- 🟡 **High (P1)**: 2 issues - Post naming, Journal formatting
+- 🟡 **High (P1)**: 3 issues - Post naming, Journal formatting, Folder structure
 - 🟢 **Medium (P2)**: 1 issue - Config location
 
 ---
@@ -150,58 +152,78 @@ e459937f:
 
 ---
 
-### 3. 🟢 MkDocs Config Location (P2)
+### 3. 🟡 Incorrect Folder Structure (P1)
 
-**Location**: `/home/user/workspace/blog/mkdocs.yml`
+**Issue**: Content folders are in `docs/` subdirectory instead of site root
 
-**Issue**: `mkdocs.yml` is in the site root instead of `.egregora/` directory
-
-**Current Structure**:
+**Current Structure** (❌ Wrong):
 ```
 blog/
-├── mkdocs.yml              # ❌ Should be in .egregora/
+├── mkdocs.yml
 ├── .egregora/
-│   ├── config.yml          # ✅ Correct
-│   ├── prompts/
-│   └── .gitignore
-└── docs/
+│   ├── config.yml
+│   └── prompts/
+└── docs/                   # ❌ Should not exist
+    ├── media/              # ❌ Should be in root
+    ├── profiles/           # ❌ Should be in root
+    └── posts/              # ❌ Should be in root
 ```
 
-**Recommended Structure**:
+**Expected Structure** (✅ Correct):
 ```
 blog/
 ├── .egregora/
 │   ├── config.yml          # Egregora pipeline config
 │   ├── mkdocs.yml          # MkDocs rendering config
-│   ├── prompts/
-│   └── .gitignore
-└── docs/
+│   └── prompts/
+├── media/                  # ✅ In root
+├── profiles/               # ✅ In root
+└── posts/                  # ✅ In root
+    └── journal/
+```
+
+**MkDocs Configuration**:
+```yaml
+# .egregora/mkdocs.yml
+site_name: blog
+docs_dir: ../              # Point to site root
+# OR explicit paths in nav/plugins
 ```
 
 **Rationale**:
-- Cleaner root directory
-- Clear separation: `.egregora/` contains ALL Egregora-specific configuration
-- Matches the documented architecture: "Egregora configuration moved to .egregora/config.yml"
-- Better for future multi-backend support (Hugo, Astro, etc.)
+- ✅ Cleaner structure - no unnecessary `docs/` wrapper
+- ✅ Content at root level - easier to browse and edit
+- ✅ `.egregora/` contains ALL configuration (pipeline + rendering)
+- ✅ Follows standard static site structure (Hugo, Jekyll, Astro)
+- ✅ Better for version control - content not nested
 
-**Note**: This is a breaking change requiring migration script:
-```bash
-mv mkdocs.yml .egregora/mkdocs.yml
-# Update references in code to look for .egregora/mkdocs.yml
-```
+**Alpha Mindset**: This is a **breaking change**. No migration script needed - users should delete old output and regenerate with new structure. Document the change in release notes.
 
-**Config Check**:
-```yaml
-# Current mkdocs.yml line 81-82:
-# Egregora configuration moved to .egregora/config.yml
-# (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
-```
-
-The comment acknowledges the separation but doesn't move `mkdocs.yml` itself.
+**Implementation**:
+- Update `init/scaffolding.py` to create folders in root, not `docs/`
+- Update writer agent to output to `posts/`, `profiles/`, `media/` at root
+- Move `mkdocs.yml` to `.egregora/mkdocs.yml`
+- Configure `docs_dir` or use explicit paths in MkDocs config
 
 ---
 
-### 4. 🟡 Post Filename Conventions (P1)
+### 4. 🟢 MkDocs Config Location (P2)
+
+**Issue**: `mkdocs.yml` should be in `.egregora/` directory for consistency
+
+**Current**: `blog/mkdocs.yml`
+**Expected**: `blog/.egregora/mkdocs.yml`
+
+**Rationale**:
+- All Egregora-specific configuration in one place
+- Cleaner root directory
+- Better for multi-backend support (Hugo, Astro, etc.)
+
+**Alpha Mindset**: This is a **breaking change**. No migration needed - users should regenerate sites with `egregora init`. Document in release notes.
+
+---
+
+### 5. 🟡 Post Filename Conventions (P1)
 
 **Issue**: Post filenames include window timestamps instead of clean date-based naming
 
@@ -258,7 +280,7 @@ The post date should come from:
 
 ---
 
-### 5. 🟡 Unformatted Journal Entries (P1)
+### 6. 🟡 Unformatted Journal Entries (P1)
 
 **Location**: `/home/user/workspace/blog/docs/posts/journal/journal_2025-03-03_08-01_to_12-49.md`
 
@@ -476,7 +498,7 @@ title: [...]
 ✅ **Excellent**: Post content is high quality, well-structured, uses tables and footnotes appropriately
 
 ### Media Organization
-✅ **Good**: Media files are properly organized in `docs/media/images/`
+⚠️ **Wrong Location**: Media files are in `docs/media/images/` but should be at root `media/images/`
 
 ---
 
@@ -486,7 +508,8 @@ title: [...]
 |-------|----------|-------------|------------------|
 | Low enrichment quality | P0 Critical | Users get poor descriptions for shared content | Requires prompt and API changes |
 | Incomplete profiles | P0 Critical | Blog author system broken, no author cards | Schema and template changes |
-| Config location | P2 Medium | Minor inconvenience, not user-facing | Migration script needed |
+| Folder structure | P1 High | Content nested incorrectly, hard to navigate | Update scaffolding and writer logic |
+| Config location | P2 Medium | Minor inconvenience, not user-facing | Move mkdocs.yml to .egregora/ |
 | Post naming | P1 High | Ugly URLs, poor SEO, broken conventions | Template and path generation logic |
 | Journal formatting | P1 High | Journals are unreadable and unprofessional | New Jinja template needed |
 
@@ -494,22 +517,77 @@ title: [...]
 
 ## Recommended Action Plan
 
+**Alpha Mindset Reminder**: Per CLAUDE.md, this project follows an "alpha mindset":
+- ✅ Report breaking changes clearly
+- ❌ Do NOT create migration scripts or backward compatibility shims
+- ❌ Do NOT maintain old behavior alongside new
+- ✅ Users must adapt to new architecture (delete old output, regenerate)
+
 ### Immediate (Pre-Merge)
 1. **P0**: Fix enrichment quality - Enable Gemini grounding or URL content fetching
 2. **P0**: Add profile front-matter and `.authors.yml` generation
-3. **P1**: Fix post filename conventions to use `YYYY-MM-DD-slug.md` or `YYYY/MM/DD/slug.md`
-4. **P1**: Fix post `date` field to use clean date instead of window label
+3. **P1**: Fix folder structure - Output to root `media/`, `profiles/`, `posts/` (not `docs/`)
+4. **P1**: Fix post filename conventions to use `YYYY-MM-DD-slug.md` or `YYYY/MM/DD/slug.md`
+5. **P1**: Fix post `date` field to use clean date instead of window label
 
 ### Post-Merge (Follow-up PR)
-5. **P2**: Move `mkdocs.yml` to `.egregora/` with migration guide
-6. **P1**: Create beautiful journal template with executive summaries and metrics
+6. **P2**: Move `mkdocs.yml` to `.egregora/` (breaking change - document only)
+7. **P1**: Create beautiful journal template with executive summaries and metrics
+
+### Breaking Changes Documentation
+
+Add to release notes / BREAKING_CHANGES.md:
+
+```markdown
+# Breaking Changes in PR #627
+
+## Folder Structure Changed
+
+**Old structure**:
+```
+site/
+└── docs/
+    ├── media/
+    ├── profiles/
+    └── posts/
+```
+
+**New structure**:
+```
+site/
+├── .egregora/
+│   ├── config.yml
+│   └── mkdocs.yml
+├── media/
+├── profiles/
+└── posts/
+```
+
+**Migration**: Delete old output directory and run `egregora init` + `egregora write` to regenerate.
+
+## Post Filenames Changed
+
+**Old**: `2025-03-02 08:01 to 12:49-post-title.md`
+**New**: `2025-03-02-post-title.md` or `2025/03/02/post-title.md`
+
+**Migration**: No migration - regenerate posts with new naming convention.
+
+## MkDocs Config Moved
+
+**Old**: `site/mkdocs.yml`
+**New**: `site/.egregora/mkdocs.yml`
+
+**Migration**: Run `egregora init` to regenerate scaffolding with correct structure.
+```
 
 ### Testing Required
 - [ ] Verify enrichment quality improves with URL grounding
 - [ ] Test MkDocs blog plugin with `.authors.yml`
+- [ ] Verify folder structure: `media/`, `profiles/`, `posts/` at root (not in `docs/`)
 - [ ] Verify URLs are clean without spaces or timestamps
 - [ ] Run full pipeline with fixed templates
 - [ ] Visual review of generated journal files
+- [ ] Test MkDocs serve with new folder structure
 
 ---
 
@@ -525,12 +603,18 @@ title: [...]
 - **Schema**: Add profile front-matter structure
 - **Generator**: Add `.authors.yml` generation logic
 
-### 3. Post Naming
+### 3. Folder Structure
+- **Scaffolding**: `src/egregora/init/scaffolding.py` - Create folders at root, not in `docs/`
+- **Writer**: Update writer agent to output to root `posts/`, `profiles/`
+- **Media**: Update media handling to output to root `media/`
+- **MkDocs**: Update `mkdocs.yml` template with correct `docs_dir` configuration
+
+### 4. Post Naming
 - **Logic**: Post file path generation in writer agent
 - **Template**: Check `write_post_tool` implementation
 - **Date extraction**: Use post metadata `date`, not window `start_time`
 
-### 4. Journal Formatting
+### 5. Journal Formatting
 - **Template**: `src/egregora/templates/journal.md.jinja`
 - **Logic**: Journal rendering in writer agent completion
 
@@ -538,12 +622,15 @@ title: [...]
 
 ## Conclusion
 
-PR #627 introduces significant architectural improvements but also introduces 5 user-facing regressions that impact:
+PR #627 introduces significant architectural improvements but also introduces 6 user-facing regressions that impact:
 - **Content Quality**: Low enrichment quality affects user experience
 - **Blog Functionality**: Missing author metadata breaks blog features
+- **Site Structure**: Incorrect folder organization (content in `docs/` instead of root)
 - **Professional Polish**: Poor naming and formatting reduce credibility
 
-**Recommendation**: Address **P0 and P1 issues** before merging to maintain quality standards. P2 issue (config location) can be deferred to a follow-up PR with proper migration guide.
+**Recommendation**: Address **P0 and P1 issues** before merging to maintain quality standards. P2 issue (config location) can be deferred.
+
+**Alpha Mindset**: All fixes are breaking changes - no backward compatibility needed. Document changes in BREAKING_CHANGES.md and release notes. Users must delete old output and regenerate with new structure.
 
 ---
 
