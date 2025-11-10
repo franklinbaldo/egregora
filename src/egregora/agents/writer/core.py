@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 def _create_output_format(site_root: Path) -> OutputFormat:
     """Create and initialize OutputFormat for the given site root.
 
-    Uses output_registry to auto-detect format (MkDocs, Hugo, etc.) based on
-    site structure. Falls back to MkDocs if no format detected.
+    Currently always uses MkDocs format. Future: read format from .egregora/config.yml
+    or CLI parameters.
 
     OutputFormat provides:
     - Storage protocol implementations (posts, profiles, journals, enrichments)
@@ -65,25 +65,22 @@ def _create_output_format(site_root: Path) -> OutputFormat:
         site_root: Root directory for the site
 
     Returns:
-        Initialized OutputFormat instance (MkDocs, Hugo, Database, S3, etc.)
+        Initialized OutputFormat instance
 
     Note:
-        Call initialize() on the returned format before accessing storage properties.
+        TODO: Read output format from config instead of hardcoding MkDocs.
+        Config should specify format type (mkdocs, hugo, database, s3).
 
     """
-    # Try to detect format from site structure
-    detected_format = output_registry.detect_format(site_root)
+    from egregora.rendering.mkdocs import MkDocsOutputFormat
 
-    if detected_format:
-        logger.debug("Detected output format: %s", detected_format.format_type)
-        output_format = detected_format
-    else:
-        # Fallback to MkDocs if no format detected
-        logger.debug("No format detected, defaulting to MkDocs")
-        output_format = output_registry.get_format("mkdocs")
+    # Create MkDocs format (TODO: make configurable via .egregora/config.yml)
+    output_format = MkDocsOutputFormat()
 
     # Initialize storage implementations
     output_format.initialize(site_root)
+
+    logger.debug("Initialized MkDocs output format for %s", site_root)
 
     return output_format
 
