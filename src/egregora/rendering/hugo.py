@@ -240,3 +240,83 @@ class HugoOutputFormat(OutputFormat):
             "autolink",
             "typographer",
         ]
+
+    def get_format_instructions(self) -> str:
+        """Generate Hugo format instructions for the writer agent.
+
+        Returns:
+            Markdown-formatted instructions explaining Hugo conventions
+
+        Note:
+            This is a template implementation. Customize based on your Hugo theme.
+
+        """
+        return """## Output Format: Hugo
+
+Your posts will be rendered using the Hugo static site generator.
+
+### Front-matter Format
+
+Use **TOML front-matter** between `+++` markers at the top of each post:
+
+```toml
++++
+title = "Your Post Title"
+date = 2025-01-10
+draft = false
+tags = ["topic1", "topic2"]
+authors = ["author-uuid"]
+description = "Brief summary"
++++
+```
+
+**Alternative**: You can also use YAML front-matter (between `---` markers) if your Hugo site is configured for it.
+
+**Required fields**: `title`, `date`, `draft`
+**Optional fields**: `tags`, `authors`, `description`, `slug`
+
+### File Naming Convention
+
+Posts are typically named: `{date}-{slug}.md`
+
+Examples:
+- ✅ `2025-01-10-my-post.md`
+- ✅ `my-post.md` (Hugo generates slug from filename)
+
+### Content Organization
+
+Hugo organizes content in the `content/` directory:
+- `content/posts/` - Blog posts
+- `content/profiles/` - Author profiles
+- `static/media/` - Media files (images, videos, audio)
+
+### Markdown Features
+
+Hugo uses the Goldmark markdown processor by default, supporting:
+
+- **Tables**
+- **Fenced code blocks** with syntax highlighting
+- **Footnotes**
+- **Task lists**: `- [ ]` and `- [x]`
+- **Strikethrough**: `~~text~~`
+- **Autolinks**: URLs are automatically linked
+
+### Shortcodes
+
+Hugo supports shortcodes for rich content (theme-dependent):
+
+```markdown
+{{< figure src="/media/image.png" alt="Description" >}}
+```
+
+Consult your Hugo theme documentation for available shortcodes.
+
+### Best Practices
+
+1. **Set draft status**: Use `draft = false` for published posts
+2. **Use tags**: Organize posts by topic
+3. **Include descriptions**: Brief summaries for post listings
+4. **Reference media**: Use paths relative to `/static/` directory
+
+**Note**: This is a template. Customize based on your Hugo theme's conventions.
+"""

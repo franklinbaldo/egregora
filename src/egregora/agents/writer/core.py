@@ -39,6 +39,7 @@ from egregora.agents.writer.handlers import (
 from egregora.config import ModelConfig, load_mkdocs_config
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
+from egregora.rendering.base import output_registry
 
 if TYPE_CHECKING:
     from google import genai
@@ -125,6 +126,38 @@ def load_markdown_extensions(output_dir: Path) -> str:
     )
     logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
     return yaml_section
+
+
+def load_format_instructions(site_root: Path | None) -> str:
+    """Load output format instructions for the writer agent.
+
+    Detects the output format (MkDocs, Hugo, etc.) and returns format-specific
+    instructions that teach the LLM about conventions like front-matter syntax,
+    file naming, special features, etc.
+
+    Args:
+        site_root: Site root directory (for format detection)
+
+    Returns:
+        Markdown-formatted instructions explaining the output format
+
+    """
+    # Try to detect format from site structure
+    if site_root:
+        detected_format = output_registry.detect_format(site_root)
+        if detected_format:
+            logger.info("Detected output format: %s", detected_format.format_type)
+            return detected_format.get_format_instructions()
+
+    # Fall back to 'mkdocs' format from registry
+    try:
+        default_format = output_registry.get_format("mkdocs")
+        logger.debug("Using default format: mkdocs")
+        return default_format.get_format_instructions()
+    except KeyError:
+        # If mkdocs isn't registered, return empty string
+        logger.warning("No output format detected and 'mkdocs' not registered")
+        return ""
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
@@ -316,6 +349,9 @@ def _write_posts_for_window_pydantic(
     # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
 
+    # Load output format instructions (MkDocs, Hugo, etc.)
+    format_instructions = load_format_instructions(site_root)
+
     # Render prompt using runtime context
     template = WriterPromptTemplate(
         date=date_range,
@@ -323,6 +359,7 @@ def _write_posts_for_window_pydantic(
         active_authors=", ".join(active_authors),
         custom_instructions=custom_writer_prompt or "",
         markdown_features=markdown_features_section,
+        format_instructions=format_instructions,
         profiles_context=profiles_context,
         rag_context=rag_context,
         freeform_memory=freeform_memory,
