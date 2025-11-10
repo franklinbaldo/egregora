@@ -514,14 +514,18 @@ title: [...]
 ### Media Organization
 ⚠️ **Wrong Location**: Media files are in `docs/media/images/` but should be at root `media/images/`
 
-### Command Naming: "rank" → "reader"
-💡 **UX Improvement**: The `egregora rank` command should be renamed to `egregora reader`
+### Command Naming: Imperative Verbs (Standard CLI Convention)
+💡 **UX Improvement**: Commands should use imperative verbs, not nouns
 
-**Rationale**:
-- Current name: `egregora rank` - Implies sorting/ordering posts by quality
-- Better name: `egregora reader` - Describes what it actually does: simulates readers reading the blog and giving feedback
-- More user-centric: "reader agent" is clearer than "ranking agent"
-- Matches mental model: "What would a reader think of this post?"
+**CLI Naming Convention**: Use imperative form (like `git commit`, `docker run`, `npm install`)
+
+**Proposed Changes**:
+
+| Current | Proposed | Rationale |
+|---------|----------|-----------|
+| `egregora rank` | `egregora read` | Imperative: "read the blog and give feedback" |
+| `egregora editor` (if exists) | `egregora edit` | Imperative: "edit a post" |
+| `egregora writer` (if exists) | `egregora write` | Imperative: "write blog posts" ✅ (already correct!) |
 
 **Current Usage**:
 ```bash
@@ -530,16 +534,21 @@ egregora rank --site-dir=. --comparisons=50  # Elo ranking via pairwise comparis
 
 **Proposed Usage**:
 ```bash
-egregora reader --site-dir=. --feedback-rounds=50  # Simulate reader feedback
-# Or keep "comparisons" if that's clearer
-egregora reader --site-dir=. --comparisons=50
+egregora read --site-dir=. --comparisons=50  # Read blog and give feedback
 ```
 
+**Benefits**:
+- ✅ Follows standard CLI conventions (verb commands)
+- ✅ More intuitive: "egregora, read my blog" vs "egregora, be a reader"
+- ✅ Consistent with `egregora write` (already imperative)
+- ✅ Shorter and clearer
+
 **Implementation**:
-- Rename command in CLI: `rank` → `reader`
-- Update agent module: `agents/ranking/` → `agents/reader/` (or keep as-is internally)
+- Rename `rank` → `read` in CLI
+- Rename `editor` → `edit` in CLI (if it exists)
+- Keep agent modules as-is internally (`agents/ranking/`, `agents/editor/`)
 - Update documentation and help text
-- Optional: Keep `rank` as hidden alias for backward compatibility during transition
+- Optional: Keep old names as hidden aliases during transition
 
 **Alpha Mindset**: Breaking change - document in release notes, no backward compatibility needed.
 
