@@ -121,8 +121,9 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
     # Create thin agents (created once, reused for all items)
-    url_agent = make_url_agent(url_model) if enable_url else None
-    media_agent = make_media_agent(vision_model) if enable_media else None
+    site_root = context.site_root
+    url_agent = make_url_agent(url_model, site_root=site_root) if enable_url else None
+    media_agent = make_media_agent(vision_model, site_root=site_root) if enable_media else None
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -161,7 +162,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             else:
                 # Call agent (one call per URL)
                 try:
-                    markdown = run_url_enrichment(url_agent, url)
+                    markdown = run_url_enrichment(url_agent, url, site_root=site_root)
                     cache.store(cache_key, {"markdown": markdown, "type": "url"})
                 except Exception as exc:  # noqa: BLE001 - log and continue enrichment
                     logger.warning("URL enrichment failed for %s: %s", url, exc)
@@ -247,7 +248,9 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             else:
                 # Call agent
                 try:
-                    markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
+                    markdown_content = run_media_enrichment(
+                        media_agent, file_path, mime_hint=media_type, site_root=site_root
+                    )
                     cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
                 except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
                     logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
