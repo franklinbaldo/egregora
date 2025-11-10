@@ -322,66 +322,6 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
         return 0
 
 
-def index_new_posts_for_rag(
-    post_identifiers: list[str], output_format: OutputFormat, rag_dir: Path, *, embedding_model: str
-) -> int:
-    """Index specific newly created posts via OutputFormat (incremental indexing).
-
-    Takes storage identifiers from writer agent result and indexes only those documents.
-    Uses OutputFormat.resolve_document_path() to get filesystem paths. No CWD assumptions.
-
-    Args:
-        post_identifiers: List of storage identifiers from write_posts result
-        output_format: OutputFormat instance (initialized with site_root)
-        rag_dir: Directory containing RAG vector store
-        embedding_model: Model to use for embeddings
-
-    Returns:
-        Number of posts successfully indexed
-
-    Note:
-        - Storage identifiers are format-specific (e.g., "posts/2025-01-10-my-post.md")
-        - OutputFormat resolves them to absolute filesystem paths
-        - No CWD assumptions anywhere
-
-    """
-    if not post_identifiers:
-        logger.debug("No new posts to index in RAG")
-        return 0
-
-    try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-        indexed_count = 0
-
-        for identifier in post_identifiers:
-            try:
-                # Resolve storage identifier to absolute filesystem path
-                post_path = output_format.resolve_document_path(identifier)
-
-                if not post_path.exists():
-                    logger.warning("Post file not found for RAG indexing: %s", identifier)
-                    continue
-
-                index_post(post_path, store, embedding_model=embedding_model)
-                indexed_count += 1
-            except Exception as e:  # noqa: BLE001
-                # Don't let one failing post break incremental indexing
-                logger.warning("Failed to index post %s: %s", identifier, e)
-                continue
-
-        if indexed_count > 0:
-            logger.debug("Indexed %d new posts in RAG", indexed_count)
-
-        return indexed_count  # noqa: TRY300
-
-    except PromptTooLargeError:
-        raise
-    except Exception:
-        # RAG indexing is non-critical - log error but don't fail pipeline
-        logger.exception("Failed to index new posts in RAG")
-        return 0
-
-
 def _write_posts_for_window_pydantic(
     table: Table,
     start_time: datetime,
@@ -532,9 +472,21 @@ def _write_posts_for_window_pydantic(
         metadata=None,  # Future: pass token counts, duration, etc.
     )
 
-    # NOTE: RAG indexing moved to pipeline initialization (before window processing)
-    # New posts will be indexed in the next pipeline run, ensuring RAG is always
-    # up-to-date before the writer agent runs (not after).
+    # Index new/changed documents in RAG after writing
+    # Uses native deduplication via Ibis joins - safe to call anytime
+    if config.enable_rag and (saved_posts or saved_profiles):
+        try:
+            indexed_count = index_documents_for_rag(
+                output_format,
+                config.rag_dir,
+                embedding_model=embedding_model,
+            )
+            if indexed_count > 0:
+                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
+        except Exception as e:  # noqa: BLE001
+            # RAG indexing is non-critical - log error but don't fail
+            logger.warning("Failed to update RAG index after writing: %s", e)
+
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 

@@ -417,23 +417,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     window_label,
                 )
 
-                # Index newly created posts into RAG immediately (incremental indexing)
-                # This ensures other agents/tools have access to the latest posts
-                # Uses OutputFormat.resolve_document_path() to resolve storage identifiers
-                if config.rag.enabled and post_count > 0:
-                    try:
-                        from egregora.agents.writer.core import index_new_posts_for_rag  # noqa: PLC0415
-
-                        newly_indexed = index_new_posts_for_rag(
-                            result.get("posts", []),
-                            output_format,
-                            site_paths.rag_dir,
-                            embedding_model=embedding_model,
-                        )
-                        logger.debug("%s📚 Indexed %d new posts into RAG", indent, newly_indexed)
-                    except Exception:  # noqa: BLE001
-                        # RAG indexing failure should not block window processing
-                        logger.warning("%s⚠️  Failed to index new posts into RAG", indent)
+                # NOTE: RAG indexing now happens inside write_posts_for_window()
+                # The writer agent automatically indexes new/changed documents after writing
+                # This works for both pipeline runs and standalone CLI commands
 
             except PromptTooLargeError as e:
                 # Prompt too large - split window and retry
