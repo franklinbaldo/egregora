@@ -514,6 +514,35 @@ title: [...]
 ### Media Organization
 ⚠️ **Wrong Location**: Media files are in `docs/media/images/` but should be at root `media/images/`
 
+### Command Naming: "rank" → "reader"
+💡 **UX Improvement**: The `egregora rank` command should be renamed to `egregora reader`
+
+**Rationale**:
+- Current name: `egregora rank` - Implies sorting/ordering posts by quality
+- Better name: `egregora reader` - Describes what it actually does: simulates readers reading the blog and giving feedback
+- More user-centric: "reader agent" is clearer than "ranking agent"
+- Matches mental model: "What would a reader think of this post?"
+
+**Current Usage**:
+```bash
+egregora rank --site-dir=. --comparisons=50  # Elo ranking via pairwise comparisons
+```
+
+**Proposed Usage**:
+```bash
+egregora reader --site-dir=. --feedback-rounds=50  # Simulate reader feedback
+# Or keep "comparisons" if that's clearer
+egregora reader --site-dir=. --comparisons=50
+```
+
+**Implementation**:
+- Rename command in CLI: `rank` → `reader`
+- Update agent module: `agents/ranking/` → `agents/reader/` (or keep as-is internally)
+- Update documentation and help text
+- Optional: Keep `rank` as hidden alias for backward compatibility during transition
+
+**Alpha Mindset**: Breaking change - document in release notes, no backward compatibility needed.
+
 ---
 
 ## Impact Assessment
