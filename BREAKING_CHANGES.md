@@ -158,18 +158,36 @@ if mkdocs_path.parent.name == ".egregora":
 
 **File**: `src/egregora/config/site.py:157-178`
 
-### Bug 2: Banner Path (P1 - High)
+### Bug 2: Banner Path & Naming (P1 - High)
 
-**Problem**: Banner generation tool saved banners to `posts/banner-{slug}.png` instead of `media/banners/banner-{slug}.png` at site root.
+**Problem**: Banner generation had two issues:
+1. Saved to `posts/banner-{slug}.png` instead of site root
+2. Used slug-based names instead of content-based UUIDs
+3. Not integrated with enrichment pipeline
 
-**Root Cause**: `WriterAgentState` didn't have `site_root` field, so the banner tool could only use `output_dir` (which is `posts_dir`).
+**Root Cause**: `WriterAgentState` didn't have `site_root` field, and banner naming didn't follow media conventions.
 
 **Fix**:
 1. Added `site_root: Path | None` to `WriterAgentState`
 2. Pass `site_root` when creating state
-3. Banner tool now uses `site_root / "media" / "banners"`
+3. Changed banner naming to use **content-based UUID5** (deterministic, like other media)
+4. Save to `site_root / "media" / "images"` (not `media/banners/`)
+5. Banners now go through enrichment pipeline like any other media
 
-**File**: `src/egregora/agents/writer/agent.py:165,533,581`
+**Before**:
+```
+posts/banner-my-post-slug.png  # ❌ Wrong location, slug-based name
+```
+
+**After**:
+```
+media/images/1834adb0-3a27-5208-ab97-a5ed9f2867ea.png  # ✅ Content-based UUID
+```
+
+**Files**:
+- `src/egregora/agents/banner/generator.py:117-121` (UUID5 generation)
+- `src/egregora/agents/writer/agent.py:165,534,582` (path + state)
+- `src/egregora/agents/writer/handlers.py:206` (legacy path)
 
 ---
 
