@@ -71,7 +71,7 @@ class HugoOutputFormat(OutputFormat):
             RuntimeError: If storage initialization fails
 
         """
-        from egregora.storage.mkdocs import (
+        from egregora.rendering.mkdocs import (
             MkDocsEnrichmentStorage,
             MkDocsJournalStorage,
             MkDocsPostStorage,

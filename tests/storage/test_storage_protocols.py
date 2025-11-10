@@ -18,7 +18,7 @@ import pytest
 
 from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.storage.memory import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
-from egregora.storage.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
+from egregora.rendering.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
 
 # --- Fixtures for all storage implementations ---
 

@@ -231,7 +231,7 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_without_output_format_fallback(self, tmp_path: Path):
         """write() falls back to simple format without output_format."""
-        from egregora.storage.mkdocs import MkDocsPostStorage
+        from egregora.rendering.mkdocs import MkDocsPostStorage
 
         post_storage = MkDocsPostStorage(tmp_path)  # No output_format parameter
         result = post_storage.write(
@@ -245,7 +245,7 @@ class TestMkDocsPostStorageIntegration:
 
     def test_read_handles_both_formats(self, tmp_path: Path):
         """read() can find posts in both date-prefixed and simple formats."""
-        from egregora.storage.mkdocs import MkDocsPostStorage
+        from egregora.rendering.mkdocs import MkDocsPostStorage
 
         post_storage = MkDocsPostStorage(tmp_path)
         posts_dir = tmp_path / "posts"
@@ -263,7 +263,7 @@ class TestMkDocsPostStorageIntegration:
 
     def test_exists_handles_both_formats(self, tmp_path: Path):
         """exists() returns True for both date-prefixed and simple formats."""
-        from egregora.storage.mkdocs import MkDocsPostStorage
+        from egregora.rendering.mkdocs import MkDocsPostStorage
 
         post_storage = MkDocsPostStorage(tmp_path)
         posts_dir = tmp_path / "posts"
