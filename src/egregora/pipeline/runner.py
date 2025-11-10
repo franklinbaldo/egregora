@@ -425,7 +425,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                         from egregora.agents.writer.core import index_new_posts_for_rag  # noqa: PLC0415
 
                         newly_indexed = index_new_posts_for_rag(
-                            result.get("posts", []), output_format, site_paths.rag_dir, embedding_model=embedding_model
+                            result.get("posts", []),
+                            output_format,
+                            site_paths.rag_dir,
+                            embedding_model=embedding_model,
                         )
                         logger.debug("%s📚 Indexed %d new posts into RAG", indent, newly_indexed)
                     except Exception:  # noqa: BLE001

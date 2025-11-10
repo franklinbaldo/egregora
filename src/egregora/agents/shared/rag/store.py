@@ -788,7 +788,9 @@ class VectorStore:
         """
         if not self.parquet_path.exists():
             # Return empty table with correct schema
-            return ibis.memtable([], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"}))
+            return ibis.memtable(
+                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
+            )
 
         try:
             self._ensure_dataset_loaded()
@@ -797,14 +799,14 @@ class VectorStore:
             # Filter out rows without source_path (old data or media chunks)
             table = self._client.table(TABLE_NAME)
             return (
-                table.filter(table.source_path.notnull())
-                .select("source_path", "source_mtime_ns")
-                .distinct()
+                table.filter(table.source_path.notnull()).select("source_path", "source_mtime_ns").distinct()
             )
         except (duckdb.Error, IbisError) as e:
             logger.warning("Failed to get indexed sources table: %s", e)
             # Return empty table with correct schema
-            return ibis.memtable([], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"}))
+            return ibis.memtable(
+                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
+            )
 
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""
