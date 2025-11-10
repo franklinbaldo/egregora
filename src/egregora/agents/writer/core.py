@@ -246,6 +246,65 @@ def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: 
         return 0
 
 
+def index_new_posts_for_rag(post_paths: list[str], rag_dir: Path, *, embedding_model: str) -> int:
+    """Index specific newly created posts in RAG system (incremental indexing).
+
+    This function indexes only the specified posts, avoiding duplication.
+    Use this after each window to index newly created posts incrementally.
+
+    All embeddings use fixed 768 dimensions.
+
+    Args:
+        post_paths: List of post file paths to index (relative or absolute)
+        rag_dir: Directory containing RAG vector store
+        embedding_model: Model to use for embeddings
+
+    Returns:
+        Number of posts successfully indexed
+
+    Note:
+        - Only indexes the specified posts (no directory scanning)
+        - Skips files that don't exist
+        - Non-existent or invalid paths are logged but don't fail the operation
+
+    """
+    if not post_paths:
+        logger.debug("No new posts to index in RAG")
+        return 0
+
+    try:
+        store = VectorStore(rag_dir / "chunks.parquet")
+        indexed_count = 0
+
+        for post_path_str in post_paths:
+            post_path = Path(post_path_str)
+
+            # Handle both absolute and relative paths
+            if not post_path.exists():
+                logger.warning("Post file not found for RAG indexing: %s", post_path)
+                continue
+
+            try:
+                index_post(post_path, store, embedding_model=embedding_model)
+                indexed_count += 1
+            except Exception as e:  # noqa: BLE001
+                # Don't let one failing post break incremental indexing
+                logger.warning("Failed to index post %s: %s", post_path.name, e)
+                continue
+
+        if indexed_count > 0:
+            logger.debug("Indexed %d new posts in RAG", indexed_count)
+
+        return indexed_count  # noqa: TRY300
+
+    except PromptTooLargeError:
+        raise
+    except Exception:
+        # RAG indexing is non-critical - log error but don't fail pipeline
+        logger.exception("Failed to index new posts in RAG")
+        return 0
+
+
 def _write_posts_for_window_pydantic(
     table: Table,
     start_time: datetime,

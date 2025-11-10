@@ -12,8 +12,8 @@ Documentation:
 from egregora.agents.writer.core import (
     WriterConfig,
     get_top_authors,
-    load_markdown_extensions,
-    load_site_config,
+    index_all_posts_for_rag,
+    index_new_posts_for_rag,
     write_posts_for_window,
 )
 from egregora.agents.writer.tools import PostMetadata
@@ -22,7 +22,7 @@ __all__ = [
     "PostMetadata",
     "WriterConfig",
     "get_top_authors",
-    "load_markdown_extensions",
-    "load_site_config",
+    "index_all_posts_for_rag",
+    "index_new_posts_for_rag",
     "write_posts_for_window",
 ]
