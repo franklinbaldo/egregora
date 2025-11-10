@@ -189,12 +189,15 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
-def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: str) -> int:
-    """Index all existing posts in RAG system before window processing.
+def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901, PLR0912
+    """Index new/changed posts using incremental indexing (delta detection).
 
-    This should be called once at pipeline initialization, not after each window.
-    Ensures the RAG vector store is up-to-date with all existing posts before
-    the writer agent runs, so it has full context.
+    This should be called once at pipeline initialization before window processing.
+    Uses industry-standard incremental build pattern: compares filesystem state
+    with RAG metadata to identify only new or modified files, avoiding re-indexing.
+
+    Similar to: Make (mtime-based builds), rsync (delta sync), Git (content addressing),
+    Docker layers (incremental caching), Webpack (changed file detection).
 
     All embeddings use fixed 768 dimensions.
 
@@ -204,12 +207,19 @@ def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: 
         embedding_model: Model to use for embeddings
 
     Returns:
-        Number of posts indexed
+        Number of NEW posts indexed (not total indexed posts)
+
+    Algorithm:
+        1. Query RAG for all indexed sources (path -> mtime mapping)
+        2. Scan filesystem for all .md files
+        3. Compare: find files that are missing from RAG or have newer mtime
+        4. Index only those changed files (incremental, not full reindex)
 
     Note:
         - Only indexes .md files in posts_dir
         - Skips journal subdirectory (posts/journal/)
-        - New posts from current run will be indexed in next run
+        - Skips files already indexed with same mtime (idempotent)
+        - Safe to run multiple times - will only index new/changed files
 
     """
     if not posts_dir.exists():
@@ -218,23 +228,63 @@ def index_all_posts_for_rag(posts_dir: Path, rag_dir: Path, *, embedding_model: 
 
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
-        indexed_count = 0
 
-        # Find all markdown files in posts directory (excluding journal)
+        # Phase 1: Get already indexed sources (path -> mtime mapping)
+        indexed_sources = store.get_indexed_sources()
+        logger.debug("Found %d already indexed sources in RAG", len(indexed_sources))
+
+        # Phase 2: Scan filesystem for all posts
+        filesystem_posts = {}
         for post_path in posts_dir.glob("*.md"):
             if post_path.is_file():
+                absolute_path = str(post_path.resolve())
                 try:
-                    index_post(post_path, store, embedding_model=embedding_model)
-                    indexed_count += 1
-                except Exception as e:  # noqa: BLE001
-                    # Don't let one failing post break the whole indexing process
-                    logger.warning("Failed to index post %s: %s", post_path.name, e)
+                    mtime_ns = post_path.stat().st_mtime_ns
+                    filesystem_posts[absolute_path] = mtime_ns
+                except OSError as e:
+                    logger.warning("Failed to stat file %s: %s", post_path.name, e)
                     continue
 
+        logger.debug("Found %d posts in filesystem", len(filesystem_posts))
+
+        # Phase 3: Delta detection - find new or changed files
+        files_to_index = []
+        for absolute_path, mtime_ns in filesystem_posts.items():
+            indexed_mtime = indexed_sources.get(absolute_path)
+
+            if indexed_mtime is None:
+                # File not in RAG - needs indexing
+                files_to_index.append((absolute_path, "new"))
+            elif mtime_ns > indexed_mtime:
+                # File modified since last index - needs re-indexing
+                files_to_index.append((absolute_path, "changed"))
+            # else: file unchanged, skip
+
+        if not files_to_index:
+            logger.debug("All posts already indexed with current mtime - no work needed")
+            return 0
+
+        logger.info(
+            "Incremental indexing: %d new/changed posts (skipped %d unchanged)",
+            len(files_to_index),
+            len(filesystem_posts) - len(files_to_index),
+        )
+
+        # Phase 4: Index only new/changed files
+        indexed_count = 0
+        for absolute_path, change_type in files_to_index:
+            post_path = Path(absolute_path)
+            try:
+                index_post(post_path, store, embedding_model=embedding_model)
+                indexed_count += 1
+                logger.debug("Indexed %s post: %s", change_type, post_path.name)
+            except Exception as e:  # noqa: BLE001
+                # Don't let one failing post break incremental indexing
+                logger.warning("Failed to index post %s: %s", post_path.name, e)
+                continue
+
         if indexed_count > 0:
-            logger.info("Indexed %d existing posts in RAG", indexed_count)
-        else:
-            logger.debug("No posts found to index in RAG")
+            logger.info("Indexed %d new/changed posts in RAG (incremental)", indexed_count)
 
         return indexed_count  # noqa: TRY300
 

@@ -38,6 +38,9 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
 
     All embeddings use fixed 768-dimension output.
 
+    Stores source file path and mtime for incremental indexing support.
+    This enables change detection and prevents re-indexing unchanged files.
+
     Args:
         post_path: Path to markdown file with YAML frontmatter
         store: Vector store
@@ -52,6 +55,11 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
     if not chunks:
         logger.warning("No chunks generated from %s", post_path.name)
         return 0
+
+    # Get file metadata for change detection (industry standard: content-addressed storage)
+    absolute_path = str(post_path.resolve())
+    mtime_ns = post_path.stat().st_mtime_ns
+
     chunk_texts = [chunk["content"] for chunk in chunks]
     embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
     rows = []
@@ -69,6 +77,8 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
                 "chunk_id": f"{chunk['post_slug']}_{i}",
                 "document_type": "post",
                 "document_id": chunk["post_slug"],
+                "source_path": absolute_path,
+                "source_mtime_ns": mtime_ns,
                 "post_slug": chunk["post_slug"],
                 "post_title": chunk["post_title"],
                 "post_date": post_date,
@@ -227,6 +237,11 @@ def index_media_enrichment(
     if not metadata:
         logger.warning("Failed to parse metadata from %s", enrichment_path.name)
         return 0
+
+    # Get file metadata for change detection (industry standard: content-addressed storage)
+    absolute_path = str(enrichment_path.resolve())
+    mtime_ns = enrichment_path.stat().st_mtime_ns
+
     media_uuid = enrichment_path.stem
     chunks = chunk_document(enrichment_path, max_tokens=1800)
     if not chunks:
@@ -242,6 +257,8 @@ def index_media_enrichment(
                 "chunk_id": f"{media_uuid}_{i}",
                 "document_type": "media",
                 "document_id": media_uuid,
+                "source_path": absolute_path,
+                "source_mtime_ns": mtime_ns,
                 "post_slug": None,
                 "post_title": None,
                 "post_date": None,
@@ -266,7 +283,13 @@ def index_media_enrichment(
 
 
 def index_all_media(docs_dir: Path, store: VectorStore, *, embedding_model: str) -> int:
-    """Index all media enrichment files from media directories.
+    """Index new/changed media enrichments using incremental indexing (delta detection).
+
+    Uses industry-standard incremental build pattern: compares filesystem state
+    with RAG metadata to identify only new or modified files, avoiding re-indexing.
+
+    Similar to: Make (mtime-based builds), rsync (delta sync), Git (content addressing),
+    Docker layers (incremental caching), Webpack (changed file detection).
 
     Enrichment files are co-located with media (e.g., video.mp4.md).
     Scans all subdirectories under docs/media/ for .md files.
@@ -277,26 +300,77 @@ def index_all_media(docs_dir: Path, store: VectorStore, *, embedding_model: str)
         embedding_model: Embedding model name
 
     Returns:
-        Total number of chunks indexed
+        Total number of NEW chunks indexed (not total chunks)
+
+    Algorithm:
+        1. Query RAG for all indexed sources (path -> mtime mapping)
+        2. Scan filesystem for all enrichment .md files
+        3. Compare: find files that are missing from RAG or have newer mtime
+        4. Index only those changed files (incremental, not full reindex)
 
     """
     media_dir = docs_dir / MEDIA_DIR_NAME
     if not media_dir.exists():
         logger.warning("Media directory does not exist: %s", media_dir)
         return 0
+
+    # Phase 1: Get already indexed sources (path -> mtime mapping)
+    indexed_sources = store.get_indexed_sources()
+    logger.debug("Found %d already indexed sources in RAG", len(indexed_sources))
+
+    # Phase 2: Scan filesystem for all enrichment files
     enrichment_files = list(media_dir.rglob("*.md"))
     enrichment_files = [f for f in enrichment_files if f.name != "index.md"]
+
     if not enrichment_files:
         logger.info("No media enrichments to index")
         return 0
-    logger.info("Found %s media enrichments to index", len(enrichment_files))
-    total_chunks = 0
+
+    # Phase 3: Delta detection - find new or changed files
+    filesystem_enrichments = {}
     for enrichment_path in enrichment_files:
+        absolute_path = str(enrichment_path.resolve())
+        try:
+            mtime_ns = enrichment_path.stat().st_mtime_ns
+            filesystem_enrichments[absolute_path] = (enrichment_path, mtime_ns)
+        except OSError as e:
+            logger.warning("Failed to stat file %s: %s", enrichment_path.name, e)
+            continue
+
+    files_to_index = []
+    for absolute_path, (enrichment_path, mtime_ns) in filesystem_enrichments.items():
+        indexed_mtime = indexed_sources.get(absolute_path)
+
+        if indexed_mtime is None:
+            # File not in RAG - needs indexing
+            files_to_index.append((enrichment_path, "new"))
+        elif mtime_ns > indexed_mtime:
+            # File modified since last index - needs re-indexing
+            files_to_index.append((enrichment_path, "changed"))
+        # else: file unchanged, skip
+
+    if not files_to_index:
+        logger.debug("All media enrichments already indexed with current mtime - no work needed")
+        return 0
+
+    logger.info(
+        "Incremental indexing: %d new/changed media enrichments (skipped %d unchanged)",
+        len(files_to_index),
+        len(filesystem_enrichments) - len(files_to_index),
+    )
+
+    # Phase 4: Index only new/changed files
+    total_chunks = 0
+    for enrichment_path, change_type in files_to_index:
         chunks_count = index_media_enrichment(
             enrichment_path, docs_dir, store, embedding_model=embedding_model
         )
         total_chunks += chunks_count
-    logger.info("Indexed %s total chunks from %s media files", total_chunks, len(enrichment_files))
+        logger.debug(
+            "Indexed %s media enrichment: %s (%d chunks)", change_type, enrichment_path.name, chunks_count
+        )
+
+    logger.info("Indexed %s total chunks from %s new/changed media files", total_chunks, len(files_to_index))
     return total_chunks
 
 

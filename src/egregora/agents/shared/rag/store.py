@@ -719,6 +719,51 @@ class VectorStore:
         """Create an empty table with the given schema using the local backend."""
         return ibis.memtable([], schema=schema)
 
+    def get_indexed_sources(self) -> dict[str, int]:
+        """Get indexed source files with their modification times.
+
+        Returns a mapping of absolute file paths to mtime (nanoseconds).
+        This enables incremental indexing by comparing filesystem state
+        with RAG metadata to identify new/changed files.
+
+        Industry standard: Content-addressed storage with change detection
+        (similar to Git, Docker layers, Make, rsync).
+
+        Returns:
+            dict[str, int]: Mapping of source_path -> source_mtime_ns
+                Empty dict if no sources indexed or parquet doesn't exist
+
+        Example:
+            >>> store = VectorStore(rag_dir / "chunks.parquet")
+            >>> indexed = store.get_indexed_sources()
+            >>> {
+            ...     "/path/to/post1.md": 1704067200000000000,
+            ...     "/path/to/post2.md": 1704070800000000000,
+            ... }
+
+        """
+        if not self.parquet_path.exists():
+            return {}
+
+        try:
+            self._ensure_dataset_loaded()
+
+            # Query distinct source files with their mtimes
+            # Filter out rows without source_path (old data or media chunks)
+            result = self.conn.execute(
+                f"""
+                SELECT DISTINCT source_path, source_mtime_ns
+                FROM {TABLE_NAME}
+                WHERE source_path IS NOT NULL
+                """
+            ).fetchall()
+
+            return {str(path): int(mtime) for path, mtime in result if path and mtime is not None}
+
+        except (duckdb.Error, IbisError) as e:
+            logger.warning("Failed to get indexed sources: %s", e)
+            return {}
+
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""
         if self._owns_connection:
