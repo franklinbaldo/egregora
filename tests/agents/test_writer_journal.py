@@ -21,7 +21,7 @@ from egregora.agents.writer.agent import (
     _extract_thinking_content,
     _save_journal_to_file,
 )
-from egregora.storage.memory import InMemoryJournalStorage
+from tests.helpers.storage import InMemoryJournalStorage
 
 
 def test_extract_thinking_content_empty():

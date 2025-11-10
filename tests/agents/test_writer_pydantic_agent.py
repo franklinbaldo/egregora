@@ -10,7 +10,7 @@ from pydantic_ai.models.test import TestModel
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config.loader import create_default_config
-from egregora.storage.memory import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
+from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 if TYPE_CHECKING:
