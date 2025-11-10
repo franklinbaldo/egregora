@@ -69,15 +69,15 @@ uv run mypy src/                    # Type check
 # Set API key
 export GOOGLE_API_KEY="your-api-key"
 
-# Process WhatsApp export (creates blog in ./output, default: 1 day windows)
-uv run egregora process whatsapp-export.zip --output=./output
+# Write blog posts from WhatsApp export (creates blog in ./output, default: 1 day windows)
+uv run egregora write whatsapp-export.zip --output=./output
 
 # Time-based windowing (default)
-uv run egregora process export.zip --step-size=1 --step-unit=days  # 1 day (default)
-uv run egregora process export.zip --step-size=7 --step-unit=days  # 1 week
+uv run egregora write export.zip --step-size=1 --step-unit=days  # 1 day (default)
+uv run egregora write export.zip --step-size=7 --step-unit=days  # 1 week
 
 # Message count windowing
-uv run egregora process export.zip --step-size=100 --step-unit=messages
+uv run egregora write export.zip --step-size=100 --step-unit=messages
 
 # Serve generated blog locally
 cd output
@@ -86,6 +86,10 @@ uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 # Other commands
 uv run egregora edit posts/my-post.md        # AI-powered post editor
 uv run egregora rank --site-dir=. --comparisons=50  # Elo ranking
+
+# Run tracking (observability)
+uv run egregora runs tail               # View recent pipeline runs
+uv run egregora runs show <run_id>      # View detailed run info
 ```
 
 ## Parallel Task Delegation with Subagents
@@ -158,6 +162,57 @@ Task 5: Fix BLE001 in utils files (3 files)
 ✅ **Consistency**: All subagents follow same instructions
 ✅ **Focus**: You review summaries instead of making repetitive edits
 ✅ **Scalability**: Handles 20+ files as easily as 5 files
+
+## Post-Commit Reflection Workflow
+
+After each commit and push, take a moment to reflect on lessons learned from the work. This helps capture institutional knowledge and improve future development sessions.
+
+### Reflection Process
+
+1. **After each commit/push**, pause and reflect on:
+   - What technical decisions were made and why
+   - What worked well in the implementation
+   - What could be improved next time
+   - Any error patterns or debugging insights
+   - Architecture insights or design tradeoffs
+
+2. **Document valuable reflections** by asking the user for permission to update CLAUDE.md with these insights
+
+3. **Add reflections to relevant sections**:
+   - Technical patterns → "Development Workflow" or "Modern Patterns" sections
+   - Common errors → "Common Pitfalls" section
+   - Testing insights → "Testing Strategy" section
+   - Architecture decisions → "Architecture: Staged Pipeline" section
+
+### What Makes a Good Reflection
+
+**Examples of valuable reflections**:
+- "Extracted tracking code to separate module during merge to prevent future conflicts - clean separation is better than large monolithic files"
+- "UUID serialization in Ibis memtables requires converting to strings first, let Ibis cast back to UUID type"
+- "Content-addressed checkpointing with SHA256 enables deterministic pipeline resumption across runs"
+- "Two-level validation (compile-time + runtime) provides safety without blocking execution"
+
+**What to capture**:
+- Architecture decisions that deviate from obvious approaches
+- Non-obvious error fixes that took time to debug
+- Patterns that emerged across multiple similar tasks
+- Trade-offs made between competing design principles
+
+**What to skip**:
+- Obvious fixes (typos, simple syntax errors)
+- One-off decisions unlikely to recur
+- Implementation details already documented in code comments
+
+### Integration with Roadmap Progression
+
+After completing each task and reflecting on lessons learned:
+
+1. **Suggest the next task** from the architecture roadmap
+2. **Explain why** that task is the logical next step
+3. **Reference dependencies** between completed and upcoming work
+4. **Continue systematically** through roadmap priorities
+
+This ensures steady progress while capturing knowledge for future sessions.
 
 ## Architecture: Staged Pipeline
 
@@ -274,6 +329,78 @@ class WriterRuntimeContext:
 - ❌ Don't create DB schemas for windows (they're transient views of CONVERSATION_SCHEMA)
 - ❌ Don't use `tokens` unit (replaced with `bytes` for simplicity/speed)
 
+**View Registry (Priority C.1 - 2025-01-09)**:
+- ✅ Callable view builders: `ViewBuilder = Callable[[Table], Table]`
+- ✅ Centralized registry for pipeline transformations
+- ✅ Transparent Ibis ↔ SQL swapping for performance
+- ✅ Reference views by name, not implementation
+- ✅ Example: `chunks_builder = views.get("chunks"); result = chunks_builder(table)`
+- ✅ Built-in views: `chunks`, `chunks_optimized`, `hourly_aggregates`, `daily_aggregates`
+- ✅ Register custom views with decorator: `@views.register("my_view")`
+- ❌ Don't confuse with `database/views.py` (SQL materialized views for query optimization)
+- See `docs/pipeline/view-registry.md` for full guide
+
+**StorageManager (Priority C.2 - 2025-01-09)**:
+- ✅ Centralized DuckDB connection management
+- ✅ Automatic parquet checkpointing for persistence
+- ✅ Integrated with ViewRegistry for executing views
+- ✅ Context manager support: `with StorageManager() as storage:`
+- ✅ Example: `storage.write_table(table, "name", checkpoint=True)`
+- ✅ Table operations: read, write, drop, exists, list
+- ✅ View execution: `storage.execute_view("output", builder, "input")`
+- ❌ Don't use raw SQL - use StorageManager methods
+- See `docs/database/storage-manager.md` for full guide
+
+**Stage Validation (Priority C.3 - 2025-01-09)**:
+- ✅ `@validate_stage` decorator for automatic IR v1 schema validation
+- ✅ Validates both input and output of pipeline stages
+- ✅ Two-level validation: compile-time (schema structure) + runtime (sample rows)
+- ✅ Ensures stages preserve IR v1 contract throughout transformations
+- ✅ Example: `@validate_stage def process(self, data: Table, context) -> StageResult:`
+- ✅ Helpful error messages with stage context
+- ❌ Don't drop required IR columns or change types in stages
+- See `docs/pipeline/stage-validation.md` for full guide
+
+**Pipeline Run Tracking (Priority D.1 - 2025-01-09)**:
+- ✅ Automatic window-level tracking in `.egregora/runs.duckdb`
+- ✅ Records: run_id, stage, status, duration, rows processed, errors
+- ✅ CLI commands: `egregora runs tail` (recent runs), `egregora runs show <run_id>` (details)
+- ✅ Status transitions: running → completed/failed
+- ✅ Graceful error handling: tracking failures logged but don't block pipeline
+- ✅ Example: Every window creates a run record automatically
+- ✅ Debug failures: `egregora runs tail` to find failed runs, `show <run_id>` for error details
+- ✅ Performance monitoring: Track duration per window, identify bottlenecks
+- ❌ Don't rely on runs database for critical pipeline logic (it's observability only)
+- See `docs/observability/runs-tracking.md` for full guide
+
+**OpenTelemetry Integration (Priority D.2 - 2025-01-10)**:
+- ✅ Vendor-neutral observability framework (opt-in via `EGREGORA_OTEL=1`)
+- ✅ Logfire as optional exporter (Pydantic's OTEL-compatible platform)
+- ✅ No mandatory API keys - works with console exporter by default
+- ✅ Exporter priority: Logfire → OTLP → Console (first available wins)
+- ✅ Automatic trace_id capture and storage in runs database
+- ✅ Links pipeline runs to distributed traces for deep debugging
+- ✅ Example usage:
+  ```bash
+  # Console exporter (default, no API key needed)
+  export EGREGORA_OTEL=1
+  egregora write export.zip
+
+  # Logfire exporter (optional, requires token)
+  export EGREGORA_OTEL=1
+  export LOGFIRE_TOKEN=your_token
+  egregora write export.zip
+
+  # Generic OTLP collector
+  export EGREGORA_OTEL=1
+  export OTEL_EXPORTER_OTLP_ENDPOINT=https://collector:4317
+  egregora write export.zip
+  ```
+- ✅ Functions: `get_tracer()`, `get_current_trace_id()`, `configure_otel()`, `shutdown_otel()`
+- ✅ Trace context automatically propagated through pipeline stages
+- ❌ Don't use Logfire-specific APIs directly - use OTEL APIs for portability
+- ❌ Don't require OTEL for core functionality - it's observability only
+
 ## Code Structure
 
 ```
@@ -282,11 +409,21 @@ src/egregora/
 ├── pipeline.py               # Windowing utilities (create_windows, Window dataclass)
 ├── database/
 │   ├── schema.py            # ALL table schemas (CONVERSATION_SCHEMA, RAG_CHUNKS_SCHEMA, etc.)
-│   └── connection.py        # DuckDB connection management
+│   ├── connection.py        # DuckDB connection management
+│   ├── storage.py           # StorageManager for centralized DB access (Priority C.2)
+│   ├── validation.py        # IR schema validation
+│   └── views.py             # SQL materialized views (database query optimization)
 ├── config/
 │   ├── types.py             # Config dataclasses
 │   ├── pipeline.py          # Pipeline-specific configs
 │   └── site.py              # Site/MkDocs config loading
+├── pipeline/
+│   ├── base.py              # PipelineStage protocol
+│   ├── ir.py                # IR schema and validation
+│   ├── views.py             # View registry for pipeline transformations (Priority C.1)
+│   ├── tracking.py          # Run tracking and lineage
+│   ├── checkpoint.py        # Content-addressed checkpointing
+│   └── adapters.py          # SourceAdapter protocol
 ├── ingestion/
 │   ├── base.py              # Abstract base classes (InputSource, InputMetadata)
 │   ├── slack_input.py       # Slack source (future)
@@ -322,7 +459,8 @@ src/egregora/
 ├── utils/
 │   ├── gemini_dispatcher.py # LLM API client (handles retries, batching)
 │   ├── cache.py             # DiskCache wrapper
-│   └── logfire_config.py    # Observability (Pydantic Logfire)
+│   ├── telemetry.py         # OpenTelemetry instrumentation (Priority D.2)
+│   └── logfire_config.py    # Logfire helpers (deprecated - use telemetry.py)
 └── rendering/
     ├── mkdocs.py            # MkDocs renderer
     └── templates/           # Jinja2 templates

@@ -9,9 +9,11 @@ Requires GOOGLE_API_KEY environment variable or explicit api_key parameter.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import mimetypes
 import os
+import uuid
 from pathlib import Path
 
 from google import genai
@@ -111,7 +113,11 @@ class BannerGenerator:
                     inline_data = part.inline_data
                     data_buffer = inline_data.data
                     file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
-                    banner_filename = f"banner-{request.slug}{file_extension}"
+
+                    # Use content-based UUID5 for deterministic naming (like other media)
+                    content_hash = hashlib.sha256(data_buffer).digest()
+                    banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
+                    banner_filename = f"{banner_uuid}{file_extension}"
                     banner_path = request.output_dir / banner_filename
 
                     with banner_path.open("wb") as f:

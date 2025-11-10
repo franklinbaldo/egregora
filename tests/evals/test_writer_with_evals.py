@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.writer.writer_agent import (
+from egregora.agents.writer.agent import (
     WriterRuntimeContext,
     write_posts_with_pydantic_agent,
     write_posts_with_pydantic_agent_stream,

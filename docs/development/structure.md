@@ -21,9 +21,16 @@ egregora/
 
 ```
 src/egregora/
-├── ingestion/              # Parse WhatsApp exports
+├── ingestion/              # Input source base classes (re-exports from sources/)
 │   ├── __init__.py
-│   └── parser.py           # Main parsing logic
+│   └── base.py             # InputSource, InputMetadata protocols
+│
+├── sources/                # Source-specific implementations
+│   └── whatsapp/           # WhatsApp export parsing
+│       ├── parser.py       # parse_source() - main parser
+│       ├── grammar.py      # pyparsing grammar
+│       ├── input.py        # WhatsAppInputSource
+│       └── models.py       # WhatsAppExport dataclass
 │
 ├── privacy/                # Anonymization & PII detection
 │   ├── __init__.py

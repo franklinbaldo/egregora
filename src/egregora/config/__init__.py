@@ -180,7 +180,6 @@ __all__ = [
     "DEFAULT_BLOG_DIR",  # Default blog directory name
     "DEFAULT_DOCS_DIR",  # Default docs directory name
     "EMBEDDING_DIM",  # Embedding vector dimensions
-    "ModelType",  # Type literal for model roles
     "MEDIA_DIR_NAME",  # Media subdirectory name
     "PROFILES_DIR_NAME",  # Profiles subdirectory name
     "ComparisonConfig",  # Elo ranking comparison parameters
@@ -190,9 +189,6 @@ __all__ = [
     # ==========================================================================
     # Root config and sub-configs loaded from .egregora/config.yml
     "EgregoraConfig",  # Root config (contains all sub-configs)
-    "EgregoraEnrichmentConfig",  # Enrichment settings
-    "EgregoraPipelineConfig",  # Pipeline settings
-    "EgregoraWriterConfig",  # Writer agent settings
     "EnrichmentConfig",  # Enrichment stage parameters
     "FeaturesConfig",  # Feature flags
     "MediaEnrichmentContext",  # Media enrichment runtime context
@@ -200,6 +196,7 @@ __all__ = [
     # Model Configuration Utilities
     # ==========================================================================
     "ModelConfig",  # Backend-agnostic model config
+    "ModelType",  # Type literal for model roles
     "ModelType",  # Enum of model roles
     "ModelsConfig",  # LLM model names
     # ==========================================================================

@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 import ibis
 
 from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
-from egregora.pipeline.adapters import SourceAdapter
-from egregora.pipeline.ir import create_ir_table
+from egregora.pipeline.validation import create_ir_table
+from egregora.sources.base import AdapterMeta, SourceAdapter
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.pipeline import discover_chat_file
 from egregora.types import GroupSlug
@@ -134,6 +134,21 @@ class WhatsAppAdapter(SourceAdapter):
     @property
     def source_identifier(self) -> str:
         return "whatsapp"
+
+    def adapter_meta(self) -> AdapterMeta:
+        """Return adapter metadata for plugin discovery.
+
+        Returns:
+            AdapterMeta with WhatsApp adapter information
+
+        """
+        return AdapterMeta(
+            name="WhatsApp",
+            version="1.0.0",
+            source="whatsapp",
+            doc_url="https://github.com/franklinbaldo/egregora#whatsapp-exports",
+            ir_version="v1",
+        )
 
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
         """Parse WhatsApp ZIP export into IR-compliant table.

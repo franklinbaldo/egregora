@@ -151,6 +151,43 @@ class OutputFormat(ABC):
 
         """
 
+    @abstractmethod
+    def get_format_instructions(self) -> str:
+        """Generate format-specific instructions for the writer agent.
+
+        Returns plain text that gets injected into the writer prompt to teach
+        the LLM about this output format's conventions (front-matter style,
+        file naming, special features, etc.).
+
+        This enables the writer agent to adapt to different formats without
+        code changes - the LLM learns format conventions through instructions.
+
+        Returns:
+            Markdown-formatted instructions for the writer prompt
+
+        Example output:
+            '''
+            ## Output Format: MkDocs Material
+
+            Your posts will be rendered using MkDocs with the Material theme.
+
+            **Front-matter format**: YAML (between --- markers)
+            **Required fields**: title, date, slug, authors, tags, summary
+            **File naming**: {date}-{slug}.md (e.g., 2025-01-10-my-post.md)
+
+            **Special features**:
+            - Author attribution via .authors.yml (use UUIDs only)
+            - Blog plugin for post listing and RSS
+            - Tags create automatic taxonomy pages
+
+            **Markdown extensions enabled**:
+            - Admonitions: !!! note, !!! warning, !!! tip
+            - Code blocks with syntax highlighting
+            - Math: $inline$ and $$block$$
+            '''
+
+        """
+
 
 class OutputFormatRegistry:
     """Registry for managing available output formats."""

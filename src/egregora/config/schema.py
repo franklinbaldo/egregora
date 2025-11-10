@@ -120,31 +120,21 @@ class WriterConfig(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
-    enable_meme_generation: bool = Field(
-        default=False,
-        description="Enable meme generation for posts",
-    )
-    enable_banners: bool = Field(
-        default=True,
-        description="Enable banner image generation for posts",
-    )
+    # REMOVED (Phase 3): enable_meme_generation - never accessed
+    # REMOVED (Phase 3): enable_banners - never accessed (controlled by API key availability)
 
 
 class PrivacyConfig(BaseModel):
-    """Privacy and data protection settings."""
+    """Privacy and data protection settings.
 
-    anonymization_enabled: bool = Field(
-        default=True,
-        description="Anonymize author names before LLM processing",
-    )
-    pii_detection_enabled: bool = Field(
-        default=True,
-        description="Detect and redact PII (phones, emails, addresses)",
-    )
-    opt_out_keywords: list[str] = Field(
-        default_factory=lambda: ["/egregora opt-out"],
-        description="Keywords that trigger opt-out from blog posts",
-    )
+    .. note::
+       Currently all privacy features (anonymization, PII detection) are always enabled.
+       This config section is reserved for future configurable privacy controls.
+    """
+
+    # REMOVED (Phase 3): anonymization_enabled - never accessed (always enabled)
+    # REMOVED (Phase 3): pii_detection_enabled - never accessed (always enabled)
+    # REMOVED (Phase 3): opt_out_keywords - never accessed (planned feature)
 
 
 class EnrichmentConfig(BaseModel):

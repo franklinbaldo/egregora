@@ -161,6 +161,7 @@ class WriterPromptTemplate(PromptTemplate):
     active_authors: str
     custom_instructions: str = ""
     markdown_features: str = ""
+    format_instructions: str = ""  # Output format conventions (MkDocs, Hugo, etc.)
     profiles_context: str = ""
     rag_context: str = ""
     freeform_memory: str = ""
@@ -178,6 +179,7 @@ class WriterPromptTemplate(PromptTemplate):
             active_authors=self.active_authors,
             custom_instructions=self.custom_instructions,
             markdown_features=self.markdown_features,
+            format_instructions=self.format_instructions,
             profiles_context=self.profiles_context,
             rag_context=self.rag_context,
             freeform_memory=self.freeform_memory,

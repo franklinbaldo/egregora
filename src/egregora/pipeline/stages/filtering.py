@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.agents.tools.profiler import filter_opted_out_authors
+from egregora.agents.shared.profiler import filter_opted_out_authors
 from egregora.ingestion import filter_egregora_messages  # Phase 6: Re-exported from sources/whatsapp
 from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 

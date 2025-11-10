@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import AnyUrl, BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.enrichment.agents import load_file_as_binary_content
 from egregora.prompt_templates import MediaEnrichmentPromptTemplate, UrlEnrichmentPromptTemplate
@@ -55,19 +56,28 @@ class MediaEnrichmentDeps(BaseModel):
 
 
 def make_url_agent(model_name: str, site_root: Path | None = None) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
-    """Create a minimal URL enrichment agent using Jinja templates.
+    """Create a URL enrichment agent using Jinja templates with grounding enabled.
+
+    Enables Gemini URL context grounding to fetch and read actual URL content
+    instead of guessing from URL structure.
 
     Args:
         model_name: Pydantic-AI model string (e.g., "google-gla:gemini-flash-latest")
         site_root: Site root for custom prompt overrides
 
     Returns:
-        Configured pydantic-ai Agent for URL enrichment
+        Configured pydantic-ai Agent for URL enrichment with grounding
 
     """
+    # Enable URL context grounding for Google models
+    model_settings = GoogleModelSettings(
+        google_tools=[{"url_context": {}}]  # Enable URL context grounding
+    )
+
     agent = Agent[UrlEnrichmentDeps, EnrichmentOut](
         model=model_name,
         output_type=EnrichmentOut,
+        model_settings=model_settings,
     )
 
     @agent.system_prompt
@@ -112,15 +122,19 @@ def make_media_agent(
 def run_url_enrichment(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, site_root: Path | None = None
 ) -> str:
-    """Run URL enrichment with a single agent call.
+    """Run URL enrichment with grounding to fetch actual content.
+
+    Uses Gemini URL context grounding to fetch and read the actual page content
+    instead of guessing from URL structure. This provides much higher quality
+    enrichment with accurate summaries, metadata, and key points.
 
     Args:
-        agent: Configured URL enrichment agent
+        agent: Configured URL enrichment agent (with grounding enabled)
         url: URL to enrich
         site_root: Site root for custom prompt overrides
 
     Returns:
-        Markdown content describing the URL
+        Markdown content describing the actual URL content
 
     Raises:
         Exception: If agent call fails (let errors propagate)
@@ -128,7 +142,7 @@ def run_url_enrichment(
     """
     url_str = str(url)
     deps = UrlEnrichmentDeps(url=url_str, site_root=site_root)
-    prompt = f"Summarize what this URL is about in 1-2 sentences.\nURL: {url_str}"
+    prompt = f"Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata (author, date, etc.).\n\nURL: {url_str}"
     result: RunResult[EnrichmentOut] = agent.run_sync(prompt, deps=deps)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))

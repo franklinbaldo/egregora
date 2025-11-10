@@ -1,4 +1,7 @@
-"""Utility modules for Egregora."""
+"""Utility modules for Egregora.
+
+MODERN (Phase 3): Added consolidated date/time and filesystem utilities.
+"""
 
 from egregora.utils.batch import (
     BatchPromptRequest,
@@ -8,6 +11,8 @@ from egregora.utils.batch import (
     chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.dates import ensure_datetime
+from egregora.utils.filesystem import ensure_dir
 from egregora.utils.genai import (
     call_with_retries,
     call_with_retries_sync,
@@ -38,6 +43,8 @@ __all__ = [
     "call_with_retries_sync",
     "chunk_requests",
     "configure_default_limits",
+    "ensure_datetime",
+    "ensure_dir",
     "ensure_safe_member_size",
     "extract_retry_delay",
     "is_rate_limit_error",
