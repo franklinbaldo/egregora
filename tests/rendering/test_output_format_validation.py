@@ -252,9 +252,7 @@ class TestMkDocsPostStorageIntegration:
         # posts_dir already created by MkDocsPostStorage.__init__
 
         # Write date-prefixed file
-        (posts_dir / "2025-01-10-my-post.md").write_text(
-            "---\ntitle: Test\n---\n\nContent"
-        )
+        (posts_dir / "2025-01-10-my-post.md").write_text("---\ntitle: Test\n---\n\nContent")
 
         # Should be able to read with just the slug
         result = post_storage.read("my-post")
