@@ -225,7 +225,7 @@ RUNS_TABLE_SCHEMA = ibis.schema(
         "status": dt.string,  # "running", "completed", "failed"
         "error": dt.String(nullable=True),  # Error message if status="failed"
         # Fingerprinting (content-addressed checkpointing)
-        "input_fingerprint": dt.String(nullable=True),  # SHA256 of input data + config + code
+        "input_fingerprint": dt.string,  # SHA256 of input data + config + code (NOT NULL)
         "code_ref": dt.String(nullable=True),  # Git commit SHA
         "config_hash": dt.String(nullable=True),  # SHA256 of config
         # Timing
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS runs (
     stage VARCHAR NOT NULL,
     status VARCHAR NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'degraded')),
     error TEXT,
-    input_fingerprint VARCHAR,
+    input_fingerprint VARCHAR NOT NULL,
     code_ref VARCHAR,
     config_hash VARCHAR,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL,

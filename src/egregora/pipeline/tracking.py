@@ -169,6 +169,46 @@ def fingerprint_table(table: ibis.Table) -> str:
     return f"sha256:{hash_obj.hexdigest()}"
 
 
+def fingerprint_window(window: Any) -> str:
+    """Generate SHA256 fingerprint of a window slice.
+
+    Used for deterministic window identification in run tracking.
+    Hashes window metadata (index, time range, size) for cheap computation.
+
+    Args:
+        window: Window object with window_index, start_time, end_time, size
+
+    Returns:
+        SHA256 fingerprint (format: "sha256:<hex>")
+
+    Example:
+        >>> from egregora.pipeline.windowing import Window
+        >>> window = Window(
+        ...     window_index=0,
+        ...     start_time=datetime(2025, 1, 1, 10, 0, tzinfo=UTC),
+        ...     end_time=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+        ...     table=messages_table,
+        ...     size=100,
+        ... )
+        >>> fingerprint = fingerprint_window(window)
+        >>> print(fingerprint)
+        sha256:abc123...
+
+    """
+    # Hash window metadata (cheap, deterministic)
+    # Format: window_index|start_time_iso|end_time_iso|size
+    metadata_str = (
+        f"{window.window_index}|"
+        f"{window.start_time.isoformat()}|"
+        f"{window.end_time.isoformat()}|"
+        f"{window.size}"
+    )
+
+    # SHA256 hash
+    hash_obj = hashlib.sha256(metadata_str.encode("utf-8"))
+    return f"sha256:{hash_obj.hexdigest()}"
+
+
 def record_run(
     conn: duckdb.DuckDBPyConnection,
     run_id: uuid.UUID,

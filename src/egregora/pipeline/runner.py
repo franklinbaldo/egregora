@@ -31,7 +31,7 @@ from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
-from egregora.pipeline.tracking import record_run
+from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
@@ -454,6 +454,9 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
 
             # Record run start
             try:
+                # Generate deterministic fingerprint for this window
+                input_fingerprint = fingerprint_window(window)
+
                 record_run(
                     conn=runs_conn,
                     run_id=run_id,
@@ -461,6 +464,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     status="running",
                     started_at=started_at,
                     rows_in=window.size,
+                    input_fingerprint=input_fingerprint,
                 )
             except Exception as e:
                 logger.warning("Failed to record run start: %s", e)
