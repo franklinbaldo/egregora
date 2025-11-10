@@ -14,7 +14,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.writer.writer_agent import (
+from egregora.agents.writer.agent import (
     JournalEntry,
     _extract_freeform_content,
     _extract_intercalated_log,
@@ -283,7 +283,7 @@ draft: true
     log = [JournalEntry(entry_type="thinking", content="Test content")]
 
     # Temporarily patch the templates directory location
-    import egregora.agents.writer.writer_agent as writer_module
+    import egregora.agents.writer.agent as writer_module
 
     original_file = writer_module.__file__
     writer_module.__file__ = str(tmp_path / "fake" / "fake" / "fake.py")
@@ -311,7 +311,7 @@ def test_save_journal_to_file_missing_templates_dir(tmp_path: Path):
     log = [JournalEntry(entry_type="thinking", content="Test")]
 
     # The templates directory won't exist relative to tmp_path
-    import egregora.agents.writer.writer_agent as writer_module
+    import egregora.agents.writer.agent as writer_module
 
     original_file = writer_module.__file__
     writer_module.__file__ = str(tmp_path / "nonexistent" / "nonexistent" / "fake.py")

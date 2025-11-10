@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from egregora.agents.tools.profiler import (
+from egregora.agents.shared.profiler import (
     get_avatar_info,
     remove_profile_avatar,
     update_profile_avatar,

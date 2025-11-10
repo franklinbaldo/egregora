@@ -9,9 +9,9 @@ from google import genai
 from google.genai import types as genai_types
 
 from egregora.agents.banner import generate_banner_for_post
-from egregora.agents.tools.annotations import AnnotationStore
-from egregora.agents.tools.profiler import read_profile, write_profile
-from egregora.agents.tools.rag import VectorStore, query_media
+from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.profiler import read_profile, write_profile
+from egregora.agents.shared.rag import VectorStore, query_media
 from egregora.agents.writer.formatting import _stringify_value
 from egregora.utils.write_post import write_post
 

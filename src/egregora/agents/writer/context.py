@@ -10,9 +10,9 @@ from google import genai
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
-from egregora.agents.tools.profiler import get_active_authors, read_profile
-from egregora.agents.tools.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
-from egregora.agents.tools.rag.embedder import embed_query
+from egregora.agents.shared.profiler import get_active_authors, read_profile
+from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
+from egregora.agents.shared.rag.embedder import embed_query
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)

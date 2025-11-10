@@ -66,4 +66,4 @@ def list_stages() -> list[str]:
     return list(STAGE_REGISTRY.keys())
 
 
-__all__ = ["STAGE_REGISTRY", "FilteringStage", "FilteringStageConfig", "get_stage", "list_stages"]
+__all__ = ["FilteringStage", "FilteringStageConfig"]

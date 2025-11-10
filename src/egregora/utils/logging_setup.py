@@ -21,7 +21,7 @@ def _resolve_level() -> Annotated[int, "The logging level to use"]:
     level = getattr(logging, level_name, None)
     if isinstance(level, int):
         return level
-        console.print(f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]")
+    console.print(f"[yellow]Unknown EGREGORA_LOG_LEVEL '{level_name}'; defaulting to INFO.[/yellow]")
     return logging.INFO
 
 

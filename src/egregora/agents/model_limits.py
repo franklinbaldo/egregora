@@ -215,7 +215,6 @@ def validate_prompt_fits(
 
 
 __all__ = [
-    "KNOWN_MODEL_LIMITS",
     "PromptTooLargeError",
     "estimate_tokens",
     "get_model_context_limit",

@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora.database.schema import CONVERSATION_SCHEMA
+from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
     detect_media_type,
@@ -334,20 +334,20 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
         raise ValueError(msg)
 
     if duckdb_connection and target_table:
-        from egregora import database  # noqa: PLC0415 - avoid circular import
+        from egregora.database import schemas  # noqa: PLC0415 - avoid circular import
 
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
             msg = "target_table must be a valid DuckDB identifier"
             raise ValueError(msg)
 
-        database.schema.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
-        quoted_table = database.schema.quote_identifier(target_table)
-        column_list = ", ".join(database.schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+        schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
+        quoted_table = schemas.quote_identifier(target_table)
+        column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
 
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)
-            quoted_view = database.schema.quote_identifier(temp_view)
+            quoted_view = schemas.quote_identifier(temp_view)
             duckdb_connection.raw_sql("BEGIN TRANSACTION")
             try:
                 duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")
