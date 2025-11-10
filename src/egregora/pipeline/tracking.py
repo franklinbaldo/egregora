@@ -198,10 +198,7 @@ def fingerprint_window(window: Any) -> str:
     # Hash window metadata (cheap, deterministic)
     # Format: window_index|start_time_iso|end_time_iso|size
     metadata_str = (
-        f"{window.window_index}|"
-        f"{window.start_time.isoformat()}|"
-        f"{window.end_time.isoformat()}|"
-        f"{window.size}"
+        f"{window.window_index}|{window.start_time.isoformat()}|{window.end_time.isoformat()}|{window.size}"
     )
 
     # SHA256 hash
