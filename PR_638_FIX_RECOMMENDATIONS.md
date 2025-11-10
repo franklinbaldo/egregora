@@ -323,6 +323,50 @@ class OutputFormat(ABC):
             raise ValueError(f"Invalid YAML frontmatter: {e}") from e
 
         return metadata, body
+
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None
+    ) -> None:
+        """Post-processing hook called after writer agent completes a window.
+
+        Template Method pattern - base implementation does nothing, subclasses
+        override to perform format-specific finalization tasks.
+
+        Examples of format-specific finalization:
+        - MkDocs: Update .authors.yml, regenerate navigation, update tags index
+        - Hugo: Run Hugo build to regenerate site, update taxonomies
+        - Database: Commit transaction, update search indexes, vacuum
+        - S3: Upload changed files to S3, invalidate CloudFront cache
+
+        Args:
+            window_label: Window identifier (e.g., "2025-01-10 10:00 to 12:00")
+            posts_created: List of post identifiers created during this window
+            profiles_updated: List of profile identifiers updated during this window
+            metadata: Optional metadata about the window (duration, token count, etc.)
+
+        Note:
+            This method is called even if no posts/profiles were created.
+            Implementations should be idempotent and handle empty lists gracefully.
+
+        Examples:
+            >>> # MkDocs implementation
+            >>> def finalize_window(self, window_label, posts_created, profiles_updated, metadata):
+            >>>     self._update_authors_yml(profiles_updated)
+            >>>     self._regenerate_tags_index(posts_created)
+            >>>     logger.info(f"Finalized MkDocs window: {window_label}")
+
+            >>> # Database implementation
+            >>> def finalize_window(self, window_label, posts_created, profiles_updated, metadata):
+            >>>     self.connection.commit()
+            >>>     self._update_search_index(posts_created)
+            >>>     logger.info(f"Committed database window: {window_label}")
+        """
+        # Base implementation does nothing - subclasses override for specific tasks
+        pass
 ```
 
 ### Phase 2: Implement Storage Properties in MkDocsOutputFormat
@@ -433,6 +477,94 @@ class MkDocsOutputFormat(OutputFormat):
             content = f"# {name}\n\n{bio}"
 
         return self._profiles_impl.write(author_id, content)
+
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None
+    ) -> None:
+        """Finalize MkDocs window - update .authors.yml and metadata.
+
+        MkDocs-specific post-processing:
+        1. Update .authors.yml with new/changed author profiles
+        2. Regenerate blog metadata (optional)
+        3. Update tags index (optional)
+
+        Args:
+            window_label: Window identifier
+            posts_created: Post file paths created during window
+            profiles_updated: Profile UUIDs updated during window
+            metadata: Optional window metadata (duration, tokens, etc.)
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self._site_root:
+            logger.warning("MkDocsOutputFormat not initialized, skipping finalization")
+            return
+
+        logger.info(
+            f"Finalizing MkDocs window: {window_label} "
+            f"({len(posts_created)} posts, {len(profiles_updated)} profiles)"
+        )
+
+        # Update .authors.yml if profiles were changed
+        if profiles_updated:
+            self._update_authors_yml(profiles_updated)
+
+        # Optional: Regenerate tags index, navigation, etc.
+        # Can be implemented based on MkDocs Material blog plugin requirements
+
+    def _update_authors_yml(self, profile_uuids: list[str]) -> None:
+        """Update .authors.yml with changed author profiles.
+
+        MkDocs Material blog plugin uses .authors.yml for author attribution.
+        This method reads updated profile markdown files and syncs to YAML.
+
+        Args:
+            profile_uuids: List of author UUIDs that were updated
+        """
+        import yaml
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self._site_root or not profile_uuids:
+            return
+
+        authors_file = self._site_root / ".authors.yml"
+
+        # Load existing authors or create new dict
+        if authors_file.exists():
+            with authors_file.open("r", encoding="utf-8") as f:
+                authors = yaml.safe_load(f) or {}
+        else:
+            authors = {}
+
+        # Update authors from profile files
+        for uuid in profile_uuids:
+            profile_path = self._site_root / "profiles" / f"{uuid}.md"
+            if profile_path.exists():
+                content = profile_path.read_text(encoding="utf-8")
+
+                # Parse profile frontmatter for author metadata
+                metadata, _ = self.parse_frontmatter(content)
+
+                # Update .authors.yml entry
+                # Use short UUID (first 8 chars) as key per MkDocs convention
+                short_uuid = uuid[:8] if len(uuid) >= 8 else uuid
+                authors[short_uuid] = {
+                    "name": metadata.get("alias", uuid),
+                    "description": metadata.get("bio", ""),
+                    "avatar": metadata.get("avatar", ""),
+                }
+
+        # Write updated .authors.yml
+        with authors_file.open("w", encoding="utf-8") as f:
+            yaml.dump(authors, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        logger.info(f"Updated .authors.yml with {len(profile_uuids)} authors")
 ```
 
 ### Phase 3: Update MkDocsPostStorage to Use Base Class Utilities
@@ -637,6 +769,44 @@ context = WriterRuntimeContext(
     # ... rest of context
 )
 ```
+
+**Add finalization hook after window processing**:
+
+After the writer agent completes a window, call `output_format.finalize_window()` to allow format-specific post-processing:
+
+```python
+def process_window(window, output_format, config, ...):
+    """Process a single window with the writer agent."""
+
+    # ... existing code to run writer agent ...
+
+    saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+        prompt=prompt,
+        config=config,
+        context=context,
+    )
+
+    # NEW: Call finalization hook after window completes
+    output_format.finalize_window(
+        window_label=window.label,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata={
+            "duration_seconds": elapsed_time,
+            "tokens_total": usage.total_tokens if usage else 0,
+            # ... any other metadata ...
+        }
+    )
+
+    return saved_posts, saved_profiles
+```
+
+**Benefits**:
+- MkDocs updates `.authors.yml` automatically after each window
+- Hugo can trigger builds or update taxonomies
+- Database formats can commit transactions
+- S3 formats can upload files and invalidate caches
+- Extensible for future format-specific needs
 
 ### Phase 5: Update HugoOutputFormat Similarly
 
