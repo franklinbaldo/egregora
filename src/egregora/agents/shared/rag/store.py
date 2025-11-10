@@ -528,7 +528,7 @@ class VectorStore:
                 function_name,
                 ann_limit=ann_limit,
                 nprobe_clause=nprobe_clause,
-                embedding_dimensionality=embedding_dimensionality,
+                _embedding_dimensionality=embedding_dimensionality,
             )
             query = base_query + where_clause + order_clause
             try:

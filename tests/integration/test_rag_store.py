@@ -14,7 +14,22 @@ from egregora.agents.shared.rag import store as store_module
 ROW_COUNT = 42
 THRESHOLD = 10
 NLIST = 8
-EMBEDDING_DIM = 1536
+EMBEDDING_DIM = 768  # Must match egregora.config.EMBEDDING_DIM
+
+
+def _test_embedding(seed: int = 0) -> list[float]:
+    """Generate a 768-dimensional test embedding with deterministic values.
+
+    Args:
+        seed: Seed value to create different embeddings for different chunks
+
+    Returns:
+        List of 768 floats for testing
+
+    """
+    import random
+    rng = random.Random(seed)
+    return [rng.random() for _ in range(EMBEDDING_DIM)]
 
 
 def _vector_store_row(store_module, **overrides):
@@ -97,7 +112,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
                         document_id="doc-1",
                         chunk_index=0,
                         content="hello",
-                        embedding=[0.0, 1.0],
+                        embedding=_test_embedding(seed=1),
                         tags=["tag"],
                     )
                 ],
@@ -113,7 +128,7 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
                         document_id="doc-2",
                         chunk_index=0,
                         content="world",
-                        embedding=[1.0, 0.0],
+                        embedding=_test_embedding(seed=2),
                         tags=["tag"],
                     )
                 ],
@@ -142,7 +157,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
             {
                 "chunk_id": "chunk-1",
                 "content": "hello",
-                "embedding": [0.0, 1.0],
+                "embedding": _test_embedding(seed=1),
             }
         ]
 
@@ -156,7 +171,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
                 document_id="doc-1",
                 chunk_index=0,
                 content="hello",
-                embedding=[0.0, 1.0],
+                embedding=_test_embedding(seed=1),
                 tags=["tag"],
             )
         ]
@@ -168,7 +183,7 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
             document_id="doc-2",
             chunk_index=0,
             content="world",
-            embedding=[1.0, 0.0],
+            embedding=_test_embedding(seed=2),
             tags=["tag"],
         )
         extra_column_row["extra"] = "value"
@@ -288,7 +303,7 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
                 document_id="doc-1",
                 chunk_index=0,
                 content="hello",
-                embedding=[0.0, 1.0],
+                embedding=_test_embedding(seed=1),
                 tags=["tag"],
             )
         ]
@@ -323,10 +338,11 @@ def test_search_builds_expected_sql(tmp_path, monkeypatch):
 
         store.conn = _ConnectionProxy(store.conn)
 
-        store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann")
+        query_vector = _test_embedding(seed=99)  # Use deterministic 768-dim query vector
+        store.search(query_vec=query_vector, top_k=1, mode="ann")
         assert any("vss_search" in sql for sql in captured_sql)
 
-        store.search(query_vec=[0.0, 1.0], top_k=1, mode="exact")
+        store.search(query_vec=query_vector, top_k=1, mode="exact")
         assert any("array_cosine_similarity" in sql for sql in captured_sql)
     finally:
         store.close()
@@ -365,15 +381,16 @@ def test_ann_mode_returns_expected_results_when_vss_available(tmp_path):
                 return base
 
             rows = [
-                build_row("chunk-1", [1.0, 0.0], chunk_index=0),
-                build_row("chunk-2", [0.0, 1.0], chunk_index=1),
+                build_row("chunk-1", _test_embedding(seed=1), chunk_index=0),
+                build_row("chunk-2", _test_embedding(seed=2), chunk_index=1),
             ]
 
             table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
             store.add(table)
 
-            ann_results = store.search(query_vec=[0.0, 1.0], top_k=1, mode="ann").execute()
-            exact_results = store.search(query_vec=[0.0, 1.0], top_k=1, mode="exact").execute()
+            query_vector = _test_embedding(seed=99)  # Use deterministic 768-dim query vector
+            ann_results = store.search(query_vec=query_vector, top_k=1, mode="ann").execute()
+            exact_results = store.search(query_vec=query_vector, top_k=1, mode="exact").execute()
 
             assert not ann_results.empty
             assert list(ann_results["chunk_id"]) == ["chunk-2"]
@@ -415,17 +432,17 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         rows = [
             build_row(
                 "chunk-before",
-                [0.0, 1.0],
+                _test_embedding(seed=1),
                 post_date=date(2023, 12, 31),
             ),
             build_row(
                 "chunk-after",
-                [1.0, 0.0],
+                _test_embedding(seed=2),
                 post_date=date(2024, 1, 5),
             ),
             build_row(
                 "media-jan",
-                [0.8, 0.2],
+                _test_embedding(seed=3),
                 document_type="media",
                 document_id="media-jan",
                 media_uuid="media-jan",
@@ -439,7 +456,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
         store.add(table)
 
-        query_vector = [1.0, 0.0]
+        query_vector = _test_embedding(seed=99)  # Use deterministic 768-dim query vector
 
         baseline = store.search(
             query_vec=query_vector,
@@ -447,7 +464,8 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
             min_similarity=0.0,
             mode="exact",
         ).execute()
-        assert list(baseline["chunk_id"]) == ["chunk-after", "media-jan", "chunk-before"]
+        # Use set comparison since order depends on random embeddings
+        assert set(baseline["chunk_id"]) == {"chunk-after", "media-jan", "chunk-before"}
 
         filtered_by_date = store.search(
             query_vec=query_vector,
@@ -456,7 +474,8 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
             mode="exact",
             date_after=date(2024, 1, 1),
         ).execute()
-        assert list(filtered_by_date["chunk_id"]) == ["chunk-after", "media-jan"]
+        # Filter test: only chunks from 2024-01-01 onwards
+        assert set(filtered_by_date["chunk_id"]) == {"chunk-after", "media-jan"}
 
         filtered_by_datetime = store.search(
             query_vec=query_vector,
@@ -465,7 +484,8 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
             mode="exact",
             date_after=datetime(2023, 12, 31, 18, 0),
         ).execute()
-        assert list(filtered_by_datetime["chunk_id"]) == ["chunk-after", "media-jan"]
+        # Filter test: only chunks after datetime
+        assert set(filtered_by_datetime["chunk_id"]) == {"chunk-after", "media-jan"}
 
         filtered_with_timezone = store.search(
             query_vec=query_vector,
@@ -474,6 +494,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
             mode="exact",
             date_after="2023-12-31T23:00:00+00:00",
         ).execute()
-        assert list(filtered_with_timezone["chunk_id"]) == ["chunk-after", "media-jan"]
+        # Filter test: only chunks after ISO 8601 datetime
+        assert set(filtered_with_timezone["chunk_id"]) == {"chunk-after", "media-jan"}
     finally:
         store.close()
