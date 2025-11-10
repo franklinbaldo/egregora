@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
+from egregora.rendering.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
 from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.storage.memory import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
-from egregora.rendering.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
 
 # --- Fixtures for all storage implementations ---
 
