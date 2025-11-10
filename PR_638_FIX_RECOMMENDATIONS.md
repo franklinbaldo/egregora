@@ -64,29 +64,46 @@ The old `egregora.utils.write_post` utility performed critical validations that 
 
 **Note on PII validation**: Not needed at storage layer - anonymization happens before LLM processing, so LLM cannot generate PII. This was correctly removed.
 
-### Solution: Add Validations to MkDocsPostStorage
+### Solution: Add Common Utilities to Base Class, Use in All Formats
 
-Port the validation logic from `write_post.py` into `MkDocsPostStorage.write()`.
+Move shared validation logic to the `OutputFormat` base class so all formats (MkDocs, Hugo, Database, S3) can reuse it without duplication.
 
 ---
 
 ## Detailed Implementation Plan
 
-### Phase 1: Add Storage Protocol Properties to OutputFormat
+### Phase 1: Add Common Utilities and Storage Protocol Properties to OutputFormat
 
 **File**: `src/egregora/rendering/base.py`
 
+Add common utility methods to the base class that all output formats can use:
+
 ```python
+import datetime
+import re
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
+
 from egregora.storage import PostStorage, ProfileStorage, JournalStorage, EnrichmentStorage
+
 
 class OutputFormat(ABC):
     """Abstract base class for output formats.
 
     Output formats coordinate all storage operations for a specific
     site generator (MkDocs, Hugo, Jekyll, etc.) or backend (Database, S3).
+
+    Provides common utilities for all formats:
+    - Slug normalization
+    - Date extraction and parsing
+    - Unique filename generation
+    - Frontmatter parsing (format-specific override available)
     """
 
     # ... existing abstract methods (scaffold_site, resolve_paths, etc.) ...
+
+    # ===== Storage Protocol Properties (Abstract) =====
 
     @property
     @abstractmethod
@@ -135,6 +152,177 @@ class OutputFormat(ABC):
             Must be called before accessing storage properties.
             Creates necessary directories and sets up storage backends.
         """
+
+    # ===== Common Utility Methods (Concrete) =====
+
+    @staticmethod
+    def normalize_slug(slug: str) -> str:
+        """Normalize slug to be URL-safe and filesystem-safe.
+
+        Converts to lowercase, replaces spaces/special chars with hyphens.
+        All output formats should use this for consistent slug handling.
+
+        Args:
+            slug: Raw slug from metadata (may contain spaces, capitals, etc.)
+
+        Returns:
+            Normalized slug (lowercase, hyphens only)
+
+        Examples:
+            >>> OutputFormat.normalize_slug("My Great Post!")
+            'my-great-post'
+            >>> OutputFormat.normalize_slug("AI & Machine Learning")
+            'ai-machine-learning'
+        """
+        from egregora.utils import slugify
+        return slugify(slug)
+
+    @staticmethod
+    def extract_date_prefix(date_str: str) -> str:
+        """Extract clean YYYY-MM-DD date from various formats.
+
+        Handles:
+        - Clean dates: "2025-03-02"
+        - ISO timestamps: "2025-03-02T10:30:00"
+        - Window labels: "2025-03-02 08:01 to 12:49"
+        - Datetimes: "2025-03-02 10:30:45"
+
+        All output formats should use this for consistent date handling.
+
+        Args:
+            date_str: Date string in various formats
+
+        Returns:
+            Clean date in YYYY-MM-DD format, or today's date if parsing fails
+
+        Examples:
+            >>> OutputFormat.extract_date_prefix("2025-03-02")
+            '2025-03-02'
+            >>> OutputFormat.extract_date_prefix("2025-03-02 10:00 to 12:00")
+            '2025-03-02'
+        """
+        if not date_str:
+            return datetime.date.today().isoformat()
+
+        date_str = date_str.strip()
+
+        # Try ISO date first (YYYY-MM-DD)
+        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+            try:
+                datetime.date.fromisoformat(date_str)
+                return date_str
+            except (ValueError, AttributeError):
+                pass
+
+        # Extract YYYY-MM-DD pattern from longer strings
+        match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+        if match:
+            clean_date = match.group(1)
+            try:
+                datetime.date.fromisoformat(clean_date)
+                return clean_date
+            except (ValueError, AttributeError):
+                pass
+
+        # Fallback: use today's date
+        return datetime.date.today().isoformat()
+
+    @staticmethod
+    def generate_unique_filename(
+        base_dir: Path,
+        filename_pattern: str,
+        max_attempts: int = 1000
+    ) -> Path:
+        """Generate unique filename by adding suffix if file exists.
+
+        Pattern for preventing silent overwrites - all formats should use this.
+
+        Args:
+            base_dir: Directory where file will be created
+            filename_pattern: Filename template with optional {suffix} placeholder
+                             e.g., "2025-01-10-my-post.md" or "2025-01-10-my-post{suffix}.md"
+            max_attempts: Maximum number of suffix attempts (default 1000)
+
+        Returns:
+            Unique filepath that doesn't exist
+
+        Raises:
+            RuntimeError: If unique filename cannot be generated after max_attempts
+
+        Examples:
+            >>> # If file doesn't exist
+            >>> generate_unique_filename(Path("/posts"), "my-post.md")
+            Path("/posts/my-post.md")
+
+            >>> # If file exists, adds -2, -3, etc.
+            >>> generate_unique_filename(Path("/posts"), "my-post.md")
+            Path("/posts/my-post-2.md")
+        """
+        from egregora.utils import safe_path_join
+
+        # Try original filename first
+        if "{suffix}" not in filename_pattern:
+            # Add suffix placeholder before extension
+            parts = filename_pattern.rsplit(".", 1)
+            if len(parts) == 2:
+                filename_pattern = f"{parts[0]}{{suffix}}.{parts[1]}"
+            else:
+                filename_pattern = f"{filename_pattern}{{suffix}}"
+
+        # Try without suffix first
+        original_filename = filename_pattern.replace("{suffix}", "")
+        filepath = safe_path_join(base_dir, original_filename)
+
+        if not filepath.exists():
+            return filepath
+
+        # Generate with suffix
+        for suffix in range(2, max_attempts + 2):
+            filename = filename_pattern.replace("{suffix}", f"-{suffix}")
+            filepath = safe_path_join(base_dir, filename)
+
+            if not filepath.exists():
+                return filepath
+
+        raise RuntimeError(
+            f"Could not generate unique filename after {max_attempts} attempts: {filename_pattern}"
+        )
+
+    def parse_frontmatter(self, content: str) -> tuple[dict, str]:
+        """Parse frontmatter from markdown content.
+
+        Default implementation handles YAML frontmatter (used by MkDocs, Jekyll).
+        Override in subclasses for format-specific frontmatter (Hugo uses TOML).
+
+        Args:
+            content: Raw markdown with frontmatter
+
+        Returns:
+            (metadata dict, body string)
+
+        Raises:
+            ValueError: If frontmatter is malformed
+        """
+        import yaml
+
+        if not content.startswith("---\n"):
+            return {}, content
+
+        # Find end of frontmatter
+        end_marker = content.find("\n---\n", 4)
+        if end_marker == -1:
+            return {}, content
+
+        # Extract and parse frontmatter
+        frontmatter_text = content[4:end_marker]
+        body = content[end_marker + 5:].lstrip()
+
+        try:
+            metadata = yaml.safe_load(frontmatter_text) or {}
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML frontmatter: {e}") from e
+
+        return metadata, body
 ```
 
 ### Phase 2: Implement Storage Properties in MkDocsOutputFormat
@@ -247,34 +435,54 @@ class MkDocsOutputFormat(OutputFormat):
         return self._profiles_impl.write(author_id, content)
 ```
 
-### Phase 3: Add Validations to MkDocsPostStorage
+### Phase 3: Update MkDocsPostStorage to Use Base Class Utilities
 
 **File**: `src/egregora/storage/mkdocs.py`
 
-Add the missing validation logic to `MkDocsPostStorage.write()`:
+Update `MkDocsPostStorage` to use the common utilities from `OutputFormat` base class:
 
 ```python
-import datetime
-import re
-from egregora.utils import slugify, safe_path_join
+from pathlib import Path
+
+from egregora.rendering.base import OutputFormat
+
 
 class MkDocsPostStorage:
     """Filesystem-based post storage following MkDocs conventions.
 
-    Handles:
-    - Slug normalization (URL safety)
-    - Unique filename generation (prevents overwrites)
-    - Date prefix extraction (file organization)
-    - YAML frontmatter serialization
+    Uses OutputFormat base class utilities for common operations:
+    - Slug normalization via OutputFormat.normalize_slug()
+    - Unique filename generation via OutputFormat.generate_unique_filename()
+    - Date prefix extraction via OutputFormat.extract_date_prefix()
+    - Frontmatter parsing via OutputFormat().parse_frontmatter()
     """
 
-    def __init__(self, site_root: Path):
+    def __init__(self, site_root: Path, output_format: OutputFormat | None = None):
+        """Initialize MkDocs post storage.
+
+        Args:
+            site_root: Root directory for MkDocs site
+            output_format: Optional OutputFormat instance for utilities
+                          (creates MkDocsOutputFormat if not provided)
+        """
         self.site_root = site_root
         self.posts_dir = site_root / "posts"
         self.posts_dir.mkdir(parents=True, exist_ok=True)
 
+        # Use provided OutputFormat or create one for utility access
+        if output_format is None:
+            from egregora.rendering.mkdocs import MkDocsOutputFormat
+            output_format = MkDocsOutputFormat()
+
+        self.output_format = output_format
+
     def write(self, slug: str, metadata: dict, content: str) -> str:
         """Write post to filesystem with validation.
+
+        Uses OutputFormat base class utilities for:
+        - Slug normalization
+        - Date extraction
+        - Unique filename generation
 
         Args:
             slug: URL-friendly slug (will be normalized)
@@ -289,22 +497,18 @@ class MkDocsPostStorage:
         """
         import yaml
 
-        # 1. Normalize slug for URL/filesystem safety
-        normalized_slug = slugify(slug)
+        # 1. Use base class utility for slug normalization
+        normalized_slug = OutputFormat.normalize_slug(slug)
 
-        # 2. Extract date prefix for organization
-        date_prefix = self._extract_clean_date(metadata.get("date", ""))
+        # 2. Use base class utility for date extraction
+        date_prefix = OutputFormat.extract_date_prefix(metadata.get("date", ""))
 
-        # 3. Generate unique filename (prevent overwrites)
-        base_filename = f"{date_prefix}-{normalized_slug}.md"
-        filepath = safe_path_join(self.posts_dir, base_filename)
-
-        # If file exists, add suffix to make unique
-        suffix = 2
-        while filepath.exists():
-            filename = f"{date_prefix}-{normalized_slug}-{suffix}.md"
-            filepath = safe_path_join(self.posts_dir, filename)
-            suffix += 1
+        # 3. Use base class utility for unique filename generation
+        filename_pattern = f"{date_prefix}-{normalized_slug}.md"
+        filepath = OutputFormat.generate_unique_filename(
+            self.posts_dir,
+            filename_pattern
+        )
 
         # 4. Update metadata with normalized slug
         metadata_copy = metadata.copy()
@@ -320,114 +524,59 @@ class MkDocsPostStorage:
     def read(self, slug: str) -> tuple[dict, str] | None:
         """Read post from filesystem.
 
-        Searches for post by normalized slug, handling date prefixes.
+        Uses base class utilities for slug normalization and frontmatter parsing.
+
+        Args:
+            slug: Post slug (will be normalized for search)
+
+        Returns:
+            (metadata dict, content string) if found, None otherwise
         """
-        # Normalize slug for searching
-        normalized = slugify(slug)
+        # Use base class utility for slug normalization
+        normalized = OutputFormat.normalize_slug(slug)
 
         # Search for any file matching slug pattern (handles date prefixes)
         for path in self.posts_dir.glob(f"*{normalized}.md"):
             raw_content = path.read_text(encoding="utf-8")
-            return self._parse_frontmatter(raw_content)
+            # Use base class utility for frontmatter parsing
+            return self.output_format.parse_frontmatter(raw_content)
 
         # Also try exact slug match (for backward compatibility)
         exact_path = self.posts_dir / f"{slug}.md"
         if exact_path.exists():
             raw_content = exact_path.read_text(encoding="utf-8")
-            return self._parse_frontmatter(raw_content)
+            return self.output_format.parse_frontmatter(raw_content)
 
         return None
 
     def exists(self, slug: str) -> bool:
         """Check if post exists.
 
-        Searches by normalized slug pattern to handle date prefixes.
-        """
-        normalized = slugify(slug)
+        Uses base class utility for slug normalization.
 
-        # Check for any file matching the slug
+        Args:
+            slug: Post slug (will be normalized for search)
+
+        Returns:
+            True if post exists, False otherwise
+        """
+        # Use base class utility for slug normalization
+        normalized = OutputFormat.normalize_slug(slug)
+
+        # Check for any file matching the slug pattern
         if any(self.posts_dir.glob(f"*{normalized}.md")):
             return True
 
         # Also check exact match
         return (self.posts_dir / f"{slug}.md").exists()
-
-    @staticmethod
-    def _extract_clean_date(date_str: str) -> str:
-        """Extract clean YYYY-MM-DD date from various formats.
-
-        Handles:
-        - Clean dates: "2025-03-02"
-        - ISO timestamps: "2025-03-02T10:30:00"
-        - Window labels: "2025-03-02 08:01 to 12:49"
-        - Datetimes: "2025-03-02 10:30:45"
-
-        Args:
-            date_str: Date string in various formats
-
-        Returns:
-            Clean date in YYYY-MM-DD format, or today's date if parsing fails
-        """
-        if not date_str:
-            return datetime.date.today().isoformat()
-
-        date_str = date_str.strip()
-
-        # Try ISO date first (YYYY-MM-DD)
-        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
-            try:
-                datetime.date.fromisoformat(date_str)
-                return date_str
-            except (ValueError, AttributeError):
-                pass
-
-        # Extract YYYY-MM-DD pattern from longer strings
-        match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
-        if match:
-            clean_date = match.group(1)
-            try:
-                datetime.date.fromisoformat(clean_date)
-                return clean_date
-            except (ValueError, AttributeError):
-                pass
-
-        # Fallback: use today's date
-        return datetime.date.today().isoformat()
-
-    @staticmethod
-    def _parse_frontmatter(content: str) -> tuple[dict, str]:
-        """Parse YAML frontmatter from markdown content.
-
-        Args:
-            content: Raw markdown with frontmatter
-
-        Returns:
-            (metadata dict, body string)
-
-        Raises:
-            ValueError: If frontmatter is malformed
-        """
-        import yaml
-
-        if not content.startswith("---\n"):
-            return {}, content
-
-        # Find end of frontmatter
-        end_marker = content.find("\n---\n", 4)
-        if end_marker == -1:
-            return {}, content
-
-        # Extract and parse frontmatter
-        frontmatter_text = content[4:end_marker]
-        body = content[end_marker + 5:].lstrip()
-
-        try:
-            metadata = yaml.safe_load(frontmatter_text) or {}
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML frontmatter: {e}") from e
-
-        return metadata, body
 ```
+
+**Key changes:**
+- ✅ Removed duplicate `_extract_clean_date()` method → uses `OutputFormat.extract_date_prefix()`
+- ✅ Removed duplicate `_parse_frontmatter()` method → uses `OutputFormat().parse_frontmatter()`
+- ✅ Removed manual unique filename loop → uses `OutputFormat.generate_unique_filename()`
+- ✅ Replaced `slugify()` calls → uses `OutputFormat.normalize_slug()`
+- ✅ All validation logic now reusable by Hugo, Database, S3 formats
 
 ### Phase 4: Update Writer Agent to Use OutputFormat
 
