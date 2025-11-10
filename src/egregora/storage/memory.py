@@ -45,6 +45,7 @@ class InMemoryPostStorage:
 
         Returns:
             Identifier with memory:// prefix (e.g., "memory://posts/my-post")
+
         """
         self._posts[slug] = (metadata.copy(), content)
         return f"memory://posts/{slug}"
@@ -57,6 +58,7 @@ class InMemoryPostStorage:
 
         Returns:
             (metadata dict, content string) if post exists, None otherwise
+
         """
         result = self._posts.get(slug)
         if result is None:
@@ -74,6 +76,7 @@ class InMemoryPostStorage:
 
         Returns:
             True if slug is in internal dictionary
+
         """
         return slug in self._posts
 
@@ -105,6 +108,7 @@ class InMemoryProfileStorage:
 
         Returns:
             Identifier with memory:// prefix (e.g., "memory://profiles/abc-123")
+
         """
         self._profiles[author_uuid] = content
         return f"memory://profiles/{author_uuid}"
@@ -117,6 +121,7 @@ class InMemoryProfileStorage:
 
         Returns:
             Markdown content if profile exists, None otherwise
+
         """
         return self._profiles.get(author_uuid)
 
@@ -128,6 +133,7 @@ class InMemoryProfileStorage:
 
         Returns:
             True if UUID is in internal dictionary
+
         """
         return author_uuid in self._profiles
 
@@ -159,6 +165,7 @@ class InMemoryJournalStorage:
 
         Returns:
             Identifier with memory:// prefix (e.g., "memory://journal/2025-01-10_10-00...")
+
         """
         safe_label = self._sanitize_label(window_label)
         self._journals[safe_label] = content
@@ -173,6 +180,7 @@ class InMemoryJournalStorage:
 
         Returns:
             Safe identifier (spaces→underscores, colons→hyphens)
+
         """
         return label.replace(" ", "_").replace(":", "-")
 
@@ -184,6 +192,7 @@ class InMemoryJournalStorage:
 
         Returns:
             Journal content if exists, None otherwise
+
         """
         safe_label = self._sanitize_label(window_label)
         return self._journals.get(safe_label)
@@ -221,6 +230,7 @@ class InMemoryEnrichmentStorage:
 
         Note:
             Uses deterministic UUID (same as MkDocs implementation)
+
         """
         enrichment_id = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
         self._url_enrichments[enrichment_id] = content
@@ -235,6 +245,7 @@ class InMemoryEnrichmentStorage:
 
         Returns:
             Identifier with memory:// prefix (e.g., "memory://enrichments/media/{filename}")
+
         """
         self._media_enrichments[filename] = content
         return f"memory://enrichments/media/{filename}"
@@ -247,6 +258,7 @@ class InMemoryEnrichmentStorage:
 
         Returns:
             Enrichment content if exists, None otherwise
+
         """
         enrichment_id = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
         return self._url_enrichments.get(enrichment_id)
@@ -259,6 +271,7 @@ class InMemoryEnrichmentStorage:
 
         Returns:
             Enrichment content if exists, None otherwise
+
         """
         return self._media_enrichments.get(filename)
 
@@ -273,8 +286,8 @@ class InMemoryEnrichmentStorage:
 
 
 __all__ = [
+    "InMemoryEnrichmentStorage",
+    "InMemoryJournalStorage",
     "InMemoryPostStorage",
     "InMemoryProfileStorage",
-    "InMemoryJournalStorage",
-    "InMemoryEnrichmentStorage",
 ]

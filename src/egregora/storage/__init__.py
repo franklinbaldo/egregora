@@ -55,6 +55,7 @@ class PostStorage(Protocol):
                 - Filesystem: "posts/my-post.md" (relative path)
                 - Database: "1234" (row ID)
                 - S3: "s3://bucket/posts/my-post.md" (full key)
+
         """
         ...
 
@@ -66,6 +67,7 @@ class PostStorage(Protocol):
 
         Returns:
             (metadata dict, content string) if post exists, None otherwise
+
         """
         ...
 
@@ -77,6 +79,7 @@ class PostStorage(Protocol):
 
         Returns:
             True if post exists, False otherwise
+
         """
         ...
 
@@ -101,6 +104,7 @@ class ProfileStorage(Protocol):
 
         Returns:
             Opaque identifier (e.g., "profiles/abc-123.md")
+
         """
         ...
 
@@ -112,6 +116,7 @@ class ProfileStorage(Protocol):
 
         Returns:
             Markdown content if profile exists, None otherwise
+
         """
         ...
 
@@ -123,6 +128,7 @@ class ProfileStorage(Protocol):
 
         Returns:
             True if profile exists, False otherwise
+
         """
         ...
 
@@ -150,6 +156,7 @@ class JournalStorage(Protocol):
 
         Returns:
             Opaque identifier (e.g., "posts/journal/journal_2025-01-10_10-00_to_12-00.md")
+
         """
         ...
 
@@ -180,6 +187,7 @@ class EnrichmentStorage(Protocol):
         Note:
             Implementation should generate deterministic ID from URL
             (e.g., uuid.uuid5(NAMESPACE_URL, url))
+
         """
         ...
 
@@ -196,13 +204,14 @@ class EnrichmentStorage(Protocol):
         Note:
             For filesystem implementations, this typically goes next to
             the media file with .md extension added.
+
         """
         ...
 
 
 __all__ = [
+    "EnrichmentStorage",
+    "JournalStorage",
     "PostStorage",
     "ProfileStorage",
-    "JournalStorage",
-    "EnrichmentStorage",
 ]
