@@ -94,9 +94,18 @@ class SitePaths:
 def find_mkdocs_file(
     start: Annotated[Path, "The starting directory for the upward search"],
 ) -> Annotated[Path | None, "The path to mkdocs.yml, or None if not found"]:
-    """Search upward from ``start`` for ``mkdocs.yml``."""
+    """Search upward from ``start`` for ``mkdocs.yml``.
+
+    MODERN (Regression Fix): Checks .egregora/mkdocs.yml first, then root mkdocs.yml.
+    """
     current = start.expanduser().resolve()
     for candidate in (current, *current.parents):
+        # Check .egregora/mkdocs.yml first (new location)
+        egregora_mkdocs = candidate / ".egregora" / "mkdocs.yml"
+        if egregora_mkdocs.exists():
+            return egregora_mkdocs
+
+        # Fallback to root mkdocs.yml (legacy location)
         mkdocs_path = candidate / "mkdocs.yml"
         if mkdocs_path.exists():
             return mkdocs_path
