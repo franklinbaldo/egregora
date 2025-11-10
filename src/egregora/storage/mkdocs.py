@@ -116,13 +116,15 @@ class MkDocsPostStorage:
         Note:
             Searches for both date-prefixed ({date}-{slug}.md) and simple ({slug}.md) formats.
             This provides backwards compatibility with posts written before data integrity updates.
+            When multiple matches exist, returns the most recently modified file (deterministic).
 
         """
         # Try finding date-prefixed file first (new format)
         matching_files = list(self.posts_dir.glob(f"*-{slug}.md"))
         if matching_files:
-            # Use most recent file if multiple matches
-            path = matching_files[0]
+            # Use most recent file if multiple matches (sort by mtime, descending)
+            # Ensures deterministic behavior when duplicate slugs exist
+            path = max(matching_files, key=lambda p: p.stat().st_mtime)
         else:
             # Fall back to simple format (legacy)
             path = self.posts_dir / f"{slug}.md"
