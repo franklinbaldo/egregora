@@ -280,27 +280,75 @@ CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id);
 
 
 def create_table_if_not_exists(
-    conn: duckdb.DuckDBPyConnection,
+    conn: duckdb.DuckDBPyConnection | Any,  # Any allows Ibis DuckDBBackend
     table_name: str,
     schema: ibis.Schema,
 ) -> None:
     """Create a table using Ibis schema if it doesn't already exist.
 
     Args:
-        conn: Ibis connection (DuckDB backend)
+        conn: DuckDB connection or Ibis DuckDB backend
         table_name: Name of the table to create
         schema: Ibis schema definition
 
     Note:
         This uses CREATE TABLE IF NOT EXISTS to safely handle existing tables.
         Primary keys and constraints should be added separately if needed.
+        Accepts both raw DuckDB connections and Ibis backends.
 
     """
-    # Check if table exists using Ibis
-    if table_name not in conn.list_tables():
-        # Create empty table with schema
-        empty_table = ibis.memtable([], schema=schema)
-        conn.create_table(table_name, empty_table, overwrite=False)
+    # Convert Ibis schema to DuckDB SQL column definitions
+    column_defs = []
+    for name, dtype in schema.items():
+        # Map Ibis types to DuckDB types
+        sql_type = _ibis_to_duckdb_type(dtype)
+        column_defs.append(f"{quote_identifier(name)} {sql_type}")
+
+    columns_sql = ", ".join(column_defs)
+    create_sql = f"CREATE TABLE IF NOT EXISTS {quote_identifier(table_name)} ({columns_sql})"
+
+    # Check if this is an Ibis backend or raw DuckDB connection
+    if hasattr(conn, "raw_sql"):
+        # Ibis backend - use raw_sql for SQL strings
+        conn.raw_sql(create_sql)
+    else:
+        # Raw DuckDB connection - use execute
+        conn.execute(create_sql)
+
+
+def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
+    """Convert Ibis data type to DuckDB SQL type string.
+
+    Args:
+        ibis_type: Ibis data type
+
+    Returns:
+        DuckDB SQL type string
+
+    """
+    import ibis.expr.datatypes as dt
+
+    if isinstance(ibis_type, dt.Timestamp):
+        return "TIMESTAMP WITH TIME ZONE"
+    elif isinstance(ibis_type, dt.Date):
+        return "DATE"
+    elif isinstance(ibis_type, dt.String):
+        return "VARCHAR"
+    elif isinstance(ibis_type, dt.Int64):
+        return "BIGINT"
+    elif isinstance(ibis_type, dt.Int32):
+        return "INTEGER"
+    elif isinstance(ibis_type, dt.Float64):
+        return "DOUBLE PRECISION"
+    elif isinstance(ibis_type, dt.Boolean):
+        return "BOOLEAN"
+    elif isinstance(ibis_type, dt.Binary):
+        return "BLOB"
+    elif isinstance(ibis_type, dt.UUID):
+        return "UUID"
+    else:
+        # Fallback to string representation
+        return str(ibis_type).upper()
 
 
 def quote_identifier(identifier: str) -> str:
