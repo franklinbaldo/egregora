@@ -237,7 +237,7 @@ def chunks_sql(ir: Table) -> Table:
                 PARTITION BY thread_id
                 ORDER BY ts
             ) AS chunk_idx
-        FROM ir
+        FROM {}
     """)
 
 
