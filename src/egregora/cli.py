@@ -677,6 +677,8 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
             profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
+            # Resolve prompts directory
+            prompts_dir = site_path / ".egregora" / "prompts" if (site_path / ".egregora" / "prompts").is_dir() else None
             try:
                 # Import ComparisonConfig dynamically
                 comparison_config = ranking_agent.ComparisonConfig(
@@ -686,6 +688,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                     profile_path=profile_path,
                     api_key=api_key,
                     model=ranking_model,
+                    prompts_dir=prompts_dir,
                 )
                 asyncio.run(run_comparison(comparison_config))
             except Exception as e:

@@ -106,7 +106,7 @@ class ComparisonConfig(BaseModel):
     api_key: str
     model: str = DEFAULT_MODEL
     agent_model: object | None = None
-    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
+    prompts_dir: Path | None = None  # Custom prompts directory (e.g., site_root/.egregora/prompts)
 
 
 def _parse_message_content(content: Any) -> dict[str, Any] | None:
@@ -494,7 +494,7 @@ async def run_comparison_with_pydantic_agent(config: ComparisonConfig) -> dict[s
         content_b=content_b,
         comments_a_display=comments_a_display,
         comments_b_display=comments_b_display,
-        site_root=config.site_root,
+        prompts_dir=config.prompts_dir,
     )
     prompt = prompt_template.render()
     with logfire_span("ranking_agent", post_a=config.post_a_id, post_b=config.post_b_id, model=config.model):
@@ -505,7 +505,7 @@ async def run_comparison_with_pydantic_agent(config: ComparisonConfig) -> dict[s
         else:
             model_instance = config.agent_model
         # Generate system prompt from Jinja template
-        system_prompt_template = RankingSystemPromptTemplate(site_root=config.site_root)
+        system_prompt_template = RankingSystemPromptTemplate(prompts_dir=config.prompts_dir)
         system_prompt = system_prompt_template.render()
 
         agent = Agent[RankingAgentState, str](

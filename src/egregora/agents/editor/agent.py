@@ -93,7 +93,7 @@ class EditorAgentState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     editor: Editor
     rag_dir: Path
-    site_root: Path | None  # For custom prompt overrides in {site_root}/.egregora/prompts/
+    prompts_dir: Path | None  # Custom prompts directory (e.g., site_root/.egregora/prompts)
     client: Any
     model_config_obj: ModelConfig
     post_path: Path
@@ -320,18 +320,21 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
     editor = Editor(snapshot)
 
     context = context or {}
+    # Resolve prompts directory (site_root parameter is for backward compatibility)
+    prompts_dir = site_root / ".egregora" / "prompts" if site_root and (site_root / ".egregora" / "prompts").is_dir() else None
+
     prompt = EditorPromptTemplate(
         post_content=original_content,
         doc_id=str(post_path),
         version=snapshot.version,
         lines=snapshot.lines,
         context=context,
-        site_root=site_root,
+        prompts_dir=prompts_dir,
     ).render()
     state = EditorAgentState(
         editor=editor,
         rag_dir=rag_dir,
-        site_root=site_root,
+        prompts_dir=prompts_dir,
         client=client,
         model_config_obj=model_config,
         post_path=post_path,
@@ -355,7 +358,7 @@ async def run_editor_session_with_pydantic_agent(  # noqa: PLR0913
                 doc_id=ctx.deps.post_path.stem,
                 version=ctx.deps.editor.snapshot.version,
                 lines=ctx.deps.editor.snapshot.lines,
-                site_root=ctx.deps.site_root,
+                prompts_dir=ctx.deps.prompts_dir,
             )
             return template.render()
 

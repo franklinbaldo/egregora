@@ -50,6 +50,10 @@ def find_prompts_dir(site_root: Path | None = None) -> Path:
         >>> find_prompts_dir(None)
         Path("src/egregora/prompts")  # fallback
 
+    Note:
+        DEPRECATED: Use prompts_dir parameter directly instead.
+        Kept for backward compatibility during migration.
+
     """
     if site_root:
         user_prompts = site_root / ".egregora" / "prompts"
@@ -62,24 +66,24 @@ def find_prompts_dir(site_root: Path | None = None) -> Path:
     return PACKAGE_PROMPTS_DIR
 
 
-def create_prompt_environment(site_root: Path | None = None) -> Environment:
+def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
     """Create Jinja2 environment with fallback prompt directories.
 
     Uses FileSystemLoader with priority-based search:
-    1. {site_root}/.egregora/prompts/ (custom overrides) - if exists
+    1. {prompts_dir}/ (custom overrides) - if provided and exists
     2. src/egregora/prompts/ (package defaults) - always included
 
     This allows users to override individual templates without copying all of them.
     Fresh sites with empty .egregora/prompts/ work out of the box.
 
     Args:
-        site_root: Site root to check for custom prompts
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
 
     Returns:
         Configured Jinja2 Environment with fallback search paths
 
     Examples:
-        >>> env = create_prompt_environment(Path("/my/site"))
+        >>> env = create_prompt_environment(Path("/my/site/.egregora/prompts"))
         >>> template = env.get_template("system/writer.jinja")  # Searches custom then package
 
     """
@@ -87,11 +91,9 @@ def create_prompt_environment(site_root: Path | None = None) -> Environment:
     search_paths: list[Path] = []
 
     # Add custom prompts directory if it exists
-    if site_root:
-        user_prompts = site_root / ".egregora" / "prompts"
-        if user_prompts.is_dir():
-            search_paths.append(user_prompts)
-            logger.info("Custom prompts directory: %s", user_prompts)
+    if prompts_dir and prompts_dir.is_dir():
+        search_paths.append(prompts_dir)
+        logger.info("Custom prompts directory: %s", prompts_dir)
 
     # Always add package prompts as fallback
     search_paths.append(PACKAGE_PROMPTS_DIR)
@@ -109,7 +111,7 @@ class PromptTemplate(ABC):
     """Base class for prompt templates backed by Jinja files.
 
     Supports custom prompt overrides via .egregora/prompts/ directory.
-    Pass site_root to _render() to enable user overrides.
+    Pass prompts_dir to _render() to enable user overrides.
     """
 
     template_name: ClassVar[str]
@@ -117,14 +119,14 @@ class PromptTemplate(ABC):
     def _render(
         self,
         env: Environment | None = None,
-        site_root: Path | None = None,
+        prompts_dir: Path | None = None,
         **context: Any,
     ) -> str:
         """Render template with optional custom prompts support.
 
         Args:
             env: Explicit Jinja2 environment (highest priority)
-            site_root: Site root for custom prompts lookup
+            prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
             **context: Template variables
 
         Returns:
@@ -132,13 +134,13 @@ class PromptTemplate(ABC):
 
         Priority:
         1. Explicit env parameter
-        2. Custom prompts from site_root/.egregora/prompts/
+        2. Custom prompts from prompts_dir
         3. Package default prompts
 
         """
         # Create environment with custom prompts support
-        if env is None and site_root is not None:
-            env = create_prompt_environment(site_root)
+        if env is None and prompts_dir is not None:
+            env = create_prompt_environment(prompts_dir)
 
         template_env = env or DEFAULT_ENVIRONMENT
         template = template_env.get_template(self.template_name)
@@ -153,7 +155,7 @@ class PromptTemplate(ABC):
 class WriterPromptTemplate(PromptTemplate):
     """Prompt template for the writer agent.
 
-    Supports custom prompts via site_root/.egregora/prompts/system/writer.jinja
+    Supports custom prompts via prompts_dir/system/writer.jinja
     """
 
     date: str
@@ -166,14 +168,14 @@ class WriterPromptTemplate(PromptTemplate):
     rag_context: str = ""
     freeform_memory: str = ""
     enable_memes: bool = False
-    site_root: Path | None = None  # For custom prompts
+    prompts_dir: Path | None = None  # Custom prompts directory
     env: Environment | None = None
     template_name: ClassVar[str] = "system/writer.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             date=self.date,
             markdown_table=self.markdown_table,
             active_authors=self.active_authors,
@@ -191,38 +193,38 @@ class WriterPromptTemplate(PromptTemplate):
 class UrlEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for lightweight URL enrichment.
 
-    Supports custom prompts via site_root/.egregora/prompts/enrichment/url_simple.jinja
+    Supports custom prompts via prompts_dir/enrichment/url_simple.jinja
     """
 
     url: str
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "enrichment/url_simple.jinja"
 
     def render(self) -> str:
-        return self._render(env=self.env, site_root=self.site_root, url=self.url)
+        return self._render(env=self.env, prompts_dir=self.prompts_dir, url=self.url)
 
 
 @dataclass(slots=True)
 class MediaEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for lightweight media enrichment.
 
-    Supports custom prompts via site_root/.egregora/prompts/enrichment/media_simple.jinja
+    Supports custom prompts via prompts_dir/enrichment/media_simple.jinja
     """
 
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "enrichment/media_simple.jinja"
 
     def render(self) -> str:
-        return self._render(env=self.env, site_root=self.site_root)
+        return self._render(env=self.env, prompts_dir=self.prompts_dir)
 
 
 @dataclass(slots=True)
 class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for detailed URL enrichment.
 
-    Supports custom prompts via site_root/.egregora/prompts/enrichment/url_detailed.jinja
+    Supports custom prompts via prompts_dir/enrichment/url_detailed.jinja
     """
 
     url: str
@@ -230,14 +232,14 @@ class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
     sender_uuid: str
     date: str
     time: str
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "enrichment/url_detailed.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             url=self.url,
             original_message=self.original_message,
             sender_uuid=self.sender_uuid,
@@ -250,7 +252,7 @@ class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
 class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for detailed media enrichment.
 
-    Supports custom prompts via site_root/.egregora/prompts/enrichment/media_detailed.jinja
+    Supports custom prompts via prompts_dir/enrichment/media_detailed.jinja
     """
 
     media_type: str
@@ -260,14 +262,14 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
     sender_uuid: str
     date: str
     time: str
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "enrichment/media_detailed.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             media_type=self.media_type,
             media_filename=self.media_filename,
             media_path=self.media_path,
@@ -282,19 +284,19 @@ class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
 class AvatarEnrichmentPromptTemplate(PromptTemplate):
     """Prompt template for avatar enrichment with moderation.
 
-    Supports custom prompts via site_root/.egregora/prompts/enricher_avatar.jinja
+    Supports custom prompts via prompts_dir/enricher_avatar.jinja
     """
 
     media_filename: str
     media_path: str
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "enricher_avatar.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             media_filename=self.media_filename,
             media_path=self.media_path,
         )
@@ -304,7 +306,7 @@ class AvatarEnrichmentPromptTemplate(PromptTemplate):
 class EditorPromptTemplate(PromptTemplate):
     """Prompt template for the editor agent.
 
-    Supports custom prompts via site_root/.egregora/prompts/system/editor.jinja
+    Supports custom prompts via prompts_dir/system/editor.jinja
     """
 
     post_content: str
@@ -312,14 +314,14 @@ class EditorPromptTemplate(PromptTemplate):
     version: int
     lines: dict[int, str]
     context: dict[str, Any] | None = None
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "system/editor.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             post_content=self.post_content,
             doc_id=self.doc_id,
             version=self.version,
@@ -332,22 +334,22 @@ class EditorPromptTemplate(PromptTemplate):
 class RankingSystemPromptTemplate(PromptTemplate):
     """Prompt template for the ranking agent system prompt.
 
-    Supports custom prompts via site_root/.egregora/prompts/system/ranking.jinja
+    Supports custom prompts via prompts_dir/system/ranking.jinja
     """
 
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "system/ranking.jinja"
 
     def render(self) -> str:
-        return self._render(env=self.env, site_root=self.site_root)
+        return self._render(env=self.env, prompts_dir=self.prompts_dir)
 
 
 @dataclass(slots=True)
 class RankingComparisonPromptTemplate(PromptTemplate):
     """Prompt template for the ranking agent comparison prompt.
 
-    Supports custom prompts via site_root/.egregora/prompts/ranking/comparison.jinja
+    Supports custom prompts via prompts_dir/ranking/comparison.jinja
     """
 
     alias_or_uuid: str
@@ -358,14 +360,14 @@ class RankingComparisonPromptTemplate(PromptTemplate):
     content_b: str
     comments_a_display: str
     comments_b_display: str
-    site_root: Path | None = None
+    prompts_dir: Path | None = None
     env: Environment | None = None
     template_name: ClassVar[str] = "ranking/comparison.jinja"
 
     def render(self) -> str:
         return self._render(
             env=self.env,
-            site_root=self.site_root,
+            prompts_dir=self.prompts_dir,
             alias_or_uuid=self.alias_or_uuid,
             bio=self.bio,
             post_a_id=self.post_a_id,

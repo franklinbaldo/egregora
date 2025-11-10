@@ -416,7 +416,7 @@ def _write_posts_for_window_pydantic(
         rag_context=rag_context,
         freeform_memory=freeform_memory,
         enable_memes=meme_help_enabled,
-        site_root=runtime_context.site_root,
+        prompts_dir=runtime_context.prompts_dir,
     )
     prompt = template.render()
 
