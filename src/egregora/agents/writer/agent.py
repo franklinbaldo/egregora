@@ -516,9 +516,9 @@ def _register_writer_tools(  # noqa: C901
         )
         return AnnotationResult(
             status="success",
-            annotation_id=annotation.get("annotation_id"),
-            parent_id=annotation.get("parent_id"),
-            parent_type=annotation.get("parent_type"),
+            annotation_id=annotation.id,
+            parent_id=annotation.parent_id,
+            parent_type=annotation.parent_type,
         )
 
     if enable_banner:
