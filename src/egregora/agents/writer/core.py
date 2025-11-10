@@ -51,30 +51,44 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _create_storage_implementations(
-    site_root: Path,
-) -> tuple[PostStorage, ProfileStorage, JournalStorage]:
-    """Create storage implementations for the given site root.
+def _create_output_format(site_root: Path) -> OutputFormat:
+    """Create and initialize OutputFormat for the given site root.
 
-    This factory function hides the concrete storage implementation from agents.
-    Currently uses MkDocs filesystem storage, but could be swapped for database
-    or S3 storage without changing agent code.
+    Uses output_registry to auto-detect format (MkDocs, Hugo, etc.) based on
+    site structure. Falls back to MkDocs if no format detected.
+
+    OutputFormat provides:
+    - Storage protocol implementations (posts, profiles, journals, enrichments)
+    - Common utilities (normalize_slug, extract_date_prefix, generate_unique_filename)
+    - Format-specific instructions and lifecycle hooks
 
     Args:
         site_root: Root directory for the site
 
     Returns:
-        Tuple of (PostStorage, ProfileStorage, JournalStorage) implementations
+        Initialized OutputFormat instance (MkDocs, Hugo, Database, S3, etc.)
+
+    Note:
+        Call initialize() on the returned format before accessing storage properties.
 
     """
-    # Import concrete implementations at runtime (not at type-check time)
-    from egregora.storage.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
+    from egregora.rendering.base import OutputFormat
 
-    return (
-        MkDocsPostStorage(site_root),
-        MkDocsProfileStorage(site_root),
-        MkDocsJournalStorage(site_root),
-    )
+    # Try to detect format from site structure
+    detected_format = output_registry.detect_format(site_root)
+
+    if detected_format:
+        logger.debug("Detected output format: %s", detected_format.format_type)
+        output_format = detected_format
+    else:
+        # Fallback to MkDocs if no format detected
+        logger.debug("No format detected, defaulting to MkDocs")
+        output_format = output_registry.get_format("mkdocs")
+
+    # Initialize storage implementations
+    output_format.initialize(site_root)
+
+    return output_format
 
 
 @dataclass
@@ -363,10 +377,15 @@ def _write_posts_for_window_pydantic(
         egregora_config.models.writer = writer_model
         egregora_config.models.embedding = embedding_model
 
-    # Create storage implementations (MODERN: Adapter Pattern)
+    # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
     # Determine site_root for storage (use output_dir parent if site_root not set)
     storage_root = site_root if site_root else config.output_dir.parent
-    posts_storage, profiles_storage, journals_storage = _create_storage_implementations(storage_root)
+    output_format = _create_output_format(storage_root)
+
+    # Get storage implementations from OutputFormat
+    posts_storage = output_format.posts
+    profiles_storage = output_format.profiles
+    journals_storage = output_format.journals
 
     # Create pre-constructed stores
     rag_store = VectorStore(config.rag_dir / "chunks.parquet")
@@ -401,8 +420,8 @@ def _write_posts_for_window_pydantic(
     # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
 
-    # Load output format instructions (MkDocs, Hugo, etc.)
-    format_instructions = load_format_instructions(site_root)
+    # Load output format instructions from OutputFormat (MkDocs, Hugo, etc.)
+    format_instructions = output_format.get_format_instructions()
 
     # Render prompt using runtime context
     template = WriterPromptTemplate(
@@ -432,6 +451,15 @@ def _write_posts_for_window_pydantic(
         logger.exception("Writer agent failed for %s — aborting window", date_range)
         msg = f"Writer agent failed for {date_range}"
         raise RuntimeError(msg) from exc
+
+    # Call format-specific finalization hook (e.g., update .authors.yml, regenerate indexes)
+    output_format.finalize_window(
+        window_label=date_range,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata=None,  # Future: pass token counts, duration, etc.
+    )
+
     if config.enable_rag:
         _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
     return {"posts": saved_posts, "profiles": saved_profiles}
