@@ -23,7 +23,7 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
         metadata: {
             "title": "Post Title",
             "slug": "post-slug",
-            "date": "2025-01-01",
+            "date": "2025-01-01",  # Should be YYYY-MM-DD, but handles variations
             "tags": ["AI", "ethics"],
             "summary": "Brief summary",
             "authors": ["a1b2c3d4"],  # anonymized IDs
@@ -45,7 +45,11 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
             raise ValueError(msg)
     validate_newsletter_privacy(content)
     output_dir.mkdir(parents=True, exist_ok=True)
-    date_prefix = metadata["date"]
+
+    # Parse and clean date to extract YYYY-MM-DD (handles window labels like "2025-03-02 08:01 to 12:49")
+    raw_date = metadata["date"]
+    date_prefix = _extract_clean_date(raw_date)
+
     base_slug = slugify(metadata["slug"])
     slug_candidate = base_slug
     filename = f"{date_prefix}-{slug_candidate}.md"
@@ -58,10 +62,13 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
         suffix += 1
     front_matter = {}
     front_matter["title"] = metadata["title"]
+
+    # Use cleaned date for front matter
     try:
         front_matter["date"] = datetime.date.fromisoformat(date_prefix)
     except (ValueError, AttributeError):
         front_matter["date"] = date_prefix
+
     front_matter["slug"] = slug_candidate
     if "tags" in metadata:
         front_matter["tags"] = metadata["tags"]
@@ -75,3 +82,48 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
     full_post = f"---\n{yaml_front}---\n\n{content}"
     filepath.write_text(full_post, encoding="utf-8")
     return str(filepath)
+
+
+def _extract_clean_date(date_str: str) -> str:
+    """Extract clean YYYY-MM-DD date from various formats.
+
+    Handles:
+    - Clean dates: "2025-03-02"
+    - ISO timestamps: "2025-03-02T10:30:00"
+    - Window labels: "2025-03-02 08:01 to 12:49"
+    - Datetimes: "2025-03-02 10:30:45"
+
+    Args:
+        date_str: Date string in various formats
+
+    Returns:
+        Clean date in YYYY-MM-DD format
+
+    """
+    # Remove leading/trailing whitespace
+    date_str = date_str.strip()
+
+    # Try to parse as ISO date first (most common)
+    try:
+        # Handle ISO format (YYYY-MM-DD)
+        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+            datetime.date.fromisoformat(date_str)  # Validate
+            return date_str
+    except (ValueError, AttributeError):
+        pass
+
+    # Extract YYYY-MM-DD from longer strings (window labels, timestamps)
+    # Pattern: YYYY-MM-DD at the start of the string
+    import re
+
+    match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+    if match:
+        clean_date = match.group(1)
+        try:
+            datetime.date.fromisoformat(clean_date)  # Validate
+            return clean_date
+        except (ValueError, AttributeError):
+            pass
+
+    # Fallback: return original if we can't parse it
+    return date_str

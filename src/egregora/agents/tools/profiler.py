@@ -41,11 +41,11 @@ def write_profile(
     content: Annotated[str, "The profile content in markdown format"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> Annotated[str, "The path to the saved profile file"]:
-    """Write or update an author's profile.
+    """Write or update an author's profile with YAML front-matter.
 
     Args:
         author_uuid: The UUID5 pseudonym of the author
-        content: The profile content in markdown format
+        content: The profile content in markdown format (without front-matter)
         profiles_dir: Directory where profiles are stored
 
     Returns:
@@ -54,10 +54,43 @@ def write_profile(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = profiles_dir / f"{author_uuid}.md"
+
     if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
         logger.warning("Profile for %s contains suspicious content", author_uuid)
-    profile_path.write_text(content, encoding="utf-8")
+
+    # Extract metadata from existing profile if it exists
+    metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
+
+    # Create front-matter with metadata
+    front_matter = {
+        "uuid": author_uuid,
+        "name": metadata.get("name", author_uuid),  # Default to UUID if no alias set
+    }
+
+    # Add optional fields if they exist in metadata
+    if "alias" in metadata:
+        front_matter["alias"] = metadata["alias"]
+    if "avatar" in metadata:
+        front_matter["avatar"] = metadata["avatar"]
+    if "bio" in metadata:
+        front_matter["bio"] = metadata["bio"]
+    if "social" in metadata:
+        front_matter["social"] = metadata["social"]
+    if "commands_used" in metadata:
+        front_matter["commands_used"] = metadata["commands_used"]
+
+    # Write profile with front-matter
+    import yaml
+
+    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    full_profile = f"---\n{yaml_front}---\n\n{content}"
+    profile_path.write_text(full_profile, encoding="utf-8")
+
     logger.info("Saved profile for %s to %s", author_uuid, profile_path)
+
+    # Update .authors.yml for MkDocs blog plugin
+    _update_authors_yml(profiles_dir.parent, author_uuid, front_matter)
+
     return str(profile_path)
 
 
@@ -501,3 +534,120 @@ def get_avatar_info(
         "url": url_match.group(1).strip(),
         "set_on": set_on_match.group(1).strip() if set_on_match else None,
     }
+
+
+def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
+    """Extract metadata from an existing profile file.
+
+    Reads YAML front-matter and profile sections to build metadata dict.
+
+    Args:
+        profile_path: Path to profile markdown file
+
+    Returns:
+        Dictionary with profile metadata (alias, avatar, bio, social, commands_used)
+
+    """
+    if not profile_path.exists():
+        return {}
+
+    import yaml
+
+    content = profile_path.read_text(encoding="utf-8")
+    metadata: dict[str, Any] = {}
+
+    # Try to parse YAML front-matter first
+    if content.startswith("---"):
+        try:
+            # Extract YAML between --- delimiters
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                front_matter = yaml.safe_load(parts[1])
+                if isinstance(front_matter, dict):
+                    metadata.update(front_matter)
+        except yaml.YAMLError:
+            pass
+
+    # Extract metadata from profile sections (legacy format)
+    alias_match = re.search('Alias: "([^"]+)".*Public: true', content, re.DOTALL)
+    if alias_match and "alias" not in metadata:
+        metadata["alias"] = alias_match.group(1)
+        metadata["name"] = alias_match.group(1)  # Use alias as name
+
+    avatar_match = re.search("- URL:\\s*(.+)", content)
+    if avatar_match and "avatar" not in metadata:
+        metadata["avatar"] = avatar_match.group(1).strip()
+
+    bio_match = re.search('## User Bio\\s*\\n"([^"]+)"', content)
+    if bio_match and "bio" not in metadata:
+        metadata["bio"] = bio_match.group(1)
+
+    # Extract social links
+    social = {}
+    twitter_match = re.search("- Twitter:\\s*(.+)", content)
+    if twitter_match:
+        social["twitter"] = twitter_match.group(1).strip()
+
+    website_match = re.search("- Website:\\s*(.+)", content)
+    if website_match:
+        social["website"] = website_match.group(1).strip()
+
+    if social and "social" not in metadata:
+        metadata["social"] = social
+
+    return metadata
+
+
+def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[str, Any]) -> None:
+    """Update or create .authors.yml for MkDocs blog plugin.
+
+    Args:
+        site_root: Site root directory (profiles parent)
+        author_uuid: Author UUID
+        front_matter: Profile front-matter dict
+
+    """
+    import yaml
+
+    authors_yml_path = site_root / ".authors.yml"
+
+    # Load existing .authors.yml or create new
+    if authors_yml_path.exists():
+        try:
+            with authors_yml_path.open("r", encoding="utf-8") as f:
+                authors = yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            logger.warning("Failed to parse .authors.yml, creating new file")
+            authors = {}
+    else:
+        authors = {}
+
+    # Build author entry
+    author_entry: dict[str, Any] = {}
+
+    # Name: use alias if available, otherwise UUID
+    author_entry["name"] = front_matter.get("alias", front_matter.get("name", author_uuid))
+
+    # Description: use bio if available
+    if "bio" in front_matter:
+        author_entry["description"] = front_matter["bio"]
+
+    # Avatar: use avatar URL if available
+    if "avatar" in front_matter:
+        author_entry["avatar"] = front_matter["avatar"]
+
+    # Social links
+    if "social" in front_matter:
+        for platform, url in front_matter["social"].items():
+            author_entry[platform] = url
+
+    # Update authors dict
+    authors[author_uuid] = author_entry
+
+    # Write back to .authors.yml
+    try:
+        with authors_yml_path.open("w", encoding="utf-8") as f:
+            yaml.dump(authors, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        logger.info("Updated .authors.yml with %s", author_uuid)
+    except (OSError, yaml.YAMLError) as e:
+        logger.warning("Failed to write .authors.yml: %s", e)
