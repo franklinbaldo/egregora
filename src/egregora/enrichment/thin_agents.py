@@ -39,9 +39,23 @@ class EnrichmentOut(BaseModel):
 
 # --- Simple system prompts (inline, not Jinja2) ---
 
-URL_SYSTEM = """You write brief, neutral, useful Markdown summaries of URLs.
-Return only the final Markdown content, no preamble, no code fences.
-Focus on what the content is about and why it might be relevant."""
+URL_SYSTEM = """You write brief, informative Markdown summaries of web URLs.
+
+IMPORTANT: You should describe what the URL likely contains based on its structure,
+domain, and any context clues. Be specific and useful - mention the topic, source
+credibility, content type (article, video, documentation, etc.).
+
+Guidelines:
+- Focus on what readers will find at this URL
+- Mention the source/domain and its reputation
+- Indicate content type (blog post, academic paper, video, tool, etc.)
+- Be concise but informative (2-3 sentences)
+- Return only Markdown content, no preamble or code fences
+
+Example: "This is a technical blog post from the Google AI Research team discussing
+their latest advances in multimodal language models. The article includes code
+examples and benchmarks comparing performance across different architectures."
+"""
 
 MEDIA_SYSTEM = """You describe media files succinctly in Markdown.
 Return only the final Markdown content, no preamble, no code fences.
@@ -88,6 +102,15 @@ def make_media_agent(model_name: str) -> Agent[None, EnrichmentOut]:
 def run_url_enrichment(agent: Agent[None, EnrichmentOut], url: str | AnyUrl) -> str:
     """Run URL enrichment with a single agent call.
 
+    NOTE: For production use, consider enabling Gemini grounding features for higher
+    quality enrichment:
+    - Google Search grounding: tools=[{'google_search_retrieval': {}}]
+    - Dynamic retrieval: Automatically fetches URL content
+
+    Current implementation sends only the URL string, which limits quality but is
+    faster and doesn't require additional API features. The LLM infers content from
+    URL structure, domain reputation, and context clues.
+
     Args:
         agent: Configured URL enrichment agent
         url: URL to enrich
@@ -100,7 +123,7 @@ def run_url_enrichment(agent: Agent[None, EnrichmentOut], url: str | AnyUrl) -> 
 
     """
     url_str = str(url)
-    prompt = f"Summarize what this URL is about in 1-2 sentences.\nURL: {url_str}"
+    prompt = f"Describe what content readers will find at this URL. Be specific about the topic, source, and content type.\n\nURL: {url_str}"
     result: RunResult[EnrichmentOut] = agent.run_sync(prompt)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))
