@@ -298,18 +298,55 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
-def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_model: str) -> None:
+def _index_posts_in_rag(
+    saved_posts: list[str], rag_dir: Path, storage_root: Path, *, embedding_model: str
+) -> None:
     """Index newly created posts in RAG system.
 
     All embeddings use fixed 768 dimensions.
+
+    Args:
+        saved_posts: List of storage identifiers (relative paths like "posts/my-post.md"
+                    or opaque IDs like "memory://posts/foo")
+        rag_dir: Directory containing RAG vector store
+        storage_root: Root directory for resolving relative paths
+        embedding_model: Model to use for embeddings
+
+    Note:
+        Only indexes posts that exist on the local filesystem. Skips:
+        - In-memory storage identifiers (memory://)
+        - Database identifiers (numeric IDs, UUIDs)
+        - S3 keys (s3://)
+        - Any identifier that doesn't resolve to an existing file
+
     """
     if not saved_posts:
         return
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
-        for post_path in saved_posts:
-            index_post(Path(post_path), store, embedding_model=embedding_model)
-        logger.info("Indexed %s new posts in RAG", len(saved_posts))
+        indexed_count = 0
+
+        for identifier in saved_posts:
+            # Skip non-filesystem identifiers
+            if identifier.startswith(("memory://", "s3://", "http://", "https://")):
+                logger.debug("Skipping RAG indexing for non-filesystem identifier: %s", identifier)
+                continue
+
+            # Convert relative path to absolute path
+            post_path = storage_root / identifier
+
+            # Only index if file exists
+            if not post_path.exists():
+                logger.warning("Post file not found for RAG indexing: %s", post_path)
+                continue
+
+            index_post(post_path, store, embedding_model=embedding_model)
+            indexed_count += 1
+
+        if indexed_count > 0:
+            logger.info("Indexed %s new posts in RAG", indexed_count)
+        elif saved_posts:
+            logger.debug("No posts indexed in RAG (all were non-filesystem storage)")
     except PromptTooLargeError:
         raise
     except Exception:
@@ -472,7 +509,9 @@ def _write_posts_for_window_pydantic(
     )
 
     if config.enable_rag:
-        _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
+        _index_posts_in_rag(
+            saved_posts, config.rag_dir, storage_root, embedding_model=embedding_model
+        )
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
