@@ -8,6 +8,7 @@ that format-specific implementations should be colocated.
 from __future__ import annotations
 
 import logging
+import uuid as uuid_lib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -401,20 +402,30 @@ class MkDocsEnrichmentStorage:
             content: Markdown enrichment content
 
         Returns:
-            Relative path string (e.g., "media/urls/example-com-article.md")
+            Relative path string (e.g., "media/urls/example-com-article-a1b2c3d4.md")
 
         Note:
-            Uses slugified URL for human-readable, discoverable filenames.
-            The slug is truncated to 60 characters for filesystem compatibility.
+            Uses readable prefix (40 chars) + hash suffix (16 chars) for collision-free,
+            partially human-readable filenames. The hash ensures uniqueness even when
+            URLs share the same prefix (e.g., long query strings, different fragments).
 
         Examples:
-                - https://example.com/article → media/urls/https-example-com-article.md
-                - https://docs.python.org/3/library/pathlib.html → media/urls/https-docs-python-org-3-library-pathlib-html.md
+            - https://example.com/article
+              → media/urls/https-example-com-article-a1b2c3d4e5f6g7h8.md
+            - https://docs.python.org/3/library/pathlib.html
+              → media/urls/https-docs-python-org-3-library-pathl-b2c3d4e5f6g7h8i9.md
+            - https://example.com/article?id=12345678901234567890  (collision-prone with slug-only)
+              → media/urls/https-example-com-article-id-123456-c3d4e5f6g7h8i9j0.md
 
         """
-        # Create human-readable filename from URL (max 60 chars)
-        url_slug = slugify(url, max_len=60)
-        path = self.urls_dir / f"{url_slug}.md"
+        # Create human-readable prefix (40 chars) + collision-proof hash suffix (8 chars)
+        # Uses UUID5 for deterministic, discoverable hash (same as document_id)
+        url_prefix = slugify(url, max_len=40)
+        url_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
+        url_hash = url_uuid.replace("-", "")[:8]  # Take first 8 hex chars (32 bits)
+        filename = f"{url_prefix}-{url_hash}.md"
+
+        path = self.urls_dir / filename
         path.write_text(content, encoding="utf-8")
         return str(path.relative_to(self.site_root))
 

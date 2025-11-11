@@ -21,6 +21,8 @@ Example Usage:
         assert metadata["title"] == "Expected Title"
 """
 
+import uuid as uuid_lib
+
 from egregora.utils.paths import slugify
 
 
@@ -226,15 +228,18 @@ class InMemoryEnrichmentStorage:
             content: Markdown enrichment content
 
         Returns:
-            Identifier with memory:// prefix (e.g., "memory://enrichments/urls/example-com-article")
+            Identifier with memory:// prefix (e.g., "memory://enrichments/urls/example-com-article-a1b2c3d4")
 
         Note:
-            Uses slugified URL (same as MkDocs implementation)
+            Uses readable prefix + UUID5 hash suffix (same as MkDocs implementation)
 
         """
-        url_slug = slugify(url, max_len=60)
-        self._url_enrichments[url_slug] = content
-        return f"memory://enrichments/urls/{url_slug}"
+        url_prefix = slugify(url, max_len=40)
+        url_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
+        url_hash = url_uuid.replace("-", "")[:8]
+        filename = f"{url_prefix}-{url_hash}"
+        self._url_enrichments[filename] = content
+        return f"memory://enrichments/urls/{filename}"
 
     def write_media_enrichment(self, filename: str, content: str) -> str:
         """Store media enrichment in memory.
@@ -260,8 +265,11 @@ class InMemoryEnrichmentStorage:
             Enrichment content if exists, None otherwise
 
         """
-        url_slug = slugify(url, max_len=60)
-        return self._url_enrichments.get(url_slug)
+        url_prefix = slugify(url, max_len=40)
+        url_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
+        url_hash = url_uuid.replace("-", "")[:8]
+        filename = f"{url_prefix}-{url_hash}"
+        return self._url_enrichments.get(filename)
 
     def get_media_enrichment(self, filename: str) -> str | None:
         """Retrieve media enrichment by filename.
