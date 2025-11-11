@@ -27,40 +27,42 @@ class PathResolution:
 class OutputFormat:
     """Base protocol for output format conventions."""
 
-    def resolve_path(
-        self,
-        metadata: dict[str, Any],
-        doc_type: DocumentType,
-        content_hash: str  # For deduplication
-    ) -> PathResolution:
+    def resolve_path(self, document: Document) -> PathResolution:
         """
-        Given document metadata and type, return intended path and occupancy.
+        Given a document, return its intended path and occupancy status.
 
         This single method handles ALL document types uniformly.
+        Document may have minimal/no content - only metadata is needed.
         """
         ...
 
 class MkDocsOutputFormat(OutputFormat):
     """MkDocs-specific path conventions."""
 
-    def resolve_path(self, metadata, doc_type, content_hash) -> PathResolution:
-        # Determine base path by type
-        if doc_type == DocumentType.POST:
-            date = metadata.get("date", datetime.now())
-            slug = self._slugify(metadata.get("title", "untitled"))
+    def resolve_path(self, document: Document) -> PathResolution:
+        # Determine base path by type - all info from document
+        if document.type == DocumentType.POST:
+            date = document.metadata.get("date", document.created_at)
+            slug = self._slugify(document.metadata.get("title", "untitled"))
             path = self.posts_dir / f"{date.strftime('%Y-%m-%d')}-{slug}.md"
-        elif doc_type == DocumentType.PROFILE:
-            uuid = metadata["author_id"]
+        elif document.type == DocumentType.PROFILE:
+            uuid = document.metadata["author_id"]
             path = self.profiles_dir / f"{uuid}.md"
-        elif doc_type == DocumentType.JOURNAL:
-            label = metadata.get("window_label", "unknown")
+        elif document.type == DocumentType.JOURNAL:
+            label = document.metadata.get("window_label", "unknown")
             path = self.journal_dir / f"journal_{self._safe_label(label)}.md"
+        elif document.type == DocumentType.ENRICHMENT_URL:
+            path = self.media_dir / "urls" / f"{document.document_id}.md"
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            # Use suggested_path if provided, fallback to document ID
+            filename = document.suggested_path or f"{document.document_id}.md"
+            path = self.media_dir / filename
         # ... other types
 
         # Check occupancy once, in one place
         if path.exists():
             existing_hash = self._read_content_hash(path)
-            if existing_hash == content_hash:
+            if existing_hash == document.document_id:
                 # Same content - idempotent
                 return PathResolution(path, occupied=False, existing_doc_id=None, collision_strategy="skip")
             else:
@@ -81,11 +83,7 @@ class MkDocsDocumentStorage(DocumentStorage):
 
     def add(self, document: Document) -> Path:
         # 1. Resolve path (single call for all types)
-        resolution = self.format.resolve_path(
-            document.metadata,
-            document.type,
-            document.document_id  # Content hash
-        )
+        resolution = self.format.resolve_path(document)
 
         # 2. Handle collision if needed
         final_path = resolution.path
@@ -109,6 +107,46 @@ class MkDocsDocumentStorage(DocumentStorage):
         if document.type == DocumentType.PROFILE:
             self._update_authors_yml(document)
 ```
+
+## Design Principles (Industry Standards)
+
+This design follows established OOP and API design patterns:
+
+### 1. **Tell, Don't Ask**
+- Don't decompose objects to access their parts (`doc.metadata`, `doc.type`, `doc.id`)
+- Pass the whole object, let the method extract what it needs
+- More maintainable when Document evolves
+
+### 2. **Information Expert (GRASP)**
+- Document knows everything about itself (type, metadata, ID, dates)
+- Format needs that information → pass the expert
+- Reduces coupling between caller and Document internals
+
+### 3. **Single Source of Truth**
+- Document is authoritative for its properties
+- Prevents inconsistencies (can't pass mismatched `metadata` + `type`)
+- Guarantees type safety (Document schema enforced)
+
+### 4. **Interface Evolution**
+- If path resolution needs new Document fields (e.g., `tags`, `priority`), no signature change
+- Adding parameters breaks all callers; Document evolution is contained
+- Backward compatible: new fields optional in Document, old code unaffected
+
+### 5. **Domain-Driven Design**
+- Pass aggregates/entities whole, not decomposed
+- Example: `repository.save(document)` not `repository.save(doc.id, doc.data, doc.type)`
+- Maintains domain model integrity
+
+### 6. **Semantic Clarity**
+```python
+# Clear: "resolve path for this document"
+format.resolve_path(document)
+
+# Unclear: "resolve path given these decomposed parts"
+format.resolve_path(metadata, doc_type, content_hash)
+```
+
+**Additional benefit**: Document can have minimal/no content for path resolution (only metadata needed). This enables path lookups without loading full content.
 
 ## Benefits
 
@@ -217,9 +255,17 @@ class MkDocsDocumentStorage(DocumentStorage):
 ```python
 def test_resolve_post_path_new_document():
     format = MkDocsOutputFormat(base_path=tmp_path)
-    metadata = {"title": "My Post", "date": datetime(2025, 1, 11)}
+    doc = Document(
+        content="",  # Content not needed for path resolution
+        type=DocumentType.POST,
+        metadata={"title": "My Post", "date": datetime(2025, 1, 11)},
+        parent_id=None,
+        created_at=datetime(2025, 1, 11),
+        source_window=None,
+        suggested_path=None
+    )
 
-    resolution = format.resolve_path(metadata, DocumentType.POST, "hash-123")
+    resolution = format.resolve_path(doc)
 
     assert resolution.path == tmp_path / "posts/2025-01-11-my-post.md"
     assert not resolution.occupied
@@ -232,11 +278,18 @@ def test_resolve_post_path_collision():
     existing.parent.mkdir(parents=True)
     existing.write_text("<!-- doc_id: old-hash -->")
 
-    resolution = format.resolve_path(
-        {"title": "My Post", "date": datetime(2025, 1, 11)},
-        DocumentType.POST,
-        "new-hash"
+    doc = Document(
+        content="Different content",
+        type=DocumentType.POST,
+        metadata={"title": "My Post", "date": datetime(2025, 1, 11)},
+        parent_id=None,
+        created_at=datetime(2025, 1, 11),
+        source_window=None,
+        suggested_path=None
     )
+    # doc.document_id will be different from "old-hash"
+
+    resolution = format.resolve_path(doc)
 
     assert resolution.occupied
     assert resolution.existing_doc_id == "old-hash"
@@ -244,12 +297,17 @@ def test_resolve_post_path_collision():
 
 def test_resolve_profile_path():
     format = MkDocsOutputFormat(base_path=tmp_path)
-
-    resolution = format.resolve_path(
-        {"author_id": "uuid-456"},
-        DocumentType.PROFILE,
-        "hash-789"
+    doc = Document(
+        content="",
+        type=DocumentType.PROFILE,
+        metadata={"author_id": "uuid-456"},
+        parent_id=None,
+        created_at=datetime.now(),
+        source_window=None,
+        suggested_path=None
     )
+
+    resolution = format.resolve_path(doc)
 
     assert resolution.path == tmp_path / "profiles/uuid-456.md"
 ```
@@ -266,14 +324,19 @@ def test_add_document_uses_format_resolution(mocker):
     )
     storage = MkDocsDocumentStorage(tmp_path, output_format=mock_format)
 
-    doc = Document(content="Test", type=DocumentType.POST, metadata={}, ...)
+    doc = Document(
+        content="Test",
+        type=DocumentType.POST,
+        metadata={"title": "Test"},
+        parent_id=None,
+        created_at=datetime.now(),
+        source_window=None,
+        suggested_path=None
+    )
     path = storage.add(doc)
 
-    mock_format.resolve_path.assert_called_once_with(
-        doc.metadata,
-        doc.type,
-        doc.document_id
-    )
+    # Storage passes the whole document, not decomposed parts
+    mock_format.resolve_path.assert_called_once_with(doc)
     assert path == tmp_path / "posts/test.md"
 ```
 
