@@ -19,7 +19,7 @@ class WorkflowState:
 class ValidateInput(BaseNode):
     """Validate user input."""
 
-    async def run(self, ctx: GraphRunContext[WorkflowState]) -> 'ProcessData | InvalidInput':
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> "ProcessData | InvalidInput":
         ctx.state.processing_steps.append("Validating input")
 
         if len(ctx.state.user_input) > 0:
@@ -31,7 +31,7 @@ class ValidateInput(BaseNode):
 class ProcessData(BaseNode):
     """Process validated data."""
 
-    async def run(self, ctx: GraphRunContext[WorkflowState]) -> 'GenerateOutput':
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> "GenerateOutput":
         ctx.state.processing_steps.append("Processing data")
         # Simulate processing
         ctx.state.result = f"Processed: {ctx.state.user_input.upper()}"
@@ -69,12 +69,12 @@ async def main() -> None:
     state1 = WorkflowState(user_input="hello world")
     await graph.run(ValidateInput(), state=state1)
 
-
     # Test with invalid input
     state2 = WorkflowState(user_input="")
     await graph.run(ValidateInput(), state=state2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

@@ -52,9 +52,7 @@ class JulesClient:
                         "1. Set JULES_API_KEY environment variable, or\n"
                         "2. Authenticate with gcloud: gcloud auth login"
                     )
-                    raise Exception(
-                        msg
-                    ) from e
+                    raise Exception(msg) from e
             headers["Authorization"] = f"Bearer {self.access_token}"
         return headers
 
@@ -246,7 +244,6 @@ def main(argv: list[str] | None = None) -> None:
         else:
             parser.print_help()
             sys.exit(1)
-
 
     except Exception:
         sys.exit(1)

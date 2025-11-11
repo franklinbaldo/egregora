@@ -16,9 +16,9 @@ class CityInfo(BaseModel):
 
 # Create agent with structured output
 agent = Agent(
-    'gemini-1.5-pro',  # or 'openai:gpt-4', 'anthropic:claude-sonnet-4-0'
+    "gemini-1.5-pro",  # or 'openai:gpt-4', 'anthropic:claude-sonnet-4-0'
     result_type=CityInfo,
-    instructions='Extract structured city information from user queries.'
+    instructions="Extract structured city information from user queries.",
 )
 
 
@@ -27,19 +27,19 @@ async def search_population(ctx: RunContext, city: str) -> str:
     """Search for city population data."""
     # Mock implementation - replace with real API call
     populations = {
-        'tokyo': 14_000_000,
-        'paris': 2_200_000,
-        'london': 9_000_000,
+        "tokyo": 14_000_000,
+        "paris": 2_200_000,
+        "london": 9_000_000,
     }
     return f"Population of {city}: {populations.get(city.lower(), 'unknown'):,}"
 
 
 async def main() -> None:
     """Run example agent queries."""
-    await agent.run('Tell me about Tokyo')
+    await agent.run("Tell me about Tokyo")
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())
