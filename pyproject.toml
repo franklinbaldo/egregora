@@ -218,8 +218,13 @@ pythonpath = ["src"]
 
 [dependency-groups]
 dev = [
+    "bandit>=1.8.6",
+    "deptry>=0.24.0",
     "hypothesis>=6.147.0",
+    "pytest-cov>=7.0.0",
+    "radon>=6.0.1",
     "ruff>=0.14.0",
+    "vulture>=2.14",
 ]
 test = [
     "pytest>=8.4.2",
