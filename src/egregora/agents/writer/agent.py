@@ -63,7 +63,6 @@ from egregora.agents.shared.rag import VectorStore, is_rag_available, query_medi
 from egregora.config.schema import EgregoraConfig
 from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
-from egregora.storage.documents import DocumentStorage
 from egregora.storage.output_format import OutputFormat
 from egregora.storage.url_convention import UrlContext, UrlConvention
 from egregora.utils.logfire_config import logfire_info, logfire_span
