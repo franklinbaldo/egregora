@@ -8,16 +8,52 @@ Skills are reusable capability extensions that agents can load on-demand using t
 
 2. **Sub-agent spawning**: Egregora creates a sub-agent with:
    - Same model and tools as the parent
+   - **Parent's full dependencies** (storage, RAG, batch client, etc.)
    - Parent's full context (conversations, profiles, etc.)
    - **Plus** the skill content injected into system prompt
    - Access to special `end_skill_use()` tool
 
 3. **Isolated execution**: The sub-agent works independently:
    - Uses skill instructions to complete the task
-   - Can call any parent tools
+   - Can call any parent tools (which work correctly thanks to inherited deps)
    - Signals completion with `end_skill_use(summary)`
 
 4. **Summary return**: Parent agent receives only the summary, keeping context clean.
+
+## Requirements for Parent Agents
+
+To use skill injection, parent agent dependencies must implement the `SkillInjectionSupport` protocol:
+
+```python
+from egregora.agents.tools import SkillInjectionSupport
+from pydantic import BaseModel
+
+class MyAgentState(BaseModel):
+    # ... your existing fields (storage, RAG, etc.) ...
+
+    # For skill injection support (store these references)
+    _model: Model
+    _tools: list[Any]
+    _system_prompt: str
+
+    # Required protocol properties
+    @property
+    def agent_model(self) -> Model:
+        """The model used by this agent."""
+        return self._model
+
+    @property
+    def agent_tools(self) -> list[Any]:
+        """Tools available to this agent (excluding use_skill itself)."""
+        return self._tools
+
+    @property
+    def agent_system_prompt(self) -> str:
+        """System prompt for this agent."""
+        return self._system_prompt
+```
+
+**Key insight**: The sub-agent inherits parent's dependencies, so parent tools (like `write_post`, `search_media`) can access storage, RAG, and other services just like they would in the parent agent.
 
 ## Creating a Skill
 

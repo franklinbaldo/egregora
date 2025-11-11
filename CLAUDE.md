@@ -437,16 +437,39 @@ class WriterRuntimeContext:
   Task: "Analyze XYZ"
   Output: "Found 3 insights..."
   ```
-- ✅ Using skills from agents:
+- ✅ **Enabling skill injection in agents**:
+  Parent agent deps must implement `SkillInjectionSupport` protocol:
   ```python
-  # In agent tool
+  from egregora.agents.tools import SkillInjectionSupport
+
+  class MyAgentState(BaseModel):
+      # ... existing fields ...
+
+      # For skill injection support (required properties)
+      @property
+      def agent_model(self) -> Model:
+          return self._model  # Store model reference
+
+      @property
+      def agent_tools(self) -> list[Any]:
+          return self._tools  # Store tools list (excluding use_skill)
+
+      @property
+      def agent_system_prompt(self) -> str:
+          return self._system_prompt  # Store system prompt
+  ```
+- ✅ **Using skills from agents**:
+  ```python
+  # In agent tool or workflow
   result = await use_skill(
       ctx,
       skill_name="data-analysis",
       task="Generate hourly message distribution stats"
   )
   # result contains sub-agent's summary
+  # Sub-agent has full access to parent's storage, RAG, etc. via ctx.deps
   ```
+- ✅ **Dependency inheritance**: Sub-agent receives parent's deps, so parent tools work correctly
 - ✅ Completion signal: Sub-agent calls `end_skill_use(summary)` or finishes naturally
 - ✅ Files: `agents/tools/skill_loader.py` (loader), `agents/tools/skill_injection.py` (tool)
 - ✅ Tests: `tests/agents/test_skill_injection.py` (13 unit tests)

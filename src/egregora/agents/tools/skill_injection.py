@@ -8,7 +8,7 @@ the summary of the sub-agent's work, keeping context clean and focused.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -34,30 +34,46 @@ class SkillCompletionResult(BaseModel):
     )
 
 
-class SkillInjectionDeps(BaseModel):
-    """Dependencies for skill injection tool.
+@runtime_checkable
+class SkillInjectionSupport(Protocol):
+    """Protocol for agent dependencies that support skill injection.
 
-    This should be provided in the agent's dependencies to enable skill injection.
+    Parent agents that want to support skill injection should have their deps
+    implement this protocol by providing these attributes.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
+    @property
+    def agent_model(self) -> Model:
+        """The model used by this agent."""
+        ...
 
-    parent_agent_model: Model = Field(..., description="Model to use for sub-agent")
-    parent_agent_tools: list[Any] = Field(default_factory=list, description="Tools available to parent agent")
-    parent_system_prompt: str = Field(default="", description="Parent agent's system prompt")
-    skills_dir_override: str | None = Field(None, description="Optional override for skills directory")
+    @property
+    def agent_tools(self) -> list[Any]:
+        """Tools available to this agent (excluding use_skill itself)."""
+        ...
+
+    @property
+    def agent_system_prompt(self) -> str:
+        """System prompt for this agent."""
+        ...
 
 
-async def use_skill(ctx: RunContext[SkillInjectionDeps], skill_name: str, task: str) -> str:
+async def use_skill(
+    ctx: RunContext[Any], skill_name: str, task: str
+) -> str:
     """Load a skill and execute a task with it using a specialized sub-agent.
 
     This tool spawns a sub-agent with the requested skill content injected into
-    its system prompt. The sub-agent can use all parent tools plus has access to
-    `end_skill_use()` to signal completion. The parent agent only sees the
-    summary of the sub-agent's work, keeping context clean.
+    its system prompt. The sub-agent inherits the parent's model, tools, AND
+    dependencies, ensuring parent tools work correctly (accessing storage, RAG, etc.).
+
+    The parent agent only sees the summary of the sub-agent's work, keeping
+    context clean.
 
     Args:
-        ctx: Run context with parent agent configuration.
+        ctx: Run context from parent agent. Parent deps must implement
+             SkillInjectionSupport protocol (agent_model, agent_tools,
+             agent_system_prompt properties).
         skill_name: Name of the skill to use (e.g., "github-api", "pdf-analysis").
         task: Description of what to do with the skill.
 
@@ -70,6 +86,15 @@ async def use_skill(ctx: RunContext[SkillInjectionDeps], skill_name: str, task: 
 
     """
     logger.info(f"Loading skill: {skill_name} for task: {task[:100]}...")
+
+    # Check if parent deps supports skill injection
+    if not isinstance(ctx.deps, SkillInjectionSupport):
+        error_msg = (
+            "Parent agent deps must implement SkillInjectionSupport protocol "
+            "(provide agent_model, agent_tools, agent_system_prompt properties)"
+        )
+        logger.exception(error_msg)
+        return f"ERROR: {error_msg}"
 
     # Load skill content
     skill_loader = get_skill_loader()
@@ -86,23 +111,27 @@ async def use_skill(ctx: RunContext[SkillInjectionDeps], skill_name: str, task: 
 
     # Create sub-agent with skill context injected
     skill_system_prompt = _build_skill_system_prompt(
-        parent_prompt=ctx.deps.parent_system_prompt,
+        parent_prompt=ctx.deps.agent_system_prompt,
         skill_content=skill_content.content,
         task=task,
     )
 
     # Create sub-agent with parent's model and tools + end_skill_use
+    # IMPORTANT: Sub-agent will receive parent's deps when we call run()
     sub_agent = Agent(
-        model=ctx.deps.parent_agent_model,
+        model=ctx.deps.agent_model,
         system_prompt=skill_system_prompt,
-        tools=[*ctx.deps.parent_agent_tools, end_skill_use],
+        tools=[*ctx.deps.agent_tools, end_skill_use],
         retries=2,  # Allow retries for transient failures
     )
 
-    # Execute sub-agent
+    # Execute sub-agent with parent's dependencies
+    # This ensures parent tools work correctly (can access storage, RAG, etc.)
     try:
-        summary = await _run_sub_agent(sub_agent, task, skill_name)
-        logger.info(f"Skill usage completed: {skill_name} - {summary[:100]}...")
+        summary = await _run_sub_agent(sub_agent, task, skill_name, ctx.deps)
+        logger.info(
+            f"Skill usage completed: {skill_name} - {summary[:100]}..."
+        )
         return summary
 
     except Exception as e:
@@ -127,15 +156,17 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
         SkillCompletionResult with summary and completion marker.
 
     Examples:
-        >>> end_skill_use("Analyzed PR #123. Found 2 security issues: SQL injection in login.py and XSS in comments.js. Both are P0 severity.")
-        >>> end_skill_use("Generated statistics: 1,234 messages from 15 authors over 30 days. Top topics: Python (45%), AI (30%), Remote work (25%).")
+        >>> end_skill_use("Analyzed PR #123. Found 2 security issues: SQL injection and XSS.")
+        >>> end_skill_use("Stats: 1,234 messages from 15 authors. Top: Python (45%), AI (30%).")
 
     """
     logger.debug(f"Sub-agent calling end_skill_use: {summary[:100]}...")
     return SkillCompletionResult(summary=summary)
 
 
-def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str) -> str:
+def _build_skill_system_prompt(
+    parent_prompt: str, skill_content: str, task: str
+) -> str:
     """Build system prompt for sub-agent with skill context.
 
     Args:
@@ -156,7 +187,7 @@ to help you complete a specific task.
 
 ## Injected Skill: {skill_content[:500]}...
 
-{"...(skill content truncated)..." if len(skill_content) > 500 else ""}
+{'...(skill content truncated)...' if len(skill_content) > 500 else ''}
 
 ## Your Task
 
@@ -176,7 +207,9 @@ to help you complete a specific task.
 """
 
 
-async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str) -> str:
+async def _run_sub_agent(
+    agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any
+) -> str:
     """Run sub-agent and extract summary.
 
     The sub-agent can either:
@@ -187,6 +220,8 @@ async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str) -> 
         agent: Sub-agent to run.
         task: Task prompt.
         skill_name: Name of skill being used (for logging).
+        parent_deps: Parent agent's dependencies to pass to sub-agent.
+                     This ensures tools can access storage, RAG, etc.
 
     Returns:
         Summary of what was accomplished.
@@ -195,7 +230,9 @@ async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str) -> 
         RuntimeError: If execution fails.
 
     """
-    result = await agent.run(task)
+    # Run sub-agent with parent's dependencies
+    # This is CRITICAL: parent tools need access to parent's storage, RAG, etc.
+    result = await agent.run(task, deps=parent_deps)
 
     # Check if the agent called end_skill_use by looking for the completion marker
     summary = _extract_summary_from_result(result)
@@ -207,7 +244,9 @@ async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str) -> 
         logger.debug(f"Sub-agent used end_skill_use: {clean_summary[:100]}...")
         return clean_summary
     # Agent finished naturally without calling end_skill_use
-    logger.debug("Sub-agent finished without end_skill_use, using final response as summary")
+    logger.debug(
+        "Sub-agent finished without end_skill_use, using final response as summary"
+    )
     return summary
 
 
