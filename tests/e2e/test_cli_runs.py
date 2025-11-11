@@ -177,9 +177,7 @@ class TestRunsTail:
 
     def test_runs_tail_custom_limit(self, populated_runs_db: Path):
         """Test tail command with custom limit."""
-        result = runner.invoke(
-            app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "3"]
-        )
+        result = runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "3"])
 
         assert result.exit_code == 0
         assert "Last 3 Runs" in result.stdout or "Last" in result.stdout
@@ -210,9 +208,7 @@ class TestRunsTail:
 
     def test_runs_tail_ordering(self, populated_runs_db: Path):
         """Test that tail command orders runs by most recent first."""
-        result = runner.invoke(
-            app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "5"]
-        )
+        result = runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "5"])
 
         assert result.exit_code == 0
         # Check that we're showing run information
@@ -258,16 +254,12 @@ class TestRunsShow:
         """Test show command with full run UUID."""
         # Get first run ID from database
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1"
-        ).fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
         conn.close()
 
         if result:
             run_id = result[0]
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             assert "Run ID" in result.stdout
@@ -278,18 +270,14 @@ class TestRunsShow:
         """Test show command with UUID prefix matching."""
         # Get first run ID from database
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1"
-        ).fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
         conn.close()
 
         if result:
             run_id = result[0]
             # Use first 8 characters as prefix
             run_id_prefix = run_id[:8]
-            result = runner.invoke(
-                app, ["runs", "show", run_id_prefix, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id_prefix, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             assert "Run ID" in result.stdout or "Details" in result.stdout
@@ -304,16 +292,11 @@ class TestRunsShow:
 
         if result:
             run_id = result[0][:8]
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             # Panel should contain detailed run information
-            assert any(
-                keyword in result.stdout
-                for keyword in ["Timestamps", "Metrics", "Details", "Stage"]
-            )
+            assert any(keyword in result.stdout for keyword in ["Timestamps", "Metrics", "Details", "Stage"])
 
     def test_runs_show_completed_status(self, populated_runs_db: Path):
         """Test show command displays completed run with metrics."""
@@ -325,13 +308,15 @@ class TestRunsShow:
 
         if result:
             run_id = result[0][:8]
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             # Should show metrics for a generation stage run
-            assert "Metrics" in result.stdout or "rows" in result.stdout.lower() or "llm" in result.stdout.lower()
+            assert (
+                "Metrics" in result.stdout
+                or "rows" in result.stdout.lower()
+                or "llm" in result.stdout.lower()
+            )
 
     def test_runs_show_failed_status(self, populated_runs_db: Path):
         """Test show command displays failed run with error message."""
@@ -343,9 +328,7 @@ class TestRunsShow:
 
         if result:
             run_id = result[0][:8]
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             # Should display error information
@@ -361,9 +344,7 @@ class TestRunsShow:
 
         if result:
             run_id = result[0][:8]
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code == 0
             # Should show observability section with trace ID
@@ -394,10 +375,7 @@ class TestRunsList:
         # Command may not exist yet, so check for reasonable responses
         if result.exit_code == 0:
             # Should show run information
-            assert any(
-                keyword in result.stdout
-                for keyword in ["Run", "Stage", "Status", "Runs"]
-            )
+            assert any(keyword in result.stdout for keyword in ["Run", "Stage", "Status", "Runs"])
         else:
             # If command doesn't exist (exit code 2), that's okay for now
             # The command might not be implemented yet
@@ -432,25 +410,18 @@ class TestRunsList:
 
     def test_runs_list_limit(self, populated_runs_db: Path):
         """Test list command with limit parameter."""
-        result = runner.invoke(
-            app, ["runs", "list", "--db-path", str(populated_runs_db), "--limit", "3"]
-        )
+        result = runner.invoke(app, ["runs", "list", "--db-path", str(populated_runs_db), "--limit", "3"])
 
         # Command may not exist yet
         if result.exit_code == 0:
-            assert any(
-                keyword in result.stdout
-                for keyword in ["Run", "Stage", "Status"]
-            )
+            assert any(keyword in result.stdout for keyword in ["Run", "Stage", "Status"])
         else:
             # If command doesn't exist, that's okay for now
             pass
 
     def test_runs_list_json_output(self, populated_runs_db: Path):
         """Test list command with JSON output format."""
-        result = runner.invoke(
-            app, ["runs", "list", "--db-path", str(populated_runs_db), "--json"]
-        )
+        result = runner.invoke(app, ["runs", "list", "--db-path", str(populated_runs_db), "--json"])
 
         # Command may not exist yet
         if result.exit_code == 0:
@@ -513,8 +484,7 @@ class TestRunsClear:
         if result.exit_code == 0:
             # Should show success message
             assert any(
-                keyword in result.stdout.lower()
-                for keyword in ["cleared", "deleted", "removed", "success"]
+                keyword in result.stdout.lower() for keyword in ["cleared", "deleted", "removed", "success"]
             )
         else:
             # If command doesn't exist, that's okay for now
@@ -537,8 +507,7 @@ class TestRunsClear:
         if result.exit_code == 0:
             # Should show what would be deleted without deleting
             assert any(
-                keyword in result.stdout.lower()
-                for keyword in ["would", "would be", "dry-run", "preview"]
+                keyword in result.stdout.lower() for keyword in ["would", "would be", "dry-run", "preview"]
             )
         else:
             # If command doesn't exist, that's okay for now
@@ -559,10 +528,7 @@ class TestRunsClear:
         # Command may not exist yet
         if result.exit_code == 0:
             # Should show success message
-            assert any(
-                keyword in result.stdout.lower()
-                for keyword in ["cleared", "deleted", "removed"]
-            )
+            assert any(keyword in result.stdout.lower() for keyword in ["cleared", "deleted", "removed"])
 
             # Database may be cleared
             conn = duckdb.connect(str(populated_runs_db), read_only=True)
@@ -592,16 +558,12 @@ class TestRunsCommandsIntegration:
 
         # 2. Get a run ID from the tail output and view details
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        run_result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1"
-        ).fetchone()
+        run_result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
         conn.close()
 
         if run_result:
             run_id = run_result[0][:8]
-            show_result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            show_result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
             assert show_result.exit_code == 0
 
     def test_runs_commands_preserve_database(self, populated_runs_db: Path):
@@ -633,18 +595,14 @@ class TestRunsCommandsEdgeCases:
 
     def test_runs_tail_with_zero_limit(self, populated_runs_db: Path):
         """Test tail command with zero limit."""
-        result = runner.invoke(
-            app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "0"]
-        )
+        result = runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "0"])
 
         # Should handle gracefully (either show nothing or error)
         assert result.exit_code in (0, 1, 2)
 
     def test_runs_tail_with_negative_limit(self, populated_runs_db: Path):
         """Test tail command with negative limit."""
-        result = runner.invoke(
-            app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "-5"]
-        )
+        result = runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "-5"])
 
         # Should handle gracefully
         assert result.exit_code in (0, 1, 2)
@@ -658,9 +616,7 @@ class TestRunsCommandsEdgeCases:
 
     def test_runs_tail_large_limit(self, populated_runs_db: Path):
         """Test tail command with limit larger than available runs."""
-        result = runner.invoke(
-            app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "1000"]
-        )
+        result = runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "1000"])
 
         # Should handle gracefully and return all available
         assert result.exit_code in (0, 1)
@@ -668,16 +624,12 @@ class TestRunsCommandsEdgeCases:
     def test_runs_show_case_insensitive_prefix(self, populated_runs_db: Path):
         """Test show command with case variations in run ID prefix."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1"
-        ).fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
         conn.close()
 
         if result:
             run_id = result[0][:8]
             # DuckDB UUIDs might handle case variations
-            result = runner.invoke(
-                app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)]
-            )
+            result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
 
             assert result.exit_code in (0, 1, 2)

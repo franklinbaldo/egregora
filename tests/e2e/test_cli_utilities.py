@@ -6,12 +6,8 @@ using CliRunner from typer.testing to simulate CLI invocations.
 
 from __future__ import annotations
 
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
 from egregora.cli import app
@@ -53,8 +49,11 @@ class TestDoctorCommand:
         result = runner.invoke(app, ["doctor"])
 
         # Should show summary with counts
-        assert ("summary" in result.stdout.lower() or "ok" in result.stdout.lower() or
-                "error" in result.stdout.lower())
+        assert (
+            "summary" in result.stdout.lower()
+            or "ok" in result.stdout.lower()
+            or "error" in result.stdout.lower()
+        )
 
     def test_doctor_command_checks_python_version(self):
         """Test that doctor checks Python version."""
@@ -68,8 +67,12 @@ class TestDoctorCommand:
 
         # Should mention packages or dependencies
         output_lower = result.stdout.lower()
-        assert ("package" in output_lower or "ibis" in output_lower or
-                "duckdb" in output_lower or "error" in output_lower)
+        assert (
+            "package" in output_lower
+            or "ibis" in output_lower
+            or "duckdb" in output_lower
+            or "error" in output_lower
+        )
 
     def test_doctor_exit_code_on_success(self):
         """Test doctor exits with 0 when all checks pass (mocked)."""
@@ -78,15 +81,9 @@ class TestDoctorCommand:
             from egregora.diagnostics import DiagnosticResult, HealthStatus
 
             mock_diagnostics.return_value = [
+                DiagnosticResult(check="Python Version", status=HealthStatus.OK, message="Python 3.12.0"),
                 DiagnosticResult(
-                    check="Python Version",
-                    status=HealthStatus.OK,
-                    message="Python 3.12.0"
-                ),
-                DiagnosticResult(
-                    check="Required Packages",
-                    status=HealthStatus.OK,
-                    message="All packages installed"
+                    check="Required Packages", status=HealthStatus.OK, message="All packages installed"
                 ),
             ]
 
@@ -100,9 +97,7 @@ class TestDoctorCommand:
 
             mock_diagnostics.return_value = [
                 DiagnosticResult(
-                    check="API Key",
-                    status=HealthStatus.ERROR,
-                    message="GOOGLE_API_KEY not set"
+                    check="API Key", status=HealthStatus.ERROR, message="GOOGLE_API_KEY not set"
                 ),
             ]
 
@@ -116,9 +111,7 @@ class TestDoctorCommand:
 
             mock_diagnostics.return_value = [
                 DiagnosticResult(
-                    check="DuckDB VSS",
-                    status=HealthStatus.WARNING,
-                    message="VSS extension not available"
+                    check="DuckDB VSS", status=HealthStatus.WARNING, message="VSS extension not available"
                 ),
             ]
 
@@ -173,7 +166,12 @@ class TestCacheStatsCommand:
         assert result.exit_code == 0
         # Should show size information
         output_lower = result.stdout.lower()
-        assert "size" in output_lower or "mb" in output_lower or "kb" in output_lower or "enrichment" in output_lower
+        assert (
+            "size" in output_lower
+            or "mb" in output_lower
+            or "kb" in output_lower
+            or "enrichment" in output_lower
+        )
 
     def test_cache_stats_shows_per_stage_breakdown(self, tmp_path):
         """Test cache stats shows per-stage breakdown."""
@@ -194,7 +192,12 @@ class TestCacheStatsCommand:
         assert result.exit_code == 0
         # Should mention stages or checkpoint counts
         output_lower = result.stdout.lower()
-        assert "stage" in output_lower or "enrichment" in output_lower or "privacy" in output_lower or "checkpoint" in output_lower
+        assert (
+            "stage" in output_lower
+            or "enrichment" in output_lower
+            or "privacy" in output_lower
+            or "checkpoint" in output_lower
+        )
 
 
 class TestCacheClearCommand:
@@ -259,8 +262,7 @@ class TestCacheClearCommand:
         (privacy_dir / "checkpoint.pkl").write_bytes(b"test")
 
         result = runner.invoke(
-            app,
-            ["cache", "clear", "--cache-dir", str(cache_dir), "--stage", "enrichment", "--force"]
+            app, ["cache", "clear", "--cache-dir", str(cache_dir), "--stage", "enrichment", "--force"]
         )
 
         assert result.exit_code == 0
@@ -275,8 +277,7 @@ class TestCacheClearCommand:
         cache_dir.mkdir(parents=True)
 
         result = runner.invoke(
-            app,
-            ["cache", "clear", "--cache-dir", str(cache_dir), "--stage", "nonexistent", "--force"]
+            app, ["cache", "clear", "--cache-dir", str(cache_dir), "--stage", "nonexistent", "--force"]
         )
 
         # Should handle gracefully (may exit 0 or 1)
@@ -296,7 +297,7 @@ class TestCacheClearCommand:
         result = runner.invoke(
             app,
             ["cache", "clear", "--cache-dir", str(cache_dir)],
-            input="n\n"  # Answer 'no' to confirmation
+            input="n\n",  # Answer 'no' to confirmation
         )
 
         assert result.exit_code == 0
@@ -330,10 +331,7 @@ class TestCacheGcCommand:
             hash_dir.mkdir()
             (hash_dir / "checkpoint.pkl").write_bytes(b"test" * (i + 1))
 
-        result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "2"]
-        )
+        result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "2"])
 
         assert result.exit_code == 0
         assert "deleted" in result.stdout.lower()
@@ -353,8 +351,7 @@ class TestCacheGcCommand:
                 (hash_dir / "checkpoint.pkl").write_bytes(b"test")
 
         result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "1", "--stage", "enrichment"]
+            app, ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "1", "--stage", "enrichment"]
         )
 
         assert result.exit_code == 0
@@ -370,10 +367,7 @@ class TestCacheGcCommand:
         # Create a large-ish file (1 MB)
         (stage_dir / "checkpoint.pkl").write_bytes(b"x" * (1024 * 1024))
 
-        result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "1GB"]
-        )
+        result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "1GB"])
 
         assert result.exit_code == 0
         assert "deleted" in result.stdout.lower() or "0" in result.stdout
@@ -387,10 +381,7 @@ class TestCacheGcCommand:
         stage_dir.mkdir(parents=True)
         (stage_dir / "checkpoint.pkl").write_bytes(b"x" * (512 * 1024))  # 512 KB
 
-        result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "1MB"]
-        )
+        result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "1MB"])
 
         assert result.exit_code == 0
 
@@ -400,8 +391,7 @@ class TestCacheGcCommand:
         cache_dir.mkdir(parents=True)
 
         result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "5", "--max-size", "10GB"]
+            app, ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "5", "--max-size", "10GB"]
         )
 
         assert result.exit_code == 1
@@ -413,8 +403,7 @@ class TestCacheGcCommand:
         cache_dir.mkdir(parents=True)
 
         result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "invalid_size"]
+            app, ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "invalid_size"]
         )
 
         assert result.exit_code == 1
@@ -429,10 +418,7 @@ class TestCacheGcCommand:
         stage_dir.mkdir(parents=True)
         (stage_dir / "checkpoint.pkl").write_bytes(b"test" * 100)
 
-        result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "10KB"]
-        )
+        result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--max-size", "10KB"])
 
         assert result.exit_code == 0
 
@@ -441,10 +427,7 @@ class TestCacheGcCommand:
         cache_dir = tmp_path / "checkpoints"
         cache_dir.mkdir(parents=True)
 
-        result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "5"]
-        )
+        result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "5"])
 
         assert result.exit_code == 0
         assert "deleted" in result.stdout.lower() or "0" in result.stdout
@@ -466,13 +449,14 @@ class TestCacheCommandsIntegration:
         # Check stats
         stats_result = runner.invoke(app, ["cache", "stats", "--cache-dir", str(cache_dir)])
         assert stats_result.exit_code == 0
-        assert "enrichment" in stats_result.stdout.lower() or "checkpoint" in stats_result.stdout.lower() or "size" in stats_result.stdout.lower()
+        assert (
+            "enrichment" in stats_result.stdout.lower()
+            or "checkpoint" in stats_result.stdout.lower()
+            or "size" in stats_result.stdout.lower()
+        )
 
         # Clear cache
-        clear_result = runner.invoke(
-            app,
-            ["cache", "clear", "--cache-dir", str(cache_dir), "--force"]
-        )
+        clear_result = runner.invoke(app, ["cache", "clear", "--cache-dir", str(cache_dir), "--force"])
         assert clear_result.exit_code == 0
 
         # Verify empty
@@ -495,10 +479,7 @@ class TestCacheCommandsIntegration:
                 (hash_dir / "checkpoint.pkl").write_bytes(b"test")
 
         # Run GC
-        gc_result = runner.invoke(
-            app,
-            ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "1"]
-        )
+        gc_result = runner.invoke(app, ["cache", "gc", "--cache-dir", str(cache_dir), "--keep-last", "1"])
         assert gc_result.exit_code == 0
 
         # Check final stats
@@ -573,5 +554,4 @@ class TestDoctorAndCacheOutputFormat:
         assert result.exit_code == 1
         # Error message should be helpful
         output = result.stdout.lower()
-        assert ("must specify" in output or "error" in output or
-                "keep-last" in output or "max-size" in output)
+        assert "must specify" in output or "error" in output or "keep-last" in output or "max-size" in output

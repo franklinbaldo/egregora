@@ -220,9 +220,7 @@ class TestWriteCommandConfiguration:
 
         # Should fail or handle gracefully
         # The exact behavior depends on validation in the pipeline
-        assert result.exit_code in (0, 1), (
-            "Invalid step-unit should either fail or be handled gracefully"
-        )
+        assert result.exit_code in (0, 1), "Invalid step-unit should either fail or be handled gracefully"
 
 
 class TestWriteCommandDateFiltering:
@@ -344,9 +342,7 @@ class TestWriteCommandDateFiltering:
         )
 
         # May fail or succeed depending on timezone validation implementation
-        assert result.exit_code in (0, 1), (
-            "Invalid timezone should either fail or be handled gracefully"
-        )
+        assert result.exit_code in (0, 1), "Invalid timezone should either fail or be handled gracefully"
 
 
 @pytest.mark.vcr
