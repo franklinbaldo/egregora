@@ -27,6 +27,7 @@ Usage:
 
 import contextlib
 import logging
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -35,6 +36,34 @@ import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+
+def quote_identifier(name: str) -> str:
+    """Safely quote a SQL identifier to prevent injection.
+
+    Args:
+        name: Table/view/column name
+
+    Returns:
+        Quoted identifier safe for SQL
+
+    Raises:
+        ValueError: If name contains invalid characters
+
+    Example:
+        >>> quote_identifier("my_table")
+        '"my_table"'
+        >>> quote_identifier("users; DROP TABLE users")
+        ValueError: Invalid identifier name
+
+    """
+    # Allow only alphanumeric, underscore, hyphen
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+        msg = f"Invalid identifier name: {name!r}. Only alphanumeric, underscore, and hyphen allowed."
+        raise ValueError(msg)
+
+    # Quote with double quotes (DuckDB identifier quoting)
+    return f'"{name}"'
 
 
 class StorageManager:
@@ -140,15 +169,16 @@ class StorageManager:
             logger.debug("Writing checkpoint: %s", parquet_path)
             table.to_parquet(str(parquet_path))
 
-            # Load into DuckDB from parquet
+            # Load into DuckDB from parquet (use quoted identifier to prevent SQL injection)
+            quoted_name = quote_identifier(name)
             if mode == "replace":
-                sql = f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet('{parquet_path}')"  # nosec B608 - name validated by caller
+                sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet('{parquet_path}')"
             else:  # append
                 # Create table if not exists, then insert
                 sql = f"""
-                    CREATE TABLE IF NOT EXISTS {name} AS SELECT * FROM read_parquet('{parquet_path}') WHERE 1=0;
-                    INSERT INTO {name} SELECT * FROM read_parquet('{parquet_path}')
-                """  # nosec B608 - name validated by caller
+                    CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet('{parquet_path}') WHERE 1=0;
+                    INSERT INTO {quoted_name} SELECT * FROM read_parquet('{parquet_path}')
+                """
 
             self.conn.execute(sql)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
@@ -255,10 +285,12 @@ class StorageManager:
 
         """
         # Try dropping as view first (ibis.memtable creates views), then table
+        # Use quoted identifier to prevent SQL injection
+        quoted_name = quote_identifier(name)
         with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP VIEW IF EXISTS {name}")
+            self.conn.execute(f"DROP VIEW IF EXISTS {quoted_name}")
         with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP TABLE IF EXISTS {name}")
+            self.conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
         logger.info("Dropped table/view: %s", name)
 
         if checkpoint_too:

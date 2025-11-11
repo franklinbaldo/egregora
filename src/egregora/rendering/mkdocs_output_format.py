@@ -14,7 +14,8 @@ if TYPE_CHECKING:
     from egregora.core.document import Document
     from egregora.storage.url_convention import UrlContext, UrlConvention
 
-from egregora.agents.shared.profiler import write_profile as write_profile_content
+# Lazy import to avoid circular dependency (mkdocs_output_format ← agents ← writer/core → mkdocs_output_format)
+# from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.core.document import DocumentType
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 
@@ -388,6 +389,9 @@ class MkDocsOutputFormat:
             path.write_text(full_content, encoding="utf-8")
 
         elif document.type == DocumentType.PROFILE:
+            # Lazy import to avoid circular dependency
+            from egregora.agents.shared.profiler import write_profile as write_profile_content
+
             # Use write_profile_content (handles frontmatter + .authors.yml)
             author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
             if not author_uuid:

@@ -32,6 +32,39 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def secure_path_join(base_dir: Path, user_path: str) -> Path:
+    """Safely join a user-provided path to a base directory, preventing path traversal.
+
+    Args:
+        base_dir: Base directory that result must stay within
+        user_path: User-provided path (potentially malicious)
+
+    Returns:
+        Resolved path within base_dir
+
+    Raises:
+        ValueError: If user_path attempts to escape base_dir
+
+    Examples:
+        >>> secure_path_join(Path("/var/www"), "posts/my-post.md")
+        Path("/var/www/posts/my-post.md")
+        >>> secure_path_join(Path("/var/www"), "../etc/passwd")
+        ValueError: Path traversal detected
+
+    """
+    # Join paths and resolve to absolute path
+    full_path = (base_dir / user_path).resolve()
+
+    # Verify the resolved path is still within base_dir
+    try:
+        full_path.relative_to(base_dir.resolve())
+    except ValueError as e:
+        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
+        raise ValueError(msg) from e
+
+    return full_path
+
+
 # ============================================================================
 # MkDocs Storage Implementations
 # ============================================================================
@@ -448,8 +481,8 @@ class MkDocsEnrichmentStorage:
 
         """
         # Media enrichment goes next to the media file
-        # filename is already relative to site_root (e.g., "media/images/abc.jpg")
-        media_path = self.site_root / filename
+        # Use secure_path_join to prevent path traversal attacks
+        media_path = secure_path_join(self.site_root, filename)
         enrichment_path = media_path.with_suffix(media_path.suffix + ".md")
 
         # Ensure parent directory exists

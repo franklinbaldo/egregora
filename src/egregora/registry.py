@@ -9,6 +9,9 @@ completion before being production-ready.
 """
 
 from egregora.rendering.base import output_registry
+
+# Registry uses old mkdocs.py (two-phase init: __init__() + initialize())
+# Writer agent uses new mkdocs_output_format.py directly
 from egregora.rendering.mkdocs import MkDocsOutputFormat
 from egregora.sources.base import input_registry
 from egregora.sources.whatsapp.input import WhatsAppInputSource
