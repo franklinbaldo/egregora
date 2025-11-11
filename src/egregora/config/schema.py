@@ -222,6 +222,11 @@ class OutputConfig(BaseModel):
         description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
     )
 
+    mkdocs_config_path: str | None = Field(
+        default=None,
+        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+    )
+
 
 class FeaturesConfig(BaseModel):
     """Feature flags for experimental or optional functionality."""

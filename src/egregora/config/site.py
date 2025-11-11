@@ -157,14 +157,59 @@ def _extract_blog_dir(config: dict[str, Any]) -> str | None:
     return None
 
 
+def _try_load_mkdocs_path_from_config(start: Path) -> Path | None:
+    """Try to load mkdocs_config_path from .egregora/config.yml.
+
+    Args:
+        start: Starting directory for upward search
+
+    Returns:
+        Absolute path to mkdocs.yml if configured, None otherwise
+
+    """
+    # Search upward for .egregora/config.yml
+    current = start.expanduser().resolve()
+    for candidate in (current, *current.parents):
+        config_file = candidate / ".egregora" / "config.yml"
+        if config_file.exists():
+            try:
+                # Import here to avoid circular dependency
+                from egregora.config.loader import load_egregora_config
+
+                config = load_egregora_config(candidate)
+                if config.output and config.output.mkdocs_config_path:
+                    # Path is relative to site root (candidate)
+                    mkdocs_path = candidate / config.output.mkdocs_config_path
+                    return mkdocs_path.resolve()
+            except Exception as e:
+                logger.debug("Failed to load mkdocs_config_path from config: %s", e)
+                return None
+    return None
+
+
 def resolve_site_paths(start: Annotated[Path, "The starting directory for path resolution"]) -> SitePaths:
     """Resolve all important directories for the site.
 
     SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
     MODERN (Regression Fix): Content at root level (not in docs/).
+    MODERN (Phase N): Respects output.mkdocs_config_path from .egregora/config.yml
     """
     start = start.expanduser().resolve()
-    _config, mkdocs_path = load_mkdocs_config(start)
+
+    # Try to load .egregora/config.yml to check for custom mkdocs_config_path
+    mkdocs_path_from_config = _try_load_mkdocs_path_from_config(start)
+
+    if mkdocs_path_from_config and mkdocs_path_from_config.exists():
+        # Use the configured path
+        mkdocs_path = mkdocs_path_from_config
+        try:
+            _config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
+        except yaml.YAMLError as exc:
+            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+            _config = {}
+    else:
+        # Fall back to searching for mkdocs.yml
+        _config, mkdocs_path = load_mkdocs_config(start)
 
     # Determine site_root based on mkdocs.yml location
     if mkdocs_path:
