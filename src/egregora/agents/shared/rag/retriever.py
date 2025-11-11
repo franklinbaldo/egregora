@@ -14,6 +14,7 @@ from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_docume
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.config.site import MEDIA_DIR_NAME
+from egregora.core.document import DocumentType
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -160,6 +161,30 @@ def index_document(
         if isinstance(tags, str):
             tags = [tags]
 
+        # Handle media-specific fields for enrichments
+        if document.type in (DocumentType.ENRICHMENT_MEDIA, DocumentType.MEDIA):
+            media_uuid = metadata.get("media_uuid") or metadata.get("uuid")
+            media_type = metadata.get("media_type")
+            media_path = metadata.get("media_path")
+            original_filename = metadata.get("original_filename")
+            message_date = _coerce_message_datetime(metadata.get("message_date"))
+            author_uuid = metadata.get("author_uuid")
+            # Media documents don't have post fields
+            post_slug_val = None
+            post_title_val = None
+            post_date_val = None
+        else:
+            # Post/Profile/Journal documents
+            media_uuid = None
+            media_type = None
+            media_path = None
+            original_filename = None
+            message_date = None
+            author_uuid = None
+            post_slug_val = chunk["post_slug"]
+            post_title_val = chunk["post_title"]
+            post_date_val = post_date
+
         rows.append(
             {
                 "chunk_id": f"{document.document_id}_{i}",
@@ -167,15 +192,15 @@ def index_document(
                 "document_id": document.document_id,  # Content-addressed ID
                 "source_path": source_path,
                 "source_mtime_ns": source_mtime_ns,
-                "post_slug": chunk["post_slug"],
-                "post_title": chunk["post_title"],
-                "post_date": post_date,
-                "media_uuid": None,  # TODO: Support media documents
-                "media_type": None,
-                "media_path": None,
-                "original_filename": None,
-                "message_date": None,
-                "author_uuid": None,
+                "post_slug": post_slug_val,
+                "post_title": post_title_val,
+                "post_date": post_date_val,
+                "media_uuid": media_uuid,
+                "media_type": media_type,
+                "media_path": media_path,
+                "original_filename": original_filename,
+                "message_date": message_date,
+                "author_uuid": author_uuid,
                 "chunk_index": i,
                 "content": chunk["content"],
                 "embedding": embedding,
