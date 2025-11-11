@@ -61,57 +61,46 @@ class OutputFormat(ABC):
         """Name for the media/assets directory."""
         return "media"
 
-    def get_media_dir(self, site_root: Path) -> Path:
-        """Get the media directory for this site.
+    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
+        """Get the relative URL path for a media file in the generated site.
 
         Args:
+            media_file: Absolute path to the media file
             site_root: Root directory of the site
 
         Returns:
-            Path to media directory
+            Relative path string for use in HTML/markdown links
+            Example: "media/images/abc123.jpg"
 
         """
         site_config = self.resolve_paths(site_root)
-        return site_config.media_dir
+        return str(media_file.relative_to(site_config.docs_dir))
 
-    def get_profiles_dir(self, site_root: Path) -> Path:
-        """Get the profiles directory for this site.
+    def get_profile_url_path(self, profile_slug: str) -> str:
+        """Get the relative URL path for a profile page.
 
         Args:
-            site_root: Root directory of the site
+            profile_slug: Slug/identifier for the profile
 
         Returns:
-            Path to profiles directory
+            Relative path string for use in HTML/markdown links
+            Example: "profiles/author-name/"
 
         """
-        site_config = self.resolve_paths(site_root)
-        return site_config.profiles_dir
+        return f"{self.profiles_dir_name}/{profile_slug}/"
 
-    def get_posts_dir(self, site_root: Path) -> Path:
-        """Get the posts directory for this site.
+    def get_post_url_path(self, post_slug: str) -> str:
+        """Get the relative URL path for a blog post.
 
         Args:
-            site_root: Root directory of the site
+            post_slug: Slug/identifier for the post
 
         Returns:
-            Path to posts directory
+            Relative path string for use in HTML/markdown links
+            Example: "posts/my-post/"
 
         """
-        site_config = self.resolve_paths(site_root)
-        return site_config.posts_dir
-
-    def get_docs_dir(self, site_root: Path) -> Path:
-        """Get the docs directory for this site.
-
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            Path to docs directory
-
-        """
-        site_config = self.resolve_paths(site_root)
-        return site_config.docs_dir
+        return f"posts/{post_slug}/"
 
     @abstractmethod
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:

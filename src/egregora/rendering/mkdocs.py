@@ -621,16 +621,17 @@ class MkDocsOutputFormat(OutputFormat):
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        # Check if mkdocs.yml already exists ANYWHERE in this directory
+        # Check if mkdocs.yml already exists ANYWHERE (including custom paths)
         # Prevents duplicate configs - refuse to init if ANY mkdocs.yml exists
+        # resolve_site_paths() checks:
+        #   1. Custom path from .egregora/config.yml (if configured)
+        #   2. .egregora/mkdocs.yml (default new location)
+        #   3. mkdocs.yml at root (legacy location)
         site_paths = resolve_site_paths(site_root)
-        mkdocs_in_egregora = site_paths.mkdocs_config_path  # .egregora/mkdocs.yml
-        mkdocs_at_root = site_root / "mkdocs.yml"  # mkdocs.yml at root
 
-        if mkdocs_in_egregora.exists() or mkdocs_at_root.exists():
-            existing_path = mkdocs_in_egregora if mkdocs_in_egregora.exists() else mkdocs_at_root
-            logger.info("MkDocs site already exists at %s (config: %s)", site_root, existing_path)
-            return (existing_path, False)
+        if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
+            logger.info("MkDocs site already exists at %s (config: %s)", site_root, site_paths.mkdocs_path)
+            return (site_paths.mkdocs_path, False)
 
         # Site doesn't exist - create it
         try:
@@ -648,11 +649,12 @@ class MkDocsOutputFormat(OutputFormat):
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
             }
 
-            # Create mkdocs.yml in .egregora/
+            # Create mkdocs.yml in .egregora/ (default location)
             mkdocs_template = env.get_template("mkdocs.yml.jinja")
             mkdocs_content = mkdocs_template.render(**context)
-            mkdocs_in_egregora.parent.mkdir(parents=True, exist_ok=True)
-            mkdocs_in_egregora.write_text(mkdocs_content, encoding="utf-8")
+            new_mkdocs_path = site_paths.mkdocs_config_path  # Default: .egregora/mkdocs.yml
+            new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
+            new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
             logger.info("Created .egregora/mkdocs.yml")
 
             # Create site structure
@@ -662,7 +664,7 @@ class MkDocsOutputFormat(OutputFormat):
             raise RuntimeError(msg) from e
         else:
             logger.info("MkDocs site scaffold created at %s", site_root)
-            return (mkdocs_in_egregora, True)
+            return (new_mkdocs_path, True)
 
     def _create_site_structure(self, site_paths: Any, env: Any, context: dict[str, Any]) -> None:
         """Create essential directories and index files for the blog structure.
