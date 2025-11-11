@@ -117,16 +117,16 @@ class MkDocsOutputFormat:
             # Convert URL to filesystem path
             path = self._url_to_path(url, document)
 
-            # Check if path exists with different document_id (collision)
-            if path.exists():
+            # For deterministic paths (slugs, UUIDs), overwrite existing files
+            # This ensures updates replace content instead of creating duplicates
+            # Only check for collisions on content-addressed paths (ENRICHMENT_URL)
+            if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
                 existing_doc_id = self._get_document_id_at_path(path)
-                if existing_doc_id == doc_id:
-                    # Same document - idempotent
-                    logger.debug("Document %s already at %s (idempotent)", doc_id, path)
-                else:
-                    # Collision - different document at same URL
-                    # Handle by adding numeric suffix
+                if existing_doc_id and existing_doc_id != doc_id:
+                    # True collision: different document at same content hash
                     path = self._resolve_collision(path, doc_id)
+                    logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
+            # For slug/UUID paths (POST, PROFILE, JOURNAL), overwrite is intentional update
 
         # Write document at determined path
         self._write_document(document, path)
