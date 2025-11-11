@@ -1,5 +1,6 @@
 site_name: {{ site_name }}
 site_description: Collective consciousness journal - {{ site_name }}
+site_url: {{ site_url }}  # Update with your deployment URL (e.g., https://example.com)
 docs_dir: {{ docs_dir }}
 
 theme:
@@ -41,6 +42,15 @@ plugins:
       post_url_date_format: yyyy/MM/dd
       post_url_format: '{date}/{slug}'
       pagination_per_page: 10
+  - rss:
+      match_path: "{{ blog_dir }}/.*"
+      date_from_meta:
+        as_creation: date
+        as_update: date
+      categories:
+        - categories
+        - tags
+      comments_path: "#__comments"
 
 # Markdown extensions available for posts
 # (This section is automatically sent to the writer agent)

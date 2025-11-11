@@ -883,6 +883,7 @@ See `CONTRIBUTING.md` for full details and examples.
 **Optional**:
 - **pytest-vcr** - HTTP recording for deterministic tests
 - **Pydantic Logfire** - Observability (opt-in via env var)
+- **mkdocs-rss-plugin** - RSS feed generation for blog posts (install with `uv sync --extra rss`)
 
 ## Deployment
 
