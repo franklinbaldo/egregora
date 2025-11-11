@@ -28,9 +28,7 @@ class TestDocumentIdentity:
         """Document ID should be deterministic across multiple creations."""
         content = "Test content for determinism"
 
-        ids = {
-            Document(content=content, type=DocumentType.POST).document_id for _ in range(10)
-        }
+        ids = {Document(content=content, type=DocumentType.POST).document_id for _ in range(10)}
 
         assert len(ids) == 1, "Document ID should be deterministic"
 
