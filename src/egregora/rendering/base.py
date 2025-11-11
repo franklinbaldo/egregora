@@ -61,6 +61,58 @@ class OutputFormat(ABC):
         """Name for the media/assets directory."""
         return "media"
 
+    def get_media_dir(self, site_root: Path) -> Path:
+        """Get the media directory for this site.
+
+        Args:
+            site_root: Root directory of the site
+
+        Returns:
+            Path to media directory
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return site_config.media_dir
+
+    def get_profiles_dir(self, site_root: Path) -> Path:
+        """Get the profiles directory for this site.
+
+        Args:
+            site_root: Root directory of the site
+
+        Returns:
+            Path to profiles directory
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return site_config.profiles_dir
+
+    def get_posts_dir(self, site_root: Path) -> Path:
+        """Get the posts directory for this site.
+
+        Args:
+            site_root: Root directory of the site
+
+        Returns:
+            Path to posts directory
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return site_config.posts_dir
+
+    def get_docs_dir(self, site_root: Path) -> Path:
+        """Get the docs directory for this site.
+
+        Args:
+            site_root: Root directory of the site
+
+        Returns:
+            Path to docs directory
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return site_config.docs_dir
+
     @abstractmethod
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
         """Create the initial site structure.

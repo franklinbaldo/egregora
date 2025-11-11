@@ -216,6 +216,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         # UUID generation is content-based only (no group namespacing)
         avatar_context = AvatarContext(
             docs_dir=site_paths.docs_dir,
+            media_dir=site_paths.media_dir,
             profiles_dir=site_paths.profiles_dir,
             vision_model=vision_model,
             cache=enrichment_cache,
