@@ -296,8 +296,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
                         "message": (
-                            f"[Media Enrichment] {file_path.name}\n"
-                            f"Enrichment saved: {enrichment_id_str}"
+                            f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_id_str}"
                         ),
                         "original_line": "",
                         "tagged_line": "",
