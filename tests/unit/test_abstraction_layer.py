@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from egregora.ingestion import input_registry  # Import from ingestion to trigger registration
 from egregora.rendering.base import OutputFormat, output_registry
-from egregora.sources.base import InputSource, input_registry
+from egregora.sources.base import InputSource
 
 
 class TestInputRegistry:
