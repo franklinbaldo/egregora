@@ -23,7 +23,7 @@ import ibis
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.profiler import get_active_authors
-from egregora.agents.shared.rag import VectorStore, index_post
+from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
@@ -37,6 +37,7 @@ from egregora.agents.writer.handlers import (
 )
 from egregora.config import ModelConfig
 from egregora.config.loader import create_default_config
+from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
 from egregora.storage.legacy_adapter import LegacyStorageAdapter
@@ -192,6 +193,67 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
+def _load_document_from_path(path: Path) -> Document | None:
+    """Load a Document from a filesystem path.
+
+    Helper for backward compatibility during migration to Document abstraction.
+    Infers document type from path and parses frontmatter if present.
+
+    Args:
+        path: Filesystem path to document
+
+    Returns:
+        Document object, or None if loading fails
+
+    """
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        logger.warning("Failed to read document at %s: %s", path, e)
+        return None
+
+    # Parse YAML frontmatter if present
+    metadata: dict[str, object] = {}
+    body = content
+
+    if content.startswith("---\n"):
+        try:
+            import yaml  # noqa: PLC0415
+
+            end_marker = content.find("\n---\n", 4)
+            if end_marker != -1:
+                frontmatter_text = content[4:end_marker]
+                body = content[end_marker + 5:].lstrip()
+
+                metadata = yaml.safe_load(frontmatter_text) or {}
+                if not isinstance(metadata, dict):
+                    logger.warning("Frontmatter is not a dict at %s", path)
+                    metadata = {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to parse frontmatter at %s: %s", path, e)
+
+    # Infer document type from path
+    path_str = str(path)
+    if "/posts/" in path_str and "/journal/" not in path_str:
+        doc_type = DocumentType.POST
+    elif "/journal/" in path_str:
+        doc_type = DocumentType.JOURNAL
+    elif "/profiles/" in path_str:
+        doc_type = DocumentType.PROFILE
+    elif "/urls/" in path_str:
+        doc_type = DocumentType.ENRICHMENT_URL
+    elif path_str.endswith(".md") and "/media/" in path_str:
+        doc_type = DocumentType.ENRICHMENT_MEDIA
+    else:
+        doc_type = DocumentType.MEDIA
+
+    return Document(
+        content=body,
+        type=doc_type,
+        metadata=metadata,
+    )
+
+
 def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901
     """Index new/changed documents using incremental indexing via OutputFormat.
 
@@ -297,12 +359,26 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
             doc_count - len(to_index),
         )
 
-        # Phase 5: Index only new/changed files
+        # Phase 5: Index only new/changed files using Document abstraction
         indexed_count = 0
         for row in to_index.itertuples():
             try:
                 document_path = Path(row.source_path)
-                index_post(document_path, store, embedding_model=embedding_model)
+
+                # MODERN (Phase 4): Load Document from filesystem path
+                doc = _load_document_from_path(document_path)
+                if doc is None:
+                    logger.warning("Failed to load document %s, skipping", row.storage_identifier)
+                    continue
+
+                # Index using Document-based RAG indexing
+                index_document(
+                    doc,
+                    store,
+                    embedding_model=embedding_model,
+                    source_path=str(document_path),
+                    source_mtime_ns=row.mtime_ns,
+                )
                 indexed_count += 1
                 logger.debug("Indexed document: %s", row.storage_identifier)
             except Exception as e:  # noqa: BLE001
