@@ -21,7 +21,7 @@ Example Usage:
         assert metadata["title"] == "Expected Title"
 """
 
-import uuid as uuid_lib
+from egregora.utils.paths import slugify
 
 
 class InMemoryPostStorage:
@@ -209,7 +209,7 @@ class InMemoryJournalStorage:
 class InMemoryEnrichmentStorage:
     """In-memory enrichment storage for testing.
 
-    URL enrichments are stored with deterministic UUIDs (like filesystem version).
+    URL enrichments are stored with slugified URLs (like filesystem version).
     Media enrichments are stored by filename.
     """
 
@@ -226,15 +226,15 @@ class InMemoryEnrichmentStorage:
             content: Markdown enrichment content
 
         Returns:
-            Identifier with memory:// prefix (e.g., "memory://enrichments/urls/{uuid}")
+            Identifier with memory:// prefix (e.g., "memory://enrichments/urls/example-com-article")
 
         Note:
-            Uses deterministic UUID (same as MkDocs implementation)
+            Uses slugified URL (same as MkDocs implementation)
 
         """
-        enrichment_id = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
-        self._url_enrichments[enrichment_id] = content
-        return f"memory://enrichments/urls/{enrichment_id}"
+        url_slug = slugify(url, max_len=60)
+        self._url_enrichments[url_slug] = content
+        return f"memory://enrichments/urls/{url_slug}"
 
     def write_media_enrichment(self, filename: str, content: str) -> str:
         """Store media enrichment in memory.
@@ -260,8 +260,8 @@ class InMemoryEnrichmentStorage:
             Enrichment content if exists, None otherwise
 
         """
-        enrichment_id = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
-        return self._url_enrichments.get(enrichment_id)
+        url_slug = slugify(url, max_len=60)
+        return self._url_enrichments.get(url_slug)
 
     def get_media_enrichment(self, filename: str) -> str | None:
         """Retrieve media enrichment by filename.

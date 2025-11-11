@@ -173,9 +173,9 @@ class EnrichmentStorage(Protocol):
     linked from posts/profiles.
 
     Contract:
-        - write_url_enrichment() uses deterministic UUID based on URL
+        - write_url_enrichment() creates human-readable, discoverable filenames
         - write_media_enrichment() stores description next to media file
-        - Both operations are idempotent
+        - Both operations are idempotent and deterministic
     """
 
     def write_url_enrichment(self, url: str, content: str) -> str:
@@ -186,11 +186,12 @@ class EnrichmentStorage(Protocol):
             content: Markdown enrichment content (LLM-generated description)
 
         Returns:
-            Opaque identifier (e.g., "media/urls/{uuid}.md")
+            Opaque identifier (e.g., "media/urls/example-com-article.md")
 
         Note:
-            Implementation should generate deterministic ID from URL
-            (e.g., uuid.uuid5(NAMESPACE_URL, url))
+            Implementation should generate human-readable, discoverable filenames.
+            For filesystem implementations, this typically means slugifying the URL.
+            The identifier must be deterministic (same URL → same identifier).
 
         """
         ...

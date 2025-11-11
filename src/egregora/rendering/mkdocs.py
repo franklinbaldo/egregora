@@ -8,7 +8,6 @@ that format-specific implementations should be colocated.
 from __future__ import annotations
 
 import logging
-import uuid as uuid_lib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +17,7 @@ from egregora.agents.shared.profiler import write_profile as write_profile_conte
 from egregora.config.site import load_mkdocs_config, resolve_site_paths
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.rendering.base import OutputFormat, SiteConfiguration
+from egregora.utils.paths import slugify
 from egregora.utils.write_post import write_post as write_mkdocs_post
 
 if TYPE_CHECKING:
@@ -401,14 +401,20 @@ class MkDocsEnrichmentStorage:
             content: Markdown enrichment content
 
         Returns:
-            Relative path string (e.g., "media/urls/{uuid}.md")
+            Relative path string (e.g., "media/urls/example-com-article.md")
 
         Note:
-            Uses deterministic UUID (uuid5 with NAMESPACE_URL)
+            Uses slugified URL for human-readable, discoverable filenames.
+            The slug is truncated to 60 characters for filesystem compatibility.
+
+            Examples:
+                - https://example.com/article → media/urls/https-example-com-article.md
+                - https://docs.python.org/3/library/pathlib.html → media/urls/https-docs-python-org-3-library-pathlib-html.md
 
         """
-        enrichment_id = uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url)
-        path = self.urls_dir / f"{enrichment_id}.md"
+        # Create human-readable filename from URL (max 60 chars)
+        url_slug = slugify(url, max_len=60)
+        path = self.urls_dir / f"{url_slug}.md"
         path.write_text(content, encoding="utf-8")
         return str(path.relative_to(self.site_root))
 
