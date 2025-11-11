@@ -254,7 +254,9 @@ class MkDocsDocumentStorage:
             counter += 1
 
         # Write with YAML frontmatter
-        yaml_front = yaml.dump(document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -283,7 +285,9 @@ class MkDocsDocumentStorage:
         path = self.journal_dir / filename
 
         # Write with YAML frontmatter
-        yaml_front = yaml.dump(document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
