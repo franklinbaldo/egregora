@@ -223,7 +223,7 @@ def _load_document_from_path(path: Path) -> Document | None:
             end_marker = content.find("\n---\n", 4)
             if end_marker != -1:
                 frontmatter_text = content[4:end_marker]
-                body = content[end_marker + 5:].lstrip()
+                body = content[end_marker + 5 :].lstrip()
 
                 metadata = yaml.safe_load(frontmatter_text) or {}
                 if not isinstance(metadata, dict):
