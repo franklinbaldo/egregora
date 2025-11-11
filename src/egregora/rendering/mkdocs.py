@@ -84,6 +84,12 @@ class MkDocsPostStorage:
             - Slug normalization (URL-safe, lowercase, hyphens)
             - Date extraction (handles window labels, ISO timestamps, defaults to today)
             - Unique filename generation (prevents silent overwrites)
+            - Frontmatter slug sync (updates metadata to match normalized filename)
+
+        Important:
+            The metadata dict is MUTATED to keep frontmatter slug in sync with filename.
+            If filename is "2025-01-10-my-post-2.md" (collision suffix added),
+            metadata["slug"] will be updated to "my-post-2" to match.
 
         """
         import yaml
@@ -102,6 +108,21 @@ class MkDocsPostStorage:
             # Generate unique filename with date prefix
             filename_pattern = f"{date_prefix}-{normalized_slug}.md"
             path = self.output_format.generate_unique_filename(self.posts_dir, filename_pattern)
+
+            # Extract final slug from path (may have collision suffix)
+            # Example: "2025-01-10-my-post-2.md" → "my-post-2"
+            final_filename = path.stem  # Remove .md extension
+            # Remove date prefix: "2025-01-10-my-post-2" → "my-post-2"
+            if final_filename.startswith(date_prefix):
+                final_slug = final_filename[len(date_prefix) + 1 :]  # +1 for the hyphen
+            else:
+                final_slug = final_filename
+
+            # CRITICAL: Update metadata slug to match final filename
+            # This ensures frontmatter stays in sync with filename
+            # URLs, RAG chunk IDs, and all downstream tools depend on this
+            metadata = metadata.copy()  # Don't mutate caller's dict
+            metadata["slug"] = final_slug
         else:
             # Fallback: simple filename without validations
             path = self.posts_dir / f"{slug}.md"
