@@ -692,7 +692,6 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
     """
     # Ensure registry is populated by importing rendering module
     # This triggers registration in rendering/__init__.py
-    import egregora.rendering
 
     # Get format class from registry
     output_format = output_registry.get_format(format_type)
