@@ -51,7 +51,6 @@ def setup_dev_environment() -> int:
         # Install pre-commit hooks
         run_command(["uv", "run", "pre-commit", "install"])
 
-
         return 0
 
     except subprocess.CalledProcessError:

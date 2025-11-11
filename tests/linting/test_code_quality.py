@@ -11,6 +11,10 @@ test suite. They can be run with:
 
 Skip quality tests with:
     pytest -m "not quality"                           # Skip all quality tests
+
+Auto-formatting:
+    pytest                                            # Format with ruff, then run tests (DEFAULT)
+    PYTEST_FORMAT=0 pytest                            # Skip formatting for faster runs
 """
 
 from __future__ import annotations

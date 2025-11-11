@@ -49,7 +49,8 @@ def run_command(cmd: list[str], description: str) -> CheckOutput:
     try:
         result = subprocess.run(
             cmd,
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
             text=True,
             timeout=300,  # 5 minute timeout
         )
@@ -202,9 +203,9 @@ def check_linting() -> CheckOutput:
 
 def print_header(text: str) -> None:
     """Print a section header."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  {text}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
 
 def print_result(output: CheckOutput) -> None:
