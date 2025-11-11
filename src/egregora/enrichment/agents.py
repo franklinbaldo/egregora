@@ -47,7 +47,7 @@ class UrlEnrichmentContext(BaseModel):
     sender_uuid: str
     date: str
     time: str
-    site_root: Path | None = None  # For custom prompt overrides
+    prompts_dir: Path | None = None  # Custom prompts directory
 
 
 class MediaEnrichmentContext(BaseModel):
@@ -60,7 +60,7 @@ class MediaEnrichmentContext(BaseModel):
     sender_uuid: str
     date: str
     time: str
-    site_root: Path | None = None  # For custom prompt overrides
+    prompts_dir: Path | None = None  # Custom prompts directory
 
 
 class AvatarEnrichmentContext(BaseModel):
@@ -68,7 +68,7 @@ class AvatarEnrichmentContext(BaseModel):
 
     media_filename: str
     media_path: str
-    site_root: Path | None = None  # For custom prompt overrides
+    prompts_dir: Path | None = None  # Custom prompts directory
 
 
 def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
@@ -92,7 +92,7 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
             sender_uuid=ctx.deps.sender_uuid,
             date=ctx.deps.date,
             time=ctx.deps.time,
-            site_root=ctx.deps.site_root,
+            prompts_dir=ctx.deps.prompts_dir,
         )
         return template.render()
 
@@ -122,7 +122,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
             sender_uuid=ctx.deps.sender_uuid,
             date=ctx.deps.date,
             time=ctx.deps.time,
-            site_root=ctx.deps.site_root,
+            prompts_dir=ctx.deps.prompts_dir,
         )
         return template.render()
 
@@ -147,7 +147,7 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
         template = AvatarEnrichmentPromptTemplate(
             media_filename=ctx.deps.media_filename,
             media_path=ctx.deps.media_path,
-            site_root=ctx.deps.site_root,
+            prompts_dir=ctx.deps.prompts_dir,
         )
         return template.render()
 

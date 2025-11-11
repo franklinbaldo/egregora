@@ -59,12 +59,13 @@ from pydantic_ai.messages import (
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.profiler import read_profile, write_profile
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
+from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
+from egregora.storage import JournalStorage, PostStorage, ProfileStorage
+from egregora.storage.documents import DocumentStorage
 from egregora.utils.logfire_config import logfire_info, logfire_span
-from egregora.utils.write_post import write_post
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
@@ -76,20 +77,42 @@ class WriterRuntimeContext:
     """Runtime context for writer agent execution.
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
-    Separates runtime data (paths, clients) from configuration (EgregoraConfig).
+    MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
+    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
+    Stores are pre-constructed and injected (not built from directories).
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
     """
 
+    # Time window
     start_time: datetime
     end_time: datetime
-    output_dir: Path
-    profiles_dir: Path
-    rag_dir: Path
+
+    # Storage protocols (injected)
+    posts: PostStorage
+    profiles: ProfileStorage
+    journals: JournalStorage
+
+    # Document storage (MODERN Phase 3: content-addressed documents)
+    document_storage: DocumentStorage
+
+    # Pre-constructed stores (injected, not built from paths)
+    rag_store: VectorStore
+    annotations_store: AnnotationStore | None
+
+    # LLM client
     client: Any
-    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
-    annotations_store: AnnotationStore | None = None
+
+    # Prompt templates directory (resolved by caller, not constructed here)
+    prompts_dir: Path | None = None
+
+    # DEPRECATED (to be removed in Phase 3):
+    # These are kept temporarily for backward compatibility during migration
+    output_dir: Path | None = None
+    profiles_dir: Path | None = None
+    rag_dir: Path | None = None
+    site_root: Path | None = None
 
 
 class PostMetadata(BaseModel):
@@ -153,22 +176,43 @@ class WriterAgentState(BaseModel):
     """Immutable dependencies passed to agent tools.
 
     MODERN (Phase 1): This is now frozen to prevent mutation in tools.
+    MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
+    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
     Results are extracted from the agent's message history instead of being
     tracked via mutation.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
+    # Window identification
     window_id: str
-    output_dir: Path
-    profiles_dir: Path
-    rag_dir: Path
-    site_root: Path | None
+
+    # Storage protocols
+    posts: PostStorage
+    profiles: ProfileStorage
+    journals: JournalStorage
+
+    # Document storage (MODERN Phase 3: content-addressed documents)
+    document_storage: DocumentStorage
+
+    # Pre-constructed stores
+    rag_store: VectorStore
+    annotations_store: AnnotationStore | None
+
+    # LLM client
     batch_client: Any
+
+    # RAG configuration
     embedding_model: str
     retrieval_mode: str
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
-    annotations_store: AnnotationStore | None
+
+    # DEPRECATED (kept for backward compatibility during migration):
+    output_dir: Path | None = None
+    profiles_dir: Path | None = None
+    rag_dir: Path | None = None
+    site_root: Path | None = None
 
 
 def _extract_thinking_content(messages: Any) -> list[str]:
@@ -316,30 +360,22 @@ def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:  # noqa: C90
 def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_dir: Path,
-) -> Path | None:
+    journals: JournalStorage,
+) -> str | None:
     """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
 
     Args:
         intercalated_log: List of journal entries in chronological order
         window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
-        output_dir: Base output directory
+        journals: Journal storage protocol implementation
 
     Returns:
-        Path to saved journal file, or None if no content
+        Journal identifier (opaque string), or None if no content
 
     """
     # Skip if no content at all
     if not intercalated_log:
         return None
-
-    # Create journal directory if it doesn't exist
-    journal_dir = output_dir / "journal"
-    journal_dir.mkdir(parents=True, exist_ok=True)
-
-    # Generate filename from window label (sanitize for filesystem)
-    safe_filename = window_label.replace(":", "-").replace(" ", "_")
-    journal_path = journal_dir / f"journal_{safe_filename}.md"
 
     # Load template from templates directory
     templates_dir = Path(__file__).parent.parent.parent / "templates"
@@ -369,15 +405,14 @@ def _save_journal_to_file(
         logger.exception("Failed to render journal template")
         return None
 
-    # Write to file
+    # Write using storage protocol
     try:
-        journal_path.write_text(journal_content, encoding="utf-8")
-    except (OSError, PermissionError):
-        logger.exception("Failed to write journal file %s", journal_path)
+        journal_id = journals.write(window_label, journal_content)
+        logger.info("Saved journal entry: %s", journal_id)
+        return journal_id
+    except Exception:
+        logger.exception("Failed to write journal for window %s", window_label)
         return None
-    else:
-        logger.info("Saved journal entry to %s", journal_path)
-        return journal_path
 
 
 def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
@@ -449,15 +484,23 @@ def _register_writer_tools(  # noqa: C901
     def write_post_tool(
         ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
     ) -> WritePostResult:
-        path = write_post(
-            content=content, metadata=metadata.model_dump(exclude_none=True), output_dir=ctx.deps.output_dir
+        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        doc = Document(
+            content=content,
+            type=DocumentType.POST,
+            metadata=metadata.model_dump(exclude_none=True),
+            source_window=ctx.deps.window_id,
         )
-        logger.info("Writer agent saved post %s", path)
-        return WritePostResult(status="success", path=path)
+
+        # Store via document storage (delegates to format-specific implementation)
+        doc_id = ctx.deps.document_storage.add(doc)
+        logger.info("Writer agent saved post: %s", doc_id)
+        return WritePostResult(status="success", path=doc_id)  # path field kept for compatibility
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
-        content = read_profile(author_uuid, ctx.deps.profiles_dir)
+        # Use storage protocol instead of direct filesystem access
+        content = ctx.deps.profiles.read(author_uuid)
         if not content:
             content = "No profile exists yet."
         return ReadProfileResult(content=content)
@@ -466,9 +509,18 @@ def _register_writer_tools(  # noqa: C901
     def write_profile_tool(
         ctx: RunContext[WriterAgentState], author_uuid: str, content: str
     ) -> WriteProfileResult:
-        path = write_profile(author_uuid, content, ctx.deps.profiles_dir)
-        logger.info("Writer agent saved profile %s", path)
-        return WriteProfileResult(status="success", path=path)
+        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        doc = Document(
+            content=content,
+            type=DocumentType.PROFILE,
+            metadata={"uuid": author_uuid},
+            source_window=ctx.deps.window_id,
+        )
+
+        # Store via document storage (delegates to format-specific implementation)
+        doc_id = ctx.deps.document_storage.add(doc)
+        logger.info("Writer agent saved profile: %s", doc_id)
+        return WriteProfileResult(status="success", path=doc_id)  # path field kept for compatibility
 
     if enable_rag:
 
@@ -479,10 +531,10 @@ def _register_writer_tools(  # noqa: C901
             media_types: list[str] | None = None,
             limit: int = 5,
         ) -> SearchMediaResult:
-            store = VectorStore(ctx.deps.rag_dir / "chunks.parquet")
+            # Use pre-constructed rag_store instead of building from path
             results = query_media(
                 query=query,
-                store=store,
+                store=ctx.deps.rag_store,
                 media_types=media_types,
                 top_k=limit,
                 min_similarity=0.7,
@@ -492,7 +544,7 @@ def _register_writer_tools(  # noqa: C901
                 retrieval_overfetch=ctx.deps.retrieval_overfetch,
             )
             items: list[MediaItem] = []
-            for batch in stream_ibis(results, store._client, batch_size=100):
+            for batch in stream_ibis(results, ctx.deps.rag_store._client, batch_size=100):
                 items.extend(
                     MediaItem(
                         media_type=row.get("media_type"),
@@ -585,16 +637,27 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
 
     state = WriterAgentState(
         window_id=window_label,
-        output_dir=context.output_dir,
-        profiles_dir=context.profiles_dir,
-        rag_dir=context.rag_dir,
-        site_root=context.site_root,
+        # Storage protocols
+        posts=context.posts,
+        profiles=context.profiles,
+        journals=context.journals,
+        # Document storage (MODERN Phase 3)
+        document_storage=context.document_storage,
+        # Pre-constructed stores
+        rag_store=context.rag_store,
+        annotations_store=context.annotations_store,
+        # LLM client
         batch_client=context.client,
+        # RAG configuration
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        annotations_store=context.annotations_store,
+        # Deprecated (for backward compatibility)
+        output_dir=context.output_dir,
+        profiles_dir=context.profiles_dir,
+        rag_dir=context.rag_dir,
+        site_root=context.site_root,
     )
     # Validate prompt fits in model's context window
     from egregora.agents.model_limits import validate_prompt_fits  # noqa: PLC0415
@@ -679,7 +742,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
 
         # Extract intercalated log (thinking, freeform, tool usage in order), save to journal
         intercalated_log = _extract_intercalated_log(result.all_messages())
-        journal_path = _save_journal_to_file(intercalated_log, window_label, context.output_dir)
+        journal_id = _save_journal_to_file(intercalated_log, window_label, context.journals)
 
         usage = result.usage()
         logfire_info(
@@ -687,7 +750,7 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
             period=window_label,
             posts_created=len(saved_posts),
             profiles_updated=len(saved_profiles),
-            journal_saved=journal_path is not None,
+            journal_saved=journal_id is not None,
             journal_entries=len(intercalated_log),
             journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
             journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
@@ -830,15 +893,26 @@ async def write_posts_with_pydantic_agent_stream(
 
     state = WriterAgentState(
         window_id=window_label,
-        output_dir=context.output_dir,
-        profiles_dir=context.profiles_dir,
-        rag_dir=context.rag_dir,
-        site_root=context.site_root,
+        # Storage protocols
+        posts=context.posts,
+        profiles=context.profiles,
+        journals=context.journals,
+        # Document storage (MODERN Phase 3)
+        document_storage=context.document_storage,
+        # Pre-constructed stores
+        rag_store=context.rag_store,
+        annotations_store=context.annotations_store,
+        # LLM client
         batch_client=context.client,
+        # RAG configuration
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        annotations_store=context.annotations_store,
+        # Deprecated (for backward compatibility)
+        output_dir=context.output_dir,
+        profiles_dir=context.profiles_dir,
+        rag_dir=context.rag_dir,
+        site_root=context.site_root,
     )
     return WriterStreamResult(agent, state, prompt, context, model_name)

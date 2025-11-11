@@ -95,6 +95,8 @@ RAG_CHUNKS_SCHEMA = ibis.schema(
         "chunk_id": dt.string,
         "document_type": dt.string,
         "document_id": dt.string,
+        "source_path": dt.String(nullable=True),  # Absolute path to source file (for change detection)
+        "source_mtime_ns": dt.Int64(nullable=True),  # File mtime in nanoseconds (for incremental indexing)
         "post_slug": dt.String(nullable=True),
         "post_title": dt.String(nullable=True),
         "post_date": dt.date(nullable=True),

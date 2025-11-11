@@ -21,6 +21,7 @@ from egregora.agents.writer.agent import (
     _extract_thinking_content,
     _save_journal_to_file,
 )
+from tests.helpers.storage import InMemoryJournalStorage
 
 
 def test_extract_thinking_content_empty():
@@ -227,100 +228,65 @@ def test_extract_intercalated_log_preserves_chronological_order():
 
 def test_save_journal_to_file_empty_log(tmp_path: Path):
     """Test journal saving with empty log returns None."""
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    journals = InMemoryJournalStorage()
 
-    result = _save_journal_to_file([], "2025-01-15 10:00 to 12:00", output_dir)
+    result = _save_journal_to_file([], "2025-01-15 10:00 to 12:00", journals)
     assert result is None
 
 
 def test_save_journal_to_file_creates_directory(tmp_path: Path):
-    """Test journal saving creates journal directory."""
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    """Test journal saving with in-memory storage."""
+    journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test thinking")]
-    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", output_dir)
+    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
 
     assert result is not None
-    journal_dir = output_dir / "journal"
-    assert journal_dir.exists()
-    assert journal_dir.is_dir()
+    # Verify journal was stored
+    content = journals.get_by_label("2025-01-15 10:00 to 12:00")
+    assert content is not None
+    assert "Test thinking" in content
 
 
 def test_save_journal_to_file_sanitizes_filename(tmp_path: Path):
-    """Test journal saving sanitizes window label for filename."""
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    """Test journal saving sanitizes window label in identifier."""
+    journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test")]
-    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", output_dir)
+    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
 
     assert result is not None
-    # Colons and spaces should be replaced
-    assert result.name == "journal_2025-01-15_10-00_to_12-00.md"
+    # Identifier should have sanitized label (colons→hyphens, spaces→underscores)
+    assert result == "memory://journal/2025-01-15_10-00_to_12-00"
 
 
 def test_save_journal_to_file_contains_frontmatter(tmp_path: Path):
     """Test journal file contains YAML frontmatter."""
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
-
-    # Create templates directory and template
-    templates_dir = tmp_path / "templates"
-    templates_dir.mkdir()
-    template_content = """---
-window_label: {{ window_label }}
-date: {{ date }}
-created: {{ created }}
-draft: true
----
-
-# Test Template
-"""
-    (templates_dir / "journal.md.jinja").write_text(template_content)
+    journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test content")]
+    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
+    assert result is not None
 
-    # Temporarily patch the templates directory location
-    import egregora.agents.writer.agent as writer_module
-
-    original_file = writer_module.__file__
-    writer_module.__file__ = str(tmp_path / "fake" / "fake" / "fake.py")
-
-    try:
-        result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", output_dir)
-        assert result is not None
-
-        content = result.read_text()
-        # Check frontmatter
-        assert "---" in content
-        assert "window_label: 2025-01-15 10:00 to 12:00" in content
-        assert "draft: true" in content
-        assert "date:" in content
-        assert "created:" in content
-    finally:
-        writer_module.__file__ = original_file
+    # Retrieve the content from in-memory storage
+    content = journals.get_by_label("2025-01-15 10:00 to 12:00")
+    assert content is not None
+    # Check frontmatter
+    assert "---" in content
+    assert "window_label: 2025-01-15 10:00 to 12:00" in content
+    assert "draft: true" in content
+    assert "date:" in content
+    assert "created:" in content
 
 
 def test_save_journal_to_file_missing_templates_dir(tmp_path: Path):
-    """Test journal saving returns None when templates directory missing."""
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
+    """Test journal saving uses built-in template when custom templates don't exist."""
+    journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test")]
-
-    # The templates directory won't exist relative to tmp_path
-    import egregora.agents.writer.agent as writer_module
-
-    original_file = writer_module.__file__
-    writer_module.__file__ = str(tmp_path / "nonexistent" / "nonexistent" / "fake.py")
-
-    try:
-        result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", output_dir)
-        assert result is None  # Should return None gracefully
-    finally:
-        writer_module.__file__ = original_file
+    # Should succeed using built-in template from package
+    result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
+    assert result is not None  # Built-in template always available
 
 
 def test_journal_entry_frozen():

@@ -289,6 +289,31 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
 
+        # Create OutputFormat for RAG indexing (storage-agnostic)
+        from egregora.rendering import create_output_format  # noqa: PLC0415
+
+        format_type = config.output.format
+        output_format = create_output_format(output_dir, format_type=format_type)
+
+        # Phase 7.5: Index all existing documents for RAG before window processing
+        # This ensures the writer agent has full context from previous runs
+        # Uses OutputFormat.list_documents() - no filesystem assumptions
+        if config.rag.enabled:
+            logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+            try:
+                from egregora.agents.writer.core import index_documents_for_rag  # noqa: PLC0415
+
+                indexed_count = index_documents_for_rag(
+                    output_format, site_paths.rag_dir, embedding_model=embedding_model
+                )
+                if indexed_count > 0:
+                    logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
+                else:
+                    logger.info("[dim]No new documents to index[/]")
+            except Exception:
+                # RAG indexing failure should not block pipeline
+                logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+
         def process_window_with_auto_split(
             window: Window,  # noqa: F821
             *,
@@ -391,6 +416,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     profile_count,
                     window_label,
                 )
+
+                # NOTE: RAG indexing now happens inside write_posts_for_window()
+                # The writer agent automatically indexes new/changed documents after writing
+                # This works for both pipeline runs and standalone CLI commands
 
             except PromptTooLargeError as e:
                 # Prompt too large - split window and retry

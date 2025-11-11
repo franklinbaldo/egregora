@@ -1,4 +1,8 @@
-"""write_post tool: Save blog posts with front matter (CMS-like interface for LLM)."""
+"""write_post tool: Save blog posts with front matter (CMS-like interface for LLM).
+
+DEPRECATED: This module is being phased out in favor of OutputFormat coordinator pattern.
+Use OutputFormat.posts.write() instead for new code.
+"""
 
 import datetime
 from pathlib import Path
@@ -6,7 +10,6 @@ from typing import Any
 
 import yaml
 
-from egregora.privacy.detector import validate_newsletter_privacy
 from egregora.utils import safe_path_join, slugify
 
 
@@ -34,8 +37,18 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
         Path where post was saved
 
     Raises:
-        PrivacyViolationError: If content contains PII (phone numbers, etc)
         ValueError: If required metadata is missing
+
+    Note:
+        PRIVACY VALIDATION REMOVED: The validate_newsletter_privacy() check was removed
+        as part of the adapter pattern refactoring. Privacy strategy shifted from
+        write-time validation to prevention at input time. Focus is now on:
+        - Anonymization before LLM processing (privacy/anonymizer.py)
+        - PII detection at ingestion (privacy/detector.py)
+        - Not allowing PII to enter the system in the first place
+
+        If you need PII validation at write time, implement it in your PostStorage
+        implementation's write() method.
 
     """
     required = ["title", "slug", "date"]
@@ -43,7 +56,8 @@ def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("
         if key not in metadata:
             msg = f"Missing required metadata: {key}"
             raise ValueError(msg)
-    validate_newsletter_privacy(content)
+
+    # DEPRECATED: validate_newsletter_privacy(content) removed - see docstring above
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse and clean date to extract YYYY-MM-DD (handles window labels like "2025-03-02 08:01 to 12:49")

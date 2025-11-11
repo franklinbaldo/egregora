@@ -372,6 +372,9 @@ class VectorStore:
             embedding_dim = None
         if self.parquet_path.exists():
             existing_table = self._client.read_parquet(self.parquet_path)
+            # Migrate legacy schema: add missing columns with NULL defaults
+            # ALPHA MINDSET: We do migrations even in alpha for smooth upgrades
+            existing_table = self._migrate_legacy_schema(existing_table)
             self._validate_table_schema(existing_table, context="existing vector store")
             existing_table, chunks_table = self._align_schemas(existing_table, chunks_table)
             combined_table = existing_table.union(chunks_table, distinct=False)
@@ -405,6 +408,68 @@ class VectorStore:
         existing_table = self._cast_to_vector_store_schema(existing_table)
         new_table = self._cast_to_vector_store_schema(new_table)
         return (existing_table, new_table)
+
+    def _migrate_legacy_schema(self, table: Table) -> Table:
+        """Migrate legacy RAG schemas by adding missing columns with default values.
+
+        ALPHA MINDSET: We do migrations even in alpha to ensure smooth upgrades.
+        When the schema evolves (e.g., adding source_path/source_mtime_ns for
+        incremental indexing), existing parquet files need migration.
+
+        This method:
+        1. Detects missing columns (expected in schema but not in table)
+        2. Adds them with NULL defaults (all new columns must be nullable)
+        3. Logs migration for transparency
+
+        Args:
+            table: Existing table from parquet file
+
+        Returns:
+            Table: Migrated table with all expected columns
+
+        Raises:
+            ValueError: If a missing column is NOT nullable (migration impossible)
+
+        Example:
+            # Existing file has no source_path/source_mtime_ns
+            # After migration: source_path=NULL, source_mtime_ns=NULL for all rows
+
+        """
+        expected_columns = set(VECTOR_STORE_SCHEMA.names)
+        table_columns = set(table.columns)
+        missing = sorted(expected_columns - table_columns)
+
+        if not missing:
+            return table  # No migration needed
+
+        logger.info(
+            "Migrating legacy RAG schema: adding %d missing columns with NULL defaults: %s",
+            len(missing),
+            ", ".join(missing),
+        )
+
+        # Add missing columns with NULL defaults
+        mutations = {}
+        for column_name in missing:
+            column_type = VECTOR_STORE_SCHEMA[column_name]
+
+            # Verify column is nullable (required for migration)
+            if not column_type.nullable:
+                msg = (
+                    f"Cannot migrate legacy schema: column '{column_name}' is NOT nullable. "
+                    f"Migration requires all new columns to be nullable."
+                )
+                raise ValueError(msg)
+
+            # Add column with NULL default
+            # Use ibis.null() with explicit cast to ensure correct type
+            mutations[column_name] = ibis.null().cast(column_type)
+
+        # Apply mutations (add missing columns)
+        migrated_table = table.mutate(**mutations)
+
+        logger.debug("Migration complete - all expected columns present")
+        return migrated_table
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""
@@ -718,6 +783,95 @@ class VectorStore:
     def _empty_table(self, schema: ibis.Schema) -> Table:
         """Create an empty table with the given schema using the local backend."""
         return ibis.memtable([], schema=schema)
+
+    def get_indexed_sources(self) -> dict[str, int]:
+        """Get indexed source files with their modification times.
+
+        Returns a mapping of absolute file paths to mtime (nanoseconds).
+        This enables incremental indexing by comparing filesystem state
+        with RAG metadata to identify new/changed files.
+
+        Industry standard: Content-addressed storage with change detection
+        (similar to Git, Docker layers, Make, rsync).
+
+        Returns:
+            dict[str, int]: Mapping of source_path -> source_mtime_ns
+                Empty dict if no sources indexed or parquet doesn't exist
+
+        Example:
+            >>> store = VectorStore(rag_dir / "chunks.parquet")
+            >>> indexed = store.get_indexed_sources()
+            >>> {
+            ...     "/path/to/post1.md": 1704067200000000000,
+            ...     "/path/to/post2.md": 1704070800000000000,
+            ... }
+
+        """
+        if not self.parquet_path.exists():
+            return {}
+
+        try:
+            self._ensure_dataset_loaded()
+
+            # Query distinct source files with their mtimes
+            # Filter out rows without source_path (old data or media chunks)
+            result = self.conn.execute(
+                f"""
+                SELECT DISTINCT source_path, source_mtime_ns
+                FROM {TABLE_NAME}
+                WHERE source_path IS NOT NULL
+                """
+            ).fetchall()
+
+            return {str(path): int(mtime) for path, mtime in result if path and mtime is not None}
+
+        except (duckdb.Error, IbisError) as e:
+            logger.warning("Failed to get indexed sources: %s", e)
+            return {}
+
+    def get_indexed_sources_table(self) -> Table:
+        """Get indexed source files as an Ibis table for efficient delta detection.
+
+        Returns Ibis table with columns:
+            - source_path: string (absolute filesystem path)
+            - source_mtime_ns: int64 (modification time in nanoseconds)
+
+        This enables efficient Ibis joins/filters for incremental indexing.
+
+        Returns:
+            Ibis table with indexed sources
+                Empty table with correct schema if no sources indexed
+
+        Example:
+            >>> store = VectorStore(rag_dir / "chunks.parquet")
+            >>> indexed = store.get_indexed_sources_table()
+            >>> indexed.head(2).execute()
+               source_path                          source_mtime_ns
+            0  /path/to/post1.md                    1704067200000000000
+            1  /path/to/post2.md                    1704070800000000000
+
+        """
+        if not self.parquet_path.exists():
+            # Return empty table with correct schema
+            return ibis.memtable(
+                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
+            )
+
+        try:
+            self._ensure_dataset_loaded()
+
+            # Query distinct source files with their mtimes as Ibis table
+            # Filter out rows without source_path (old data or media chunks)
+            table = self._client.table(TABLE_NAME)
+            return (
+                table.filter(table.source_path.notnull()).select("source_path", "source_mtime_ns").distinct()
+            )
+        except (duckdb.Error, IbisError) as e:
+            logger.warning("Failed to get indexed sources table: %s", e)
+            # Return empty table with correct schema
+            return ibis.memtable(
+                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
+            )
 
     def close(self) -> None:
         """Close the DuckDB connection if owned by this store."""

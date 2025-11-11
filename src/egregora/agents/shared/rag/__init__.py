@@ -23,6 +23,7 @@ from egregora.agents.shared.rag.pydantic_helpers import (
 )
 from egregora.agents.shared.rag.retriever import (
     index_all_media,
+    index_document,
     index_media_enrichment,
     index_post,
     query_media,
@@ -57,6 +58,7 @@ __all__ = [
     "find_relevant_docs",
     "format_rag_context",
     "index_all_media",
+    "index_document",
     "index_media_enrichment",
     "index_post",
     "is_rag_available",

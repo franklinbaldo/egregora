@@ -16,15 +16,14 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import ibis
-import yaml
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.profiler import get_active_authors
-from egregora.agents.shared.rag import VectorStore, index_post
+from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
@@ -36,15 +35,21 @@ from egregora.agents.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.config import ModelConfig, load_mkdocs_config
+from egregora.config import ModelConfig
 from egregora.config.loader import create_default_config
+from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.rendering.base import output_registry
+from egregora.rendering import create_output_format, output_registry
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
 
 if TYPE_CHECKING:
     from google import genai
     from google.genai import types as genai_types
     from ibis.expr.types import Table
+
+    from egregora.rendering.base import OutputFormat
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,65 +72,6 @@ class WriterConfig:
 
 
 MAX_CONVERSATION_TURNS = 10
-
-
-def _memes_enabled(site_config: dict[str, Any]) -> bool:
-    """Return True when meme helper text should be appended to the prompt."""
-    if not isinstance(site_config, dict):
-        return False
-    writer_settings = site_config.get("writer")
-    if not isinstance(writer_settings, dict):
-        return False
-    return bool(writer_settings.get("enable_memes", False))
-
-
-def load_site_config(output_dir: Path) -> dict[str, Any]:
-    """Load egregora configuration from mkdocs.yml if it exists.
-
-    Reads the `extra.egregora` section from mkdocs.yml in the output directory.
-    Returns empty dict if no config found.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Dict with egregora config (writer_prompt, rag settings, etc.)
-
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, using default config")
-        return {}
-    egregora_config = config.get("extra", {}).get("egregora", {})
-    logger.info("Loaded site config from %s", mkdocs_path)
-    return egregora_config
-
-
-def load_markdown_extensions(output_dir: Path) -> str:
-    """Load markdown_extensions section from mkdocs.yml and format for LLM.
-
-    The LLM understands these extension names and knows how to use them.
-    We just pass the YAML config directly.
-
-    Args:
-        output_dir: Output directory (will look for mkdocs.yml in parent/root)
-
-    Returns:
-        Formatted YAML string with markdown_extensions section
-
-    """
-    config, mkdocs_path = load_mkdocs_config(output_dir)
-    if not mkdocs_path:
-        logger.debug("No mkdocs.yml found, no custom markdown extensions")
-        return ""
-    extensions = config.get("markdown_extensions", [])
-    if not extensions:
-        return ""
-    yaml_section = yaml.dump(
-        {"markdown_extensions": extensions}, default_flow_style=False, allow_unicode=True, sort_keys=False
-    )
-    logger.info("Loaded %s markdown extensions from %s", len(extensions), mkdocs_path)
-    return yaml_section
 
 
 def load_format_instructions(site_root: Path | None) -> str:
@@ -247,22 +193,210 @@ def _process_tool_calls(  # noqa: C901, PLR0913
     return (has_tool_calls, tool_responses, freeform_parts)
 
 
-def _index_posts_in_rag(saved_posts: list[str], rag_dir: Path, *, embedding_model: str) -> None:
-    """Index newly created posts in RAG system.
+def _load_document_from_path(path: Path) -> Document | None:
+    """Load a Document from a filesystem path.
 
-    All embeddings use fixed 768 dimensions.
+    Helper for backward compatibility during migration to Document abstraction.
+    Infers document type from path and parses frontmatter if present.
+
+    Args:
+        path: Filesystem path to document
+
+    Returns:
+        Document object, or None if loading fails
+
     """
-    if not saved_posts:
-        return
     try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        logger.warning("Failed to read document at %s: %s", path, e)
+        return None
+
+    # Parse YAML frontmatter if present
+    metadata: dict[str, object] = {}
+    body = content
+
+    if content.startswith("---\n"):
+        try:
+            import yaml  # noqa: PLC0415
+
+            end_marker = content.find("\n---\n", 4)
+            if end_marker != -1:
+                frontmatter_text = content[4:end_marker]
+                body = content[end_marker + 5 :].lstrip()
+
+                metadata = yaml.safe_load(frontmatter_text) or {}
+                if not isinstance(metadata, dict):
+                    logger.warning("Frontmatter is not a dict at %s", path)
+                    metadata = {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to parse frontmatter at %s: %s", path, e)
+
+    # Infer document type from path
+    path_str = str(path)
+    if "/posts/" in path_str and "/journal/" not in path_str:
+        doc_type = DocumentType.POST
+    elif "/journal/" in path_str:
+        doc_type = DocumentType.JOURNAL
+    elif "/profiles/" in path_str:
+        doc_type = DocumentType.PROFILE
+    elif "/urls/" in path_str:
+        doc_type = DocumentType.ENRICHMENT_URL
+    elif path_str.endswith(".md") and "/media/" in path_str:
+        doc_type = DocumentType.ENRICHMENT_MEDIA
+    else:
+        doc_type = DocumentType.MEDIA
+
+    return Document(
+        content=body,
+        type=doc_type,
+        metadata=metadata,
+    )
+
+
+def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901
+    """Index new/changed documents using incremental indexing via OutputFormat.
+
+    Uses OutputFormat.list_documents() to get storage identifiers and mtimes,
+    then compares with RAG metadata using Ibis joins to identify new/changed files.
+    No filesystem assumptions - works with any storage backend.
+
+    This should be called once at pipeline initialization before window processing.
+
+    Args:
+        output_format: OutputFormat instance (initialized with site_root)
+        rag_dir: Directory containing RAG vector store
+        embedding_model: Model to use for embeddings
+
+    Returns:
+        Number of NEW documents indexed (not total indexed documents)
+
+    Algorithm:
+        1. Get all documents from OutputFormat as Ibis table (storage_identifier, mtime_ns)
+        2. Resolve identifiers to absolute paths (add source_path column)
+        3. Get indexed sources from RAG as Ibis table (source_path, source_mtime_ns)
+        4. Delta detection using Ibis left join: find new/changed documents
+        5. Materialize result and index those documents
+
+    Note:
+        - Uses Ibis joins for efficient delta detection (no loops, no dicts)
+        - No filesystem assumptions (uses OutputFormat abstraction)
+        - Skips files already indexed with same mtime (idempotent)
+        - Safe to run multiple times - will only index new/changed files
+
+    """
+    try:
+        # Phase 1: Get all documents from OutputFormat as Ibis table
+        format_documents = output_format.list_documents()
+
+        # Check if empty
+        doc_count = format_documents.count().execute()
+        if doc_count == 0:
+            logger.debug("No documents found by output format")
+            return 0
+
+        logger.debug("OutputFormat reported %d documents", doc_count)
+
+        # Phase 2: Resolve storage identifiers to absolute paths
+        # Add source_path column by resolving each identifier
+        def resolve_identifier(identifier: str) -> str:
+            try:
+                return str(output_format.resolve_document_path(identifier))
+            except (ValueError, RuntimeError, OSError) as e:
+                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+                return ""
+
+        # Convert table to pandas to add resolved paths (Ibis doesn't support UDFs easily)
+        docs_df = format_documents.execute()
+        docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
+
+        # Filter out failed resolutions
+        docs_df = docs_df[docs_df["source_path"] != ""]
+
+        if docs_df.empty:
+            logger.warning("All document identifiers failed to resolve to paths")
+            return 0
+
+        # Convert back to Ibis table
+        docs_table = ibis.memtable(docs_df)
+
+        # Phase 3: Get already indexed sources from RAG as Ibis table
         store = VectorStore(rag_dir / "chunks.parquet")
-        for post_path in saved_posts:
-            index_post(Path(post_path), store, embedding_model=embedding_model)
-        logger.info("Indexed %s new posts in RAG", len(saved_posts))
+        indexed_table = store.get_indexed_sources_table()
+
+        indexed_count_val = indexed_table.count().execute()
+        logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
+
+        # Phase 4: Delta detection using Ibis joins
+        # Rename columns in indexed_table to avoid conflicts
+        indexed_renamed = indexed_table.select(
+            indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
+        )
+
+        # Left join format_documents with indexed_sources on source_path
+        joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
+
+        # Find new or changed documents
+        new_or_changed = joined.filter(
+            (joined.indexed_mtime.isnull())  # New documents (not in RAG)
+            | (joined.mtime_ns > joined.indexed_mtime)  # Changed documents
+        ).select(
+            storage_identifier=joined.storage_identifier,
+            source_path=joined.source_path,
+            mtime_ns=joined.mtime_ns,
+        )
+
+        # Materialize results
+        to_index = new_or_changed.execute()
+
+        if to_index.empty:
+            logger.debug("All documents already indexed with current mtime - no work needed")
+            return 0
+
+        logger.info(
+            "Incremental indexing: %d new/changed documents (skipped %d unchanged)",
+            len(to_index),
+            doc_count - len(to_index),
+        )
+
+        # Phase 5: Index only new/changed files using Document abstraction
+        indexed_count = 0
+        for row in to_index.itertuples():
+            try:
+                document_path = Path(row.source_path)
+
+                # MODERN (Phase 4): Load Document from filesystem path
+                doc = _load_document_from_path(document_path)
+                if doc is None:
+                    logger.warning("Failed to load document %s, skipping", row.storage_identifier)
+                    continue
+
+                # Index using Document-based RAG indexing
+                index_document(
+                    doc,
+                    store,
+                    embedding_model=embedding_model,
+                    source_path=str(document_path),
+                    source_mtime_ns=row.mtime_ns,
+                )
+                indexed_count += 1
+                logger.debug("Indexed document: %s", row.storage_identifier)
+            except Exception as e:  # noqa: BLE001
+                # Don't let one failing document break incremental indexing
+                logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
+                continue
+
+        if indexed_count > 0:
+            logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
+
+        return indexed_count  # noqa: TRY300
+
     except PromptTooLargeError:
         raise
     except Exception:
-        logger.exception("Failed to index posts in RAG")
+        # RAG indexing is non-critical - log error but don't fail pipeline
+        logger.exception("Failed to index documents in RAG")
+        return 0
 
 
 def _write_posts_for_window_pydantic(
@@ -313,13 +447,6 @@ def _write_posts_for_window_pydantic(
     profiles_context = _load_profiles_context(table, config.profiles_dir)
     freeform_memory = _load_freeform_memory(config.rag_dir)
     active_authors = get_active_authors(table)
-    site_config = load_site_config(config.output_dir)
-    custom_writer_prompt = site_config.get("writer_prompt", "")
-    meme_help_enabled = _memes_enabled(site_config)
-    markdown_extensions_yaml = load_markdown_extensions(config.output_dir)
-    markdown_features_section = ""
-    if markdown_extensions_yaml:
-        markdown_features_section = f"\n## Available Markdown Features\n\nThis MkDocs site has the following extensions configured:\n\n```yaml\n{markdown_extensions_yaml}```\n\nUse these features appropriately in your posts. You understand how each extension works.\n"
 
     # Use site_root from config for custom prompt overrides
     # site_root is where the .egregora/ directory lives
@@ -334,37 +461,81 @@ def _write_posts_for_window_pydantic(
         egregora_config.models.writer = writer_model
         egregora_config.models.embedding = embedding_model
 
-    # Create runtime context for writer agent
+    # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
+    # Determine site_root for storage (use output_dir parent if site_root not set)
+    storage_root = site_root if site_root else config.output_dir.parent
+
+    # Get output format from config (industry standard: configuration-driven factory)
+    format_type = egregora_config.output.format
+    output_format = create_output_format(storage_root, format_type=format_type)
+
+    # Get storage implementations from OutputFormat
+    posts_storage = output_format.posts
+    profiles_storage = output_format.profiles
+    journals_storage = output_format.journals
+
+    # Create pre-constructed stores
+    rag_store = VectorStore(config.rag_dir / "chunks.parquet")
+
+    # Resolve prompts directory
+    prompts_dir = (
+        storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+    )
+
+    # MODERN (Phase 3): Create document storage adapter for backward compatibility
+    # Wraps old storage protocols to work with Document abstraction
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=storage_root,
+    )
+
+    # Create runtime context for writer agent (MODERN: uses storage protocols)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
+        # Storage protocols
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=annotations_store,
+        # LLM client
+        client=client,
+        # Prompt templates directory
+        prompts_dir=prompts_dir,
+        # Deprecated (kept for backward compatibility)
         output_dir=config.output_dir,
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
         site_root=site_root,
-        client=client,
-        annotations_store=annotations_store,
     )
 
     # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
 
-    # Load output format instructions (MkDocs, Hugo, etc.)
-    format_instructions = load_format_instructions(site_root)
+    # Load output format instructions from OutputFormat (MkDocs, Hugo, etc.)
+    format_instructions = output_format.get_format_instructions()
+
+    # Get custom instructions from .egregora/config.yml (not mkdocs.yml)
+    custom_instructions = egregora_config.writer.custom_instructions or ""
 
     # Render prompt using runtime context
     template = WriterPromptTemplate(
         date=date_range,
         markdown_table=conversation_md,
         active_authors=", ".join(active_authors),
-        custom_instructions=custom_writer_prompt or "",
-        markdown_features=markdown_features_section,
+        custom_instructions=custom_instructions,
         format_instructions=format_instructions,
         profiles_context=profiles_context,
         rag_context=rag_context,
         freeform_memory=freeform_memory,
-        enable_memes=meme_help_enabled,
-        site_root=runtime_context.site_root,
+        enable_memes=False,  # Meme generation removed in Phase 3
+        prompts_dir=runtime_context.prompts_dir,
     )
     prompt = template.render()
 
@@ -380,8 +551,30 @@ def _write_posts_for_window_pydantic(
         logger.exception("Writer agent failed for %s — aborting window", date_range)
         msg = f"Writer agent failed for {date_range}"
         raise RuntimeError(msg) from exc
-    if config.enable_rag:
-        _index_posts_in_rag(saved_posts, config.rag_dir, embedding_model=embedding_model)
+
+    # Call format-specific finalization hook (e.g., update .authors.yml, regenerate indexes)
+    output_format.finalize_window(
+        window_label=date_range,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata=None,  # Future: pass token counts, duration, etc.
+    )
+
+    # Index new/changed documents in RAG after writing
+    # Uses native deduplication via Ibis joins - safe to call anytime
+    if config.enable_rag and (saved_posts or saved_profiles):
+        try:
+            indexed_count = index_documents_for_rag(
+                output_format,
+                config.rag_dir,
+                embedding_model=embedding_model,
+            )
+            if indexed_count > 0:
+                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
+        except Exception as e:  # noqa: BLE001
+            # RAG indexing is non-critical - log error but don't fail
+            logger.warning("Failed to update RAG index after writing: %s", e)
+
     return {"posts": saved_posts, "profiles": saved_profiles}
 
 
