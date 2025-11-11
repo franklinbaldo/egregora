@@ -59,10 +59,15 @@ class SitePaths:
     """Resolved paths for an Egregora MkDocs site.
 
     SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
+    MODERN (Regression Fix): Content at root level (not in docs/).
     - .egregora/config.yml - Configuration
+    - .egregora/mkdocs.yml - MkDocs configuration
     - .egregora/prompts/ - Custom prompt overrides
     - .egregora/rag/ - Vector store data
     - .egregora/.cache/ - Ephemeral cache
+    - media/ - Media files at root
+    - profiles/ - Author profiles at root
+    - posts/ - Blog posts at root
     """
 
     site_root: Path
@@ -71,12 +76,13 @@ class SitePaths:
     # Egregora directories (.egregora/)
     egregora_dir: Path
     config_path: Path
+    mkdocs_config_path: Path  # NEW: mkdocs.yml in .egregora/
     prompts_dir: Path
     rag_dir: Path
     cache_dir: Path
 
-    # Content directories (docs/)
-    docs_dir: Path
+    # Content directories (at root, not in docs/)
+    docs_dir: Path  # For MkDocs compatibility, points to site_root
     blog_dir: str
     posts_dir: Path
     profiles_dir: Path
@@ -88,9 +94,18 @@ class SitePaths:
 def find_mkdocs_file(
     start: Annotated[Path, "The starting directory for the upward search"],
 ) -> Annotated[Path | None, "The path to mkdocs.yml, or None if not found"]:
-    """Search upward from ``start`` for ``mkdocs.yml``."""
+    """Search upward from ``start`` for ``mkdocs.yml``.
+
+    MODERN (Regression Fix): Checks .egregora/mkdocs.yml first, then root mkdocs.yml.
+    """
     current = start.expanduser().resolve()
     for candidate in (current, *current.parents):
+        # Check .egregora/mkdocs.yml first (new location)
+        egregora_mkdocs = candidate / ".egregora" / "mkdocs.yml"
+        if egregora_mkdocs.exists():
+            return egregora_mkdocs
+
+        # Fallback to root mkdocs.yml (legacy location)
         mkdocs_path = candidate / "mkdocs.yml"
         if mkdocs_path.exists():
             return mkdocs_path
@@ -146,28 +161,37 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
     """Resolve all important directories for the site.
 
     SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
+    MODERN (Regression Fix): Content at root level (not in docs/).
     """
     start = start.expanduser().resolve()
-    config, mkdocs_path = load_mkdocs_config(start)
-    site_root = mkdocs_path.parent if mkdocs_path else start
+    _config, mkdocs_path = load_mkdocs_config(start)
+
+    # Determine site_root based on mkdocs.yml location
+    if mkdocs_path:
+        # If mkdocs.yml is in .egregora/, go up 2 levels to get site root
+        if mkdocs_path.parent.name == ".egregora":
+            site_root = mkdocs_path.parent.parent
+        else:
+            # Legacy location: mkdocs.yml at root
+            site_root = mkdocs_path.parent
+    else:
+        site_root = start
 
     # .egregora/ structure (new)
     egregora_dir = site_root / ".egregora"
     config_path = egregora_dir / "config.yml"
+    mkdocs_config_path = egregora_dir / "mkdocs.yml"  # NEW: mkdocs.yml in .egregora/
     prompts_dir = egregora_dir / "prompts"
     rag_dir = egregora_dir / "rag"
     cache_dir = egregora_dir / ".cache"
 
-    # Content directories (docs/)
-    docs_dir = _resolve_docs_dir(site_root, config)
-    blog_dir = _extract_blog_dir(config) or DEFAULT_BLOG_DIR
-    blog_path = Path(blog_dir)
-    if blog_path.is_absolute():
-        posts_dir = blog_path / "posts"
-    else:
-        posts_dir = (docs_dir / blog_path / "posts").resolve()
-    profiles_dir = (docs_dir / PROFILES_DIR_NAME).resolve()
-    media_dir = (docs_dir / MEDIA_DIR_NAME).resolve()
+    # Content directories (at root, not in docs/)
+    # docs_dir is site_root for new structure (MkDocs will use docs_dir: ".")
+    docs_dir = site_root
+    blog_dir = DEFAULT_BLOG_DIR
+    posts_dir = (site_root / "posts").resolve()
+    profiles_dir = (site_root / PROFILES_DIR_NAME).resolve()
+    media_dir = (site_root / MEDIA_DIR_NAME).resolve()
     rankings_dir = (site_root / "rankings").resolve()
     enriched_dir = (site_root / "enriched").resolve()
 
@@ -177,6 +201,7 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
         # .egregora/ paths
         egregora_dir=egregora_dir,
         config_path=config_path,
+        mkdocs_config_path=mkdocs_config_path,
         prompts_dir=prompts_dir,
         rag_dir=rag_dir,
         cache_dir=cache_dir,

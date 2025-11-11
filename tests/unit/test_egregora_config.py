@@ -31,14 +31,8 @@ def test_egregora_config_defaults():
     assert config.rag.min_similarity == 0.7
     assert config.rag.mode == "ann"
 
-    # Privacy defaults
-    assert config.privacy.anonymization_enabled is True
-    assert config.privacy.pii_detection_enabled is True
-
     # Writer defaults
     assert config.writer.custom_instructions is None
-    assert config.writer.enable_banners is True
-    assert config.writer.enable_meme_generation is False
 
     # Enrichment defaults
     assert config.enrichment.enabled is True
@@ -172,7 +166,6 @@ rag:
   min_similarity: 0.8
 writer:
   custom_instructions: "Write in a casual tone"
-  enable_banners: false
 """
     (egregora_dir / "config.yml").write_text(config_content)
 
@@ -182,7 +175,6 @@ writer:
     assert config.rag.top_k == 10
     assert config.rag.min_similarity == 0.8
     assert config.writer.custom_instructions == "Write in a casual tone"
-    assert config.writer.enable_banners is False
 
 
 def test_load_egregora_config_handles_yaml_error(tmp_path):
@@ -247,7 +239,7 @@ def test_config_roundtrip(tmp_path):
     custom_config = EgregoraConfig(
         models={"writer": "google-gla:custom-model"},
         rag={"top_k": 15, "min_similarity": 0.9},
-        writer={"custom_instructions": "Test instructions", "enable_banners": False},
+        writer={"custom_instructions": "Test instructions"},
     )
 
     # Save
@@ -261,7 +253,6 @@ def test_config_roundtrip(tmp_path):
     assert loaded_config.rag.top_k == 15
     assert loaded_config.rag.min_similarity == 0.9
     assert loaded_config.writer.custom_instructions == "Test instructions"
-    assert loaded_config.writer.enable_banners is False
 
 
 def test_partial_config_merges_with_defaults(tmp_path):
@@ -284,4 +275,3 @@ models:
     # Defaults for everything else
     assert config.models.enricher == "google-gla:gemini-flash-latest"
     assert config.rag.enabled is True
-    assert config.privacy.anonymization_enabled is True

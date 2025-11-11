@@ -18,10 +18,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import AnyUrl, BaseModel
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.enrichment.agents import load_file_as_binary_content
+from egregora.prompt_templates import MediaEnrichmentPromptTemplate, UrlEnrichmentPromptTemplate
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
@@ -37,80 +39,123 @@ class EnrichmentOut(BaseModel):
     markdown: str
 
 
-# --- Simple system prompts (inline, not Jinja2) ---
-
-URL_SYSTEM = """You write brief, neutral, useful Markdown summaries of URLs.
-Return only the final Markdown content, no preamble, no code fences.
-Focus on what the content is about and why it might be relevant."""
-
-MEDIA_SYSTEM = """You describe media files succinctly in Markdown.
-Return only the final Markdown content, no preamble, no code fences.
-Be objective and descriptive. If it's a meme, mention what situations it's good for."""
+# --- Dependency types for prompt rendering ---
 
 
-def make_url_agent(model_name: str) -> Agent[None, EnrichmentOut]:
-    """Create a minimal URL enrichment agent.
+class UrlEnrichmentDeps(BaseModel):
+    """Dependencies for URL enrichment agent."""
+
+    url: str
+    prompts_dir: Path | None = None
+
+
+class MediaEnrichmentDeps(BaseModel):
+    """Dependencies for media enrichment agent."""
+
+    prompts_dir: Path | None = None
+
+
+def make_url_agent(
+    model_name: str, prompts_dir: Path | None = None
+) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
+    """Create a URL enrichment agent using Jinja templates with grounding enabled.
+
+    Enables Gemini URL context grounding to fetch and read actual URL content
+    instead of guessing from URL structure.
 
     Args:
         model_name: Pydantic-AI model string (e.g., "google-gla:gemini-flash-latest")
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
 
     Returns:
-        Configured pydantic-ai Agent for URL enrichment
+        Configured pydantic-ai Agent for URL enrichment with grounding
 
     """
-    return Agent[None, EnrichmentOut](
-        model=model_name,
-        system_prompt=URL_SYSTEM,
-        output_type=EnrichmentOut,
+    # Enable URL context grounding for Google models
+    model_settings = GoogleModelSettings(
+        google_tools=[{"url_context": {}}]  # Enable URL context grounding
     )
 
+    agent = Agent[UrlEnrichmentDeps, EnrichmentOut](
+        model=model_name,
+        output_type=EnrichmentOut,
+        model_settings=model_settings,
+    )
 
-def make_media_agent(model_name: str) -> Agent[None, EnrichmentOut]:
-    """Create a minimal media enrichment agent.
+    @agent.system_prompt
+    def url_system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
+        """Generate system prompt from Jinja template."""
+        template = UrlEnrichmentPromptTemplate(url=ctx.deps.url, prompts_dir=ctx.deps.prompts_dir)
+        return template.render()
+
+    return agent
+
+
+def make_media_agent(
+    model_name: str, prompts_dir: Path | None = None
+) -> Agent[MediaEnrichmentDeps, EnrichmentOut]:
+    """Create a minimal media enrichment agent using Jinja templates.
 
     Args:
         model_name: Pydantic-AI model string (e.g., "google-gla:gemini-flash-latest")
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
 
     Returns:
         Configured pydantic-ai Agent for media enrichment
 
     """
-    return Agent[None, EnrichmentOut](
+    agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
         model=model_name,
-        system_prompt=MEDIA_SYSTEM,
         output_type=EnrichmentOut,
     )
+
+    @agent.system_prompt
+    def media_system_prompt(ctx: RunContext[MediaEnrichmentDeps]) -> str:
+        """Generate system prompt from Jinja template."""
+        template = MediaEnrichmentPromptTemplate(prompts_dir=ctx.deps.prompts_dir)
+        return template.render()
+
+    return agent
 
 
 # --- Single-call helpers ---
 
 
-def run_url_enrichment(agent: Agent[None, EnrichmentOut], url: str | AnyUrl) -> str:
-    """Run URL enrichment with a single agent call.
+def run_url_enrichment(
+    agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, prompts_dir: Path | None = None
+) -> str:
+    """Run URL enrichment with grounding to fetch actual content.
+
+    Uses Gemini URL context grounding to fetch and read the actual page content
+    instead of guessing from URL structure. This provides much higher quality
+    enrichment with accurate summaries, metadata, and key points.
 
     Args:
-        agent: Configured URL enrichment agent
+        agent: Configured URL enrichment agent (with grounding enabled)
         url: URL to enrich
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
 
     Returns:
-        Markdown content describing the URL
+        Markdown content describing the actual URL content
 
     Raises:
         Exception: If agent call fails (let errors propagate)
 
     """
     url_str = str(url)
-    prompt = f"Summarize what this URL is about in 1-2 sentences.\nURL: {url_str}"
-    result: RunResult[EnrichmentOut] = agent.run_sync(prompt)
+    deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
+    prompt = f"Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata (author, date, etc.).\n\nURL: {url_str}"
+    result: RunResult[EnrichmentOut] = agent.run_sync(prompt, deps=deps)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))
     return output.markdown.strip()
 
 
 def run_media_enrichment(
-    agent: Agent[None, EnrichmentOut],
+    agent: Agent[MediaEnrichmentDeps, EnrichmentOut],
     file_path: Path,
     mime_hint: str | None = None,
+    prompts_dir: Path | None = None,
 ) -> str:
     """Run media enrichment with a single agent call.
 
@@ -118,6 +163,7 @@ def run_media_enrichment(
         agent: Configured media enrichment agent
         file_path: Path to media file
         mime_hint: Optional MIME type hint (e.g., "image", "video")
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
 
     Returns:
         Markdown content describing the media
@@ -126,6 +172,7 @@ def run_media_enrichment(
         Exception: If agent call fails (let errors propagate)
 
     """
+    deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
     desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
     hint_text = f" ({mime_hint})" if mime_hint else ""
     prompt = f"{desc}\nFILE: {file_path.name}{hint_text}"
@@ -136,7 +183,7 @@ def run_media_enrichment(
     # pydantic-ai accepts list of content parts
     message_content = [prompt, binary_content]
 
-    result: RunResult[EnrichmentOut] = agent.run_sync(message_content)
+    result: RunResult[EnrichmentOut] = agent.run_sync(message_content, deps=deps)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))
     return output.markdown.strip()

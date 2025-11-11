@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.ranking.ranking_agent import ComparisonConfig, run_comparison_with_pydantic_agent
+from egregora.agents.ranking.agent import ComparisonConfig, run_comparison_with_pydantic_agent
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 @pytest.fixture
 def test_posts(tmp_path: Path) -> tuple[Path, Path]:
     """Create two test posts."""
-    posts_dir = tmp_path / "docs" / "posts"
+    # MODERN (PR 627): posts/ at root level, not in docs/
+    posts_dir = tmp_path / "posts"
     posts_dir.mkdir(parents=True)
 
     post_a = posts_dir / "post-a.md"
@@ -55,7 +56,8 @@ It discusses philosophy and consciousness.
 @pytest.fixture
 def test_profile(tmp_path: Path) -> Path:
     """Create a test profile."""
-    profiles_dir = tmp_path / "docs" / "profiles"
+    # MODERN (PR 627): profiles/ at root level, not in docs/
+    profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir(parents=True)
 
     profile_path = profiles_dir / "test-uuid-123.md"

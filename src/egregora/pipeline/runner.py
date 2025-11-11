@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import uuid
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,8 +20,8 @@ import ibis
 from google import genai
 
 from egregora.adapters import get_adapter
-from egregora.agents.tools.profiler import filter_opted_out_authors, process_commands
-from egregora.agents.tools.rag import VectorStore, index_all_media
+from egregora.agents.shared.profiler import filter_opted_out_authors, process_commands
+from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import ModelConfig, resolve_site_paths
 from egregora.config.schema import EgregoraConfig
@@ -29,10 +30,12 @@ from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_co
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
-from egregora.pipeline.ir import validate_ir_schema
-from egregora.pipeline.media_utils import process_media_for_window
+from egregora.pipeline.media import process_media_for_window
+from egregora.pipeline.tracking import fingerprint_window, record_run
+from egregora.pipeline.validation import validate_ir_schema
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.telemetry import get_current_trace_id
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -47,6 +50,7 @@ def _perform_enrichment(  # noqa: PLR0913
     enrichment_cache: EnrichmentCache,
     site_paths: any,
     posts_dir: Path,
+    output_format: any,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
 
@@ -59,6 +63,7 @@ def _perform_enrichment(  # noqa: PLR0913
         enrichment_cache: Enrichment cache instance
         site_paths: Site path configuration
         posts_dir: Posts output directory
+        output_format: OutputFormat instance for storage protocol access
 
     Returns:
         Enriched table
@@ -68,6 +73,8 @@ def _perform_enrichment(  # noqa: PLR0913
         cache=enrichment_cache,
         docs_dir=site_paths.docs_dir,
         posts_dir=posts_dir,
+        output_format=output_format,
+        site_root=site_paths.site_root,
     )
     return enrich_table(
         window_table,
@@ -132,6 +139,11 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
     runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = duckdb.connect(str(runtime_db_path))
     backend = ibis.duckdb.from_connection(connection)
+
+    # Setup runs tracking database (Priority D.1)
+    runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
+    runs_conn = duckdb.connect(str(runs_db_path))
+
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     try:
@@ -248,8 +260,11 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             last_timestamp = datetime.fromisoformat(last_timestamp_str)
 
             # Ensure timezone-aware comparison
+            utc_zone = ZoneInfo("UTC")
             if last_timestamp.tzinfo is None:
-                last_timestamp = last_timestamp.replace(tzinfo=ZoneInfo("UTC"))
+                last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+            else:
+                last_timestamp = last_timestamp.astimezone(utc_zone)
 
             original_count = messages_table.count().execute()
             messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
@@ -277,6 +292,31 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
         results = {}
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
+
+        # Create OutputFormat for RAG indexing (storage-agnostic)
+        from egregora.rendering import create_output_format  # noqa: PLC0415
+
+        format_type = config.output.format
+        output_format = create_output_format(output_dir, format_type=format_type)
+
+        # Phase 7.5: Index all existing documents for RAG before window processing
+        # This ensures the writer agent has full context from previous runs
+        # Uses OutputFormat.list_documents() - no filesystem assumptions
+        if config.rag.enabled:
+            logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+            try:
+                from egregora.agents.writer.core import index_documents_for_rag  # noqa: PLC0415
+
+                indexed_count = index_documents_for_rag(
+                    output_format, site_paths.rag_dir, embedding_model=embedding_model
+                )
+                if indexed_count > 0:
+                    logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
+                else:
+                    logger.info("[dim]No new documents to index[/]")
+            except Exception:
+                # RAG indexing failure should not block pipeline
+                logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
 
         def process_window_with_auto_split(
             window: Window,  # noqa: F821
@@ -351,7 +391,13 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 if enable_enrichment:
                     logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
                     enriched_table = _perform_enrichment(
-                        window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                        window_table_processed,
+                        media_mapping,
+                        config,
+                        enrichment_cache,
+                        site_paths,
+                        posts_dir,
+                        output_format,
                     )
                 else:
                     enriched_table = window_table_processed
@@ -380,6 +426,10 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     profile_count,
                     window_label,
                 )
+
+                # NOTE: RAG indexing now happens inside write_posts_for_window()
+                # The writer agent automatically indexes new/changed documents after writing
+                # This works for both pipeline runs and standalone CLI commands
 
             except PromptTooLargeError as e:
                 # Prompt too large - split window and retry
@@ -435,8 +485,86 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 )
                 continue
 
-            window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
-            results.update(window_results)
+            # Track window processing (Priority D.1)
+            window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            run_id = uuid.uuid4()
+            from datetime import UTC
+
+            started_at = datetime.now(UTC)
+
+            # Record run start
+            try:
+                # Generate deterministic fingerprint for this window
+                input_fingerprint = fingerprint_window(window)
+
+                # Capture current OTEL trace ID for observability linking
+                trace_id = get_current_trace_id()
+
+                record_run(
+                    conn=runs_conn,
+                    run_id=run_id,
+                    stage=f"window_{window.window_index}",
+                    status="running",
+                    started_at=started_at,
+                    rows_in=window.size,
+                    input_fingerprint=input_fingerprint,
+                    trace_id=trace_id,
+                )
+            except Exception as e:
+                logger.warning("Failed to record run start: %s", e)
+
+            # Process window
+            try:
+                window_results = process_window_with_auto_split(window, depth=0, max_depth=5)
+                results.update(window_results)
+
+                # Record run completion
+                finished_at = datetime.now(UTC)
+                posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
+                profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
+
+                try:
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'completed',
+                            finished_at = ?,
+                            duration_seconds = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, (finished_at - started_at).total_seconds(), str(run_id)],
+                    )
+                    logger.debug(
+                        "📊 Tracked run %s: %s posts, %s profiles",
+                        str(run_id)[:8],
+                        posts_count,
+                        profiles_count,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to record run completion: %s", e)
+
+            except Exception as e:
+                # Record run failure
+                finished_at = datetime.now(UTC)
+                error_msg = f"{type(e).__name__}: {e!s}"
+
+                try:
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'failed',
+                            finished_at = ?,
+                            duration_seconds = ?,
+                            error = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, (finished_at - started_at).total_seconds(), error_msg, str(run_id)],
+                    )
+                except Exception as update_err:
+                    logger.warning("Failed to record run failure: %s", update_err)
+
+                # Re-raise the original exception
+                raise
         if enable_enrichment and results:
             logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
             try:
@@ -481,8 +609,12 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
             if "enrichment_cache" in locals():
                 enrichment_cache.close()
         finally:
-            if client:
-                client.close()
+            try:
+                if "runs_conn" in locals():
+                    runs_conn.close()
+            finally:
+                if client:
+                    client.close()
         if options is not None:
             options.default_backend = old_backend
         connection.close()

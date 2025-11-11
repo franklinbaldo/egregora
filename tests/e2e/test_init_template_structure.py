@@ -63,25 +63,21 @@ def test_init_creates_all_template_files(tmp_path: Path):
 
 
 def test_all_templates_are_used(tmp_path: Path):
-    """Verify that every .jinja2 template in templates/ is used by init."""
+    """Verify that every .jinja template in templates/ is used by init."""
     # Get all templates
     template_dir = SITE_TEMPLATES_DIR
-    all_templates = set(template_dir.glob("*.jinja2"))
+    all_templates = set(template_dir.glob("*.jinja"))
 
     # Templates that should be used by _create_site_structure
     used_templates = {
-        template_dir / "README.md.jinja2",
-        template_dir / "gitignore.jinja2",
-        template_dir / "homepage.md.jinja2",
-        template_dir / "about.md.jinja2",
-        template_dir / "profiles_index.md.jinja2",
-        template_dir / "media_index.md.jinja2",
+        template_dir / "README.md.jinja",
+        template_dir / ".gitignore.jinja",
+        template_dir / "media_index.md.jinja",
     }
 
     # Templates that are used elsewhere (not in _create_site_structure)
     other_templates = {
-        template_dir / "mkdocs.yml.jinja2",  # Used in _create_default_mkdocs
-        template_dir / "posts_index.md.jinja2",  # Used for post listings (may be unused?)
+        template_dir / "mkdocs.yml.jinja",  # Used in _create_default_mkdocs
     }
 
     # Verify all templates are accounted for
@@ -157,17 +153,16 @@ def test_template_files_match_output_structure():
     template_dir = SITE_TEMPLATES_DIR
 
     # Expected logical mapping (not exhaustive, just key examples)
-    # Some templates have semantic names (homepage) rather than output names (index)
+    # Templates are in root of site template directory
     mappings = {
-        "README.md.jinja2": "README.md",
-        "gitignore.jinja2": ".gitignore",
-        "homepage.md.jinja2": "index.md",  # Semantic name: homepage → index.md
-        "about.md.jinja2": "about.md",
-        "mkdocs.yml.jinja2": "mkdocs.yml",
+        "README.md.jinja": "README.md",
+        ".gitignore.jinja": ".gitignore",
+        "media_index.md.jinja": "docs/media/index.md",  # Semantic name: media_index
+        "mkdocs.yml.jinja": "mkdocs.yml",
     }
 
     # Templates with semantic names (don't check name correspondence)
-    semantic_names = {"homepage.md.jinja2"}
+    semantic_names = {"media_index.md.jinja"}
 
     for template_name, expected_output in mappings.items():
         template_path = template_dir / template_name
@@ -274,7 +269,6 @@ def test_config_yml_structure(tmp_path: Path):
     # Verify some key defaults
     assert config.models.writer is not None
     assert config.rag.enabled is True
-    assert config.privacy.anonymization_enabled is True
 
 
 def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):

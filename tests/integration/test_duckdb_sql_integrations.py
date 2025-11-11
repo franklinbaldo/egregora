@@ -8,12 +8,13 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.ranking.store import RankingStore
-from egregora.agents.tools.annotations import ANNOTATION_AUTHOR, AnnotationStore
+from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.config.loader import create_default_config
-from egregora.database import schema as database_schema
+from egregora.database import schemas as database_schema
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
+from tests.helpers.storage import InMemoryEnrichmentStorage
 
 if TYPE_CHECKING:
     import duckdb
@@ -44,8 +45,9 @@ def _create_conversation_table(tmp_path: Path) -> tuple[duckdb.DuckDBPyConnectio
     db_path = tmp_path / "conversation.duckdb"
     backend = ibis.duckdb.connect(str(db_path))
     table_name = "conversation_log"
+    # Pass raw DuckDB connection (not Ibis backend)
     database_schema.create_table_if_not_exists(
-        backend,
+        backend.con,
         table_name,
         database_schema.CONVERSATION_SCHEMA,
     )
@@ -134,8 +136,8 @@ def test_enrich_table_persists_results(tmp_path: Path):
     conn, table_name = _create_conversation_table(tmp_path)
     backend = ibis.duckdb.from_connection(conn)
 
-    # Create table with backend attachment to avoid "no backends" error
-    messages_table = backend.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
+    # Create memtable using ibis.memtable (not backend.memtable)
+    messages_table = ibis.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
@@ -146,11 +148,15 @@ def test_enrich_table_persists_results(tmp_path: Path):
         },
     )
 
+    # Create mock output_format with enrichments storage
+    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
-        duckdb_connection=conn,
+        output_format=output_format,
+        duckdb_connection=backend,  # Pass Ibis backend, not raw connection
         target_table=table_name,
     )
 

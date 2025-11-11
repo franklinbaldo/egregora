@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
-from egregora.database.schema import CONVERSATION_SCHEMA
+from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
     detect_media_type,
@@ -120,9 +120,12 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
+    # Derive prompts_dir for custom Jinja template overrides
+    prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
+
     # Create thin agents (created once, reused for all items)
-    url_agent = make_url_agent(url_model) if enable_url else None
-    media_agent = make_media_agent(vision_model) if enable_media else None
+    url_agent = make_url_agent(url_model, prompts_dir=prompts_dir) if enable_url else None
+    media_agent = make_media_agent(vision_model, prompts_dir=prompts_dir) if enable_media else None
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -161,16 +164,14 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             else:
                 # Call agent (one call per URL)
                 try:
-                    markdown = run_url_enrichment(url_agent, url)
+                    markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
                     cache.store(cache_key, {"markdown": markdown, "type": "url"})
                 except Exception as exc:  # noqa: BLE001 - log and continue enrichment
                     logger.warning("URL enrichment failed for %s: %s", url, exc)
                     continue
 
-            # Write output file
-            enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
-            enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
-            _atomic_write_text(enrichment_path, markdown)
+            # Write output file using storage protocol
+            enrichment_id_str = context.output_format.enrichments.write_url_enrichment(url, markdown)
 
             # Add enrichment row (use first message timestamp for simplicity)
             first_msg_with_url = (
@@ -188,7 +189,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
+                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_id_str}",
                         "original_line": "",
                         "tagged_line": "",
                     }
@@ -247,7 +248,9 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             else:
                 # Call agent
                 try:
-                    markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
+                    markdown_content = run_media_enrichment(
+                        media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
+                    )
                     cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
                 except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
                     logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
@@ -270,9 +273,12 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             if not markdown_content:
                 markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-            # Write output file
-            enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
-            _atomic_write_text(enrichment_path, markdown_content)
+            # Write output file using storage protocol
+            # Pass path relative to docs_dir to preserve subdirectory structure (e.g., "media/images/abc.jpg")
+            relative_path = file_path.relative_to(docs_dir)
+            enrichment_id_str = context.output_format.enrichments.write_media_enrichment(
+                str(relative_path), markdown_content
+            )
 
             # Add enrichment row (use first message timestamp)
             # Note: ref might be original filename or UUID filename
@@ -291,7 +297,9 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
+                        "message": (
+                            f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_id_str}"
+                        ),
                         "original_line": "",
                         "tagged_line": "",
                     }
@@ -334,20 +342,20 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
         raise ValueError(msg)
 
     if duckdb_connection and target_table:
-        from egregora import database  # noqa: PLC0415 - avoid circular import
+        from egregora.database import schemas  # noqa: PLC0415 - avoid circular import
 
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
             msg = "target_table must be a valid DuckDB identifier"
             raise ValueError(msg)
 
-        database.schema.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
-        quoted_table = database.schema.quote_identifier(target_table)
-        column_list = ", ".join(database.schema.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+        schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
+        quoted_table = schemas.quote_identifier(target_table)
+        column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
         temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
 
         try:
             duckdb_connection.create_view(temp_view, combined, overwrite=True)
-            quoted_view = database.schema.quote_identifier(temp_view)
+            quoted_view = schemas.quote_identifier(temp_view)
             duckdb_connection.raw_sql("BEGIN TRANSACTION")
             try:
                 duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")

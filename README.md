@@ -99,7 +99,7 @@ cd my-blog
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
-**That's it!** Open [http://localhost:8000](http://localhost:8000) to see your blog.
+**That's it!** Open [http://localhost:8000](http://localhost:8000) to see your blog. Generated posts are grouped by time windows (filenames such as `2025-10-28 14:10 to 14:15.md`) and all runtime state lives under `.egregora/` (config, checkpoints, RAG data), so re-running the pipeline can resume from the last processed window.
 
 **Output layout**
 - `docs/posts/<window>.md` — windows are labeled with the start/end timestamps (e.g. `2025-10-28 14:10 to 14:15.md`)

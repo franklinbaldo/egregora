@@ -1,7 +1,17 @@
 """Output rendering for different site generators."""
 
-from egregora.rendering.base import OutputFormat
+from egregora.rendering.base import OutputFormat, create_output_format, output_registry
 from egregora.rendering.hugo import HugoOutputFormat
 from egregora.rendering.mkdocs import MkDocsOutputFormat
 
-__all__ = ["HugoOutputFormat", "MkDocsOutputFormat", "OutputFormat"]
+# Register output formats on module import
+output_registry.register(MkDocsOutputFormat)
+output_registry.register(HugoOutputFormat)
+
+__all__ = [
+    "HugoOutputFormat",
+    "MkDocsOutputFormat",
+    "OutputFormat",
+    "create_output_format",
+    "output_registry",
+]

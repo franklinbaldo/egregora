@@ -1,20 +1,24 @@
 """Batch processing utilities for enrichment - dataclasses and helpers."""
 
+from __future__ import annotations
+
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
-import pandas as pd
-import pyarrow as pa
 from google.genai import types as genai_types
 from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.utils import BatchPromptRequest, BatchPromptResult
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
 
 
 @dataclass

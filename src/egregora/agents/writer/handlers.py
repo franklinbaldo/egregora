@@ -9,9 +9,9 @@ from google import genai
 from google.genai import types as genai_types
 
 from egregora.agents.banner import generate_banner_for_post
-from egregora.agents.tools.annotations import AnnotationStore
-from egregora.agents.tools.profiler import read_profile, write_profile
-from egregora.agents.tools.rag import VectorStore, query_media
+from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.profiler import read_profile, write_profile
+from egregora.agents.shared.rag import VectorStore, query_media
 from egregora.agents.writer.formatting import _stringify_value
 from egregora.utils.write_post import write_post
 
@@ -191,7 +191,11 @@ def _handle_annotate_conversation_tool(
 def _handle_generate_banner_tool(
     fn_args: dict[str, Any], fn_call: genai_types.FunctionCall, output_dir: Path
 ) -> genai_types.Content:
-    """Handle generate_banner tool call."""
+    """Handle generate_banner tool call.
+
+    NOTE: This is legacy code path. Active path uses Pydantic AI agents.
+    Banners are saved to media/images/ with content-based UUIDs for enrichment.
+    """
     post_slug = fn_args.get("post_slug", "")
     title = fn_args.get("title", "")
     summary = fn_args.get("summary", "")
@@ -199,11 +203,11 @@ def _handle_generate_banner_tool(
         banner_path = generate_banner_for_post(
             post_title=title,
             post_summary=summary,
-            output_dir=output_dir / "media" / "banners",
+            output_dir=output_dir / "media" / "images",
             slug=post_slug,
         )
         if banner_path:
-            relative_path = f"../media/banners/{banner_path.name}"
+            relative_path = f"../media/images/{banner_path.name}"
             logger.info("Banner generated at: %s", relative_path)
             return genai_types.Content(
                 role="user",

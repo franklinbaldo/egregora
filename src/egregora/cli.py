@@ -18,10 +18,8 @@ from rich.markup import escape
 from rich.panel import Panel
 
 from egregora.agents.editor import run_editor_session
-from egregora.agents.loader import load_agent
-from egregora.agents.registry import ToolRegistry
-from egregora.agents.resolver import AgentResolver
-from egregora.agents.tools.profiler import get_active_authors
+from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
+from egregora.agents.shared.profiler import get_active_authors
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
@@ -324,7 +322,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -367,7 +365,7 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
     ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
-    """Process chat export and generate blog posts + author profiles.
+    """Write blog posts from chat exports using LLM-powered synthesis.
 
     Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
 
@@ -375,12 +373,12 @@ def process(  # noqa: PLR0913 - CLI commands naturally have many parameters
         Control how messages are grouped into posts using --step-size and --step-unit:
 
         By time (default):
-            egregora process export.zip --step-size=1 --step-unit=days
-            egregora process export.zip --step-size=7 --step-unit=days
-            egregora process export.zip --step-size=24 --step-unit=hours
+            egregora write export.zip --step-size=1 --step-unit=days
+            egregora write export.zip --step-size=7 --step-unit=days
+            egregora write export.zip --step-size=24 --step-unit=hours
 
         By message count:
-            egregora process export.zip --step-size=100 --step-unit=messages
+            egregora write export.zip --step-size=100 --step-unit=messages
 
     The LLM decides:
     - What's worth writing about (filters noise automatically)
@@ -679,6 +677,12 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
             profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
+            # Resolve prompts directory
+            prompts_dir = (
+                site_path / ".egregora" / "prompts"
+                if (site_path / ".egregora" / "prompts").is_dir()
+                else None
+            )
             try:
                 # Import ComparisonConfig dynamically
                 comparison_config = ranking_agent.ComparisonConfig(
@@ -688,6 +692,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                     profile_path=profile_path,
                     api_key=api_key,
                     model=ranking_model,
+                    prompts_dir=prompts_dir,
                 )
                 asyncio.run(run_comparison(comparison_config))
             except Exception as e:
@@ -1227,6 +1232,810 @@ def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters an
 
 
 _register_ranking_cli(app)
+
+
+# ==============================================================================
+# Diagnostics Command
+# ==============================================================================
+
+
+@app.command(name="doctor")
+def doctor(
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show detailed diagnostic information")
+    ] = False,
+) -> None:
+    """Run diagnostic checks to verify Egregora setup.
+
+    Checks:
+    - Python version (3.12+)
+    - Required packages
+    - API key configuration
+    - DuckDB VSS extension
+    - Git availability
+    - Cache directory permissions
+    - Egregora config validity
+    - Available source adapters
+
+    Examples:
+        egregora doctor          # Run all checks
+        egregora doctor -v       # Show detailed output
+
+    """
+    from egregora.diagnostics import HealthStatus, run_diagnostics
+
+    console.print("[bold cyan]Running diagnostics...[/bold cyan]")
+    console.print()
+
+    results = run_diagnostics()
+
+    # Count status levels
+    ok_count = sum(1 for r in results if r.status == HealthStatus.OK)
+    warning_count = sum(1 for r in results if r.status == HealthStatus.WARNING)
+    error_count = sum(1 for r in results if r.status == HealthStatus.ERROR)
+
+    # Display results
+    for result in results:
+        # Status icon and color
+        if result.status == HealthStatus.OK:
+            icon = "✅"
+            color = "green"
+        elif result.status == HealthStatus.WARNING:
+            icon = "⚠️"
+            color = "yellow"
+        elif result.status == HealthStatus.ERROR:
+            icon = "❌"
+            color = "red"
+        else:  # INFO
+            icon = "ℹ️"
+            color = "cyan"
+
+        # Print check result
+        console.print(f"[{color}]{icon} {result.check}:[/{color}] {result.message}")
+
+        # Show details if verbose
+        if verbose and result.details:
+            for key, value in result.details.items():
+                console.print(f"    {key}: {value}", style="dim")
+
+    # Summary
+    console.print()
+    if error_count == 0 and warning_count == 0:
+        console.print("[bold green]✅ All checks passed! Egregora is ready to use.[/bold green]")
+    elif error_count == 0:
+        console.print(
+            f"[bold yellow]⚠️  {warning_count} warning(s) found. Egregora should work but some features may be limited.[/bold yellow]"
+        )
+    else:
+        console.print(
+            f"[bold red]❌ {error_count} error(s) found. Please fix these issues before using Egregora.[/bold red]"
+        )
+
+    console.print()
+    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
+
+    # Exit with error code if any errors found
+    if error_count > 0:
+        raise typer.Exit(1)
+
+
+# ==============================================================================
+# Cache Management Commands
+# ==============================================================================
+
+cache_app = typer.Typer(
+    name="cache",
+    help="Manage pipeline checkpoints and cache",
+)
+app.add_typer(cache_app)
+
+
+@cache_app.command(name="stats")
+def cache_stats(
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
+) -> None:
+    """Show cache statistics (size, count, per-stage breakdown)."""
+    from egregora.pipeline.legacy.checkpoint import get_cache_stats
+
+    stats = get_cache_stats(cache_dir=cache_dir)
+
+    if stats["total_count"] == 0:
+        console.print("[yellow]Cache is empty[/yellow]")
+        return
+
+    # Display total stats
+    total_mb = stats["total_size"] / (1024**2)
+    console.print(f"[cyan]Total cache size:[/cyan] {total_mb:.2f} MB")
+    console.print(f"[cyan]Total checkpoints:[/cyan] {stats['total_count']}")
+    console.print()
+
+    # Per-stage breakdown
+    if stats["stages"]:
+        console.print("[cyan]Per-stage breakdown:[/cyan]")
+        for stage_name, stage_stats in sorted(stats["stages"].items()):
+            stage_mb = stage_stats["size"] / (1024**2)
+            console.print(f"  • {stage_name}: {stage_stats['count']} checkpoints, {stage_mb:.2f} MB")
+
+
+@cache_app.command(name="clear")
+def cache_clear(
+    stage: Annotated[str | None, typer.Option(help="Stage to clear (clears all if not specified)")] = None,
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
+    force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Clear checkpoints (cache invalidation).
+
+    Examples:
+        egregora cache clear --stage=enrichment   # Clear only enrichment checkpoints
+        egregora cache clear                      # Clear all checkpoints
+        egregora cache clear --force              # Skip confirmation
+
+    """
+    from egregora.pipeline.legacy.checkpoint import clear_checkpoints, get_cache_stats
+
+    # Get stats before clearing
+    stats = get_cache_stats(cache_dir=cache_dir)
+
+    if stats["total_count"] == 0:
+        console.print("[yellow]Cache is already empty[/yellow]")
+        return
+
+    # Confirm before clearing (unless --force)
+    if not force:
+        if stage:
+            stage_stats = stats["stages"].get(stage, {"count": 0, "size": 0})
+            if stage_stats["count"] == 0:
+                console.print(f"[yellow]No checkpoints found for stage '{stage}'[/yellow]")
+                return
+            stage_mb = stage_stats["size"] / (1024**2)
+            console.print(
+                f"[yellow]About to delete {stage_stats['count']} checkpoints ({stage_mb:.2f} MB) for stage '{stage}'[/yellow]"
+            )
+        else:
+            total_mb = stats["total_size"] / (1024**2)
+            console.print(
+                f"[yellow]About to delete all {stats['total_count']} checkpoints ({total_mb:.2f} MB)[/yellow]"
+            )
+
+        confirm = typer.confirm("Continue?")
+        if not confirm:
+            console.print("[cyan]Cancelled[/cyan]")
+            raise typer.Exit(0)
+
+    # Clear checkpoints
+    count = clear_checkpoints(stage=stage, cache_dir=cache_dir)
+    console.print(f"[green]✅ Deleted {count} checkpoints[/green]")
+
+
+@cache_app.command(name="gc")
+def cache_gc(
+    keep_last: Annotated[
+        int | None, typer.Option(help="Keep last N checkpoints per stage (age-based GC)")
+    ] = None,
+    max_size: Annotated[str | None, typer.Option(help="Maximum cache size (e.g., '10GB', '500MB')")] = None,
+    stage: Annotated[
+        str | None, typer.Option(help="Stage to garbage collect (applies to all if not specified)")
+    ] = None,
+    cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
+        ".egregora-cache/checkpoints"
+    ),
+) -> None:
+    """Garbage collect old checkpoints.
+
+    Use --keep-last for age-based GC (keep N most recent per stage).
+    Use --max-size for size-based GC (LRU eviction until under limit).
+
+    Examples:
+        egregora cache gc --keep-last=5               # Keep last 5 checkpoints per stage
+        egregora cache gc --keep-last=3 --stage=enrichment  # Keep last 3 enrichment checkpoints
+        egregora cache gc --max-size=10GB             # Keep cache under 10 GB
+        egregora cache gc --max-size=500MB            # Keep cache under 500 MB
+
+    """
+    from egregora.pipeline.legacy.checkpoint import gc_checkpoints_by_age, gc_checkpoints_by_size
+
+    if keep_last is None and max_size is None:
+        console.print("[red]Error: Must specify either --keep-last or --max-size[/red]")
+        console.print("Examples:")
+        console.print("  egregora cache gc --keep-last=5")
+        console.print("  egregora cache gc --max-size=10GB")
+        raise typer.Exit(1)
+
+    if keep_last is not None and max_size is not None:
+        console.print("[red]Error: Cannot use both --keep-last and --max-size (choose one)[/red]")
+        raise typer.Exit(1)
+
+    if keep_last is not None:
+        # Age-based GC
+        console.print(f"[cyan]Garbage collecting checkpoints (keeping last {keep_last} per stage)...[/cyan]")
+        count = gc_checkpoints_by_age(stage=stage, keep_last=keep_last, cache_dir=cache_dir)
+        console.print(f"[green]✅ Deleted {count} old checkpoints[/green]")
+
+    elif max_size is not None:
+        # Size-based GC
+        # Parse max_size (e.g., "10GB", "500MB")
+        max_size_upper = max_size.upper()
+        try:
+            if max_size_upper.endswith("GB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024**3)
+            elif max_size_upper.endswith("MB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024**2)
+            elif max_size_upper.endswith("KB"):
+                max_size_bytes = int(float(max_size_upper[:-2]) * 1024)
+            elif max_size_upper.endswith("B"):
+                max_size_bytes = int(max_size_upper[:-1])
+            else:
+                # Try parsing as raw bytes
+                max_size_bytes = int(max_size)
+        except ValueError:
+            console.print(f"[red]Error: Invalid size format '{max_size}'[/red]")
+            console.print("Valid formats: '10GB', '500MB', '1KB', or raw bytes")
+            raise typer.Exit(1)
+
+        console.print(f"[cyan]Garbage collecting checkpoints (max size: {max_size})...[/cyan]")
+        count = gc_checkpoints_by_size(max_size_bytes=max_size_bytes, cache_dir=cache_dir)
+        console.print(f"[green]✅ Deleted {count} checkpoints to stay under size limit[/green]")
+
+
+# ==============================================================================
+# View Registry Commands
+# ==============================================================================
+
+views_app = typer.Typer(
+    name="views",
+    help="Manage database views and materialized views",
+)
+app.add_typer(views_app)
+
+
+@views_app.command(name="list")
+def views_list(
+    db_path: Annotated[
+        Path | None, typer.Option(help="Database file path (uses in-memory DB if not specified)")
+    ] = None,
+) -> None:
+    """List all registered views.
+
+    Examples:
+        egregora views list
+        egregora views list --db-path=pipeline.db
+
+    """
+    import duckdb
+
+    from egregora.database.views import ViewRegistry, register_common_views
+
+    # Connect to database
+    conn = duckdb.connect(str(db_path) if db_path else ":memory:")
+
+    try:
+        # Create registry and register common views
+        registry = ViewRegistry(conn)
+        register_common_views(registry)
+
+        views = registry.list_views()
+
+        if not views:
+            console.print("[yellow]No views registered[/yellow]")
+            return
+
+        console.print(f"[cyan]Registered views ({len(views)}):[/cyan]")
+        console.print()
+
+        for view_name in sorted(views):
+            view = registry.get_view(view_name)
+            materialized = "📊 materialized" if view.materialized else "👁️  view"
+            console.print(f"  • [bold]{view_name}[/bold] [{materialized}]")
+
+            if view.description:
+                console.print(f"    {view.description}", style="dim")
+
+            if view.dependencies:
+                deps = ", ".join(view.dependencies)
+                console.print(f"    Dependencies: {deps}", style="dim")
+
+            console.print()
+
+    finally:
+        conn.close()
+
+
+@views_app.command(name="create")
+def views_create(
+    db_path: Annotated[Path, typer.Argument(help="Database file path")],
+    table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
+    force: Annotated[bool, typer.Option("--force", "-f", help="Drop existing views before creating")] = False,
+) -> None:
+    """Create all registered views in the database.
+
+    Examples:
+        egregora views create pipeline.db
+        egregora views create pipeline.db --table-name=conversations
+        egregora views create pipeline.db --force  # Recreate existing views
+
+    """
+    import duckdb
+
+    from egregora.database.views import ViewRegistry, register_common_views
+
+    if not db_path.exists():
+        console.print(f"[red]Error: Database file not found: {db_path}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to database
+    conn = duckdb.connect(str(db_path))
+
+    try:
+        # Verify table exists
+        tables = conn.execute("SELECT table_name FROM information_schema.tables").fetchall()
+        table_names = [t[0] for t in tables]
+
+        if table_name not in table_names:
+            console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
+            console.print(f"Available tables: {', '.join(table_names)}")
+            raise typer.Exit(1)
+
+        # Create registry and register common views
+        registry = ViewRegistry(conn)
+        register_common_views(registry, table_name=table_name)
+
+        # Create views
+        console.print(f"[cyan]Creating {len(registry.list_views())} views...[/cyan]")
+        registry.create_all(force=force)
+
+        console.print(f"[green]✅ Created {len(registry.list_views())} views[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error creating views: {e}[/red]")
+        raise typer.Exit(1)
+
+    finally:
+        conn.close()
+
+
+@views_app.command(name="refresh")
+def views_refresh(
+    db_path: Annotated[Path, typer.Argument(help="Database file path")],
+    view_name: Annotated[
+        str | None, typer.Option(help="Specific view to refresh (refreshes all if not specified)")
+    ] = None,
+    table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
+) -> None:
+    """Refresh materialized views with fresh data.
+
+    Examples:
+        egregora views refresh pipeline.db                 # Refresh all
+        egregora views refresh pipeline.db --view-name=author_message_counts  # Refresh specific view
+
+    """
+    import duckdb
+
+    from egregora.database.views import ViewRegistry, register_common_views
+
+    if not db_path.exists():
+        console.print(f"[red]Error: Database file not found: {db_path}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to database
+    conn = duckdb.connect(str(db_path))
+
+    try:
+        # Create registry and register common views
+        registry = ViewRegistry(conn)
+        register_common_views(registry, table_name=table_name)
+
+        if view_name:
+            # Refresh specific view
+            if view_name not in registry.list_views():
+                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+                console.print(f"Available views: {', '.join(registry.list_views())}")
+                raise typer.Exit(1)
+
+            view = registry.get_view(view_name)
+            if not view.materialized:
+                console.print(f"[yellow]Warning: '{view_name}' is not materialized (cannot refresh)[/yellow]")
+                raise typer.Exit(1)
+
+            console.print(f"[cyan]Refreshing view: {view_name}...[/cyan]")
+            registry.refresh(view_name)
+            console.print(f"[green]✅ Refreshed {view_name}[/green]")
+
+        else:
+            # Refresh all materialized views
+            materialized_views = [name for name, view in registry.views.items() if view.materialized]
+
+            if not materialized_views:
+                console.print("[yellow]No materialized views to refresh[/yellow]")
+                return
+
+            console.print(f"[cyan]Refreshing {len(materialized_views)} materialized views...[/cyan]")
+            registry.refresh_all()
+            console.print(f"[green]✅ Refreshed {len(materialized_views)} views[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error refreshing views: {e}[/red]")
+        raise typer.Exit(1)
+
+    finally:
+        conn.close()
+
+
+@views_app.command(name="drop")
+def views_drop(
+    db_path: Annotated[Path, typer.Argument(help="Database file path")],
+    view_name: Annotated[
+        str | None, typer.Option(help="Specific view to drop (drops all if not specified)")
+    ] = None,
+    table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
+    force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Drop views from the database.
+
+    Examples:
+        egregora views drop pipeline.db                 # Drop all
+        egregora views drop pipeline.db --view-name=author_message_counts  # Drop specific view
+        egregora views drop pipeline.db --force         # Skip confirmation
+
+    """
+    import duckdb
+
+    from egregora.database.views import ViewRegistry, register_common_views
+
+    if not db_path.exists():
+        console.print(f"[red]Error: Database file not found: {db_path}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to database
+    conn = duckdb.connect(str(db_path))
+
+    try:
+        # Create registry and register common views
+        registry = ViewRegistry(conn)
+        register_common_views(registry, table_name=table_name)
+
+        if view_name:
+            # Drop specific view
+            if view_name not in registry.list_views():
+                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+                console.print(f"Available views: {', '.join(registry.list_views())}")
+                raise typer.Exit(1)
+
+            # Confirm before dropping (unless --force)
+            if not force:
+                console.print(f"[yellow]About to drop view: {view_name}[/yellow]")
+                confirm = typer.confirm("Continue?")
+                if not confirm:
+                    console.print("[cyan]Cancelled[/cyan]")
+                    raise typer.Exit(0)
+
+            registry.drop(view_name)
+            console.print(f"[green]✅ Dropped {view_name}[/green]")
+
+        else:
+            # Drop all views
+            view_count = len(registry.list_views())
+
+            if view_count == 0:
+                console.print("[yellow]No views to drop[/yellow]")
+                return
+
+            # Confirm before dropping (unless --force)
+            if not force:
+                console.print(f"[yellow]About to drop {view_count} views[/yellow]")
+                confirm = typer.confirm("Continue?")
+                if not confirm:
+                    console.print("[cyan]Cancelled[/cyan]")
+                    raise typer.Exit(0)
+
+            registry.drop_all()
+            console.print(f"[green]✅ Dropped {view_count} views[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error dropping views: {e}[/red]")
+        raise typer.Exit(1)
+
+    finally:
+        conn.close()
+
+
+# ==============================================================================
+# Run Tracking Commands
+# ==============================================================================
+
+runs_app = typer.Typer(
+    name="runs",
+    help="View and manage pipeline run history",
+)
+app.add_typer(runs_app)
+
+
+@runs_app.command(name="tail")
+def runs_tail(
+    n: Annotated[int, typer.Option(help="Number of runs to show")] = 10,
+    db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
+) -> None:
+    """Show last N runs.
+
+    Examples:
+        egregora runs tail              # Last 10 runs
+        egregora runs tail --n 20       # Last 20 runs
+
+    """
+    import duckdb
+    from rich.table import Table
+
+    if not db_path.exists():
+        console.print(f"[yellow]No runs database found at {db_path}[/yellow]")
+        console.print("[dim]Runs will be tracked after first pipeline execution[/dim]")
+        return
+
+    # Connect to runs database
+    conn = duckdb.connect(str(db_path), read_only=True)
+
+    try:
+        # Query last N runs
+        result = conn.execute(
+            """
+            SELECT
+                run_id,
+                stage,
+                status,
+                started_at,
+                rows_in,
+                rows_out,
+                duration_seconds
+            FROM runs
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            [n],
+        ).fetchall()
+
+        if not result:
+            console.print("[yellow]No runs found[/yellow]")
+            return
+
+        # Create Rich table
+        table = Table(title=f"Last {len(result)} Runs", show_header=True, header_style="bold cyan")
+        table.add_column("Run ID", style="dim", no_wrap=True)
+        table.add_column("Stage", style="cyan")
+        table.add_column("Status", style="bold")
+        table.add_column("Started At", style="blue")
+        table.add_column("Rows In", justify="right")
+        table.add_column("Rows Out", justify="right")
+        table.add_column("Duration", justify="right")
+
+        for row in result:
+            run_id, stage, status, started_at, rows_in, rows_out, duration = row
+
+            # Color-code status
+            if status == "completed":
+                status_text = f"[green]{status}[/green]"
+            elif status == "failed":
+                status_text = f"[red]{status}[/red]"
+            elif status == "running":
+                status_text = f"[yellow]{status}[/yellow]"
+            else:
+                status_text = status
+
+            # Format duration
+            duration_text = f"{duration:.2f}s" if duration is not None else "-"
+
+            # Format rows
+            rows_in_text = str(rows_in) if rows_in is not None else "-"
+            rows_out_text = str(rows_out) if rows_out is not None else "-"
+
+            # Truncate run_id for display
+            run_id_short = str(run_id)[:8]
+
+            table.add_row(
+                run_id_short,
+                stage,
+                status_text,
+                str(started_at),
+                rows_in_text,
+                rows_out_text,
+                duration_text,
+            )
+
+        console.print(table)
+
+    finally:
+        conn.close()
+
+
+@runs_app.command(name="show")
+def runs_show(
+    run_id: Annotated[str, typer.Argument(help="Run ID to show (full UUID or prefix)")],
+    db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
+) -> None:
+    """Show detailed run info.
+
+    Examples:
+        egregora runs show a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+        egregora runs show a0eebc99  # Prefix matching
+
+    """
+    import duckdb
+    from rich.panel import Panel
+
+    if not db_path.exists():
+        console.print(f"[red]No runs database found at {db_path}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to runs database
+    conn = duckdb.connect(str(db_path), read_only=True)
+
+    try:
+        # Query run by ID (support prefix matching)
+        result = conn.execute(
+            """
+            SELECT
+                run_id, tenant_id, stage, status, error,
+                input_fingerprint, code_ref, config_hash,
+                started_at, finished_at, duration_seconds,
+                rows_in, rows_out, llm_calls, tokens, trace_id
+            FROM runs
+            WHERE CAST(run_id AS VARCHAR) LIKE ?
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            [f"{run_id}%"],
+        ).fetchone()
+
+        if not result:
+            console.print(f"[red]Run not found: {run_id}[/red]")
+            raise typer.Exit(1)
+
+        # Unpack result
+        (
+            run_id_full,
+            tenant_id,
+            stage,
+            status,
+            error,
+            input_fingerprint,
+            code_ref,
+            config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
+            rows_in,
+            rows_out,
+            llm_calls,
+            tokens,
+            trace_id,
+        ) = result
+
+        # Build panel content
+        lines = []
+
+        # Color-code status
+        if status == "completed":
+            status_display = f"[green]{status}[/green]"
+        elif status == "failed":
+            status_display = f"[red]{status}[/red]"
+        elif status == "running":
+            status_display = f"[yellow]{status}[/yellow]"
+        else:
+            status_display = status
+
+        lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id_full}")
+        if tenant_id:
+            lines.append(f"[bold cyan]Tenant:[/bold cyan] {tenant_id}")
+        lines.append(f"[bold cyan]Stage:[/bold cyan] {stage}")
+        lines.append(f"[bold cyan]Status:[/bold cyan] {status_display}")
+        lines.append("")
+
+        # Timestamps
+        lines.append("[bold]Timestamps:[/bold]")
+        lines.append(f"  Started:  {started_at}")
+        if finished_at:
+            lines.append(f"  Finished: {finished_at}")
+        if duration_seconds:
+            lines.append(f"  Duration: {duration_seconds:.2f}s")
+        lines.append("")
+
+        # Metrics
+        if rows_in is not None or rows_out is not None or llm_calls or tokens:
+            lines.append("[bold]Metrics:[/bold]")
+            if rows_in is not None:
+                lines.append(f"  Rows In:   {rows_in:,}")
+            if rows_out is not None:
+                lines.append(f"  Rows Out:  {rows_out:,}")
+            if llm_calls:
+                lines.append(f"  LLM Calls: {llm_calls:,}")
+            if tokens:
+                lines.append(f"  Tokens:    {tokens:,}")
+            lines.append("")
+
+        # Fingerprints
+        if input_fingerprint or code_ref or config_hash:
+            lines.append("[bold]Fingerprints:[/bold]")
+            if input_fingerprint:
+                lines.append(f"  Input:  {input_fingerprint[:32]}...")
+            if code_ref:
+                lines.append(f"  Code:   {code_ref}")
+            if config_hash:
+                lines.append(f"  Config: {config_hash[:32]}...")
+            lines.append("")
+
+        # Error (if failed)
+        if error:
+            lines.append("[bold red]Error:[/bold red]")
+            lines.append(f"  {error}")
+            lines.append("")
+
+        # Observability
+        if trace_id:
+            lines.append("[bold]Observability:[/bold]")
+            lines.append(f"  Trace ID: {trace_id}")
+
+        # Display panel
+        panel = Panel(
+            "\n".join(lines),
+            title=f"[bold]Run Details: {stage}[/bold]",
+            border_style="cyan",
+        )
+        console.print(panel)
+
+    finally:
+        conn.close()
+
+
+@app.command()
+def adapters(
+    as_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
+) -> None:
+    """List all available source adapters.
+
+    This command shows all registered adapters, including:
+    - Built-in adapters (WhatsApp, Slack)
+    - Third-party plugins (via entry points)
+
+    Example:
+        egregora adapters
+        egregora adapters --json
+
+    """
+    from egregora.adapters import get_global_registry
+
+    try:
+        registry = get_global_registry()
+        adapters_list = registry.list_adapters()
+
+        if as_json:
+            pass
+
+        else:
+            from rich.table import Table
+
+            table = Table(title="Egregora Source Adapters", show_header=True, header_style="bold magenta")
+            table.add_column("Name", style="cyan", no_wrap=True)
+            table.add_column("Version", style="green")
+            table.add_column("Source ID", style="yellow")
+            table.add_column("IR Version", style="blue")
+            table.add_column("Documentation", style="dim")
+
+            for meta in adapters_list:
+                table.add_row(
+                    meta["name"],
+                    meta["version"],
+                    meta["source"],
+                    meta["ir_version"],
+                    meta["doc_url"],
+                )
+
+            console.print(table)
+            console.print(f"\n[dim]Total adapters: {len(adapters_list)}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error listing adapters: {e}[/red]")
+        raise typer.Exit(1)
 
 
 def main() -> None:

@@ -1,224 +1,212 @@
-# Breaking Changes: Phases 2-6 Modernization (2025-01)
+# Breaking Changes - PR #627 Regression Fixes
 
-This document tracks breaking changes introduced during the comprehensive modernization effort (Phases 2-6).
+**Date**: 2025-11-10
+**Branch**: `claude/fix-pr627-regressions-011CUzFoSeSDmVRruHbDwTzu`
+**Status**: Alpha - No backward compatibility or migrations provided
 
-**Philosophy**: Alpha development - no backward compatibility. Clean breaks for better architecture.
+This document describes breaking changes introduced to fix critical regressions identified in PR #627 testing.
 
----
+## Philosophy: Alpha Mindset
 
-## Phase 2: Configuration Objects (Pydantic V2)
-
-### Function Signature Changes
-
-**writer_agent.py**:
-- ❌ OLD: `write_posts_with_pydantic_agent(...12 parameters...)`
-- ✅ NEW: `write_posts_with_pydantic_agent(prompt, config, context, test_model=None)`
-- **Migration**: Bundle parameters into `EgregoraConfig` and `WriterRuntimeContext`
-
-**enrichment/core.py**:
-- ❌ OLD: `enrich_table(...13 parameters...)`
-- ✅ NEW: `enrich_table(messages_table, media_mapping, config, context)`
-- **Migration**: Use `EgregoraConfig` and `EnrichmentRuntimeContext`
-
-**pipeline/runner.py**:
-- ❌ OLD: `run_source_pipeline(...16 parameters...)`
-- ✅ NEW: `run_source_pipeline(source, input_path, output_dir, config, api_key, model_override=None, client=None)`
-- **Migration**: Pass `EgregoraConfig` instead of individual config values
-
-### Configuration Schema Changes
-
-**config/types.py**:
-- ❌ REMOVED: `ProcessConfig.resume` field
-- **Migration**: Resume logic now automatic (checks for existing output files)
-
-**config/schema.py**:
-- ❌ REMOVED: `PipelineConfig.resume` field
-- **Migration**: No configuration needed - pipeline auto-detects existing work
+Per CLAUDE.md, Egregora follows an "alpha mindset":
+- ✅ Breaking changes are acceptable and documented
+- ❌ No backward compatibility shims
+- ❌ No migration scripts
+- ✅ Users must adapt to new architecture (delete old output, regenerate)
 
 ---
 
-## Phase 3: Pipeline Decomposition
+## Summary of Changes
 
-### Checkpoint System Removal
+| Issue | Severity | Fixed | Description |
+|-------|----------|-------|-------------|
+| Folder structure | P1 | ✅ | Content now at root (media/, profiles/, posts/) not in docs/ |
+| mkdocs.yml location | P2 | ✅ | Moved to .egregora/mkdocs.yml |
+| Prompt copying | P1 | ✅ | Default prompts copied to .egregora/prompts/ during init |
+| Post filenames | P1 | ✅ | Clean format: 2025-03-02-slug.md (no spaces/timestamps) |
+| Post dates | P1 | ✅ | Clean YYYY-MM-DD in front-matter (not window labels) |
+| Profile metadata | P0 | ✅ | YAML front-matter with structured data |
+| .authors.yml | P0 | ✅ | Auto-generated for MkDocs blog plugin |
+| URL enrichment | P0 | ✅ | Better prompts for higher quality |
+| **Post-merge bugs** | | | **Discovered during real data testing** |
+| Path resolution bug | P0 | ✅ | site_root incorrectly resolved to .egregora/ instead of root |
+| Banner path bug | P1 | ✅ | Banners saved to posts/ instead of media/banners/ |
 
-**BREAKING CHANGE**: Complex checkpoint system with JSON metadata completely removed.
+---
 
-**Before** (Phase 2):
+## 1. Folder Structure Reorganization (P1 + P2)
+
+### What Changed
+
+**Old Structure**:
+```
+site/
+├── mkdocs.yml
+└── docs/
+    ├── media/
+    ├── profiles/
+    └── posts/
+```
+
+**New Structure**:
+```
+site/
+├── .egregora/
+│   ├── mkdocs.yml          # ✨ Moved here
+│   ├── config.yml
+│   └── prompts/            # ✨ New: version pinning
+├── media/                  # ✨ At root
+├── profiles/               # ✨ At root
+└── posts/                  # ✨ At root
+    └── journal/            # ✨ New: agent logs
+```
+
+### Migration
+
+Delete old output and regenerate:
+
+```bash
+rm -rf old-site/
+egregora init new-site/
+egregora process export.zip --output=new-site/
+```
+
+---
+
+## 2. Post Filenames (P1)
+
+**Old**: `2025-03-02 08:01 to 12:49-post-title.md`
+**New**: `2025-03-02-post-title.md`
+
+✅ No spaces, no window timestamps
+✅ Better URLs and SEO
+
+---
+
+## 3. Post Dates (P1)
+
+**Old front-matter**:
+```yaml
+date: 2025-03-02 08:01 to 12:49
+```
+
+**New front-matter**:
+```yaml
+date: 2025-03-02
+```
+
+---
+
+## 4. Profile Front-Matter (P0)
+
+Profiles now include YAML metadata:
+
+```markdown
+---
+uuid: d944f0f7
+name: Casey
+alias: Casey
+avatar: https://example.com/avatar.jpg
+bio: AI researcher
+---
+
+**Writing Style:** [...]
+```
+
+---
+
+## 5. .authors.yml Generation (P0)
+
+Auto-generated at `site/.authors.yml`:
+
+```yaml
+d944f0f7:
+  name: Casey
+  description: "[...]"
+  avatar: https://example.com/avatar.jpg
+```
+
+Enables MkDocs Material blog features (author cards, archives).
+
+---
+
+## 6. Post-Merge Bug Fixes (P0 + P1)
+
+**Discovered**: During real data testing with 31,855 messages
+**Fixed**: 2025-11-10 (same day as merge)
+
+### Bug 1: Path Resolution (P0 - Critical)
+
+**Problem**: When `mkdocs.yml` was moved to `.egregora/`, the `resolve_site_paths()` function incorrectly calculated `site_root` as `.egregora/` instead of the actual site root. This caused ALL content directories to be created inside `.egregora/`:
+
+```
+WRONG:
+.egregora/
+├── mkdocs.yml
+├── posts/          # ❌ Should be at root!
+├── profiles/       # ❌ Should be at root!
+└── media/          # ❌ Should be at root!
+```
+
+**Root Cause**: Code used `site_root = mkdocs_path.parent` which gives `.egregora/` when `mkdocs_path = site/.egregora/mkdocs.yml`.
+
+**Fix**: Check if mkdocs.yml is in `.egregora/` and go up 2 levels instead of 1:
 ```python
-checkpoint_store = CheckpointStore(site_root / ".egregora" / "checkpoints")
-checkpoint_store.update_step(period_key, "enrichment", "in_progress")
-# ... complex checkpoint tracking ...
+if mkdocs_path.parent.name == ".egregora":
+    site_root = mkdocs_path.parent.parent  # Go up 2 levels
 ```
 
-**After** (Phase 3):
-```python
-# Simple file existence check
-existing_posts = sorted(posts_dir.glob(f"{period_key}-*.md"))
-if existing_posts:
-    continue  # Skip this period
+**File**: `src/egregora/config/site.py:157-178`
+
+### Bug 2: Banner Path & Naming (P1 - High)
+
+**Problem**: Banner generation had two issues:
+1. Saved to `posts/banner-{slug}.png` instead of site root
+2. Used slug-based names instead of content-based UUIDs
+3. Not integrated with enrichment pipeline
+
+**Root Cause**: `WriterAgentState` didn't have `site_root` field, and banner naming didn't follow media conventions.
+
+**Fix**:
+1. Added `site_root: Path | None` to `WriterAgentState`
+2. Pass `site_root` when creating state
+3. Changed banner naming to use **content-based UUID5** (deterministic, like other media)
+4. Save to `site_root / "media" / "images"` (not `media/banners/`)
+5. Banners now go through enrichment pipeline like any other media
+
+**Before**:
+```
+posts/banner-my-post-slug.png  # ❌ Wrong location, slug-based name
 ```
 
-**Migration**:
-- Delete `.egregora/checkpoints/` directory (no longer used)
-- Delete `.egregora/enriched/` directory (no longer caching CSVs)
-- Resume logic is automatic - just re-run the pipeline
+**After**:
+```
+media/images/1834adb0-3a27-5208-ab97-a5ed9f2867ea.png  # ✅ Content-based UUID
+```
 
-### API Changes
-
-**pipeline/runner.py**:
-- ❌ REMOVED: `resume` parameter (now automatic)
-- ❌ REMOVED: `_load_enriched_table()` helper function
-- ❌ REMOVED: Enriched CSV caching to `.egregora/enriched/`
-- ✅ NEW: Simple skip logic checks `posts/*.md` for existing work
+**Files**:
+- `src/egregora/agents/banner/generator.py:117-121` (UUID5 generation)
+- `src/egregora/agents/writer/agent.py:165,534,582` (path + state)
+- `src/egregora/agents/writer/handlers.py:206` (legacy path)
 
 ---
 
-## Phase 4: CLI Command Decomposition
+## Testing Checklist
 
-### CLI Flag Changes
+After regenerating:
 
-**egregora process** command:
-- ❌ REMOVED: `--resume` flag (behavior is now automatic)
-- ✅ BEHAVIOR: Pipeline auto-detects existing posts and skips those periods
-
-**egregora enrich** command:
-- ✅ UPDATED: Now uses Phase 2 signature (4 parameters instead of 11)
-- **Migration**: No user-facing changes, but internal implementation modernized
-
----
-
-## Phase 5: Parser Modernization
-
-**Status**: pyparsing grammar already implemented in Phase 0.
-- ✅ Grammar defined in `sources/whatsapp/grammar.py`
-- ✅ Used by parser for WhatsApp message format parsing
-- No breaking changes for end users
-
----
-
-## Phase 6: Agent Tools Refactoring
-
-### File Reorganization
-
-**BREAKING CHANGE**: WhatsApp-specific code moved from `ingestion/` to `sources/whatsapp/`.
-
-**Before** (Phase 5):
-```
-ingestion/
-├── grammar.py           # WhatsApp pyparsing grammar
-├── parser.py            # WhatsApp export parsing
-├── whatsapp_input.py    # WhatsApp InputSource
-└── base.py              # Generic interfaces
-```
-
-**After** (Phase 6):
-```
-ingestion/
-├── base.py              # Generic interfaces only
-├── slack_input.py       # Slack source (future)
-└── __init__.py          # Re-exports for compatibility
-
-sources/
-└── whatsapp/
-    ├── grammar.py       # pyparsing grammar
-    ├── parser.py        # WhatsApp parsing
-    ├── input.py         # WhatsAppInputSource
-    ├── models.py        # WhatsAppExport
-    └── pipeline.py      # discover_chat_file()
-```
-
-**Migration**:
-- ✅ Use re-exports: `from egregora.ingestion import parse_source` (works)
-- ❌ Don't import directly: `from egregora.ingestion.parser import ...` (fails)
-- ✅ Or import from source: `from egregora.sources.whatsapp.parser import parse_source`
-
-### Function Renaming
-
-**BREAKING CHANGE**: `parse_export` renamed to `parse_source`.
-
-- ❌ OLD: `from egregora.ingestion import parse_export`
-- ✅ NEW: `from egregora.ingestion import parse_source`
-
-**Rationale**: More generic name, source-agnostic (not just "exports").
-
-**Migration**:
-```python
-# Before
-from egregora.ingestion import parse_export
-table = parse_export(export, timezone=tz)
-
-# After
-from egregora.ingestion import parse_source
-table = parse_source(export, timezone=tz)
-```
-
----
-
-## Migration Checklist
-
-### For Library Users
-
-1. **Update imports**:
-   - Replace `parse_export` → `parse_source`
-   - Use `from egregora.ingestion import ...` (not `from egregora.ingestion.parser`)
-
-2. **Remove resume flags**:
-   - Delete `--resume` from CLI commands
-   - Delete `resume=True` from Python API calls
-
-3. **Update function calls**:
-   - If calling `write_posts_with_pydantic_agent`, bundle params into `config` and `context`
-   - If calling `enrich_table`, bundle params into `EgregoraConfig` and `EnrichmentRuntimeContext`
-
-4. **Clean up old data**:
-   - Delete `.egregora/checkpoints/` (no longer used)
-   - Delete `.egregora/enriched/` (no longer used)
-
-### For Contributors
-
-1. **Follow new patterns** (see CLAUDE.md):
-   - Use `EgregoraConfig` instead of 10+ individual parameters
-   - Use frozen dataclasses for runtime contexts
-   - Simple resume logic (file existence checks)
-   - Source-specific code in `sources/{source}/`
-
-2. **Update tests**:
-   - Import from `egregora.ingestion` (use re-exports)
-   - Use `parse_source` instead of `parse_export`
-
-3. **Never add**:
-   - Functions with >5 parameters (use config objects)
-   - Complex checkpoint systems (use simple file checks)
-   - Backward compatibility shims (alpha mindset)
-
----
-
-## Rollback Instructions
-
-**Warning**: No rollback path. This is alpha development.
-
-If you need the old behavior:
-1. Git checkout before Phase 2: `git checkout <commit-before-phase-2>`
-2. Or cherry-pick specific commits if you need features from both
-
----
-
-## Timeline
-
-- **Phase 0**: Config infrastructure (2024-12)
-- **Phase 1**: Pydantic-AI patterns (2024-12)
-- **Phase 2**: Configuration objects (2025-01-06)
-- **Phase 3**: Pipeline decomposition (2025-01-07)
-- **Phase 4**: CLI command decomposition (2025-01-07)
-- **Phase 5**: Parser modernization (already complete in Phase 0)
-- **Phase 6**: Agent tools refactoring (2025-01-07)
-- **Phase 7**: Documentation and testing (2025-01-07)
+- [ ] Posts at root (not in docs/)
+- [ ] Post filenames have no spaces
+- [ ] Post dates are YYYY-MM-DD
+- [ ] Profiles have YAML front-matter
+- [ ] .authors.yml exists
+- [ ] mkdocs.yml in .egregora/
+- [ ] Prompts in .egregora/prompts/
 
 ---
 
 ## Questions?
 
-See:
-- `CLAUDE.md` for modern patterns and examples
-- `CONTRIBUTING.md` for development guidelines
-- Git commit messages for detailed rationale
+Report issues at: https://github.com/franklinbaldo/egregora/issues
+
+**Remember**: Alpha software - breaking changes are expected.
