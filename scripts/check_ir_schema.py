@@ -102,8 +102,7 @@ def compare_schemas(lockfile_data: dict, code_schema) -> list[str]:
 
         if lockfile_type != code_type:
             differences.append(
-                f"Column '{col_name}' type mismatch: "
-                f"lockfile={lockfile_type}, code={code_type}"
+                f"Column '{col_name}' type mismatch: lockfile={lockfile_type}, code={code_type}"
             )
 
         # Check nullability
@@ -138,7 +137,6 @@ def main() -> int:
 
     for _diff in differences:
         pass
-
 
     return 1
 

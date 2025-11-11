@@ -6,29 +6,14 @@ from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance, LLMJudge
 
 # Create agent to evaluate
-agent = Agent(
-    'gemini-1.5-pro',
-    instructions='Answer geography questions concisely and accurately.'
-)
+agent = Agent("gemini-1.5-pro", instructions="Answer geography questions concisely and accurately.")
 
 
 # Define test cases
 cases = [
-    Case(
-        name='capital_france',
-        inputs='What is the capital of France?',
-        expected_output='Paris'
-    ),
-    Case(
-        name='capital_japan',
-        inputs='What is the capital of Japan?',
-        expected_output='Tokyo'
-    ),
-    Case(
-        name='largest_ocean',
-        inputs='What is the largest ocean on Earth?',
-        expected_output='Pacific Ocean'
-    ),
+    Case(name="capital_france", inputs="What is the capital of France?", expected_output="Paris"),
+    Case(name="capital_japan", inputs="What is the capital of Japan?", expected_output="Tokyo"),
+    Case(name="largest_ocean", inputs="What is the largest ocean on Earth?", expected_output="Pacific Ocean"),
 ]
 
 
@@ -36,12 +21,12 @@ cases = [
 dataset = Dataset(
     cases=cases,
     evaluators=[
-        IsInstance(type_name='str'),
+        IsInstance(type_name="str"),
         LLMJudge(
-            model='openai:gpt-4',
-            prompt='Does the answer correctly match the expected output? Consider semantic equivalence.'
-        )
-    ]
+            model="openai:gpt-4",
+            prompt="Does the answer correctly match the expected output? Consider semantic equivalence.",
+        ),
+    ],
 )
 
 
@@ -58,7 +43,7 @@ async def main() -> None:
     report.print()
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())
