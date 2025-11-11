@@ -636,10 +636,12 @@ class MkDocsOutputFormat(OutputFormat):
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
             # Render context
+            # NOTE: docs_dir is relative to mkdocs.yml location (.egregora/)
+            # Since content is in site root, use ".." to point one directory up
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
                 "blog_dir": "posts",
-                "docs_dir": ".",
+                "docs_dir": "..",  # Relative to .egregora/mkdocs.yml -> points to site root
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
             }
 

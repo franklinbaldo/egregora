@@ -56,3 +56,10 @@ Thumbs.db
 
 # Hypothesis test cache
 .hypothesis/
+# Test scaffolding artifacts (should not be in repo root)
+/.egregora/
+/about.md
+/index.md
+/media/
+/posts/
+/profiles/
