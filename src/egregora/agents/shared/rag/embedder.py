@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TIMEOUT = 60.0
+HTTP_TOO_MANY_REQUESTS = 429  # Rate limit exceeded status code
 
 
 def _get_api_key() -> str:
@@ -40,7 +41,7 @@ def _parse_retry_delay(error_response: dict[str, Any]) -> float:
                 match = re.match(r"(\d+)s", retry_delay)
                 if match:
                     return float(match.group(1))
-    except Exception:
+    except (KeyError, ValueError, AttributeError, TypeError):
         logger.debug("Could not parse retry delay")
     return 60.0
 
@@ -53,7 +54,7 @@ def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
             return func()
         except httpx.HTTPStatusError as e:
             last_error = e
-            if e.response.status_code == 429:
+            if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
                 try:
                     error_data = e.response.json()
                     delay = _parse_retry_delay(error_data)
@@ -65,7 +66,7 @@ def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
                     )
                     time.sleep(delay)
                     continue
-                except Exception:
+                except (ValueError, KeyError, AttributeError):
                     logger.warning("429 error but could not parse response. Waiting 60s...")
                     time.sleep(60)
                     continue

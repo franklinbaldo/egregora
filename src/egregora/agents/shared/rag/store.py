@@ -140,7 +140,8 @@ class VectorStore:
             self._table_synced = True
             return
         self.conn.execute(
-            f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)", [str(self.parquet_path)]
+            f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",  # nosec B608 - TABLE_NAME is module constant
+            [str(self.parquet_path)],
         )
         self._store_metadata(current_metadata)
         if force or metadata_changed or (not table_exists):
@@ -209,7 +210,7 @@ class VectorStore:
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
         row = self.conn.execute(
-            f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
+            f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",  # nosec B608 - METADATA_TABLE_NAME is module constant
             [str(self.parquet_path)],
         ).fetchone()
         if not row:
@@ -221,11 +222,11 @@ class VectorStore:
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
-        self.conn.execute(f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)])
+        self.conn.execute(f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)])  # nosec B608 - METADATA_TABLE_NAME is module constant
         if metadata is None:
             return
         self.conn.execute(
-            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
+            f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",  # nosec B608 - METADATA_TABLE_NAME is module constant
             [str(self.parquet_path), metadata.mtime_ns, metadata.size, metadata.row_count],
         )
 
@@ -257,7 +258,7 @@ class VectorStore:
         if not table_present or table_present[0] == 0:
             self._clear_index_meta()
             return
-        row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()
+        row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()  # nosec B608 - TABLE_NAME is module constant
         if not row or row[0] == 0:
             self._clear_index_meta()
             return
@@ -285,18 +286,19 @@ class VectorStore:
         """Persist the latest index configuration for observability and telemetry."""
         timestamp = datetime.now(tz=UTC)
         self.conn.execute(
-            f"\n            INSERT INTO {INDEX_META_TABLE} (\n                index_name,\n                mode,\n                row_count,\n                threshold,\n                nlist,\n                embedding_dim,\n                created_at,\n                updated_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(index_name) DO UPDATE SET\n                mode=excluded.mode,\n                row_count=excluded.row_count,\n                threshold=excluded.threshold,\n                nlist=excluded.nlist,\n                embedding_dim=excluded.embedding_dim,\n                updated_at=excluded.updated_at\n            ",
+            f"\n            INSERT INTO {INDEX_META_TABLE} (\n                index_name,\n                mode,\n                row_count,\n                threshold,\n                nlist,\n                embedding_dim,\n                created_at,\n                updated_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(index_name) DO UPDATE SET\n                mode=excluded.mode,\n                row_count=excluded.row_count,\n                threshold=excluded.threshold,\n                nlist=excluded.nlist,\n                embedding_dim=excluded.embedding_dim,\n                updated_at=excluded.updated_at\n            ",  # nosec B608 - INDEX_META_TABLE is module constant
             [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
         )
 
     def _clear_index_meta(self) -> None:
         """Remove metadata when the backing table is empty or missing."""
-        self.conn.execute(f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?", [INDEX_NAME])
+        self.conn.execute(f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?", [INDEX_NAME])  # nosec B608 - INDEX_META_TABLE is module constant
 
     def _get_stored_embedding_dim(self) -> int | None:
         """Fetch the stored embedding dimensionality from index metadata."""
         row = self.conn.execute(
-            f"SELECT embedding_dim FROM {INDEX_META_TABLE} WHERE index_name = ?", [INDEX_NAME]
+            f"SELECT embedding_dim FROM {INDEX_META_TABLE} WHERE index_name = ?",  # nosec B608 - INDEX_META_TABLE is module constant
+            [INDEX_NAME],
         ).fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
@@ -390,7 +392,8 @@ class VectorStore:
         self._client.create_view(view_name, combined_table, overwrite=True)
         try:
             self.conn.execute(
-                f"COPY (SELECT * FROM {view_name}) TO ? (FORMAT PARQUET)", [str(self.parquet_path)]
+                f"COPY (SELECT * FROM {view_name}) TO ? (FORMAT PARQUET)",  # nosec B608 - view_name is UUID-based temp identifier
+                [str(self.parquet_path)],
             )
         finally:
             self._client.drop_view(view_name, force=True)
@@ -498,7 +501,7 @@ class VectorStore:
             table = table.mutate(**casts)
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-    def search(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
+    def search(
         self,
         query_vec: list[float],
         top_k: int = 5,
@@ -530,20 +533,46 @@ class VectorStore:
             Ibis Table with all stored columns plus similarity score
 
         """
+        if not self._table_available():
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
+
+        mode_normalized = self._validate_and_normalize_mode(mode)
+        embedding_dimensionality = self._validate_query_vector(query_vec)
+        self._validate_search_parameters(nprobe)
+
+        params, filters = self._build_search_filters(
+            query_vec, min_similarity, tag_filter, date_after, document_type, media_types
+        )
+        where_clause, order_clause = self._build_query_clauses(filters, top_k)
+
+        if mode_normalized == "exact":
+            return self._search_exact(where_clause, order_clause, params, min_similarity)
+
+        return self._search_ann(
+            where_clause,
+            order_clause,
+            params,
+            min_similarity,
+            top_k,
+            nprobe,
+            overfetch,
+            embedding_dimensionality,
+        )
+
+    def _table_available(self) -> bool:
+        """Check if vector store parquet file and table exist."""
         if not self.parquet_path.exists():
             logger.warning("Vector store does not exist yet")
-            return self._empty_table(SEARCH_RESULT_SCHEMA)
+            return False
         self._ensure_dataset_loaded()
         table_present = self.conn.execute(
             "\n            SELECT COUNT(*)\n            FROM information_schema.tables\n            WHERE lower(table_name) = lower(?)\n        ",
             [TABLE_NAME],
         ).fetchone()
-        if not table_present or table_present[0] == 0:
-            return self._empty_table(SEARCH_RESULT_SCHEMA)
-        embedding_dimensionality = len(query_vec)
-        if embedding_dimensionality != EMBEDDING_DIM:
-            msg = f"Query embedding dimension mismatch. Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. All embeddings must use 768 dimensions."
-            raise ValueError(msg)
+        return not (not table_present or table_present[0] == 0)
+
+    def _validate_and_normalize_mode(self, mode: str) -> str:
+        """Normalize and validate search mode, switching to exact if VSS unavailable."""
         mode_normalized = mode.lower()
         if mode_normalized not in {"ann", "exact"}:
             msg = "mode must be either 'ann' or 'exact'"
@@ -551,11 +580,35 @@ class VectorStore:
         if mode_normalized == "ann" and (not self._init_vss()):
             logger.info("ANN mode requested but VSS unavailable, using exact search")
             mode_normalized = "exact"
+        return mode_normalized
+
+    def _validate_query_vector(self, query_vec: list[float]) -> int:
+        """Validate query vector dimensionality."""
+        embedding_dimensionality = len(query_vec)
+        if embedding_dimensionality != EMBEDDING_DIM:
+            msg = f"Query embedding dimension mismatch. Expected {EMBEDDING_DIM} (fixed dimension), got {embedding_dimensionality}. All embeddings must use 768 dimensions."
+            raise ValueError(msg)
+        return embedding_dimensionality
+
+    def _validate_search_parameters(self, nprobe: int | None) -> None:
+        """Validate nprobe parameter."""
         if nprobe is not None and nprobe <= 0:
             msg = "nprobe must be a positive integer"
             raise ValueError(msg)
+
+    def _build_search_filters(
+        self,
+        query_vec: list[float],
+        min_similarity: float,
+        tag_filter: list[str] | None,
+        date_after: date | datetime | str | None,
+        document_type: str | None,
+        media_types: list[str] | None,
+    ) -> tuple[list[Any], list[str]]:
+        """Build filter clauses and parameter list for search query."""
         params: list[Any] = [query_vec]
         filters: list[str] = []
+
         if document_type:
             filters.append("document_type = ?")
             params.append(document_type)
@@ -570,53 +623,123 @@ class VectorStore:
             normalized_date = self._normalize_date_filter(date_after)
             filters.append("coalesce(CAST(post_date AS TIMESTAMPTZ), message_date) > ?::TIMESTAMPTZ")
             params.append(normalized_date.isoformat())
+
         filters.append("similarity >= ?")
         params.append(min_similarity)
+
+        return params, filters
+
+    def _build_query_clauses(self, filters: list[str], top_k: int) -> tuple[str, str]:
+        """Build WHERE and ORDER BY clauses for search query."""
         where_clause = ""
         if filters:
             where_clause = " WHERE " + " AND ".join(filters)
         order_clause = f"\n            ORDER BY similarity DESC\n            LIMIT {top_k}\n        "
-        exact_base_query = f"\n            WITH candidates AS (\n                SELECT\n                    * EXCLUDE (embedding),\n                    array_cosine_similarity(\n                        embedding::FLOAT[{EMBEDDING_DIM}],\n                        ?::FLOAT[{EMBEDDING_DIM}]\n                    ) AS similarity\n                FROM {TABLE_NAME}\n            )\n            SELECT * FROM candidates\n        "
-        if mode_normalized == "exact":
-            query = exact_base_query + where_clause + order_clause
-            try:
-                return self._execute_search_query(query, params, min_similarity)
-            except Exception:
-                logger.exception("Search failed")
-                return self._empty_table(SEARCH_RESULT_SCHEMA)
+        return where_clause, order_clause
+
+    def _build_exact_query(self) -> str:
+        """Build base query for exact cosine similarity search."""
+        return f"\n            WITH candidates AS (\n                SELECT\n                    * EXCLUDE (embedding),\n                    array_cosine_similarity(\n                        embedding::FLOAT[{EMBEDDING_DIM}],\n                        ?::FLOAT[{EMBEDDING_DIM}]\n                    ) AS similarity\n                FROM {TABLE_NAME}\n            )\n            SELECT * FROM candidates\n        "  # nosec B608 - TABLE_NAME and EMBEDDING_DIM are module constants
+
+    def _search_exact(
+        self,
+        where_clause: str,
+        order_clause: str,
+        params: list[Any],
+        min_similarity: float,
+    ) -> Table:
+        """Execute exact cosine similarity search."""
+        query = self._build_exact_query() + where_clause + order_clause
+        try:
+            return self._execute_search_query(query, params, min_similarity)
+        except Exception:
+            logger.exception("Search failed")
+            return self._empty_table(SEARCH_RESULT_SCHEMA)
+
+    def _search_ann(
+        self,
+        where_clause: str,
+        order_clause: str,
+        params: list[Any],
+        min_similarity: float,
+        top_k: int,
+        nprobe: int | None,
+        overfetch: int | None,
+        embedding_dimensionality: int,
+    ) -> Table:
+        """Execute ANN search with fallback to exact search."""
         fetch_factor = overfetch if overfetch and overfetch > 1 else DEFAULT_ANN_OVERFETCH
         ann_limit = max(top_k * fetch_factor, top_k + 10)
         nprobe_clause = f", nprobe := {int(nprobe)}" if nprobe else ""
+
         last_error: Exception | None = None
         for function_name in self._candidate_vss_functions():
-            base_query = self._build_ann_query(
+            result = self._try_ann_search(
                 function_name,
-                ann_limit=ann_limit,
-                nprobe_clause=nprobe_clause,
-                _embedding_dimensionality=embedding_dimensionality,
+                where_clause,
+                order_clause,
+                params,
+                min_similarity,
+                ann_limit,
+                nprobe_clause,
+                embedding_dimensionality,
             )
-            query = base_query + where_clause + order_clause
-            try:
-                result = self._execute_search_query(query, params, min_similarity)
-            except duckdb.Error as exc:
-                last_error = exc
-                logger.warning("ANN search failed with %s: %s", function_name, exc)
-                continue
-            except Exception as exc:
-                last_error = exc
-                logger.exception("ANN search aborted")
-                break
-            else:
-                self._vss_function = function_name
+            if result is not None:
                 return result
+            last_error = getattr(self, "_last_ann_error", None)
+
+        return self._handle_ann_failure(last_error, where_clause, order_clause, params, min_similarity)
+
+    def _try_ann_search(
+        self,
+        function_name: str,
+        where_clause: str,
+        order_clause: str,
+        params: list[Any],
+        min_similarity: float,
+        ann_limit: int,
+        nprobe_clause: str,
+        embedding_dimensionality: int,
+    ) -> Table | None:
+        """Attempt ANN search with given VSS function."""
+        base_query = self._build_ann_query(
+            function_name,
+            ann_limit=ann_limit,
+            nprobe_clause=nprobe_clause,
+            _embedding_dimensionality=embedding_dimensionality,
+        )
+        query = base_query + where_clause + order_clause
+        try:
+            result = self._execute_search_query(query, params, min_similarity)
+        except duckdb.Error as exc:
+            self._last_ann_error = exc
+            logger.warning("ANN search failed with %s: %s", function_name, exc)
+            return None
+        except Exception as exc:
+            self._last_ann_error = exc
+            logger.exception("ANN search aborted")
+            return None
+        else:
+            self._vss_function = function_name
+            return result
+
+    def _handle_ann_failure(
+        self,
+        last_error: Exception | None,
+        where_clause: str,
+        order_clause: str,
+        params: list[Any],
+        min_similarity: float,
+    ) -> Table:
+        """Handle ANN search failure with fallback to exact search or error logging."""
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
-                return self._execute_search_query(
-                    exact_base_query + where_clause + order_clause, params, min_similarity
-                )
+                query = self._build_exact_query() + where_clause + order_clause
+                return self._execute_search_query(query, params, min_similarity)
             except Exception:
                 logger.exception("Exact fallback search failed")
+
         if last_error is not None:
             logger.error("Search failed: %s", last_error)
         else:
@@ -626,7 +749,7 @@ class VectorStore:
     def _build_ann_query(
         self, function_name: str, *, ann_limit: int, nprobe_clause: str, _embedding_dimensionality: int
     ) -> str:
-        return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::FLOAT[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "
+        return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::FLOAT[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "  # nosec B608 - function_name is validated VSS function, TABLE_NAME/EMBEDDING_DIM are module constants
 
     def _detect_vss_function(self) -> str:
         """Return the appropriate DuckDB VSS function name."""
@@ -743,13 +866,14 @@ class VectorStore:
                 raise TypeError(msg)
             column_defs.append(f"{column_name} {column_type}")
         columns_sql = ", ".join(column_defs)
-        self.conn.execute(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")
+        self.conn.execute(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")  # nosec B608 - temp_name is UUID-based temp identifier
         column_names = list(schema.names)
         placeholders = ", ".join("?" for _ in column_names)
         values = [tuple(record.get(name) for name in column_names) for record in records]
         if values:
             self.conn.executemany(
-                f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})", values
+                f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})",  # nosec B608 - temp_name is UUID-based temp identifier
+                values,
             )
         return self._client.table(temp_name)
 
@@ -820,7 +944,7 @@ class VectorStore:
                 SELECT DISTINCT source_path, source_mtime_ns
                 FROM {TABLE_NAME}
                 WHERE source_path IS NOT NULL
-                """
+                """  # nosec B608 - TABLE_NAME is module constant
             ).fetchall()
 
             return {str(path): int(mtime) for path, mtime in result if path and mtime is not None}

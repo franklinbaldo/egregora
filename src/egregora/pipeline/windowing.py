@@ -37,6 +37,9 @@ from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
+# Constants
+HOURS_PER_DAY = 24  # Hours in a day for time unit conversion
+
 
 # ============================================================================
 # Checkpoint / Sentinel File Utilities
@@ -121,7 +124,7 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(  # noqa: PLR0913
+def create_windows(
     table: Table,
     *,
     step_size: int = 100,
@@ -206,7 +209,7 @@ def create_windows(  # noqa: PLR0913
 
                 # Convert to appropriate unit
                 max_hours = max_with_overlap.total_seconds() / 3600
-                if max_hours < 24:
+                if max_hours < HOURS_PER_DAY:
                     # Use hours if < 1 day (floor to avoid exceeding)
                     effective_step_size = math.floor(max_hours)
                     effective_step_size = max(effective_step_size, 1)  # Minimum 1 hour

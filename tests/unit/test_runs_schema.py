@@ -269,7 +269,7 @@ class TestRunsTableDDL:
         )
 
         # Invalid status should fail
-        with pytest.raises(Exception, match="Constraint Error|CHECK constraint"):
+        with pytest.raises(Exception, match=r"Constraint Error|CHECK constraint"):
             conn.execute(
                 """
                 INSERT INTO runs (
@@ -305,7 +305,7 @@ class TestRunsTableDDL:
         )
 
         # Duplicate run_id should fail
-        with pytest.raises(Exception, match="Constraint Error|PRIMARY KEY"):
+        with pytest.raises(Exception, match=r"Constraint Error|PRIMARY KEY"):
             conn.execute(
                 """
                 INSERT INTO runs (

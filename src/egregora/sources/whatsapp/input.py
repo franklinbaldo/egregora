@@ -39,7 +39,7 @@ class WhatsAppInputSource(InputSource):
         """Return 'whatsapp' as the source type identifier."""
         return "whatsapp"
 
-    def supports_format(self, source_path: Path) -> bool:  # noqa: PLR0911
+    def supports_format(self, source_path: Path) -> bool:
         """Check if the path is a valid WhatsApp export ZIP.
 
         Args:

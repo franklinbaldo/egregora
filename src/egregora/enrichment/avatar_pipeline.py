@@ -138,7 +138,7 @@ def _enrich_avatar(
         if context.cache:
             context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
 
-    except Exception as e:  # noqa: BLE001 - skip and continue pipeline (consistent with core enrichment)
+    except Exception as e:
         logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, e)
 
 

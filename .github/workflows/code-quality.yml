@@ -1,0 +1,76 @@
+name: Code Quality
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run linting (ruff)
+        run: |
+          echo "🔍 Running linting checks..."
+          uv run python dev_tools/code_quality.py --check ruff
+        continue-on-error: false
+
+      - name: Check code complexity (radon)
+        run: |
+          echo "📊 Checking code complexity..."
+          uv run python dev_tools/code_quality.py --check radon
+        continue-on-error: false
+
+      - name: Check for dead code (vulture)
+        run: |
+          echo "🧹 Checking for dead code..."
+          uv run python dev_tools/code_quality.py --check vulture
+        continue-on-error: false
+
+      - name: Security scan (bandit)
+        run: |
+          echo "🔒 Running security scan..."
+          uv run python dev_tools/code_quality.py --check bandit
+        continue-on-error: false
+
+      - name: Check dependencies (deptry)
+        run: |
+          echo "📦 Checking dependencies..."
+          uv run python dev_tools/code_quality.py --check deptry
+        # Deptry has many false positives, so don't fail on it
+        continue-on-error: true
+
+      - name: Check test coverage (pytest-cov)
+        run: |
+          echo "🧪 Checking test coverage..."
+          uv run python dev_tools/code_quality.py --check coverage --coverage-threshold 40
+        continue-on-error: false
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "✅ Code quality checks complete!"
+          echo "See individual step results above for details."

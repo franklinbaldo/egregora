@@ -20,9 +20,10 @@ for improved maintainability and single source of truth.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 from ibis import udf
@@ -30,7 +31,6 @@ from ibis import udf
 from egregora.types import GroupSlug
 
 if TYPE_CHECKING:
-    import duckdb
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -384,7 +384,7 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
     """
     try:
         conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
-    except Exception as e:
+    except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
 
@@ -413,7 +413,7 @@ def ensure_identity_column(
         conn.execute(
             f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY"
         )
-    except Exception as e:
+    except duckdb.Error as e:
         # Identity already configured or column contains incompatible data - log and continue
         logger.debug(
             "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
@@ -508,9 +508,9 @@ def ensure_runs_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
             create_runs_table(conn)
         else:
             logger.debug("Runs table already exists")
-    except Exception as e:
+    except duckdb.Error as e:
         # If check fails, try creating anyway (DuckDB will skip if exists)
-        logger.warning(f"Error checking for runs table existence: {e}, attempting creation...")
+        logger.warning("Error checking for runs table existence: %s, attempting creation...", e)
         create_runs_table(conn)
 
 
@@ -533,8 +533,8 @@ def drop_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
     try:
         conn.execute("DROP TABLE IF EXISTS runs")
         logger.info("Dropped runs table")
-    except Exception as e:
-        logger.exception(f"Failed to drop runs table: {e}")
+    except Exception:
+        logger.exception("Failed to drop runs table")
         raise
 
 
@@ -629,9 +629,9 @@ def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
             create_lineage_table(conn)
         else:
             logger.debug("Lineage table already exists")
-    except Exception as e:
+    except duckdb.Error as e:
         # If check fails, try creating anyway (DuckDB will skip if exists)
-        logger.warning(f"Error checking for lineage table existence: {e}, attempting creation...")
+        logger.warning("Error checking for lineage table existence: %s, attempting creation...", e)
         create_lineage_table(conn)
 
 
@@ -654,8 +654,8 @@ def drop_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
     try:
         conn.execute("DROP TABLE IF EXISTS lineage")
         logger.info("Dropped lineage table")
-    except Exception as e:
-        logger.exception(f"Failed to drop lineage table: {e}")
+    except Exception:
+        logger.exception("Failed to drop lineage table")
         raise
 
 
@@ -766,36 +766,36 @@ def _ensure_date_column(table: Table) -> Table:
 # ============================================================================
 
 __all__ = [
+    # Annotations schema
+    "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
     "DEFAULT_TIMEZONE",
+    # Elo schemas
+    "ELO_HISTORY_SCHEMA",
+    "ELO_RATINGS_SCHEMA",
     "MESSAGE_SCHEMA",
-    "WHATSAPP_CONVERSATION_SCHEMA",
-    "WHATSAPP_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",
     "RAG_CHUNKS_SCHEMA",
     "RAG_INDEX_META_SCHEMA",
     "RAG_SEARCH_RESULT_SCHEMA",
-    # Annotations schema
-    "ANNOTATIONS_SCHEMA",
-    # Elo schemas
-    "ELO_HISTORY_SCHEMA",
-    "ELO_RATINGS_SCHEMA",
     # Runs schema
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
+    "WHATSAPP_CONVERSATION_SCHEMA",
+    "WHATSAPP_SCHEMA",
     # General utilities
     "add_primary_key",
     "create_index",
-    "create_table_if_not_exists",
-    "ensure_identity_column",
-    "quote_identifier",
     # Runs utilities
     "create_runs_table",
+    "create_table_if_not_exists",
     "drop_runs_table",
-    "ensure_runs_table_exists",
+    "ensure_identity_column",
     # Message schema utilities
     "ensure_message_schema",
+    "ensure_runs_table_exists",
     "group_slug",
+    "quote_identifier",
 ]

@@ -8,7 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+
+# Constants
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)
 
 
 @dataclass
@@ -398,12 +404,13 @@ class OutputFormat(ABC):
         date_str = date_str.strip()
 
         # Try ISO date first (YYYY-MM-DD)
-        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
             try:
                 datetime.date.fromisoformat(date_str)
-                return date_str
             except (ValueError, AttributeError):
                 pass
+            else:
+                return date_str
 
         # Extract YYYY-MM-DD pattern from longer strings
         match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
@@ -411,9 +418,10 @@ class OutputFormat(ABC):
             clean_date = match.group(1)
             try:
                 datetime.date.fromisoformat(clean_date)
-                return clean_date
             except (ValueError, AttributeError):
                 pass
+            else:
+                return clean_date
 
         # Fallback: use today's date
         return datetime.date.today().isoformat()
@@ -452,7 +460,7 @@ class OutputFormat(ABC):
         if "{suffix}" not in filename_pattern:
             # Add suffix placeholder before extension
             parts = filename_pattern.rsplit(".", 1)
-            if len(parts) == 2:
+            if len(parts) == FILENAME_PARTS_WITH_EXTENSION:
                 filename_pattern = f"{parts[0]}{{suffix}}.{parts[1]}"
             else:
                 filename_pattern = f"{filename_pattern}{{suffix}}"
@@ -514,7 +522,7 @@ class OutputFormat(ABC):
         return metadata, body
 
     def prepare_window(
-        self, window_label: str, window_data: dict[str, Any] | None = None
+        self, window_label: str, _window_data: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         """Pre-processing hook called before writer agent processes a window.
 
@@ -550,9 +558,9 @@ class OutputFormat(ABC):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
-        metadata: dict[str, Any] | None = None,
+        _posts_created: list[str],
+        _profiles_updated: list[str],
+        _metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window.
 
@@ -684,7 +692,6 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
     """
     # Ensure registry is populated by importing rendering module
     # This triggers registration in rendering/__init__.py
-    import egregora.rendering  # noqa: F401, PLC0415
 
     # Get format class from registry
     output_format = output_registry.get_format(format_type)

@@ -113,13 +113,13 @@ class TestRequirePrivacyPassDecorator:
 
         # Try to forge token with string
         with pytest.raises(
-            RuntimeError, match="received invalid privacy_pass.*Expected PrivacyPass instance, got str"
+            RuntimeError, match=r"received invalid privacy_pass.*Expected PrivacyPass instance, got str"
         ):
             protected_function("test data", privacy_pass="fake-token")  # type: ignore[arg-type]
 
         # Try to forge token with dict
         with pytest.raises(
-            RuntimeError, match="received invalid privacy_pass.*Expected PrivacyPass instance, got dict"
+            RuntimeError, match=r"received invalid privacy_pass.*Expected PrivacyPass instance, got dict"
         ):
             protected_function("test data", privacy_pass={"fake": "token"})  # type: ignore[arg-type]
 
@@ -184,9 +184,9 @@ class TestPrivacyGate:
     def test_privacy_gate_fails_with_empty_tenant_id(self):
         """PrivacyGate.run() raises ValueError if tenant_id is empty."""
         table = ibis.memtable([{"author": ["test"]}])
+        config = PrivacyConfig(tenant_id="")
 
         with pytest.raises(ValueError, match="tenant_id cannot be empty"):
-            config = PrivacyConfig(tenant_id="")
             PrivacyGate.run(table, config, "run-1")
 
     def test_privacy_gate_fails_with_empty_run_id(self):
