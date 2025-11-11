@@ -401,6 +401,59 @@ class WriterRuntimeContext:
 - ❌ Don't use Logfire-specific APIs directly - use OTEL APIs for portability
 - ❌ Don't require OTEL for core functionality - it's observability only
 
+**Agent Skill Injection (2025-01-11)**:
+- ✅ Dynamic capability extension for pydantic-ai agents via `use_skill()` tool
+- ✅ Sub-agent spawning with isolated context (parent agent only sees summary)
+- ✅ Skills stored in `.egregora/skills/` as Markdown/text files
+- ✅ Sub-agents have full parent context + skill instructions + special `end_skill_use()` tool
+- ✅ Clean context management: skill work doesn't bloat parent conversation history
+- ✅ Example skills in `.egregora/skills/example-skill.md` and README
+- ✅ Architecture:
+  ```
+  Parent Agent
+      ↓ use_skill("github-api", "Analyze PR #123")
+      ↓
+  Sub-Agent (spawned)
+      - Parent's model + tools
+      - + Skill content injected
+      - + end_skill_use() tool
+      ↓ [does specialized work]
+      ↓ end_skill_use("Found 2 security issues: ...")
+      ↓
+  Parent Agent receives summary only
+  ```
+- ✅ Creating skills:
+  ```markdown
+  # Skill Name
+
+  Brief description of capability.
+
+  ## Instructions
+  1. Do X
+  2. Analyze Y
+  3. Call end_skill_use(summary)
+
+  ## Examples
+  Task: "Analyze XYZ"
+  Output: "Found 3 insights..."
+  ```
+- ✅ Using skills from agents:
+  ```python
+  # In agent tool
+  result = await use_skill(
+      ctx,
+      skill_name="data-analysis",
+      task="Generate hourly message distribution stats"
+  )
+  # result contains sub-agent's summary
+  ```
+- ✅ Completion signal: Sub-agent calls `end_skill_use(summary)` or finishes naturally
+- ✅ Files: `agents/tools/skill_loader.py` (loader), `agents/tools/skill_injection.py` (tool)
+- ✅ Tests: `tests/agents/test_skill_injection.py` (13 unit tests)
+- ❌ Don't use skills for simple tasks (overhead of sub-agent spawning)
+- ❌ Don't let sub-agents commit/push (causes conflicts with parent)
+- 📖 See `.egregora/skills/README.md` for full guide
+
 ## Code Structure
 
 ```
@@ -455,7 +508,9 @@ src/egregora/
 │   └── tools/
 │       ├── rag/             # Vector store (DuckDB VSS)
 │       ├── annotations/     # Conversation metadata
-│       └── profiler.py      # Author profiles
+│       ├── profiler.py      # Author profiles
+│       ├── skill_loader.py  # Skill loading from .egregora/skills/
+│       └── skill_injection.py  # use_skill tool and sub-agent spawning
 ├── utils/
 │   ├── gemini_dispatcher.py # LLM API client (handles retries, batching)
 │   ├── cache.py             # DiskCache wrapper
