@@ -640,6 +640,7 @@ class MkDocsOutputFormat(OutputFormat):
                 "site_name": site_name or site_root.name or "Egregora Archive",
                 "blog_dir": "posts",
                 "docs_dir": ".",
+                "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
             }
 
             # Create mkdocs.yml in .egregora/

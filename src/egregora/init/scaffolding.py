@@ -49,5 +49,4 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
     return (docs_dir, created)
 
 
-
 __all__ = ["ensure_mkdocs_project"]
