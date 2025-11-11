@@ -407,7 +407,7 @@ class MkDocsEnrichmentStorage:
             Uses slugified URL for human-readable, discoverable filenames.
             The slug is truncated to 60 characters for filesystem compatibility.
 
-            Examples:
+        Examples:
                 - https://example.com/article → media/urls/https-example-com-article.md
                 - https://docs.python.org/3/library/pathlib.html → media/urls/https-docs-python-org-3-library-pathlib-html.md
 
