@@ -64,6 +64,7 @@ def _create_default_mkdocs(mkdocs_path: Path, site_root: Path) -> Path:
         "site_name": site_name,
         "blog_dir": "posts",  # Posts at root level
         "docs_dir": ".",  # Docs dir is site root
+        "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
     }
 
     # Resolve paths first to get mkdocs_config_path in .egregora/
