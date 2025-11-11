@@ -8,376 +8,218 @@ Current storage is **tightly coupled to filesystem/MkDocs**:
 - 6 type-specific path methods, 3-layer collision detection
 - **No abstraction for URLs** - paths are exposed, not permalinks
 - **Cannot support alternative backends** - DB, S3, headless CMS require rewrite
-- **Assets are second-class** - handled separately from documents
-- **No idempotency contract** - retries may duplicate or fail
+- **Core knows about storage** - publish/update/create status, idempotency, collisions
 
-**Core insight**: The core should generate domain Documents, and the OutputFormat should be sovereign over persistence, URL generation, and publication.
+**Root cause**: Core is trying to manage persistence concerns that should be internal to the output format.
 
-## Solution
+## Solution: Radical Simplification
 
-### Architecture Principles
+### Core Principle
 
-1. **Clear Boundary**
-   - **Core**: validates, applies privacy gate, enriches, delivers Document + assets for publication
-   - **OutputFormat**: decides storage, performs I/O, defines/maintains URL policy, returns publication result
+**Core doesn't publish. Core doesn't know about storage. Core only asks for URLs and hands over documents.**
 
-2. **URL is Law**
-   - Permalink is defined by OutputFormat
-   - Core never calculates paths or derives URLs
-   - Core displays what OutputFormat returns (`canonical_url`)
+```
+Core:     "What's the URL for this document?"
+Format:   "/posts/2025-01-11-my-post/"
 
-3. **Backend-Agnostic**
-   - OutputFormat can use filesystem, S3, DB, headless CMS
-   - Core has no dependency on local paths
-   - For file-based (MkDocs): uses paths internally, returns URLs
-   - For DB-based: stores in DB, returns URLs served by app/renderer
+Core:     "Ensure this document is available at that URL."
+Format:   [writes file / saves to DB / uploads to S3 - INTERNALLY]
 
-4. **Idempotency by Key**
-   - Core provides `idempotency_key` (hash of normalized Document + assets) on every publish
-   - OutputFormat treats retries as safe no-ops when content hasn't changed
+Core:     Uses URL in content, cross-references, etc.
+```
 
-5. **Stable Permalinks**
-   - Permalink policy must be **deterministic** and **stable**
-   - Based on slug+date or doc_id (not random)
-   - Re-publishing doesn't change permalink, unless policy explicitly changed
+### Architecture
 
-### OutputFormat Contract
+1. **UrlConvention** - Defines URL policy (pure function, no I/O)
+2. **OutputFormat** - Adopts a convention, ensures documents are served at those URLs
+3. **Core** - Asks for URLs, requests availability, uses URLs
+
+**Key insight**: Separate URL generation (policy) from document persistence (mechanism).
+
+## Minimal Interface
+
+### 1. UrlConvention (URL Policy)
 
 ```python
-from typing import Protocol, TypedDict, Literal
-from dataclasses import dataclass, field
-from datetime import datetime
-
-class PublishOptions(TypedDict, total=False):
-    """Options for document publication."""
-    collision: Literal["suffix", "replace", "fail"]  # Internal format policy
-    visibility: Literal["public", "private", "draft"]
-    dry_run: bool
+from typing import Protocol
+from dataclasses import dataclass
 
 @dataclass(frozen=True)
-class PublishResult:
-    """Result of publishing a document."""
-    status: Literal["created", "updated", "noop"]
-    canonical_url: str              # Public permalink to display to user
-    public_id: str                  # Stable resource ID in this format
-    etag: str | None                # Hash/version for cache/consistency
-    modified_at: datetime
-    warnings: list[str] = field(default_factory=list)
-    asset_urls: dict[str, str] = field(default_factory=dict)  # logical name -> public URL
+class UrlContext:
+    """Context for URL generation."""
+    base_url: str = ""
+    locale: str | None = None
 
+class UrlConvention(Protocol):
+    """Defines how URLs are generated for documents.
+
+    Pure function: same document -> same URL (deterministic, stable).
+    No I/O, no side effects - just URL calculation.
+    """
+
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+        """
+        Generate canonical URL for a document.
+
+        Must be deterministic: same document -> same URL.
+        Must be stable: re-generating doesn't change URL.
+        """
+        ...
+```
+
+**Implementation: `legacy-mkdocs-v1`**
+
+Maintains current URL rules exactly:
+- Posts: `/posts/{YYYY-MM-DD}-{slug}/`
+- Profiles: `/profiles/{author_id}/`
+- Journals: `/journals/{window_label}/`
+- Media: `/media/{uuid}.{ext}`
+
+Nothing changes externally. Agents continue to get identical URLs.
+
+### 2. OutputFormat (Persistence Mechanism)
+
+```python
 class OutputFormat(Protocol):
-    """Protocol for output format implementations.
+    """Handles document persistence and serves documents at URLs.
 
-    Handles document persistence, URL generation, and asset management.
-    Backend-agnostic: can use filesystem, S3, DB, CMS, etc.
+    Adopts a UrlConvention and guarantees documents are available
+    at the URLs that convention generates.
+
+    Backend-agnostic: can use filesystem, S3, DB, CMS - whatever.
+    Core never sees implementation details.
     """
 
-    def publish(
-        self,
-        document: "Document",
-        *,
-        assets: dict[str, bytes] | None = None,  # logical key -> content
-        idempotency_key: str,
-        options: PublishOptions | None = None,
-    ) -> PublishResult:
-        """
-        Publish a document with optional assets.
+    @property
+    def url_convention(self) -> UrlConvention:
+        """The URL convention this format uses."""
+        ...
 
-        Must be idempotent: same idempotency_key -> same public_id/canonical_url.
-        Returns status reflecting actual action (created/updated/noop).
+    def url_for(self, document: Document) -> str:
+        """
+        Get the canonical URL where this document will be served.
+
+        Pure query - doesn't modify anything.
+        Internally uses self.url_convention.canonical_url()
         """
         ...
 
-    def resolve_url(
-        self,
-        *,
-        public_id: str | None = None,
-        doc_ref: str | None = None
-    ) -> str:
+    def ensure_served(self, document: Document) -> None:
         """
-        Resolve a document reference to its canonical URL.
+        Ensure document is available at url_for(document).
 
-        Args:
-            public_id: Stable resource ID from PublishResult
-            doc_ref: Alternative reference (slug, path, etc.)
+        Does whatever is necessary:
+        - Write file to disk (MkDocs)
+        - Save to database (HeadlessDB)
+        - Upload to S3 (S3Storage)
+        - Post to CMS API (HeadlessCMS)
 
-        Returns canonical URL for the document.
+        Idempotency is INTERNAL - format decides how to handle duplicates.
+        Core doesn't know or care about created/updated/noop status.
         """
-        ...
-
-    def unpublish(
-        self,
-        *,
-        public_id: str | None = None,
-        doc_ref: str | None = None
-    ) -> bool:
-        """
-        Remove or mark document as private.
-
-        Returns True if unpublished, False if not found.
-        """
-        ...
-
-    def capabilities(self) -> set[str]:
-        """
-        Declare format capabilities.
-
-        Examples: {"assets", "transactions", "batch", "search", "previews"}
-        """
-        ...
-
-    # Optional: transactional support
-    def begin(self) -> None:
-        """Begin transaction (if supported)."""
-        ...
-
-    def commit(self) -> None:
-        """Commit transaction (if supported)."""
-        ...
-
-    def rollback(self) -> None:
-        """Rollback transaction (if supported)."""
         ...
 ```
 
-### Mandatory Invariants
+**That's it. No publish(), no status, no options, no result object.**
 
-1. **Determinism**: Same `Document` + `idempotency_key` ⇒ same `public_id`/`etag`/`canonical_url` (unless content actually changed)
-2. **Security**: Sanitize asset names, prevent path traversal, enforce size/MIME limits
-3. **Consistency**: `status` reflects real action (created/updated/noop), `canonical_url` always present
-
-### Canonical URL Policy (Default)
-
-To enable agents to reference documents correctly, we define a **standard URL scheme** that formats can override if needed:
+### 3. Core Responsibilities (Super Simple)
 
 ```python
-# Posts: /posts/{YYYY-MM-DD}-{slug}/
-# Profiles: /profiles/{author_id}/
-# Journals: /journals/{window_label}/
-# URL enrichments: /media/urls/{doc_id}/
-# Media enrichments: /media/{filename}
+# Core flow - minimal and clean
+def publish_document(document: Document, output_format: OutputFormat):
+    # 1. Ask for URL (pure query)
+    url = output_format.url_for(document)
 
-def canonical_url_for(document: Document, base_url: str = "") -> str:
-    """
-    Generate canonical URL using standard scheme.
+    # 2. Ensure it's served (idempotent action)
+    output_format.ensure_served(document)
 
-    Formats can override this, but must maintain stability (same doc -> same URL).
-    """
-    if document.type == DocumentType.POST:
-        date = document.metadata.get("date", document.created_at)
-        slug = slugify(document.metadata.get("title", "untitled"))
-        return f"{base_url}/posts/{date.strftime('%Y-%m-%d')}-{slug}/"
-
-    elif document.type == DocumentType.PROFILE:
-        author_id = document.metadata["author_id"]
-        return f"{base_url}/profiles/{author_id}/"
-
-    elif document.type == DocumentType.JOURNAL:
-        label = document.metadata.get("window_label", "unknown")
-        return f"{base_url}/journals/{safe_label(label)}/"
-
-    elif document.type == DocumentType.ENRICHMENT_URL:
-        return f"{base_url}/media/urls/{document.document_id}/"
-
-    elif document.type == DocumentType.ENRICHMENT_MEDIA:
-        filename = document.suggested_path or f"{document.document_id}.md"
-        return f"{base_url}/media/{filename}"
-
-    else:
-        # Fallback: use document ID
-        return f"{base_url}/documents/{document.document_id}/"
+    # 3. Use URL in content, cross-refs, etc.
+    return url
 ```
 
-**Why this matters:**
-- Agents need stable URLs to reference documents in content
-- Cross-references break if URLs change between formats
-- Standard scheme allows format-agnostic reasoning about URLs
+**Core does NOT:**
+- Know if document was created or updated
+- Handle idempotency (format's job)
+- Deal with collisions (format's job)
+- Calculate paths (format's job)
+- Know about storage (format's job)
 
-**Format customization:**
-- Formats can override URL generation (e.g., `/blog/` instead of `/posts/`)
-- Must document differences in `.egregora/config.yml`
-- Must maintain determinism and stability
+**Core ONLY:**
+- Generates Documents (validation, privacy, enrichment)
+- Asks for URLs
+- Requests availability
+- Uses URLs
 
-## Core Responsibilities
-
-### Before Publishing
-
-1. **Validate** Document (schema, required fields)
-2. **Apply privacy gate** + PII cleanup
-3. **Package assets** with logical names (e.g., `cover.jpg`, `avatar.png`)
-4. **Calculate idempotency_key** (stable hash of normalized doc + assets)
-
-### Publishing
-
-```python
-# Core publishing flow
-result = output_format.publish(
-    document,
-    assets=assets,
-    idempotency_key=idempotency_key,
-    options={"collision": "suffix", "visibility": "public"}
-)
-
-# Store mapping (optional cache for performance)
-doc_cache[document.document_id] = {
-    "public_id": result.public_id,
-    "canonical_url": result.canonical_url,
-    "etag": result.etag
-}
-```
-
-### After Publishing
-
-1. Display/return `canonical_url` to user/agent
-2. If format declares `invalidation` capability, call cache/CDN hooks
-
-## Media/Assets Policy
-
-- **Deduplication by hash** (if format supports)
-- **Collision strategy** configurable via `PublishOptions.collision`
-- **Typing**: `assets` as `dict[str, bytes]`
-- **Output**: Format returns `asset_urls` mapping logical name -> public URL
-
-## Example Implementations
+## Implementation Examples
 
 ### MkDocsOutputFormat (Filesystem)
 
 ```python
+from pathlib import Path
+
 class MkDocsOutputFormat:
-    """MkDocs-specific output format using filesystem."""
+    """MkDocs format using filesystem storage."""
 
     def __init__(self, base_path: Path, base_url: str = ""):
         self.base_path = base_path
-        self.base_url = base_url
-        self.posts_dir = base_path / "posts"
-        self.profiles_dir = base_path / "profiles"
-        self.media_dir = base_path / "docs" / "media"
+        self._url_convention = LegacyMkDocsUrlConvention()
+        self._ctx = UrlContext(base_url=base_url)
 
-    def publish(
-        self,
-        document: Document,
-        *,
-        assets: dict[str, bytes] | None = None,
-        idempotency_key: str,
-        options: PublishOptions | None = None
-    ) -> PublishResult:
-        options = options or {}
+    @property
+    def url_convention(self) -> UrlConvention:
+        return self._url_convention
 
-        # 1. Determine file path (internal detail)
-        path = self._resolve_path(document)
+    def url_for(self, document: Document) -> str:
+        """Get canonical URL using convention."""
+        return self._url_convention.canonical_url(document, self._ctx)
 
-        # 2. Check idempotency
-        if path.exists():
-            existing_etag = self._read_etag(path)
-            if existing_etag == idempotency_key:
-                # Same content - no-op
-                return PublishResult(
-                    status="noop",
-                    canonical_url=self._path_to_url(path, document.type),
-                    public_id=str(path.relative_to(self.base_path)),
-                    etag=idempotency_key,
-                    modified_at=datetime.fromtimestamp(path.stat().st_mtime)
-                )
+    def ensure_served(self, document: Document) -> None:
+        """Write document to filesystem."""
+        # 1. Get URL (for logging/debugging)
+        url = self.url_for(document)
 
-        # 3. Handle collision if needed
-        if path.exists() and options.get("collision") == "suffix":
-            path = self._add_suffix(path)
+        # 2. Convert URL to local path (INTERNAL detail)
+        path = self._url_to_path(url, document.type)
 
-        # 4. Write document
+        # 3. Check if already served with same content (INTERNAL idempotency)
+        if self._is_already_served(path, document):
+            return  # No-op
+
+        # 4. Write atomically
         path.parent.mkdir(parents=True, exist_ok=True)
-        content = self._format_content(document, idempotency_key)
-        path.write_text(content)
+        content = self._format_content(document)
+        atomic_write(path, content)
 
-        # 5. Write assets
-        asset_urls = {}
-        if assets:
-            for name, data in assets.items():
-                asset_path = self._write_asset(name, data, document)
-                asset_urls[name] = self._path_to_url(asset_path, None)
-
-        # 6. Post-write hooks
+        # 5. Post-write hooks (format-specific)
         if document.type == DocumentType.PROFILE:
             self._update_authors_yml(document)
 
-        status = "created" if not path.exists() else "updated"
+    def _url_to_path(self, url: str, doc_type: DocumentType) -> Path:
+        """Convert canonical URL to filesystem path (internal)."""
+        # Strip base_url, convert to relative path
+        rel_url = url.removeprefix(self._ctx.base_url).strip("/")
+        # Add .md extension for markdown docs
+        if doc_type in (DocumentType.POST, DocumentType.PROFILE, DocumentType.JOURNAL):
+            rel_url = f"{rel_url}.md" if not rel_url.endswith(".md") else rel_url
+        return self.base_path / rel_url
 
-        return PublishResult(
-            status=status,
-            canonical_url=self._path_to_url(path, document.type),
-            public_id=str(path.relative_to(self.base_path)),
-            etag=idempotency_key,
-            modified_at=datetime.now(),
-            asset_urls=asset_urls
-        )
+    def _is_already_served(self, path: Path, document: Document) -> bool:
+        """Check if document is already served with same content (internal idempotency)."""
+        if not path.exists():
+            return False
 
-    def _resolve_path(self, document: Document) -> Path:
-        """Determine filesystem path (internal to MkDocs format)."""
-        if document.type == DocumentType.POST:
-            date = document.metadata.get("date", document.created_at)
-            slug = self._slugify(document.metadata.get("title", "untitled"))
-            return self.posts_dir / f"{date.strftime('%Y-%m-%d')}-{slug}.md"
+        # Compare content hash (stored in file metadata or comment)
+        existing_hash = self._extract_doc_id(path)
+        return existing_hash == document.document_id
 
-        elif document.type == DocumentType.PROFILE:
-            author_id = document.metadata["author_id"]
-            return self.profiles_dir / f"{author_id}.md"
-
-        elif document.type == DocumentType.JOURNAL:
-            label = document.metadata.get("window_label", "unknown")
-            return self.posts_dir / "journal" / f"journal_{self._safe_label(label)}.md"
-
-        elif document.type == DocumentType.ENRICHMENT_URL:
-            return self.media_dir / "urls" / f"{document.document_id}.md"
-
-        elif document.type == DocumentType.ENRICHMENT_MEDIA:
-            filename = document.suggested_path or f"{document.document_id}.md"
-            return self.media_dir / filename
-
-        else:
-            raise ValueError(f"Unknown document type: {document.type}")
-
-    def _path_to_url(self, path: Path, doc_type: DocumentType | None) -> str:
-        """Convert filesystem path to canonical URL."""
-        rel_path = path.relative_to(self.base_path)
-        # Remove .md extension, convert to URL path
-        url_path = str(rel_path).replace("\\", "/").removesuffix(".md")
-        return f"{self.base_url}/{url_path}/"
-
-    def _format_content(self, document: Document, etag: str) -> str:
-        """Format document content with frontmatter and etag."""
+    def _format_content(self, document: Document) -> str:
+        """Format document with frontmatter and metadata."""
         if document.type in (DocumentType.POST, DocumentType.JOURNAL):
-            frontmatter = self._generate_frontmatter(document, etag)
+            frontmatter = self._generate_frontmatter(document)
             return f"{frontmatter}\n\n{document.content}"
         else:
-            # Embed etag in HTML comment for idempotency checking
-            return f"<!-- etag: {etag} -->\n{document.content}"
-
-    def resolve_url(self, *, public_id: str | None = None, doc_ref: str | None = None) -> str:
-        """Resolve to canonical URL."""
-        if public_id:
-            # public_id is relative path
-            path = self.base_path / public_id
-            # Determine doc type from path (heuristic)
-            if path.parent == self.posts_dir:
-                doc_type = DocumentType.POST
-            elif path.parent == self.profiles_dir:
-                doc_type = DocumentType.PROFILE
-            else:
-                doc_type = None
-            return self._path_to_url(path, doc_type)
-
-        raise ValueError("Must provide public_id or doc_ref")
-
-    def unpublish(self, *, public_id: str | None = None, doc_ref: str | None = None) -> bool:
-        """Remove document file."""
-        if public_id:
-            path = self.base_path / public_id
-            if path.exists():
-                path.unlink()
-                return True
-        return False
-
-    def capabilities(self) -> set[str]:
-        return {"assets", "frontmatter"}
+            # Embed doc_id in HTML comment for idempotency
+            return f"<!-- doc_id: {document.document_id} -->\n{document.content}"
 ```
 
 ### HeadlessDBOutputFormat (Database)
@@ -388,247 +230,215 @@ class HeadlessDBOutputFormat:
 
     def __init__(self, db_url: str, base_url: str):
         self.db = Database(db_url)
-        self.base_url = base_url
+        self._url_convention = LegacyMkDocsUrlConvention()  # Or custom
+        self._ctx = UrlContext(base_url=base_url)
 
-    def publish(
-        self,
-        document: Document,
-        *,
-        assets: dict[str, bytes] | None = None,
-        idempotency_key: str,
-        options: PublishOptions | None = None
-    ) -> PublishResult:
-        # Check if document exists by idempotency_key
+    @property
+    def url_convention(self) -> UrlConvention:
+        return self._url_convention
+
+    def url_for(self, document: Document) -> str:
+        """Get canonical URL using convention."""
+        return self._url_convention.canonical_url(document, self._ctx)
+
+    def ensure_served(self, document: Document) -> None:
+        """Save document to database."""
+        url = self.url_for(document)
+
+        # Check if already exists with same content (idempotency)
         existing = self.db.query(
-            "SELECT * FROM documents WHERE idempotency_key = ?",
-            (idempotency_key,)
+            "SELECT doc_id FROM documents WHERE canonical_url = ?",
+            (url,)
         )
 
-        if existing:
-            # Same content - no-op
-            row = existing[0]
-            return PublishResult(
-                status="noop",
-                canonical_url=row["canonical_url"],
-                public_id=row["public_id"],
-                etag=row["etag"],
-                modified_at=row["modified_at"]
-            )
+        if existing and existing[0]["doc_id"] == document.document_id:
+            return  # Already served with same content
 
-        # Generate stable public_id from document
-        public_id = self._generate_public_id(document)
-        canonical_url = canonical_url_for(document, self.base_url)
-
-        # Check if public_id exists (update case)
-        existing_by_id = self.db.query(
-            "SELECT * FROM documents WHERE public_id = ?",
-            (public_id,)
-        )
-
-        status = "updated" if existing_by_id else "created"
-
-        # Store document
+        # Upsert document
         self.db.execute(
             """
-            INSERT OR REPLACE INTO documents
-            (public_id, document_id, type, content, metadata, idempotency_key, etag, canonical_url, modified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO documents (canonical_url, doc_id, type, content, metadata, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(canonical_url) DO UPDATE SET
+                doc_id = excluded.doc_id,
+                content = excluded.content,
+                metadata = excluded.metadata,
+                updated_at = excluded.updated_at
             """,
             (
-                public_id,
+                url,
                 document.document_id,
                 document.type.value,
                 document.content,
                 json.dumps(document.metadata),
-                idempotency_key,
-                idempotency_key,  # etag = idempotency_key
-                canonical_url,
                 datetime.now()
             )
         )
-
-        # Store assets
-        asset_urls = {}
-        if assets:
-            for name, data in assets.items():
-                asset_id = f"{public_id}/{name}"
-                self.db.execute(
-                    "INSERT OR REPLACE INTO assets (asset_id, document_id, name, data) VALUES (?, ?, ?, ?)",
-                    (asset_id, public_id, name, data)
-                )
-                asset_urls[name] = f"{self.base_url}/assets/{asset_id}"
-
-        return PublishResult(
-            status=status,
-            canonical_url=canonical_url,
-            public_id=public_id,
-            etag=idempotency_key,
-            modified_at=datetime.now(),
-            asset_urls=asset_urls
-        )
-
-    def _generate_public_id(self, document: Document) -> str:
-        """Generate stable public ID from document metadata."""
-        if document.type == DocumentType.POST:
-            date = document.metadata.get("date", document.created_at)
-            slug = slugify(document.metadata.get("title", "untitled"))
-            return f"posts/{date.strftime('%Y-%m-%d')}-{slug}"
-
-        elif document.type == DocumentType.PROFILE:
-            return f"profiles/{document.metadata['author_id']}"
-
-        else:
-            return f"documents/{document.document_id}"
-
-    def resolve_url(self, *, public_id: str | None = None, doc_ref: str | None = None) -> str:
-        """Resolve to canonical URL."""
-        if public_id:
-            row = self.db.query("SELECT canonical_url FROM documents WHERE public_id = ?", (public_id,))
-            if row:
-                return row[0]["canonical_url"]
-
-        raise ValueError("Document not found")
-
-    def unpublish(self, *, public_id: str | None = None, doc_ref: str | None = None) -> bool:
-        """Mark document as private or delete."""
-        if public_id:
-            self.db.execute("DELETE FROM documents WHERE public_id = ?", (public_id,))
-            return True
-        return False
-
-    def capabilities(self) -> set[str]:
-        return {"assets", "transactions", "search", "batch"}
 ```
 
-## Testing: Test Compatibility Kit (TCK)
-
-Create a conformance test suite that any `OutputFormat` implementation must pass:
+## LegacyMkDocsUrlConvention
 
 ```python
-# tests/unit/storage/test_output_format_tck.py
+class LegacyMkDocsUrlConvention:
+    """
+    Legacy MkDocs URL convention (v1).
 
-def test_idempotency(format: OutputFormat, sample_document: Document):
-    """Two publishes with same idempotency_key -> noop on second."""
-    key = "test-key-123"
+    Maintains exact same URLs as current implementation.
+    Agents continue to get identical URLs for cross-references.
+    """
 
-    result1 = format.publish(sample_document, idempotency_key=key)
-    assert result1.status in ("created", "updated")
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+        """Generate URL using legacy MkDocs rules."""
+        base = ctx.base_url.rstrip("/")
 
-    result2 = format.publish(sample_document, idempotency_key=key)
-    assert result2.status == "noop"
-    assert result2.public_id == result1.public_id
-    assert result2.canonical_url == result1.canonical_url
+        if document.type == DocumentType.POST:
+            date = document.metadata.get("date", document.created_at)
+            slug = self._slugify(document.metadata.get("title", "untitled"))
+            return f"{base}/posts/{date.strftime('%Y-%m-%d')}-{slug}/"
 
-def test_permalink_stability(format: OutputFormat, sample_document: Document):
-    """Canonical URL doesn't change on update without key/policy change."""
-    result1 = format.publish(sample_document, idempotency_key="key1")
-    url1 = result1.canonical_url
+        elif document.type == DocumentType.PROFILE:
+            author_id = document.metadata["author_id"]
+            return f"{base}/profiles/{author_id}/"
 
-    # Update with different content
-    updated_doc = sample_document.with_metadata({"title": "Updated Title"})
-    result2 = format.publish(updated_doc, idempotency_key="key2")
-    url2 = result2.canonical_url
+        elif document.type == DocumentType.JOURNAL:
+            label = document.metadata.get("window_label", "unknown")
+            safe = self._safe_label(label)
+            return f"{base}/journals/{safe}/"
 
-    # URL should be stable (same public_id)
-    assert result2.public_id == result1.public_id
-    # URL may change if slug changed, but public_id must be resolvable
-    resolved = format.resolve_url(public_id=result2.public_id)
-    assert resolved == url2
+        elif document.type == DocumentType.ENRICHMENT_URL:
+            return f"{base}/media/urls/{document.document_id}/"
 
-def test_assets(format: OutputFormat, sample_document: Document):
-    """Assets upload and return valid URLs."""
-    if "assets" not in format.capabilities():
-        pytest.skip("Format doesn't support assets")
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            # Use suggested_path if available, else doc_id
+            filename = document.suggested_path or f"{document.document_id}.md"
+            return f"{base}/media/{filename}"
 
-    assets = {
-        "cover.jpg": b"fake-image-data",
-        "avatar.png": b"fake-avatar-data"
-    }
+        else:
+            # Fallback
+            return f"{base}/documents/{document.document_id}/"
 
-    result = format.publish(sample_document, assets=assets, idempotency_key="key1")
+    def _slugify(self, text: str) -> str:
+        """Convert text to URL-safe slug."""
+        # Implementation same as current
+        ...
 
-    assert "cover.jpg" in result.asset_urls
-    assert "avatar.png" in result.asset_urls
-    assert result.asset_urls["cover.jpg"].startswith("http")
+    def _safe_label(self, label: str) -> str:
+        """Sanitize window label for URL."""
+        # Implementation same as current
+        ...
+```
 
-def test_malicious_asset_names(format: OutputFormat, sample_document: Document):
-    """Reject path traversal and dangerous filenames."""
-    if "assets" not in format.capabilities():
-        pytest.skip("Format doesn't support assets")
+## Media as Documents
 
-    malicious_assets = {
-        "../../../etc/passwd": b"data",
-        "..\\..\\windows\\system32": b"data",
-        "name<script>alert(1)</script>.jpg": b"data"
-    }
+**No special "assets" handling.** Media is just another document type:
 
-    with pytest.raises((ValueError, SecurityError)):
-        format.publish(sample_document, assets=malicious_assets, idempotency_key="key1")
+```python
+# Media document (image, video, etc.)
+media_doc = Document(
+    content=b"...",  # Binary content
+    type=DocumentType.MEDIA,
+    metadata={"filename": "photo.jpg", "mime_type": "image/jpeg"},
+    document_id=hash_of_content,
+    ...
+)
 
-def test_unpublish(format: OutputFormat, sample_document: Document):
-    """Unpublish removes public access."""
-    result = format.publish(sample_document, idempotency_key="key1")
+# Same flow as posts
+url = output_format.url_for(media_doc)  # /media/abc123.jpg
+output_format.ensure_served(media_doc)
 
-    success = format.unpublish(public_id=result.public_id)
-    assert success
+# Use URL in post content
+post_content = f"![Photo]({url})"
+```
 
-    # Should not be resolvable anymore (or return 404/private)
-    with pytest.raises((ValueError, NotFoundError)):
-        format.resolve_url(public_id=result.public_id)
+**Benefit**: Uniform treatment. No separate asset pipeline.
 
-def test_transactions(format: OutputFormat, sample_documents: list[Document]):
-    """Rollback prevents all items from being visible."""
-    if "transactions" not in format.capabilities():
-        pytest.skip("Format doesn't support transactions")
+## Testing: Conformance Kit
 
-    format.begin()
+```python
+# tests/unit/storage/test_output_format_conformance.py
 
-    results = []
-    for doc in sample_documents:
-        result = format.publish(doc, idempotency_key=f"key-{doc.document_id}")
-        results.append(result)
+def test_url_determinism(output_format: OutputFormat, sample_doc: Document):
+    """Same document always returns same URL."""
+    url1 = output_format.url_for(sample_doc)
+    url2 = output_format.url_for(sample_doc)
 
-    format.rollback()
+    assert url1 == url2
+    assert url1.startswith("http") or url1.startswith("/")
 
-    # None should be visible
-    for result in results:
-        with pytest.raises((ValueError, NotFoundError)):
-            format.resolve_url(public_id=result.public_id)
+def test_idempotency(output_format: OutputFormat, sample_doc: Document):
+    """Multiple ensure_served calls are safe no-ops."""
+    url = output_format.url_for(sample_doc)
 
-def test_dry_run(format: OutputFormat, sample_document: Document):
-    """Dry run produces preview without I/O."""
-    if "previews" not in format.capabilities():
-        pytest.skip("Format doesn't support dry-run")
+    # First call
+    output_format.ensure_served(sample_doc)
 
-    result = format.publish(
-        sample_document,
-        idempotency_key="key1",
-        options={"dry_run": True}
+    # Second call should be no-op (no error, no duplicate)
+    output_format.ensure_served(sample_doc)
+
+    # Verify document is available (format-specific check)
+    assert output_format.url_for(sample_doc) == url
+
+def test_url_stability(output_format: OutputFormat, sample_doc: Document):
+    """URL doesn't change after ensure_served."""
+    url_before = output_format.url_for(sample_doc)
+
+    output_format.ensure_served(sample_doc)
+
+    url_after = output_format.url_for(sample_doc)
+    assert url_after == url_before
+
+def test_different_documents_different_urls(output_format: OutputFormat):
+    """Different documents get different URLs."""
+    doc1 = Document(content="A", type=DocumentType.POST, metadata={"title": "A"}, ...)
+    doc2 = Document(content="B", type=DocumentType.POST, metadata={"title": "B"}, ...)
+
+    url1 = output_format.url_for(doc1)
+    url2 = output_format.url_for(doc2)
+
+    assert url1 != url2
+
+def test_url_convention_consistency(output_format: OutputFormat, sample_doc: Document):
+    """url_for() uses the declared convention."""
+    url_from_format = output_format.url_for(sample_doc)
+    url_from_convention = output_format.url_convention.canonical_url(
+        sample_doc,
+        UrlContext(base_url=output_format._ctx.base_url)  # Format-specific context
     )
 
-    # Should return valid result
-    assert result.canonical_url
-    assert result.public_id
+    assert url_from_format == url_from_convention
 
-    # But document shouldn't exist
-    with pytest.raises((ValueError, NotFoundError)):
-        format.resolve_url(public_id=result.public_id)
+def test_media_documents(output_format: OutputFormat):
+    """Media documents work same as other documents."""
+    media = Document(
+        content=b"fake-image-data",
+        type=DocumentType.MEDIA,
+        metadata={"filename": "photo.jpg", "mime_type": "image/jpeg"},
+        ...
+    )
+
+    url = output_format.url_for(media)
+    assert ".jpg" in url or "photo" in url
+
+    output_format.ensure_served(media)
+    # No error - media treated like any other document
 ```
 
 ## Migration Plan
 
-### Phase 1: Introduce OutputFormat Protocol (No Breaking Changes)
+### Phase 1: Introduce Abstractions
 
 **Files to create:**
-- `src/egregora/storage/output_format.py` - Protocol, PublishOptions, PublishResult
-- `src/egregora/storage/canonical_urls.py` - Default URL policy
-- `tests/unit/storage/test_output_format_tck.py` - TCK tests
+- `src/egregora/storage/url_convention.py` - UrlConvention protocol, UrlContext
+- `src/egregora/storage/output_format.py` - OutputFormat protocol
+- `src/egregora/rendering/legacy_mkdocs_url_convention.py` - LegacyMkDocsUrlConvention
+- `tests/unit/storage/test_url_convention.py` - Tests for URL generation
+- `tests/unit/storage/test_output_format_conformance.py` - Conformance tests
 
 **Steps:**
-1. Define `OutputFormat` protocol with `publish()`, `resolve_url()`, `unpublish()`, `capabilities()`
-2. Define `PublishOptions` and `PublishResult` dataclasses
-3. Implement `canonical_url_for()` default URL scheme
-4. Create TCK test suite
+1. Define `UrlConvention` protocol
+2. Define `OutputFormat` protocol (url_for + ensure_served)
+3. Implement `LegacyMkDocsUrlConvention` with current rules
+4. Write conformance tests
 
 **Deliverable:** New abstractions with tests, no integration yet.
 
@@ -639,140 +449,156 @@ def test_dry_run(format: OutputFormat, sample_document: Document):
 
 **Steps:**
 1. Extract path logic from current `MkDocsDocumentStorage`
-2. Implement `publish()` with idempotency checking
-3. Implement `resolve_url()` for URL resolution
-4. Implement `_format_content()` with etag embedding
-5. Handle assets in `publish()`
-6. Run TCK tests against `MkDocsOutputFormat`
+2. Implement `url_for()` using `LegacyMkDocsUrlConvention`
+3. Implement `ensure_served()` with idempotency checking
+4. Move format-specific logic (frontmatter, .authors.yml) into format
+5. Run conformance tests
 
-**Deliverable:** Working `MkDocsOutputFormat` passing all TCK tests.
+**Deliverable:** Working `MkDocsOutputFormat` passing all tests.
 
-### Phase 3: Update Core Publishing
+### Phase 3: Update Core
 
 **Files to modify:**
-- `src/egregora/agents/writer/writer_agent.py` - Use `publish()` instead of storage
+- `src/egregora/agents/writer/writer_agent.py` - Use url_for + ensure_served
 - `src/egregora/cli.py` - Inject OutputFormat
-- Agent tools - Use `canonical_url` from PublishResult
+- Agent tools - Use URLs from url_for()
 
 **Steps:**
-1. Update writer agent to call `output_format.publish()`
-2. Calculate `idempotency_key` before publishing
-3. Store `canonical_url` from result
-4. Update agent tools to use URLs (not paths)
-5. Remove old storage calls
+1. Replace storage calls with:
+   ```python
+   url = output_format.url_for(document)
+   output_format.ensure_served(document)
+   ```
+2. Remove status handling (created/updated/noop)
+3. Remove idempotency_key calculation (format's job now)
+4. Update agent tools to use URLs
 
-**Deliverable:** Core using new OutputFormat, returning URLs.
+**Deliverable:** Core using new OutputFormat, simpler code.
 
 ### Phase 4: Remove Legacy Storage
 
-**Files to modify:**
-- `src/egregora/rendering/mkdocs_documents.py` - Delete or mark deprecated
-- `src/egregora/storage/__init__.py` - Remove old protocols
+**Files to remove:**
+- `src/egregora/rendering/mkdocs_documents.py` (457 lines)
+- `src/egregora/storage/protocols.py` (old PostStorage, ProfileStorage, etc.)
+- `src/egregora/storage/legacy_adapter.py`
 
 **Steps:**
-1. Verify all consumers migrated to OutputFormat
-2. Remove `MkDocsDocumentStorage` (old 457-line class)
-3. Remove `PostStorage`, `ProfileStorage`, etc. protocols
-4. Remove `LegacyStorageAdapter`
-5. Clean up imports
+1. Verify all consumers migrated
+2. Delete old storage classes
+3. Clean up imports
 
-**Deliverable:** Clean codebase with only OutputFormat abstraction.
+**Deliverable:** Clean codebase, ~500 line reduction.
 
-### Phase 5: Documentation & Config
+### Phase 5: Documentation
 
 **Files to create/modify:**
-- `docs/architecture/output-formats.md` - Document OutputFormat pattern
-- `.egregora/config.yml` - Add output format configuration
-- `CLAUDE.md` - Update storage guidance
+- `docs/architecture/output-formats.md` - Document pattern
+- `.egregora/config.yml` - Add output format config
+- `CLAUDE.md` - Update architecture section
 
 **Example config:**
 ```yaml
 output:
-  format: mkdocs                    # or "db", "s3", "custom"
-  base_url: "https://example.com"  # For canonical URLs
+  format: mkdocs              # or "db", "s3"
+  base_url: ""                # For canonical URLs
 
-  # Format-specific options
   mkdocs:
     base_path: ./output
-    collision: suffix               # "suffix", "replace", "fail"
 
   db:
     url: "postgresql://localhost/egregora"
     base_url: "https://api.example.com"
 ```
 
-**Deliverable:** Documented pattern with examples.
+**Deliverable:** Complete documentation.
 
-## Observability
+## Why This Design is Superior
 
-- Core injects `trace_id` in publishing context
-- OutputFormat propagates in logs/telemetry
-- **Metrics**:
-  - `publish_total{status,format}` - Publications by status
-  - `publish_latency_ms{format}` - Latency per format
-  - `asset_bytes_total{format}` - Asset upload volume
+### 1. **Radical Simplicity**
+- Core: 2 method calls (`url_for`, `ensure_served`)
+- No publish(), no status, no options, no result objects
+- ~60% less interface surface area
 
-## Benefits
+### 2. **Clear Separation**
+- **UrlConvention**: URL policy (pure, testable, swappable)
+- **OutputFormat**: Persistence (side effects, but minimal interface)
+- **Core**: Orchestration (asks, ensures, uses)
 
-### 1. **Backend Flexibility**
-- Swap filesystem for DB, S3, headless CMS without changing core
-- Single format at a time (simplicity), but architecture supports multiple
+### 3. **Backend-Agnostic (For Real)**
+- OutputFormat can use ANY backend
+- Core never sees paths, storage, or implementation
+- `ensure_served()` does whatever's needed internally
 
-### 2. **URL-First Design**
-- URLs are first-class citizens (not paths)
-- Agents can reference documents by canonical URL
-- Cross-references work across backends
+### 4. **Idempotency Where It Belongs**
+- Format decides how to handle duplicates
+- Core doesn't track status
+- Retry-safe by design
 
-### 3. **Idempotency Built-In**
-- Retry-safe publishing via `idempotency_key`
-- Status accurately reflects action (created/updated/noop)
+### 5. **Media as First-Class**
+- Same flow for posts and media
+- No separate asset pipeline
+- Uniform Document treatment
 
-### 4. **Assets Integrated**
-- Assets handled alongside documents
-- Logical names map to public URLs
-- Deduplication and collision handling
+### 6. **Easy Migration**
+- `LegacyMkDocsUrlConvention` maintains exact current URLs
+- No external changes - only internal simplification
+- Incremental: introduce, migrate, remove
 
-### 5. **Testability**
-- TCK ensures conformance for any format
-- Mock OutputFormat for core tests
-- Each format tested independently
+### 7. **Testability**
+- Mock `url_for()` for tests (no I/O)
+- Conformance tests ensure any format works
+- URL generation testable independently
 
-### 6. **Evolution**
-- Add capabilities (search, previews, batch) without breaking core
-- New document types only affect `publish()` implementation
-- Format-specific features isolated
+## Comparison: Before vs After
 
-### 7. **Simplification**
-- Core shrinks: no path logic, collision handling, or format details
-- OutputFormat owns complexity appropriate to its backend
-- Clear separation of concerns
+### Before (Current - 457 lines)
 
-## Future Extensions
+```python
+# Complex storage interface
+storage = MkDocsDocumentStorage(base_path)
+path = storage.add(document)  # Returns path
+# Core knows about paths, collisions, status
 
-Once refactored, we can:
+# 6 type-specific methods
+_determine_post_path()
+_determine_profile_path()
+_determine_journal_path()
+...
 
-1. **Multiple formats** (when needed) - publish to MkDocs + DB simultaneously
-2. **Custom formats** - users inject custom OutputFormat implementations
-3. **Format migration** - job to re-publish from one format to another
-4. **Preview/staging** - dry-run mode for preview before publish
-5. **Batch publishing** - transactional publish of multiple documents
-6. **CDN integration** - invalidation capability for cache busting
+# 3-layer collision detection
+# In-memory index
+# Format-specific logic scattered
+```
+
+### After (New - ~200 lines)
+
+```python
+# Minimal interface
+output_format = MkDocsOutputFormat(base_path)
+
+url = output_format.url_for(document)        # Pure query
+output_format.ensure_served(document)        # Idempotent action
+
+# That's it. Core never sees paths or status.
+# All complexity internal to format.
+```
+
+**Reduction: ~250 lines + massive conceptual simplification.**
 
 ## Success Criteria
 
-- [ ] `OutputFormat` protocol defined with `publish()`, `resolve_url()`, `unpublish()`
-- [ ] `PublishResult` includes `canonical_url`, `public_id`, `etag`, `status`
-- [ ] Canonical URL policy defined for all document types
-- [ ] TCK test suite passes for `MkDocsOutputFormat`
-- [ ] Core uses `publish()` and returns URLs (not paths)
-- [ ] Legacy `MkDocsDocumentStorage` (457 lines) removed
+- [ ] `UrlConvention` protocol defined
+- [ ] `OutputFormat` protocol with only `url_for()` + `ensure_served()`
+- [ ] `LegacyMkDocsUrlConvention` maintains exact current URLs
+- [ ] `MkDocsOutputFormat` passes conformance tests
+- [ ] Core uses `url_for()` + `ensure_served()` (no status handling)
+- [ ] Legacy `MkDocsDocumentStorage` removed (457 lines)
 - [ ] All tests pass (unit, integration, E2E)
-- [ ] No regressions in generated MkDocs sites
+- [ ] No URL changes (agents continue to work)
 - [ ] Documentation complete
 
 ## References
 
 - Current implementation: `src/egregora/rendering/mkdocs_documents.py` (457 lines)
 - Document abstraction: `src/egregora/core/document.py`
-- Storage protocols: `src/egregora/storage/__init__.py`
 - CLAUDE.md: Architecture section
