@@ -96,23 +96,22 @@ class MkDocsDocumentStorage:
             logger.debug("Document %s already exists at %s, overwriting (idempotent)", doc_id, existing_path)
             # Overwrite at existing path
             path = existing_path
+        # New document - determine storage path
+        elif document.type == DocumentType.POST:
+            path = self._determine_post_path(document)
+        elif document.type == DocumentType.PROFILE:
+            path = self._determine_profile_path(document)
+        elif document.type == DocumentType.JOURNAL:
+            path = self._determine_journal_path(document)
+        elif document.type == DocumentType.ENRICHMENT_URL:
+            path = self._determine_url_enrichment_path(document)
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            path = self._determine_media_enrichment_path(document)
+        elif document.type == DocumentType.MEDIA:
+            path = self._determine_media_path(document)
         else:
-            # New document - determine storage path
-            if document.type == DocumentType.POST:
-                path = self._determine_post_path(document)
-            elif document.type == DocumentType.PROFILE:
-                path = self._determine_profile_path(document)
-            elif document.type == DocumentType.JOURNAL:
-                path = self._determine_journal_path(document)
-            elif document.type == DocumentType.ENRICHMENT_URL:
-                path = self._determine_url_enrichment_path(document)
-            elif document.type == DocumentType.ENRICHMENT_MEDIA:
-                path = self._determine_media_enrichment_path(document)
-            elif document.type == DocumentType.MEDIA:
-                path = self._determine_media_path(document)
-            else:
-                msg = f"Unknown document type: {document.type}"
-                raise ValueError(msg)
+            msg = f"Unknown document type: {document.type}"
+            raise ValueError(msg)
 
         # Write document at determined path
         self._write_document(document, path)
@@ -297,7 +296,9 @@ class MkDocsDocumentStorage:
                 if document.parent_id:
                     metadata["parent_id"] = document.parent_id
 
-                yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                yaml_front = yaml.dump(
+                    metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+                )
                 full_content = f"---\n{yaml_front}---\n\n{document.content}"
                 path.write_text(full_content, encoding="utf-8")
             else:
