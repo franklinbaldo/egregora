@@ -24,7 +24,7 @@ _rate_lock = asyncio.Lock()
 _last_call_monotonic = 0.0
 _sync_rate_lock = threading.Lock()
 _sync_last_call_monotonic = 0.0
-_MIN_INTERVAL_SECONDS = 1.5  # free tier tolerates ~40 RPM, so keep a healthy gap
+_MIN_INTERVAL_SECONDS = 0.8  # Reduced from 1.5s - more aggressive but still safe for free tier (~75 RPM)
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
@@ -180,7 +180,8 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
+                # Use 25% of recommended delay (more aggressive)
+                delay = max(5.0, recommended_delay * 0.25)
             else:
                 delay = base_delay * (2 ** (attempt - 1))
 
@@ -218,7 +219,8 @@ def call_with_retries_sync(
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                delay = max(recommended_delay, 0.0)
+                # Use 25% of recommended delay (more aggressive)
+                delay = max(5.0, recommended_delay * 0.25)
             else:
                 delay = base_delay * (2 ** (attempt - 1))
 

@@ -37,13 +37,14 @@ def _parse_retry_delay(error_response: dict[str, Any]) -> float:
         details = error_response.get("error", {}).get("details", [])
         for detail in details:
             if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
-                retry_delay = detail.get("retryDelay", "60s")
+                retry_delay = detail.get("retryDelay", "10s")
                 match = re.match(r"(\d+)s", retry_delay)
                 if match:
-                    return float(match.group(1))
+                    # Use 25% of the suggested delay (more aggressive)
+                    return max(5.0, float(match.group(1)) * 0.25)
     except (KeyError, ValueError, AttributeError, TypeError):
         logger.debug("Could not parse retry delay")
-    return 60.0
+    return 10.0  # Reduced from 60s to 10s
 
 
 def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
@@ -67,8 +68,8 @@ def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
                     time.sleep(delay)
                     continue
                 except (ValueError, KeyError, AttributeError):
-                    logger.warning("429 error but could not parse response. Waiting 60s...")
-                    time.sleep(60)
+                    logger.warning("429 error but could not parse response. Waiting 10s...")
+                    time.sleep(10)
                     continue
             if attempt < max_retries - 1:
                 logger.warning("Attempt %s/%s failed: %s. Retrying...", attempt + 1, max_retries, e)

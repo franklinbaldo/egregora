@@ -428,7 +428,17 @@ def _setup_pipeline_environment(
 
     # Setup model configuration and client
     model_config = ModelConfig(config=config, cli_model=model_override)
-    client = genai.Client(api_key=api_key)
+    # Configure aggressive retry options to handle rate limits efficiently
+    http_options = genai.types.HttpOptions(
+        retryOptions=genai.types.HttpRetryOptions(
+            attempts=5,  # Max retry attempts
+            initialDelay=2.0,  # Start with 2s delay
+            maxDelay=15.0,  # Cap at 15s (reduced from default 60s)
+            expBase=2.0,  # Exponential backoff multiplier
+            httpStatusCodes=[429, 503],  # Retry on rate limit and service unavailable
+        )
+    )
+    client = genai.Client(api_key=api_key, http_options=http_options)
 
     # Setup enrichment cache
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
@@ -528,6 +538,7 @@ def _process_commands_and_avatars(
     logger.info("[cyan]🖼️  Processing avatar commands...[/]")
     avatar_context = AvatarContext(
         docs_dir=site_paths.docs_dir,
+        media_dir=site_paths.media_dir,
         profiles_dir=site_paths.profiles_dir,
         vision_model=vision_model,
         cache=enrichment_cache,
