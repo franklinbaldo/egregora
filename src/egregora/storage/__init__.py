@@ -199,15 +199,17 @@ class EnrichmentStorage(Protocol):
         """Write media enrichment. Returns enrichment identifier.
 
         Args:
-            filename: Original media filename (from WhatsApp export)
+            filename: Path to media file relative to storage root, including
+                     subdirectories (e.g., "media/images/abc.jpg" or just "file.jpg")
             content: Markdown enrichment content (LLM-generated description)
 
         Returns:
-            Opaque identifier (e.g., "docs/media/{filename}.md")
+            Opaque identifier (e.g., "media/images/abc.jpg.md")
 
         Note:
-            For filesystem implementations, this typically goes next to
-            the media file with .md extension added.
+            For filesystem implementations, enrichment is stored next to
+            the media file with .md extension added (e.g., "abc.jpg.md").
+            Caller is responsible for passing the correct relative path.
 
         """
         ...

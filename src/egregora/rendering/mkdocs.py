@@ -416,19 +416,23 @@ class MkDocsEnrichmentStorage:
         """Write media enrichment to filesystem.
 
         Args:
-            filename: Original media filename (from export)
+            filename: Path to media file relative to site_root (e.g., "media/images/abc.jpg")
             content: Markdown enrichment content
 
         Returns:
-            Relative path string (e.g., "docs/media/{filename}.md")
+            Relative path string (e.g., "media/images/abc.jpg.md")
 
         Note:
             Enrichment is stored next to the media file with .md extension.
             Parent directories are created if needed.
 
+            Modern MkDocs layout uses `docs_dir: '.'` so media files are at
+            site_root/media/... and enrichments go to site_root/media/.../file.md
+
         """
         # Media enrichment goes next to the media file
-        media_path = self.site_root / "docs" / filename
+        # filename is already relative to site_root (e.g., "media/images/abc.jpg")
+        media_path = self.site_root / filename
         enrichment_path = media_path.with_suffix(media_path.suffix + ".md")
 
         # Ensure parent directory exists
