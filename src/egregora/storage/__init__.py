@@ -29,6 +29,9 @@ Example Usage:
 
 from typing import Protocol, runtime_checkable
 
+from egregora.storage.output_format import OutputFormat
+from egregora.storage.url_convention import UrlContext, UrlConvention
+
 
 @runtime_checkable
 class PostStorage(Protocol):
@@ -221,4 +224,8 @@ __all__ = [
     "JournalStorage",
     "PostStorage",
     "ProfileStorage",
+    # New backend-agnostic abstractions
+    "OutputFormat",
+    "UrlConvention",
+    "UrlContext",
 ]
