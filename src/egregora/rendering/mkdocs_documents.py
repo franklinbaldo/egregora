@@ -76,6 +76,8 @@ class MkDocsDocumentStorage:
     def add(self, document: Document) -> str:
         """Store document in MkDocs-specific location.
 
+        Idempotent: If document_id already exists, overwrites at the same path.
+
         Args:
             document: Content-addressed document
 
@@ -88,21 +90,32 @@ class MkDocsDocumentStorage:
         """
         doc_id = document.document_id
 
-        if document.type == DocumentType.POST:
-            path = self._store_post(document)
-        elif document.type == DocumentType.PROFILE:
-            path = self._store_profile(document)
-        elif document.type == DocumentType.JOURNAL:
-            path = self._store_journal(document)
-        elif document.type == DocumentType.ENRICHMENT_URL:
-            path = self._store_url_enrichment(document)
-        elif document.type == DocumentType.ENRICHMENT_MEDIA:
-            path = self._store_media_enrichment(document)
-        elif document.type == DocumentType.MEDIA:
-            path = self._store_media(document)
+        # Check if document already exists (idempotency)
+        if doc_id in self._index:
+            existing_path = self._index[doc_id]
+            logger.debug("Document %s already exists at %s, overwriting (idempotent)", doc_id, existing_path)
+            # Overwrite at existing path
+            path = existing_path
         else:
-            msg = f"Unknown document type: {document.type}"
-            raise ValueError(msg)
+            # New document - determine storage path
+            if document.type == DocumentType.POST:
+                path = self._determine_post_path(document)
+            elif document.type == DocumentType.PROFILE:
+                path = self._determine_profile_path(document)
+            elif document.type == DocumentType.JOURNAL:
+                path = self._determine_journal_path(document)
+            elif document.type == DocumentType.ENRICHMENT_URL:
+                path = self._determine_url_enrichment_path(document)
+            elif document.type == DocumentType.ENRICHMENT_MEDIA:
+                path = self._determine_media_enrichment_path(document)
+            elif document.type == DocumentType.MEDIA:
+                path = self._determine_media_path(document)
+            else:
+                msg = f"Unknown document type: {document.type}"
+                raise ValueError(msg)
+
+        # Write document at determined path
+        self._write_document(document, path)
 
         # Update index
         self._index[doc_id] = path
@@ -223,10 +236,8 @@ class MkDocsDocumentStorage:
 
     # --- Storage helpers (one per document type) ---
 
-    def _store_post(self, document: Document) -> Path:
-        """Store post with MkDocs conventions."""
-        import yaml
-
+    def _determine_post_path(self, document: Document) -> Path:
+        """Determine storage path for post (collision-safe)."""
         # Extract metadata
         slug = document.metadata.get("slug", document.document_id[:8])
         date = document.metadata.get("date", "")
@@ -244,8 +255,16 @@ class MkDocsDocumentStorage:
         path = self.posts_dir / filename
 
         # Handle collisions by adding numeric suffix
+        # Only check if path exists AND is a different document
         counter = 1
         while path.exists():
+            # Check if existing file is the same document (by document_id)
+            existing_doc = self._load_document(path)
+            if existing_doc and existing_doc.document_id == document.document_id:
+                # Same document - reuse path (idempotent)
+                return path
+
+            # Different document - add suffix
             if date:
                 filename = f"{date}-{normalized_slug}-{counter}.md"
             else:
@@ -253,86 +272,81 @@ class MkDocsDocumentStorage:
             path = self.posts_dir / filename
             counter += 1
 
-        # Write with YAML frontmatter
-        yaml_front = yaml.dump(
-            document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
-
         return path
 
-    def _store_profile(self, document: Document) -> Path:
-        """Store profile with frontmatter and .authors.yml update."""
+    def _write_document(self, document: Document, path: Path) -> None:
+        """Write document to filesystem with appropriate format."""
+        import yaml
+
+        # Handle different document types
+        if document.type in (DocumentType.POST, DocumentType.JOURNAL):
+            # Write with YAML frontmatter
+            yaml_front = yaml.dump(
+                document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+            )
+            full_content = f"---\n{yaml_front}---\n\n{document.content}"
+            path.write_text(full_content, encoding="utf-8")
+        elif document.type == DocumentType.PROFILE:
+            # Use write_profile_content (handles frontmatter, .authors.yml)
+            author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
+            write_profile_content(author_uuid, document.content, self.profiles_dir)
+        elif document.type == DocumentType.ENRICHMENT_URL:
+            # URL enrichment with optional frontmatter
+            if document.parent_id or document.metadata:
+                metadata = document.metadata.copy()
+                if document.parent_id:
+                    metadata["parent_id"] = document.parent_id
+
+                yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                full_content = f"---\n{yaml_front}---\n\n{document.content}"
+                path.write_text(full_content, encoding="utf-8")
+            else:
+                path.write_text(document.content, encoding="utf-8")
+        else:
+            # Default: write content as-is (media enrichments, media files)
+            path.write_text(document.content, encoding="utf-8")
+
+    def _determine_profile_path(self, document: Document) -> Path:
+        """Determine storage path for profile."""
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
             raise ValueError(msg)
 
-        # Use write_profile_content (handles frontmatter, .authors.yml)
-        absolute_path_str = write_profile_content(author_uuid, document.content, self.profiles_dir)
-        return Path(absolute_path_str)
+        # Profile path: profiles/{uuid}.md
+        return self.profiles_dir / f"{author_uuid}.md"
 
-    def _store_journal(self, document: Document) -> Path:
-        """Store journal entry."""
-        import yaml
-
+    def _determine_journal_path(self, document: Document) -> Path:
+        """Determine storage path for journal entry."""
         window_label = document.metadata.get("window_label", document.source_window or "unlabeled")
 
         # Sanitize label for filename
         safe_label = window_label.replace(" ", "_").replace(":", "-")
         filename = f"journal_{safe_label}.md"
-        path = self.journal_dir / filename
+        return self.journal_dir / filename
 
-        # Write with YAML frontmatter
-        yaml_front = yaml.dump(
-            document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
-
-        return path
-
-    def _store_url_enrichment(self, document: Document) -> Path:
-        """Store URL enrichment (content-addressed filename)."""
-        import yaml
-
+    def _determine_url_enrichment_path(self, document: Document) -> Path:
+        """Determine storage path for URL enrichment (content-addressed)."""
         # Use document_id as filename (content-addressed)
-        path = self.urls_dir / f"{document.document_id}.md"
+        return self.urls_dir / f"{document.document_id}.md"
 
-        # Add frontmatter with parent_id if present
-        if document.parent_id or document.metadata:
-            metadata = document.metadata.copy()
-            if document.parent_id:
-                metadata["parent_id"] = document.parent_id
-
-            yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        else:
-            path.write_text(document.content, encoding="utf-8")
-
-        return path
-
-    def _store_media_enrichment(self, document: Document) -> Path:
-        """Store media enrichment."""
+    def _determine_media_enrichment_path(self, document: Document) -> Path:
+        """Determine storage path for media enrichment."""
         # Use suggested filename or fall back to document_id
         filename = document.suggested_path or f"{document.document_id}.md"
         filename = filename.removeprefix("docs/media/")
 
         path = self.media_dir / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(document.content, encoding="utf-8")
         return path
 
-    def _store_media(self, document: Document) -> Path:
-        """Store media file."""
+    def _determine_media_path(self, document: Document) -> Path:
+        """Determine storage path for media file."""
         filename = document.suggested_path or document.document_id
         filename = filename.removeprefix("docs/media/")
 
         path = self.media_dir / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(document.content, encoding="utf-8")
         return path
 
     # --- Loading helpers ---
