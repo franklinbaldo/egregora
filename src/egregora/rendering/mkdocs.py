@@ -621,7 +621,11 @@ class MkDocsOutputFormat(OutputFormat):
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        # Check if mkdocs.yml already exists
+        # Check if mkdocs.yml already exists in .egregora/
+        # ALPHA MINDSET: We only check for .egregora/mkdocs.yml (new location).
+        # Legacy root-level mkdocs.yml (from pre-refactor versions) is NOT detected.
+        # This is intentional - no backward compatibility in alpha. Users should migrate
+        # by running `egregora init` in a fresh directory.
         site_paths = resolve_site_paths(site_root)
         mkdocs_path = site_paths.mkdocs_config_path
 
