@@ -4,7 +4,6 @@ Runs conformance tests and format-specific tests for MkDocs filesystem backend.
 """
 
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 

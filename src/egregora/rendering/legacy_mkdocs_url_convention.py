@@ -54,24 +54,24 @@ class LegacyMkDocsUrlConvention:
             >>> ctx = UrlContext(base_url="https://example.com")
             >>> convention.canonical_url(post_doc, ctx)
             'https://example.com/posts/2025-01-11-my-post/'
+
         """
         base = ctx.base_url.rstrip("/")
 
         if document.type == DocumentType.POST:
             return self._post_url(document, base)
-        elif document.type == DocumentType.PROFILE:
+        if document.type == DocumentType.PROFILE:
             return self._profile_url(document, base)
-        elif document.type == DocumentType.JOURNAL:
+        if document.type == DocumentType.JOURNAL:
             return self._journal_url(document, base)
-        elif document.type == DocumentType.ENRICHMENT_URL:
+        if document.type == DocumentType.ENRICHMENT_URL:
             return self._url_enrichment_url(document, base)
-        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+        if document.type == DocumentType.ENRICHMENT_MEDIA:
             return self._media_enrichment_url(document, base)
-        elif document.type == DocumentType.MEDIA:
+        if document.type == DocumentType.MEDIA:
             return self._media_url(document, base)
-        else:
-            # Fallback for unknown types
-            return f"{base}/documents/{document.document_id}/"
+        # Fallback for unknown types
+        return f"{base}/documents/{document.document_id}/"
 
     def _post_url(self, document: Document, base: str) -> str:
         """Generate URL for post document."""
@@ -90,8 +90,7 @@ class LegacyMkDocsUrlConvention:
             else:
                 date_str = str(date)
             return f"{base}/posts/{date_str}-{normalized_slug}/"
-        else:
-            return f"{base}/posts/{normalized_slug}/"
+        return f"{base}/posts/{normalized_slug}/"
 
     def _profile_url(self, document: Document, base: str) -> str:
         """Generate URL for profile document."""
@@ -151,6 +150,7 @@ class LegacyMkDocsUrlConvention:
             'my-post-title'
             >>> conv._slugify("Post #2!")
             'post-2'
+
         """
         # Normalize: lowercase, replace spaces with hyphens
         slug = text.lower().replace(" ", "-")

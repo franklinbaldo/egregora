@@ -43,6 +43,7 @@ class MkDocsOutputFormat:
         >>> url = convention.canonical_url(document, ctx)
         >>> # Format ensures document is served
         >>> format.serve(document)  # Returns nothing (void)
+
     """
 
     def __init__(self, site_root: Path, url_context: UrlContext) -> None:
@@ -54,6 +55,7 @@ class MkDocsOutputFormat:
 
         Side Effects:
             Creates necessary directories
+
         """
         self.site_root = site_root
         self._ctx = url_context
@@ -81,6 +83,7 @@ class MkDocsOutputFormat:
 
         Returns:
             LegacyMkDocsUrlConvention instance
+
         """
         return self._url_convention
 
@@ -99,6 +102,7 @@ class MkDocsOutputFormat:
 
         Returns:
             None (void)
+
         """
         doc_id = document.document_id
 
@@ -141,6 +145,7 @@ class MkDocsOutputFormat:
 
         Returns:
             Filesystem path relative to site_root
+
         """
         # Strip base_url to get URL path
         base = self._ctx.base_url.rstrip("/")
@@ -156,24 +161,20 @@ class MkDocsOutputFormat:
         if document.type == DocumentType.POST:
             # /posts/{date}-{slug}/ → posts/{date}-{slug}.md
             return self.site_root / f"{url_path}.md"
-        elif document.type == DocumentType.PROFILE:
+        if document.type == DocumentType.PROFILE:
             # /profiles/{uuid}/ → profiles/{uuid}.md
             return self.site_root / f"{url_path}.md"
-        elif document.type == DocumentType.JOURNAL:
+        if document.type == DocumentType.JOURNAL:
             # /posts/journal/journal_{label}/ → posts/journal/journal_{label}.md
             return self.site_root / f"{url_path}.md"
-        elif document.type == DocumentType.ENRICHMENT_URL:
+        if document.type == DocumentType.ENRICHMENT_URL:
             # /docs/media/urls/{doc_id}/ → docs/media/urls/{doc_id}.md
             return self.site_root / f"{url_path}.md"
-        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+        if document.type == DocumentType.ENRICHMENT_MEDIA or document.type == DocumentType.MEDIA:
             # /docs/media/{filename} → docs/media/{filename}
             return self.site_root / url_path
-        elif document.type == DocumentType.MEDIA:
-            # /docs/media/{filename} → docs/media/{filename}
-            return self.site_root / url_path
-        else:
-            # Fallback
-            return self.site_root / f"{url_path}.md"
+        # Fallback
+        return self.site_root / f"{url_path}.md"
 
     def _write_document(self, document: Document, path: Path) -> None:
         """Write document to filesystem with appropriate format.
@@ -181,6 +182,7 @@ class MkDocsOutputFormat:
         Args:
             document: Document to write
             path: Filesystem path to write to
+
         """
         import yaml
 
@@ -230,12 +232,11 @@ class MkDocsOutputFormat:
             else:
                 path.write_text(document.content, encoding="utf-8")
 
+        # Default: write content as-is
+        elif isinstance(document.content, bytes):
+            path.write_bytes(document.content)
         else:
-            # Default: write content as-is
-            if isinstance(document.content, bytes):
-                path.write_bytes(document.content)
-            else:
-                path.write_text(document.content, encoding="utf-8")
+            path.write_text(document.content, encoding="utf-8")
 
     def _get_document_id_at_path(self, path: Path) -> str | None:
         """Get document_id of document at path (for idempotency check).
@@ -245,6 +246,7 @@ class MkDocsOutputFormat:
 
         Returns:
             Document ID if readable, None otherwise
+
         """
         if not path.exists():
             return None
@@ -269,6 +271,7 @@ class MkDocsOutputFormat:
 
         Returns:
             New path with numeric suffix
+
         """
         stem = path.stem
         suffix = path.suffix

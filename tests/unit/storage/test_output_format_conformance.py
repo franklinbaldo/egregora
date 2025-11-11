@@ -9,7 +9,6 @@ from datetime import datetime
 import pytest
 
 from egregora.core.document import Document, DocumentType
-from egregora.storage.url_convention import UrlContext
 
 
 class OutputFormatConformanceTests:

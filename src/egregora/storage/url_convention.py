@@ -84,5 +84,6 @@ class UrlConvention(Protocol):
             >>> ctx = UrlContext(base_url="https://example.com")
             >>> convention.canonical_url(post_doc, ctx)
             'https://example.com/posts/2025-01-11-my-post/'
+
         """
         ...

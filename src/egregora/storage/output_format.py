@@ -45,6 +45,7 @@ class OutputFormat(Protocol):
             'legacy-mkdocs'
             >>> format.url_convention.version
             'v1'
+
         """
         ...
 
@@ -75,5 +76,6 @@ class OutputFormat(Protocol):
         Note:
             This method should be idempotent: calling it multiple times with the
             same document should be a safe no-op (no errors, no duplicates).
+
         """
         ...
