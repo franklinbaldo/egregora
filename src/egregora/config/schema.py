@@ -211,6 +211,18 @@ class PipelineConfig(BaseModel):
     )
 
 
+class OutputConfig(BaseModel):
+    """Output format configuration.
+
+    Specifies which output format to use for generated content.
+    """
+
+    format: Literal["mkdocs", "hugo"] = Field(
+        default="mkdocs",
+        description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
+    )
+
+
 class FeaturesConfig(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
@@ -251,6 +263,9 @@ class EgregoraConfig(BaseModel):
     pipeline:
       step_size: 1
       step_unit: days
+
+    output:
+      format: mkdocs
     ```
     """
 
@@ -278,6 +293,10 @@ class EgregoraConfig(BaseModel):
         default_factory=PipelineConfig,
         description="Pipeline settings",
     )
+    output: OutputConfig = Field(
+        default_factory=OutputConfig,
+        description="Output format settings",
+    )
     features: FeaturesConfig = Field(
         default_factory=FeaturesConfig,
         description="Feature flags",
@@ -294,6 +313,7 @@ __all__ = [
     "EnrichmentConfig",
     "FeaturesConfig",
     "ModelsConfig",
+    "OutputConfig",
     "PipelineConfig",
     "PrivacyConfig",
     "RAGConfig",

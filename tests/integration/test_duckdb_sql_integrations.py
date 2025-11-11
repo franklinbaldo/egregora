@@ -14,6 +14,7 @@ from egregora.database import schemas as database_schema
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
+from tests.helpers.storage import InMemoryEnrichmentStorage
 
 if TYPE_CHECKING:
     import duckdb
@@ -147,10 +148,14 @@ def test_enrich_table_persists_results(tmp_path: Path):
         },
     )
 
+    # Create mock output_format with enrichments storage
+    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
+        output_format=output_format,
         duckdb_connection=backend,  # Pass Ibis backend, not raw connection
         target_table=table_name,
     )

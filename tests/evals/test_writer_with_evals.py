@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic_ai.models.test import TestModel
 
+from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer.agent import (
     WriterRuntimeContext,
     write_posts_with_pydantic_agent,
@@ -17,6 +18,7 @@ from egregora.agents.writer.agent import (
 )
 from egregora.config.loader import create_default_config
 from tests.evals.writer_evals import create_writer_dataset
+from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
 
 
@@ -66,14 +68,31 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
     end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
 
+    # MODERN (Adapter Pattern): Use in-memory storage for testing
+    posts_storage = InMemoryPostStorage()
+    profiles_storage = InMemoryProfileStorage()
+    journals_storage = InMemoryJournalStorage()
+    rag_store = VectorStore(rag_dir / "chunks.parquet")
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
+        # Storage protocols (in-memory for testing)
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=None,
+        # LLM client
+        client=batch_client,
+        # Prompt templates directory
+        prompts_dir=None,
+        # Deprecated (kept for backward compatibility)
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        client=batch_client,
-        annotations_store=None,
+        site_root=site_root,
     )
 
     # Use TestModel for deterministic tests
@@ -130,14 +149,31 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
     start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
     end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
 
+    # MODERN (Adapter Pattern): Use in-memory storage for testing
+    posts_storage = InMemoryPostStorage()
+    profiles_storage = InMemoryProfileStorage()
+    journals_storage = InMemoryJournalStorage()
+    rag_store = VectorStore(rag_dir / "chunks.parquet")
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
+        # Storage protocols (in-memory for testing)
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=None,
+        # LLM client
+        client=batch_client,
+        # Prompt templates directory
+        prompts_dir=None,
+        # Deprecated (kept for backward compatibility)
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        client=batch_client,
-        annotations_store=None,
+        site_root=site_root,
     )
 
     # Use TestModel for deterministic tests
@@ -182,14 +218,31 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     start_time = datetime.combine(window_date, datetime.min.time(), tzinfo=ZoneInfo("UTC"))
     end_time = datetime.combine(window_date, datetime.max.time(), tzinfo=ZoneInfo("UTC"))
 
+    # MODERN (Adapter Pattern): Use in-memory storage for testing
+    posts_storage = InMemoryPostStorage()
+    profiles_storage = InMemoryProfileStorage()
+    journals_storage = InMemoryJournalStorage()
+    rag_store = VectorStore(rag_dir / "chunks.parquet")
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
+        # Storage protocols (in-memory for testing)
+        posts=posts_storage,
+        profiles=profiles_storage,
+        journals=journals_storage,
+        # Pre-constructed stores
+        rag_store=rag_store,
+        annotations_store=None,
+        # LLM client
+        client=batch_client,
+        # Prompt templates directory
+        prompts_dir=None,
+        # Deprecated (kept for backward compatibility)
         output_dir=posts_dir,
         profiles_dir=profiles_dir,
         rag_dir=rag_dir,
-        client=batch_client,
-        annotations_store=None,
+        site_root=site_root,
     )
 
     # Use TestModel for deterministic tests

@@ -27,6 +27,7 @@ from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
 from egregora.config import resolve_site_paths
 from egregora.config.schema import DEFAULT_MODEL
+from egregora.prompt_templates import RankingComparisonPromptTemplate, RankingSystemPromptTemplate
 from egregora.utils.logfire_config import logfire_span
 
 console = Console()
@@ -105,6 +106,7 @@ class ComparisonConfig(BaseModel):
     api_key: str
     model: str = DEFAULT_MODEL
     agent_model: object | None = None
+    prompts_dir: Path | None = None  # Custom prompts directory (e.g., site_root/.egregora/prompts)
 
 
 def _parse_message_content(content: Any) -> dict[str, Any] | None:
@@ -481,7 +483,20 @@ async def run_comparison_with_pydantic_agent(config: ComparisonConfig) -> dict[s
     comments_a_display = existing_comments_a or "No comments yet. Be the first!"
     comments_b_display = existing_comments_b or "No comments yet. Be the first!"
     alias_or_uuid = profile.get("alias") or profile["uuid"]
-    prompt = f"You are {alias_or_uuid}, impersonating their reading style and preferences.\n\nProfile bio: {profile.get('bio') or 'No bio available'}\n\nYou will complete a three-turn comparison:\n\n# Turn 1: Choose Winner\nRead these two blog posts and decide which one is better overall.\n\n## Post A: {config.post_a_id}\n{content_a}\n\n## Post B: {config.post_b_id}\n{content_b}\n\nUse the choose_winner tool to declare the winner.\n\n# Turn 2: Comment on Post A\nProvide detailed feedback on Post A.\n\n## What others have said about Post A:\n{comments_a_display}\n\nUse the comment_post_a tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\n# Turn 3: Comment on Post B\nProvide detailed feedback on Post B.\n\n## What others have said about Post B:\n{comments_b_display}\n\nUse the comment_post_b tool to:\n- Rate it (1-5 stars)\n- Write a comment (max 250 chars, markdown supported)\n- Reference existing comments if relevant\n\nComplete all three turns: choose_winner, comment_post_a, comment_post_b."
+
+    # Generate prompt from Jinja template
+    prompt_template = RankingComparisonPromptTemplate(
+        alias_or_uuid=alias_or_uuid,
+        bio=profile.get("bio"),
+        post_a_id=config.post_a_id,
+        content_a=content_a,
+        post_b_id=config.post_b_id,
+        content_b=content_b,
+        comments_a_display=comments_a_display,
+        comments_b_display=comments_b_display,
+        prompts_dir=config.prompts_dir,
+    )
+    prompt = prompt_template.render()
     with logfire_span("ranking_agent", post_a=config.post_a_id, post_b=config.post_b_id, model=config.model):
         if config.agent_model is None:
             if config.api_key:
@@ -489,10 +504,14 @@ async def run_comparison_with_pydantic_agent(config: ComparisonConfig) -> dict[s
             model_instance = config.model
         else:
             model_instance = config.agent_model
+        # Generate system prompt from Jinja template
+        system_prompt_template = RankingSystemPromptTemplate(prompts_dir=config.prompts_dir)
+        system_prompt = system_prompt_template.render()
+
         agent = Agent[RankingAgentState, str](
             model=model_instance,
             deps_type=RankingAgentState,
-            system_prompt="You are a blog post critic providing detailed comparisons.",
+            system_prompt=system_prompt,
         )
         _register_ranking_tools(agent)
         try:

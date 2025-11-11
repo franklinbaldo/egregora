@@ -14,10 +14,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import ibis
+
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from ibis.expr.types import Table
+
+    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,10 +43,114 @@ class HugoOutputFormat(OutputFormat):
     3. Complete the implementation below
     """
 
+    def __init__(self) -> None:
+        """Initialize HugoOutputFormat with uninitialized storage."""
+        self._site_root: Path | None = None
+        self._posts_impl: PostStorage | None = None
+        self._profiles_impl: ProfileStorage | None = None
+        self._journals_impl: JournalStorage | None = None
+        self._enrichments_impl: EnrichmentStorage | None = None
+
     @property
     def format_type(self) -> str:
         """Return 'hugo' as the format type identifier."""
         return "hugo"
+
+    def initialize(self, site_root: Path) -> None:
+        """Initialize Hugo storage implementations.
+
+        Note: Currently reuses MkDocs storage as placeholder since Hugo is not priority.
+        Creates all necessary directories and initializes storage protocol
+        implementations for Hugo filesystem structure.
+
+        Args:
+            site_root: Root directory of the Hugo site
+
+        Raises:
+            ValueError: If site_root is invalid
+            RuntimeError: If storage initialization fails
+
+        """
+        from egregora.rendering.mkdocs import (
+            MkDocsEnrichmentStorage,
+            MkDocsJournalStorage,
+            MkDocsPostStorage,
+            MkDocsProfileStorage,
+        )
+
+        self._site_root = site_root
+
+        # Create storage implementations (using MkDocs as placeholder)
+        self._posts_impl = MkDocsPostStorage(site_root, output_format=self)
+        self._profiles_impl = MkDocsProfileStorage(site_root)
+        self._journals_impl = MkDocsJournalStorage(site_root)
+        self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
+
+        logger.debug(f"Initialized Hugo storage for {site_root}")
+
+    @property
+    def posts(self) -> PostStorage:
+        """Get Hugo post storage implementation.
+
+        Returns:
+            PostStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._posts_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._posts_impl
+
+    @property
+    def profiles(self) -> ProfileStorage:
+        """Get Hugo profile storage implementation.
+
+        Returns:
+            ProfileStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._profiles_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._profiles_impl
+
+    @property
+    def journals(self) -> JournalStorage:
+        """Get Hugo journal storage implementation.
+
+        Returns:
+            JournalStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._journals_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._journals_impl
+
+    @property
+    def enrichments(self) -> EnrichmentStorage:
+        """Get Hugo enrichment storage implementation.
+
+        Returns:
+            EnrichmentStorage instance (currently MkDocs placeholder)
+
+        Raises:
+            RuntimeError: If format not initialized (call initialize() first)
+
+        """
+        if self._enrichments_impl is None:
+            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            raise RuntimeError(msg)
+        return self._enrichments_impl
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root is a Hugo site.
@@ -320,3 +431,92 @@ Consult your Hugo theme documentation for available shortcodes.
 
 **Note**: This is a template. Customize based on your Hugo theme's conventions.
 """
+
+    def list_documents(self) -> Table:  # noqa: C901, PLR0912
+        """List all Hugo documents as Ibis table.
+
+        Returns Ibis table with storage identifiers (relative paths) and modification times.
+        This enables efficient delta detection using Ibis joins/filters.
+
+        Returns:
+            Ibis table with schema:
+                - storage_identifier: string (relative path from site_root)
+                - mtime_ns: int64 (modification time in nanoseconds)
+
+        Example identifiers:
+            - Posts: "content/posts/2025-01-10-my-post.md"
+            - Profiles: "content/profiles/user-123.md"
+            - Media: "static/media/images/uuid.png.md"
+
+        """
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            # Return empty table with correct schema
+            return ibis.memtable(
+                [], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
+            )
+
+        documents = []
+
+        # Scan posts directory
+        posts_dir = self._site_root / "content" / "posts"
+        if posts_dir.exists():
+            for post_file in posts_dir.glob("*.md"):
+                if post_file.is_file():
+                    try:
+                        relative_path = str(post_file.relative_to(self._site_root))
+                        mtime_ns = post_file.stat().st_mtime_ns
+                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
+                    except (OSError, ValueError):
+                        continue
+
+        # Scan profiles directory
+        profiles_dir = self._site_root / "content" / "profiles"
+        if profiles_dir.exists():
+            for profile_file in profiles_dir.glob("*.md"):
+                if profile_file.is_file():
+                    try:
+                        relative_path = str(profile_file.relative_to(self._site_root))
+                        mtime_ns = profile_file.stat().st_mtime_ns
+                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
+                    except (OSError, ValueError):
+                        continue
+
+        # Scan media directory (static/media)
+        media_dir = self._site_root / "static" / "media"
+        if media_dir.exists():
+            for enrichment_file in media_dir.rglob("*.md"):
+                if enrichment_file.is_file():
+                    try:
+                        relative_path = str(enrichment_file.relative_to(self._site_root))
+                        mtime_ns = enrichment_file.stat().st_mtime_ns
+                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
+                    except (OSError, ValueError):
+                        continue
+
+        # Return as Ibis table
+        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
+        return ibis.memtable(documents, schema=schema)
+
+    def resolve_document_path(self, identifier: str) -> Path:
+        """Resolve Hugo storage identifier (relative path) to absolute filesystem path.
+
+        Args:
+            identifier: Relative path from site_root (e.g., "content/posts/2025-01-10-my-post.md")
+
+        Returns:
+            Path: Absolute filesystem path
+
+        Raises:
+            RuntimeError: If output format not initialized
+
+        Example:
+            >>> format.resolve_document_path("content/posts/2025-01-10-my-post.md")
+            Path("/path/to/site/content/posts/2025-01-10-my-post.md")
+
+        """
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            msg = "HugoOutputFormat not initialized - call initialize() first"
+            raise RuntimeError(msg)
+
+        # Hugo identifiers are relative paths from site_root
+        return (self._site_root / identifier).resolve()
