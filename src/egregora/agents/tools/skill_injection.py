@@ -43,20 +43,12 @@ class SkillInjectionDeps(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     parent_agent_model: Model = Field(..., description="Model to use for sub-agent")
-    parent_agent_tools: list[Any] = Field(
-        default_factory=list, description="Tools available to parent agent"
-    )
-    parent_system_prompt: str = Field(
-        default="", description="Parent agent's system prompt"
-    )
-    skills_dir_override: str | None = Field(
-        None, description="Optional override for skills directory"
-    )
+    parent_agent_tools: list[Any] = Field(default_factory=list, description="Tools available to parent agent")
+    parent_system_prompt: str = Field(default="", description="Parent agent's system prompt")
+    skills_dir_override: str | None = Field(None, description="Optional override for skills directory")
 
 
-async def use_skill(
-    ctx: RunContext[SkillInjectionDeps], skill_name: str, task: str
-) -> str:
+async def use_skill(ctx: RunContext[SkillInjectionDeps], skill_name: str, task: str) -> str:
     """Load a skill and execute a task with it using a specialized sub-agent.
 
     This tool spawns a sub-agent with the requested skill content injected into
@@ -110,9 +102,7 @@ async def use_skill(
     # Execute sub-agent
     try:
         summary = await _run_sub_agent(sub_agent, task, skill_name)
-        logger.info(
-            f"Skill usage completed: {skill_name} - {summary[:100]}..."
-        )
+        logger.info(f"Skill usage completed: {skill_name} - {summary[:100]}...")
         return summary
 
     except Exception as e:
@@ -145,9 +135,7 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
     return SkillCompletionResult(summary=summary)
 
 
-def _build_skill_system_prompt(
-    parent_prompt: str, skill_content: str, task: str
-) -> str:
+def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str) -> str:
     """Build system prompt for sub-agent with skill context.
 
     Args:
@@ -168,7 +156,7 @@ to help you complete a specific task.
 
 ## Injected Skill: {skill_content[:500]}...
 
-{'...(skill content truncated)...' if len(skill_content) > 500 else ''}
+{"...(skill content truncated)..." if len(skill_content) > 500 else ""}
 
 ## Your Task
 
@@ -188,9 +176,7 @@ to help you complete a specific task.
 """
 
 
-async def _run_sub_agent(
-    agent: Agent[Any, Any], task: str, skill_name: str
-) -> str:
+async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str) -> str:
     """Run sub-agent and extract summary.
 
     The sub-agent can either:
@@ -221,9 +207,7 @@ async def _run_sub_agent(
         logger.debug(f"Sub-agent used end_skill_use: {clean_summary[:100]}...")
         return clean_summary
     # Agent finished naturally without calling end_skill_use
-    logger.debug(
-        "Sub-agent finished without end_skill_use, using final response as summary"
-    )
+    logger.debug("Sub-agent finished without end_skill_use, using final response as summary")
     return summary
 
 

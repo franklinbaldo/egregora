@@ -55,9 +55,7 @@ class SkillLoader:
 
         # Fallback: create in current directory
         fallback = Path.cwd() / ".egregora" / "skills"
-        logger.warning(
-            f"No .egregora/skills/ directory found, will use: {fallback}"
-        )
+        logger.warning(f"No .egregora/skills/ directory found, will use: {fallback}")
         return fallback
 
     def load_skill(self, skill_name: str) -> SkillContent:
@@ -80,13 +78,8 @@ class SkillLoader:
             if skill_path.exists():
                 break
         else:
-            msg = (
-                f"Skill '{skill_name}' not found in {self.skills_dir}. "
-                f"Tried extensions: .md, .txt, .skill"
-            )
-            raise FileNotFoundError(
-                msg
-            )
+            msg = f"Skill '{skill_name}' not found in {self.skills_dir}. Tried extensions: .md, .txt, .skill"
+            raise FileNotFoundError(msg)
 
         content = skill_path.read_text(encoding="utf-8").strip()
         if not content:
@@ -96,10 +89,7 @@ class SkillLoader:
         # Extract description from first paragraph or heading
         description = self._extract_description(content)
 
-        logger.info(
-            f"Loaded skill: {skill_name} from {skill_path} "
-            f"({len(content)} chars)"
-        )
+        logger.info(f"Loaded skill: {skill_name} from {skill_path} ({len(content)} chars)")
 
         return SkillContent(
             name=skill_name,
