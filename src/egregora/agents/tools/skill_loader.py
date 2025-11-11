@@ -8,10 +8,14 @@ capabilities at runtime.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Safe skill name pattern: alphanumeric, hyphens, underscores only
+_SAFE_SKILL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,23 +62,69 @@ class SkillLoader:
         logger.warning(f"No .egregora/skills/ directory found, will use: {fallback}")
         return fallback
 
+    def _validate_skill_name(self, skill_name: str) -> None:
+        """Validate skill name to prevent directory traversal attacks.
+
+        Args:
+            skill_name: Skill name to validate.
+
+        Raises:
+            ValueError: If skill name contains unsafe characters or path separators.
+
+        """
+        # Check for empty name
+        if not skill_name or not skill_name.strip():
+            msg = "Skill name cannot be empty"
+            raise ValueError(msg)
+
+        # Check for unsafe characters (prevent directory traversal)
+        if not _SAFE_SKILL_NAME_PATTERN.match(skill_name):
+            msg = (
+                f"Invalid skill name: '{skill_name}'. "
+                "Skill names must contain only alphanumeric characters, hyphens, and underscores."
+            )
+            raise ValueError(msg)
+
+        # Additional safety: check for path separators (should be caught by pattern, but be explicit)
+        if "/" in skill_name or "\\" in skill_name or ".." in skill_name:
+            msg = f"Skill name cannot contain path separators or parent directory references: '{skill_name}'"
+            raise ValueError(msg)
+
     def load_skill(self, skill_name: str) -> SkillContent:
         """Load a skill by name.
 
         Args:
             skill_name: Name of the skill (without extension).
+                       Must contain only alphanumeric characters, hyphens, and underscores.
 
         Returns:
             Parsed skill content.
 
         Raises:
             FileNotFoundError: If skill file doesn't exist.
-            ValueError: If skill content is empty.
+            ValueError: If skill name is invalid or skill content is empty.
 
         """
+        # Validate skill name to prevent directory traversal
+        self._validate_skill_name(skill_name)
+
         # Try common extensions
         for ext in [".md", ".txt", ".skill"]:
             skill_path = self.skills_dir / f"{skill_name}{ext}"
+
+            # Double-check: ensure resolved path is within skills_dir
+            # (defense in depth - pattern check should prevent this, but verify)
+            try:
+                skill_path_resolved = skill_path.resolve()
+                skills_dir_resolved = self.skills_dir.resolve()
+                if not skill_path_resolved.is_relative_to(skills_dir_resolved):
+                    msg = f"Security violation: skill path escapes skills directory: {skill_name}"
+                    raise ValueError(msg)
+            except ValueError:
+                # is_relative_to raises ValueError if path is not relative
+                msg = f"Security violation: skill path escapes skills directory: {skill_name}"
+                raise ValueError(msg) from None
+
             if skill_path.exists():
                 break
         else:

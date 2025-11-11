@@ -21,6 +21,77 @@ from egregora.agents.tools.skill_loader import SkillLoader
 class TestSkillLoader:
     """Test skill loader functionality."""
 
+    def test_validate_skill_name_valid(self, tmp_path):
+        """Test validation accepts valid skill names."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        loader = SkillLoader(skills_dir)
+
+        # These should all pass
+        valid_names = [
+            "test-skill",
+            "test_skill",
+            "TestSkill",
+            "test123",
+            "skill-1",
+            "my_skill-v2",
+        ]
+        for name in valid_names:
+            loader._validate_skill_name(name)  # Should not raise
+
+    def test_validate_skill_name_directory_traversal(self, tmp_path):
+        """Test validation rejects directory traversal attempts."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        loader = SkillLoader(skills_dir)
+
+        # These should all fail
+        invalid_names = [
+            "../etc/passwd",
+            "../../secret",
+            "../skill",
+            "skill/../other",
+            "/etc/passwd",
+            "c:\\windows\\system32",
+            "skill/subdir",
+            "skill\\subdir",
+            "..",
+            ".",
+            "skill..txt",  # Contains ".."
+        ]
+        for name in invalid_names:
+            with pytest.raises(ValueError, match="Invalid skill name|cannot contain"):
+                loader._validate_skill_name(name)
+
+    def test_validate_skill_name_empty(self, tmp_path):
+        """Test validation rejects empty names."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        loader = SkillLoader(skills_dir)
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            loader._validate_skill_name("")
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            loader._validate_skill_name("   ")
+
+    def test_load_skill_rejects_path_traversal(self, tmp_path):
+        """Test load_skill rejects directory traversal attempts."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        # Create a file outside skills_dir that attacker might try to read
+        secret_dir = tmp_path / "secrets"
+        secret_dir.mkdir()
+        secret_file = secret_dir / "secret.md"
+        secret_file.write_text("SECRET CONTENT")
+
+        loader = SkillLoader(skills_dir)
+
+        # Try to load the secret file via path traversal
+        with pytest.raises(ValueError, match="Invalid skill name"):
+            loader.load_skill("../secrets/secret")
+
     def test_find_skills_dir_in_current_dir(self, tmp_path):
         """Test finding .egregora/skills in current directory."""
         skills_dir = tmp_path / ".egregora" / "skills"
