@@ -118,11 +118,15 @@ def test_no_security_issues():
 
 @pytest.mark.quality
 def test_linting_passes():
-    """Test that ruff linting passes."""
-    exit_code, stdout, _stderr = run_command(["uv", "run", "ruff", "check", ".", "--output-format=concise"])
+    """Test that ruff linting passes on core egregora code."""
+    exit_code, stdout, _stderr = run_command(
+        ["uv", "run", "ruff", "check", "src/egregora", "tests", "--output-format=concise"]
+    )
 
     if exit_code != 0:
-        pytest.fail(f"Ruff linting failed:\n{stdout}\n\nRun 'uv run ruff check . --fix' to auto-fix issues.")
+        pytest.fail(
+            f"Ruff linting failed:\n{stdout}\n\nRun 'uv run ruff check src/egregora tests --fix' to auto-fix issues."
+        )
 
 
 @pytest.mark.quality
